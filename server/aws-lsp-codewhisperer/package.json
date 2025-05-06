@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.34",
+    "version": "0.0.35",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -33,7 +33,7 @@
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.32",
         "@aws/language-server-runtimes": "^0.2.78",
-        "@aws/lsp-core": "^0.0.4",
+        "@aws/lsp-core": "^0.0.5",
         "@modelcontextprotocol/sdk": "^1.9.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
@@ -42,17 +42,22 @@
         "chokidar": "^4.0.3",
         "deepmerge": "^4.3.1",
         "diff": "^7.0.0",
+        "fast-glob": "^3.3.3",
         "fastest-levenshtein": "^1.0.16",
         "fdir": "^6.4.3",
         "got": "^11.8.5",
         "hpagent": "^1.2.0",
         "ignore": "^7.0.3",
         "js-md5": "^0.8.3",
+        "jszip": "^3.10.1",
         "lokijs": "^1.5.12",
         "picomatch": "^4.0.2",
         "shlex": "2.1.2",
         "uuid": "^11.0.5",
-        "vscode-uri": "^3.1.0"
+        "vscode-uri": "^3.1.0",
+        "ws": "^8.18.0",
+        "xml2js": "^0.6.2",
+        "xmlbuilder2": "^3.1.1"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",
@@ -61,6 +66,7 @@
         "@types/local-indexing": "file:./types/types-local-indexing-1.0.0.tgz",
         "@types/lokijs": "^1.5.14",
         "@types/uuid": "^9.0.8",
+        "@types/xml2js": "^0.4.14",
         "assert": "^2.1.0",
         "copyfiles": "^2.4.1",
         "mock-fs": "^5.2.0",

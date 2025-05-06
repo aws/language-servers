@@ -826,7 +826,6 @@ export const createMynahUi = (
                     type: oldMessage.type,
                     ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
                 }
-
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
         }
@@ -898,6 +897,9 @@ export const createMynahUi = (
         // Adding this conditional check to show the stop message in the center.
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
             message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
+
+        const shouldMute = message.header?.status?.text === 'Stopped' || message.header?.status?.text === 'Rejected'
+
         return {
             body: message.body,
             header: includeHeader ? processedHeader : undefined,
@@ -914,6 +916,7 @@ export const createMynahUi = (
                     : isPairProgrammingMode
                       ? { 'insert-to-cursor': null }
                       : undefined,
+            ...(shouldMute ? { muted: true } : {}),
         }
     }
 

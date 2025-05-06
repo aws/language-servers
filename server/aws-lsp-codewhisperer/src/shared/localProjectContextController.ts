@@ -83,8 +83,8 @@ export class LocalProjectContextController {
     public static async getInstance(): Promise<LocalProjectContextController> {
         try {
             await waitUntil(async () => this.instance, {
-                interval: 100,
-                timeout: 600,
+                interval: 1000,
+                timeout: 60_000,
                 truthy: true,
             })
 
@@ -94,12 +94,7 @@ export class LocalProjectContextController {
 
             return this.instance
         } catch (error) {
-            // throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
-            return {
-                isEnabled: true,
-                getContextCommandItems: () => [],
-                shouldUpdateContextCommandSymbolsOnce: () => false,
-            } as unknown as LocalProjectContextController
+            throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
         }
     }
 
@@ -218,7 +213,7 @@ export class LocalProjectContextController {
                     this.maxIndexSizeMB
                 )
 
-                const projectRoot = this.workspaceFolders.sort()[0].uri
+                const projectRoot = URI.parse(this.workspaceFolders.sort()[0].uri).fsPath
                 await this._vecLib?.buildIndex(sourceFiles, projectRoot, 'all')
                 this.log.info('Context index built successfully')
             }
@@ -353,6 +348,10 @@ export class LocalProjectContextController {
             this.log.error(`Error in getContextCommandPrompt: ${error}`)
             return []
         }
+    }
+
+    public isIndexingEnabled(): boolean {
+        return this._isIndexingEnabled
     }
 
     private fileMeetsFileSizeConstraints(filePath: string, sizeConstraints: SizeConstraints): boolean {

@@ -313,8 +313,9 @@ export class ChatDatabase {
 
             const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
             const tabTitle =
-                (message.type === 'prompt' && message.body.trim().length > 0 ? message.body : tabData?.title) ||
-                'Amazon Q Chat'
+                (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
+                    ? message.body
+                    : tabData?.title) || 'Amazon Q Chat'
             message = this.formatChatHistoryMessage(message)
             if (tabData) {
                 this.#features.logging.log(`Updating existing tab with historyId=${historyId}`)

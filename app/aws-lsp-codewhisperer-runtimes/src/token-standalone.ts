@@ -6,6 +6,7 @@ import {
     QConfigurationServerTokenProxy,
     QNetTransformServerTokenProxy,
     QLocalProjectContextServerTokenProxy,
+    WorkspaceContextServerTokenProxy,
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
 import { createTokenRuntimeProps } from './standalone-common'
@@ -23,6 +24,7 @@ const props = createTokenRuntimeProps(VERSION, [
     QChatServerTokenProxy,
     IdentityServer.create,
     QLocalProjectContextServerTokenProxy,
+    WorkspaceContextServerTokenProxy,
 ])
 
 standalone(props)

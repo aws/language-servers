@@ -7,6 +7,7 @@ type AgenticChatErrorCode =
     | 'MaxAgentLoopIterations'
     | 'InputTooLong' // too much context given to backend service.
     | 'PromptCharacterLimit' // customer prompt exceeds
+    | 'ResponseProcessingTimeout' // response didn't finish streaming in the allowed time
 
 export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'QModelResponse',
@@ -14,6 +15,11 @@ export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'InputTooLong',
     'PromptCharacterLimit',
 ]
+
+export const unactionableErrorCodes: Partial<Record<AgenticChatErrorCode, string>> = {
+    PromptCharacterLimit: 'User prompt contains too many characters',
+}
+
 export class AgenticChatError extends Error {
     constructor(
         message: string,

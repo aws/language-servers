@@ -73,7 +73,7 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryController'
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
-import { getErrorMessage, getHttpStatusCode, isAwsError, isNullish, isObject } from '../../shared/utils'
+import { getErrorMessage, getHttpStatusCode, getRequestID, isAwsError, isNullish, isObject } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -116,9 +116,11 @@ import {
     loadingThresholdMs,
     generateAssistantResponseInputLimit,
     outputLimitExceedsPartialMsg,
+    responseTimeoutMs,
+    responseTimeoutPartialMsg,
 } from './constants'
+import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
 import { URI } from 'vscode-uri'
-import { AgenticChatError, customerFacingErrorCodes } from './errors'
 import { McpManager } from './tools/mcp/mcpManager'
 import { McpTool } from './tools/mcp/mcpTool'
 import { processMcpToolUseMessage } from './tools/mcp/mcpUtils'
@@ -525,6 +527,7 @@ export class AgenticChatController implements ChatHandlers {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
+        let shouldDisplayMessage = true
         metric.recordStart()
 
         while (iterationCount < maxAgentLoopIterations) {
@@ -575,11 +578,13 @@ export class AgenticChatController implements ChatHandlers {
                     userIntent: currentMessage.userInputMessage?.userIntent,
                     origin: currentMessage.userInputMessage?.origin,
                     userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
+                    shouldDisplayMessage: shouldDisplayMessage,
                 })
             }
+            shouldDisplayMessage = true
 
             // Phase 4: Response Processing
-            const result = await this.#processGenerateAssistantResponseResponse(
+            const result = await this.#processGenerateAssistantResponseResponseWithTimeout(
                 response,
                 metric.mergeWith({
                     cwsprChatResponseCode: response.$metadata.httpStatusCode,
@@ -589,6 +594,19 @@ export class AgenticChatController implements ChatHandlers {
                 session,
                 documentReference
             )
+            // This is needed to handle the case where the response stream times out
+            // and we want to auto-retry
+            if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
+                const content =
+                    'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
+                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                    body: 'Response timed out - message took too long to generate',
+                    type: 'answer',
+                    shouldDisplayMessage: false,
+                })
+                currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
+                continue
+            }
 
             //  Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
@@ -608,6 +626,7 @@ export class AgenticChatController implements ChatHandlers {
                             name: result.data!.toolUses[k].name,
                             input: result.data!.toolUses[k].input,
                         })),
+                    shouldDisplayMessage: shouldDisplayMessage,
                 })
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
@@ -629,6 +648,7 @@ export class AgenticChatController implements ChatHandlers {
                 toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
                 if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
+                    shouldDisplayMessage = false
                 }
                 metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
             } else {
@@ -641,6 +661,7 @@ export class AgenticChatController implements ChatHandlers {
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
                     content =
                         'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input. Do not apologize.'
+                    shouldDisplayMessage = false
                 }
             }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
@@ -1290,7 +1311,6 @@ export class AgenticChatController implements ChatHandlers {
                           },
                           {
                               id: 'reject-shell-command',
-                              status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
                           },
@@ -1588,22 +1608,22 @@ export class AgenticChatController implements ChatHandlers {
         tabId: string,
         metric: Metric<CombinedConversationEvent>
     ): ChatResult | ResponseError<ChatResult> {
-        let errorMessage: string | undefined
-        let requestID: string | undefined
-        if (isAwsError(err) || (isObject(err) && typeof getHttpStatusCode(err) === 'number')) {
-            if (err instanceof CodeWhispererStreamingServiceException) {
-                errorMessage = err.message
-                requestID = err.$metadata.requestId
-            } else if (err?.cause?.message) {
-                errorMessage = err?.cause?.message
-                requestID = err.cause?.$metadata.requestId
-            } else if (err instanceof Error || err?.message) {
-                errorMessage = err.message
-            }
+        const errorMessage = getErrorMessage(err)
+        const requestID = getRequestID(err) ?? ''
+        metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
+        metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
 
-            metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
-            metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
-            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, errorMessage)
+        // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
+        if (err.code && err.code in unactionableErrorCodes) {
+            const customErrMessage = unactionableErrorCodes[err.code as keyof typeof unactionableErrorCodes]
+            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, customErrMessage)
+        } else {
+            this.#telemetryController.emitMessageResponseError(
+                tabId,
+                metric.metric,
+                requestID,
+                errorMessage ?? genericErrorMsg
+            )
         }
 
         let authFollowType: ReturnType<typeof getAuthFollowUpType> = undefined
@@ -2016,16 +2036,57 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #processGenerateAssistantResponseResponse(
+    async #processGenerateAssistantResponseResponseWithTimeout(
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
+        const abortController = new AbortController()
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => {
+                abortController.abort()
+                reject(
+                    new AgenticChatError(
+                        `${responseTimeoutPartialMsg} ${responseTimeoutMs}ms`,
+                        'ResponseProcessingTimeout'
+                    )
+                )
+            }, responseTimeoutMs)
+        })
+        const streamWriter = chatResultStream.getResultStreamWriter()
+        const processResponsePromise = this.#processGenerateAssistantResponseResponse(
+            response,
+            metric,
+            chatResultStream,
+            streamWriter,
+            session,
+            contextList,
+            abortController.signal
+        )
+        try {
+            return await Promise.race([processResponsePromise, timeoutPromise])
+        } catch (err) {
+            await streamWriter.close()
+            if (err instanceof AgenticChatError && err.code === 'ResponseProcessingTimeout') {
+                return { success: false, error: err.message }
+            }
+            throw err
+        }
+    }
+
+    async #processGenerateAssistantResponseResponse(
+        response: GenerateAssistantResponseCommandOutput,
+        metric: Metric<AddMessageEvent>,
+        chatResultStream: AgenticChatResultStream,
+        streamWriter: ResultStreamWriter,
+        session: ChatSessionService,
+        contextList?: FileList,
+        abortSignal?: AbortSignal
+    ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging)
-        const streamWriter = chatResultStream.getResultStreamWriter()
 
         // Display context transparency list once at the beginning of response
         // Use a flag to track if contextList has been sent already to avoid ux flickering
@@ -2037,6 +2098,9 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseStartTimes: Record<string, number> = {}
         const toolUseLoadingTimeouts: Record<string, NodeJS.Timeout> = {}
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
+            if (abortSignal?.aborted) {
+                throw new Error('Operation was aborted')
+            }
             if (chatEvent.assistantResponseEvent) {
                 await this.#showUndoAllIfRequired(chatResultStream, session)
             }
