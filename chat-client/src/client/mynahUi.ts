@@ -617,7 +617,7 @@ export const createMynahUi = (
                             : am.type === 'directive'
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
-                    ...prepareChatItemFromMessage(am, isPairProgrammingMode),
+                    ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -826,7 +826,6 @@ export const createMynahUi = (
                     type: oldMessage.type,
                     ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
                 }
-
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
         }
@@ -847,7 +846,11 @@ export const createMynahUi = (
         })
     }
 
-    const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
+    const prepareChatItemFromMessage = (
+        message: ChatMessage,
+        isPairProgrammingMode: boolean,
+        isPartialResult?: boolean
+    ): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
         const fileList = toMynahFileList(message.fileList)
@@ -867,6 +870,11 @@ export const createMynahUi = (
                     fileTreeTitle: '',
                     hideFileCount: true,
                     details: toDetailsWithoutIcon(header.fileList.details),
+                }
+            }
+            if (!isPartialResult) {
+                if (processedHeader) {
+                    processedHeader.status = undefined
                 }
             }
         }
@@ -889,6 +897,9 @@ export const createMynahUi = (
         // Adding this conditional check to show the stop message in the center.
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
             message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
+
+        const shouldMute = message.header?.status?.text === 'Stopped' || message.header?.status?.text === 'Rejected'
+
         return {
             body: message.body,
             header: includeHeader ? processedHeader : undefined,
@@ -905,6 +916,7 @@ export const createMynahUi = (
                     : isPairProgrammingMode
                       ? { 'insert-to-cursor': null }
                       : undefined,
+            ...(shouldMute ? { muted: true } : {}),
         }
     }
 

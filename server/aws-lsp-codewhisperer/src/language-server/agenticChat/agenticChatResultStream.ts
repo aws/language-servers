@@ -224,6 +224,9 @@ export class AgenticChatResultStream {
                 return await this.#sendProgress(combinedResult)
             },
             close: async () => {
+                if (!this.#state.isLocked) {
+                    return
+                }
                 if (lastResult) {
                     this.#state.chatResultBlocks.push(lastResult)
                 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6](https://github.com/aws/language-servers/compare/chat-client/v0.1.5...chat-client/v0.1.6) (2025-05-02)
+
+
+### Bug Fixes
+
+* fix for status duplicates for permission checks ([#1237](https://github.com/aws/language-servers/issues/1237)) ([a77949a](https://github.com/aws/language-servers/commit/a77949a482cd352ebc5c7eeebb1468a052a5496d))
+* stop button showing in non-agentic chat ([#1230](https://github.com/aws/language-servers/issues/1230)) ([5c1b6c2](https://github.com/aws/language-servers/commit/5c1b6c2ed992befca03120635a23b4aa8cda5ebf))
+
 ## [0.1.5](https://github.com/aws/language-servers/compare/chat-client/v0.1.4...chat-client/v0.1.5) (2025-05-01)
 
 

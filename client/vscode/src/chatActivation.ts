@@ -437,7 +437,7 @@ function generateJS(webView: Webview, extensionUri: Uri, agenticMode: boolean): 
             stringValue: '@sage',
         },
     })
-    const stringifiedContextCommands = JSON.stringify(Array.from(chatFeatures.entries()))
+    const stringifiedContextCommands = agenticMode ? JSON.stringify(Array.from(chatFeatures.entries())) : '[]'
 
     return `
     <script type="text/javascript" src="${entrypoint.toString()}" defer onload="init()"></script>

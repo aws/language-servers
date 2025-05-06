@@ -105,6 +105,20 @@ describe('ListDirectory Tool', () => {
         assert.ok(!hasFileC, 'Should not list fileC.md under node_modules in the directory output')
     })
 
+    it('includes files that only start with ignored entry', async () => {
+        const nestedFolder = await tempFolder.nest('foo')
+        await nestedFolder.write('output.md', 'this is some text')
+
+        const listDirectory = new ListDirectory(testFeatures)
+        await listDirectory.validate({ path: tempFolder.path })
+        const result = await listDirectory.invoke({ path: tempFolder.path })
+        assert.strictEqual(result.output.kind, 'text')
+        const lines = result.output.content.split('\n')
+        const hasOutput = lines.some((line: string) => line.includes('output.md'))
+
+        assert.ok(hasOutput, 'Should list output.md under foo in the directory output')
+    })
+
     it('throws error if path does not exist', async () => {
         const missingPath = path.join(tempFolder.path, 'no_such_file.txt')
         const listDirectory = new ListDirectory(testFeatures)
