@@ -143,7 +143,7 @@ export class ChatSessionService {
                         requestId = e.$metadata?.requestId
                     }
                     throw new AgenticChatError(
-                        'Too much context loaded. Please start a new conversation or ask about specific files.',
+                        'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.',
                         'InputTooLong',
                         e instanceof Error ? e : undefined,
                         requestId

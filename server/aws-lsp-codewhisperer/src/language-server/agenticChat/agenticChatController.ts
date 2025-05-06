@@ -1591,6 +1591,10 @@ export class AgenticChatController implements ChatHandlers {
 
         if (customerFacingErrorCodes.includes(err.code)) {
             this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
+            if (err.code === 'InputTooLong') {
+                // Clear the chat history in the database for this tab
+                this.#chatHistoryDb.clearTab(tabId)
+            }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
                 body: err.message,
