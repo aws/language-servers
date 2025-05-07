@@ -397,6 +397,7 @@ export class AgenticChatController implements ChatHandlers {
 
             token.onCancellationRequested(async () => {
                 this.#log('cancellation requested')
+                await this.#showUndoAllIfRequired(chatResultStream, session)
                 await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
                     type: 'directive',
                     messageId: 'stopped' + uuid(),
@@ -903,6 +904,7 @@ export class AgenticChatController implements ChatHandlers {
                     )
                 }
             } catch (err) {
+                await this.#showUndoAllIfRequired(chatResultStream, session)
                 if (this.isUserAction(err, token)) {
                     if (toolUse.name === 'executeBash') {
                         if (err instanceof ToolApprovalException) {
@@ -998,6 +1000,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const toUndo = session.toolUseLookup.get(session.currentUndoAllId)?.relatedToolUses
         if (!toUndo || toUndo.size <= 1) {
+            session.currentUndoAllId = undefined
             return
         }
 
