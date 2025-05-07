@@ -113,7 +113,7 @@ export class AgenticChatTriggerContext {
         let promptContent = prompt.escapedPrompt ?? prompt.prompt
 
         // When the user adds @sage context, ** gets prepended and appended to the prompt because of markdown.
-        // This intereferes with routing logic thus we need to remove it
+        // This interferes with routing logic thus we need to remove it
         if (promptContent && promptContent.includes('@sage')) {
             promptContent = promptContent.replace(/\*\*@sage\*\*/g, '@sage')
         }
@@ -262,7 +262,7 @@ export class AgenticChatTriggerContext {
         chatResultStream?: AgenticChatResultStream
     ): Promise<RelevantTextDocumentAddition[]> {
         const localProjectContextController = await LocalProjectContextController.getInstance()
-        if (!localProjectContextController.isIndexingEnabled && chatResultStream) {
+        if (!localProjectContextController.isIndexingEnabled() && chatResultStream) {
             await chatResultStream.writeResultBlock({
                 body: `To add your workspace as context, enable local indexing in your IDE settings. After enabling, add @workspace to your question, and I'll generate a response using your workspace as context.`,
                 buttons: [
