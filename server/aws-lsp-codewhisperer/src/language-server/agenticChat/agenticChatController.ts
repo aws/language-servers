@@ -546,7 +546,15 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Fix the history to maintain invariants
             if (currentMessage) {
-                this.#chatHistoryDb.fixHistory(tabId, currentMessage, conversationIdentifier ?? '')
+                const isHistoryValid = this.#chatHistoryDb.fixHistory(
+                    tabId,
+                    currentMessage,
+                    conversationIdentifier ?? ''
+                )
+                if (!isHistoryValid) {
+                    this.#features.logging.warn('Skipping request due to invalid tool result/tool use relationship')
+                    break
+                }
             }
 
             //  Retrieve the history from DB; Do not include chatHistory for requests going to Mynah Backend
