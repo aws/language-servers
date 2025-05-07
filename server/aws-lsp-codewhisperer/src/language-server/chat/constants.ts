@@ -50,6 +50,7 @@ export const DEFAULT_EXCLUDE_DIRS = [
     'dist',
     'build',
     'out',
+    '.git',
 ]
 
 export const DEFAULT_EXCLUDE_FILES = [
