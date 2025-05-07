@@ -413,7 +413,7 @@ export class AgenticChatController implements ChatHandlers {
 
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
-                (params.prompt as any).context
+                params.context
             )
             if (additionalContext.length) {
                 triggerContext.documentReference =
