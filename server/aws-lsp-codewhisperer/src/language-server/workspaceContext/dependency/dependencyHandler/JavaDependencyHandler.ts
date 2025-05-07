@@ -47,8 +47,13 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
      * - version: the version of the dependency
      * - path: the path to the dependency
      */
-    initiateDependencyMap(): void {
-        for (const javaDependencyInfo of this.javaDependencyInfos) {
+    initiateDependencyMap(folders: WorkspaceFolder[]): void {
+        // Filter out the javaDependencyInfos that are in the folders
+        const javaDependencyInfoToBeInitiated = this.javaDependencyInfos.filter(javaDependencyInfo => {
+            return folders.includes(javaDependencyInfo.workspaceFolder)
+        })
+
+        for (const javaDependencyInfo of javaDependencyInfoToBeInitiated) {
             // TODO, check if try catch is necessary here
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(javaDependencyInfo)
@@ -71,13 +76,18 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
      * It will setup watchers for the .classpath files.
      * When a change is detected, it will update the dependency map.
      */
-    setupWatchers(): void {
-        this.javaDependencyInfos.forEach((javaDependencyInfo: JavaDependencyInfo) => {
+    setupWatchers(folders: WorkspaceFolder[]): void {
+        // Filter out the javaDependencyInfos that are in the folders
+        const javaDependencyInfoToBeWatched = this.javaDependencyInfos.filter(javaDependencyInfo => {
+            return folders.includes(javaDependencyInfo.workspaceFolder)
+        })
+
+        javaDependencyInfoToBeWatched.forEach((javaDependencyInfo: JavaDependencyInfo) => {
             const dotClasspathPath = javaDependencyInfo.dotClasspathPath
-            this.logging.log(`Setting up Java dependency watcher for ${dotClasspathPath}`)
             if (this.dependencyWatchers.has(dotClasspathPath)) {
                 return
             }
+            this.logging.log(`Setting up Java dependency watcher for ${dotClasspathPath}`)
             try {
                 const watcher = fs.watch(dotClasspathPath, async (eventType, filename) => {
                     if (eventType === 'change') {
@@ -166,5 +176,12 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                 }
             }
         })
+    }
+
+    disposeDependencyInfo(workspaceFolder: WorkspaceFolder): void {
+        // Remove the dependency info for the workspace folder
+        this.javaDependencyInfos = this.javaDependencyInfos.filter(
+            (javaDependencyInfo: JavaDependencyInfo) => javaDependencyInfo.workspaceFolder.uri !== workspaceFolder.uri
+        )
     }
 }
