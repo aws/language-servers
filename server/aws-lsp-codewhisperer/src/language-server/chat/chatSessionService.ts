@@ -67,6 +67,10 @@ export class ChatSessionService {
         return this.#toolUseLookup
     }
 
+    public set toolUseLookup(toolUseLookup) {
+        this.#toolUseLookup = toolUseLookup
+    }
+
     public get currentUndoAllId(): string | undefined {
         return this.#currentUndoAllId
     }
