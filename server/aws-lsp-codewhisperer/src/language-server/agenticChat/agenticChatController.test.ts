@@ -1764,12 +1764,12 @@ describe('AgenticChatController', () => {
             const fibonacci = `function fibonacci(n) {
     if (n <= 1) return n;
 
-    let prev = 0,
+    let prev = 0, 
     let current = 1;
 
     for (let i = 2; i <= n; i++) {
         // Insertion will happen on the line below
-
+        
         const next = prev + current;
         prev = current;
         current = next;
