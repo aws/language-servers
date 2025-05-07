@@ -10,6 +10,7 @@ import * as path from 'path'
 import { loadMcpServerConfigs } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { pathToFileURL } from 'url'
+import * as sinon from 'sinon'
 
 describe('loadMcpServerConfigs', () => {
     let tmpDir: string
@@ -17,6 +18,7 @@ describe('loadMcpServerConfigs', () => {
     let logger: any
 
     beforeEach(() => {
+        sinon.restore()
         tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcpUtilsTest-'))
         // a minimal Workspace stub
         workspace = {

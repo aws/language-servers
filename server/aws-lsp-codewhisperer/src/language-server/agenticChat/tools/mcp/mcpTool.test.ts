@@ -57,4 +57,23 @@ describe('McpTool', () => {
             expect(err.message).to.equal(`Failed to invoke MCP tool: MCP: server 'nope' not connected`)
         }
     })
+
+    it('requiresAcceptance consults manager.requiresApproval flag', async () => {
+        await McpManager.init([], fakeFeatures)
+        const tool = new McpTool(fakeFeatures, definition)
+
+        // stub on the prototype → false
+        const stubFalse = sinon.stub(McpManager.prototype, 'requiresApproval').returns(false)
+        let result = tool.requiresAcceptance(definition.serverName, definition.toolName)
+        expect(result.requiresAcceptance).to.be.false
+        expect(result.warning).to.equal(`About to invoke MCP tool “${definition.toolName}”. Do you want to proceed?`)
+        stubFalse.restore()
+
+        // stub on the prototype → true
+        const stubTrue = sinon.stub(McpManager.prototype, 'requiresApproval').returns(true)
+        result = tool.requiresAcceptance(definition.serverName, definition.toolName)
+        expect(result.requiresAcceptance).to.be.true
+        expect(result.warning).to.equal(`About to invoke MCP tool “${definition.toolName}”. Do you want to proceed?`)
+        stubTrue.restore()
+    })
 })

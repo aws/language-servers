@@ -813,11 +813,15 @@ export class AgenticChatController implements ChatHandlers {
                     // — DEFAULT ⇒ MCP tools
                     default:
                         // toolUse.name is in format <server>_<tool>
-                        const toolName = toolUse.name.split('_').slice(1).join('_')
+                        const [serverName, ...toolParts] = toolUse.name.split('_')
+                        const toolName = toolParts.join('_')
                         const def = McpManager.instance.getAllTools().find(d => d.toolName === toolName)
                         if (def) {
                             const mcpTool = new McpTool(this.#features, def)
-                            const { requiresAcceptance, warning } = await mcpTool.requiresAcceptance(toolUse.input)
+                            const { requiresAcceptance, warning } = await mcpTool.requiresAcceptance(
+                                serverName,
+                                toolName
+                            )
                             if (requiresAcceptance) {
                                 const confirmation = this.#processToolConfirmation(toolUse, requiresAcceptance, warning)
                                 cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmation)
