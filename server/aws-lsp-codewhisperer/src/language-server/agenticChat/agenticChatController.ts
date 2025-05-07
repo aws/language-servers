@@ -611,6 +611,7 @@ export class AgenticChatController implements ChatHandlers {
                     shouldDisplayMessage: false,
                 })
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
+                shouldDisplayMessage = false
                 continue
             }
 
