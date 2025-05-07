@@ -68,8 +68,13 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
      * - version: the version of the dependency
      * - path: the path to the dependency
      */
-    initiateDependencyMap(): void {
-        this.pythonDependencyInfos.forEach(pythonDependencyInfo => {
+    initiateDependencyMap(folders: WorkspaceFolder[]): void {
+        // Filter out the javaDependencyInfos that are in the folders
+        const pythonDependencyInfoToBeInitiated = this.pythonDependencyInfos.filter(pythonDependencyInfo => {
+            return folders.includes(pythonDependencyInfo.workspaceFolder)
+        })
+
+        pythonDependencyInfoToBeInitiated.forEach(pythonDependencyInfo => {
             // TODO, check if the try catch is necessary here
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(pythonDependencyInfo)
@@ -94,12 +99,19 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
      * It will setup watchers for the .classpath files.
      * When a change is detected, it will update the dependency map.
      */
-    setupWatchers(): void {
-        this.pythonDependencyInfos.forEach(pythonDependencyInfo => {
+    setupWatchers(folders: WorkspaceFolder[]): void {
+        // Filter out the javaDependencyInfos that are in the folders
+        const pythonDependencyInfoToBeWatched = this.pythonDependencyInfos.filter(pythonDependencyInfo => {
+            return folders.includes(pythonDependencyInfo.workspaceFolder)
+        })
+
+        pythonDependencyInfoToBeWatched.forEach(pythonDependencyInfo => {
             pythonDependencyInfo.sitePackagesPaths.forEach(sitePackagesPath => {
                 if (this.dependencyWatchers.has(sitePackagesPath)) {
                     return
                 }
+
+                this.logging.log(`Setting up Python dependency watcher for ${sitePackagesPath}`)
                 try {
                     const watcher = fs.watch(sitePackagesPath, { recursive: false }, async (eventType, fileName) => {
                         if (!fileName) return
@@ -255,5 +267,13 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 })
             }
         })
+    }
+
+    disposeDependencyInfo(workspaceFolder: WorkspaceFolder): void {
+        // Remove the dependency info for the workspace folder
+        this.pythonDependencyInfos = this.pythonDependencyInfos.filter(
+            (pythonDependencyInfo: PythonDependencyInfo) =>
+                pythonDependencyInfo.workspaceFolder.uri !== workspaceFolder.uri
+        )
     }
 }
