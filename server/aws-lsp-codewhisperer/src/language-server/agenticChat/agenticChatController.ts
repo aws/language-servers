@@ -1073,7 +1073,7 @@ export class AgenticChatController implements ChatHandlers {
     #getCommandCategoryDescription(category: number): string | undefined {
         switch (category) {
             case 1:
-                return 'This command is mutation.'
+                return 'This command may modify your code and/or files.'
             case 2:
                 return 'This command may cause significant data loss or damage.'
             default:
