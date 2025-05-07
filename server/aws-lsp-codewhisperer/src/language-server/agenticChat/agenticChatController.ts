@@ -1383,12 +1383,12 @@ export class AgenticChatController implements ChatHandlers {
 
     #processReadOrListOrSearch(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
         let messageIdToUpdate = toolUse.toolUseId!
-        const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
+        const currentId = chatResultStream.getMessageIdToUpdateForTool('fileOperations')
 
         if (currentId) {
             messageIdToUpdate = currentId
         } else {
-            chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
+            chatResultStream.setMessageIdToUpdateForTool('fileOperations', messageIdToUpdate)
         }
 
         const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams | FileSearchParams)?.path
@@ -1401,10 +1401,7 @@ export class AgenticChatController implements ChatHandlers {
                 relativeFilePath: currentPath,
                 lineRanges: [{ first: -1, second: -1 }],
             }
-            chatResultStream.addMessageOperation(messageIdToUpdate, toolUse.name!, [
-                ...existingPaths,
-                currentFileDetail,
-            ])
+            chatResultStream.addMessageOperation(messageIdToUpdate, 'fsRead', [...existingPaths, currentFileDetail])
         }
         let title: string
         const itemCount = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths.length
@@ -1412,12 +1409,7 @@ export class AgenticChatController implements ChatHandlers {
         if (!itemCount) {
             title = 'Gathering context'
         } else {
-            title =
-                toolUse.name === 'fsRead'
-                    ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === 'fileSearch'
-                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
-                      : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+            title = `${itemCount} file${itemCount > 1 ? 's' : ''} found`
         }
         const details: Record<string, FileDetails> = {}
         for (const item of filePathsPushed) {
@@ -1767,7 +1759,7 @@ export class AgenticChatController implements ChatHandlers {
                 isDeleted: false,
                 fileContent: toolUse.fileChange?.after,
             })
-        } else if (toolUse?.name === 'fsRead') {
+        } else if (toolUse?.name === 'fsRead' || toolUse?.name === 'listDirectory' || toolUse?.name === 'fileSearch') {
             await this.#features.lsp.window.showDocument({ uri: URI.file(params.filePath).toString() })
         } else {
             const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
