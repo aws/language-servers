@@ -179,7 +179,9 @@ export class WorkspaceFolderManager {
             })
         }
         // Snapshot the workspace
-        this.snapshotWorkspace(folders)
+        this.snapshotWorkspace(folders).catch(e => {
+            this.logging.warn(`Error during snapshot workspace: ${e}`)
+        })
     }
 
     private async snapshotWorkspace(folders: WorkspaceFolder[]) {
@@ -677,7 +679,9 @@ export class WorkspaceFolderManager {
         }
         const initialResult = await this.createNewWorkspace(workspace)
         if (folder) {
-            this.snapshotWorkspace([folder])
+            this.snapshotWorkspace([folder]).catch(e => {
+                this.logging.warn(`Error during snapshot workspace: ${e}`)
+            })
         }
 
         // If creation succeeds, schedule a single connection attempt to happen in 30 seconds
