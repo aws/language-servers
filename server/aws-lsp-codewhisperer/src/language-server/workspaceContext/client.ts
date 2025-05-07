@@ -178,10 +178,15 @@ export class WebSocketClient {
         this.reconnectAttempts = this.maxReconnectAttempts
 
         if (this.ws) {
-            // Remove all event listeners
-            this.ws.removeAllListeners()
-            // Close the connection
             this.ws.close()
+            // Allow the close event to be processed before removing listeners
+            setTimeout(() => {
+                if (this.ws) {
+                    this.ws.removeAllListeners()
+                }
+            }, 1000)
+            // Terminate the connection
+            this.ws.terminate()
             this.ws = null
         }
 

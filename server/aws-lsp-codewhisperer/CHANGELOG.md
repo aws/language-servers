@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.0.36](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.35...lsp-codewhisperer/v0.0.36) (2025-05-07)
+
+
+### Features
+
+* add request id to default log level ([#1221](https://github.com/aws/language-servers/issues/1221)) ([fe31f26](https://github.com/aws/language-servers/commit/fe31f266eb481d9899c4924f878fe49f6bfe94aa))
+* adding a check before invoking workspace context ([#1227](https://github.com/aws/language-servers/issues/1227)) ([3202b6e](https://github.com/aws/language-servers/commit/3202b6e0654a8037a3be3c50afa60960ce7bda91))
+* **amazonq:** add error code handling for transformation jobs ([#1174](https://github.com/aws/language-servers/issues/1174)) ([634587c](https://github.com/aws/language-servers/commit/634587c93f08315f0676608b6f8687d309104cac))
+* customizations profiles update ([#1246](https://github.com/aws/language-servers/issues/1246)) ([ea589c5](https://github.com/aws/language-servers/commit/ea589c5422f478be84f112295d82b0edb902ff21))
+* server side workspace context capability ([a65fec9](https://github.com/aws/language-servers/commit/a65fec9e0cb092ddc941b164fc049fb13bb628c5))
+
+
+### Bug Fixes
+
+* add support for determing workspace folder with root uri/path on initialize ([#1210](https://github.com/aws/language-servers/issues/1210)) ([5fd3174](https://github.com/aws/language-servers/commit/5fd3174f386fd0e97b8f631d26f457f574d145c4))
+* clear history for `inputTooLong` errors ([#1268](https://github.com/aws/language-servers/issues/1268)) ([b00b014](https://github.com/aws/language-servers/commit/b00b0146b55452c6472d3bc9b44a80afe393b686))
+* emit all errors to get total # of errors ([#1252](https://github.com/aws/language-servers/issues/1252)) ([b425a66](https://github.com/aws/language-servers/commit/b425a667082e67a20e6f265cb0e41d049d5149af))
+* errors/cancellation not resetting undoAll state ([#1273](https://github.com/aws/language-servers/issues/1273)) ([823b199](https://github.com/aws/language-servers/commit/823b199b77de7e715caf31479b9ccc55b0a17445))
+* fix for permission case for execute bash ([66612cd](https://github.com/aws/language-servers/commit/66612cd5fe625dba6d951bc300e538e896e5f392))
+* fix for permission case for execute bash ([#1220](https://github.com/aws/language-servers/issues/1220)) ([66612cd](https://github.com/aws/language-servers/commit/66612cd5fe625dba6d951bc300e538e896e5f392))
+* fix the extra line on executeBash and wrong warning msg for outside workspace ([#1240](https://github.com/aws/language-servers/issues/1240)) ([eacc047](https://github.com/aws/language-servers/commit/eacc0475f2fe0362c155a2bd6be1715b2561d356))
+* hide non-user-generated messages when reloading history ([#1257](https://github.com/aws/language-servers/issues/1257)) ([9540f12](https://github.com/aws/language-servers/commit/9540f12c7d9495b481d0cf61ad2b2c0b8339f156))
+* improve data synchronization of server side workspace context ([#1278](https://github.com/aws/language-servers/issues/1278)) ([f50c4a7](https://github.com/aws/language-servers/commit/f50c4a71103b82a9780e542eef2e3622c16332d5))
+* make LLM less apologetic, increase listDirectory result size ([#1242](https://github.com/aws/language-servers/issues/1242)) ([572cabb](https://github.com/aws/language-servers/commit/572cabb1036171438fe97898f72c85383628bcfd))
+* only keep toolUses with `stop` = true in history ([#1235](https://github.com/aws/language-servers/issues/1235)) ([1edb6af](https://github.com/aws/language-servers/commit/1edb6af0425a3613d7dccb795b7d8178bf1c803c))
+* projectRoot passed to vecLib was malformed ([#1250](https://github.com/aws/language-servers/issues/1250)) ([def522d](https://github.com/aws/language-servers/commit/def522daee62ea37556fefe12352ef28f38523d1))
+* removing warning icon for shell commands ([#1233](https://github.com/aws/language-servers/issues/1233)) ([18b2a18](https://github.com/aws/language-servers/commit/18b2a183ddeb3b58e3ebc9931cea08c1cf781bb7))
+* server side timeout causes ISE ([#1254](https://github.com/aws/language-servers/issues/1254)) ([9cb2440](https://github.com/aws/language-servers/commit/9cb2440c165a296e11e0597e14b6c6aa7205f313))
+* show context transparency list when using [@workspace](https://github.com/workspace) ([#1241](https://github.com/aws/language-servers/issues/1241)) ([291c0ba](https://github.com/aws/language-servers/commit/291c0ba945f311f6c1c071d048792de8735d17b8))
+* switch to ignore entries over patterns ([#1236](https://github.com/aws/language-servers/issues/1236)) ([49ae714](https://github.com/aws/language-servers/commit/49ae7141024f9802d3ce671441f978f487a399aa))
+* typo in cwsprChatTimeToFirstChunk and remove all zeros ([#1222](https://github.com/aws/language-servers/issues/1222)) ([4c940bc](https://github.com/aws/language-servers/commit/4c940bc20a3417e39d66ea73532f99a312d05e35))
+* update header ignore status ([#1239](https://github.com/aws/language-servers/issues/1239)) ([6abf2fd](https://github.com/aws/language-servers/commit/6abf2fd27e8702a89f1ab306f363e04dfa27b978))
+* update listDirectory tool to output in tree-like format to reduce toolSize ([#1260](https://github.com/aws/language-servers/issues/1260)) ([becfee0](https://github.com/aws/language-servers/commit/becfee0d36e9e2a5fb5239c1e34cc6661ca01d94))
+* update reject button status ([#1253](https://github.com/aws/language-servers/issues/1253)) ([78c12c8](https://github.com/aws/language-servers/commit/78c12c8620367ac4276fb564e28ca58292cc8456))
+* update undo-all-changes button icon to undo ([#1238](https://github.com/aws/language-servers/issues/1238)) ([6ebd5eb](https://github.com/aws/language-servers/commit/6ebd5eb8896a487189b79b1bbf1612ec9e95d064))
+* use proper condition for trigger index enablement response ([#1258](https://github.com/aws/language-servers/issues/1258)) ([5aeb694](https://github.com/aws/language-servers/commit/5aeb694f495b8365c958bc9b626d0daf11718458))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.5 to ^0.0.6
+
 ## [0.0.35](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.34...lsp-codewhisperer/v0.0.35) (2025-05-06)
 
 

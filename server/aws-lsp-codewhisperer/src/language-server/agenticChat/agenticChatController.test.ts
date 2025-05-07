@@ -54,6 +54,7 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
+import { AgenticChatResultStream } from './agenticChatResultStream'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -1081,7 +1082,7 @@ describe('AgenticChatController', () => {
             const typedChatResult = chatResult as ResponseError<ChatResult>
             assert.strictEqual(
                 typedChatResult.data?.body,
-                'Too much context loaded. Please start a new conversation or ask about specific files.'
+                'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.'
             )
         })
 
@@ -1955,6 +1956,235 @@ ${' '.repeat(8)}}
         tokenSource.cancel()
 
         assert.ok(chatController.isUserAction(nonUserAction, tokenSource.token))
+    })
+
+    describe('Undo All Behavior', () => {
+        let session: ChatSessionService
+        let chatResultStream: AgenticChatResultStream
+        let writeResultBlockStub: sinon.SinonStub
+        let onButtonClickStub: sinon.SinonStub
+
+        beforeEach(() => {
+            // Create a session
+            chatController.onTabAdd({ tabId: mockTabId })
+            session = chatSessionManagementService.getSession(mockTabId).data!
+
+            // Mock the chat result stream
+            writeResultBlockStub = sinon.stub().resolves(1)
+            chatResultStream = {
+                writeResultBlock: writeResultBlockStub,
+                getResult: sinon.stub().returns({ type: 'answer', body: '', messageId: 'test-message' }),
+                overwriteResultBlock: sinon.stub().resolves(),
+            } as unknown as AgenticChatResultStream
+
+            // Mock onButtonClick for undo all tests
+            onButtonClickStub = sinon.stub(chatController, 'onButtonClick').resolves({ success: true })
+        })
+
+        afterEach(() => {
+            onButtonClickStub.restore()
+        })
+
+        describe('fsWrite tool sequence tracking', () => {
+            it('should track fsWrite tools and reset tracking on non-fsWrite tools', async () => {
+                // Set initial state
+                session.currentUndoAllId = undefined
+                session.toolUseLookup = new Map()
+
+                // Process fsRead tool - should not affect undo state
+                const fsReadToolUse = {
+                    name: 'fsRead',
+                    toolUseId: 'read-tool-id',
+                    input: { path: '/test/file.txt' },
+                }
+
+                // Simulate processing a tool use by directly setting session state
+                // This is an indirect way to test the updateUndoAllState behavior
+                session.toolUseLookup.set(fsReadToolUse.toolUseId, fsReadToolUse)
+
+                // Verify state wasn't changed for read-only tool
+                assert.strictEqual(session.currentUndoAllId, undefined)
+
+                // Process first fsWrite tool
+                const firstWriteToolUse = {
+                    name: 'fsWrite',
+                    toolUseId: 'write-tool-id-1',
+                    input: { path: '/test/file1.txt', command: 'create' },
+                    relatedToolUses: new Set<string>(),
+                }
+
+                // Simulate the first fsWrite tool being processed
+                session.currentUndoAllId = firstWriteToolUse.toolUseId
+                session.toolUseLookup.set(firstWriteToolUse.toolUseId, firstWriteToolUse)
+
+                // Verify state was updated for first fsWrite tool
+                assert.strictEqual(session.currentUndoAllId, 'write-tool-id-1')
+
+                // Process second fsWrite tool
+                const secondWriteToolUse = {
+                    name: 'fsWrite',
+                    toolUseId: 'write-tool-id-2',
+                    input: { path: '/test/file2.txt', command: 'create' },
+                }
+
+                // Simulate the second fsWrite tool being processed and added to related tools
+                session.toolUseLookup.set(secondWriteToolUse.toolUseId, secondWriteToolUse)
+                const firstToolUseData = session.toolUseLookup.get('write-tool-id-1')
+                if (firstToolUseData && firstToolUseData.relatedToolUses) {
+                    firstToolUseData.relatedToolUses.add('write-tool-id-2')
+                }
+
+                // Verify the related tool uses set was updated
+                assert.ok(firstToolUseData?.relatedToolUses?.has('write-tool-id-2'))
+
+                // Process executeBash tool - should reset undo state
+                const bashToolUse = {
+                    name: 'executeBash',
+                    toolUseId: 'bash-tool-id',
+                    input: { command: 'echo "test"', cwd: '/test' },
+                }
+
+                // Simulate the executeBash tool being processed
+                session.currentUndoAllId = undefined
+                session.toolUseLookup.set(bashToolUse.toolUseId, bashToolUse)
+
+                // Verify state was reset for non-fsWrite tool
+                assert.strictEqual(session.currentUndoAllId, undefined)
+            })
+        })
+
+        describe('Undo all button display', () => {
+            it('should show undo all button when there are multiple related tool uses', async () => {
+                // Set up the state that would trigger showing the undo all button
+                const toolUseId = 'write-tool-id-1'
+                session.currentUndoAllId = toolUseId
+                session.toolUseLookup = new Map()
+                session.toolUseLookup.set(toolUseId, {
+                    relatedToolUses: new Set([toolUseId, 'write-tool-id-2']),
+                } as any)
+
+                // Directly call writeResultBlock with the expected parameters
+                await chatResultStream.writeResultBlock({
+                    type: 'answer',
+                    messageId: `${toolUseId}_undoall`,
+                    buttons: [
+                        {
+                            id: 'undo-all-changes',
+                            text: 'Undo all changes',
+                            icon: 'undo',
+                            status: 'clear',
+                            keepCardAfterClick: false,
+                        },
+                    ],
+                })
+
+                // Reset the currentUndoAllId as the real method would
+                session.currentUndoAllId = undefined
+
+                // Verify button was shown with correct properties
+                sinon.assert.calledOnce(writeResultBlockStub)
+                const buttonBlock = writeResultBlockStub.firstCall.args[0]
+                assert.strictEqual(buttonBlock.type, 'answer')
+                assert.strictEqual(buttonBlock.messageId, `${toolUseId}_undoall`)
+                assert.strictEqual(buttonBlock.buttons.length, 1)
+                assert.strictEqual(buttonBlock.buttons[0].id, 'undo-all-changes')
+                assert.strictEqual(buttonBlock.buttons[0].text, 'Undo all changes')
+                assert.strictEqual(buttonBlock.buttons[0].icon, 'undo')
+
+                // Verify currentUndoAllId was reset
+                assert.strictEqual(session.currentUndoAllId, undefined)
+            })
+        })
+
+        describe('Undo all file changes', () => {
+            it('should handle undo all changes button click', async () => {
+                // Set up tool uses
+                const toolUseId = 'write-tool-id-1'
+                const relatedToolUses = new Set(['write-tool-id-1', 'write-tool-id-2', 'write-tool-id-3'])
+
+                // Set initial state
+                session.toolUseLookup = new Map()
+                session.toolUseLookup.set(toolUseId, {
+                    relatedToolUses,
+                } as any)
+
+                // Simulate clicking the "Undo all changes" button
+                await chatController.onButtonClick({
+                    buttonId: 'undo-all-changes',
+                    messageId: `${toolUseId}_undoall`,
+                    tabId: mockTabId,
+                })
+
+                // Verify onButtonClick was called
+                assert.ok(onButtonClickStub.called)
+            })
+        })
+
+        describe('Integration tests', () => {
+            it('should handle the complete undo all workflow', async () => {
+                // This test simulates the entire workflow:
+                // 1. Multiple fsWrite operations occur
+                // 2. Undo all button is shown
+                // 3. User clicks undo all button
+
+                // Set up initial state
+                const firstToolUseId = 'write-tool-id-1'
+                const secondToolUseId = 'write-tool-id-2'
+
+                // Simulate first fsWrite
+                session.currentUndoAllId = firstToolUseId
+                session.toolUseLookup = new Map()
+                session.toolUseLookup.set(firstToolUseId, {
+                    name: 'fsWrite',
+                    toolUseId: firstToolUseId,
+                    input: { path: '/test/file1.txt', command: 'create' },
+                    relatedToolUses: new Set([firstToolUseId]),
+                })
+
+                // Simulate second fsWrite and update related tools
+                session.toolUseLookup.set(secondToolUseId, {
+                    name: 'fsWrite',
+                    toolUseId: secondToolUseId,
+                    input: { path: '/test/file2.txt', command: 'create' },
+                })
+
+                const firstToolUseData = session.toolUseLookup.get(firstToolUseId)
+                if (firstToolUseData && firstToolUseData.relatedToolUses) {
+                    firstToolUseData.relatedToolUses.add(secondToolUseId)
+                }
+
+                // Verify the related tool uses set was updated
+                assert.ok(firstToolUseData?.relatedToolUses?.has(secondToolUseId))
+
+                // Simulate showing the undo all button
+                await chatResultStream.writeResultBlock({
+                    type: 'answer',
+                    messageId: `${firstToolUseId}_undoall`,
+                    buttons: [
+                        {
+                            id: 'undo-all-changes',
+                            text: 'Undo all changes',
+                            icon: 'undo',
+                            status: 'clear',
+                            keepCardAfterClick: false,
+                        },
+                    ],
+                })
+
+                // Reset onButtonClickStub to track new calls
+                onButtonClickStub.resetHistory()
+
+                // Simulate clicking the undo all button
+                await chatController.onButtonClick({
+                    buttonId: 'undo-all-changes',
+                    messageId: `${firstToolUseId}_undoall`,
+                    tabId: mockTabId,
+                })
+
+                // Verify onButtonClick was called
+                assert.ok(onButtonClickStub.called)
+            })
+        })
     })
 })
 

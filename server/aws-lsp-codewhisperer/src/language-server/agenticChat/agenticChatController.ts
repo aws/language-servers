@@ -397,6 +397,7 @@ export class AgenticChatController implements ChatHandlers {
 
             token.onCancellationRequested(async () => {
                 this.#log('cancellation requested')
+                await this.#showUndoAllIfRequired(chatResultStream, session)
                 await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
                     type: 'directive',
                     messageId: 'stopped' + uuid(),
@@ -412,7 +413,7 @@ export class AgenticChatController implements ChatHandlers {
 
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
-                (params.prompt as any).context
+                params.context
             )
             if (additionalContext.length) {
                 triggerContext.documentReference =
@@ -546,7 +547,15 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Fix the history to maintain invariants
             if (currentMessage) {
-                this.#chatHistoryDb.fixHistory(tabId, currentMessage, conversationIdentifier ?? '')
+                const isHistoryValid = this.#chatHistoryDb.fixHistory(
+                    tabId,
+                    currentMessage,
+                    conversationIdentifier ?? ''
+                )
+                if (!isHistoryValid) {
+                    this.#features.logging.warn('Skipping request due to invalid tool result/tool use relationship')
+                    break
+                }
             }
 
             //  Retrieve the history from DB; Do not include chatHistory for requests going to Mynah Backend
@@ -602,6 +611,7 @@ export class AgenticChatController implements ChatHandlers {
                     shouldDisplayMessage: false,
                 })
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
+                shouldDisplayMessage = false
                 continue
             }
 
@@ -903,6 +913,7 @@ export class AgenticChatController implements ChatHandlers {
                     )
                 }
             } catch (err) {
+                await this.#showUndoAllIfRequired(chatResultStream, session)
                 if (this.isUserAction(err, token)) {
                     if (toolUse.name === 'executeBash') {
                         if (err instanceof ToolApprovalException) {
@@ -998,6 +1009,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const toUndo = session.toolUseLookup.get(session.currentUndoAllId)?.relatedToolUses
         if (!toUndo || toUndo.size <= 1) {
+            session.currentUndoAllId = undefined
             return
         }
 
@@ -1591,6 +1603,10 @@ export class AgenticChatController implements ChatHandlers {
 
         if (customerFacingErrorCodes.includes(err.code)) {
             this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
+            if (err.code === 'InputTooLong') {
+                // Clear the chat history in the database for this tab
+                this.#chatHistoryDb.clearTab(tabId)
+            }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
                 body: err.message,

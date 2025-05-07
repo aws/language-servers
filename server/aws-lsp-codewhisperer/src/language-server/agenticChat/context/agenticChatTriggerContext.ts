@@ -119,7 +119,7 @@ export class AgenticChatTriggerContext {
         }
 
         if (hasWorkspace) {
-            promptContent = promptContent?.replace(/^@workspace\/?/, '')
+            promptContent = promptContent?.replace(/\*\*@workspace\*\*/, '')
         }
 
         // Get workspace documents if @workspace is used
@@ -161,8 +161,8 @@ export class AgenticChatTriggerContext {
                     relativeFilePath: item.relativePath,
                     programmingLanguage: programmingLanguage,
                     type: filteredType,
-                    startLine: item.startLine || -1,
-                    endLine: item.endLine || -1,
+                    startLine: item.startLine ?? -1,
+                    endLine: item.endLine ?? -1,
                 }
                 relevantDocuments.push(relevantTextDocument)
             }
