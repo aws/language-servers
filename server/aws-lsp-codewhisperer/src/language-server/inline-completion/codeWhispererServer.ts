@@ -336,7 +336,7 @@ export const CodewhispererServerFactory =
                     // supplementalContext available only via token authentication
                     const supplementalContextPromise =
                         codeWhispererService instanceof CodeWhispererServiceToken
-                            ? fetchSupplementalContext(textDocument, params.position, workspace, logging, token)
+                            ? fetchSupplementalContext(textDocument, params.position, workspace, logging, token, amazonQServiceManager)
                             : Promise.resolve(undefined)
 
                     let requestContext: GenerateSuggestionsRequest = {
