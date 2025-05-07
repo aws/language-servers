@@ -165,11 +165,13 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
         duration: session.firstCompletionDisplayLatency,
         codewhispererLanguage: session.language,
         credentialStartUrl: session.credentialStartUrl,
+        codewhispererCustomizationArn: session.customizationArn,
     }
 
     telemetry.emitMetric({
         name: 'codewhisperer_perceivedLatency',
         data,
+        result: 'Succeeded',
     })
 }
 
