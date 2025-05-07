@@ -873,7 +873,7 @@ export const createMynahUi = (
                 }
             }
             if (!isPartialResult) {
-                if (processedHeader && processedHeader.status?.text !== 'Change discarded') {
+                if (processedHeader && processedHeader.status?.text !== 'error') {
                     processedHeader.status = undefined
                 }
             }
