@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.8](https://github.com/aws/language-servers/compare/chat-client/v0.1.7...chat-client/v0.1.8) (2025-05-07)
+
+
+### Bug Fixes
+
+* fix for status duplicates for permission checks ([#1237](https://github.com/aws/language-servers/issues/1237)) ([a77949a](https://github.com/aws/language-servers/commit/a77949a482cd352ebc5c7eeebb1468a052a5496d))
+* prefix if user reject/stop command, whole card should be dimmed ([#1212](https://github.com/aws/language-servers/issues/1212)) ([394db61](https://github.com/aws/language-servers/commit/394db61133e09cfaeff2f7510ab60c571c562130))
+* stop button showing in non-agentic chat ([#1230](https://github.com/aws/language-servers/issues/1230)) ([5c1b6c2](https://github.com/aws/language-servers/commit/5c1b6c2ed992befca03120635a23b4aa8cda5ebf))
+
 ## [0.1.7](https://github.com/aws/language-servers/compare/chat-client/v0.1.6...chat-client/v0.1.7) (2025-05-06)
 
 
