@@ -121,6 +121,7 @@ import {
 } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
+import { CommandCategory } from './tools/executeBash'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -1072,9 +1073,9 @@ export class AgenticChatController implements ChatHandlers {
      */
     #getCommandCategoryDescription(category: number): string | undefined {
         switch (category) {
-            case 1:
+            case CommandCategory.Mutate:
                 return 'This command may modify your code and/or files.'
-            case 2:
+            case CommandCategory.Destructive:
                 return 'This command may cause significant data loss or damage.'
             default:
                 return undefined
