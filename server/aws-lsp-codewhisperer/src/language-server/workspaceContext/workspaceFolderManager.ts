@@ -172,12 +172,19 @@ export class WorkspaceFolderManager {
             return
         }
 
+        // CreateWorkspace and Setup state machine workflow
         for (const folder of folders) {
             await this.handleNewWorkspace(folder.uri).catch(e => {
                 this.logging.warn(`Error processing new workspace ${folder.uri} with error: ${e}`)
             })
         }
+        // Snapshot the workspace
+        this.snapshotWorkspace(folders).catch(e => {
+            this.logging.warn(`Error during snapshot workspace: ${e}`)
+        })
+    }
 
+    private async snapshotWorkspace(folders: WorkspaceFolder[]) {
         let sourceCodeMetadata: FileMetadata[] = []
         sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
         //  Kick off dependency discovery but don't wait
@@ -275,7 +282,8 @@ export class WorkspaceFolderManager {
 
             if (websocketClient) {
                 for (const language of programmingLanguages) {
-                    websocketClient
+                    // Wait for message being sent before disconnecting
+                    await websocketClient
                         .send(
                             JSON.stringify({
                                 method: 'workspace/didChangeWorkspaceFolders',
@@ -304,8 +312,22 @@ export class WorkspaceFolderManager {
             }
             this.removeWorkspaceEntry(folder.uri)
             this.dependencyDiscoverer.disposeWorkspaceFolder(folder)
+            this.stopMonitoring(folder.uri)
         }
         await this.artifactManager.removeWorkspaceFolders(workspaceFolders)
+    }
+
+    processRemoteWorkspaceRefresh(workspaceFolders: WorkspaceFolder[]) {
+        for (const folder of workspaceFolders) {
+            const workspaceDetails = this.workspaceMap.get(folder.uri)
+            const websocketClient = workspaceDetails?.webSocketClient
+            if (websocketClient) {
+                websocketClient.destroyClient()
+            }
+            this.removeWorkspaceEntry(folder.uri)
+
+            this.dependencyDiscoverer.disposeWorkspaceFolder(folder)
+        }
     }
 
     private updateWorkspaceEntry(workspaceRoot: WorkspaceRoot, workspaceState: WorkspaceState) {
@@ -428,7 +450,7 @@ export class WorkspaceFolderManager {
             messageQueue: existingState?.messageQueue || [],
         })
 
-        this.processMessagesInQueue(workspace)
+        await this.processMessagesInQueue(workspace)
     }
 
     private async handleNewWorkspace(workspace: WorkspaceRoot, queueEvents?: any[]) {
@@ -557,8 +579,9 @@ export class WorkspaceFolderManager {
             try {
                 const workspaceState = this.workspaceMap.get(workspace)
                 if (!workspaceState) {
-                    // todo, revisit this
-                    this.stopMonitoring(workspace)
+                    // Previously we stop monitoring the workspace if it no longer exists
+                    // But now we want to try give it a chance to re-create the workspace
+                    // this.stopMonitoring(workspace)
                     return
                 }
 
@@ -573,6 +596,8 @@ export class WorkspaceFolderManager {
                 }
 
                 if (!metadata) {
+                    // Workspace no longer exists, Recreate it.
+                    await this.handleWorkspaceCreatedState(workspace)
                     return
                 }
 
@@ -596,6 +621,7 @@ export class WorkspaceFolderManager {
                         // Do nothing while pending
                         break
                     case 'CREATED':
+                        // Workspace has no environment, Recreate it.
                         await this.handleWorkspaceCreatedState(workspace)
                         break
                     default:
@@ -644,7 +670,19 @@ export class WorkspaceFolderManager {
      */
     private async handleWorkspaceCreatedState(workspace: WorkspaceRoot): Promise<void> {
         // If remote state is CREATED, call create API to create a new workspace
+        // snapshot the workspace for the new environment
+        // TODO: this workspace root in the below snapshot function needs to be changes
+        //       after we consolidate workspaceFolder into one Workspace.
+        const folder = this.getWorkspaceFolder(workspace)
+        if (folder) {
+            this.processRemoteWorkspaceRefresh([folder])
+        }
         const initialResult = await this.createNewWorkspace(workspace)
+        if (folder) {
+            this.snapshotWorkspace([folder]).catch(e => {
+                this.logging.warn(`Error during snapshot workspace: ${e}`)
+            })
+        }
 
         // If creation succeeds, schedule a single connection attempt to happen in 30 seconds
         if (initialResult.response) {
@@ -743,11 +781,11 @@ export class WorkspaceFolderManager {
     }
 
     // could this cause messages to be lost??????
-    private processMessagesInQueue(workspaceRoot: WorkspaceRoot) {
+    private async processMessagesInQueue(workspaceRoot: WorkspaceRoot) {
         const workspaceDetails = this.workspaceMap.get(workspaceRoot)
         while (workspaceDetails?.messageQueue && workspaceDetails.messageQueue.length > 0) {
             const message = workspaceDetails.messageQueue.shift()
-            workspaceDetails.webSocketClient?.send(message).catch(error => {
+            await workspaceDetails.webSocketClient?.send(message).catch(error => {
                 this.logging.error(`Error sending message: ${error}`)
             })
         }
