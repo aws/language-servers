@@ -204,13 +204,13 @@ export class AgenticChatTriggerContext {
                                   },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',
+                        modelId,
                     },
                 },
                 customizationArn,
                 history,
             },
             profileArn,
-            modelId,
         }
 
         return data
