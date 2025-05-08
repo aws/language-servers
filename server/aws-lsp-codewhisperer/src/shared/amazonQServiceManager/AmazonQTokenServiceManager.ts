@@ -206,7 +206,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         // Connection type hasn't change.
 
         if (newConnectionType === this.connectionType) {
-            this.logging.debug(`Connection type did not change: ${this.connectionType}`)
+            this.logging.log(`Connection type did not change: ${this.connectionType}`)
 
             return
         }
@@ -270,6 +270,17 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         if (!this.enableDeveloperProfileSupport) {
             this.log('Developer Profiles Support is not enabled')
             return
+        }
+
+        const env = this.features.runtime.getConfiguration('PROFILEARN') ?? ''
+        if (env != '') {
+            const singleDeveloper: AmazonQDeveloperProfile = {
+                arn: env,
+                name: 'shafeek',
+            }
+
+            this.activeIdcProfile = singleDeveloper
+            newProfileArn = env
         }
 
         if (typeof newProfileArn === 'string' && newProfileArn.length === 0) {
@@ -500,8 +511,20 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         service.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
             'shareCodeWhispererContentWithAWS'
         )
-
         this.log('Configured CodeWhispererServiceToken instance settings:')
+
+        const env = this.features.runtime.getConfiguration('PROFILEARN') ?? ''
+        if (env != '') {
+            service.profileArn = env
+            const singleDeveloper: AmazonQDeveloperProfile = {
+                arn: env,
+                name: 'shafeek',
+            }
+
+            this.activeIdcProfile = singleDeveloper
+        }
+
+        this.log('pranav profile arn ' + service.profileArn)
         this.log(
             `customUserAgent=${customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
         )

@@ -60,6 +60,9 @@ export const QConfigurationServerToken =
                 logging
             )
 
+            logging.log(
+                `Pranav 2 ${JSON.stringify(credentialsProvider.getConnectionMetadata())}: ${JSON.stringify(credentialsProvider.getConnectionType())} : ${JSON.stringify(credentialsProvider.getCredentials)}`
+            )
             /* 
                             Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
                             
@@ -71,9 +74,11 @@ export const QConfigurationServerToken =
         lsp.extensions.onGetConfigurationFromServer(
             async (params: GetConfigurationFromServerParams, token: CancellationToken) => {
                 const section = params.section
+                logging.log(`Pranav 1 ${JSON.stringify(params)}: ${JSON.stringify(token)} : ${section}`)
 
                 let customizations: Customizations
                 let developerProfiles: AmazonQDeveloperProfile[]
+                logging.log(`Pranav 3 ${JSON.stringify(serverConfigurationProvider.listAvailableProfiles(token))}`)
 
                 try {
                     switch (section) {
@@ -141,10 +146,11 @@ export class ServerConfigurationProvider {
     }
 
     async listAvailableProfiles(token: CancellationToken): Promise<AmazonQDeveloperProfile[]> {
-        if (!this.serviceManager.getEnableDeveloperProfileSupport()) {
-            this.logging.debug('Q developer profiles disabled - returning empty list')
-            return []
-        }
+        this.logging.debug('pranav 6 listAvailableProfiles' + this.serviceManager.getEnableDeveloperProfileSupport())
+        // if (!this.serviceManager.getEnableDeveloperProfileSupport()) {
+        //     this.logging.debug('Q developer profiles disabled - returning empty list')
+        //     return []
+        // }
 
         try {
             const profiles = await this.listAllAvailableProfilesHandler({
@@ -153,6 +159,7 @@ export class ServerConfigurationProvider {
                 token: token,
             })
 
+            this.logging.debug('pranav 6 listAvailableProfiles' + JSON.stringify(profiles))
             return profiles
         } catch (error) {
             throw this.getResponseError(

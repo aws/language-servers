@@ -48,9 +48,11 @@ export const getListAllAvailableProfilesHandler =
             return []
         }
 
+        logging.log('Pranav - getListAllAvailableProfilesHandler' + connectionType + endpoints)
         const result = await Promise.allSettled(
             Array.from(qEndpoints.entries(), ([region, endpoint]) => {
                 const codeWhispererService = service(region, endpoint)
+                logging.log('Pranav 9 - getListAllAvailableProfilesHandler' + region + endpoint)
                 return fetchProfilesFromRegion(codeWhispererService, region, logging, token)
             })
         )
@@ -82,7 +84,10 @@ async function fetchProfilesFromRegion(
 
     try {
         do {
-            logging.debug(`Fetching profiles from region: ${region} (iteration: ${numberOfPages})`)
+            logging.log(
+                'pranav 10 - getListAllAvailableProfilesHandler' + region + JSON.stringify(service.client.endpoint)
+            )
+            logging.log(`Fetching profiles from region: ${region} (iteration: ${numberOfPages})`)
 
             if (token.isCancellationRequested) {
                 return allRegionalProfiles
@@ -93,6 +98,7 @@ async function fetchProfilesFromRegion(
                 nextToken: nextToken,
             })
 
+            logging.log(`Pranav 4 profiles : ${JSON.stringify(response.profiles)}`)
             const profiles = response.profiles.map(profile => ({
                 arn: profile.arn,
                 name: profile.profileName,
@@ -103,7 +109,7 @@ async function fetchProfilesFromRegion(
 
             allRegionalProfiles.push(...profiles)
 
-            logging.debug(`Fetched profiles from ${region}: ${JSON.stringify(response)} (iteration: ${numberOfPages})`)
+            logging.log(`Fetched profiles from ${region}: ${JSON.stringify(response)} (iteration: ${numberOfPages})`)
             nextToken = response.nextToken
             numberOfPages++
         } while (nextToken !== undefined && numberOfPages < MAX_Q_DEVELOPER_PROFILE_PAGES)

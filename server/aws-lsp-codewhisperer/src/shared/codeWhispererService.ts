@@ -161,6 +161,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         sdkInitializator: SDKInitializator
     ) {
         super(codeWhispererRegion, codeWhispererEndpoint)
+        logging.log('pranav 11 - ' + codeWhispererRegion + ' and end ' + codeWhispererEndpoint)
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -169,18 +170,22 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     this.trackRequest(req)
                     req.on('build', ({ httpRequest }) => {
                         const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                        logging.log('pranav 12 - ' + creds.token)
                         if (!creds?.token) {
                             throw new Error('Authorization failed, bearer token is not set')
                         }
+
                         httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                         httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
                     })
                     req.on('complete', () => {
+                        logging.log('pranav 14 - ' + JSON.stringify(req))
                         this.completeRequest(req)
                     })
                 },
             ],
         }
+        logging.log('pranav 15 - ' + JSON.stringify(options))
         this.client = createCodeWhispererTokenClient(options, sdkInitializator, logging)
     }
 
@@ -189,6 +194,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     private withProfileArn<T extends object>(request: T): T {
+        //this.profileArn = 'arn:aws:transform:us-west-2:274717267842:profile/P9U7YNUPRPCU'
         if (!this.profileArn) return request
 
         return { ...request, profileArn: this.profileArn }

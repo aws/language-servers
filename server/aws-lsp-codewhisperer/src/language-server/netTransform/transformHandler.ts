@@ -77,10 +77,14 @@ export class TransformHandler {
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
             const request = getCWStartTransformRequest(userInputrequest, uploadId, this.logging)
             this.logging.log('Sending request to start transform api: ' + JSON.stringify(request))
+            this.logging.log('API request : codeModernizerStartCodeTransformation request : ' + JSON.stringify(request))
             const response = await this.serviceManager
                 .getCodewhispererService()
                 .codeModernizerStartCodeTransformation(request)
             this.logging.log('Received transformation job Id: ' + response?.transformationJobId)
+            this.logging.log(
+                'API response : codeModernizerStartCodeTransformation response : ' + JSON.stringify(response)
+            )
             return getCWStartTransformResponse(
                 response,
                 uploadId,
@@ -117,14 +121,25 @@ export class TransformHandler {
 
     async uploadPayloadAsync(payloadFileName: string): Promise<string> {
         const sha256 = await ArtifactManager.getSha256Async(payloadFileName)
+        this.logging.log(
+            'API request codeModernizerCreateUploadUrl: ' +
+                JSON.stringify({
+                    contentChecksum: sha256,
+                    contentChecksumType: 'SHA_256',
+                    uploadIntent: 'TRANSFORMATION',
+                })
+        )
         let response: CreateUploadUrlResponse
+        this.logging.log('API request pranav profileArn: ' + this.serviceManager.getCodewhispererService().profileArn)
         try {
             response = await this.serviceManager.getCodewhispererService().codeModernizerCreateUploadUrl({
                 contentChecksum: sha256,
                 contentChecksumType: 'SHA_256',
                 uploadIntent: 'TRANSFORMATION',
             })
+            this.logging.log('Pranav 17 : ' + JSON.stringify(response))
         } catch (e: any) {
+            this.logging.log('Pranav 16 : ' + JSON.stringify(e))
             const errorMessage = (e as Error).message ?? 'Error in CreateUploadUrl API call'
             this.logging.log('Error when creating upload url: ' + errorMessage)
             throw new Error(errorMessage)
@@ -189,10 +204,15 @@ export class TransformHandler {
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as GetTransformationRequest
+            this.logging.log(
+                'API request : codeModernizerGetCodeTransformation request : ' +
+                    JSON.stringify(getCodeTransformationRequest)
+            )
             const response = await this.serviceManager
                 .getCodewhispererService()
                 .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
             this.logging.log('Transformation status: ' + response.transformationJob?.status)
+            this.logging.log('API response : codeModernizerGetCodeTransformation request : ' + JSON.stringify(response))
             return {
                 TransformationJob: response.transformationJob,
             } as GetTransformResponse
@@ -210,9 +230,16 @@ export class TransformHandler {
                 const getCodeTransformationPlanRequest = {
                     transformationJobId: request.TransformationJobId,
                 } as GetTransformationRequest
+                this.logging.log(
+                    'API request : codeModernizerGetCodeTransformationPan request : ' +
+                        JSON.stringify(getCodeTransformationPlanRequest)
+                )
                 const response = await this.serviceManager
                     .getCodewhispererService()
                     .codeModernizerGetCodeTransformationPlan(getCodeTransformationPlanRequest)
+                this.logging.log(
+                    'API response : codeModernizerGetCodeTransformationPan response : ' + JSON.stringify(response)
+                )
                 return {
                     TransformationPlan: response.transformationPlan,
                 } as GetTransformPlanResponse
@@ -244,11 +271,19 @@ export class TransformHandler {
                     transformationJobId: request.TransformationJobId,
                 } as StopTransformationRequest
                 this.logging.log(
+                    'API request : codeModernizerStopCodeTransformation request : ' +
+                        JSON.stringify(stopCodeTransformationRequest)
+                )
+
+                this.logging.log(
                     'Sending CancelTransformRequest with job Id: ' + stopCodeTransformationRequest.transformationJobId
                 )
                 const response = await this.serviceManager
                     .getCodewhispererService()
                     .codeModernizerStopCodeTransformation(stopCodeTransformationRequest)
+                this.logging.log(
+                    'API response : codeModernizerStopCodeTransformation response : ' + JSON.stringify(response)
+                )
                 this.logging.log('Transformation status: ' + response.transformationStatus)
                 let status: CancellationJobStatus
                 switch (response.transformationStatus) {
@@ -358,6 +393,13 @@ export class TransformHandler {
     async downloadExportResultArchive(exportId: string, saveToDir: string) {
         let result
         try {
+            this.logging.log(
+                'API request exportResultArchive: ' +
+                    JSON.stringify({
+                        exportId,
+                        exportIntent: ExportIntent.TRANSFORMATION,
+                    })
+            )
             result = await this.serviceManager.getStreamingClient().client.exportResultArchive({
                 exportId,
                 exportIntent: ExportIntent.TRANSFORMATION,
