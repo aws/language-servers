@@ -187,7 +187,7 @@ export class LocalProjectContextController {
     }
 
     public async updateIndex(filePaths: string[], operation: UpdateMode): Promise<void> {
-        if (!this._vecLib || !this.isIndexingEnabled()) {
+        if (!this.isIndexingEnabled()) {
             return
         }
 
@@ -248,7 +248,7 @@ export class LocalProjectContextController {
     public async queryInlineProjectContext(
         request: QueryInlineProjectContextRequestV2
     ): Promise<InlineProjectContext[]> {
-        if (!this._vecLib || !this.isIndexingEnabled()) {
+        if (!this.isIndexingEnabled()) {
             return []
         }
 
@@ -262,7 +262,7 @@ export class LocalProjectContextController {
     }
 
     public async queryVectorIndex(request: QueryRequest): Promise<Chunk[]> {
-        if (!this._vecLib || !this.isIndexingEnabled()) {
+        if (!this.isIndexingEnabled()) {
             return []
         }
 
@@ -354,7 +354,7 @@ export class LocalProjectContextController {
     }
 
     public isIndexingEnabled(): boolean {
-        return this._isIndexingEnabled
+        return this._vecLib !== undefined && this._isIndexingEnabled
     }
 
     private fileMeetsFileSizeConstraints(filePath: string, sizeConstraints: SizeConstraints): boolean {
