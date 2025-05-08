@@ -141,6 +141,9 @@ export class LocalProjectContextController {
                 if (enableIndexing && !this._isIndexingEnabled) {
                     void this.buildIndex()
                 }
+                if (!enableIndexing && this._isIndexingEnabled) {
+                    this._vecLib?.clear?.()
+                }
                 this._isIndexingEnabled = enableIndexing
                 return
             }
@@ -184,7 +187,7 @@ export class LocalProjectContextController {
     }
 
     public async updateIndex(filePaths: string[], operation: UpdateMode): Promise<void> {
-        if (!this._vecLib) {
+        if (!this._vecLib || !this.isIndexingEnabled()) {
             return
         }
 
@@ -245,7 +248,7 @@ export class LocalProjectContextController {
     public async queryInlineProjectContext(
         request: QueryInlineProjectContextRequestV2
     ): Promise<InlineProjectContext[]> {
-        if (!this._vecLib) {
+        if (!this._vecLib || !this.isIndexingEnabled()) {
             return []
         }
 
@@ -259,7 +262,7 @@ export class LocalProjectContextController {
     }
 
     public async queryVectorIndex(request: QueryRequest): Promise<Chunk[]> {
-        if (!this._vecLib) {
+        if (!this._vecLib || !this.isIndexingEnabled()) {
             return []
         }
 
