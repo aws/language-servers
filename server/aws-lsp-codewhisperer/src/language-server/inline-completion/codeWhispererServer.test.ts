@@ -1526,6 +1526,7 @@ describe('CodeWhisperer Server', () => {
                     duration: 50,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererCustomizationArn: undefined,
                 },
             }
             sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
