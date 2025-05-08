@@ -1806,7 +1806,7 @@ export class AgenticChatController implements ChatHandlers {
     onLinkClick() {}
 
     async onReady() {
-        await this.#tabBarController.loadChats()
+        await this.restorePreviousChats()
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
@@ -2192,6 +2192,14 @@ export class AgenticChatController implements ChatHandlers {
             return tools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
         }
         return tools
+    }
+
+    async restorePreviousChats() {
+        try {
+            await this.#tabBarController.loadChats()
+        } catch (error) {
+            this.#log('Error restoring previous chats: ' + error)
+        }
     }
 
     #createDeferred() {
