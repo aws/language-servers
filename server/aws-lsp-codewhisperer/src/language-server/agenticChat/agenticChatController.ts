@@ -1872,6 +1872,9 @@ export class AgenticChatController implements ChatHandlers {
 
     onLinkClick() {}
 
+    /**
+     * After the Chat UI (mynah-ui) is ready.
+     */
     async onReady() {
         await this.restorePreviousChats()
         try {
@@ -2076,7 +2079,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
-     * Enables or disables the "Upgrade Q" UI in the chat component.
+     * Updates the "Upgrade Q" (subscription tier) state of the UI in the chat component. If `mode` is not given, the user's subscription status is checked by calling the Q service.
      *
      * `mode` behavior:
      * - 'freetier': always show "Upgrade Q" button.
@@ -2095,8 +2098,22 @@ export class AgenticChatController implements ChatHandlers {
         } else if (this.#freeTierLimit && (!mode || mode === 'freetier')) {
             mode = 'freetier-limit'
         } else if (!mode) {
-            const isFreeTierUser = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
-            mode = isFreeTierUser ? 'freetier' : 'paidtier'
+            // Note: intentionally async.
+            this.#serviceManager
+                ?.getCodewhispererService()
+                .getSubscriptionStatus()
+                .then(status => {
+                    this.#log(`getSubscriptionStatus: ${status}`)
+                    this.setUpgradeQMode(tabId, status === 'ACTIVE' ? 'paidtier' : 'freetier')
+                })
+                .catch(err => {
+                    this.#log(`getSubscriptionStatus failed: ${(err as Error).message}`)
+                })
+
+            // const isFreeTierUser = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
+            // mode = isFreeTierUser ? 'freetier' : 'paidtier'
+
+            return
         }
 
         const o: ChatUpdateParams = {

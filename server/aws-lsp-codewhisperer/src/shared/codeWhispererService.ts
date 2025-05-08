@@ -46,6 +46,7 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
+import { getBearerTokenFromProvider } from './utils'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -149,11 +150,14 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     }
 }
 
+/**
+ * Hint: to get an instance of this, see `AmazonQTokenServiceManager.getCodewhispererService()`.
+ */
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
 
     constructor(
-        credentialsProvider: CredentialsProvider,
+        private credentialsProvider: CredentialsProvider,
         workspace: Workspace,
         logging: Logging,
         codeWhispererRegion: string,
@@ -348,5 +352,25 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      */
     async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
         return this.client.listFeatureEvaluations(this.withProfileArn(request)).promise()
+    }
+
+    /**
+     * cool api you have there 🥹
+     */
+    async createSubscriptionToken(request: CodeWhispererTokenClient.CreateSubscriptionTokenRequest) {
+        return this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
+    }
+
+    /**
+     * Gets the Subscription status of the given user.
+     */
+    async getSubscriptionStatus(): Promise<CodeWhispererTokenClient.SubscriptionStatus> {
+        const token = getBearerTokenFromProvider(this.credentialsProvider)
+        const req: CodeWhispererTokenClient.CreateSubscriptionTokenRequest = {
+            accountId: '111111111', // Special dummy account for checking Subscription status.
+            clientToken: token,
+        }
+        const resp = await this.client.createSubscriptionToken(this.withProfileArn(req)).promise()
+        return resp.status
     }
 }
