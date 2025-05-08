@@ -2,6 +2,7 @@ import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { workspaceUtils } from '@aws/lsp-core'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 import * as path from 'path'
+import { CommandCategory } from './executeBash'
 
 interface Output<Kind, Content> {
     kind: Kind
@@ -16,7 +17,7 @@ export interface InvokeOutput {
 export interface CommandValidation {
     requiresAcceptance: boolean
     warning?: string
-    commandCategory?: number // 0 for normal, 1 more mutation, 2 for destructive
+    commandCategory?: CommandCategory
 }
 
 export async function validatePath(path: string, exists: (p: string) => Promise<boolean>) {

@@ -1068,10 +1068,10 @@ export class AgenticChatController implements ChatHandlers {
 
     /**
      * Get a description for the tooltip based on command category
-     * @param commandCategory The category of the command (0: normal, 1: mutation, 2: destructive)
+     * @param commandCategory The category of the command
      * @returns A descriptive message for the tooltip
      */
-    #getCommandCategoryDescription(category: number): string | undefined {
+    #getCommandCategoryDescription(category: CommandCategory): string | undefined {
         switch (category) {
             case CommandCategory.Mutate:
                 return 'This command may modify your code and/or files.'
@@ -1278,7 +1278,7 @@ export class AgenticChatController implements ChatHandlers {
         toolUse: ToolUse,
         requiresAcceptance: Boolean,
         warning?: string,
-        commandCategory?: number,
+        commandCategory?: CommandCategory,
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
@@ -1319,7 +1319,9 @@ export class AgenticChatController implements ChatHandlers {
                               icon: 'warning',
                               status: 'warning',
                               position: 'left',
-                              description: this.#getCommandCategoryDescription(commandCategory ?? 0),
+                              description: this.#getCommandCategoryDescription(
+                                  commandCategory ?? CommandCategory.ReadOnly
+                              ),
                           }
                         : {},
                     body: 'shell',
