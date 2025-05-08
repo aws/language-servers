@@ -346,6 +346,47 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onListConversations(params: ListConversationsParams) {
+        const mcpFilter = params.filter?.type === 'mcp' && params.filter?.category === 'server'
+
+        if (mcpFilter) {
+            const mcpManagerServerConfigs = McpManager.instance.getAllServerConfigs()
+            const serversAndTools = McpManager.instance.listServersAndTools()
+
+            // Transform server configs into conversation items
+            const items = Array.from(mcpManagerServerConfigs.entries()).map(([serverName, config]) => {
+                const toolNames = serversAndTools[serverName] || []
+                const toolsCount = toolNames.length
+
+                return {
+                    id: `mcp-server-${serverName}`,
+                    title: serverName,
+                    subtitle: config.disabled ? 'Disabled' : `${toolsCount} tools available`,
+                    description: `Command: ${config.command}`,
+                    timestamp: new Date().toISOString(),
+                    status: !config.disabled, // true if enabled, false if disabled
+                    metadata: {
+                        serverName,
+                        toolCount: toolsCount,
+                        command: config.command,
+                        args: config.args,
+                        disabled: config.disabled,
+                    },
+                }
+            })
+
+            // Group the items
+            const serverGroup = {
+                title: 'MCP Servers',
+                items,
+            }
+
+            return {
+                header: { title: 'MCP Servers' },
+                list: [serverGroup],
+            }
+        }
+
+        // If not an MCP filter, delegate to the tab bar controller
         return this.#tabBarController.onListConversations(params)
     }
 

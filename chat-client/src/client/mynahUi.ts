@@ -43,7 +43,7 @@ import {
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
-import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
+import { ExportTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
@@ -442,6 +442,11 @@ export const createMynahUi = (
             return false
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
+            if (buttonId === McpServerTabButtonId) {
+                messager.onListMcpServers()
+                return
+            }
+
             if (buttonId === ChatHistory.TabBarButtonId) {
                 messager.onListConversations()
                 return

@@ -88,6 +88,8 @@ export interface OutboundChatApi {
     fileClick(params: FileClickParams): void
     listConversations(params: ListConversationsParams): void
     conversationClick(params: ConversationClickParams): void
+    mcpServerClick(params: ConversationClickParams): void
+    listMcpServers(params: ListConversationsParams): void
     tabBarAction(params: TabBarActionParams): void
     onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
     promptInputOptionChange(params: PromptInputOptionChangeParams): void
@@ -207,6 +209,18 @@ export class Messager {
 
     onListConversations = (filter?: Record<string, FilterValue>): void => {
         this.chatApi.listConversations({ filter })
+    }
+
+    onListMcpServers = (filter?: Record<string, FilterValue>): void => {
+        const mcpFilter: Record<string, FilterValue> = {
+            type: 'mcp',
+            category: 'server',
+        }
+        this.chatApi.listMcpServers({ filter: mcpFilter })
+    }
+
+    onMcpServerClick(id: string, action?: ConversationAction) {
+        this.chatApi.mcpServerClick({ id: id, action })
     }
 
     onConversationClick = (conversationId: string, action?: ConversationAction): void => {

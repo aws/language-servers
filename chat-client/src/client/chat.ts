@@ -212,6 +212,7 @@ export const createChat = (
 
                 if (params?.export) {
                     tabFactory.enableExport()
+                    tabFactory.enableMcp()
                 }
 
                 const initialTabId = mynahApi.createTabId()
@@ -332,6 +333,10 @@ export const createChat = (
         listConversations: (params: ListConversationsParams) => {
             sendMessageToClient({ command: LIST_CONVERSATIONS_REQUEST_METHOD, params })
         },
+        listMcpServers: (params: ListConversationsParams) => {
+            sendMessageToClient({ command: LIST_CONVERSATIONS_REQUEST_METHOD, params })
+        },
+        mcpServerClick: function (params: ConversationClickParams): void {},
         conversationClick: (params: ConversationClickParams) => {
             sendMessageToClient({ command: CONVERSATION_CLICK_REQUEST_METHOD, params })
         },
