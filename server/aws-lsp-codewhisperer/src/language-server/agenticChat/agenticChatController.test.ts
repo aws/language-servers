@@ -1120,11 +1120,7 @@ describe('AgenticChatController', () => {
                 ]
 
                 sinon.stub(LocalProjectContextController, 'getInstance').resolves(localProjectContextController)
-
-                Object.defineProperty(localProjectContextController, 'isEnabled', {
-                    get: () => true,
-                })
-
+                sinon.stub(localProjectContextController, 'isIndexingEnabled').returns(true)
                 sinon.stub(localProjectContextController, 'queryVectorIndex').resolves(mockRelevantDocs)
 
                 await chatController.onChatPrompt(
