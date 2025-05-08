@@ -8,6 +8,7 @@ type AgenticChatErrorCode =
     | 'InputTooLong' // too much context given to backend service.
     | 'PromptCharacterLimit' // customer prompt exceeds
     | 'ResponseProcessingTimeout' // response didn't finish streaming in the allowed time
+    | 'MCPServerInitTimeout' // mcp server failed to start within allowed time
 
 export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'QModelResponse',

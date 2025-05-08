@@ -77,6 +77,9 @@ export async function loadMcpServerConfigs(
                 logging.warn(`MCP server '${name}' in ${fsPath} missing required 'command', skipping.`)
                 continue
             }
+            if ((entry as any).timeout !== undefined && typeof (entry as any).timeout !== 'number') {
+                logging.warn(`Invalid timeout value on '${name}', ignoring.`)
+            }
             const cfg: MCPServerConfig = {
                 command: (entry as any).command,
                 args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
@@ -91,6 +94,10 @@ export async function loadMcpServerConfigs(
                     }
                     return {}
                 })(),
+                initializationTimeout:
+                    typeof (entry as any).initializationTimeout === 'number'
+                        ? (entry as any).initializationTimeout
+                        : undefined,
                 __configPath__: fsPath,
             }
 
