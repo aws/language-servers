@@ -15,6 +15,7 @@
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.77",
         "@aws/lsp-codewhisperer": "*",
+        "@aws/lsp-codewhisperer-runtimes": "file:",
         "copyfiles": "^2.4.1",
         "cross-env": "^7.0.3",
         "cross-spawn": "^7.0.6",

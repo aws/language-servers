@@ -2,11 +2,11 @@
     "folders": [
         {
             "name": "VSCodeLSPClient",
-            "path": "/Users/dhanak/KiwiFlare/language-servers/client/vscode",
+            "path": "/Users/dhanak/KiwiPlugin/language-servers/client/vscode",
         },
         {
             "name": "InlineFlareServer",
-            "path": "/Users/dhanak/KiwiFlare/language-servers/server/aws-lsp-codewhisperer",
+            "path": "/Users/dhanak/KiwiPlugin/language-servers/server/aws-lsp-codewhisperer",
         },
     ],
     "tasks": {
@@ -170,9 +170,9 @@
                     "--disable-extensions",
                     "--enable-proposed-api=aws.awsdocuments-ls-client",
                 ],
-                "outFiles": ["/Users/dhanak/KiwiFlare/**/*.js"],
+                "outFiles": ["/Users/dhanak/KiwiPlugin/**/*.js"],
                 "env": {
-                    "LSP_SERVER": "/Users/dhanak/KiwiFlare/language-servers/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
+                    "LSP_SERVER": "/Users/dhanak/KiwiPlugin/language-servers/app/aws-lsp-codewhisperer-runtimes/out/token-standalone.js",
                     "ENABLE_INLINE_COMPLETION": "true",
                     "ENABLE_ENCRYPTION": "true",
                     "ENABLE_TOKEN_PROVIDER": "true",
