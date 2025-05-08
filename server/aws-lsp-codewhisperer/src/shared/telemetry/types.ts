@@ -35,6 +35,7 @@ export interface CodeWhispererPerceivedLatencyEvent {
     duration?: number
     codewhispererLanguage: CodewhispererLanguage
     credentialStartUrl?: string
+    codewhispererCustomizationArn?: string
 }
 
 export interface CodeWhispererUserTriggerDecisionEvent {
