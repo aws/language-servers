@@ -898,7 +898,10 @@ export const createMynahUi = (
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
             message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
 
-        const shouldMute = message.header?.status?.text === 'Stopped' || message.header?.status?.text === 'Rejected'
+        const shouldMute =
+            message.header?.status?.text === 'Stopped' ||
+            message.header?.status?.text === 'Rejected' ||
+            message.header?.status?.text === 'Allowed'
 
         return {
             body: message.body,

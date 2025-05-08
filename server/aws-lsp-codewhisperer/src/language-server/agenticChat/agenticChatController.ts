@@ -1154,43 +1154,34 @@ export class AgenticChatController implements ChatHandlers {
 
         // For file operations and other tools, create appropriate confirmation UI
         let header: {
-            body: string
+            body: string | undefined
             status: { status: 'info' | 'success' | 'warning' | 'error'; icon: string; text: string }
         }
-        let body: string
+        let body: string | undefined
 
         switch (toolName) {
             case 'fsWrite':
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
                 header = {
-                    body: 'File Write',
+                    body: undefined,
                     status: {
-                        status: isAccept ? 'success' : 'error',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Allowed' : 'Rejected',
+                        status: 'success',
+                        icon: 'ok',
+                        text: 'Allowed',
                     },
                 }
-                body = isAccept
-                    ? `File modification allowed: \`${writeFilePath}\``
-                    : `File modification rejected: \`${writeFilePath}\``
                 break
 
             case 'fsRead':
             case 'listDirectory':
                 // Common handling for read operations
-                const path = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
-                const isDirectory = toolName === 'listDirectory'
                 header = {
-                    body: isDirectory ? 'Directory Listing' : 'File Read',
+                    body: undefined,
                     status: {
-                        status: isAccept ? 'success' : 'error',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Allowed' : 'Rejected',
+                        status: 'success',
+                        icon: 'ok',
+                        text: 'Allowed',
                     },
                 }
-                body = isAccept
-                    ? `${isDirectory ? 'Directory listing' : 'File read'} allowed: \`${path}\``
-                    : `${isDirectory ? 'Directory listing' : 'File read'} rejected: \`${path}\``
                 break
 
             case 'fileSearch':
@@ -1341,8 +1332,8 @@ export class AgenticChatController implements ChatHandlers {
                     },
                 ]
                 header = {
-                    icon: 'warning',
-                    iconForegroundStatus: 'warning',
+                    icon: 'tools',
+                    iconForegroundStatus: 'tools',
                     body: '#### Allow read-only tools outside your workspace',
                     buttons,
                 }
