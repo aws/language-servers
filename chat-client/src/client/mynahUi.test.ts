@@ -52,6 +52,8 @@ describe('MynahUI', () => {
             createPrompt: sinon.stub(),
             fileClick: sinon.stub(),
             listConversations: sinon.stub(),
+            listMcpServers: sinon.stub(),
+            mcpServerClick: sinon.stub(),
             conversationClick: sinon.stub(),
             tabBarAction: sinon.stub(),
             onGetSerializedChat: sinon.stub(),

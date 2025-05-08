@@ -23,6 +23,9 @@ export class ChatHistoryList {
     ) {}
 
     show(params: ListConversationsResult) {
+        // Check if this is an MCP Servers list
+        const isMcpServersList = params.header?.title === 'MCP Servers'
+
         const detailedList = {
             header: params.header,
             filterOptions: params.filterOptions?.map(filter => ({
@@ -45,7 +48,7 @@ export class ChatHistoryList {
                 events: {
                     onFilterValueChange: this.onFilterValueChange,
                     onKeyPress: this.onKeyPress,
-                    onItemSelect: this.onItemSelect,
+                    onItemSelect: isMcpServersList ? this.onMcpServerItemSelect : this.onItemSelect,
                     onActionClick: this.onActionClick,
                     onClose: this.onClose,
                 },
@@ -73,9 +76,23 @@ export class ChatHistoryList {
         this.messager.onConversationClick(item.id)
     }
 
+    private onMcpServerItemSelect = (item: DetailedListItem) => {
+        if (!item.id) {
+            throw new Error('Server id is not defined')
+        }
+
+        if (item.id === 'empty') {
+            return
+        }
+
+        // Handle MCP server item selection
+        // For now, we'll use the same handler as regular items
+        this.messager.onConversationClick(item.id)
+    }
+
     private onActionClick = (action: ChatItemButton) => {
         const conversationAction = this.getConversationAction(action.text)
-        this.messager.onConversationClick(action.id, conversationAction)
+        this.messager.onMcpServerClick(action.id, conversationAction)
     }
 
     private onClose = () => {
