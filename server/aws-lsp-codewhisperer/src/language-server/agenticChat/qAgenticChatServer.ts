@@ -13,7 +13,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
-import { safeGet, getSsoConnectionType } from '../../shared/utils'
+import { safeGet } from '../../shared/utils'
 
 export const QAgenticChatServer =
     // prettier-ignore

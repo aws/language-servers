@@ -37,11 +37,10 @@ export class TabFactory {
         this.initialTabId = TabFactory.generateUniqueId()
     }
 
-    public createTab(disclaimerCardActive: boolean, showUpgradeButton: boolean): MynahUIDataModel {
+    public createTab(disclaimerCardActive: boolean): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
-            promptInputButtons: showUpgradeButton ? [upgradeQButton] : [],
             promptInputOptions: this.agenticMode ? [pairProgrammingPromptInput] : [],
             cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
         }
@@ -51,7 +50,7 @@ export class TabFactory {
     public getChatItems(
         needWelcomeMessages: boolean,
         pairProgrammingCardActive: boolean,
-        paidTierCardActive: boolean,
+        // paidTierCardActive: boolean,
         chatMessages?: ChatMessage[]
     ): ChatItem[] {
         return [
@@ -59,7 +58,7 @@ export class TabFactory {
             ...(needWelcomeMessages
                 ? [
                       ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
-                      ...(paidTierCardActive ? [paidTierCard] : []),
+                      // ...(paidTierCardActive ? [paidTierCard] : []),
                       {
                           type: ChatItemType.ANSWER,
                           body: `Hi, I'm Amazon Q. I can answer your software development questions. 

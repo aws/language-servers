@@ -11,7 +11,7 @@ export const paidTierCard: ChatItem = {
     messageId: 'paidTierCardId',
     fullWidth: true,
     canBeDismissed: false,
-    body: 'You have reached the free tier limit. Upgraded to Amazon Q Pro.\n\n[Learn More...](https://aws.amazon.com/q/pricing/)',
+    body: 'You have reached the free tier limit. Upgrade to Amazon Q Pro.\n\n[Learn More...](https://aws.amazon.com/q/pricing/)',
 }
 
 export const paidTierPromptInput: ChatItemFormItem = {

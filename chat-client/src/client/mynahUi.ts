@@ -265,7 +265,7 @@ export const createMynahUi = (
             // We check if tabMetadata.openTabKey exists - if it does and is set to true, we skip showing welcome messages
             // since this indicates we're loading a previous chat session rather than starting a new one.
             if (!tabStore?.tabMetadata || !tabStore.tabMetadata.openTabKey) {
-                defaultTabConfig.chatItems = tabFactory.getChatItems(true, programmingModeCardActive, false, [])
+                defaultTabConfig.chatItems = tabFactory.getChatItems(true, programmingModeCardActive, [])
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
             messager.onTabAdd(tabId)
@@ -482,7 +482,7 @@ export const createMynahUi = (
                 // Update the tab defaults to hide the programmer mode card for new tabs
                 mynahUi.updateTabDefaults({
                     store: {
-                        chatItems: tabFactory.getChatItems(true, false, false),
+                        chatItems: tabFactory.getChatItems(true, false),
                     },
                 })
             }
@@ -503,7 +503,7 @@ export const createMynahUi = (
             },
         },
         defaults: {
-            store: tabFactory.createTab(false, false),
+            store: tabFactory.createTab(false),
         },
         config: {
             maxTabs: 10,
@@ -543,7 +543,7 @@ export const createMynahUi = (
     // This distinction helps maintain consistent tab behavior between fresh conversations and restored sessions.
     const createTabId = (openTab?: boolean) => {
         const tabId = mynahUi.updateStore('', {
-            ...tabFactory.createTab(disclaimerCardActive, false),
+            ...tabFactory.createTab(disclaimerCardActive),
             tabMetadata: { openTabKey: openTab ? true : false },
         })
         if (tabId === undefined) {
@@ -826,20 +826,16 @@ export const createMynahUi = (
         if (params.data?.placeholderText === 'upgrade-q') {
             const tabId = params.tabId !== 'xxx' ? params.tabId : getOrCreateTabId()!
             const upgradeQMode: 'paidtier' | 'freetier' | 'freetier-limit' = (params as any).upgradeQMode
+            // TODO: only do this for 'freetier-limit'
+            const needUpgrade = upgradeQMode === 'freetier' || upgradeQMode === 'freetier-limit'
 
-            // const chatItem: ChatItem = {
-            //     type: ChatItemType.DIRECTIVE,
-            //     contentHorizontalAlignment: 'center',
-            //     fullWidth: true,
-            //     body: `Upgrade Q: ${upgradeQMode}`,
-            // }
-            // mynahUi.addChatItem(tabId, chatItem)
-            upgradeQButton.description = `Upgrade Q: ${upgradeQMode}`
             mynahUi.updateStore(tabId, {
-                promptInputButtons: upgradeQMode === 'paidtier' ? [] : [upgradeQButton],
-                chatItems: upgradeQMode === 'freetier-limit' ? [paidTierCard] : [],
+                promptInputButtons: needUpgrade ? [upgradeQButton] : [],
+                promptInputDisabledState: needUpgrade,
             })
-            mynahUi.addChatItem(tabId, paidTierCard)
+            if (needUpgrade) {
+                mynahUi.addChatItem(tabId, paidTierCard)
+            }
             return
         }
 
@@ -1027,12 +1023,7 @@ ${params.message}`,
             const tabId = createTabId(true)
             if (tabId) {
                 mynahUi.updateStore(tabId, {
-                    chatItems: tabFactory.getChatItems(
-                        messages ? false : true,
-                        programmingModeCardActive,
-                        false,
-                        messages
-                    ),
+                    chatItems: tabFactory.getChatItems(messages ? false : true, programmingModeCardActive, messages),
                 })
                 messager.onOpenTab(requestId, { tabId })
             } else {
