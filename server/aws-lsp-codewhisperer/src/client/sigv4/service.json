@@ -1,29 +1,62 @@
 {
     "version": "2.0",
     "metadata": {
-        "apiVersion": "2022-06-15",
+        "apiVersion": "2024-10-25",
+        "auth": ["aws.auth#sigv4"],
         "endpointPrefix": "codewhisperer",
         "jsonVersion": "1.0",
         "protocol": "json",
+        "protocols": ["json"],
         "serviceFullName": "AWS CodeWhisperer",
         "serviceId": "CodeWhisperer",
         "signatureVersion": "v4",
         "signingName": "codewhisperer",
         "targetPrefix": "AWSCodeWhispererService",
-        "uid": "codewhisperer-2022-06-15"
+        "uid": "codewhisperer-2024-10-25"
     },
     "operations": {
-        "CreateCodeScan": {
-            "name": "CreateCodeScan",
+        "AllowVendedLogDeliveryForResource": {
+            "name": "AllowVendedLogDeliveryForResource",
             "http": {
                 "method": "POST",
                 "requestUri": "/"
             },
             "input": {
-                "shape": "CreateCodeScanRequest"
+                "shape": "AllowVendedLogDeliveryForResourceRequest"
             },
             "output": {
-                "shape": "CreateCodeScanResponse"
+                "shape": "AllowVendedLogDeliveryForResourceResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>Internal API to authorize a CodeWhisperer resource for vended log delivery.</p>"
+        },
+        "AssociateCustomizationPermission": {
+            "name": "AssociateCustomizationPermission",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "AssociateCustomizationPermissionRequest"
+            },
+            "output": {
+                "shape": "AssociateCustomizationPermissionResponse"
             },
             "errors": [
                 {
@@ -45,23 +78,26 @@
                     "shape": "AccessDeniedException"
                 }
             ],
-            "idempotent": true
+            "documentation": "<p>Add permission for an Identity Center User/Group to use the Customization.</p>"
         },
-        "CreateCodeScanUploadUrl": {
-            "name": "CreateCodeScanUploadUrl",
+        "CreateCustomization": {
+            "name": "CreateCustomization",
             "http": {
                 "method": "POST",
                 "requestUri": "/"
             },
             "input": {
-                "shape": "CreateUploadUrlRequest"
+                "shape": "CreateCustomizationRequest"
             },
             "output": {
-                "shape": "CreateUploadUrlResponse"
+                "shape": "CreateCustomizationResponse"
             },
             "errors": [
                 {
                     "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ConflictException"
                 },
                 {
                     "shape": "InternalServerException"
@@ -72,8 +108,7 @@
                 {
                     "shape": "AccessDeniedException"
                 }
-            ],
-            "idempotent": true
+            ]
         },
         "CreateProfile": {
             "name": "CreateProfile",
@@ -106,7 +141,42 @@
                 {
                     "shape": "AccessDeniedException"
                 }
-            ]
+            ],
+            "documentation": "<p>Creates a CodeWhisperer profile which can then be associated to users/groups of an identity source</p>"
+        },
+        "DeleteCustomization": {
+            "name": "DeleteCustomization",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "DeleteCustomizationRequest"
+            },
+            "output": {
+                "shape": "DeleteCustomizationResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ConflictException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>Deletes CodeWhisperer Customization and associated resources</p>"
         },
         "DeleteProfile": {
             "name": "DeleteProfile",
@@ -139,7 +209,42 @@
                 {
                     "shape": "AccessDeniedException"
                 }
-            ]
+            ],
+            "documentation": "<p>Deletes CodeWhisperer profile and associated resources</p>"
+        },
+        "DisassociateCustomizationPermission": {
+            "name": "DisassociateCustomizationPermission",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "DisassociateCustomizationPermissionRequest"
+            },
+            "output": {
+                "shape": "DisassociateCustomizationPermissionResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ConflictException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>Disassociate the permission for a Customization from an Identity Center User/Group.</p>"
         },
         "GenerateRecommendations": {
             "name": "GenerateRecommendations",
@@ -166,43 +271,20 @@
                 {
                     "shape": "AccessDeniedException"
                 }
-            ]
+            ],
+            "documentation": "<p>Generates recommendations based on the provided file context.</p>"
         },
-        "GetAccessToken": {
-            "name": "GetAccessToken",
+        "GetCustomization": {
+            "name": "GetCustomization",
             "http": {
                 "method": "POST",
                 "requestUri": "/"
             },
             "input": {
-                "shape": "GetAccessTokenRequest"
+                "shape": "GetCustomizationRequest"
             },
             "output": {
-                "shape": "GetAccessTokenResponse"
-            },
-            "errors": [
-                {
-                    "shape": "InternalServerException"
-                },
-                {
-                    "shape": "ValidationException"
-                },
-                {
-                    "shape": "AccessDeniedException"
-                }
-            ]
-        },
-        "GetCodeScan": {
-            "name": "GetCodeScan",
-            "http": {
-                "method": "POST",
-                "requestUri": "/"
-            },
-            "input": {
-                "shape": "GetCodeScanRequest"
-            },
-            "output": {
-                "shape": "GetCodeScanResponse"
+                "shape": "GetCustomizationResponse"
             },
             "errors": [
                 {
@@ -222,17 +304,17 @@
                 }
             ]
         },
-        "ListCodeScanFindings": {
-            "name": "ListCodeScanFindings",
+        "ListCustomizationPermissions": {
+            "name": "ListCustomizationPermissions",
             "http": {
                 "method": "POST",
                 "requestUri": "/"
             },
             "input": {
-                "shape": "ListCodeScanFindingsRequest"
+                "shape": "ListCustomizationPermissionsRequest"
             },
             "output": {
-                "shape": "ListCodeScanFindingsResponse"
+                "shape": "ListCustomizationPermissionsResponse"
             },
             "errors": [
                 {
@@ -240,6 +322,65 @@
                 },
                 {
                     "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>List User(s)/Group(s) who have permissions to use a Customization.</p>"
+        },
+        "ListCustomizationVersions": {
+            "name": "ListCustomizationVersions",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "ListCustomizationVersionsRequest"
+            },
+            "output": {
+                "shape": "ListCustomizationVersionsResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>List actionable versions associated with a Customization.</p>"
+        },
+        "ListCustomizations": {
+            "name": "ListCustomizations",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "ListCustomizationsRequest"
+            },
+            "output": {
+                "shape": "ListCustomizationsResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
                 },
                 {
                     "shape": "InternalServerException"
@@ -277,34 +418,8 @@
                 {
                     "shape": "AccessDeniedException"
                 }
-            ]
-        },
-        "ListRecommendations": {
-            "name": "ListRecommendations",
-            "http": {
-                "method": "POST",
-                "requestUri": "/"
-            },
-            "input": {
-                "shape": "ListRecommendationsRequest"
-            },
-            "output": {
-                "shape": "ListRecommendationsResponse"
-            },
-            "errors": [
-                {
-                    "shape": "ThrottlingException"
-                },
-                {
-                    "shape": "InternalServerException"
-                },
-                {
-                    "shape": "ValidationException"
-                },
-                {
-                    "shape": "AccessDeniedException"
-                }
-            ]
+            ],
+            "documentation": "<p>Lists one or more CodeWhisperer profiles that you have created.</p>"
         },
         "ListTagsForResource": {
             "name": "ListTagsForResource",
@@ -334,7 +449,8 @@
                 {
                     "shape": "AccessDeniedException"
                 }
-            ]
+            ],
+            "documentation": "<p>List tags of an existing CodeWhisperer profile.</p>"
         },
         "TagResource": {
             "name": "TagResource",
@@ -364,7 +480,8 @@
                 {
                     "shape": "AccessDeniedException"
                 }
-            ]
+            ],
+            "documentation": "<p>Add tags to an existing CodeWhisperer profile.</p>"
         },
         "UntagResource": {
             "name": "UntagResource",
@@ -381,6 +498,40 @@
             "errors": [
                 {
                     "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>Remove tags from an existing CodeWhisperer profile.</p>"
+        },
+        "UpdateCustomization": {
+            "name": "UpdateCustomization",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "UpdateCustomizationRequest"
+            },
+            "output": {
+                "shape": "UpdateCustomizationResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ConflictException"
                 },
                 {
                     "shape": "ResourceNotFoundException"
@@ -427,34 +578,133 @@
                 {
                     "shape": "AccessDeniedException"
                 }
-            ]
+            ],
+            "documentation": "<p>Updates an existing CodeWhisperer profile.</p>"
+        },
+        "VendKeyGrant": {
+            "name": "VendKeyGrant",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "VendKeyGrantRequest"
+            },
+            "output": {
+                "shape": "VendKeyGrantResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>Returns grant details associated with the profile under the input account Id Output includes cmk arn, grant token, and grant id</p>"
         }
     },
     "shapes": {
+        "AWSAccountId": {
+            "type": "string",
+            "documentation": "<p>Represents the AWS account ID of the customer</p>",
+            "pattern": "[0-9]{12}"
+        },
         "AccessDeniedException": {
             "type": "structure",
             "required": ["message"],
             "members": {
                 "message": {
                     "shape": "String"
+                },
+                "reason": {
+                    "shape": "AccessDeniedExceptionReason"
                 }
             },
+            "documentation": "<p>This exception is thrown when the user does not have sufficient access to perform this action.</p>",
             "exception": true
         },
-        "ArtifactMap": {
-            "type": "map",
-            "key": {
-                "shape": "ArtifactType"
-            },
-            "value": {
-                "shape": "UploadId"
-            },
-            "max": 64,
-            "min": 1
-        },
-        "ArtifactType": {
+        "AccessDeniedExceptionReason": {
             "type": "string",
-            "enum": ["SourceCode", "BuiltJars"]
+            "documentation": "<p>Reason for AccessDeniedException</p>",
+            "enum": ["UNAUTHORIZED_CUSTOMIZATION_RESOURCE_ACCESS", "UNAUTHORIZED_WORKSPACE_CONTEXT_FEATURE_ACCESS"]
+        },
+        "ActiveFunctionalityList": {
+            "type": "list",
+            "member": {
+                "shape": "FunctionalityName"
+            },
+            "max": 10,
+            "min": 0
+        },
+        "AllowVendedLogDeliveryForResourceRequest": {
+            "type": "structure",
+            "required": ["resourceArnBeingAuthorized", "deliverySourceArn"],
+            "members": {
+                "resourceArnBeingAuthorized": {
+                    "shape": "ResourceArn"
+                },
+                "deliverySourceArn": {
+                    "shape": "ResourceArn"
+                }
+            }
+        },
+        "AllowVendedLogDeliveryForResourceResponse": {
+            "type": "structure",
+            "members": {
+                "message": {
+                    "shape": "String"
+                }
+            }
+        },
+        "ApplicationProperties": {
+            "type": "structure",
+            "required": ["tenantId", "applicationArn", "tenantUrl", "applicationType"],
+            "members": {
+                "tenantId": {
+                    "shape": "TenantId"
+                },
+                "applicationArn": {
+                    "shape": "ResourceArn"
+                },
+                "tenantUrl": {
+                    "shape": "Url"
+                },
+                "applicationType": {
+                    "shape": "FunctionalityName"
+                }
+            }
+        },
+        "ApplicationPropertiesList": {
+            "type": "list",
+            "member": {
+                "shape": "ApplicationProperties"
+            }
+        },
+        "AssociateCustomizationPermissionRequest": {
+            "type": "structure",
+            "required": ["identifier", "permission"],
+            "members": {
+                "identifier": {
+                    "shape": "CustomizationIdentifier"
+                },
+                "permission": {
+                    "shape": "CustomizationPermission"
+                }
+            }
+        },
+        "AssociateCustomizationPermissionResponse": {
+            "type": "structure",
+            "members": {}
         },
         "Base64EncodedPaginationToken": {
             "type": "string",
@@ -462,13 +712,35 @@
             "min": 1,
             "pattern": "(?:[A-Za-z0-9\\+/]{4})*(?:[A-Za-z0-9\\+/]{2}\\=\\=|[A-Za-z0-9\\+/]{3}\\=)?"
         },
-        "CodeScanFindingsSchema": {
-            "type": "string",
-            "enum": ["codescan/findings/1.0"]
+        "Boolean": {
+            "type": "boolean",
+            "box": true
         },
-        "CodeScanStatus": {
+        "ByUserAnalytics": {
+            "type": "structure",
+            "required": ["toggle"],
+            "members": {
+                "s3Uri": {
+                    "shape": "S3Uri"
+                },
+                "toggle": {
+                    "shape": "OptInFeatureToggle"
+                }
+            }
+        },
+        "ClientId": {
             "type": "string",
-            "enum": ["Completed", "Pending", "Failed"]
+            "max": 255,
+            "min": 1
+        },
+        "CodeStarReference": {
+            "type": "structure",
+            "required": ["connectionArn"],
+            "members": {
+                "connectionArn": {
+                    "shape": "ResourceArn"
+                }
+            }
         },
         "ConflictException": {
             "type": "structure",
@@ -476,54 +748,58 @@
             "members": {
                 "message": {
                     "shape": "String"
+                },
+                "reason": {
+                    "shape": "ConflictExceptionReason"
                 }
             },
+            "documentation": "<p>This exception is thrown when the action to perform could not be completed because the resource is in a conflicting state.</p>",
             "exception": true
         },
-        "CreateCodeScanRequest": {
+        "ConflictExceptionReason": {
+            "type": "string",
+            "documentation": "<p>Reason for ConflictException</p>",
+            "enum": ["CUSTOMER_KMS_KEY_INVALID_KEY_POLICY", "CUSTOMER_KMS_KEY_DISABLED", "MISMATCHED_KMS_KEY"]
+        },
+        "CreateCustomizationRequest": {
             "type": "structure",
-            "required": ["artifacts", "programmingLanguage"],
+            "required": ["dataReference", "customizationName", "profileArn"],
             "members": {
-                "artifacts": {
-                    "shape": "ArtifactMap"
+                "dataReference": {
+                    "shape": "DataReference"
                 },
-                "programmingLanguage": {
-                    "shape": "ProgrammingLanguage"
+                "customizationName": {
+                    "shape": "CustomizationName"
+                },
+                "description": {
+                    "shape": "Description"
+                },
+                "profileArn": {
+                    "shape": "ProfileArn"
+                },
+                "tags": {
+                    "shape": "TagList"
                 },
                 "clientToken": {
-                    "shape": "CreateCodeScanRequestClientTokenString",
-                    "idempotencyToken": true
+                    "shape": "IdempotencyToken"
+                },
+                "includeRepos": {
+                    "shape": "RepositoryList"
                 }
             }
         },
-        "CreateCodeScanRequestClientTokenString": {
-            "type": "string",
-            "max": 256,
-            "min": 1
-        },
-        "CreateCodeScanResponse": {
+        "CreateCustomizationResponse": {
             "type": "structure",
-            "required": ["jobId", "status"],
+            "required": ["customizationArn"],
             "members": {
-                "jobId": {
-                    "shape": "CreateCodeScanResponseJobIdString"
-                },
-                "status": {
-                    "shape": "CodeScanStatus"
-                },
-                "errorMessage": {
-                    "shape": "String"
+                "customizationArn": {
+                    "shape": "CustomizationArn"
                 }
             }
-        },
-        "CreateCodeScanResponseJobIdString": {
-            "type": "string",
-            "max": 256,
-            "min": 1
         },
         "CreateProfileRequest": {
             "type": "structure",
-            "required": ["identitySource", "profileName", "referenceTrackerConfiguration"],
+            "required": ["profileName", "referenceTrackerConfiguration"],
             "members": {
                 "identitySource": {
                     "shape": "IdentitySource"
@@ -531,8 +807,14 @@
                 "profileName": {
                     "shape": "ProfileName"
                 },
+                "description": {
+                    "shape": "ProfileDescription"
+                },
                 "referenceTrackerConfiguration": {
                     "shape": "ReferenceTrackerConfiguration"
+                },
+                "activeFunctionalities": {
+                    "shape": "ActiveFunctionalityList"
                 },
                 "clientToken": {
                     "shape": "IdempotencyToken",
@@ -543,6 +825,12 @@
                 },
                 "tags": {
                     "shape": "TagList"
+                },
+                "resourcePolicy": {
+                    "shape": "ResourcePolicy"
+                },
+                "optInFeatures": {
+                    "shape": "OptInFeatures"
                 }
             }
         },
@@ -551,53 +839,235 @@
             "required": ["profileArn"],
             "members": {
                 "profileArn": {
-                    "shape": "ResourceArn"
+                    "shape": "ProfileArn"
                 }
             }
         },
-        "CreateUploadUrlRequest": {
-            "type": "structure",
-            "members": {
-                "contentMd5": {
-                    "shape": "CreateUploadUrlRequestContentMd5String"
-                },
-                "artifactType": {
-                    "shape": "ArtifactType"
-                }
-            }
-        },
-        "CreateUploadUrlRequestContentMd5String": {
+        "CustomizationArn": {
             "type": "string",
-            "max": 128,
-            "min": 1
+            "max": 950,
+            "min": 0,
+            "pattern": "arn:[-.a-z0-9]{1,63}:codewhisperer:([-.a-z0-9]{0,63}:){2}([a-zA-Z0-9-_:/]){1,1023}"
         },
-        "CreateUploadUrlResponse": {
+        "CustomizationIdentifier": {
+            "type": "string",
+            "max": 950,
+            "min": 1,
+            "pattern": ".*[a-zA-Z0-9-:/]*.*"
+        },
+        "CustomizationName": {
+            "type": "string",
+            "max": 100,
+            "min": 1,
+            "pattern": "[a-zA-Z][a-zA-Z0-9_-]*"
+        },
+        "CustomizationPermission": {
             "type": "structure",
-            "required": ["uploadId", "uploadUrl"],
             "members": {
-                "uploadId": {
-                    "shape": "UploadId"
+                "user": {
+                    "shape": "IdentityCenterIdentifier"
                 },
-                "uploadUrl": {
-                    "shape": "PreSignedUrl"
+                "group": {
+                    "shape": "IdentityCenterIdentifier"
+                }
+            },
+            "union": true
+        },
+        "CustomizationStatus": {
+            "type": "string",
+            "enum": [
+                "CREATED",
+                "UPDATED",
+                "CREATING",
+                "UPDATING",
+                "DELETING",
+                "ACTIVATING",
+                "DEACTIVATING",
+                "ACTIVATED",
+                "CREATION_FAILED",
+                "UPDATE_FAILED",
+                "DELETION_FAILED",
+                "ACTIVATION_FAILED",
+                "DEACTIVATION_FAILED"
+            ]
+        },
+        "CustomizationSummary": {
+            "type": "structure",
+            "required": ["arn", "customizationName", "status", "updatedAt"],
+            "members": {
+                "arn": {
+                    "shape": "CustomizationArn"
                 },
-                "kmsKeyArn": {
-                    "shape": "ResourceArn"
+                "version": {
+                    "shape": "Version"
+                },
+                "customizationName": {
+                    "shape": "CustomizationName"
+                },
+                "description": {
+                    "shape": "Description"
+                },
+                "status": {
+                    "shape": "CustomizationStatus"
+                },
+                "updatedAt": {
+                    "shape": "Timestamp"
                 }
             }
+        },
+        "CustomizationSummaryList": {
+            "type": "list",
+            "member": {
+                "shape": "CustomizationSummary"
+            }
+        },
+        "CustomizationVersionSummary": {
+            "type": "structure",
+            "required": ["version", "status", "dataReference", "updatedAt"],
+            "members": {
+                "version": {
+                    "shape": "Version"
+                },
+                "baseVersion": {
+                    "shape": "Version"
+                },
+                "status": {
+                    "shape": "CustomizationStatus"
+                },
+                "dataReference": {
+                    "shape": "DataReference"
+                },
+                "updatedAt": {
+                    "shape": "Timestamp"
+                },
+                "evaluationMetrics": {
+                    "shape": "EvaluationMetrics"
+                }
+            }
+        },
+        "CustomizationVersionSummaryList": {
+            "type": "list",
+            "member": {
+                "shape": "CustomizationVersionSummary"
+            }
+        },
+        "DashboardAnalytics": {
+            "type": "structure",
+            "required": ["toggle"],
+            "members": {
+                "toggle": {
+                    "shape": "OptInFeatureToggle"
+                }
+            }
+        },
+        "DataReference": {
+            "type": "structure",
+            "members": {
+                "codeStarReference": {
+                    "shape": "CodeStarReference"
+                },
+                "s3Reference": {
+                    "shape": "S3Reference"
+                }
+            },
+            "union": true
+        },
+        "DeleteCustomizationRequest": {
+            "type": "structure",
+            "required": ["identifier"],
+            "members": {
+                "identifier": {
+                    "shape": "CustomizationIdentifier"
+                },
+                "clientToken": {
+                    "shape": "IdempotencyToken"
+                }
+            }
+        },
+        "DeleteCustomizationResponse": {
+            "type": "structure",
+            "members": {}
         },
         "DeleteProfileRequest": {
             "type": "structure",
             "required": ["profileArn"],
             "members": {
                 "profileArn": {
-                    "shape": "ResourceArn"
+                    "shape": "ProfileArn"
                 }
             }
         },
         "DeleteProfileResponse": {
             "type": "structure",
             "members": {}
+        },
+        "Description": {
+            "type": "string",
+            "max": 256,
+            "min": 0,
+            "pattern": "[\\sa-zA-Z0-9_-]*"
+        },
+        "DisassociateCustomizationPermissionRequest": {
+            "type": "structure",
+            "required": ["identifier", "permission"],
+            "members": {
+                "identifier": {
+                    "shape": "CustomizationIdentifier"
+                },
+                "permission": {
+                    "shape": "CustomizationPermission"
+                }
+            }
+        },
+        "DisassociateCustomizationPermissionResponse": {
+            "type": "structure",
+            "members": {}
+        },
+        "ErrorDetails": {
+            "type": "string",
+            "max": 2048,
+            "min": 0
+        },
+        "EvaluationMetrics": {
+            "type": "structure",
+            "required": ["compositeScore"],
+            "members": {
+                "compositeScore": {
+                    "shape": "Integer"
+                }
+            }
+        },
+        "ExternalIdentityDetails": {
+            "type": "structure",
+            "members": {
+                "issuerUrl": {
+                    "shape": "IssuerUrl"
+                },
+                "clientId": {
+                    "shape": "ClientId"
+                },
+                "scimEndpoint": {
+                    "shape": "String"
+                }
+            }
+        },
+        "ExternalIdentitySource": {
+            "type": "structure",
+            "required": ["issuerUrl", "clientId"],
+            "members": {
+                "issuerUrl": {
+                    "shape": "IssuerUrl"
+                },
+                "clientId": {
+                    "shape": "ClientId"
+                }
+            }
+        },
+        "FeatureName": {
+            "type": "string",
+            "max": 128,
+            "min": 1,
+            "pattern": "[-a-zA-Z0-9._]*"
         },
         "FileContext": {
             "type": "structure",
@@ -620,7 +1090,8 @@
         "FileContextFilenameString": {
             "type": "string",
             "max": 1024,
-            "min": 1
+            "min": 1,
+            "sensitive": true
         },
         "FileContextLeftFileContentString": {
             "type": "string",
@@ -634,37 +1105,20 @@
             "min": 0,
             "sensitive": true
         },
-        "SupplementalContext": {
-            "type": "structure",
-            "required": ["filePath", "content"],
-            "members": {
-                "filePath": {
-                    "shape": "SupplementalContextFilePathString"
-                },
-                "content": {
-                    "shape": "SupplementalContextContentString"
-                }
-            }
-        },
-        "SupplementalContextFilePathString": {
+        "FunctionalityName": {
             "type": "string",
-            "max": 1024,
-            "min": 1,
-            "sensitive": true
-        },
-        "SupplementalContextContentString": {
-            "type": "string",
-            "max": 5120,
-            "min": 0,
-            "sensitive": true
-        },
-        "SupplementalContextList": {
-            "type": "list",
-            "member": {
-                "shape": "SupplementalContext"
-            },
-            "max": 10,
-            "min": 0
+            "enum": [
+                "COMPLETIONS",
+                "ANALYSIS",
+                "CONVERSATIONS",
+                "TASK_ASSIST",
+                "TRANSFORMATIONS",
+                "CHAT_CUSTOMIZATION",
+                "TRANSFORMATIONS_WEBAPP",
+                "FEATURE_DEVELOPMENT"
+            ],
+            "max": 64,
+            "min": 1
         },
         "GenerateRecommendationsRequest": {
             "type": "structure",
@@ -672,9 +1126,6 @@
             "members": {
                 "fileContext": {
                     "shape": "FileContext"
-                },
-                "supplementalContexts": {
-                    "shape": "SupplementalContextList"
                 },
                 "maxResults": {
                     "shape": "GenerateRecommendationsRequestMaxResultsInteger"
@@ -684,6 +1135,9 @@
                 },
                 "referenceTrackerConfiguration": {
                     "shape": "ReferenceTrackerConfiguration"
+                },
+                "supplementalContexts": {
+                    "shape": "SupplementalContextList"
                 }
             }
         },
@@ -710,65 +1164,89 @@
                 }
             }
         },
-        "GetAccessTokenRequest": {
+        "GetCustomizationRequest": {
             "type": "structure",
-            "required": ["identityToken"],
+            "required": ["identifier"],
             "members": {
-                "identityToken": {
-                    "shape": "GetAccessTokenRequestIdentityTokenString"
+                "identifier": {
+                    "shape": "CustomizationIdentifier"
                 }
             }
         },
-        "GetAccessTokenRequestIdentityTokenString": {
+        "GetCustomizationResponse": {
+            "type": "structure",
+            "required": ["arn", "status", "dataReference", "customizationName", "profileArn", "updatedAt"],
+            "members": {
+                "arn": {
+                    "shape": "CustomizationArn"
+                },
+                "version": {
+                    "shape": "Version"
+                },
+                "status": {
+                    "shape": "CustomizationStatus"
+                },
+                "errorDetails": {
+                    "shape": "ErrorDetails"
+                },
+                "dataReference": {
+                    "shape": "DataReference"
+                },
+                "customizationName": {
+                    "shape": "CustomizationName"
+                },
+                "description": {
+                    "shape": "Description"
+                },
+                "profileArn": {
+                    "shape": "ProfileArn"
+                },
+                "updatedAt": {
+                    "shape": "Timestamp"
+                },
+                "evaluationMetrics": {
+                    "shape": "EvaluationMetrics"
+                },
+                "includeRepos": {
+                    "shape": "RepositoryList"
+                }
+            }
+        },
+        "GrantId": {
             "type": "string",
-            "max": 1024,
-            "min": 0,
-            "sensitive": true
-        },
-        "GetAccessTokenResponse": {
-            "type": "structure",
-            "members": {
-                "accessToken": {
-                    "shape": "SensitiveString"
-                }
-            }
-        },
-        "GetCodeScanRequest": {
-            "type": "structure",
-            "required": ["jobId"],
-            "members": {
-                "jobId": {
-                    "shape": "GetCodeScanRequestJobIdString"
-                }
-            }
-        },
-        "GetCodeScanRequestJobIdString": {
-            "type": "string",
-            "max": 256,
+            "max": 128,
             "min": 1
         },
-        "GetCodeScanResponse": {
-            "type": "structure",
-            "required": ["status"],
-            "members": {
-                "status": {
-                    "shape": "CodeScanStatus"
-                },
-                "errorMessage": {
-                    "shape": "String"
-                }
-            }
+        "GrantToken": {
+            "type": "string",
+            "max": 8192,
+            "min": 1
         },
         "IdempotencyToken": {
             "type": "string",
             "max": 256,
             "min": 1
         },
+        "IdentityCenterIdentifier": {
+            "type": "string",
+            "max": 64,
+            "min": 1,
+            "pattern": "([0-9a-f]{10}-|)[A-Fa-f0-9]{8}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{4}-[A-Fa-f0-9]{12}"
+        },
+        "IdentityCenterPermissions": {
+            "type": "list",
+            "member": {
+                "shape": "CustomizationPermission"
+            }
+        },
         "IdentityDetails": {
             "type": "structure",
             "members": {
                 "ssoIdentityDetails": {
                     "shape": "SSOIdentityDetails"
+                },
+                "externalIdentityDetails": {
+                    "shape": "ExternalIdentityDetails"
                 }
             },
             "union": true
@@ -778,6 +1256,9 @@
             "members": {
                 "ssoIdentitySource": {
                     "shape": "SSOIdentitySource"
+                },
+                "externalIdentitySource": {
+                    "shape": "ExternalIdentitySource"
                 }
             },
             "union": true
@@ -804,6 +1285,10 @@
             "max": 10,
             "min": 0
         },
+        "Integer": {
+            "type": "integer",
+            "box": true
+        },
         "InternalServerException": {
             "type": "structure",
             "required": ["message"],
@@ -812,41 +1297,110 @@
                     "shape": "String"
                 }
             },
+            "documentation": "<p>This exception is thrown when an unexpected error occurred during the processing of a request.</p>",
             "exception": true,
             "fault": true,
             "retryable": {
                 "throttling": false
             }
         },
-        "ListCodeScanFindingsRequest": {
+        "IssuerUrl": {
+            "type": "string",
+            "max": 255,
+            "min": 1
+        },
+        "ListCustomizationPermissionsRequest": {
             "type": "structure",
-            "required": ["jobId", "codeScanFindingsSchema"],
+            "required": ["identifier"],
             "members": {
-                "jobId": {
-                    "shape": "ListCodeScanFindingsRequestJobIdString"
+                "identifier": {
+                    "shape": "CustomizationIdentifier"
+                },
+                "maxResults": {
+                    "shape": "ListCustomizationPermissionsRequestMaxResultsInteger"
                 },
                 "nextToken": {
-                    "shape": "PaginationToken"
-                },
-                "codeScanFindingsSchema": {
-                    "shape": "CodeScanFindingsSchema"
+                    "shape": "Base64EncodedPaginationToken"
                 }
             }
         },
-        "ListCodeScanFindingsRequestJobIdString": {
-            "type": "string",
-            "max": 256,
+        "ListCustomizationPermissionsRequestMaxResultsInteger": {
+            "type": "integer",
+            "box": true,
+            "max": 50,
             "min": 1
         },
-        "ListCodeScanFindingsResponse": {
+        "ListCustomizationPermissionsResponse": {
             "type": "structure",
-            "required": ["codeScanFindings"],
+            "required": ["permissions"],
             "members": {
-                "nextToken": {
-                    "shape": "PaginationToken"
+                "permissions": {
+                    "shape": "IdentityCenterPermissions"
                 },
-                "codeScanFindings": {
-                    "shape": "String"
+                "nextToken": {
+                    "shape": "Base64EncodedPaginationToken"
+                }
+            }
+        },
+        "ListCustomizationVersionsRequest": {
+            "type": "structure",
+            "required": ["identifier"],
+            "members": {
+                "identifier": {
+                    "shape": "CustomizationIdentifier"
+                },
+                "maxResults": {
+                    "shape": "ListCustomizationVersionsRequestMaxResultsInteger"
+                },
+                "nextToken": {
+                    "shape": "Base64EncodedPaginationToken"
+                }
+            }
+        },
+        "ListCustomizationVersionsRequestMaxResultsInteger": {
+            "type": "integer",
+            "box": true,
+            "max": 100,
+            "min": 1
+        },
+        "ListCustomizationVersionsResponse": {
+            "type": "structure",
+            "required": ["versions"],
+            "members": {
+                "versions": {
+                    "shape": "CustomizationVersionSummaryList"
+                },
+                "nextToken": {
+                    "shape": "Base64EncodedPaginationToken"
+                }
+            }
+        },
+        "ListCustomizationsRequest": {
+            "type": "structure",
+            "members": {
+                "maxResults": {
+                    "shape": "ListCustomizationsRequestMaxResultsInteger"
+                },
+                "nextToken": {
+                    "shape": "Base64EncodedPaginationToken"
+                }
+            }
+        },
+        "ListCustomizationsRequestMaxResultsInteger": {
+            "type": "integer",
+            "box": true,
+            "max": 100,
+            "min": 1
+        },
+        "ListCustomizationsResponse": {
+            "type": "structure",
+            "required": ["customizations"],
+            "members": {
+                "customizations": {
+                    "shape": "CustomizationSummaryList"
+                },
+                "nextToken": {
+                    "shape": "Base64EncodedPaginationToken"
                 }
             }
         },
@@ -879,55 +1433,11 @@
                 }
             }
         },
-        "ListRecommendationsRequest": {
-            "type": "structure",
-            "required": ["fileContext"],
-            "members": {
-                "fileContext": {
-                    "shape": "FileContext"
-                },
-                "maxResults": {
-                    "shape": "ListRecommendationsRequestMaxResultsInteger"
-                },
-                "supplementalContexts": {
-                    "shape": "SupplementalContextList"
-                },
-                "nextToken": {
-                    "shape": "ListRecommendationsRequestNextTokenString"
-                },
-                "referenceTrackerConfiguration": {
-                    "shape": "ReferenceTrackerConfiguration"
-                }
-            }
-        },
-        "ListRecommendationsRequestMaxResultsInteger": {
-            "type": "integer",
-            "box": true,
-            "max": 10,
-            "min": 1
-        },
-        "ListRecommendationsRequestNextTokenString": {
-            "type": "string",
-            "max": 2048,
-            "min": 0,
-            "pattern": "(?:[A-Za-z0-9\\+/]{4})*(?:[A-Za-z0-9\\+/]{2}\\=\\=|[A-Za-z0-9\\+/]{3}\\=)?"
-        },
-        "ListRecommendationsResponse": {
-            "type": "structure",
-            "members": {
-                "recommendations": {
-                    "shape": "RecommendationsList"
-                },
-                "nextToken": {
-                    "shape": "String"
-                }
-            }
-        },
         "ListTagsForResourceRequest": {
             "type": "structure",
-            "required": ["resourceName"],
+            "required": ["resourceArn"],
             "members": {
-                "resourceName": {
+                "resourceArn": {
                     "shape": "ResourceArn"
                 }
             }
@@ -940,23 +1450,65 @@
                 }
             }
         },
-        "PaginationToken": {
-            "type": "string",
-            "max": 2048,
-            "min": 1,
-            "pattern": "\\S+"
+        "Notifications": {
+            "type": "list",
+            "member": {
+                "shape": "NotificationsFeature"
+            },
+            "max": 10,
+            "min": 0
         },
-        "PreSignedUrl": {
+        "NotificationsFeature": {
+            "type": "structure",
+            "required": ["feature", "toggle"],
+            "members": {
+                "feature": {
+                    "shape": "FeatureName"
+                },
+                "toggle": {
+                    "shape": "OptInFeatureToggle"
+                }
+            }
+        },
+        "OptInFeatureToggle": {
             "type": "string",
-            "max": 2048,
-            "min": 1
+            "enum": ["ON", "OFF"]
+        },
+        "OptInFeatures": {
+            "type": "structure",
+            "members": {
+                "promptLogging": {
+                    "shape": "PromptLogging"
+                },
+                "byUserAnalytics": {
+                    "shape": "ByUserAnalytics"
+                },
+                "dashboardAnalytics": {
+                    "shape": "DashboardAnalytics"
+                },
+                "notifications": {
+                    "shape": "Notifications"
+                },
+                "workspaceContext": {
+                    "shape": "WorkspaceContext"
+                }
+            }
+        },
+        "PreviousEditorStateMetadata": {
+            "type": "structure",
+            "required": ["timeOffset"],
+            "members": {
+                "timeOffset": {
+                    "shape": "Integer"
+                }
+            }
         },
         "Profile": {
             "type": "structure",
-            "required": ["arn", "identityDetails", "profileName", "referenceTrackerConfiguration"],
+            "required": ["arn", "profileName"],
             "members": {
                 "arn": {
-                    "shape": "ResourceArn"
+                    "shape": "ProfileArn"
                 },
                 "identityDetails": {
                     "shape": "IdentityDetails"
@@ -964,13 +1516,52 @@
                 "profileName": {
                     "shape": "ProfileName"
                 },
+                "description": {
+                    "shape": "ProfileDescription"
+                },
                 "referenceTrackerConfiguration": {
                     "shape": "ReferenceTrackerConfiguration"
                 },
                 "kmsKeyArn": {
                     "shape": "ResourceArn"
+                },
+                "activeFunctionalities": {
+                    "shape": "ActiveFunctionalityList"
+                },
+                "status": {
+                    "shape": "ProfileStatus"
+                },
+                "errorDetails": {
+                    "shape": "ErrorDetails"
+                },
+                "resourcePolicy": {
+                    "shape": "ResourcePolicy"
+                },
+                "profileType": {
+                    "shape": "ProfileType"
+                },
+                "optInFeatures": {
+                    "shape": "OptInFeatures"
+                },
+                "permissionUpdateRequired": {
+                    "shape": "Boolean"
+                },
+                "applicationProperties": {
+                    "shape": "ApplicationPropertiesList"
                 }
             }
+        },
+        "ProfileArn": {
+            "type": "string",
+            "max": 950,
+            "min": 0,
+            "pattern": "arn:aws:codewhisperer:[-.a-z0-9]{1,63}:\\d{12}:profile/([a-zA-Z0-9]){12}"
+        },
+        "ProfileDescription": {
+            "type": "string",
+            "max": 256,
+            "min": 1,
+            "pattern": "[\\sa-zA-Z0-9_-]*"
         },
         "ProfileList": {
             "type": "list",
@@ -984,6 +1575,14 @@
             "min": 1,
             "pattern": "[a-zA-Z][a-zA-Z0-9_-]*"
         },
+        "ProfileStatus": {
+            "type": "string",
+            "enum": ["ACTIVE", "CREATING", "CREATE_FAILED", "UPDATING", "UPDATE_FAILED", "DELETING", "DELETE_FAILED"]
+        },
+        "ProfileType": {
+            "type": "string",
+            "enum": ["Q_DEVELOPER", "CODEWHISPERER"]
+        },
         "ProgrammingLanguage": {
             "type": "structure",
             "required": ["languageName"],
@@ -991,13 +1590,26 @@
                 "languageName": {
                     "shape": "ProgrammingLanguageLanguageNameString"
                 }
-            }
+            },
+            "documentation": "<p>Programming Languages supported by CodeWhisperer</p>"
         },
         "ProgrammingLanguageLanguageNameString": {
             "type": "string",
             "max": 128,
             "min": 1,
-            "pattern": "(python|javascript|java|csharp|typescript|c|cpp|go|kotlin|php|ruby|rust|scala|shell|sql)"
+            "pattern": "(python|javascript|java|csharp|typescript|c|cpp|go|kotlin|php|ruby|rust|scala|shell|sql|json|yaml|vue|tf|tsx|jsx|plaintext|systemverilog|dart|lua|swift|hcl|powershell|r|abap)"
+        },
+        "PromptLogging": {
+            "type": "structure",
+            "required": ["s3Uri", "toggle"],
+            "members": {
+                "s3Uri": {
+                    "shape": "S3Uri"
+                },
+                "toggle": {
+                    "shape": "OptInFeatureToggle"
+                }
+            }
         },
         "Recommendation": {
             "type": "structure",
@@ -1030,24 +1642,30 @@
         },
         "RecommendationsWithReferencesPreference": {
             "type": "string",
+            "documentation": "<p>Recommendations with references setting for CodeWhisperer</p>",
             "enum": ["BLOCK", "ALLOW"]
         },
         "Reference": {
             "type": "structure",
             "members": {
                 "licenseName": {
-                    "shape": "ReferenceLicenseNameString"
+                    "shape": "ReferenceLicenseNameString",
+                    "documentation": "<p>License name</p>"
                 },
                 "repository": {
-                    "shape": "ReferenceRepositoryString"
+                    "shape": "ReferenceRepositoryString",
+                    "documentation": "<p>Code Repsitory for the associated reference</p>"
                 },
                 "url": {
-                    "shape": "ReferenceUrlString"
+                    "shape": "ReferenceUrlString",
+                    "documentation": "<p>Respository URL</p>"
                 },
                 "recommendationContentSpan": {
-                    "shape": "Span"
+                    "shape": "Span",
+                    "documentation": "<p>Span / Range for the Reference</p>"
                 }
-            }
+            },
+            "documentation": "<p>Code Reference / Repository details</p>"
         },
         "ReferenceLicenseNameString": {
             "type": "string",
@@ -1081,10 +1699,27 @@
             "max": 10,
             "min": 0
         },
+        "RepositoryId": {
+            "type": "string",
+            "max": 255,
+            "min": 1,
+            "pattern": ".*(?x)^([a-zA-Z0-9-_\\.\\s()]+/)+[\\w-\\.\\+_\\s]+",
+            "sensitive": true
+        },
+        "RepositoryList": {
+            "type": "list",
+            "member": {
+                "shape": "RepositoryId"
+            },
+            "max": 100,
+            "min": 1,
+            "sensitive": true
+        },
         "ResourceArn": {
             "type": "string",
             "max": 1224,
-            "min": 0
+            "min": 0,
+            "pattern": "arn:([-.a-z0-9]{1,63}:){2}([-.a-z0-9]{0,63}:){2}([a-zA-Z0-9-_:/]){1,1023}"
         },
         "ResourceNotFoundException": {
             "type": "structure",
@@ -1094,7 +1729,36 @@
                     "shape": "String"
                 }
             },
+            "documentation": "<p>This exception is thrown when describing a resource that does not exist.</p>",
             "exception": true
+        },
+        "ResourcePolicy": {
+            "type": "structure",
+            "required": ["effect"],
+            "members": {
+                "effect": {
+                    "shape": "ResourcePolicyEffect"
+                }
+            }
+        },
+        "ResourcePolicyEffect": {
+            "type": "string",
+            "enum": ["ALLOW", "DENY"]
+        },
+        "S3Reference": {
+            "type": "structure",
+            "required": ["uri"],
+            "members": {
+                "uri": {
+                    "shape": "S3Uri"
+                }
+            }
+        },
+        "S3Uri": {
+            "type": "string",
+            "max": 1024,
+            "min": 1,
+            "pattern": "s3://((?!xn--)[a-z0-9](?![^/]*[.]{2})[a-z0-9-.]{1,61}[a-z0-9](?<!-s3alias)(?<!--ol-s3)(?<!([0-9]{1,3}\\.)([0-9]{1,3}\\.)([0-9]{1,3}\\.)([0-9]{1,3})))/(.{0,1024})"
         },
         "SSOIdentityDetails": {
             "type": "structure",
@@ -1105,6 +1769,9 @@
                 },
                 "oidcClientId": {
                     "shape": "String"
+                },
+                "ssoRegion": {
+                    "shape": "SSORegion"
                 }
             }
         },
@@ -1114,12 +1781,17 @@
             "members": {
                 "instanceArn": {
                     "shape": "ResourceArn"
+                },
+                "ssoRegion": {
+                    "shape": "SSORegion"
                 }
             }
         },
-        "SensitiveString": {
+        "SSORegion": {
             "type": "string",
-            "sensitive": true
+            "max": 63,
+            "min": 1,
+            "pattern": "[-a-z0-9]{1,63}"
         },
         "Span": {
             "type": "structure",
@@ -1130,7 +1802,8 @@
                 "end": {
                     "shape": "SpanEndInteger"
                 }
-            }
+            },
+            "documentation": "<p>Represents span in a text.</p>"
         },
         "SpanEndInteger": {
             "type": "integer",
@@ -1144,6 +1817,57 @@
         },
         "String": {
             "type": "string"
+        },
+        "SupplementalContext": {
+            "type": "structure",
+            "required": ["filePath", "content"],
+            "members": {
+                "filePath": {
+                    "shape": "SupplementalContextFilePathString"
+                },
+                "content": {
+                    "shape": "SupplementalContextContentString"
+                },
+                "type": {
+                    "shape": "SupplementalContextType"
+                },
+                "metadata": {
+                    "shape": "SupplementalContextMetadata"
+                }
+            }
+        },
+        "SupplementalContextContentString": {
+            "type": "string",
+            "max": 10240,
+            "min": 1,
+            "sensitive": true
+        },
+        "SupplementalContextFilePathString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1,
+            "sensitive": true
+        },
+        "SupplementalContextList": {
+            "type": "list",
+            "member": {
+                "shape": "SupplementalContext"
+            },
+            "max": 20,
+            "min": 0
+        },
+        "SupplementalContextMetadata": {
+            "type": "structure",
+            "members": {
+                "previousEditorStateMetadata": {
+                    "shape": "PreviousEditorStateMetadata"
+                }
+            },
+            "union": true
+        },
+        "SupplementalContextType": {
+            "type": "string",
+            "enum": ["PreviousEditorState", "WorkspaceContext"]
         },
         "Tag": {
             "type": "structure",
@@ -1167,7 +1891,7 @@
             "member": {
                 "shape": "TagKey"
             },
-            "max": 200,
+            "max": 50,
             "min": 0
         },
         "TagList": {
@@ -1175,14 +1899,14 @@
             "member": {
                 "shape": "Tag"
             },
-            "max": 200,
+            "max": 50,
             "min": 0
         },
         "TagResourceRequest": {
             "type": "structure",
-            "required": ["resourceName", "tags"],
+            "required": ["resourceArn", "tags"],
             "members": {
-                "resourceName": {
+                "resourceArn": {
                     "shape": "ResourceArn"
                 },
                 "tags": {
@@ -1199,24 +1923,41 @@
             "max": 256,
             "min": 0
         },
+        "TenantId": {
+            "type": "string",
+            "max": 1024,
+            "min": 1
+        },
         "ThrottlingException": {
             "type": "structure",
             "required": ["message"],
             "members": {
                 "message": {
                     "shape": "String"
+                },
+                "reason": {
+                    "shape": "ThrottlingExceptionReason"
                 }
             },
+            "documentation": "<p>This exception is thrown when request was denied due to request throttling.</p>",
             "exception": true,
             "retryable": {
-                "throttling": false
+                "throttling": true
             }
+        },
+        "ThrottlingExceptionReason": {
+            "type": "string",
+            "documentation": "<p>Reason for ThrottlingException</p>",
+            "enum": ["MONTHLY_REQUEST_COUNT"]
+        },
+        "Timestamp": {
+            "type": "timestamp"
         },
         "UntagResourceRequest": {
             "type": "structure",
-            "required": ["resourceName", "tagKeys"],
+            "required": ["resourceArn", "tagKeys"],
             "members": {
-                "resourceName": {
+                "resourceArn": {
                     "shape": "ResourceArn"
                 },
                 "tagKeys": {
@@ -1228,21 +1969,71 @@
             "type": "structure",
             "members": {}
         },
+        "UpdateCustomizationRequest": {
+            "type": "structure",
+            "required": ["identifier", "operation"],
+            "members": {
+                "identifier": {
+                    "shape": "CustomizationIdentifier"
+                },
+                "operation": {
+                    "shape": "UpdateOperation"
+                },
+                "clientToken": {
+                    "shape": "IdempotencyToken"
+                },
+                "dataReference": {
+                    "shape": "DataReference"
+                },
+                "version": {
+                    "shape": "Version"
+                },
+                "includeRepos": {
+                    "shape": "RepositoryList"
+                }
+            }
+        },
+        "UpdateCustomizationResponse": {
+            "type": "structure",
+            "members": {}
+        },
+        "UpdateOperation": {
+            "type": "string",
+            "enum": ["ACTIVATE", "DEACTIVATE", "UPDATE"]
+        },
         "UpdateProfileRequest": {
             "type": "structure",
             "required": ["profileArn"],
             "members": {
                 "profileArn": {
-                    "shape": "ResourceArn"
+                    "shape": "ProfileArn"
+                },
+                "identitySource": {
+                    "shape": "IdentitySource"
                 },
                 "profileName": {
                     "shape": "ProfileName"
                 },
+                "description": {
+                    "shape": "ProfileDescription"
+                },
                 "referenceTrackerConfiguration": {
                     "shape": "ReferenceTrackerConfiguration"
                 },
+                "activeFunctionalities": {
+                    "shape": "ActiveFunctionalityList"
+                },
                 "kmsKeyArn": {
                     "shape": "ResourceArn"
+                },
+                "resourcePolicy": {
+                    "shape": "ResourcePolicy"
+                },
+                "targetProfileType": {
+                    "shape": "ProfileType"
+                },
+                "optInFeatures": {
+                    "shape": "OptInFeatures"
                 }
             }
         },
@@ -1251,13 +2042,13 @@
             "required": ["profileArn"],
             "members": {
                 "profileArn": {
-                    "shape": "ResourceArn"
+                    "shape": "ProfileArn"
                 }
             }
         },
-        "UploadId": {
+        "Url": {
             "type": "string",
-            "max": 128,
+            "max": 1024,
             "min": 1
         },
         "ValidationException": {
@@ -1266,9 +2057,69 @@
             "members": {
                 "message": {
                     "shape": "String"
+                },
+                "reason": {
+                    "shape": "ValidationExceptionReason"
                 }
             },
+            "documentation": "<p>This exception is thrown when the input fails to satisfy the constraints specified by the service.</p>",
             "exception": true
+        },
+        "ValidationExceptionReason": {
+            "type": "string",
+            "documentation": "<p>Reason for ValidationException</p>",
+            "enum": ["INVALID_CONVERSATION_ID", "CONTENT_LENGTH_EXCEEDS_THRESHOLD", "INVALID_KMS_GRANT"]
+        },
+        "VendKeyGrantRequest": {
+            "type": "structure",
+            "required": ["accountId", "usecase"],
+            "members": {
+                "accountId": {
+                    "shape": "AWSAccountId"
+                },
+                "usecase": {
+                    "shape": "VendKeyGrantUseCase"
+                }
+            }
+        },
+        "VendKeyGrantResponse": {
+            "type": "structure",
+            "members": {
+                "cmkArn": {
+                    "shape": "ResourceArn"
+                },
+                "grantId": {
+                    "shape": "GrantToken"
+                },
+                "grantToken": {
+                    "shape": "GrantId"
+                }
+            }
+        },
+        "VendKeyGrantUseCase": {
+            "type": "string",
+            "enum": [
+                "TEST",
+                "WEAVER_BIRD",
+                "ELASTIC_GUMBY",
+                "LOCHNESS",
+                "BOWER_BIRD",
+                "ELASTIC_GUMBY_V2_JOB",
+                "ELASTIC_GUMBY_V2_CHAT"
+            ]
+        },
+        "Version": {
+            "type": "long",
+            "box": true
+        },
+        "WorkspaceContext": {
+            "type": "structure",
+            "required": ["toggle"],
+            "members": {
+                "toggle": {
+                    "shape": "OptInFeatureToggle"
+                }
+            }
         }
     }
 }

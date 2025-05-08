@@ -2,9 +2,11 @@
     "version": "2.0",
     "metadata": {
         "apiVersion": "2022-11-11",
+        "auth": ["smithy.api#httpBearerAuth"],
         "endpointPrefix": "amazoncodewhispererservice",
         "jsonVersion": "1.0",
         "protocol": "json",
+        "protocols": ["json"],
         "serviceFullName": "Amazon CodeWhisperer",
         "serviceId": "CodeWhispererRuntime",
         "signingName": "amazoncodewhispererservice",
@@ -39,6 +41,37 @@
                 }
             ],
             "documentation": "<p>Creates a pre-signed, S3 write URL for uploading a repository zip archive.</p>",
+            "idempotent": true
+        },
+        "CreateSubscriptionToken": {
+            "name": "CreateSubscriptionToken",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "CreateSubscriptionTokenRequest"
+            },
+            "output": {
+                "shape": "CreateSubscriptionTokenResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ConflictException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
             "idempotent": true
         },
         "CreateTaskAssistConversation": {
@@ -110,20 +143,72 @@
             "documentation": "<p>Creates a pre-signed, S3 write URL for uploading a repository zip archive.</p>",
             "idempotent": true
         },
+        "CreateUserMemoryEntry": {
+            "name": "CreateUserMemoryEntry",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "CreateUserMemoryEntryInput"
+            },
+            "output": {
+                "shape": "CreateUserMemoryEntryOutput"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ServiceQuotaExceededException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>API to create a single user memory entry</p>",
+            "idempotent": true
+        },
         "CreateWorkspace": {
             "name": "CreateWorkspace",
             "http": {
                 "method": "POST",
                 "requestUri": "/"
             },
-            "input": { "shape": "CreateWorkspaceRequest" },
-            "output": { "shape": "CreateWorkspaceResponse" },
+            "input": {
+                "shape": "CreateWorkspaceRequest"
+            },
+            "output": {
+                "shape": "CreateWorkspaceResponse"
+            },
             "errors": [
-                { "shape": "ThrottlingException" },
-                { "shape": "ConflictException" },
-                { "shape": "InternalServerException" },
-                { "shape": "ValidationException" },
-                { "shape": "AccessDeniedException" }
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ConflictException"
+                },
+                {
+                    "shape": "ServiceQuotaExceededException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
             ],
             "documentation": "<p>Create a workspace based on a workspace root</p>"
         },
@@ -158,19 +243,63 @@
             ],
             "documentation": "<p>API to delete task assist conversation.</p>"
         },
+        "DeleteUserMemoryEntry": {
+            "name": "DeleteUserMemoryEntry",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "DeleteUserMemoryEntryInput"
+            },
+            "output": {
+                "shape": "DeleteUserMemoryEntryOutput"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>API to delete a single user memory entry</p>",
+            "idempotent": true
+        },
         "DeleteWorkspace": {
             "name": "DeleteWorkspace",
             "http": {
                 "method": "POST",
                 "requestUri": "/"
             },
-            "input": { "shape": "DeleteWorkspaceRequest" },
-            "output": { "shape": "DeleteWorkspaceResponse" },
+            "input": {
+                "shape": "DeleteWorkspaceRequest"
+            },
+            "output": {
+                "shape": "DeleteWorkspaceResponse"
+            },
             "errors": [
-                { "shape": "ThrottlingException" },
-                { "shape": "InternalServerException" },
-                { "shape": "ValidationException" },
-                { "shape": "AccessDeniedException" }
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
             ],
             "documentation": "<p>Delete a workspace based on a workspaceId</p>"
         },
@@ -387,6 +516,34 @@
             ],
             "documentation": "<p>API to get code transformation status.</p>"
         },
+        "GetUsageLimits": {
+            "name": "GetUsageLimits",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "GetUsageLimitsRequest"
+            },
+            "output": {
+                "shape": "GetUsageLimitsResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>API to get current usage limits</p>"
+        },
         "ListAvailableCustomizations": {
             "name": "ListAvailableCustomizations",
             "http": {
@@ -420,13 +577,25 @@
                 "method": "POST",
                 "requestUri": "/"
             },
-            "input": { "shape": "ListAvailableProfilesRequest" },
-            "output": { "shape": "ListAvailableProfilesResponse" },
+            "input": {
+                "shape": "ListAvailableProfilesRequest"
+            },
+            "output": {
+                "shape": "ListAvailableProfilesResponse"
+            },
             "errors": [
-                { "shape": "ThrottlingException" },
-                { "shape": "InternalServerException" },
-                { "shape": "ValidationException" },
-                { "shape": "AccessDeniedException" }
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
             ]
         },
         "ListCodeAnalysisFindings": {
@@ -460,6 +629,34 @@
             ],
             "documentation": "<p>Lists the findings from a particular code analysis job.</p>"
         },
+        "ListEvents": {
+            "name": "ListEvents",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "ListEventsRequest"
+            },
+            "output": {
+                "shape": "ListEventsResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>List events for agent activity</p>"
+        },
         "ListFeatureEvaluations": {
             "name": "ListFeatureEvaluations",
             "http": {
@@ -488,21 +685,93 @@
             ],
             "documentation": "<p>Return configruations for each feature that has been setup for A/B testing.</p>"
         },
+        "ListUserMemoryEntries": {
+            "name": "ListUserMemoryEntries",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "ListUserMemoryEntriesInput"
+            },
+            "output": {
+                "shape": "ListUserMemoryEntriesOutput"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "ResourceNotFoundException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>API to list user memories</p>"
+        },
         "ListWorkspaceMetadata": {
             "name": "ListWorkspaceMetadata",
             "http": {
                 "method": "POST",
                 "requestUri": "/"
             },
-            "input": { "shape": "ListWorkspaceMetadataRequest" },
-            "output": { "shape": "ListWorkspaceMetadataResponse" },
+            "input": {
+                "shape": "ListWorkspaceMetadataRequest"
+            },
+            "output": {
+                "shape": "ListWorkspaceMetadataResponse"
+            },
             "errors": [
-                { "shape": "ThrottlingException" },
-                { "shape": "InternalServerException" },
-                { "shape": "ValidationException" },
-                { "shape": "AccessDeniedException" }
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
             ],
             "documentation": "<p>List workspace metadata based on a workspace root</p>"
+        },
+        "PushTelemetryEvent": {
+            "name": "PushTelemetryEvent",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "PushTelemetryEventRequest"
+            },
+            "output": {
+                "shape": "PushTelemetryEventResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                }
+            ],
+            "documentation": "<p>API to push telemetry events to CloudWatch, DataHub and EventBridge.</p>",
+            "idempotent": true
         },
         "ResumeTransformation": {
             "name": "ResumeTransformation",
@@ -756,9 +1025,45 @@
                 }
             ],
             "documentation": "<p>API to stop code transformation status.</p>"
+        },
+        "UpdateUsageLimits": {
+            "name": "UpdateUsageLimits",
+            "http": {
+                "method": "POST",
+                "requestUri": "/"
+            },
+            "input": {
+                "shape": "UpdateUsageLimitsRequest"
+            },
+            "output": {
+                "shape": "UpdateUsageLimitsResponse"
+            },
+            "errors": [
+                {
+                    "shape": "ThrottlingException"
+                },
+                {
+                    "shape": "InternalServerException"
+                },
+                {
+                    "shape": "ValidationException"
+                },
+                {
+                    "shape": "AccessDeniedException"
+                },
+                {
+                    "shape": "UpdateUsageLimitQuotaExceededException"
+                }
+            ],
+            "documentation": "<p>API to update usage limits for enterprise customers</p>"
         }
     },
     "shapes": {
+        "AWSAccountId": {
+            "type": "string",
+            "documentation": "<p>Represents the AWS account ID of the customer</p>",
+            "pattern": "[0-9]{12}"
+        },
         "AccessDeniedException": {
             "type": "structure",
             "required": ["message"],
@@ -776,11 +1081,18 @@
         "AccessDeniedExceptionReason": {
             "type": "string",
             "documentation": "<p>Reason for AccessDeniedException</p>",
-            "enum": ["UNAUTHORIZED_CUSTOMIZATION_RESOURCE_ACCESS"]
+            "enum": ["UNAUTHORIZED_CUSTOMIZATION_RESOURCE_ACCESS", "UNAUTHORIZED_WORKSPACE_CONTEXT_FEATURE_ACCESS"]
+        },
+        "ActivationToken": {
+            "type": "string",
+            "max": 11,
+            "min": 11
         },
         "ActiveFunctionalityList": {
             "type": "list",
-            "member": { "shape": "FunctionalityName" },
+            "member": {
+                "shape": "FunctionalityName"
+            },
             "max": 10,
             "min": 0
         },
@@ -824,7 +1136,9 @@
         },
         "AdditionalContentList": {
             "type": "list",
-            "member": { "shape": "AdditionalContentEntry" },
+            "member": {
+                "shape": "AdditionalContentEntry"
+            },
             "documentation": "<p>A list of additional content entries, limited to 20 items</p>",
             "max": 20,
             "min": 0
@@ -880,15 +1194,25 @@
             "type": "structure",
             "required": ["tenantId", "applicationArn", "tenantUrl", "applicationType"],
             "members": {
-                "tenantId": { "shape": "TenantId" },
-                "applicationArn": { "shape": "ResourceArn" },
-                "tenantUrl": { "shape": "Url" },
-                "applicationType": { "shape": "FunctionalityName" }
+                "tenantId": {
+                    "shape": "TenantId"
+                },
+                "applicationArn": {
+                    "shape": "ResourceArn"
+                },
+                "tenantUrl": {
+                    "shape": "Url"
+                },
+                "applicationType": {
+                    "shape": "FunctionalityName"
+                }
             }
         },
         "ApplicationPropertiesList": {
             "type": "list",
-            "member": { "shape": "ApplicationProperties" }
+            "member": {
+                "shape": "ApplicationProperties"
+            }
         },
         "ArtifactId": {
             "type": "string",
@@ -947,6 +1271,21 @@
             "min": 0,
             "sensitive": true
         },
+        "AttributesMap": {
+            "type": "map",
+            "key": {
+                "shape": "AttributesMapKeyString"
+            },
+            "value": {
+                "shape": "StringList"
+            },
+            "documentation": "<p>Attributes is a map of key-value pairs</p>"
+        },
+        "AttributesMapKeyString": {
+            "type": "string",
+            "max": 128,
+            "min": 1
+        },
         "Base64EncodedPaginationToken": {
             "type": "string",
             "max": 2048,
@@ -961,8 +1300,25 @@
             "type": "structure",
             "required": ["toggle"],
             "members": {
-                "s3Uri": { "shape": "S3Uri" },
-                "toggle": { "shape": "OptInFeatureToggle" }
+                "s3Uri": {
+                    "shape": "S3Uri"
+                },
+                "toggle": {
+                    "shape": "OptInFeatureToggle"
+                }
+            }
+        },
+        "ChangeLogGranularityType": {
+            "type": "string",
+            "enum": ["STANDARD", "BUSINESS"]
+        },
+        "ChangeLogOptions": {
+            "type": "structure",
+            "required": ["granularity"],
+            "members": {
+                "granularity": {
+                    "shape": "ChangeLogGranularityType"
+                }
             }
         },
         "ChatAddMessageEvent": {
@@ -1019,7 +1375,7 @@
                 "shape": "ChatMessage"
             },
             "documentation": "<p>Indicates Participant in Chat conversation</p>",
-            "max": 100,
+            "max": 250,
             "min": 0
         },
         "ChatInteractWithMessageEvent": {
@@ -1055,6 +1411,12 @@
                 },
                 "userIntent": {
                     "shape": "UserIntent"
+                },
+                "addedIdeDiagnostics": {
+                    "shape": "IdeDiagnosticList"
+                },
+                "removedIdeDiagnostics": {
+                    "shape": "IdeDiagnosticList"
                 }
             }
         },
@@ -1118,6 +1480,11 @@
                     "shape": "Boolean"
                 }
             }
+        },
+        "ClientId": {
+            "type": "string",
+            "max": 255,
+            "min": 1
         },
         "CodeAnalysisFindingsSchema": {
             "type": "string",
@@ -1183,6 +1550,23 @@
         "CodeCoverageEventUserWrittenCodeLineCountInteger": {
             "type": "integer",
             "min": 0
+        },
+        "CodeDescription": {
+            "type": "structure",
+            "required": ["href"],
+            "members": {
+                "href": {
+                    "shape": "CodeDescriptionHrefString",
+                    "documentation": "<p>An URI to open with more information about the diagnostic error.</p>"
+                }
+            },
+            "documentation": "<p>Structure to capture a description for an error code.</p>"
+        },
+        "CodeDescriptionHrefString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1,
+            "sensitive": true
         },
         "CodeFixAcceptanceEvent": {
             "type": "structure",
@@ -1480,6 +1864,11 @@
             "type": "string",
             "enum": ["SHA_256"]
         },
+        "ContentType": {
+            "type": "string",
+            "documentation": "<p>The type of content</p>",
+            "enum": ["FILE", "PROMPT", "CODE", "WORKSPACE"]
+        },
         "ContextTruncationScheme": {
             "type": "string",
             "documentation": "<p>Workspace context truncation schemes based on usecase</p>",
@@ -1516,6 +1905,34 @@
                 }
             },
             "documentation": "<p>Structure to represent the current state of a chat conversation.</p>"
+        },
+        "CreateSubscriptionTokenRequest": {
+            "type": "structure",
+            "required": ["accountId"],
+            "members": {
+                "accountId": {
+                    "shape": "AWSAccountId"
+                },
+                "clientToken": {
+                    "shape": "IdempotencyToken",
+                    "idempotencyToken": true
+                }
+            }
+        },
+        "CreateSubscriptionTokenResponse": {
+            "type": "structure",
+            "required": ["encodedVerificationUrl", "token", "status"],
+            "members": {
+                "encodedVerificationUrl": {
+                    "shape": "EncodedVerificationUrl"
+                },
+                "token": {
+                    "shape": "ActivationToken"
+                },
+                "status": {
+                    "shape": "SubscriptionStatus"
+                }
+            }
         },
         "CreateTaskAssistConversationRequest": {
             "type": "structure",
@@ -1603,12 +2020,56 @@
                 }
             }
         },
+        "CreateUserMemoryEntryInput": {
+            "type": "structure",
+            "required": ["memoryEntryString", "origin"],
+            "members": {
+                "memoryEntryString": {
+                    "shape": "CreateUserMemoryEntryInputMemoryEntryStringString"
+                },
+                "origin": {
+                    "shape": "Origin"
+                },
+                "profileArn": {
+                    "shape": "CreateUserMemoryEntryInputProfileArnString",
+                    "documentation": "<p>ProfileArn for the managing Q Profile</p>"
+                },
+                "clientToken": {
+                    "shape": "IdempotencyToken",
+                    "idempotencyToken": true
+                }
+            }
+        },
+        "CreateUserMemoryEntryInputMemoryEntryStringString": {
+            "type": "string",
+            "max": 500,
+            "min": 1,
+            "sensitive": true
+        },
+        "CreateUserMemoryEntryInputProfileArnString": {
+            "type": "string",
+            "min": 1,
+            "pattern": "arn:aws:codewhisperer:[-.a-z0-9]{1,63}:\\d{12}:profile/([a-zA-Z0-9]){12}"
+        },
+        "CreateUserMemoryEntryOutput": {
+            "type": "structure",
+            "required": ["memoryEntry"],
+            "members": {
+                "memoryEntry": {
+                    "shape": "MemoryEntry"
+                }
+            }
+        },
         "CreateWorkspaceRequest": {
             "type": "structure",
             "required": ["workspaceRoot"],
             "members": {
-                "workspaceRoot": { "shape": "CreateWorkspaceRequestWorkspaceRootString" },
-                "profileArn": { "shape": "ProfileArn" }
+                "workspaceRoot": {
+                    "shape": "CreateWorkspaceRequestWorkspaceRootString"
+                },
+                "profileArn": {
+                    "shape": "ProfileArn"
+                }
             }
         },
         "CreateWorkspaceRequestWorkspaceRootString": {
@@ -1621,7 +2082,9 @@
             "type": "structure",
             "required": ["workspace"],
             "members": {
-                "workspace": { "shape": "WorkspaceMetadata" }
+                "workspace": {
+                    "shape": "WorkspaceMetadata"
+                }
             }
         },
         "CursorState": {
@@ -1676,15 +2139,21 @@
             "type": "structure",
             "required": ["toggle"],
             "members": {
-                "toggle": { "shape": "OptInFeatureToggle" }
+                "toggle": {
+                    "shape": "OptInFeatureToggle"
+                }
             }
         },
         "DeleteTaskAssistConversationRequest": {
             "type": "structure",
             "required": ["conversationId"],
             "members": {
-                "conversationId": { "shape": "ConversationId" },
-                "profileArn": { "shape": "ProfileArn" }
+                "conversationId": {
+                    "shape": "ConversationId"
+                },
+                "profileArn": {
+                    "shape": "ProfileArn"
+                }
             },
             "documentation": "<p>Structure to represent bootstrap conversation request.</p>"
         },
@@ -1698,12 +2167,44 @@
             },
             "documentation": "<p>Structure to represent bootstrap conversation response.</p>"
         },
+        "DeleteUserMemoryEntryInput": {
+            "type": "structure",
+            "required": ["id"],
+            "members": {
+                "id": {
+                    "shape": "DeleteUserMemoryEntryInputIdString"
+                },
+                "profileArn": {
+                    "shape": "DeleteUserMemoryEntryInputProfileArnString",
+                    "documentation": "<p>ProfileArn for the managing Q Profile</p>"
+                }
+            }
+        },
+        "DeleteUserMemoryEntryInputIdString": {
+            "type": "string",
+            "max": 36,
+            "min": 36,
+            "pattern": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+        },
+        "DeleteUserMemoryEntryInputProfileArnString": {
+            "type": "string",
+            "min": 1,
+            "pattern": "arn:aws:codewhisperer:[-.a-z0-9]{1,63}:\\d{12}:profile/([a-zA-Z0-9]){12}"
+        },
+        "DeleteUserMemoryEntryOutput": {
+            "type": "structure",
+            "members": {}
+        },
         "DeleteWorkspaceRequest": {
             "type": "structure",
             "required": ["workspaceId"],
             "members": {
-                "workspaceId": { "shape": "UUID" },
-                "profileArn": { "shape": "ProfileArn" }
+                "workspaceId": {
+                    "shape": "UUID"
+                },
+                "profileArn": {
+                    "shape": "ProfileArn"
+                }
             }
         },
         "DeleteWorkspaceResponse": {
@@ -1731,10 +2232,73 @@
             "documentation": "<p>Represents a Diagnostic message</p>",
             "union": true
         },
+        "DiagnosticLocation": {
+            "type": "structure",
+            "required": ["uri", "range"],
+            "members": {
+                "uri": {
+                    "shape": "DiagnosticLocationUriString"
+                },
+                "range": {
+                    "shape": "Range"
+                }
+            },
+            "documentation": "<p>Represents a location inside a resource, such as a line inside a text file.</p>"
+        },
+        "DiagnosticLocationUriString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1,
+            "sensitive": true
+        },
+        "DiagnosticRelatedInformation": {
+            "type": "structure",
+            "required": ["location", "message"],
+            "members": {
+                "location": {
+                    "shape": "DiagnosticLocation",
+                    "documentation": "<p>The location of this related diagnostic information.</p>"
+                },
+                "message": {
+                    "shape": "DiagnosticRelatedInformationMessageString",
+                    "documentation": "<p>The message of this related diagnostic information.</p>"
+                }
+            },
+            "documentation": "<p>Represents a related message and source code location for a diagnostic.</p>"
+        },
+        "DiagnosticRelatedInformationList": {
+            "type": "list",
+            "member": {
+                "shape": "DiagnosticRelatedInformation"
+            },
+            "documentation": "<p>List of DiagnosticRelatedInformation</p>",
+            "max": 1024,
+            "min": 0
+        },
+        "DiagnosticRelatedInformationMessageString": {
+            "type": "string",
+            "max": 1024,
+            "min": 0,
+            "sensitive": true
+        },
         "DiagnosticSeverity": {
             "type": "string",
             "documentation": "<p>Diagnostic Error types</p>",
             "enum": ["ERROR", "WARNING", "INFORMATION", "HINT"]
+        },
+        "DiagnosticTag": {
+            "type": "string",
+            "documentation": "<p>The diagnostic tags.</p>",
+            "enum": ["UNNECESSARY", "DEPRECATED"]
+        },
+        "DiagnosticTagList": {
+            "type": "list",
+            "member": {
+                "shape": "DiagnosticTag"
+            },
+            "documentation": "<p>List of DiagnosticTag</p>",
+            "max": 1024,
+            "min": 0
         },
         "Dimension": {
             "type": "structure",
@@ -1920,6 +2484,11 @@
             "type": "integer",
             "min": 0
         },
+        "Document": {
+            "type": "structure",
+            "members": {},
+            "document": true
+        },
         "DocumentSymbol": {
             "type": "structure",
             "required": ["name", "type"],
@@ -1965,6 +2534,9 @@
                 },
                 "type": {
                     "shape": "DocumentationType"
+                },
+                "changeLogOptions": {
+                    "shape": "ChangeLogOptions"
                 }
             }
         },
@@ -1976,11 +2548,29 @@
         },
         "DocumentationType": {
             "type": "string",
-            "enum": ["README"]
+            "enum": ["README", "CHANGE_LOG"]
         },
         "Double": {
             "type": "double",
             "box": true
+        },
+        "Edit": {
+            "type": "structure",
+            "required": ["content"],
+            "members": {
+                "content": {
+                    "shape": "EditContentString"
+                },
+                "references": {
+                    "shape": "References"
+                }
+            }
+        },
+        "EditContentString": {
+            "type": "string",
+            "max": 5120,
+            "min": 1,
+            "sensitive": true
         },
         "EditorState": {
             "type": "structure",
@@ -2000,9 +2590,18 @@
                 "useRelevantDocuments": {
                     "shape": "Boolean",
                     "documentation": "<p>Whether service should use relevant document in prompt</p>"
+                },
+                "workspaceFolders": {
+                    "shape": "WorkspaceFolderList",
+                    "documentation": "<p>Represents IDE provided list of workspace folders</p>"
                 }
             },
             "documentation": "<p>Represents the state of an Editor</p>"
+        },
+        "EncodedVerificationUrl": {
+            "type": "string",
+            "max": 8192,
+            "min": 1
         },
         "EnvState": {
             "type": "structure",
@@ -2083,6 +2682,60 @@
             "type": "string",
             "max": 2048,
             "min": 0
+        },
+        "Event": {
+            "type": "structure",
+            "required": ["eventId", "generationId", "eventTimestamp", "eventType", "eventBlob"],
+            "members": {
+                "eventId": {
+                    "shape": "UUID"
+                },
+                "generationId": {
+                    "shape": "UUID"
+                },
+                "eventTimestamp": {
+                    "shape": "SyntheticTimestamp_date_time"
+                },
+                "eventType": {
+                    "shape": "EventType"
+                },
+                "eventBlob": {
+                    "shape": "EventBlob"
+                }
+            }
+        },
+        "EventBlob": {
+            "type": "blob",
+            "max": 400000,
+            "min": 1,
+            "sensitive": true
+        },
+        "EventList": {
+            "type": "list",
+            "member": {
+                "shape": "Event"
+            },
+            "max": 10,
+            "min": 1
+        },
+        "EventType": {
+            "type": "string",
+            "max": 100,
+            "min": 1
+        },
+        "ExternalIdentityDetails": {
+            "type": "structure",
+            "members": {
+                "issuerUrl": {
+                    "shape": "IssuerUrl"
+                },
+                "clientId": {
+                    "shape": "ClientId"
+                },
+                "scimEndpoint": {
+                    "shape": "String"
+                }
+            }
         },
         "FeatureDevCodeAcceptanceEvent": {
             "type": "structure",
@@ -2269,7 +2922,8 @@
                 "TASK_ASSIST",
                 "TRANSFORMATIONS",
                 "CHAT_CUSTOMIZATION",
-                "TRANSFORMATIONS_WEBAPP"
+                "TRANSFORMATIONS_WEBAPP",
+                "FEATURE_DEVELOPMENT"
             ],
             "max": 64,
             "min": 1
@@ -2278,16 +2932,42 @@
             "type": "structure",
             "required": ["fileContext"],
             "members": {
-                "fileContext": { "shape": "FileContext" },
-                "maxResults": { "shape": "GenerateCompletionsRequestMaxResultsInteger" },
-                "nextToken": { "shape": "GenerateCompletionsRequestNextTokenString" },
-                "referenceTrackerConfiguration": { "shape": "ReferenceTrackerConfiguration" },
-                "supplementalContexts": { "shape": "SupplementalContextList" },
-                "customizationArn": { "shape": "CustomizationArn" },
-                "optOutPreference": { "shape": "OptOutPreference" },
-                "userContext": { "shape": "UserContext" },
-                "profileArn": { "shape": "ProfileArn" },
-                "workspaceId": { "shape": "UUID" }
+                "fileContext": {
+                    "shape": "FileContext"
+                },
+                "editorState": {
+                    "shape": "EditorState"
+                },
+                "maxResults": {
+                    "shape": "GenerateCompletionsRequestMaxResultsInteger"
+                },
+                "predictionTypes": {
+                    "shape": "PredictionTypes"
+                },
+                "nextToken": {
+                    "shape": "GenerateCompletionsRequestNextTokenString"
+                },
+                "referenceTrackerConfiguration": {
+                    "shape": "ReferenceTrackerConfiguration"
+                },
+                "supplementalContexts": {
+                    "shape": "SupplementalContextList"
+                },
+                "customizationArn": {
+                    "shape": "CustomizationArn"
+                },
+                "optOutPreference": {
+                    "shape": "OptOutPreference"
+                },
+                "userContext": {
+                    "shape": "UserContext"
+                },
+                "profileArn": {
+                    "shape": "ProfileArn"
+                },
+                "workspaceId": {
+                    "shape": "UUID"
+                }
             }
         },
         "GenerateCompletionsRequestMaxResultsInteger": {
@@ -2306,6 +2986,9 @@
         "GenerateCompletionsResponse": {
             "type": "structure",
             "members": {
+                "predictions": {
+                    "shape": "Predictions"
+                },
                 "completions": {
                     "shape": "Completions"
                 },
@@ -2481,6 +3164,28 @@
             },
             "documentation": "<p>Structure to represent get code transformation response.</p>"
         },
+        "GetUsageLimitsRequest": {
+            "type": "structure",
+            "members": {
+                "profileArn": {
+                    "shape": "ProfileArn",
+                    "documentation": "<p>The ARN of the Q Developer profile. Required for enterprise customers, optional for Builder ID users.</p>"
+                }
+            }
+        },
+        "GetUsageLimitsResponse": {
+            "type": "structure",
+            "required": ["limits", "daysUntilReset"],
+            "members": {
+                "limits": {
+                    "shape": "UsageLimits"
+                },
+                "daysUntilReset": {
+                    "shape": "Integer",
+                    "documentation": "<p>Number of days remaining until the usage metrics reset</p>"
+                }
+            }
+        },
         "GitState": {
             "type": "structure",
             "members": {
@@ -2503,6 +3208,48 @@
             "max": 64,
             "min": 1
         },
+        "IdeDiagnostic": {
+            "type": "structure",
+            "required": ["ideDiagnosticType"],
+            "members": {
+                "range": {
+                    "shape": "Range",
+                    "documentation": "<p>The range at which the message applies.</p>"
+                },
+                "source": {
+                    "shape": "IdeDiagnosticSourceString",
+                    "documentation": "<p>A human-readable string describing the source of the diagnostic</p>"
+                },
+                "severity": {
+                    "shape": "DiagnosticSeverity",
+                    "documentation": "<p>Diagnostic Error type</p>"
+                },
+                "ideDiagnosticType": {
+                    "shape": "IdeDiagnosticType",
+                    "documentation": "<p>Type of the diagnostic</p>"
+                }
+            },
+            "documentation": "<p>Structure to represent metadata about a Diagnostic from user local IDE</p>"
+        },
+        "IdeDiagnosticList": {
+            "type": "list",
+            "member": {
+                "shape": "IdeDiagnostic"
+            },
+            "documentation": "<p>List of IDE Diagnostics</p>",
+            "max": 1024,
+            "min": 0
+        },
+        "IdeDiagnosticSourceString": {
+            "type": "string",
+            "max": 1024,
+            "min": 0,
+            "sensitive": true
+        },
+        "IdeDiagnosticType": {
+            "type": "string",
+            "enum": ["SYNTAX_ERROR", "TYPE_ERROR", "REFERENCE_ERROR", "BEST_PRACTICE", "SECURITY", "OTHER"]
+        },
         "IdempotencyToken": {
             "type": "string",
             "max": 256,
@@ -2513,9 +3260,53 @@
             "members": {
                 "ssoIdentityDetails": {
                     "shape": "SSOIdentityDetails"
+                },
+                "externalIdentityDetails": {
+                    "shape": "ExternalIdentityDetails"
                 }
             },
             "union": true
+        },
+        "ImageBlock": {
+            "type": "structure",
+            "required": ["format", "source"],
+            "members": {
+                "format": {
+                    "shape": "ImageFormat"
+                },
+                "source": {
+                    "shape": "ImageSource"
+                }
+            },
+            "documentation": "<p>Represents the image source itself and the format of the image.</p>"
+        },
+        "ImageBlocks": {
+            "type": "list",
+            "member": {
+                "shape": "ImageBlock"
+            },
+            "max": 10,
+            "min": 0
+        },
+        "ImageFormat": {
+            "type": "string",
+            "enum": ["png", "jpeg", "gif", "webp"]
+        },
+        "ImageSource": {
+            "type": "structure",
+            "members": {
+                "bytes": {
+                    "shape": "ImageSourceBytesBlob"
+                }
+            },
+            "documentation": "<p>Image bytes limited to ~10MB considering overhead of base64 encoding</p>",
+            "sensitive": true,
+            "union": true
+        },
+        "ImageSourceBytesBlob": {
+            "type": "blob",
+            "max": 1500000,
+            "min": 1
         },
         "Import": {
             "type": "structure",
@@ -2620,6 +3411,11 @@
                 "throttling": false
             }
         },
+        "IssuerUrl": {
+            "type": "string",
+            "max": 255,
+            "min": 1
+        },
         "LineRangeList": {
             "type": "list",
             "member": {
@@ -2722,6 +3518,42 @@
                 }
             }
         },
+        "ListEventsRequest": {
+            "type": "structure",
+            "required": ["conversationId"],
+            "members": {
+                "conversationId": {
+                    "shape": "UUID"
+                },
+                "maxResults": {
+                    "shape": "ListEventsRequestMaxResultsInteger"
+                },
+                "nextToken": {
+                    "shape": "NextToken"
+                }
+            }
+        },
+        "ListEventsRequestMaxResultsInteger": {
+            "type": "integer",
+            "box": true,
+            "max": 50,
+            "min": 1
+        },
+        "ListEventsResponse": {
+            "type": "structure",
+            "required": ["conversationId", "events"],
+            "members": {
+                "conversationId": {
+                    "shape": "UUID"
+                },
+                "events": {
+                    "shape": "EventList"
+                },
+                "nextToken": {
+                    "shape": "NextToken"
+                }
+            }
+        },
         "ListFeatureEvaluationsRequest": {
             "type": "structure",
             "required": ["userContext"],
@@ -2743,13 +3575,69 @@
                 }
             }
         },
+        "ListUserMemoryEntriesInput": {
+            "type": "structure",
+            "members": {
+                "maxResults": {
+                    "shape": "ListUserMemoryEntriesInputMaxResultsInteger"
+                },
+                "profileArn": {
+                    "shape": "ListUserMemoryEntriesInputProfileArnString",
+                    "documentation": "<p>ProfileArn for the managing Q Profile</p>"
+                },
+                "nextToken": {
+                    "shape": "ListUserMemoryEntriesInputNextTokenString"
+                }
+            }
+        },
+        "ListUserMemoryEntriesInputMaxResultsInteger": {
+            "type": "integer",
+            "box": true,
+            "max": 100,
+            "min": 1
+        },
+        "ListUserMemoryEntriesInputNextTokenString": {
+            "type": "string",
+            "min": 1,
+            "pattern": "[A-Za-z0-9_-]+"
+        },
+        "ListUserMemoryEntriesInputProfileArnString": {
+            "type": "string",
+            "min": 1,
+            "pattern": "arn:aws:codewhisperer:[-.a-z0-9]{1,63}:\\d{12}:profile/([a-zA-Z0-9]){12}"
+        },
+        "ListUserMemoryEntriesOutput": {
+            "type": "structure",
+            "required": ["memoryEntries"],
+            "members": {
+                "memoryEntries": {
+                    "shape": "MemoryEntryList"
+                },
+                "nextToken": {
+                    "shape": "ListUserMemoryEntriesOutputNextTokenString"
+                }
+            }
+        },
+        "ListUserMemoryEntriesOutputNextTokenString": {
+            "type": "string",
+            "min": 1,
+            "pattern": "[A-Za-z0-9_-]+"
+        },
         "ListWorkspaceMetadataRequest": {
             "type": "structure",
             "members": {
-                "workspaceRoot": { "shape": "ListWorkspaceMetadataRequestWorkspaceRootString" },
-                "nextToken": { "shape": "String" },
-                "maxResults": { "shape": "Integer" },
-                "profileArn": { "shape": "ProfileArn" }
+                "workspaceRoot": {
+                    "shape": "ListWorkspaceMetadataRequestWorkspaceRootString"
+                },
+                "nextToken": {
+                    "shape": "String"
+                },
+                "maxResults": {
+                    "shape": "Integer"
+                },
+                "profileArn": {
+                    "shape": "ProfileArn"
+                }
             }
         },
         "ListWorkspaceMetadataRequestWorkspaceRootString": {
@@ -2762,13 +3650,80 @@
             "type": "structure",
             "required": ["workspaces"],
             "members": {
-                "workspaces": { "shape": "WorkspaceList" },
-                "nextToken": { "shape": "String" }
+                "workspaces": {
+                    "shape": "WorkspaceList"
+                },
+                "nextToken": {
+                    "shape": "String"
+                }
             }
         },
         "Long": {
             "type": "long",
             "box": true
+        },
+        "MemoryEntry": {
+            "type": "structure",
+            "required": ["id", "memoryEntryString", "metadata"],
+            "members": {
+                "id": {
+                    "shape": "MemoryEntryIdString",
+                    "documentation": "<p>A unique identifier for a single memory entry</p>"
+                },
+                "memoryEntryString": {
+                    "shape": "MemoryEntryMemoryEntryStringString"
+                },
+                "metadata": {
+                    "shape": "MemoryEntryMetadata"
+                }
+            },
+            "documentation": "<p>MemoryEntry corresponds to a single user memory</p>"
+        },
+        "MemoryEntryIdString": {
+            "type": "string",
+            "max": 36,
+            "min": 36,
+            "pattern": "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+        },
+        "MemoryEntryList": {
+            "type": "list",
+            "member": {
+                "shape": "MemoryEntry"
+            },
+            "documentation": "<p>List of user memories</p>"
+        },
+        "MemoryEntryMemoryEntryStringString": {
+            "type": "string",
+            "max": 500,
+            "min": 1,
+            "sensitive": true
+        },
+        "MemoryEntryMetadata": {
+            "type": "structure",
+            "required": ["origin", "createdAt", "updatedAt"],
+            "members": {
+                "origin": {
+                    "shape": "Origin"
+                },
+                "attributes": {
+                    "shape": "AttributesMap"
+                },
+                "createdAt": {
+                    "shape": "Timestamp"
+                },
+                "updatedAt": {
+                    "shape": "Timestamp"
+                },
+                "memoryStatus": {
+                    "shape": "MemoryStatus"
+                }
+            },
+            "documentation": "<p>Metadata for a single memory entry</p>"
+        },
+        "MemoryStatus": {
+            "type": "string",
+            "documentation": "<p>Status of user memory</p>",
+            "enum": ["DECRYPTION_FAILURE", "VALID"]
         },
         "MessageId": {
             "type": "string",
@@ -2809,6 +3764,18 @@
             "min": 1,
             "pattern": "[-a-zA-Z0-9._]*"
         },
+        "ModelId": {
+            "type": "string",
+            "documentation": "<p>Unique identifier for the model</p>",
+            "max": 1024,
+            "min": 1,
+            "pattern": "[a-zA-Z0-9_:.-]+"
+        },
+        "NextToken": {
+            "type": "string",
+            "max": 1000,
+            "min": 0
+        },
         "Notifications": {
             "type": "list",
             "member": {
@@ -2842,11 +3809,21 @@
         "OptInFeatures": {
             "type": "structure",
             "members": {
-                "promptLogging": { "shape": "PromptLogging" },
-                "byUserAnalytics": { "shape": "ByUserAnalytics" },
-                "dashboardAnalytics": { "shape": "DashboardAnalytics" },
-                "notifications": { "shape": "Notifications" },
-                "workspaceContext": { "shape": "WorkspaceContext" }
+                "promptLogging": {
+                    "shape": "PromptLogging"
+                },
+                "byUserAnalytics": {
+                    "shape": "ByUserAnalytics"
+                },
+                "dashboardAnalytics": {
+                    "shape": "DashboardAnalytics"
+                },
+                "notifications": {
+                    "shape": "Notifications"
+                },
+                "workspaceContext": {
+                    "shape": "WorkspaceContext"
+                }
             }
         },
         "OptOutPreference": {
@@ -2950,6 +3927,45 @@
             "min": 1,
             "sensitive": true
         },
+        "Prediction": {
+            "type": "structure",
+            "members": {
+                "completion": {
+                    "shape": "Completion"
+                },
+                "edit": {
+                    "shape": "Edit"
+                }
+            },
+            "union": true
+        },
+        "PredictionType": {
+            "type": "string",
+            "enum": ["COMPLETIONS", "EDITS"]
+        },
+        "PredictionTypes": {
+            "type": "list",
+            "member": {
+                "shape": "PredictionType"
+            }
+        },
+        "Predictions": {
+            "type": "list",
+            "member": {
+                "shape": "Prediction"
+            },
+            "max": 10,
+            "min": 0
+        },
+        "PreviousEditorStateMetadata": {
+            "type": "structure",
+            "required": ["timeOffset"],
+            "members": {
+                "timeOffset": {
+                    "shape": "Integer"
+                }
+            }
+        },
         "PrimitiveInteger": {
             "type": "integer"
         },
@@ -2965,6 +3981,9 @@
                 },
                 "profileName": {
                     "shape": "ProfileName"
+                },
+                "description": {
+                    "shape": "ProfileDescription"
                 },
                 "referenceTrackerConfiguration": {
                     "shape": "ReferenceTrackerConfiguration"
@@ -3004,6 +4023,12 @@
             "min": 0,
             "pattern": "arn:aws:codewhisperer:[-.a-z0-9]{1,63}:\\d{12}:profile/([a-zA-Z0-9]){12}"
         },
+        "ProfileDescription": {
+            "type": "string",
+            "max": 256,
+            "min": 1,
+            "pattern": "[\\sa-zA-Z0-9_-]*"
+        },
         "ProfileList": {
             "type": "list",
             "member": {
@@ -3038,7 +4063,7 @@
             "type": "string",
             "max": 128,
             "min": 1,
-            "pattern": "(python|javascript|java|csharp|typescript|c|cpp|go|kotlin|php|ruby|rust|scala|shell|sql|json|yaml|vue|tf|tsx|jsx|plaintext|systemverilog|dart|lua|swift|powershell|r)"
+            "pattern": "(python|javascript|java|csharp|typescript|c|cpp|go|kotlin|php|ruby|rust|scala|shell|sql|json|yaml|vue|tf|tsx|jsx|plaintext|systemverilog|dart|lua|swift|hcl|powershell|r|abap)"
         },
         "ProgressUpdates": {
             "type": "list",
@@ -3057,6 +4082,29 @@
                     "shape": "OptInFeatureToggle"
                 }
             }
+        },
+        "PushTelemetryEventRequest": {
+            "type": "structure",
+            "required": ["timestamp", "eventId", "event"],
+            "members": {
+                "clientToken": {
+                    "shape": "IdempotencyToken",
+                    "idempotencyToken": true
+                },
+                "timestamp": {
+                    "shape": "Timestamp"
+                },
+                "eventId": {
+                    "shape": "UUID"
+                },
+                "event": {
+                    "shape": "Document"
+                }
+            }
+        },
+        "PushTelemetryEventResponse": {
+            "type": "structure",
+            "members": {}
         },
         "Range": {
             "type": "structure",
@@ -3137,7 +4185,7 @@
             "member": {
                 "shape": "RelevantTextDocument"
             },
-            "max": 30,
+            "max": 100,
             "min": 0
         },
         "RelevantTextDocument": {
@@ -3159,6 +4207,10 @@
                 "documentSymbols": {
                     "shape": "DocumentSymbols",
                     "documentation": "<p>DocumentSymbols parsed from a text document</p>"
+                },
+                "type": {
+                    "shape": "ContentType",
+                    "documentation": "<p>The type of content(file, prompt, symbol, or workspace)</p>"
                 }
             },
             "documentation": "<p>Represents an IDE retrieved relevant Text Document / File</p>"
@@ -3294,9 +4346,15 @@
             "type": "structure",
             "required": ["instanceArn", "oidcClientId"],
             "members": {
-                "instanceArn": { "shape": "ResourceArn" },
-                "oidcClientId": { "shape": "String" },
-                "ssoRegion": { "shape": "SSORegion" }
+                "instanceArn": {
+                    "shape": "ResourceArn"
+                },
+                "oidcClientId": {
+                    "shape": "String"
+                },
+                "ssoRegion": {
+                    "shape": "SSORegion"
+                }
             }
         },
         "SSORegion": {
@@ -3324,6 +4382,9 @@
                 },
                 "profileArn": {
                     "shape": "ProfileArn"
+                },
+                "modelId": {
+                    "shape": "ModelId"
                 }
             }
         },
@@ -3347,10 +4408,18 @@
             "members": {
                 "message": {
                     "shape": "String"
+                },
+                "reason": {
+                    "shape": "ServiceQuotaExceededExceptionReason"
                 }
             },
             "documentation": "<p>This exception is thrown when request was denied due to caller exceeding their usage limits</p>",
             "exception": true
+        },
+        "ServiceQuotaExceededExceptionReason": {
+            "type": "string",
+            "documentation": "<p>Reason for ServiceQuotaExceededException</p>",
+            "enum": ["CONVERSATION_LIMIT_EXCEEDED"]
         },
         "ShellHistory": {
             "type": "list",
@@ -3628,6 +4697,9 @@
                 },
                 "profileArn": {
                     "shape": "ProfileArn"
+                },
+                "referenceTrackerConfiguration": {
+                    "shape": "ReferenceTrackerConfiguration"
                 }
             },
             "documentation": "<p>Structure to represent test generation request.</p>"
@@ -3709,6 +4781,25 @@
         "String": {
             "type": "string"
         },
+        "StringList": {
+            "type": "list",
+            "member": {
+                "shape": "StringListMemberString"
+            },
+            "documentation": "<p>A list of strings</p>",
+            "max": 50,
+            "min": 0
+        },
+        "StringListMemberString": {
+            "type": "string",
+            "max": 256,
+            "min": 1,
+            "sensitive": true
+        },
+        "SubscriptionStatus": {
+            "type": "string",
+            "enum": ["INACTIVE", "ACTIVE"]
+        },
         "SuggestedFix": {
             "type": "structure",
             "members": {
@@ -3748,6 +4839,12 @@
                 },
                 "content": {
                     "shape": "SupplementalContextContentString"
+                },
+                "type": {
+                    "shape": "SupplementalContextType"
+                },
+                "metadata": {
+                    "shape": "SupplementalContextMetadata"
                 }
             }
         },
@@ -3768,8 +4865,21 @@
             "member": {
                 "shape": "SupplementalContext"
             },
-            "max": 5,
+            "max": 20,
             "min": 0
+        },
+        "SupplementalContextMetadata": {
+            "type": "structure",
+            "members": {
+                "previousEditorStateMetadata": {
+                    "shape": "PreviousEditorStateMetadata"
+                }
+            },
+            "union": true
+        },
+        "SupplementalContextType": {
+            "type": "string",
+            "enum": ["PreviousEditorState", "WorkspaceContext"]
         },
         "SupplementaryWebLink": {
             "type": "structure",
@@ -3804,7 +4914,7 @@
         },
         "SupplementaryWebLinkUrlString": {
             "type": "string",
-            "max": 1024,
+            "max": 2048,
             "min": 1,
             "sensitive": true
         },
@@ -3819,6 +4929,10 @@
         "SymbolType": {
             "type": "string",
             "enum": ["DECLARATION", "USAGE"]
+        },
+        "SyntheticTimestamp_date_time": {
+            "type": "timestamp",
+            "timestampFormat": "iso8601"
         },
         "TargetCode": {
             "type": "structure",
@@ -4237,9 +5351,41 @@
                 "message": {
                     "shape": "TextDocumentDiagnosticMessageString",
                     "documentation": "<p>The diagnostic's message.</p>"
+                },
+                "code": {
+                    "shape": "TextDocumentDiagnosticCodeString",
+                    "documentation": "<p>The diagnostic's code, which might appear in the user interface.</p>"
+                },
+                "codeDescription": {
+                    "shape": "CodeDescription",
+                    "documentation": "<p>An optional property to describe the error code.</p>"
+                },
+                "tags": {
+                    "shape": "DiagnosticTagList",
+                    "documentation": "<p>Additional metadata about the diagnostic.</p>"
+                },
+                "relatedInformation": {
+                    "shape": "DiagnosticRelatedInformationList",
+                    "documentation": "<p>an array of related diagnostic information, e.g. when symbol-names within a scope collide all definitions can be marked via this property.</p>"
+                },
+                "data": {
+                    "shape": "TextDocumentDiagnosticDataString",
+                    "documentation": "<p>A data entry field that is preserved between a <code>textDocument/publishDiagnostics</code> notification and <code>textDocument/codeAction</code> request.</p>"
                 }
             },
             "documentation": "<p>Structure to represent metadata about a TextDocument Diagnostic</p>"
+        },
+        "TextDocumentDiagnosticCodeString": {
+            "type": "string",
+            "max": 1024,
+            "min": 0,
+            "sensitive": true
+        },
+        "TextDocumentDiagnosticDataString": {
+            "type": "string",
+            "max": 4096,
+            "min": 0,
+            "sensitive": true
         },
         "TextDocumentDiagnosticMessageString": {
             "type": "string",
@@ -4357,7 +5503,7 @@
         },
         "ToolResultContentBlockTextString": {
             "type": "string",
-            "max": 30720,
+            "max": 800000,
             "min": 0,
             "sensitive": true
         },
@@ -4736,6 +5882,53 @@
             "max": 36,
             "min": 36
         },
+        "UpdateUsageLimitQuotaExceededException": {
+            "type": "structure",
+            "required": ["message"],
+            "members": {
+                "message": {
+                    "shape": "String"
+                }
+            },
+            "documentation": "<p>Exception thrown when the number of usage limit update requests exceeds the monthly quota (default 3 requests per month)</p>",
+            "exception": true
+        },
+        "UpdateUsageLimitsRequest": {
+            "type": "structure",
+            "required": ["accountId", "featureType", "requestedLimit"],
+            "members": {
+                "accountId": {
+                    "shape": "String"
+                },
+                "accountlessUserId": {
+                    "shape": "String"
+                },
+                "featureType": {
+                    "shape": "UsageLimitType"
+                },
+                "requestedLimit": {
+                    "shape": "Long"
+                },
+                "justification": {
+                    "shape": "String"
+                }
+            }
+        },
+        "UpdateUsageLimitsResponse": {
+            "type": "structure",
+            "required": ["status"],
+            "members": {
+                "status": {
+                    "shape": "UsageLimitUpdateRequestStatus"
+                },
+                "approvedLimit": {
+                    "shape": "Long"
+                },
+                "remainingRequestsThisMonth": {
+                    "shape": "Integer"
+                }
+            }
+        },
         "UploadContext": {
             "type": "structure",
             "members": {
@@ -4780,6 +5973,46 @@
             "type": "string",
             "max": 1024,
             "min": 1
+        },
+        "UsageLimitList": {
+            "type": "structure",
+            "required": ["type", "value"],
+            "members": {
+                "type": {
+                    "shape": "UsageLimitType"
+                },
+                "value": {
+                    "shape": "Long"
+                },
+                "percentUsed": {
+                    "shape": "Double"
+                }
+            }
+        },
+        "UsageLimitType": {
+            "type": "string",
+            "enum": [
+                "RECOMMENDATIONS",
+                "CODE_SCAN",
+                "PROACTIVE_CODE_SCAN",
+                "CHAT",
+                "AI_EDITOR",
+                "GUMBY_TRANSFORM",
+                "WEAVERBIRD_CONVERSATION",
+                "QSDA"
+            ]
+        },
+        "UsageLimitUpdateRequestStatus": {
+            "type": "string",
+            "enum": ["APPROVED", "PENDING_REVIEW", "REJECTED"]
+        },
+        "UsageLimits": {
+            "type": "list",
+            "member": {
+                "shape": "UsageLimitList"
+            },
+            "max": 10,
+            "min": 0
         },
         "UserContext": {
             "type": "structure",
@@ -4827,13 +6060,17 @@
                 "origin": {
                     "shape": "Origin",
                     "documentation": "<p>User Input Origin.</p>"
+                },
+                "images": {
+                    "shape": "ImageBlocks",
+                    "documentation": "<p>Images associated with the Chat Message.</p>"
                 }
             },
             "documentation": "<p>Structure to represent a chat input message from User.</p>"
         },
         "UserInputMessageContentString": {
             "type": "string",
-            "max": 160000,
+            "max": 600000,
             "min": 0,
             "sensitive": true
         },
@@ -5003,6 +6240,12 @@
                 },
                 "acceptedCharacterCount": {
                     "shape": "PrimitiveInteger"
+                },
+                "addedIdeDiagnostics": {
+                    "shape": "IdeDiagnosticList"
+                },
+                "removedIdeDiagnostics": {
+                    "shape": "IdeDiagnosticList"
                 }
             }
         },
@@ -5029,21 +6272,31 @@
             "type": "structure",
             "required": ["toggle"],
             "members": {
-                "toggle": { "shape": "OptInFeatureToggle" }
+                "toggle": {
+                    "shape": "OptInFeatureToggle"
+                }
             }
         },
         "WorkspaceContextUploadContext": {
             "type": "structure",
             "required": ["workspaceId", "relativePath", "programmingLanguage"],
             "members": {
-                "workspaceId": { "shape": "UUID" },
-                "relativePath": { "shape": "SensitiveString" },
-                "programmingLanguage": { "shape": "ProgrammingLanguage" }
+                "workspaceId": {
+                    "shape": "UUID"
+                },
+                "relativePath": {
+                    "shape": "SensitiveString"
+                },
+                "programmingLanguage": {
+                    "shape": "ProgrammingLanguage"
+                }
             }
         },
         "WorkspaceFolderList": {
             "type": "list",
-            "member": { "shape": "WorkspaceFolderListMemberString" },
+            "member": {
+                "shape": "WorkspaceFolderListMemberString"
+            },
             "max": 100,
             "min": 0
         },
@@ -5055,16 +6308,26 @@
         },
         "WorkspaceList": {
             "type": "list",
-            "member": { "shape": "WorkspaceMetadata" }
+            "member": {
+                "shape": "WorkspaceMetadata"
+            }
         },
         "WorkspaceMetadata": {
             "type": "structure",
             "required": ["workspaceId", "workspaceStatus"],
             "members": {
-                "workspaceId": { "shape": "UUID" },
-                "workspaceStatus": { "shape": "WorkspaceStatus" },
-                "environmentAddress": { "shape": "SensitiveString" },
-                "environmentId": { "shape": "SensitiveString" }
+                "workspaceId": {
+                    "shape": "UUID"
+                },
+                "workspaceStatus": {
+                    "shape": "WorkspaceStatus"
+                },
+                "environmentAddress": {
+                    "shape": "SensitiveString"
+                },
+                "environmentId": {
+                    "shape": "SensitiveString"
+                }
             }
         },
         "WorkspaceState": {
