@@ -121,6 +121,7 @@ import {
 } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
+import { CommandCategory } from './tools/executeBash'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -788,7 +789,7 @@ export class AgenticChatController implements ChatHandlers {
                         const approvedPaths = session.approvedPaths
 
                         // Pass the approved paths to the tool's requiresAcceptance method
-                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(
+                        const { requiresAcceptance, warning, commandCategory } = await tool.requiresAcceptance(
                             toolUse.input as any,
                             approvedPaths
                         )
@@ -798,7 +799,8 @@ export class AgenticChatController implements ChatHandlers {
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
                                 requiresAcceptance,
-                                warning
+                                warning,
+                                commandCategory
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
@@ -1064,6 +1066,22 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    /**
+     * Get a description for the tooltip based on command category
+     * @param commandCategory The category of the command
+     * @returns A descriptive message for the tooltip
+     */
+    #getCommandCategoryDescription(category: CommandCategory): string | undefined {
+        switch (category) {
+            case CommandCategory.Mutate:
+                return 'This command may modify your code and/or files.'
+            case CommandCategory.Destructive:
+                return 'This command may cause significant data loss or damage.'
+            default:
+                return undefined
+        }
+    }
+
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
         if (toolUse.name !== 'executeBash') {
             return
@@ -1251,6 +1269,7 @@ export class AgenticChatController implements ChatHandlers {
         toolUse: ToolUse,
         requiresAcceptance: Boolean,
         warning?: string,
+        commandCategory?: CommandCategory,
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
@@ -1280,6 +1299,7 @@ export class AgenticChatController implements ChatHandlers {
                           },
                           {
                               id: 'reject-shell-command',
+                              status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
                           },
@@ -1288,10 +1308,22 @@ export class AgenticChatController implements ChatHandlers {
                 header = {
                     status: requiresAcceptance
                         ? {
-                              icon: 'warning',
-                              status: 'warning',
+                              icon:
+                                  commandCategory === CommandCategory.Destructive
+                                      ? 'warning'
+                                      : commandCategory === CommandCategory.Mutate
+                                        ? 'info'
+                                        : 'none',
+                              status:
+                                  commandCategory === CommandCategory.Destructive
+                                      ? 'warning'
+                                      : commandCategory === CommandCategory.Mutate
+                                        ? 'info'
+                                        : undefined,
                               position: 'left',
-                              // TODO: Add `description` if necessary to show a tooltip
+                              description: this.#getCommandCategoryDescription(
+                                  commandCategory ?? CommandCategory.ReadOnly
+                              ),
                           }
                         : {},
                     body: 'shell',
@@ -1347,7 +1379,7 @@ export class AgenticChatController implements ChatHandlers {
             type: 'tool',
             messageId: this.#getMessageIdForToolUse(toolType, toolUse),
             header,
-            body: warning ? warning + (toolType === 'executeBash' ? '' : '\n\n') + body : body,
+            body: warning ? (toolType === 'executeBash' ? '' : '\n\n') + body : body,
         }
     }
 
