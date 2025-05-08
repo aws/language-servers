@@ -102,6 +102,7 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     disclaimerAcknowledged?: boolean
     pairProgrammingAcknowledged?: boolean
     agenticMode?: boolean
+    modelSelectionEnabled?: boolean
 }
 
 export const createChat = (
@@ -380,6 +381,10 @@ export const createChat = (
 
     if (config?.agenticMode) {
         tabFactory.enableAgenticMode()
+    }
+
+    if (config?.modelSelectionEnabled) {
+        tabFactory.enableModelSelection()
     }
 
     const [mynahUi, api] = createMynahUi(

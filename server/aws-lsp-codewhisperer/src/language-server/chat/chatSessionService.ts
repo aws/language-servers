@@ -25,6 +25,7 @@ export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
+    public modelId: string | undefined
     #abortController?: AbortController
     #conversationId?: string
     #deferredToolExecution: Record<string, DeferredHandler> = {}

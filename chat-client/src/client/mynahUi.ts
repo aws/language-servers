@@ -87,11 +87,20 @@ const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
 }
 
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
-    const promptTypeValue = optionsValues['pair-programmer-mode']
+    const previousPairProgrammerValue = getTabPairProgrammingMode(mynahUi, tabId)
+    const currentPairProgrammerValue = optionsValues['pair-programmer-mode'] === 'true'
 
-    if (promptTypeValue != null) {
-        mynahUi.addChatItem(tabId, promptTypeValue === 'true' ? pairProgrammingModeOn : pairProgrammingModeOff)
+    if (currentPairProgrammerValue !== previousPairProgrammerValue) {
+        mynahUi.addChatItem(tabId, currentPairProgrammerValue ? pairProgrammingModeOn : pairProgrammingModeOff)
     }
+
+    const promptInputOptions = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+    mynahUi.updateStore(tabId, {
+        promptInputOptions: promptInputOptions?.map(option => {
+            option.value = optionsValues[option.id]
+            return option
+        }),
+    })
 }
 
 export const handleChatPrompt = (

@@ -103,7 +103,8 @@ export class AgenticChatTriggerContext {
         profileArn?: string,
         history: ChatMessage[] = [],
         tools: BedrockTools = [],
-        additionalContent?: AdditionalContentEntryAddition[]
+        additionalContent?: AdditionalContentEntryAddition[],
+        modelId?: string
     ): Promise<GenerateAssistantResponseCommandInput> {
         const { prompt } = params
         const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolderPaths(this.#lsp) }
@@ -209,6 +210,7 @@ export class AgenticChatTriggerContext {
                 history,
             },
             profileArn,
+            modelId,
         }
 
         return data
