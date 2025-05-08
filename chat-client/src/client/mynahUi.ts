@@ -269,6 +269,7 @@ export const createMynahUi = (
             messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
+            messager.onStopChatResponse(tabId)
             messager.onTabRemove(tabId)
         },
         onTabChange: (tabId: string) => {
