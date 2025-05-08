@@ -142,7 +142,7 @@ export class LocalProjectContextController {
                     void this.buildIndex()
                 }
                 if (!enableIndexing && this._isIndexingEnabled) {
-                    this._vecLib?.clear?.()
+                    void this._vecLib?.clear?.()
                 }
                 this._isIndexingEnabled = enableIndexing
                 return
