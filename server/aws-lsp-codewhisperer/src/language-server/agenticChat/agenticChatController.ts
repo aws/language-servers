@@ -1308,6 +1308,7 @@ export class AgenticChatController implements ChatHandlers {
                           },
                           {
                               id: 'reject-shell-command',
+                              status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
                           },
@@ -1316,8 +1317,18 @@ export class AgenticChatController implements ChatHandlers {
                 header = {
                     status: requiresAcceptance
                         ? {
-                              icon: 'warning',
-                              status: 'warning',
+                              icon:
+                                  commandCategory === CommandCategory.Destructive
+                                      ? 'warning'
+                                      : commandCategory === CommandCategory.Mutate
+                                        ? 'info'
+                                        : 'none',
+                              status:
+                                  commandCategory === CommandCategory.Destructive
+                                      ? 'warning'
+                                      : commandCategory === CommandCategory.Mutate
+                                        ? 'info'
+                                        : undefined,
                               position: 'left',
                               description: this.#getCommandCategoryDescription(
                                   commandCategory ?? CommandCategory.ReadOnly
