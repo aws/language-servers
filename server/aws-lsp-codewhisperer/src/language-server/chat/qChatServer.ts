@@ -116,6 +116,10 @@ export const QChatServerFactory =
             return chatController.onCodeInsertToCursorPosition(params)
         })
 
+        chat.onInlineChatResult(params => {
+            return chatController.onInlineChatResult(params)
+        })
+
         logging.log('Q Chat server has been initialized')
 
         return () => {
