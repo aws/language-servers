@@ -55,7 +55,7 @@ const nodeJsIamBundleConfig = {
     target: 'node',
 }
 
-const isDevelopment = false
+const isDevelopment = true
 
 // bundles webworker
 const webworkerConfig = {

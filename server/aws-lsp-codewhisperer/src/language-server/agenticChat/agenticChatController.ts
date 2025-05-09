@@ -29,6 +29,7 @@ import {
     InlineChatResultParams,
     PromptInputOptionChangeParams,
     TextDocument,
+    ChatUpdateParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -73,7 +74,14 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryController'
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
-import { getErrorMessage, getHttpStatusCode, getRequestID, isAwsError, isNullish, isObject } from '../../shared/utils'
+import {
+    getErrorMessage,
+    getHttpStatusCode,
+    getRequestID,
+    getSsoConnectionType,
+    isFreeTierLimitError,
+    isNullish,
+} from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -100,7 +108,7 @@ import {
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
-import { LocalProjectContextController } from '../../shared/localProjectContextController'
+// import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
@@ -148,6 +156,7 @@ export class AgenticChatController implements ChatHandlers {
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
     #stoppedToolUses = new Set<string>()
+    #freeTierLimit = false
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -238,6 +247,17 @@ export class AgenticChatController implements ChatHandlers {
         } else if (params.buttonId === 'stop-shell-command') {
             this.#stoppedToolUses.add(params.messageId)
             await this.#renderStoppedShellCommand(params.tabId, params.messageId)
+            return { success: true }
+        } else if (params.buttonId === 'upgrade-q') {
+            const awsAccountId = (params as any).awsAccountId
+            if (typeof awsAccountId !== 'string') {
+                this.#log(`invalid awsAccountId: ${awsAccountId}`)
+                return {
+                    success: false,
+                    failureReason: 'invalid awsAccountId',
+                }
+            }
+            this.setUpgradeQMode(params.tabId, 'paidtier')
             return { success: true }
         } else {
             return {
@@ -1609,6 +1629,12 @@ export class AgenticChatController implements ChatHandlers {
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
 
+        // TODO handle free tier limit exceeded
+        if (isFreeTierLimitError(err)) {
+            this.setUpgradeQMode(tabId, 'freetier-limit')
+            // throw new AmazonQFreeTierLimitError()
+        }
+
         // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
         if (err.code && err.code in unactionableErrorCodes) {
             const customErrMessage = unactionableErrorCodes[err.code as keyof typeof unactionableErrorCodes]
@@ -1639,7 +1665,7 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        if (customerFacingErrorCodes.includes(err.code)) {
+        if (isFreeTierLimitError(err) || customerFacingErrorCodes.includes(err.code)) {
             this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             if (err.code === 'InputTooLong') {
                 // Clear the chat history in the database for this tab
@@ -1846,16 +1872,25 @@ export class AgenticChatController implements ChatHandlers {
 
     onLinkClick() {}
 
+    /**
+     * After the Chat UI (mynah-ui) is ready.
+     */
     async onReady() {
         await this.restorePreviousChats()
-        try {
-            const localProjectContextController = await LocalProjectContextController.getInstance()
-            const contextItems = await localProjectContextController.getContextCommandItems()
-            await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
-            void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
-        } catch (error) {
-            this.#log('Error initializing context commands: ' + error)
-        }
+        // try {
+        //     this.setUpgradeQMode()
+        // } catch (err) {
+        //     this.#log('Error initializing Free Tier state: ' + (err as Error).message)
+        // }
+
+        // try {
+        //     const localProjectContextController = await LocalProjectContextController.getInstance()
+        //     const contextItems = await localProjectContextController.getContextCommandItems()
+        //     await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
+        //     void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
+        // } catch (error) {
+        //     this.#log('Error initializing context commands: ' + error)
+        // }
     }
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {
@@ -1881,6 +1916,8 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController.activeTabId = params.tabId
 
         this.#chatSessionManagementService.createSession(params.tabId)
+
+        // this.setUpgradeQMode(params.tabId)
     }
 
     onTabChange(params: TabChangeParams) {
@@ -1895,6 +1932,8 @@ export class AgenticChatController implements ChatHandlers {
             name: ChatTelemetryEventName.EnterFocusConversation,
             data: {},
         })
+
+        this.setUpgradeQMode(params.tabId)
     }
 
     onTabRemove(params: TabRemoveParams) {
@@ -2037,6 +2076,64 @@ export class AgenticChatController implements ChatHandlers {
 
             this.#stoppedToolUses.add(toolUseId)
         }
+    }
+
+    /**
+     * Updates the "Upgrade Q" (subscription tier) state of the UI in the chat component. If `mode` is not given, the user's subscription status is checked by calling the Q service.
+     *
+     * `mode` behavior:
+     * - 'freetier': always show "Upgrade Q" button.
+     * - 'freetier-limit': also show "Free Tier limit reached" card in chat.
+     *     - This mode is "sticky" until 'paidtier' is passed to override it.
+     * - 'paidtier': don't show "Upgrade Q" button.
+     */
+    async setUpgradeQMode(
+        tabId?: string,
+        mode?: 'paidtier' | 'freetier' | 'freetier-limit' /*, session: ChatSessionService*/
+    ) {
+        this.#log(
+            `xxx setUpgradeQMode: mode=${mode} getCodewhispererService=${!!this.#serviceManager?.getCodewhispererService()}`
+        )
+        if (mode === 'freetier-limit') {
+            this.#freeTierLimit = true // Sticky until 'paidtier' is sent.
+        } else if (mode === 'paidtier') {
+            this.#freeTierLimit = false
+        } else if (this.#freeTierLimit && (!mode || mode === 'freetier')) {
+            mode = 'freetier-limit'
+        } else if (!mode) {
+            try {
+                // Note: intentionally async.
+                AmazonQTokenServiceManager.getInstance()
+                    ?.getCodewhispererService()
+                    .getSubscriptionStatus()
+                    .then(status => {
+                        this.#log(`xxx getSubscriptionStatus: ${status}`)
+                        this.setUpgradeQMode(tabId, status === 'ACTIVE' ? 'paidtier' : 'freetier')
+                    })
+                    .catch(err => {
+                        this.#log(`xxx getSubscriptionStatus failed: ${JSON.stringify(err)}`)
+                    })
+
+                // const isFreeTierUser = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
+                // mode = isFreeTierUser ? 'freetier' : 'paidtier'
+            } catch {
+                this.#log(`xxx yucky`)
+            }
+
+            return
+        }
+
+        const o: ChatUpdateParams = {
+            tabId: tabId ?? 'xxx',
+            state: { inProgress: false },
+            data: {
+                // Special flag recognized by `chat-client/src/client/mynahUi.ts`.
+                placeholderText: 'upgrade-q',
+                messages: [],
+            },
+        }
+        ;(o as any).upgradeQMode = mode
+        this.#features.chat.sendChatUpdate(o)
     }
 
     async #processGenerateAssistantResponseResponseWithTimeout(
@@ -2254,10 +2351,12 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #log(...messages: string[]) {
+        console.log(messages) // TODO: this.#features.logging should actually do something useful, that would be cool
         this.#features.logging.log(messages.join(' '))
     }
 
     #debug(...messages: string[]) {
+        console.debug(messages) // TODO: this.#features.logging should actually do something useful, that would be cool
         this.#features.logging.debug(messages.join(' '))
     }
 }
