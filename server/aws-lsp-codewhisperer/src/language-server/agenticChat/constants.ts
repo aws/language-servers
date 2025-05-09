@@ -5,3 +5,4 @@ export const generateAssistantResponseInputLimit = 600_000
 export const outputLimitExceedsPartialMsg = 'output exceeds maximum character limit of'
 export const responseTimeoutMs = 170_000
 export const responseTimeoutPartialMsg = 'Response processing timed out after'
+export const clientTimeoutMs = 180_000
