@@ -26,7 +26,7 @@ export class UserWrittenCodeTracker {
     private _lastQInvocationTime: number
     private telemetryService: TelemetryService
     private buckets: TelemetryBuckets
-    private intervalId: NodeJS.Timeout
+    private intervalId?: NodeJS.Timeout
     private static instance?: UserWrittenCodeTracker
 
     private constructor(telemetryService: TelemetryService) {
@@ -38,11 +38,10 @@ export class UserWrittenCodeTracker {
     }
 
     public static getInstance(telemetryService: TelemetryService) {
-        const instance = (this.instance ??= new this(telemetryService))
-        if (!this.instance.intervalId) {
-            this.instance.startListening()
+        if (!this.instance) {
+            this.instance = new this(telemetryService)
         }
-        return instance
+        return this.instance
     }
 
     private startListening() {
@@ -146,7 +145,9 @@ export class UserWrittenCodeTracker {
     dispose(): void {
         if (this.intervalId) {
             clearInterval(this.intervalId)
+            this.intervalId = undefined
         }
         this.reset()
+        UserWrittenCodeTracker.instance = undefined
     }
 }
