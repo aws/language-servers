@@ -431,6 +431,20 @@ npm link @aws/language-server-runtimes @aws/language-server-runtimes-types &&
 npm run compile -- --force
 ```
 
+### Customization
+#### Single Profile Customizations
+To request customization information for a selected developer profile, use the `aws/getConfigurationFromServer` LSP extension with the section field set to `aws.q.customizations`.
+
+#### Multiple Profile Customizations
+To request customization information for all valid developer profiles, use the same `aws/getConfigurationFromServer` LSP extension. However, this requires setting the following initialization parameters in the client: 
+1. `initializationOptions.aws.awsClientCapabilities.q.customizationsWithMetadata`
+2. `initializationOptions.aws.awsClientCapabilities.q.developerProfiles`
+
+Both the above-mentioned fields must be set to true.
+
+#### Testing Customizations
+When testing customizations with the minimal VSCode extension, set the `ENABLE_CUSTOMIZATIONS_WITH_METADATA` environment variable to `true` in your launch configuration.
+
 ### Endpoint and region override
 It is possible to override the default region and default endpoint utilized by the AWS SDK clients (e.g. for the Q developer backend api endpoint) when building the capabilities servers.
 
