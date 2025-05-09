@@ -122,6 +122,7 @@ import {
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
+import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -148,6 +149,7 @@ export class AgenticChatController implements ChatHandlers {
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
     #stoppedToolUses = new Set<string>()
+    #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -341,6 +343,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController.dispose()
         this.#chatHistoryDb.close()
         this.#contextCommandsProvider?.dispose()
+        this.#userWrittenCodeTracker?.dispose()
     }
 
     async onListConversations(params: ListConversationsParams) {
@@ -387,6 +390,9 @@ export class AgenticChatController implements ChatHandlers {
 
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
+            if (triggerContext.programmingLanguage?.languageName) {
+                this.#userWrittenCodeTracker?.recordUsageCount(triggerContext.programmingLanguage.languageName)
+            }
             const isNewConversation = !session.conversationId
             session.contextListSent = false
             if (isNewConversation) {
@@ -1783,7 +1789,10 @@ export class AgenticChatController implements ChatHandlers {
                 ],
             },
         }
+
+        this.#userWrittenCodeTracker?.onQStartsMakingEdits()
         const applyResult = await this.#features.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
+        this.#userWrittenCodeTracker?.onQFinishesEdits()
 
         if (applyResult.applied) {
             this.#log(`Q Chat server inserted code successfully`)
@@ -2198,6 +2207,9 @@ export class AgenticChatController implements ChatHandlers {
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
+        if (newConfig.sendUserWrittenCodeMetrics) {
+            this.#userWrittenCodeTracker = UserWrittenCodeTracker.getInstance(this.#telemetryService)
+        }
         this.#log(`Chat configuration updated customizationArn to ${this.#customizationArn}`)
         /*
             The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination

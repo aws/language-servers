@@ -75,6 +75,12 @@ export interface CodeWhispererCodePercentageEvent {
     successCount: number
 }
 
+export interface UserWrittenPercentageEvent {
+    codewhispererLanguage: string
+    userWrittenCodeCharacterCount: number
+    userWrittenCodeLineCount: number
+}
+
 export interface CodeWhispererUserDecisionEvent {
     codewhispererRequestId?: string
     codewhispererSessionId?: string
