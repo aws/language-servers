@@ -40,7 +40,8 @@ export function toMynahFileList(fileList: ChatMessage['fileList']): ChatItemCont
                             )
                             .join(', ') || '',
                     description: fileDetails.description,
-                    visibleName: filePath.split('/').filter(Boolean).pop() || filePath.split('/').slice(-2, -1)[0] || filePath,
+                    visibleName:
+                        filePath.split('/').filter(Boolean).pop() || filePath.split('/').slice(-2, -1)[0] || filePath,
                     clickable: true,
                     data: {
                         fullPath: fileDetails.fullPath || '',
