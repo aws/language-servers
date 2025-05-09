@@ -400,7 +400,7 @@ export class TransformHandler {
                         exportIntent: ExportIntent.TRANSFORMATION,
                     })
             )
-            result = await this.serviceManager.getStreamingClient().client.exportResultArchive({
+            result = await this.serviceManager.getStreamingClient().exportResultArchive({
                 exportId,
                 exportIntent: ExportIntent.TRANSFORMATION,
             })
