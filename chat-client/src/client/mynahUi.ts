@@ -874,7 +874,7 @@ export const createMynahUi = (
                 }
             }
             if (!isPartialResult) {
-                if (processedHeader && processedHeader.status?.text !== 'error') {
+                if (processedHeader && processedHeader.status?.status !== 'error') {
                     processedHeader.status = undefined
                 }
             }
