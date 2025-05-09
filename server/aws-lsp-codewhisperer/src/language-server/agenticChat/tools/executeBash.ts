@@ -150,7 +150,8 @@ export class ExecuteBash {
         this.lsp = features.lsp
     }
 
-    public async validate(command: string): Promise<void> {
+    public async validate(input: ExecuteBashParams): Promise<void> {
+        const command = input.command
         if (!command.trim()) {
             throw new Error('Command cannot be empty.')
         }

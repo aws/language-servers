@@ -668,7 +668,7 @@ export class AgenticChatController implements ChatHandlers {
                 }))
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
                     content =
-                        'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input. Do not apologize.'
+                        'Your toolUse input is incomplete, try again. If the error happens consistently, break this task down into multiple tool uses with smaller input. Do not apologize.'
                     shouldDisplayMessage = false
                 }
             }
@@ -1370,8 +1370,15 @@ export class AgenticChatController implements ChatHandlers {
                     buttons,
                 }
                 // ⚠️ Warning: This accesses files outside the workspace
-                const readFilePath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
-                body = `I need permission to read files and list directories outside the workspace.\n\`${readFilePath}\``
+                if (toolUse.name === 'fsRead') {
+                    const paths = (toolUse.input as unknown as FsReadParams).paths
+                    const formattedPaths: string[] = []
+                    paths.forEach(element => formattedPaths.push(`\`${element}\``))
+                    body = `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
+                } else {
+                    const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
+                    body = `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
+                }
                 break
         }
 
@@ -1431,21 +1438,29 @@ export class AgenticChatController implements ChatHandlers {
         } else {
             chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
         }
+        let currentPaths = []
+        if (toolUse.name === 'fsRead') {
+            currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
+        } else {
+            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
+        }
 
-        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams | FileSearchParams)?.path
-        if (!currentPath) return
-        const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
-        // Check if path already exists in the list
-        const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
-        if (!isPathAlreadyProcessed) {
-            const currentFileDetail = {
-                relativeFilePath: currentPath,
-                lineRanges: [{ first: -1, second: -1 }],
+        if (!currentPaths) return
+
+        for (const currentPath of currentPaths) {
+            const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
+            // Check if path already exists in the list
+            const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
+            if (!isPathAlreadyProcessed) {
+                const currentFileDetail = {
+                    relativeFilePath: currentPath,
+                    lineRanges: [{ first: -1, second: -1 }],
+                }
+                chatResultStream.addMessageOperation(messageIdToUpdate, toolUse.name!, [
+                    ...existingPaths,
+                    currentFileDetail,
+                ])
             }
-            chatResultStream.addMessageOperation(messageIdToUpdate, toolUse.name!, [
-                ...existingPaths,
-                currentFileDetail,
-            ])
         }
         let title: string
         const itemCount = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths.length
