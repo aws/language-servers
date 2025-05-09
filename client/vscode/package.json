@@ -346,7 +346,9 @@
         "vscode-languageclient": "^9.0.1"
     },
     "dependencies": {
-        "awsdocuments-ls-client": "file:"
+        "awsdocuments-ls-client": "file:",
+        "diff-match-patch": "^1.0.5",
+        "patch-package": "^8.0.0"
     },
     "enabledApiProposals": [
         "inlineCompletionsAdditions"
