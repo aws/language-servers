@@ -70,7 +70,7 @@ function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
 
             // Extract the content lines for this hunk
             let i = hunkStart + 1
-            let contentLines = []
+            const contentLines = []
             while (i < diffLines.length && !diffLines[i].startsWith('@@')) {
                 contentLines.push(diffLines[i])
                 i++
