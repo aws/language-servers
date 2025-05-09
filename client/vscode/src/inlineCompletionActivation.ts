@@ -37,7 +37,7 @@ function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
             }
             console.log('DEBUG-NEP: Standard diff package returned false, trying diff-match-patch')
         } catch (error) {
-            console.log('DEBUG-NEP: Standard diff package failed, trying diff-match-patch:', error)
+            console.log('DEBUG-NEP: Standard diff package failed, trying diff-match-patch')
         }
 
         // If that fails, use diff-match-patch which is more robust
@@ -67,8 +67,6 @@ function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
             const oldLines = parseInt(match[2])
             const newStart = parseInt(match[3])
             const newLines = parseInt(match[4])
-
-            console.log(`DEBUG-NEP: Processing hunk: -${oldStart},${oldLines} +${newStart},${newLines}`)
 
             // Extract the content lines for this hunk
             let i = hunkStart + 1
@@ -183,7 +181,6 @@ class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemP
         console.log('DEBUG-NEP: provideInlineCompletionItems called')
 
         if (!isLanguageSupported(document)) {
-            console.log('DEBUG-NEP: Language not supported')
             return null
         }
 
@@ -203,27 +200,14 @@ class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemP
             )) as InlineCompletionListWithReferences
 
             if (!result || !result.items || result.items.length === 0) {
-                console.log('DEBUG-NEP: No completions returned')
                 return null
             }
 
             console.log(`DEBUG-NEP: Received ${result.items.length} completions`)
 
-            // Log the raw response structure to help debug
-            console.log(
-                'DEBUG-NEP: Raw response structure:',
-                JSON.stringify({
-                    sessionId: result.sessionId,
-                    itemsCount: result.items.length,
-                    firstItemKeys: result.items.length > 0 ? Object.keys(result.items[0]) : [],
-                })
-            )
-
             // Convert server response to VSCode inline completion items
             const items = result.items
                 .map((item: any, index: number) => {
-                    console.log(`DEBUG-NEP: Processing item ${index}`)
-
                     // TODO-NEP: The server response structure is inconsistent. We need to handle multiple property names:
                     // 1. text - Standard property for inline completions
                     // 2. edit.content - Used for edit suggestions in udiff format
@@ -235,21 +219,16 @@ class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemP
 
                     // Check for edit.content (used for udiff format)
                     if (!text && item.edit && item.edit.content) {
-                        console.log(`DEBUG-NEP: Using edit.content for item ${index}`)
                         text = item.edit.content
                     }
 
                     // Check for insertText (unexpected but observed in logs)
                     if (!text && item.insertText) {
-                        console.log(`DEBUG-NEP: Using insertText for item ${index}`)
                         text = item.insertText
                     }
 
                     if (!text) {
-                        console.error(
-                            `DEBUG-NEP: No text content found for item ${index}, available properties:`,
-                            Object.keys(item).join(', ')
-                        )
+                        console.error(`DEBUG-NEP: No text content found for item ${index}`)
                         return null // Skip items with no text
                     }
 
@@ -260,23 +239,16 @@ class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemP
                         text.includes('--- file:///') && text.includes('+++ file:///') && text.includes('@@ ')
 
                     if (containsUdiff) {
-                        console.log(`DEBUG-NEP: Detected content with udiff format for item ${index}`)
                         try {
                             // Extract just the diff part if the text contains both original content and diff
                             const diffStartIndex = text.indexOf('--- file:///')
                             if (diffStartIndex > 0) {
-                                console.log(`DEBUG-NEP: Found embedded diff starting at index ${diffStartIndex}`)
                                 // Extract just the diff part
                                 text = text.substring(diffStartIndex)
                             }
 
                             // Apply the patch using our robust function
                             const documentText = document.getText()
-                            console.log(
-                                `DEBUG-NEP: Document length: ${documentText.length}, Diff length: ${text.length}`
-                            )
-                            console.log(`DEBUG-NEP: First few lines of diff:`, text.split('\n').slice(0, 5))
-
                             const patchedText = applyUnifiedDiff(documentText, text)
 
                             // Calculate the range for the entire document
@@ -290,10 +262,6 @@ class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemP
                             // Use the patched text and full document range
                             text = patchedText
                             range = fullDocRange
-
-                            console.log(
-                                `DEBUG-NEP: Successfully applied udiff patch, result length: ${typeof patchedText === 'string' ? patchedText.length : 'N/A'}`
-                            )
                         } catch (error) {
                             console.error('DEBUG-NEP: Error applying udiff patch:', error)
                             // Fall back to using the original text if patch application fails
@@ -301,16 +269,13 @@ class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemP
                     }
 
                     if (!text) {
-                        console.error(`DEBUG-NEP: No text content after processing item ${index}`)
                         return null // Skip items with no text after processing
                     }
 
-                    console.log(`DEBUG-NEP: Creating InlineCompletionItem with text length: ${text.length}`)
                     const inlineItem = new InlineCompletionItem(text)
 
                     // Set range if provided
                     if (range) {
-                        console.log(`DEBUG-NEP: Setting range for item ${index}:`, range)
                         inlineItem.range = new Range(
                             range.start.line,
                             range.start.character,
@@ -357,7 +322,6 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
         console.log('DEBUG-NEP: Manual trigger for inline completion invoked')
         try {
             await commands.executeCommand(`editor.action.inlineSuggest.trigger`)
-            console.log('DEBUG-NEP: editor.action.inlineSuggest.trigger completed')
         } catch (error) {
             console.error('DEBUG-NEP: Error triggering inline suggest:', error)
         }
@@ -372,17 +336,8 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
             return
         }
 
-        // Log document details
-        console.log('DEBUG-NEP: Active document details:', {
-            uri: editor.document.uri.toString(),
-            languageId: editor.document.languageId,
-            lineCount: editor.document.lineCount,
-            isSupported: isLanguageSupported(editor.document),
-        })
-
         try {
             // Use our existing provider instead of creating a new one
-            console.log('DEBUG-NEP: Triggering inline suggestion using existing provider')
             await commands.executeCommand('editor.action.inlineSuggest.trigger')
         } catch (error) {
             console.error('DEBUG-NEP: Error in showEditSuggestion:', error)
@@ -400,7 +355,6 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
 
         // Only trigger on special characters or Enter key
         if (shouldTriggerCompletion(e)) {
-            console.log('Auto-trigger for inline completion')
             await commands.executeCommand('editor.action.inlineSuggest.trigger')
         }
     })
