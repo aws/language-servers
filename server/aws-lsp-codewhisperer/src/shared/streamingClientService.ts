@@ -4,6 +4,8 @@ import {
     GenerateAssistantResponseCommandOutput as GenerateAssistantResponseCommandOutputCodeWhispererStreaming,
     SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputCodeWhispererStreaming,
+    ExportResultArchiveCommandInput as ExportResultArchiveCommandInputCodeWhispererStreaming,
+    ExportResultArchiveCommandOutput as ExportResultArchiveCommandOutputCodeWhispererStreaming,
 } from '@amzn/codewhisperer-streaming'
 import {
     QDeveloperStreaming,
@@ -120,6 +122,19 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
         this.inflightRequests.delete(controller)
 
+        return response
+    }
+
+    public async exportResultArchive(
+        request: ExportResultArchiveCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<ExportResultArchiveCommandOutputCodeWhispererStreaming> {
+        const controller: AbortController = abortController ?? new AbortController()
+        this.inflightRequests.add(controller)
+        const response = await this.client.exportResultArchive(
+            this.profileArn ? { ...request, profileArn: this.profileArn } : request
+        )
+        this.inflightRequests.delete(controller)
         return response
     }
 }
