@@ -101,7 +101,7 @@ import {
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
 import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
-import { LocalProjectContextController } from '../../shared/localProjectContextController'
+// import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
@@ -1974,14 +1974,16 @@ export class AgenticChatController implements ChatHandlers {
 
     async onReady() {
         await this.restorePreviousChats()
-        try {
-            const localProjectContextController = await LocalProjectContextController.getInstance()
-            const contextItems = await localProjectContextController.getContextCommandItems()
-            await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
-            void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
-        } catch (error) {
-            this.#log('Error initializing context commands: ' + error)
-        }
+        // try {
+        //     const localProjectContextController = await LocalProjectContextController.getInstance()
+        //     const contextItems = await localProjectContextController.getContextCommandItems()
+        //     await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
+        //     void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
+        // } catch (error) {
+        //     this.#log('Error initializing context commands: ' + error)
+        // }
+
+        this.setUpgradeQMode()
     }
 
     onSendFeedback({ tabId, feedbackPayload }: FeedbackParams) {
