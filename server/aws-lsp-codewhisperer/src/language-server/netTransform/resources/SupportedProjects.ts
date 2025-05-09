@@ -16,4 +16,4 @@ export const supportedProjects = [
     'Unknown',
 ]
 
-export const unsupportedViewComponents = ['@Session', '@PagedListRenderOptions', 'User.Identity.GetUserName']
+export const unsupportedViewComponents = ['@Session', '@PagedListRenderOptions']
