@@ -170,30 +170,34 @@ export class ChatTelemetryController {
     }
 
     public emitToolUseSuggested(toolUse: ToolUse, conversationId: string, languageServerVersion: string) {
+        const data = {
+            [CONVERSATION_ID_METRIC_KEY]: conversationId,
+            cwsprChatConversationType: 'AgenticChatWithToolUse',
+            credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+            cwsprToolName: toolUse.name ?? '',
+            cwsprToolUseId: toolUse.toolUseId ?? '',
+            result: 'Succeeded',
+            languageServerVersion: languageServerVersion,
+        }
+        this.#logging.info(`Emitting amazonq_toolUseSuggested telemetry: ${JSON.stringify(data, null, 2)}`)
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.ToolUseSuggested,
-            data: {
-                [CONVERSATION_ID_METRIC_KEY]: conversationId,
-                cwsprChatConversationType: 'AgenticChatWithToolUse',
-                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
-                cwsprToolName: toolUse.name ?? '',
-                cwsprToolUseId: toolUse.toolUseId ?? '',
-                result: 'Succeeded',
-                languageServerVersion: languageServerVersion,
-            },
+            data,
         })
     }
 
     public emitInteractWithAgenticChat(interactionType: AgenticChatInteractionType, tabId: string) {
+        const data = {
+            [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId) ?? '',
+            cwsprChatConversationType: 'AgenticChat',
+            credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+            cwsprAgenticChatInteractionType: interactionType,
+            result: 'Succeeded',
+        }
+        this.#logging.info(`Emitting amazonq_interactWithAgenticChat telemetry: ${JSON.stringify(data, null, 2)}`)
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.InteractWithAgenticChat,
-            data: {
-                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId) ?? '',
-                cwsprChatConversationType: 'AgenticChat',
-                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
-                cwsprAgenticChatInteractionType: interactionType,
-                result: 'Succeeded',
-            },
+            data,
         })
     }
 
@@ -277,25 +281,27 @@ export class ChatTelemetryController {
         requestId?: string,
         errorReason?: string
     ) {
+        const data = {
+            cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
+            cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
+            cwsprChatUserIntent: metric.cwsprChatUserIntent,
+            cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
+            cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
+            cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
+            cwsprChatResponseCode: metric.cwsprChatResponseCode,
+            cwsprChatRequestLength: metric.cwsprChatRequestLength,
+            cwsprChatConversationType: metric.cwsprChatConversationType,
+            requestId: requestId,
+            reasonDesc: getTelemetryReasonDesc(errorReason),
+            credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+            result: 'Succeeded',
+            [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
+            languageServerVersion: metric.languageServerVersion,
+        }
+        this.#logging.info(`Emitting amazonq_messageResponseError telemetry: ${JSON.stringify(data, null, 2)}`)
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.MessageResponseError,
-            data: {
-                cwsprChatHasCodeSnippet: metric.cwsprChatHasCodeSnippet,
-                cwsprChatTriggerInteraction: metric.cwsprChatTriggerInteraction,
-                cwsprChatUserIntent: metric.cwsprChatUserIntent,
-                cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
-                cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
-                cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
-                cwsprChatResponseCode: metric.cwsprChatResponseCode,
-                cwsprChatRequestLength: metric.cwsprChatRequestLength,
-                cwsprChatConversationType: metric.cwsprChatConversationType,
-                requestId: requestId,
-                reasonDesc: getTelemetryReasonDesc(errorReason),
-                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
-                result: 'Succeeded',
-                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
-                languageServerVersion: metric.languageServerVersion,
-            },
+            data,
         })
     }
 
