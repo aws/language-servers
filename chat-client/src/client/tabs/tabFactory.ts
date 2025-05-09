@@ -10,7 +10,7 @@ import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
-import { modelSelection } from '../texts/modelSelection'
+import { modelSelectionForRegion, Region } from '../texts/modelSelection'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -21,6 +21,7 @@ export class TabFactory {
     private export: boolean = false
     private agenticMode: boolean = false
     private modelSelectionEnabled: boolean = false
+    private region: Region = 'us-east-1'
 
     public static generateUniqueId() {
         // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
@@ -36,6 +37,7 @@ export class TabFactory {
     ) {}
 
     public createTab(disclaimerCardActive: boolean): MynahUIDataModel {
+        const modelSelection = modelSelectionForRegion[this.region]
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
@@ -96,6 +98,10 @@ export class TabFactory {
 
     public enableModelSelection() {
         this.modelSelectionEnabled = true
+    }
+
+    public setRegion(region: Region) {
+        this.region = region
     }
 
     public getDefaultTabData(): DefaultTabData {

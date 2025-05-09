@@ -90,6 +90,7 @@ import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
+import { Region } from './texts/modelSelection'
 
 const DEFAULT_TAB_DATA = {
     tabTitle: 'Chat',
@@ -103,6 +104,7 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     pairProgrammingAcknowledged?: boolean
     agenticMode?: boolean
     modelSelectionEnabled?: boolean
+    region?: Region
 }
 
 export const createChat = (
@@ -385,6 +387,10 @@ export const createChat = (
 
     if (config?.modelSelectionEnabled) {
         tabFactory.enableModelSelection()
+    }
+
+    if (config?.region) {
+        tabFactory.setRegion(config.region)
     }
 
     const [mynahUi, api] = createMynahUi(
