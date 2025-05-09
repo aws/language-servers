@@ -50,6 +50,38 @@ export const DEFAULT_EXCLUDE_DIRS = [
     'dist',
     'build',
     'out',
+    // Version control
+    '.git',
+    '.svn',
+    '.hg',
+    // IDE and Editor
+    '.idea',
+    '.vscode',
+    '.vs',
+    '.metals',
+    '.bloop',
+    '.ensime_cache',
+    '.project',
+    // Python Specific
+    '.venv',
+    'venv',
+    '.virtualenv',
+    'eggs',
+    '.eggs',
+    'sdist',
+    '.ipynb_checkpoints',
+    // Environment and Config
+    '.env',
+    '.aws-sam',
+    '.brazil',
+    '.rvm',
+    '.gem',
+    // Cache and Temporary
+    '.cache',
+    '.sass-cache',
+    '.pytest_cache',
+    '__pycache__',
+    'tmp',
 ]
 
 export const DEFAULT_EXCLUDE_FILES = [

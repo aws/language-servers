@@ -14,6 +14,7 @@ import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-se
 import { getBearerTokenFromProvider } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
+import { clientTimeoutMs } from '../language-server/agenticChat/constants'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -74,6 +75,10 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             endpoint,
             token: tokenProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            requestHandler: {
+                keepAlive: true,
+                requestTimeout: clientTimeoutMs,
+            },
             customUserAgent: customUserAgent,
         })
     }

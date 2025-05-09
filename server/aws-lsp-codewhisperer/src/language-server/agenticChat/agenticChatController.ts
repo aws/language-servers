@@ -121,6 +121,7 @@ import {
 } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
+import { CommandCategory } from './tools/executeBash'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -788,7 +789,7 @@ export class AgenticChatController implements ChatHandlers {
                         const approvedPaths = session.approvedPaths
 
                         // Pass the approved paths to the tool's requiresAcceptance method
-                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(
+                        const { requiresAcceptance, warning, commandCategory } = await tool.requiresAcceptance(
                             toolUse.input as any,
                             approvedPaths
                         )
@@ -798,7 +799,8 @@ export class AgenticChatController implements ChatHandlers {
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
                                 requiresAcceptance,
-                                warning
+                                warning,
+                                commandCategory
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
@@ -1064,6 +1066,22 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    /**
+     * Get a description for the tooltip based on command category
+     * @param commandCategory The category of the command
+     * @returns A descriptive message for the tooltip
+     */
+    #getCommandCategoryDescription(category: CommandCategory): string | undefined {
+        switch (category) {
+            case CommandCategory.Mutate:
+                return 'This command may modify your code and/or files.'
+            case CommandCategory.Destructive:
+                return 'This command may cause significant data loss or damage.'
+            default:
+                return undefined
+        }
+    }
+
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
         if (toolUse.name !== 'executeBash') {
             return
@@ -1154,43 +1172,34 @@ export class AgenticChatController implements ChatHandlers {
 
         // For file operations and other tools, create appropriate confirmation UI
         let header: {
-            body: string
+            body: string | undefined
             status: { status: 'info' | 'success' | 'warning' | 'error'; icon: string; text: string }
         }
-        let body: string
+        let body: string | undefined
 
         switch (toolName) {
             case 'fsWrite':
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
                 header = {
-                    body: 'File Write',
+                    body: undefined,
                     status: {
-                        status: isAccept ? 'success' : 'error',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Allowed' : 'Rejected',
+                        status: 'success',
+                        icon: 'ok',
+                        text: 'Allowed',
                     },
                 }
-                body = isAccept
-                    ? `File modification allowed: \`${writeFilePath}\``
-                    : `File modification rejected: \`${writeFilePath}\``
                 break
 
             case 'fsRead':
             case 'listDirectory':
                 // Common handling for read operations
-                const path = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
-                const isDirectory = toolName === 'listDirectory'
                 header = {
-                    body: isDirectory ? 'Directory Listing' : 'File Read',
+                    body: undefined,
                     status: {
-                        status: isAccept ? 'success' : 'error',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Allowed' : 'Rejected',
+                        status: 'success',
+                        icon: 'ok',
+                        text: 'Allowed',
                     },
                 }
-                body = isAccept
-                    ? `${isDirectory ? 'Directory listing' : 'File read'} allowed: \`${path}\``
-                    : `${isDirectory ? 'Directory listing' : 'File read'} rejected: \`${path}\``
                 break
 
             case 'fileSearch':
@@ -1260,6 +1269,7 @@ export class AgenticChatController implements ChatHandlers {
         toolUse: ToolUse,
         requiresAcceptance: Boolean,
         warning?: string,
+        commandCategory?: CommandCategory,
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
@@ -1289,6 +1299,7 @@ export class AgenticChatController implements ChatHandlers {
                           },
                           {
                               id: 'reject-shell-command',
+                              status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
                           },
@@ -1297,10 +1308,22 @@ export class AgenticChatController implements ChatHandlers {
                 header = {
                     status: requiresAcceptance
                         ? {
-                              icon: 'warning',
-                              status: 'warning',
+                              icon:
+                                  commandCategory === CommandCategory.Destructive
+                                      ? 'warning'
+                                      : commandCategory === CommandCategory.Mutate
+                                        ? 'info'
+                                        : 'none',
+                              status:
+                                  commandCategory === CommandCategory.Destructive
+                                      ? 'warning'
+                                      : commandCategory === CommandCategory.Mutate
+                                        ? 'info'
+                                        : undefined,
                               position: 'left',
-                              // TODO: Add `description` if necessary to show a tooltip
+                              description: this.#getCommandCategoryDescription(
+                                  commandCategory ?? CommandCategory.ReadOnly
+                              ),
                           }
                         : {},
                     body: 'shell',
@@ -1341,8 +1364,8 @@ export class AgenticChatController implements ChatHandlers {
                     },
                 ]
                 header = {
-                    icon: 'warning',
-                    iconForegroundStatus: 'warning',
+                    icon: 'tools',
+                    iconForegroundStatus: 'tools',
                     body: '#### Allow read-only tools outside your workspace',
                     buttons,
                 }
@@ -1356,7 +1379,7 @@ export class AgenticChatController implements ChatHandlers {
             type: 'tool',
             messageId: this.#getMessageIdForToolUse(toolType, toolUse),
             header,
-            body: warning ? warning + (toolType === 'executeBash' ? '' : '\n\n') + body : body,
+            body: warning ? (toolType === 'executeBash' ? '' : '\n\n') + body : body,
         }
     }
 
@@ -1607,9 +1630,12 @@ export class AgenticChatController implements ChatHandlers {
                 // Clear the chat history in the database for this tab
                 this.#chatHistoryDb.clearTab(tabId)
             }
+
+            const errorBody =
+                err.code === 'QModelResponse' && requestID ? `${err.message}\n\nRequest ID: ${requestID}` : err.message
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
-                body: err.message,
+                body: errorBody,
                 messageId: errorMessageId,
                 buttons: [],
             })
@@ -1617,7 +1643,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: requestID ? genericErrorMsg + `\n\nRequest ID: ${requestID}` : genericErrorMsg,
+            body: requestID ? `${genericErrorMsg}\n\nRequest ID: ${requestID}` : genericErrorMsg,
             messageId: errorMessageId,
             buttons: [],
         })
@@ -1806,7 +1832,7 @@ export class AgenticChatController implements ChatHandlers {
     onLinkClick() {}
 
     async onReady() {
-        await this.#tabBarController.loadChats()
+        await this.restorePreviousChats()
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
@@ -2192,6 +2218,14 @@ export class AgenticChatController implements ChatHandlers {
             return tools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
         }
         return tools
+    }
+
+    async restorePreviousChats() {
+        try {
+            await this.#tabBarController.loadChats()
+        } catch (error) {
+            this.#log('Error restoring previous chats: ' + error)
+        }
     }
 
     #createDeferred() {
