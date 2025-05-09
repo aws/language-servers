@@ -18,6 +18,7 @@ import {
     logInlineCompletionSessionResultsNotificationType,
     LogInlineCompletionSessionResultsParams,
     InlineCompletionListWithReferences,
+    inlineCompletionWithReferencesRequestType,
 } from '@aws/language-server-runtimes/protocol'
 import { applyPatch } from 'diff'
 
@@ -46,6 +47,112 @@ export const CodewhispererInlineCompletionLanguages = [
     { scheme: 'file', language: 'python' },
 ]
 
+/**
+ * Check if the document language is supported for inline completions
+ */
+function isLanguageSupported(document: TextDocument): boolean {
+    return CodewhispererInlineCompletionLanguages.some(
+        selector => selector.language === document.languageId && selector.scheme === document.uri.scheme
+    )
+}
+
+/**
+ * Check if the document change should trigger a completion
+ */
+function shouldTriggerCompletion(e: TextDocumentChangeEvent): boolean {
+    // Simple implementation - trigger on special characters
+    if (e.contentChanges.length === 0) {
+        return false
+    }
+
+    const text = e.contentChanges[0].text
+    // Trigger on special characters or Enter key
+    return text === '.' || text === '(' || text === '{' || text === '[' || text === '\n'
+}
+
+/**
+ * CodeWhisperer inline completion provider implementation
+ */
+class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemProvider {
+    private languageClient: LanguageClient
+
+    constructor(languageClient: LanguageClient) {
+        this.languageClient = languageClient
+    }
+
+    async provideInlineCompletionItems(
+        document: TextDocument,
+        position: Position,
+        context: InlineCompletionContext,
+        token: CancellationToken
+    ): Promise<InlineCompletionList | null> {
+        console.log('DEBUG-NEP: provideInlineCompletionItems called')
+
+        if (!isLanguageSupported(document)) {
+            console.log('DEBUG-NEP: Language not supported')
+            return null
+        }
+
+        try {
+            // Request inline completions from the language server
+            const result = (await this.languageClient.sendRequest(
+                inlineCompletionWithReferencesRequestType,
+                {
+                    textDocument: { uri: document.uri.toString() },
+                    position: position,
+                    context: {
+                        triggerKind: context.triggerKind,
+                        selectedCompletionInfo: context.selectedCompletionInfo,
+                    },
+                },
+                token
+            )) as InlineCompletionListWithReferences
+
+            if (!result || !result.items || result.items.length === 0) {
+                console.log('DEBUG-NEP: No completions returned')
+                return null
+            }
+
+            console.log(`DEBUG-NEP: Received ${result.items.length} completions`)
+
+            // Convert server response to VSCode inline completion items
+            const items = result.items.map((item: any, index: number) => {
+                const inlineItem = new InlineCompletionItem(item.text)
+
+                // Set range if provided
+                if (item.range) {
+                    inlineItem.range = new Range(
+                        item.range.start.line,
+                        item.range.start.character,
+                        item.range.end.line,
+                        item.range.end.character
+                    )
+                }
+
+                // Set command for acceptance tracking
+                inlineItem.command = {
+                    title: 'Accept Completion',
+                    command: 'aws.sample-vscode-ext-amazonq.accept',
+                    arguments: [result.sessionId, item.itemId, Date.now()],
+                }
+
+                // Set isInlineEdit flag if this is an edit suggestion
+                if (item.isInlineEdit) {
+                    console.log('DEBUG-NEP: Setting isInlineEdit=true for item', index)
+                    ;(inlineItem as any).isInlineEdit = true
+                }
+
+                return inlineItem
+            })
+
+            return { items }
+        } catch (error) {
+            console.error('DEBUG-NEP: Error getting inline completions:', error)
+            return null
+        }
+    }
+}
+
 export function registerInlineCompletion(languageClient: LanguageClient) {
     const inlineCompletionProvider = new CodeWhispererInlineCompletionItemProvider(languageClient)
     // POC-NEP: The displayName parameter would allow us to show "Amazon Q" in the UI
@@ -55,8 +162,84 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
 
     // Register manual trigger command for InlineCompletions
     commands.registerCommand('aws.sample-vscode-ext-amazonq.invokeInlineCompletion', async (...args: any) => {
-        console.log('Manual trigger for inline completion invoked')
-        await commands.executeCommand(`editor.action.inlineSuggest.trigger`)
+        console.log('DEBUG-NEP: Manual trigger for inline completion invoked')
+        try {
+            await commands.executeCommand(`editor.action.inlineSuggest.trigger`)
+            console.log('DEBUG-NEP: editor.action.inlineSuggest.trigger completed')
+        } catch (error) {
+            console.error('DEBUG-NEP: Error triggering inline suggest:', error)
+        }
+    })
+
+    // Register the showEditSuggestion command
+    commands.registerCommand('nativeui-poc.showEditSuggestion', async () => {
+        console.log('DEBUG-NEP: Show Edit Suggestion command invoked')
+        const editor = window.activeTextEditor
+        if (!editor) {
+            window.showErrorMessage('No active editor')
+            return
+        }
+
+        // Log document details
+        console.log('DEBUG-NEP: Active document details:', {
+            uri: editor.document.uri.toString(),
+            languageId: editor.document.languageId,
+            lineCount: editor.document.lineCount,
+            isSupported: isLanguageSupported(editor.document),
+        })
+
+        try {
+            // Create a simple edit suggestion
+            const position = editor.selection.active
+            const line = position.line
+
+            // Create a range at the cursor position
+            const range = new Range(position, position)
+
+            // Create a simple edit suggestion
+            const newText = '// This is a hard-coded edit suggestion'
+            console.log('DEBUG-NEP: Creating edit suggestion with text:', newText)
+
+            // Create a custom provider that explicitly sets isInlineEdit
+            const provider = new (class implements InlineCompletionItemProvider {
+                async provideInlineCompletionItems(
+                    document: TextDocument,
+                    position: Position,
+                    context: InlineCompletionContext,
+                    token: CancellationToken
+                ): Promise<InlineCompletionList> {
+                    console.log('DEBUG-NEP: Provider called, creating item')
+
+                    // Create the item
+                    const item = new InlineCompletionItem(newText, range)
+
+                    // Set the isInlineEdit property
+                    ;(item as any).isInlineEdit = true
+
+                    console.log('DEBUG-NEP: Created item with isInlineEdit=true')
+                    return { items: [item] }
+                }
+            })()
+
+            // Register the provider
+            console.log('DEBUG-NEP: Registering provider')
+            const disposable = languages.registerInlineCompletionItemProvider(
+                { scheme: 'file', language: editor.document.languageId },
+                provider
+            )
+
+            // Trigger inline completion
+            console.log('DEBUG-NEP: Triggering inline suggestion')
+            await commands.executeCommand('editor.action.inlineSuggest.trigger')
+
+            // Keep the provider registered longer
+            setTimeout(() => {
+                console.log('DEBUG-NEP: Disposing provider')
+                disposable.dispose()
+            }, 10000)
+        } catch (error) {
+            console.error('DEBUG-NEP: Error in showEditSuggestion:', error)
+        }
     })
 
     // TODO-NEP: Wire up commands and handlers for accept/reject operations that the suggested edits UI supports
@@ -98,157 +281,4 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
         languageClient.sendNotification(logInlineCompletionSessionResultsNotificationType, params)
     }
     commands.registerCommand('aws.sample-vscode-ext-amazonq.accept', onInlineAcceptance)
-}
-
-// Helper function to check if a document's language is supported
-function isLanguageSupported(document: TextDocument): boolean {
-    return CodewhispererInlineCompletionLanguages.some(
-        lang => lang.language === document.languageId && lang.scheme === document.uri.scheme
-    )
-}
-
-// Helper function to determine if we should trigger a completion
-function shouldTriggerCompletion(e: TextDocumentChangeEvent): boolean {
-    if (e.contentChanges.length === 0) {
-        return false
-    }
-
-    const change = e.contentChanges[0]
-    const text = change.text
-
-    // Trigger on special characters
-    if (['{', '}', '(', ')', '[', ']', ':', ';', '.'].includes(text)) {
-        return true
-    }
-
-    // Trigger on Enter key (newline)
-    if (text === '\n' || text === '\r\n') {
-        return true
-    }
-
-    return false
-}
-
-export class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemProvider {
-    constructor(private readonly languageClient: LanguageClient) {}
-
-    /**
-     * Generates a unified diff format string for text modifications
-     * @param text - The input text to generate diff for
-     * @param startLine - The starting line number for the diff
-     * @returns A string containing the diff in unified diff format showing:
-     *          - Original and modified line numbers
-     *          - First line with added suffix
-     *          - Second line removed
-     *          - Third line added as new
-     */
-    private getTestDiff(text: string, startLine: number) {
-        const lines = text.split('\n')
-        const diff = [
-            `@@ -${startLine},3 +${startLine},3 @@`,
-            '-' + lines[0],
-            '-' + lines[1],
-            '-' + lines[2],
-            '+' + lines[0] + ' // Added suffix in line 0;',
-            '+' + lines[1] + ' // Added suffix in line 1;',
-            '+' + lines[2] + ' // Added suffix in line 2;',
-        ].join('\n')
-        console.log('Generated diff:', diff)
-        return diff
-    }
-
-    /**
-     * Calculates the original file range from a unified diff with line and column pairs
-     * @param diffText The unified diff text
-     * @returns The range for the original file with line and column pairs
-     */
-    private calculateOriginalDiffRange(diffText: string, document: TextDocument): Range {
-        // Extract the range information from the header
-        const headerMatch = diffText.match(/@@ -(\d+),(\d+) \+(\d+),(\d+) @@/)
-
-        if (!headerMatch) {
-            throw new Error('Invalid diff format')
-        }
-
-        const startLine = parseInt(headerMatch[1], 10)
-        const lineCount = parseInt(headerMatch[2], 10)
-        const endLine = startLine + lineCount - 1
-
-        // Use VSCode's Position.CHARACTER_LIMIT for the end column
-        return new Range(new Position(startLine - 1, 0), new Position(endLine, 0))
-    }
-
-    async provideInlineCompletionItems(
-        document: TextDocument,
-        position: Position,
-        context: InlineCompletionContext,
-        token: CancellationToken
-    ): Promise<InlineCompletionItem[] | InlineCompletionList> {
-        const requestStartTime = Date.now()
-
-        try {
-            console.log('Sending inline completion request with context:', {
-                uri: document.uri.toString(),
-                position: { line: position.line, character: position.character },
-                triggerKind: context.triggerKind,
-            })
-
-            const lspRequest = {
-                textDocument: {
-                    uri: document.uri.toString(),
-                },
-                position: {
-                    line: position.line,
-                    character: position.character,
-                },
-                context: {
-                    triggerKind: context.triggerKind,
-                },
-            }
-
-            const response = (await Promise.race([
-                this.languageClient.sendRequest('aws/textDocument/inlineCompletionWithReferences', lspRequest, token),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('LSP Server did not response in 5s')), 5000)
-                ),
-            ])) as InlineCompletionListWithReferences
-
-            console.debug('LSP Response:', JSON.stringify(response, null, 2))
-
-            if (response.items.length == 0) {
-                console.log('Returning early')
-                return []
-            }
-            const diff: string = response.items[0].insertText.toString()
-            console.log()
-            const diffRange: Range = this.calculateOriginalDiffRange(diff, document)
-
-            if (!document.validateRange(diffRange)) {
-                // throw error and raise exception
-                throw new Error('Invalid range')
-            }
-
-            const updatedText = applyPatch(document.getText(diffRange), diff)
-
-            if (!updatedText) {
-                console.log('No updated content')
-                this.languageClient.info(`Client: Received empty suggestions`)
-                return []
-            }
-
-            const completionsList = [new InlineCompletionItem(updatedText, diffRange)]
-            completionsList.forEach((item: InlineCompletionItem) => {
-                // eslint-disable-next-line no-extra-semi
-                ;(item as any).isInlineEdit = true
-                ;(item as any).showInlineEditMenu = true
-            })
-
-            console.log('Completions list' + completionsList)
-
-            return { items: completionsList } as InlineCompletionList
-        } catch (error) {
-            console.error('Stack trace:', (error as Error).stack)
-            return { items: [] }
-        }
-    }
 }
