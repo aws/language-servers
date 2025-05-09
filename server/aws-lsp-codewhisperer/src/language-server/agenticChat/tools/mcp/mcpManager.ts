@@ -8,6 +8,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import type { MCPServerConfig, McpToolDefinition, ListToolsResponse } from './mcpTypes'
 import { loadMcpServerConfigs } from './mcpUtils'
+import { AgenticChatError } from '../../errors'
 
 /**
  * Manages MCP servers and their tools
@@ -71,8 +72,10 @@ export class McpManager {
      * Errors are logged but do not stop discovery of other servers.
      */
     private async initOneServer(serverName: string, cfg: MCPServerConfig): Promise<void> {
+        const DEFAULT_SERVER_INIT_TIMEOUT_MS = 60_000
         try {
             this.features.logging.debug(`MCP: initializing server [${serverName}]`)
+
             const mergedEnv = {
                 ...(process.env as Record<string, string>),
                 ...(cfg.env ?? {}),
@@ -86,9 +89,32 @@ export class McpManager {
                 name: `mcp-client-${serverName}`,
                 version: '1.0.0',
             })
-            await client.connect(transport)
-            this.clients.set(serverName, client)
 
+            const connectPromise = client.connect(transport)
+            const timeoutMs = cfg.initializationTimeout ?? DEFAULT_SERVER_INIT_TIMEOUT_MS
+            const timeoutPromise = new Promise<never>((_, reject) =>
+                setTimeout(
+                    () =>
+                        reject(
+                            new AgenticChatError(
+                                `MCP: server '${serverName}' initialization timed out after ${timeoutMs} ms`,
+                                'MCPServerInitTimeout'
+                            )
+                        ),
+                    timeoutMs
+                )
+            )
+
+            try {
+                await Promise.race([connectPromise, timeoutPromise])
+            } catch (err: unknown) {
+                if (err instanceof AgenticChatError && err.code === 'MCPServerInitTimeout') {
+                    this.features.logging.error(err.message)
+                }
+                throw err
+            }
+
+            this.clients.set(serverName, client)
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
             const resp = (await client.listTools()) as ListToolsResponse
             for (const t of resp.tools) {
@@ -161,6 +187,7 @@ export class McpManager {
 
         const client = this.clients.get(server)
         if (!client) throw new Error(`MCP: server '${server}' not connected`)
+
         return client.callTool({ name: tool, arguments: args })
     }
 
@@ -177,6 +204,7 @@ export class McpManager {
                 command: cfg.command,
                 args: cfg.args,
                 env: cfg.env,
+                initializationTimeout: cfg.initializationTimeout,
                 disabled: cfg.disabled,
                 autoApprove: cfg.autoApprove,
                 toolOverrides: cfg.toolOverrides,
