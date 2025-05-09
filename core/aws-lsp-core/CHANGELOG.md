@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.7](https://github.com/aws/language-servers/compare/lsp-core/v0.0.6...lsp-core/v0.0.7) (2025-05-09)
+
+
+### Bug Fixes
+
+* switch to ignore entries over patterns ([#1236](https://github.com/aws/language-servers/issues/1236)) ([49ae714](https://github.com/aws/language-servers/commit/49ae7141024f9802d3ce671441f978f487a399aa))
+* update listDirectory tool to output in tree-like format to reduce toolSize ([#1260](https://github.com/aws/language-servers/issues/1260)) ([becfee0](https://github.com/aws/language-servers/commit/becfee0d36e9e2a5fb5239c1e34cc6661ca01d94))
+
 ## [0.0.6](https://github.com/aws/language-servers/compare/lsp-core/v0.0.5...lsp-core/v0.0.6) (2025-05-07)
 
 
