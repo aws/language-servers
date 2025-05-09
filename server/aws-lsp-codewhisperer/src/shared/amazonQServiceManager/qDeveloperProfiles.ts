@@ -9,6 +9,7 @@ import { isBool, isObject, SsoConnectionType } from '../utils'
 import { AWS_Q_ENDPOINTS } from '../../shared/constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { AmazonQServiceProfileThrottlingError } from './errors'
+import { Runtime } from '@aws/language-server-runtimes/server-interface'
 
 export interface AmazonQDeveloperProfile {
     arn: string
@@ -25,6 +26,7 @@ export interface ListAllAvailableProfilesHandlerParams {
     logging: Logging
     endpoints?: Map<string, string> // override option for flexibility, we default to all (AWS_Q_ENDPOINTS)
     token: CancellationToken
+    runtimeInternal?: Runtime
 }
 
 export type ListAllAvailableProfilesHandler = (
@@ -36,7 +38,7 @@ const MAX_Q_DEVELOPER_PROFILES_PER_PAGE = 10
 
 export const getListAllAvailableProfilesHandler =
     (service: (region: string, endpoint: string) => CodeWhispererServiceToken): ListAllAvailableProfilesHandler =>
-    async ({ connectionType, logging, endpoints, token }): Promise<AmazonQDeveloperProfile[]> => {
+    async ({ connectionType, logging, endpoints, token, runtimeInternal }): Promise<AmazonQDeveloperProfile[]> => {
         if (!connectionType || connectionType !== 'identityCenter') {
             logging.debug('Connection type is not set or not identityCenter - returning empty response.')
             return []
@@ -44,6 +46,12 @@ export const getListAllAvailableProfilesHandler =
 
         let allProfiles: AmazonQDeveloperProfile[] = []
         const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
+
+        const customEndpoint = runtimeInternal?.getConfiguration('CUSTOMENDPOINT') ?? ''
+        if (customEndpoint != '') {
+            qEndpoints.set('us-west-2', customEndpoint)
+        }
+        logging.log('Adding custom end point ' + customEndpoint)
 
         if (token.isCancellationRequested) {
             return []
@@ -98,16 +106,31 @@ async function fetchProfilesFromRegion(
 
     try {
         do {
-            logging.debug(`Fetching profiles from region: ${region} (iteration: ${numberOfPages})`)
+            logging.log(
+                `Fetching profiles from region: ${region} with endpoint ${service.client.endpoint}  (iteration: ${numberOfPages})`
+            )
 
             if (token.isCancellationRequested) {
                 return allRegionalProfiles
             }
 
+            logging.log(
+                `Fetching profiles from Request for: ${region} with endpoint ${service.client.endpoint} is : ${JSON.stringify(
+                    {
+                        maxResults: MAX_Q_DEVELOPER_PROFILES_PER_PAGE,
+                        nextToken: nextToken,
+                    }
+                )}`
+            )
+
             const response = await service.listAvailableProfiles({
                 maxResults: MAX_Q_DEVELOPER_PROFILES_PER_PAGE,
                 nextToken: nextToken,
             })
+
+            logging.log(
+                `Response from listAvailableProfiles for region: ${region} with endpoint ${service.client.endpoint} is : ${JSON.stringify(response)}`
+            )
 
             const profiles = response.profiles.map(profile => ({
                 arn: profile.arn,

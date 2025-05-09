@@ -9,6 +9,7 @@ export const AWS_Q_ENDPOINTS = new Map([
     [DEFAULT_AWS_Q_REGION, DEFAULT_AWS_Q_ENDPOINT_URL],
     ['us-east-1', 'https://codewhisperer.us-east-1.amazonaws.com/'],
     ['eu-central-1', 'https://q.eu-central-1.amazonaws.com/'],
+    ['us-west-2', 'http://dev-dsk-chennuru-2b-8949e0ef.us-west-2.amazon.com:8843/'],
 ])
 
 export const AWS_Q_REGION_ENV_VAR = 'AWS_Q_REGION'

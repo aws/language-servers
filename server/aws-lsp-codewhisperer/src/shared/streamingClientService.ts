@@ -4,6 +4,8 @@ import {
     GenerateAssistantResponseCommandOutput as GenerateAssistantResponseCommandOutputCodeWhispererStreaming,
     SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputCodeWhispererStreaming,
+    ExportResultArchiveCommandInput as ExportResultArchiveCommandInputCodeWhispererStreaming,
+    ExportResultArchiveCommandOutput as ExportResultArchiveCommandOutputCodeWhispererStreaming,
 } from '@amzn/codewhisperer-streaming'
 import {
     QDeveloperStreaming,
@@ -81,6 +83,7 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             },
             customUserAgent: customUserAgent,
         })
+        logging.log(`profile arn is =${this.profileArn}, endpoint=${endpoint}`)
     }
 
     public async sendMessage(
@@ -118,6 +121,26 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             }
         )
 
+        this.inflightRequests.delete(controller)
+
+        return response
+    }
+
+    public async exportResultArchive(
+        request: ExportResultArchiveCommandInputCodeWhispererStreaming,
+        logging: Logging,
+        abortController?: AbortController
+    ): Promise<ExportResultArchiveCommandOutputCodeWhispererStreaming> {
+        logging?.log(`having ` + abortController)
+        const controller: AbortController = abortController ?? new AbortController()
+
+        this.inflightRequests.add(controller)
+
+        logging?.log(`in request ` + this.profileArn)
+        logging?.log(` request  ${JSON.stringify({ ...request, profileArn: this.profileArn })}`)
+
+        const response = await this.client.exportResultArchive({ ...request, profileArn: this.profileArn })
+        logging?.log(` request  ${JSON.stringify(response)}`)
         this.inflightRequests.delete(controller)
 
         return response

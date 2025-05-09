@@ -271,6 +271,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 
     private async handleProfileChange(newProfileArn: string | null, token: CancellationToken): Promise<void> {
+        this.log(` new profile arn ${newProfileArn}`)
         if (!this.enableDeveloperProfileSupport) {
             this.log('Developer Profiles Support is not enabled')
             return
@@ -328,6 +329,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             logging: this.logging,
             token: token,
             endpoints: new Map([[parsedArn.region, endpoint]]),
+            runtimeInternal: this.features.runtime,
         })
 
         this.handleTokenCancellationRequest(token)
@@ -440,6 +442,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.cachedStreamingClient = this.streamingClientFactory(this.region, this.endpoint)
         }
 
+        this.log(` cached ${this.cachedStreamingClient.profileArn}`)
         return this.cachedStreamingClient
     }
 
@@ -500,6 +503,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             customUserAgent: customUserAgent,
         })
         service.customizationArn = this.configurationCache.getProperty('customizationArn')
+        this.log(` service profile arn ${this.activeIdcProfile?.arn}`)
         service.profileArn = this.activeIdcProfile?.arn
         service.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
             'shareCodeWhispererContentWithAWS'
@@ -522,9 +526,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             endpoint,
             this.getCustomUserAgent()
         )
+        this.logging.log(` in streamingClientFactory =${this.activeIdcProfile}, endpoint=${this.activeIdcProfile?.arn}`)
         streamingClient.profileArn = this.activeIdcProfile?.arn
 
-        this.logging.debug(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
+        this.logging.log(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
         return streamingClient
     }
 

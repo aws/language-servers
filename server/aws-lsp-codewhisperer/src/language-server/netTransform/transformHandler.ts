@@ -379,10 +379,13 @@ export class TransformHandler {
     async downloadExportResultArchive(exportId: string, saveToDir: string) {
         let result
         try {
-            result = await this.serviceManager.getStreamingClient().client.exportResultArchive({
-                exportId,
-                exportIntent: ExportIntent.TRANSFORMATION,
-            })
+            result = await this.serviceManager.getStreamingClient().exportResultArchive(
+                {
+                    exportId,
+                    exportIntent: ExportIntent.TRANSFORMATION,
+                },
+                this.logging
+            )
 
             const buffer = []
             this.logging.log('Artifact was successfully downloaded.')
