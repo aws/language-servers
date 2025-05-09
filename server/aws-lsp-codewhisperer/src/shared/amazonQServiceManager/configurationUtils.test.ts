@@ -34,6 +34,7 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
         includeSuggestionsWithCodeReferences: true,
         includeImportsWithSuggestions: true,
         shareCodeWhispererContentWithAWS: true,
+        sendUserWrittenCodeMetrics: false,
     }
 
     beforeEach(() => {
@@ -53,6 +54,7 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             includeSuggestionsWithCodeReferences: MOCKED_AWS_CODEWHISPERER_SECTION.includeSuggestionsWithCodeReferences,
             includeImportsWithSuggestions: MOCKED_AWS_CODEWHISPERER_SECTION.includeImportsWithSuggestions,
             shareCodeWhispererContentWithAWS: MOCKED_AWS_CODEWHISPERER_SECTION.shareCodeWhispererContentWithAWS,
+            sendUserWrittenCodeMetrics: MOCKED_AWS_CODEWHISPERER_SECTION.sendUserWrittenCodeMetrics,
             projectContext: {
                 enableLocalIndexing: MOCKED_AWS_Q_SECTION.projectContext.enableLocalIndexing,
                 enableGpuAcceleration: MOCKED_AWS_Q_SECTION.projectContext?.enableGpuAcceleration,
@@ -101,6 +103,7 @@ describe('AmazonQConfigurationCache', () => {
             includeSuggestionsWithCodeReferences: false,
             includeImportsWithSuggestions: false,
             shareCodeWhispererContentWithAWS: true,
+            sendUserWrittenCodeMetrics: false,
             projectContext: {
                 enableLocalIndexing: true,
                 enableGpuAcceleration: true,

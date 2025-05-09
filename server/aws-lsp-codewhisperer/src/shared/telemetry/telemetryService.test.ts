@@ -529,6 +529,8 @@ describe('TelemetryService', () => {
                     acceptedCharacterCount: 123,
                     totalCharacterCount: 456,
                     timestamp: new Date(Date.now()),
+                    userWrittenCodeCharacterCount: undefined,
+                    userWrittenCodeLineCount: undefined,
                 },
             },
             optOutPreference: 'OPTIN',

@@ -92,6 +92,7 @@ interface CodeWhispererConfigSection {
     includeSuggestionsWithCodeReferences: boolean // aws.codeWhisperer.includeSuggestionsWithCodeReferences - return suggestions with code references
     includeImportsWithSuggestions: boolean // aws.codeWhisperer.includeImportsWithSuggestions - return imports with suggestions
     shareCodeWhispererContentWithAWS: boolean // aws.codeWhisperer.shareCodeWhispererContentWithAWS - share content with AWS
+    sendUserWrittenCodeMetrics: boolean
 }
 
 export type AmazonQWorkspaceConfig = QConfigSection & CodeWhispererConfigSection
@@ -150,6 +151,7 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                     newCodeWhispererConfig['includeSuggestionsWithCodeReferences'] === true,
                 includeImportsWithSuggestions: newCodeWhispererConfig['includeImportsWithSuggestions'] === true,
                 shareCodeWhispererContentWithAWS: newCodeWhispererConfig['shareCodeWhispererContentWithAWS'] === true,
+                sendUserWrittenCodeMetrics: newCodeWhispererConfig['sendUserWrittenCodeMetrics'] === true,
             }
 
             logging.log(
@@ -179,6 +181,7 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         includeSuggestionsWithCodeReferences: false,
         includeImportsWithSuggestions: false,
         shareCodeWhispererContentWithAWS: false,
+        sendUserWrittenCodeMetrics: false,
         projectContext: {
             enableLocalIndexing: false,
             enableGpuAcceleration: false,

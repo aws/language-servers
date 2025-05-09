@@ -341,6 +341,8 @@ export class TelemetryService {
             acceptedCharacterCount: number
             totalCharacterCount: number
             customizationArn?: string
+            userWrittenCodeCharacterCount?: number
+            userWrittenCodeLineCount?: number
         },
         additionalParams: Partial<{
             percentage: number
@@ -366,6 +368,8 @@ export class TelemetryService {
             acceptedCharacterCount: params.acceptedCharacterCount,
             totalCharacterCount: params.totalCharacterCount,
             timestamp: new Date(Date.now()),
+            userWrittenCodeCharacterCount: params.userWrittenCodeCharacterCount,
+            userWrittenCodeLineCount: params.userWrittenCodeLineCount,
         }
         if (params.customizationArn) event.customizationArn = params.customizationArn
 
