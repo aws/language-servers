@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/aws/language-servers/compare/chat-client/v0.1.9...chat-client/v0.1.10) (2025-05-09)
+
+
+### Bug Fixes
+
+* stop buttom work expected ([#1307](https://github.com/aws/language-servers/issues/1307)) ([06c752e](https://github.com/aws/language-servers/commit/06c752e1dee106be73daa73f336213aad5413e67))
+
 ## [0.1.9](https://github.com/aws/language-servers/compare/chat-client/v0.1.8...chat-client/v0.1.9) (2025-05-09)
 
 

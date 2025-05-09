@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.38](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.37...lsp-codewhisperer/v0.0.38) (2025-05-09)
+
+
+### Features
+
+* merge updates for inline completions ([#1299](https://github.com/aws/language-servers/issues/1299)) ([44d81f0](https://github.com/aws/language-servers/commit/44d81f0b5754747d77bda60b40cc70950413a737))
+
+
+### Bug Fixes
+
+* allowing reading multiple files with fsRead, minor tool validation fix ([#1297](https://github.com/aws/language-servers/issues/1297)) ([6568811](https://github.com/aws/language-servers/commit/65688116c4ebf4e4bda821d30226bdb2a334ca3d))
+* bug fix for exportResultsArchive to call with profileArn as parameter ([#1300](https://github.com/aws/language-servers/issues/1300)) ([16162f6](https://github.com/aws/language-servers/commit/16162f67315d174acacb2feb163fa8d9044e147f))
+
 ## [0.0.37](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.36...lsp-codewhisperer/v0.0.37) (2025-05-09)
 
 
