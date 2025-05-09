@@ -1526,6 +1526,10 @@ export class AgenticChatController implements ChatHandlers {
         if (profileArn) {
             this.#telemetryService.updateProfileArn(profileArn)
         }
+        const modelId = session.modelId
+        if (modelId) {
+            this.#telemetryService.updateModelId(modelId)
+        }
         if (triggerContext.contextInfo) {
             metric.mergeWith({
                 cwsprChatHasContextList: triggerContext.documentReference?.filePaths?.length ? true : false,

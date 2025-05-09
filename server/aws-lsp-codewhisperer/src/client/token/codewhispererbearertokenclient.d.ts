@@ -903,6 +903,7 @@ declare namespace CodeWhispererBearerTokenClient {
   }
   export type MetricDataMetricNameString = string;
   export type MetricDataProductString = string;
+  export type ModelId = string;
   export type Notifications = NotificationsFeature[];
   export interface NotificationsFeature {
     feature: FeatureName;
@@ -1076,6 +1077,7 @@ declare namespace CodeWhispererBearerTokenClient {
     optOutPreference?: OptOutPreference;
     userContext?: UserContext;
     profileArn?: ProfileArn;
+    modelId?: ModelId;
   }
   export interface SendTelemetryEventResponse {
   }

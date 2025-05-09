@@ -2809,6 +2809,13 @@
             "min": 1,
             "pattern": "[-a-zA-Z0-9._]*"
         },
+        "ModelId": {
+            "type": "string",
+            "documentation": "<p>Unique identifier for the model</p>",
+            "max": 1024,
+            "min": 1,
+            "pattern": "[a-zA-Z0-9_:.-]+"
+        },
         "Notifications": {
             "type": "list",
             "member": {
@@ -3324,6 +3331,9 @@
                 },
                 "profileArn": {
                     "shape": "ProfileArn"
+                },
+                "modelId": {
+                    "shape": "ModelId"
                 }
             }
         },
