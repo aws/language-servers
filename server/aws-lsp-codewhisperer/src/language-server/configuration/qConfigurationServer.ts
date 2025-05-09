@@ -91,6 +91,7 @@ export const QConfigurationServerToken =
                 token: CancellationToken
             ): Promise<QConfigurationResponse | void> => {
                 const section = params.section
+                logging.info('zzzzzzzz1')
 
                 let customizations: Customizations | CustomizationWithMetadata[] = []
                 let developerProfiles: AmazonQDeveloperProfile[] = []

@@ -170,16 +170,27 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             endpoint: this.codeWhispererEndpoint,
             onRequestSetup: [
                 req => {
+                    logging.error(`xxx req=${req.operation}`)
                     this.trackRequest(req)
-                    req.on('build', ({ httpRequest }) => {
-                        const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
-                        if (!creds?.token) {
-                            throw new Error('Authorization failed, bearer token is not set')
+                    req.on('build', async ({ httpRequest }) => {
+                        try {
+                            const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                            logging.error(`xxx req=${req.operation} token=${creds?.token}`)
+                            if (!creds?.token) {
+                                throw new Error('Authorization failed, bearer token is not set')
+                            }
+                            httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
+                            httpRequest.headers['x-amzn-codewhisperer-optout'] =
+                                `${!this.shareCodeWhispererContentWithAWS}`
+                        } catch (err) {
+                            this.completeRequest(req)
+                            // throw err
                         }
-                        httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
-                        httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
                     })
                     req.on('complete', () => {
+                        this.completeRequest(req)
+                    })
+                    req.on('error', () => {
                         this.completeRequest(req)
                     })
                 },
@@ -323,6 +334,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @description send telemetry event to code whisperer data warehouse
      */
     async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
+        this.abortInflightRequests()
         return this.client.sendTelemetryEvent(this.withProfileArn(request)).promise()
     }
 
@@ -365,12 +377,17 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * Gets the Subscription status of the given user.
      */
     async getSubscriptionStatus(): Promise<CodeWhispererTokenClient.SubscriptionStatus> {
-        const token = getBearerTokenFromProvider(this.credentialsProvider)
-        const req: CodeWhispererTokenClient.CreateSubscriptionTokenRequest = {
-            accountId: '111111111', // Special dummy account for checking Subscription status.
-            clientToken: token,
+        this.abortInflightRequests()
+
+        const creds = this.credentialsProvider.getCredentials('bearer') as BearerCredentials
+        if (!creds?.token) {
+            throw new Error('Authorization failed, bearer token is not set')
         }
-        const resp = await this.client.createSubscriptionToken(this.withProfileArn(req)).promise()
+        const req: CodeWhispererTokenClient.CreateSubscriptionTokenRequest = {
+            accountId: '111111111111', // Special dummy account for checking Subscription status.
+            clientToken: creds.token,
+        }
+        const resp = await this.createSubscriptionToken(req)
         return resp.status
     }
 }

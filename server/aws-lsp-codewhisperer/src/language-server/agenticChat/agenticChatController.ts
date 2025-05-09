@@ -1877,11 +1877,11 @@ export class AgenticChatController implements ChatHandlers {
      */
     async onReady() {
         await this.restorePreviousChats()
-        try {
-            this.setUpgradeQMode()
-        } catch (err) {
-            this.#log('Error initializing Free Tier state: ' + (err as Error).message)
-        }
+        // try {
+        //     this.setUpgradeQMode()
+        // } catch (err) {
+        //     this.#log('Error initializing Free Tier state: ' + (err as Error).message)
+        // }
 
         // try {
         //     const localProjectContextController = await LocalProjectContextController.getInstance()
@@ -1917,7 +1917,7 @@ export class AgenticChatController implements ChatHandlers {
 
         this.#chatSessionManagementService.createSession(params.tabId)
 
-        this.setUpgradeQMode(params.tabId)
+        // this.setUpgradeQMode(params.tabId)
     }
 
     onTabChange(params: TabChangeParams) {
@@ -2091,6 +2091,9 @@ export class AgenticChatController implements ChatHandlers {
         tabId?: string,
         mode?: 'paidtier' | 'freetier' | 'freetier-limit' /*, session: ChatSessionService*/
     ) {
+        this.#log(
+            `xxx setUpgradeQMode: mode=${mode} getCodewhispererService=${!!this.#serviceManager?.getCodewhispererService()}`
+        )
         if (mode === 'freetier-limit') {
             this.#freeTierLimit = true // Sticky until 'paidtier' is sent.
         } else if (mode === 'paidtier') {
@@ -2098,20 +2101,24 @@ export class AgenticChatController implements ChatHandlers {
         } else if (this.#freeTierLimit && (!mode || mode === 'freetier')) {
             mode = 'freetier-limit'
         } else if (!mode) {
-            // Note: intentionally async.
-            this.#serviceManager
-                ?.getCodewhispererService()
-                .getSubscriptionStatus()
-                .then(status => {
-                    this.#log(`getSubscriptionStatus: ${status}`)
-                    this.setUpgradeQMode(tabId, status === 'ACTIVE' ? 'paidtier' : 'freetier')
-                })
-                .catch(err => {
-                    this.#log(`getSubscriptionStatus failed: ${(err as Error).message}`)
-                })
+            try {
+                // Note: intentionally async.
+                AmazonQTokenServiceManager.getInstance()
+                    ?.getCodewhispererService()
+                    .getSubscriptionStatus()
+                    .then(status => {
+                        this.#log(`xxx getSubscriptionStatus: ${status}`)
+                        this.setUpgradeQMode(tabId, status === 'ACTIVE' ? 'paidtier' : 'freetier')
+                    })
+                    .catch(err => {
+                        this.#log(`xxx getSubscriptionStatus failed: ${JSON.stringify(err)}`)
+                    })
 
-            // const isFreeTierUser = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
-            // mode = isFreeTierUser ? 'freetier' : 'paidtier'
+                // const isFreeTierUser = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
+                // mode = isFreeTierUser ? 'freetier' : 'paidtier'
+            } catch {
+                this.#log(`xxx yucky`)
+            }
 
             return
         }
