@@ -21,6 +21,100 @@ import {
     inlineCompletionWithReferencesRequestType,
 } from '@aws/language-server-runtimes/protocol'
 import { applyPatch } from 'diff'
+import * as DiffMatchPatch from 'diff-match-patch'
+
+/**
+ * Apply a unified diff to a document text
+ * This function uses diff-match-patch for more robust patch application
+ */
+function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
+    try {
+        // First try the standard diff package
+        try {
+            const result = applyPatch(docText, unifiedDiff)
+            if (result !== false) {
+                return result
+            }
+            console.log('DEBUG-NEP: Standard diff package returned false, trying diff-match-patch')
+        } catch (error) {
+            console.log('DEBUG-NEP: Standard diff package failed, trying diff-match-patch:', error)
+        }
+
+        // If that fails, use diff-match-patch which is more robust
+        const dmp = new DiffMatchPatch.diff_match_patch()
+
+        // Parse the unified diff to extract the changes
+        const diffLines = unifiedDiff.split('\n')
+        let result = docText
+
+        // Find all hunks in the diff
+        const hunkStarts = diffLines
+            .map((line, index) => (line.startsWith('@@ ') ? index : -1))
+            .filter(index => index !== -1)
+
+        // Process each hunk
+        for (const hunkStart of hunkStarts) {
+            // Parse the hunk header
+            const hunkHeader = diffLines[hunkStart]
+            const match = hunkHeader.match(/@@ -(\d+),(\d+) \+(\d+),(\d+) @@/)
+
+            if (!match) {
+                console.error('DEBUG-NEP: Invalid hunk header:', hunkHeader)
+                continue
+            }
+
+            const oldStart = parseInt(match[1])
+            const oldLines = parseInt(match[2])
+            const newStart = parseInt(match[3])
+            const newLines = parseInt(match[4])
+
+            console.log(`DEBUG-NEP: Processing hunk: -${oldStart},${oldLines} +${newStart},${newLines}`)
+
+            // Extract the content lines for this hunk
+            let i = hunkStart + 1
+            let contentLines = []
+            while (i < diffLines.length && !diffLines[i].startsWith('@@')) {
+                contentLines.push(diffLines[i])
+                i++
+            }
+
+            // Build the old and new text
+            let oldText = ''
+            let newText = ''
+
+            for (const line of contentLines) {
+                if (line.startsWith('-')) {
+                    oldText += line.substring(1) + '\n'
+                } else if (line.startsWith('+')) {
+                    newText += line.substring(1) + '\n'
+                } else if (line.startsWith(' ')) {
+                    oldText += line.substring(1) + '\n'
+                    newText += line.substring(1) + '\n'
+                }
+            }
+
+            // Remove trailing newline if it was added
+            oldText = oldText.replace(/\n$/, '')
+            newText = newText.replace(/\n$/, '')
+
+            // Find the text to replace in the document
+            const docLines = docText.split('\n')
+            const startLine = oldStart - 1 // Convert to 0-based
+            const endLine = startLine + oldLines
+
+            // Extract the text that should be replaced
+            const textToReplace = docLines.slice(startLine, endLine).join('\n')
+
+            // Replace the text
+            result = result.replace(textToReplace, newText)
+        }
+
+        return result
+    } catch (error) {
+        console.error('DEBUG-NEP: Error applying unified diff:', error)
+        return docText // Return original text if all methods fail
+    }
+}
 
 export const CodewhispererInlineCompletionLanguages = [
     { scheme: 'file', language: 'typescript' },
@@ -96,7 +190,7 @@ class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemP
         try {
             // Request inline completions from the language server
             const result = (await this.languageClient.sendRequest(
-                inlineCompletionWithReferencesRequestType,
+                inlineCompletionWithReferencesRequestType.method,
                 {
                     textDocument: { uri: document.uri.toString() },
                     position: position,
@@ -115,35 +209,133 @@ class CodeWhispererInlineCompletionItemProvider implements InlineCompletionItemP
 
             console.log(`DEBUG-NEP: Received ${result.items.length} completions`)
 
+            // Log the raw response structure to help debug
+            console.log(
+                'DEBUG-NEP: Raw response structure:',
+                JSON.stringify({
+                    sessionId: result.sessionId,
+                    itemsCount: result.items.length,
+                    firstItemKeys: result.items.length > 0 ? Object.keys(result.items[0]) : [],
+                })
+            )
+
             // Convert server response to VSCode inline completion items
-            const items = result.items.map((item: any, index: number) => {
-                const inlineItem = new InlineCompletionItem(item.text)
+            const items = result.items
+                .map((item: any, index: number) => {
+                    console.log(`DEBUG-NEP: Processing item ${index}`)
 
-                // Set range if provided
-                if (item.range) {
-                    inlineItem.range = new Range(
-                        item.range.start.line,
-                        item.range.start.character,
-                        item.range.end.line,
-                        item.range.end.character
-                    )
-                }
+                    // TODO-NEP: The server response structure is inconsistent. We need to handle multiple property names:
+                    // 1. text - Standard property for inline completions
+                    // 2. edit.content - Used for edit suggestions in udiff format
+                    // 3. insertText - Used by some server implementations (unexpected but observed in logs)
+                    // This should be standardized in the server implementation to use consistent property names.
 
-                // Set command for acceptance tracking
-                inlineItem.command = {
-                    title: 'Accept Completion',
-                    command: 'aws.sample-vscode-ext-amazonq.accept',
-                    arguments: [result.sessionId, item.itemId, Date.now()],
-                }
+                    // Handle all possible text content properties
+                    let text = item.text || ''
 
-                // Set isInlineEdit flag if this is an edit suggestion
-                if (item.isInlineEdit) {
-                    console.log('DEBUG-NEP: Setting isInlineEdit=true for item', index)
-                    ;(inlineItem as any).isInlineEdit = true
-                }
+                    // Check for edit.content (used for udiff format)
+                    if (!text && item.edit && item.edit.content) {
+                        console.log(`DEBUG-NEP: Using edit.content for item ${index}`)
+                        text = item.edit.content
+                    }
 
-                return inlineItem
-            })
+                    // Check for insertText (unexpected but observed in logs)
+                    if (!text && item.insertText) {
+                        console.log(`DEBUG-NEP: Using insertText for item ${index}`)
+                        text = item.insertText
+                    }
+
+                    if (!text) {
+                        console.error(
+                            `DEBUG-NEP: No text content found for item ${index}, available properties:`,
+                            Object.keys(item).join(', ')
+                        )
+                        return null // Skip items with no text
+                    }
+
+                    let range = item.range
+
+                    // Check if the content is in udiff format or contains a udiff
+                    const containsUdiff =
+                        text.includes('--- file:///') && text.includes('+++ file:///') && text.includes('@@ ')
+
+                    if (containsUdiff) {
+                        console.log(`DEBUG-NEP: Detected content with udiff format for item ${index}`)
+                        try {
+                            // Extract just the diff part if the text contains both original content and diff
+                            const diffStartIndex = text.indexOf('--- file:///')
+                            if (diffStartIndex > 0) {
+                                console.log(`DEBUG-NEP: Found embedded diff starting at index ${diffStartIndex}`)
+                                // Extract just the diff part
+                                text = text.substring(diffStartIndex)
+                            }
+
+                            // Apply the patch using our robust function
+                            const documentText = document.getText()
+                            console.log(
+                                `DEBUG-NEP: Document length: ${documentText.length}, Diff length: ${text.length}`
+                            )
+                            console.log(`DEBUG-NEP: First few lines of diff:`, text.split('\n').slice(0, 5))
+
+                            const patchedText = applyUnifiedDiff(documentText, text)
+
+                            // Calculate the range for the entire document
+                            const fullDocRange = new Range(
+                                0,
+                                0,
+                                document.lineCount - 1,
+                                document.lineAt(document.lineCount - 1).text.length
+                            )
+
+                            // Use the patched text and full document range
+                            text = patchedText
+                            range = fullDocRange
+
+                            console.log(
+                                `DEBUG-NEP: Successfully applied udiff patch, result length: ${typeof patchedText === 'string' ? patchedText.length : 'N/A'}`
+                            )
+                        } catch (error) {
+                            console.error('DEBUG-NEP: Error applying udiff patch:', error)
+                            // Fall back to using the original text if patch application fails
+                        }
+                    }
+
+                    if (!text) {
+                        console.error(`DEBUG-NEP: No text content after processing item ${index}`)
+                        return null // Skip items with no text after processing
+                    }
+
+                    console.log(`DEBUG-NEP: Creating InlineCompletionItem with text length: ${text.length}`)
+                    const inlineItem = new InlineCompletionItem(text)
+
+                    // Set range if provided
+                    if (range) {
+                        console.log(`DEBUG-NEP: Setting range for item ${index}:`, range)
+                        inlineItem.range = new Range(
+                            range.start.line,
+                            range.start.character,
+                            range.end.line,
+                            range.end.character
+                        )
+                    }
+
+                    // Set command for acceptance tracking
+                    inlineItem.command = {
+                        title: 'Accept Completion',
+                        command: 'aws.sample-vscode-ext-amazonq.accept',
+                        arguments: [result.sessionId, item.itemId, Date.now()],
+                    }
+
+                    // Set isInlineEdit flag if this is an edit suggestion
+                    const isEditSuggestion = item.isInlineEdit || (item.edit && item.edit.content)
+                    if (isEditSuggestion) {
+                        console.log(`DEBUG-NEP: Setting isInlineEdit=true for item ${index}`)
+                        ;(inlineItem as any).isInlineEdit = true
+                    }
+
+                    return inlineItem
+                })
+                .filter(item => item !== null) // Filter out null items
 
             return { items }
         } catch (error) {
@@ -189,54 +381,9 @@ export function registerInlineCompletion(languageClient: LanguageClient) {
         })
 
         try {
-            // Create a simple edit suggestion
-            const position = editor.selection.active
-            const line = position.line
-
-            // Create a range at the cursor position
-            const range = new Range(position, position)
-
-            // Create a simple edit suggestion
-            const newText = '// This is a hard-coded edit suggestion'
-            console.log('DEBUG-NEP: Creating edit suggestion with text:', newText)
-
-            // Create a custom provider that explicitly sets isInlineEdit
-            const provider = new (class implements InlineCompletionItemProvider {
-                async provideInlineCompletionItems(
-                    document: TextDocument,
-                    position: Position,
-                    context: InlineCompletionContext,
-                    token: CancellationToken
-                ): Promise<InlineCompletionList> {
-                    console.log('DEBUG-NEP: Provider called, creating item')
-
-                    // Create the item
-                    const item = new InlineCompletionItem(newText, range)
-
-                    // Set the isInlineEdit property
-                    ;(item as any).isInlineEdit = true
-
-                    console.log('DEBUG-NEP: Created item with isInlineEdit=true')
-                    return { items: [item] }
-                }
-            })()
-
-            // Register the provider
-            console.log('DEBUG-NEP: Registering provider')
-            const disposable = languages.registerInlineCompletionItemProvider(
-                { scheme: 'file', language: editor.document.languageId },
-                provider
-            )
-
-            // Trigger inline completion
-            console.log('DEBUG-NEP: Triggering inline suggestion')
+            // Use our existing provider instead of creating a new one
+            console.log('DEBUG-NEP: Triggering inline suggestion using existing provider')
             await commands.executeCommand('editor.action.inlineSuggest.trigger')
-
-            // Keep the provider registered longer
-            setTimeout(() => {
-                console.log('DEBUG-NEP: Disposing provider')
-                disposable.dispose()
-            }, 10000)
         } catch (error) {
             console.error('DEBUG-NEP: Error in showEditSuggestion:', error)
         }
