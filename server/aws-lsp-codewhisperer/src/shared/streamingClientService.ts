@@ -131,7 +131,9 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
     ): Promise<ExportResultArchiveCommandOutputCodeWhispererStreaming> {
         const controller: AbortController = abortController ?? new AbortController()
         this.inflightRequests.add(controller)
-        const response = await this.client.exportResultArchive({ ...request, profileArn: this.profileArn })
+        const response = await this.client.exportResultArchive(
+            this.profileArn ? { ...request, profileArn: this.profileArn } : request
+        )
         this.inflightRequests.delete(controller)
         return response
     }
