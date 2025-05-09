@@ -1,13 +1,20 @@
 import { afterEach } from 'mocha'
-import sinon = require('sinon')
+import * as sinon from 'sinon'
 import { assert } from 'sinon'
-import { createMynahUi, InboundChatApi, handleChatPrompt, DEFAULT_HELP_PROMPT } from './mynahUi'
+import {
+    createMynahUi,
+    InboundChatApi,
+    handleChatPrompt,
+    DEFAULT_HELP_PROMPT,
+    handlePromptInputChange,
+} from './mynahUi'
 import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from './features/history'
+import { pairProgrammingModeOn, pairProgrammingModeOff } from './texts/pairProgramming'
 
 describe('MynahUI', () => {
     let messager: Messager
@@ -350,6 +357,85 @@ describe('MynahUI', () => {
             })
 
             sinon.assert.neverCalledWith(listConversationsSpy)
+        })
+    })
+
+    describe('handlePromptInputChange', () => {
+        it('should add pairProgrammingModeOn message when switching from off to on', () => {
+            const tabId = 'tab-1'
+            const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
+            getTabDataStub.returns({
+                getStore: () => ({
+                    // @ts-expect-error partial object
+                    promptInputOptions: [{ id: 'pair-programmer-mode', value: 'false' }],
+                }),
+            })
+
+            handlePromptInputChange(mynahUi, tabId, { 'pair-programmer-mode': 'true' })
+
+            sinon.assert.calledWith(addChatItemSpy, tabId, pairProgrammingModeOn)
+        })
+
+        it('should add pairProgrammingModeOff message when switching from on to off', () => {
+            const tabId = 'tab-1'
+            const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
+            getTabDataStub.returns({
+                getStore: () => ({
+                    // @ts-expect-error partial object
+                    promptInputOptions: [{ id: 'pair-programmer-mode', value: 'true' }],
+                }),
+            })
+
+            handlePromptInputChange(mynahUi, tabId, { 'pair-programmer-mode': 'false' })
+
+            sinon.assert.calledWith(addChatItemSpy, tabId, pairProgrammingModeOff)
+        })
+
+        it('should not add any message when pair programming mode is not changed', () => {
+            const tabId = 'tab-1'
+            const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
+            getTabDataStub.returns({
+                getStore: () => ({
+                    // @ts-expect-error partial object
+                    promptInputOptions: [{ id: 'pair-programmer-mode', value: 'true' }],
+                }),
+            })
+
+            addChatItemSpy.resetHistory()
+            handlePromptInputChange(mynahUi, tabId, { 'pair-programmer-mode': 'true' })
+
+            sinon.assert.notCalled(addChatItemSpy)
+        })
+
+        it('should update all promptInputOptions with new values', () => {
+            const tabId = 'tab-1'
+            const promptInputOptions = [
+                { id: 'pair-programmer-mode', value: 'true' },
+                { id: 'model-selection', value: 'auto' },
+            ]
+            const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
+            getTabDataStub.returns({
+                getStore: () => ({
+                    // @ts-expect-error partial object
+                    promptInputOptions,
+                }),
+            })
+
+            const newValues = {
+                'pair-programmer-mode': 'true',
+                'model-selection': 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+            }
+
+            handlePromptInputChange(mynahUi, tabId, newValues)
+
+            const expectedOptions = [
+                { id: 'pair-programmer-mode', value: 'true' },
+                { id: 'model-selection', value: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0' },
+            ]
+
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptInputOptions: expectedOptions,
+            })
         })
     })
 
