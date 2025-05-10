@@ -1379,7 +1379,13 @@
         },
         "CodeCoverageEvent": {
             "type": "structure",
-            "required": ["programmingLanguage", "acceptedCharacterCount", "totalCharacterCount", "timestamp"],
+            "required": [
+                "programmingLanguage",
+                "acceptedCharacterCount",
+                "totalCharacterCount",
+                "timestamp",
+                "addedCharacterCount"
+            ],
             "members": {
                 "customizationArn": {
                     "shape": "CustomizationArn"
@@ -1410,6 +1416,9 @@
                 },
                 "userWrittenCodeLineCount": {
                     "shape": "CodeCoverageEventUserWrittenCodeLineCountInteger"
+                },
+                "addedCharacterCount": {
+                    "shape": "PrimitiveInteger"
                 }
             }
         },
@@ -4603,6 +4612,10 @@
             "type": "string",
             "enum": ["ACCEPT", "REJECT", "DISCARD", "EMPTY", "MERGE"]
         },
+        "SuggestionType": {
+            "type": "string",
+            "enum": ["CODE", "CURSOR"]
+        },
         "SupplementalContext": {
             "type": "structure",
             "required": ["filePath", "content"],
@@ -5835,7 +5848,9 @@
                 "modificationPercentage",
                 "timestamp",
                 "acceptedCharacterCount",
-                "unmodifiedAcceptedCharacterCount"
+                "unmodifiedAcceptedCharacterCount",
+                "addedCharacterCount",
+                "unmodifiedAddedCharacterCount"
             ],
             "members": {
                 "sessionId": {
@@ -5861,6 +5876,12 @@
                 },
                 "unmodifiedAcceptedCharacterCount": {
                     "shape": "PrimitiveInteger"
+                },
+                "addedCharacterCount": {
+                    "shape": "PrimitiveInteger"
+                },
+                "unmodifiedAddedCharacterCount": {
+                    "shape": "PrimitiveInteger"
                 }
             }
         },
@@ -5882,7 +5903,11 @@
                 "completionType",
                 "suggestionState",
                 "recommendationLatencyMilliseconds",
-                "timestamp"
+                "timestamp",
+                "suggestionType",
+                "addedCharacterCount",
+                "deletedCharacterCount",
+                "streakLength"
             ],
             "members": {
                 "sessionId": {
@@ -5932,6 +5957,18 @@
                 },
                 "removedIdeDiagnostics": {
                     "shape": "IdeDiagnosticList"
+                },
+                "suggestionType": {
+                    "shape": "SuggestionType"
+                },
+                "addedCharacterCount": {
+                    "shape": "PrimitiveInteger"
+                },
+                "deletedCharacterCount": {
+                    "shape": "PrimitiveInteger"
+                },
+                "streakLength": {
+                    "shape": "PrimitiveInteger"
                 }
             }
         },
