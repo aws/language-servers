@@ -410,6 +410,7 @@ declare namespace CodeWhispererBearerTokenClient {
     totalNewCodeLineCount?: PrimitiveInteger;
     userWrittenCodeCharacterCount?: CodeCoverageEventUserWrittenCodeCharacterCountInteger;
     userWrittenCodeLineCount?: CodeCoverageEventUserWrittenCodeLineCountInteger;
+    addedCharacterCount?: PrimitiveInteger;
   }
   export type CodeCoverageEventUserWrittenCodeCharacterCountInteger = number;
   export type CodeCoverageEventUserWrittenCodeLineCountInteger = number;
@@ -1425,6 +1426,7 @@ declare namespace CodeWhispererBearerTokenClient {
   export type SuggestedFixCodeDiffString = string;
   export type SuggestedFixDescriptionString = string;
   export type SuggestionState = "ACCEPT"|"REJECT"|"DISCARD"|"EMPTY"|"MERGE"|string;
+  export type SuggestionType = "CODE"|"CURSOR"|string;
   export interface SupplementalContext {
     filePath: SupplementalContextFilePathString;
     content: SupplementalContextContentString;
@@ -1878,6 +1880,8 @@ declare namespace CodeWhispererBearerTokenClient {
     timestamp: Timestamp;
     acceptedCharacterCount: PrimitiveInteger;
     unmodifiedAcceptedCharacterCount: PrimitiveInteger;
+    addedCharacterCount: PrimitiveInteger;
+    unmodifiedAddedCharacterCount: PrimitiveInteger;
   }
   export interface UserSettings {
     hasConsentedToCrossRegionCalls?: Boolean;
@@ -1899,6 +1903,10 @@ declare namespace CodeWhispererBearerTokenClient {
     acceptedCharacterCount?: PrimitiveInteger;
     addedIdeDiagnostics?: IdeDiagnosticList;
     removedIdeDiagnostics?: IdeDiagnosticList;
+    suggestionType?: SuggestionType;
+    addedCharacterCount?: PrimitiveInteger;
+    deletedCharacterCount?: PrimitiveInteger;
+    streakLength?: PrimitiveInteger;
   }
   export interface WorkspaceContext {
     toggle: OptInFeatureToggle;
