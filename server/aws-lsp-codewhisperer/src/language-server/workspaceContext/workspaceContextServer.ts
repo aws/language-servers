@@ -5,7 +5,7 @@ import {
     Server,
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
-import { cleanUrl, getRelativePath, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
+import { cleanUrl, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
 import { ArtifactManager, FileMetadata, SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES } from './artifactManager'
 import { WorkspaceFolderManager } from './workspaceFolderManager'
 import { URI } from 'vscode-uri'
@@ -20,6 +20,7 @@ const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 export const WorkspaceContextServer = (): Server => features => {
     const { credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator } = features
 
+    let workspaceIdentifier: string | undefined
     let workspaceFolders: WorkspaceFolder[] = []
     let artifactManager: ArtifactManager
     let dependencyDiscoverer: DependencyDiscoverer
@@ -31,6 +32,13 @@ export const WorkspaceContextServer = (): Server => features => {
     let amazonQServiceManager: AmazonQTokenServiceManager
 
     lsp.addInitializer((params: InitializeParams) => {
+        // if (params.initializationOptions?.aws?.contextConfiguration?.workspaceIdentifier) {
+        //     workspaceIdentifier = params.initializationOptions?.aws?.contextConfiguration?.workspaceIdentifier
+        // } else {
+        //     logging.warn(`No workspaceIdentifier set during initialization`)
+        // }
+        workspaceIdentifier = '12345678-abcd-0000-0000-000000000001'
+
         workspaceFolders = params.workspaceFolders || []
         if (params.workspaceFolders) {
             workspaceFolders = params.workspaceFolders
@@ -76,22 +84,21 @@ export const WorkspaceContextServer = (): Server => features => {
     lsp.extensions.onGetConfigurationFromServer(
         async (params: GetConfigurationFromServerParams, token: CancellationToken) => {
             if (params.section === Q_CONTEXT_CONFIGURATION_SECTION) {
-                const workspaceMap = workspaceFolderManager.getWorkspaces()
-
-                // Filter workspaces to only include those with websocket connected.
-                // To reduce the error of GenerateCompletions getting repoMap from server-side workspace context,
-                // with websocket connected, at least workspace/didChangeWorkspaceFolders websocket request has been sent.
-                // When the workspace is reopened and server-side was prepared, compared to filter with READY state of workspace,
-                // this filter would add delay to wait for websocket connection being established
-                const workspaceArray = Array.from(workspaceMap)
-                    .filter(([_, workspaceState]) => workspaceState.webSocketClient?.isConnected())
-                    .map(([workspaceRoot, workspaceState]) => ({
-                        workspaceRoot,
-                        workspaceId: workspaceState.workspaceId ?? '',
-                    }))
+                // Only append workspaceId to GenerateCompletions when WebSocket client is connected
+                if (
+                    !workspaceFolderManager.getWorkspaceState().webSocketClient?.isConnected ||
+                    !workspaceFolderManager.getWorkspaceState().workspaceId
+                ) {
+                    return {
+                        workspaces: [],
+                    }
+                }
 
                 return {
-                    workspaces: workspaceArray,
+                    workspaces: workspaceFolders.map(workspaceFolder => ({
+                        workspaceRoot: workspaceFolder.uri,
+                        workspaceId: workspaceFolderManager.getWorkspaceState().workspaceId,
+                    })),
                 }
             }
             return {
@@ -122,6 +129,10 @@ export const WorkspaceContextServer = (): Server => features => {
     }
 
     const evaluateABTesting = async () => {
+        // TODO: Temporary override for client-side A/B check
+        abTestingEnabled = true
+        abTestingEvaluated = true
+
         if (abTestingEvaluated) {
             return
         }
@@ -154,7 +165,8 @@ export const WorkspaceContextServer = (): Server => features => {
             isOptedIn &&
             isLoggedInUsingBearerToken(credentialsProvider) &&
             abTestingEnabled &&
-            !workspaceFolderManager.getOptOutStatus()
+            !workspaceFolderManager.getOptOutStatus() &&
+            workspaceIdentifier
         )
     }
 
@@ -169,7 +181,8 @@ export const WorkspaceContextServer = (): Server => features => {
             artifactManager,
             dependencyDiscoverer,
             workspaceFolders,
-            credentialsProvider
+            credentialsProvider,
+            workspaceIdentifier!
         )
         await updateConfiguration()
 
@@ -232,6 +245,7 @@ export const WorkspaceContextServer = (): Server => features => {
                     return
                 }
 
+                workspaceFolderManager.initializeWorkspaceStatusMonitor()
                 logging.log(`Workspace context workflow initialized`)
                 artifactManager.updateWorkspaceFolders(workspaceFolders)
                 workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders).catch(error => {
@@ -262,14 +276,14 @@ export const WorkspaceContextServer = (): Server => features => {
 
         logging.log(`Received didSave event for ${event.textDocument.uri}`)
 
-        const result = workspaceFolderManager.getWorkspaceDetailsWithId(event.textDocument.uri, workspaceFolders)
-        if (!result) {
-            logging.log(`No workspace found for ${event.textDocument.uri} discarding the save event`)
+        const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(event.textDocument.uri, workspaceFolders)
+        if (!workspaceFolder) {
+            logging.log(`No workspaceFolder found for ${event.textDocument.uri} discarding the save event`)
             return
         }
-        const { workspaceDetails, workspaceRoot } = result
+        const workspaceId = await workspaceFolderManager.waitForRemoteWorkspaceId()
 
-        const fileMetadata = await artifactManager.processNewFile(workspaceRoot, event.textDocument.uri)
+        const fileMetadata = await artifactManager.processNewFile(workspaceFolder, event.textDocument.uri)
         const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
         if (!s3Url) {
             return
@@ -278,19 +292,22 @@ export const WorkspaceContextServer = (): Server => features => {
         const message = JSON.stringify({
             method: 'textDocument/didSave',
             params: {
-                textDocument: { uri: getRelativePath(fileMetadata.workspaceFolder, event.textDocument.uri) },
+                textDocument: {
+                    uri: event.textDocument.uri,
+                },
                 workspaceChangeMetadata: {
-                    workspaceId: workspaceDetails.workspaceId,
+                    workspaceId: workspaceId,
                     s3Path: cleanUrl(s3Url),
                     programmingLanguage: programmingLanguage,
                 },
             },
         })
-        if (!workspaceDetails.webSocketClient) {
-            logging.log(`WebSocket client is not connected yet: ${workspaceRoot.uri}, adding didSave message to queue`)
-            workspaceDetails.messageQueue?.push(message)
+        const workspaceState = workspaceFolderManager.getWorkspaceState()
+        if (!workspaceState.webSocketClient) {
+            logging.log(`WebSocket client is not connected yet, adding didSave message to queue`)
+            workspaceState.messageQueue.push(message)
         } else {
-            workspaceDetails.webSocketClient.send(message).catch(error => {
+            workspaceState.webSocketClient.send(message).catch(error => {
                 logging.error(`Error while sending didSave message: ${error}`)
             })
         }
@@ -302,13 +319,13 @@ export const WorkspaceContextServer = (): Server => features => {
         }
         logging.log(`Received didCreateFiles event of length ${event.files.length}`)
 
+        const workspaceState = workspaceFolderManager.getWorkspaceState()
         for (const file of event.files) {
             const isDir = isDirectory(file.uri)
-            const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.uri, workspaceFolders)
-            if (!result) {
+            const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(file.uri, workspaceFolders)
+            if (!workspaceFolder) {
                 continue
             }
-            const { workspaceDetails, workspaceRoot } = result
 
             let filesMetadata: FileMetadata[] = []
             if (isDir && isEmptyDirectory(file.uri)) {
@@ -316,9 +333,10 @@ export const WorkspaceContextServer = (): Server => features => {
             } else if (isDir) {
                 filesMetadata = await artifactManager.addNewDirectories([URI.parse(file.uri)])
             } else {
-                filesMetadata = [await artifactManager.processNewFile(workspaceRoot, file.uri)]
+                filesMetadata = [await artifactManager.processNewFile(workspaceFolder, file.uri)]
             }
 
+            const workspaceId = await workspaceFolderManager.waitForRemoteWorkspaceId()
             for (const fileMetadata of filesMetadata) {
                 const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
                 if (!s3Url) {
@@ -330,23 +348,21 @@ export const WorkspaceContextServer = (): Server => features => {
                     params: {
                         files: [
                             {
-                                uri: getRelativePath(fileMetadata.workspaceFolder, file.uri),
+                                uri: file.uri,
                             },
                         ],
                         workspaceChangeMetadata: {
-                            workspaceId: workspaceDetails.workspaceId,
+                            workspaceId: workspaceId,
                             s3Path: cleanUrl(s3Url),
                             programmingLanguage: fileMetadata.language,
                         },
                     },
                 })
-                if (!workspaceDetails.webSocketClient) {
-                    logging.log(
-                        `WebSocket client is not connected yet: ${workspaceRoot.uri}, adding didCreateFiles message to queue`
-                    )
-                    workspaceDetails.messageQueue?.push(message)
+                if (!workspaceState.webSocketClient) {
+                    logging.log(`WebSocket client is not connected yet, adding didCreateFiles message to queue`)
+                    workspaceState.messageQueue.push(message)
                 } else {
-                    workspaceDetails.webSocketClient.send(message).catch(error => {
+                    workspaceState.webSocketClient.send(message).catch(error => {
                         logging.error(`Error while sending didCreateFiles message: ${error}`)
                     })
                 }
@@ -361,20 +377,21 @@ export const WorkspaceContextServer = (): Server => features => {
 
         logging.log(`Received didDeleteFiles event of length ${event.files.length}`)
 
+        const workspaceState = workspaceFolderManager.getWorkspaceState()
         for (const file of event.files) {
-            const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.uri, workspaceFolders)
-            if (!result) {
+            const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(file.uri, workspaceFolders)
+            if (!workspaceFolder) {
                 logging.log(`Workspace details not found for deleted file: ${file.uri}`)
                 continue
             }
-            const { workspaceDetails, workspaceRoot } = result
 
-            const programmingLanguages = artifactManager.handleDeletedPathAndGetLanguages(file.uri, workspaceRoot)
+            const programmingLanguages = artifactManager.handleDeletedPathAndGetLanguages(file.uri, workspaceFolder)
             if (programmingLanguages.length === 0) {
                 logging.log(`No programming languages determined for: ${file.uri}`)
                 continue
             }
 
+            const workspaceId = await workspaceFolderManager.waitForRemoteWorkspaceId()
             // Send notification for each programming language
             for (const language of programmingLanguages) {
                 const message = JSON.stringify({
@@ -382,22 +399,20 @@ export const WorkspaceContextServer = (): Server => features => {
                     params: {
                         files: [
                             {
-                                uri: getRelativePath(workspaceRoot, file.uri),
+                                uri: file.uri,
                             },
                         ],
                         workspaceChangeMetadata: {
-                            workspaceId: workspaceDetails.workspaceId,
+                            workspaceId: workspaceId,
                             programmingLanguage: language,
                         },
                     },
                 })
-                if (!workspaceDetails.webSocketClient) {
-                    logging.log(
-                        `WebSocket client is not connected yet: ${workspaceRoot.uri}, adding didDeleteFiles message to queue`
-                    )
-                    workspaceDetails.messageQueue?.push(message)
+                if (!workspaceState.webSocketClient) {
+                    logging.log(`WebSocket client is not connected yet, adding didDeleteFiles message to queue`)
+                    workspaceState.messageQueue.push(message)
                 } else {
-                    workspaceDetails.webSocketClient.send(message).catch(error => {
+                    workspaceState.webSocketClient.send(message).catch(error => {
                         logging.error(`Error while sending didDeleteFiles message: ${error}`)
                     })
                 }
@@ -412,14 +427,16 @@ export const WorkspaceContextServer = (): Server => features => {
 
         logging.log(`Received didRenameFiles event of length ${event.files.length}`)
 
+        const workspaceState = workspaceFolderManager.getWorkspaceState()
         for (const file of event.files) {
-            const result = workspaceFolderManager.getWorkspaceDetailsWithId(file.newUri, workspaceFolders)
-            if (!result) {
+            const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(file.newUri, workspaceFolders)
+            if (!workspaceFolder) {
                 continue
             }
-            const { workspaceDetails, workspaceRoot } = result
 
-            const filesMetadata = await artifactManager.handleRename(workspaceRoot, file.oldUri, file.newUri)
+            const filesMetadata = await artifactManager.handleRename(workspaceFolder, file.oldUri, file.newUri)
+
+            const workspaceId = await workspaceFolderManager.waitForRemoteWorkspaceId()
             for (const fileMetadata of filesMetadata) {
                 const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
                 if (!s3Url) {
@@ -430,24 +447,22 @@ export const WorkspaceContextServer = (): Server => features => {
                     params: {
                         files: [
                             {
-                                old_uri: getRelativePath(fileMetadata.workspaceFolder, file.oldUri),
-                                new_uri: getRelativePath(fileMetadata.workspaceFolder, file.newUri),
+                                old_uri: file.oldUri,
+                                new_uri: file.newUri,
                             },
                         ],
                         workspaceChangeMetadata: {
-                            workspaceId: workspaceDetails.workspaceId,
+                            workspaceId: workspaceId,
                             s3Path: cleanUrl(s3Url),
                             programmingLanguage: fileMetadata.language,
                         },
                     },
                 })
-                if (!workspaceDetails.webSocketClient) {
-                    logging.log(
-                        `WebSocket client is not connected yet: ${workspaceRoot.uri}, adding didRenameFiles message to queue`
-                    )
-                    workspaceDetails.messageQueue?.push(message)
+                if (!workspaceState.webSocketClient) {
+                    logging.log(`WebSocket client is not connected yet, adding didRenameFiles message to queue`)
+                    workspaceState.messageQueue.push(message)
                 } else {
-                    workspaceDetails.webSocketClient.send(message).catch(error => {
+                    workspaceState.webSocketClient.send(message).catch(error => {
                         logging.error(`Error while sending didRenameFiles message: ${error}`)
                     })
                 }

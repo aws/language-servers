@@ -48,7 +48,7 @@ const IGNORE_PATTERNS = [
 ]
 
 const MAX_UNCOMPRESSED_SRC_SIZE_MB = 250 // 250 MB limit per language per workspace folder
-const MAX_UNCOMPRESSED_SRC_SIZE_BYTES = MAX_UNCOMPRESSED_SRC_SIZE_MB * 1024 * 1024 // Convert to bytes
+const MAX_UNCOMPRESSED_SRC_SIZE_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -286,9 +286,12 @@ export class ArtifactManager {
         return filesMetadata
     }
 
-    cleanup(preserveDependencies: boolean = false) {
+    cleanup(preserveDependencies: boolean = false, workspaceFolders?: WorkspaceFolder[]) {
         try {
-            this.workspaceFolders.forEach(workspaceToRemove => {
+            if (workspaceFolders === undefined) {
+                workspaceFolders = this.workspaceFolders
+            }
+            workspaceFolders.forEach(workspaceToRemove => {
                 const workspaceDirPath = path.join(this.tempDirPath, workspaceToRemove.name)
 
                 if (preserveDependencies) {
