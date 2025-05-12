@@ -49,7 +49,7 @@ export class FsRead {
         const fileResult: FileReadResult[] = []
         for (const path of params.paths) {
             const sanitizedPath = sanitize(path)
-            const content = await this.readFromWorkspace(path) ?? await this.readFile(sanitizedPath)
+            const content = (await this.readFromWorkspace(path)) ?? (await this.readFile(sanitizedPath))
             this.logging.info(`Read file: ${sanitizedPath}, size: ${content.length}`)
             fileResult.push({ path, content, truncated: false })
         }
