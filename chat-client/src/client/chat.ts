@@ -91,7 +91,7 @@ import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
 
-const DEFAULT_TAB_DATA = (agenticMode?: Boolean) => {
+const getDefaultTabConfig = (agenticMode?: Boolean) => {
     return {
         tabTitle: 'Chat',
         promptInputInfo:
@@ -376,7 +376,7 @@ export const createChat = (
     }
 
     const messager = new Messager(chatApi)
-    const tabFactory = new TabFactory(DEFAULT_TAB_DATA(config?.agenticMode), [
+    const tabFactory = new TabFactory(getDefaultTabConfig(config?.agenticMode), [
         ...(config?.quickActionCommands ? config.quickActionCommands : []),
     ])
 
