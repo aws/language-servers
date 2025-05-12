@@ -91,11 +91,13 @@ import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
 
-const DEFAULT_TAB_DATA = {
-    tabTitle: 'Chat',
-    promptInputInfo:
-        'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
-    promptInputPlaceholder: 'Ask a question. Use @ to add context, / for quick actions',
+const DEFAULT_TAB_DATA = (agenticMode?: Boolean) => {
+    return {
+        tabTitle: 'Chat',
+        promptInputInfo:
+            'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
+        promptInputPlaceholder: `Ask a question. Use${agenticMode ? ' @ to add context,' : ''} / for quick actions`,
+    }
 }
 
 type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
@@ -374,7 +376,7 @@ export const createChat = (
     }
 
     const messager = new Messager(chatApi)
-    const tabFactory = new TabFactory(DEFAULT_TAB_DATA, [
+    const tabFactory = new TabFactory(DEFAULT_TAB_DATA(config?.agenticMode), [
         ...(config?.quickActionCommands ? config.quickActionCommands : []),
     ])
 
