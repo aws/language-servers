@@ -20,7 +20,7 @@ const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 export const WorkspaceContextServer = (): Server => features => {
     const { credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator } = features
 
-    let workspaceIdentifier: string | undefined
+    let workspaceIdentifier: string = ''
     let workspaceFolders: WorkspaceFolder[] = []
     let artifactManager: ArtifactManager
     let dependencyDiscoverer: DependencyDiscoverer
@@ -32,12 +32,10 @@ export const WorkspaceContextServer = (): Server => features => {
     let amazonQServiceManager: AmazonQTokenServiceManager
 
     lsp.addInitializer((params: InitializeParams) => {
-        // if (params.initializationOptions?.aws?.contextConfiguration?.workspaceIdentifier) {
-        //     workspaceIdentifier = params.initializationOptions?.aws?.contextConfiguration?.workspaceIdentifier
-        // } else {
-        //     logging.warn(`No workspaceIdentifier set during initialization`)
-        // }
-        workspaceIdentifier = '12345678-abcd-0000-0000-000000000001'
+        workspaceIdentifier = params.initializationOptions?.aws?.contextConfiguration?.workspaceIdentifier || ''
+        if (!workspaceIdentifier) {
+            logging.warn(`No workspaceIdentifier set!`)
+        }
 
         workspaceFolders = params.workspaceFolders || []
         if (params.workspaceFolders) {
@@ -182,7 +180,7 @@ export const WorkspaceContextServer = (): Server => features => {
             dependencyDiscoverer,
             workspaceFolders,
             credentialsProvider,
-            workspaceIdentifier!
+            workspaceIdentifier
         )
         await updateConfiguration()
 

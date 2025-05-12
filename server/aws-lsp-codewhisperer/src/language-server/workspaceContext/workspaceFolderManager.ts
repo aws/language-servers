@@ -339,14 +339,14 @@ export class WorkspaceFolderManager {
     }
 
     async initializeWorkspaceStatusMonitor() {
-        this.logging.log(`Initializing workspace status check for workspace ${this.workspaceIdentifier}`)
+        this.logging.log(`Initializing workspace status check for workspace [${this.workspaceIdentifier}]`)
         // Perform a one-time checkRemoteWorkspaceStatusAndReact first
         // Pass skipUploads as true since it would be handled by processNewWorkspaceFolders
         await this.checkRemoteWorkspaceStatusAndReact(true)
 
         // Set up continuous monitoring which periodically invokes checkRemoteWorkspaceStatusAndReact
         if (!this.isOptedOut) {
-            this.logging.log(`Starting continuous monitor for workspace ${this.workspaceIdentifier}`)
+            this.logging.log(`Starting continuous monitor for workspace [${this.workspaceIdentifier}]`)
             const intervalId = setInterval(async () => {
                 try {
                     this.checkRemoteWorkspaceStatusAndReact()
@@ -359,7 +359,7 @@ export class WorkspaceFolderManager {
     }
 
     private async waitForInitialConnection(): Promise<boolean> {
-        this.logging.log(`Waiting for initial connection to ${this.workspaceIdentifier}`)
+        this.logging.log(`Waiting for initial connection to remote workspace`)
         return new Promise(resolve => {
             const startTime = Date.now()
 
@@ -409,7 +409,7 @@ export class WorkspaceFolderManager {
                     }
                 } catch (error: any) {
                     this.logging.error(
-                        `Error during initializing connection for workspace ${this.workspaceIdentifier}: ${error}`
+                        `Error during initializing connection for workspace [${this.workspaceIdentifier}]: ${error}`
                     )
                     clearInterval(intervalId)
                     return resolve(false)
@@ -419,7 +419,7 @@ export class WorkspaceFolderManager {
     }
 
     private async checkRemoteWorkspaceStatusAndReact(skipUploads: boolean = false) {
-        this.logging.log(`Checking remote workspace status for workspace ${this.workspaceIdentifier}`)
+        this.logging.log(`Checking remote workspace status for workspace [${this.workspaceIdentifier}]`)
         const { metadata, optOut } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
 
         if (optOut) {
@@ -517,7 +517,7 @@ export class WorkspaceFolderManager {
 
         // If creation succeeds, establish connection
         if (initialResult.response) {
-            this.logging.log(`Workspace ${this.workspaceIdentifier} created successfully, establishing connection`)
+            this.logging.log(`Workspace [${this.workspaceIdentifier}] created successfully, establishing connection`)
             await this.waitForInitialConnection()
             if (!skipUploads) {
                 this.syncSourceCodesToS3(this.workspaceFolders)
@@ -552,7 +552,7 @@ export class WorkspaceFolderManager {
     }
 
     private stopContinuousMonitoring() {
-        this.logging.log(`Stopping monitoring for workspace ${this.workspaceIdentifier}`)
+        this.logging.log(`Stopping monitoring for workspace [${this.workspaceIdentifier}]`)
         if (this.continuousMonitorInterval) {
             clearInterval(this.continuousMonitorInterval)
             this.continuousMonitorInterval = undefined
@@ -563,7 +563,7 @@ export class WorkspaceFolderManager {
         const createWorkspaceResult = await this.createWorkspace(this.workspaceIdentifier)
         const workspaceDetails = createWorkspaceResult.response
         if (!workspaceDetails) {
-            this.logging.warn(`Failed to create remote workspace for ${this.workspaceIdentifier}`)
+            this.logging.warn(`Failed to create remote workspace for [${this.workspaceIdentifier}]`)
             return createWorkspaceResult
         }
 
