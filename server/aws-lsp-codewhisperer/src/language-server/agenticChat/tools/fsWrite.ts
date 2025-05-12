@@ -1,10 +1,21 @@
-import { workspaceUtils } from '@aws/lsp-core'
-import { CommandValidation, ExplanatoryParams, InvokeOutput, requiresPathAcceptance } from './toolShared'
+import {
+    ApplyWorkspaceEditParams,
+    CreateFile,
+    Range,
+    TextDocumentEdit,
+    TextEdit,
+} from '@aws/language-server-runtimes/protocol'
+import {
+    CommandValidation,
+    ExplanatoryParams,
+    fileExists,
+    getFileContent,
+    InvokeOutput,
+    requiresPathAcceptance,
+} from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { Change, diffLines } from 'diff'
 import { URI } from 'vscode-uri'
-import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/16aa8768834f41ae512522473a6a962bb96abe51/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
@@ -56,15 +67,15 @@ export class FsWrite {
         if (!params.path) {
             throw new Error('Path must not be empty')
         }
-        const sanitizedPath = sanitize(params.path)
         switch (params.command) {
             case 'create': {
                 if (params.fileText === undefined) {
                     throw new Error('fileText must be provided for create command')
                 }
-                const fileExists = await this.workspace.fs.exists(sanitizedPath)
-                if (fileExists) {
-                    const oldContent = await this.workspace.fs.readFile(sanitizedPath)
+
+                const exists = await fileExists(params.path, this.workspace)
+                if (exists) {
+                    const oldContent = await getFileContent(params.path, this.workspace)
                     if (oldContent === params.fileText) {
                         throw new Error('The file already exists with the same content')
                     }
@@ -75,15 +86,15 @@ export class FsWrite {
                 if (params.oldStr === params.newStr) {
                     throw new Error('The provided oldStr and newStr are the exact same, this is a no-op')
                 }
-                const fileExists = await this.workspace.fs.exists(sanitizedPath)
-                if (!fileExists) {
+                const exists = await fileExists(params.path, this.workspace)
+                if (!exists) {
                     throw new Error('The provided path must exist in order to replace contents into it')
                 }
                 break
             }
             case 'insert': {
-                const fileExists = await this.workspace.fs.exists(sanitizedPath)
-                if (!fileExists) {
+                const exists = await fileExists(params.path, this.workspace)
+                if (!exists) {
                     throw new Error('The provided path must exist in order to insert contents into it')
                 }
                 break
@@ -140,21 +151,21 @@ export class FsWrite {
     }
 
     private async handleStrReplace(params: StrReplaceParams, sanitizedPath: string): Promise<void> {
-        const fileContent = await this.workspace.fs.readFile(sanitizedPath)
+        const fileContent = await getFileContent(params.path, this.workspace)
         const newContent = getStrReplaceContent(params, fileContent)
         await this.workspace.fs.writeFile(sanitizedPath, newContent)
     }
 
     private async handleInsert(params: InsertParams, sanitizedPath: string): Promise<void> {
-        const fileContent = await this.workspace.fs.readFile(sanitizedPath)
+        const fileContent = await getFileContent(params.path, this.workspace)
         const newContent = getInsertContent(params, fileContent)
         await this.workspace.fs.writeFile(sanitizedPath, newContent)
     }
 
     private async handleAppend(params: AppendParams, sanitizedPath: string): Promise<void> {
-        const fileContent = await this.workspace.fs.readFile(sanitizedPath)
+        const fileContent = await getFileContent(params.path, this.workspace)
         const newContent = getAppendContent(params, fileContent)
-        await this.workspace.fs.writeFile(sanitizedPath, newContent)
+        await this.workspace.fs.appendFile(sanitizedPath, newContent)
     }
 
     public getSpec() {
@@ -234,13 +245,8 @@ export class FsWrite {
 
 const getAppendContent = (params: AppendParams, oldContent: string) => {
     const needsNewline = oldContent.length !== 0 && !oldContent.endsWith('\n')
-
     let contentToAppend = params.newStr
-    if (needsNewline) {
-        contentToAppend = '\n' + contentToAppend
-    }
-
-    return oldContent + contentToAppend
+    return needsNewline ? '\n' + contentToAppend : contentToAppend
 }
 
 const getInsertContent = (params: InsertParams, oldContent: string) => {
@@ -258,15 +264,19 @@ const getInsertContent = (params: InsertParams, oldContent: string) => {
     return newContent
 }
 
-const getStrReplaceContent = (params: StrReplaceParams, oldContent: string) => {
-    const matches = [...oldContent.matchAll(new RegExp(escapeRegExp(params.oldStr), 'g'))]
+const validateSingleMatch = (oldStr: string, oldContent: string) => {
+    const matches = [...oldContent.matchAll(new RegExp(escapeRegExp(oldStr), 'g'))]
 
     if (matches.length === 0) {
-        throw new Error(`No occurrences of "${params.oldStr}" were found`)
+        throw new Error(`No occurrences of "${oldStr}" were found`)
     }
     if (matches.length > 1) {
         throw new Error(`${matches.length} occurrences of oldStr were found when only 1 is expected`)
     }
+}
+
+const getStrReplaceContent = (params: StrReplaceParams, oldContent: string) => {
+    validateSingleMatch(params.oldStr, oldContent)
 
     return oldContent.replace(params.oldStr, params.newStr)
 }

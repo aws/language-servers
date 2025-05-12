@@ -6,6 +6,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { TextDocument, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { testFolder } from '@aws/lsp-core'
 import { StubbedInstance } from 'ts-sinon'
+import sinon from 'ts-sinon'
 
 describe('FsRead Tool', () => {
     let features: TestFeatures
@@ -25,6 +26,7 @@ describe('FsRead Tool', () => {
                         .then(() => true)
                         .catch(() => false),
             } as Workspace['fs'],
+            getTextDocument: sinon.stub(),
         } as StubbedInstance<Workspace>
         tempFolder = await testFolder.TestFolder.create()
     })
@@ -49,7 +51,6 @@ describe('FsRead Tool', () => {
     it('invalidates non-existent paths', async () => {
         const filePath = path.join(tempFolder.path, 'no_such_file.txt')
         const fsRead = new FsRead(features)
-
         await assert.rejects(
             fsRead.validate({ paths: [filePath] }),
             /does not exist or cannot be accessed/i,

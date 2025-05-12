@@ -7,6 +7,7 @@ import { InvokeOutput } from './toolShared'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { StubbedInstance } from 'ts-sinon'
+import sinon from 'ts-sinon'
 
 describe('FsWrite Tool', function () {
     let tempFolder: testFolder.TestFolder
@@ -31,7 +32,9 @@ describe('FsWrite Tool', function () {
                         .access(path)
                         .then(() => true)
                         .catch(() => false),
+                appendFile: fs.appendFile,
             } as Workspace['fs'],
+            getTextDocument: sinon.stub(),
         } as StubbedInstance<Workspace>
         tempFolder = await testFolder.TestFolder.create()
     })
