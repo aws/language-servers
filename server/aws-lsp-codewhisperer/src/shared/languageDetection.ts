@@ -85,6 +85,7 @@ const supportedFileTypes: CodewhispererLanguage[] = [
     'typescript',
     'vue',
     'yaml',
+    'tsx',
 ]
 
 export const supportedSecurityScanLanguages: CodewhispererLanguage[] = ['csharp']
@@ -103,15 +104,18 @@ export const languageByExtension: { [key: string]: CodewhispererLanguage } = {
     '.dart': 'dart',
     '.h': 'c',
     '.hcl': 'tf',
+    '.cc': 'cpp',
     '.hpp': 'cpp',
     '.go': 'go',
     '.java': 'java',
     '.js': 'javascript',
     '.json': 'json',
+    '.jsonc': 'json',
     '.jsx': 'jsx',
     '.kt': 'kotlin',
     '.kts': 'kotlin',
     '.lua': 'lua',
+    '.wlua': 'lua',
     '.php': 'php',
     '.ps1': 'powershell',
     '.psm1': 'powershell',
@@ -131,7 +135,6 @@ export const languageByExtension: { [key: string]: CodewhispererLanguage } = {
     '.tsx': 'tsx',
     '.vh': 'systemverilog',
     '.vue': 'vue',
-    '.wlua': 'lua',
     '.yaml': 'yaml',
     '.yml': 'yaml',
 }

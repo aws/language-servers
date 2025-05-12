@@ -66,12 +66,12 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     /*
      * This function is to create dependency map of programming languages. The key is the dependency name
      */
-    abstract initiateDependencyMap(): void
+    abstract initiateDependencyMap(folders: WorkspaceFolder[]): void
 
     /*
      * This function is to setup watchers for dependency files.
      */
-    abstract setupWatchers(): void
+    abstract setupWatchers(folders: WorkspaceFolder[]): void
 
     /**
      * Transform dependency path from LSP to dependency. Java and Python will have different logic to implement
@@ -115,9 +115,13 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             this.emitDependencyChange(workspaceFolder, zips)
         }
     }
-    async zipDependencyMap(): Promise<void> {
+    async zipDependencyMap(folders: WorkspaceFolder[]): Promise<void> {
         // Process each workspace folder sequentially
         for (const [workspaceFolder, correspondingDependencyMap] of this.dependencyMap) {
+            // Check if the workspace folder is in the provided folders
+            if (!folders.includes(workspaceFolder)) {
+                continue
+            }
             const chunkZipFileMetadata = await this.generateFileMetadata(
                 [...correspondingDependencyMap.values()],
                 workspaceFolder
@@ -242,10 +246,16 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             added: [] as Dependency[],
             updated: [] as Dependency[],
         }
-        const currentDependencyMap = this.dependencyMap.get(workspaceFolder)
+
+        let currentDependencyMap = this.dependencyMap.get(workspaceFolder)
+        // If the dependency map doesn't exist, create a new one
+        if (!currentDependencyMap) {
+            currentDependencyMap = new Map<string, Dependency>()
+            this.dependencyMap.set(workspaceFolder, currentDependencyMap)
+        }
         // Check for added and updated dependencies
         updatedDependencyMap.forEach((newDep, name) => {
-            const existingDependency = currentDependencyMap?.get(name)
+            const existingDependency = currentDependencyMap.get(name)
             if (!existingDependency) {
                 changes.added.push(newDep)
             } else if (existingDependency.version !== newDep.version) {
@@ -307,6 +317,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         this.dependencyMap.delete(workspaceFolder)
         this.dependencyUploadedSize.delete(workspaceFolder)
         this.disposeWatchers(workspaceFolder)
+        this.disposeDependencyInfo(workspaceFolder)
     }
 
     /**
@@ -315,6 +326,8 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
      * @param workspaceFolder
      */
     abstract disposeWatchers(workspaceFolder: WorkspaceFolder): void
+
+    abstract disposeDependencyInfo(workspaceFolder: WorkspaceFolder): void
 
     // For synchronous version if needed:
     protected getDirectorySize(directoryPath: string): number {

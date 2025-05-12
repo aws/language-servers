@@ -379,7 +379,7 @@ export class TransformHandler {
     async downloadExportResultArchive(exportId: string, saveToDir: string) {
         let result
         try {
-            result = await this.serviceManager.getStreamingClient().client.exportResultArchive({
+            result = await this.serviceManager.getStreamingClient().exportResultArchive({
                 exportId,
                 exportIntent: ExportIntent.TRANSFORMATION,
             })

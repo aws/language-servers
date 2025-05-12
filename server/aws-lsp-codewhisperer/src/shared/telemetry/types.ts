@@ -35,6 +35,7 @@ export interface CodeWhispererPerceivedLatencyEvent {
     duration?: number
     codewhispererLanguage: CodewhispererLanguage
     credentialStartUrl?: string
+    codewhispererCustomizationArn?: string
 }
 
 export interface CodeWhispererUserTriggerDecisionEvent {
@@ -72,6 +73,12 @@ export interface CodeWhispererCodePercentageEvent {
     codewhispererSuggestedTokens: number
     codewhispererPercentage: number
     successCount: number
+}
+
+export interface UserWrittenPercentageEvent {
+    codewhispererLanguage: string
+    userWrittenCodeCharacterCount: number
+    userWrittenCodeLineCount: number
 }
 
 export interface CodeWhispererUserDecisionEvent {

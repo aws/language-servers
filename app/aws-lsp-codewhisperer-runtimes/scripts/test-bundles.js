@@ -8,7 +8,7 @@ function testBundle(bundlePath) {
         let startupTimeout
 
         const serverProcess = spawn('node', [bundlePath, '--stdio'], {
-            stdio: 'inherit',
+            stdio: 'pipe',
             shell: true,
         })
 

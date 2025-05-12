@@ -1,5 +1,5 @@
 import * as assert from 'assert'
-import { FsRead } from './fsRead'
+import { FileReadResult, FsRead } from './fsRead'
 import * as path from 'path'
 import * as fs from 'fs/promises'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
@@ -40,7 +40,7 @@ describe('FsRead Tool', () => {
     it('invalidates empty path', async () => {
         const fsRead = new FsRead(features)
         await assert.rejects(
-            fsRead.validate({ path: '' }),
+            fsRead.validate({ paths: [''] }),
             /Path cannot be empty/i,
             'Expected an error about empty path'
         )
@@ -51,7 +51,7 @@ describe('FsRead Tool', () => {
         const fsRead = new FsRead(features)
 
         await assert.rejects(
-            fsRead.validate({ path: filePath }),
+            fsRead.validate({ paths: [filePath] }),
             /does not exist or cannot be accessed/i,
             'Expected an error indicating the path does not exist'
         )
@@ -61,10 +61,12 @@ describe('FsRead Tool', () => {
         const fileContent = 'A'.repeat(FsRead.maxResponseSize + 10)
         const filePath = await tempFolder.write('largeFile.txt', fileContent)
         const fsRead = new FsRead(features)
-        await fsRead.validate({ path: filePath })
-        const result = await fsRead.invoke({ path: filePath })
+        await fsRead.validate({ paths: [filePath] })
+        const result = await fsRead.invoke({ paths: [filePath] })
 
-        verifyResult(result, { truncated: true }, ({ content }) => content.length === FsRead.maxResponseSize)
+        verifyResult(result, [
+            { path: filePath, content: 'A'.repeat(FsRead.maxResponseSize - 3) + '...', truncated: true },
+        ])
     })
 
     it('reads entire file', async () => {
@@ -72,39 +74,22 @@ describe('FsRead Tool', () => {
         const filePath = await tempFolder.write('fullFile.txt', fileContent)
 
         const fsRead = new FsRead(features)
-        const result = await fsRead.invoke({ path: filePath })
-        verifyResult(result, { content: fileContent, truncated: false })
+        const result = await fsRead.invoke({ paths: [filePath] })
+        verifyResult(result, [{ path: filePath, content: fileContent, truncated: false }])
     })
 
-    it('reads partial lines of a file', async () => {
-        const fileContent = 'A\nB\nC\nD\nE\nF'
-        const filePath = await tempFolder.write('partialFile.txt', fileContent)
+    it('reads multiple files', async () => {
+        const fileContent = 'Line 1\nLine 2\nLine 3'
+        const fileContent1 = 'Line 1\n'
+        const filePath = await tempFolder.write('fullFile.txt', fileContent)
+        const filePath1 = await tempFolder.write('fullFile1.txt', fileContent1)
 
         const fsRead = new FsRead(features)
-        const result = await fsRead.invoke({ path: filePath, readRange: [2, 4] })
-        verifyResult(result, { content: 'B\nC\nD', truncated: false })
-    })
-
-    it('invalid line range', async () => {
-        const filePath = await tempFolder.write('rangeTest.txt', '1\n2\n3')
-        const fsRead = new FsRead(features)
-
-        await fsRead.invoke({ path: filePath, readRange: [3, 2] })
-        const result = await fsRead.invoke({ path: filePath, readRange: [3, 2] })
-        verifyResult(result, { content: '', truncated: false })
-    })
-
-    it('updates the stream', async () => {
-        const fsRead = new FsRead(features)
-        const chunks = []
-        const stream = new WritableStream({
-            write: c => {
-                chunks.push(c)
-            },
-        })
-        await fsRead.queueDescription({ path: 'this/is/my/path' }, stream, true)
-        assert.ok(chunks.length > 0)
-        assert.ok(!stream.locked)
+        const result = await fsRead.invoke({ paths: [filePath, filePath1] })
+        verifyResult(result, [
+            { path: filePath, content: fileContent, truncated: false },
+            { path: filePath1, content: fileContent1, truncated: false },
+        ])
     })
 
     it('should require acceptance if fsPath is outside the workspace', async () => {
@@ -115,7 +100,7 @@ describe('FsRead Tool', () => {
                 getTextDocument: async s => undefined,
             },
         })
-        const result = await fsRead.requiresAcceptance({ path: '/not/in/workspace/file.txt' })
+        const result = await fsRead.requiresAcceptance({ paths: ['/not/in/workspace/file.txt'] })
         assert.equal(
             result.requiresAcceptance,
             true,
@@ -140,7 +125,7 @@ describe('FsRead Tool', () => {
                 getTextDocument: async s => ({}) as TextDocument,
             },
         })
-        const result = await fsRead.requiresAcceptance({ path: '/workspace/folder/file.txt' })
+        const result = await fsRead.requiresAcceptance({ paths: ['/workspace/folder/file.txt'] })
         assert.equal(
             result.requiresAcceptance,
             false,
@@ -149,20 +134,20 @@ describe('FsRead Tool', () => {
     })
 })
 
-function verifyResult(
-    result: any,
-    expected: { content?: string; truncated: boolean },
-    customChecks?: (r: { content: string; truncated: boolean }) => boolean
-) {
+function verifyResult(result: any, expected: FileReadResult[]) {
     assert.strictEqual(result.output.kind, 'json', 'Output kind should be "json"')
-    const resultContent = result.output.content as { content: string; truncated: boolean }
-    if (expected.content) {
-        assert.strictEqual(resultContent.content, expected.content, 'File content should match exactly')
-    }
-    if (expected.truncated !== undefined) {
-        assert.strictEqual(resultContent.truncated, expected.truncated, 'Truncated flag should match')
-    }
-    if (customChecks) {
-        assert.ok(customChecks(resultContent), 'Custom checks failed in verifyResult')
+    const resultContent = result.output.content as FileReadResult[]
+    // Compare array length
+    assert.strictEqual(resultContent.length, expected.length, 'Arrays should have the same length')
+
+    // Compare each element in the arrays
+    for (let i = 0; i < resultContent.length; i++) {
+        assert.strictEqual(resultContent[i].path, expected[i].path, `Path at index ${i} should match`)
+        assert.strictEqual(resultContent[i].content, expected[i].content, `Content at index ${i} should match`)
+        assert.strictEqual(
+            resultContent[i].truncated,
+            expected[i].truncated,
+            `Truncated flag at index ${i} should match`
+        )
     }
 }

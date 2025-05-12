@@ -269,6 +269,7 @@ export const createMynahUi = (
             messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
+            messager.onStopChatResponse(tabId)
             messager.onTabRemove(tabId)
         },
         onTabChange: (tabId: string) => {
@@ -873,7 +874,7 @@ export const createMynahUi = (
                 }
             }
             if (!isPartialResult) {
-                if (processedHeader) {
+                if (processedHeader && processedHeader.status?.status !== 'error') {
                     processedHeader.status = undefined
                 }
             }
@@ -898,7 +899,8 @@ export const createMynahUi = (
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
             message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
 
-        const shouldMute = message.header?.status?.text === 'Stopped' || message.header?.status?.text === 'Rejected'
+        // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
+        const shouldMute = message.header?.status?.text !== undefined
 
         return {
             body: message.body,
