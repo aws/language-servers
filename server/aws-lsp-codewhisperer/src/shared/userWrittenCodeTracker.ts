@@ -89,7 +89,7 @@ export class UserWrittenCodeTracker {
     public recordUsageCount(languageId: string) {
         const languageBucket = this.getLanguageBucket(languageId)
         languageBucket.invocationCount++
-        this._lastQInvocationTime = Date.now()
+        this._lastQInvocationTime = performance.now()
     }
 
     public onQStartsMakingEdits() {
@@ -117,6 +117,7 @@ export class UserWrittenCodeTracker {
             if (performance.now() - this._lastQInvocationTime > RESET_Q_EDITING_THRESHOLD) {
                 this._qIsMakingEdits = false
             }
+            return
         }
         const languageBucket = this.getLanguageBucket(languageId)
         // if user copies code into the editor for more than 50 characters
