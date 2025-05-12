@@ -52,6 +52,27 @@ export const QConfigurationServerToken =
         let serverConfigurationProvider: ServerConfigurationProvider
         let enableCustomizationsWithMetadata = false
 
+        const isCustomizationsWithDeveloperProfileEnabled = (): boolean => {
+            return enableCustomizationsWithMetadata && amazonQServiceManager.getEnableDeveloperProfileSupport()
+        }
+
+        const enhancedCustomizationsWithMetadata = async (
+            token: CancellationToken
+        ): Promise<CustomizationWithMetadata[]> => {
+            logging.debug('Using enhanced customizations with metadata')
+
+            // Fetch profiles first
+            const developerProfiles = await serverConfigurationProvider.listAvailableProfiles(token)
+
+            // Then use those profiles to fetch customizations
+            const customizations = await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
+                developerProfiles,
+                token
+            )
+
+            return customizations
+        }
+
         lsp.addInitializer((params: InitializeParams) => {
             // Check for feature flag in client capabilities
             const qCapabilities = params.initializationOptions?.aws?.awsClientCapabilities?.q as
@@ -98,21 +119,8 @@ export const QConfigurationServerToken =
                 try {
                     switch (section) {
                         case Q_CONFIGURATION_SECTION:
-                            if (
-                                enableCustomizationsWithMetadata &&
-                                amazonQServiceManager.getEnableDeveloperProfileSupport()
-                            ) {
-                                logging.debug('Using enhanced customizations with metadata')
-
-                                // Fetch profiles first
-                                developerProfiles = await serverConfigurationProvider.listAvailableProfiles(token)
-
-                                // Then use those profiles to fetch customizations
-                                customizations =
-                                    await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
-                                        developerProfiles,
-                                        token
-                                    )
+                            if (isCustomizationsWithDeveloperProfileEnabled()) {
+                                customizations = await enhancedCustomizationsWithMetadata(token)
                             } else {
                                 ;[customizations, developerProfiles] = await Promise.all([
                                     serverConfigurationProvider.listAvailableCustomizations(),
@@ -126,21 +134,8 @@ export const QConfigurationServerToken =
                                 ? { customizations, developerProfiles }
                                 : { customizations }
                         case Q_CUSTOMIZATIONS_CONFIGURATION_SECTION:
-                            if (
-                                enableCustomizationsWithMetadata &&
-                                amazonQServiceManager.getEnableDeveloperProfileSupport()
-                            ) {
-                                logging.debug('Using enhanced customizations with metadata')
-
-                                // Fetch profiles first
-                                const profiles = await serverConfigurationProvider.listAvailableProfiles(token)
-
-                                // Then use those profiles to fetch customizations
-                                customizations =
-                                    await serverConfigurationProvider.listAllAvailableCustomizationsWithMetadata(
-                                        profiles,
-                                        token
-                                    )
+                            if (isCustomizationsWithDeveloperProfileEnabled()) {
+                                customizations = await enhancedCustomizationsWithMetadata(token)
                             } else {
                                 customizations = await serverConfigurationProvider.listAvailableCustomizations()
                             }
