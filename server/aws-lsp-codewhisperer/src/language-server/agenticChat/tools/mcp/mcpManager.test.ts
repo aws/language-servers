@@ -5,7 +5,7 @@
 
 import { expect } from 'chai'
 import * as sinon from 'sinon'
-import { McpManager } from './mcpManager'
+import { McpManager, MCP_SERVER_STATUS_CHANGED, AGENT_TOOLS_CHANGED } from './mcpManager'
 import * as mcpUtils from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -80,8 +80,15 @@ describe('McpManager additional methods', () => {
         ) {
             const serverName = args[0] as string
             this.clients.set(serverName, new Client({ name: 'stub', version: '0.0.0' }))
-            this.mcpTools.push({ serverName, toolName: 'tool1', description: 'desc', inputSchema: {} as any })
+            this.mcpTools.push({
+                serverName,
+                toolName: 'tool1',
+                description: 'desc',
+                inputSchema: {} as any,
+            })
+            ;(this as any).setState(serverName, 'ENABLED', 1)
         })
+
         mutateStub = sinon.stub(McpManager.prototype as any, 'mutateConfigFile' as any).resolves()
         callToolStub = sinon.stub(Client.prototype as any, 'callTool' as any).resolves('ok' as any)
     })
@@ -356,6 +363,66 @@ describe('McpManager additional methods', () => {
 
         const mgr = await McpManager.init(['p.json'], features)
         expect(mgr.listServersAndTools()).to.deep.equal({})
+    })
+
+    it('getServerState and getAllServerStates report runtime info', async () => {
+        const cfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            disabled: false,
+            autoApprove: false,
+            toolOverrides: {},
+            __configPath__: 'state.json',
+        }
+        loadStub.resolves(new Map([['stateSrv', cfg]]))
+
+        const mgr = await McpManager.init(['state.json'], features)
+
+        expect(mgr.getServerState('stateSrv')).to.deep.include({ status: 'ENABLED', toolsCount: 1 })
+
+        const map = mgr.getAllServerStates()
+        expect(map.get('stateSrv')).to.deep.include({ status: 'ENABLED', toolsCount: 1 })
+    })
+
+    it('getEnabledTools excludes tools disabled via toolOverrides', async () => {
+        const cfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            disabled: false,
+            autoApprove: false,
+            toolOverrides: { tool1: { disabled: true } },
+            __configPath__: 'disabledTool.json',
+        }
+        loadStub.resolves(new Map([['srvDisTool', cfg]]))
+
+        const mgr = await McpManager.init(['disabledTool.json'], features)
+
+        // All discovered tools are still present
+        expect(mgr.getAllTools()).to.have.lengthOf(1)
+        // But none are enabled
+        expect(mgr.getEnabledTools()).to.be.an('array').that.is.empty
+    })
+
+    it('addServer marks DISABLED servers without calling initOneServer', async () => {
+        loadStub.resolves(new Map())
+
+        const mgr = await McpManager.init([], features)
+        const disabledCfg: MCPServerConfig = {
+            command: 'cmd',
+            args: [],
+            env: {},
+            disabled: true,
+            autoApprove: false,
+            toolOverrides: {},
+            __configPath__: 'disabled.json',
+        }
+
+        await mgr.addServer('disabledSrv', disabledCfg, 'disabled.json')
+
+        expect(initOneStub.called).to.be.false
+        expect(mgr.getServerState('disabledSrv')).to.deep.include({ status: 'DISABLED', toolsCount: 0 })
     })
 })
 
