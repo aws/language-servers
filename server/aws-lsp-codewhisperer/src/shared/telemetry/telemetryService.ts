@@ -22,10 +22,14 @@ import {
 import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
     ChatConversationType,
+    ChatHistoryActionEvent,
     ChatInteractionType,
     ChatTelemetryEventName,
     CodeWhispererUserTriggerDecisionEvent,
+    ExportTabEvent,
     InteractWithMessageEvent,
+    LoadHistoryEvent,
+    UiClickEvent,
 } from './types'
 import { CodewhispererLanguage, getRuntimeLanguage } from '../languageDetection'
 import { CONVERSATION_ID_METRIC_KEY } from '../../language-server/chat/telemetry/chatTelemetryController'
@@ -372,6 +376,42 @@ export class TelemetryService {
         return this.invokeSendTelemetryEvent({
             codeCoverageEvent: event,
         })
+    }
+
+    public emitExportTab(event: ExportTabEvent) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.ExportTab,
+                data: event,
+            })
+        }
+    }
+
+    public emitLoadHistory(event: LoadHistoryEvent) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.LoadHistory,
+                data: event,
+            })
+        }
+    }
+
+    public emitChatHistoryAction(event: ChatHistoryActionEvent) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.ChatHistoryAction,
+                data: event,
+            })
+        }
+    }
+
+    public emitUiClick(event: UiClickEvent) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.UiClick,
+                data: { elementId: event.elementId },
+            })
+        }
     }
 
     public emitChatAddMessage(
