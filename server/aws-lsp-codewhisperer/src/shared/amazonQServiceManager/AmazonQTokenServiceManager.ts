@@ -27,11 +27,7 @@ import {
     QServiceManagerFeatures,
 } from './BaseAmazonQServiceManager'
 import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
-import {
-    AmazonQDeveloperProfile,
-    fetchProfilesFromRegion,
-    signalsAWSQDeveloperProfilesEnabled,
-} from './qDeveloperProfiles'
+import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './qDeveloperProfiles'
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
@@ -325,16 +321,14 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             throw new Error('Requested profileArn region is not supported')
         }
 
-        const profiles = await fetchProfilesFromRegion(
-            this.serviceFactory(region, endpoint),
-            region,
-            this.logging,
-            token
-        )
-
-        this.handleTokenCancellationRequest(token)
-
-        const newProfile = profiles.find(el => el.arn === newProfileArn)
+        // Hack to inject a dummy profile name as it's not used by client ide for now, if client IDE starts consuming name field then we should also pass both profile name and arn from the IDE
+        const newProfile: AmazonQDeveloperProfile = {
+            arn: newProfileArn,
+            name: 'Not being used',
+            identityDetails: {
+                region: parsedArn.region,
+            },
+        }
 
         if (!newProfile || !newProfile.identityDetails?.region) {
             this.log(`Amazon Q Profile ${newProfileArn} is not valid`)
