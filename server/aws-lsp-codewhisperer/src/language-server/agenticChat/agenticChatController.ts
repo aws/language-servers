@@ -576,7 +576,7 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.#validateRequest(currentRequestInput)
+            this.#truncateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
             this.#features.logging.info(
                 `generateAssistantResponse ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
@@ -695,17 +695,21 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
-     * performs pre-validation of request before sending to backend service.
+     * performs truncation of request before sending to backend service.
      * @param request
      */
-    #validateRequest(request: GenerateAssistantResponseCommandInput) {
+    #truncateRequest(request: GenerateAssistantResponseCommandInput) {
         // Note: these logs are very noisy, but contain information redacted on the backend.
         this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
+        if (!request?.conversationState?.currentMessage?.userInputMessage) {
+            return
+        }
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
         if (message && message.length > generateAssistantResponseInputLimit) {
-            throw new AgenticChatError(
-                `Message is too long with ${message.length} characters, max is ${generateAssistantResponseInputLimit}`,
-                'PromptCharacterLimit'
+            this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
+            request.conversationState.currentMessage.userInputMessage.content = message.substring(
+                0,
+                generateAssistantResponseInputLimit
             )
         }
     }

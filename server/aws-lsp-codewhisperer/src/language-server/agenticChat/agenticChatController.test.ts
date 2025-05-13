@@ -962,19 +962,20 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.data?.body, errorMsg)
         })
 
-        it('does not make backend request when input is too long ', async function () {
-            const input = 'X'.repeat(generateAssistantResponseInputLimit + 1)
-            const chatResult = await chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: input } },
-                mockCancellationToken
+        it('truncate input to 500k character ', async function () {
+            const input = 'X'.repeat(generateAssistantResponseInputLimit + 10)
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+            generateAssistantResponseStub.callsFake(() => {})
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: input } }, mockCancellationToken)
+            assert.ok(generateAssistantResponseStub.called)
+            const calledRequestInput: GenerateAssistantResponseCommandInput =
+                generateAssistantResponseStub.firstCall.firstArg
+            assert.deepStrictEqual(
+                calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
+                generateAssistantResponseInputLimit
             )
-
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.ok(typedChatResult.message.includes('too long'))
-            assert.ok(typedChatResult.data?.body?.includes('too long'))
-            assert.ok(generateAssistantResponseStub.notCalled)
         })
-
         it('shows generic errorMsg on internal errors', async function () {
             const chatResult = await chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
@@ -1070,26 +1071,6 @@ describe('AgenticChatController', () => {
             const typedChatResult = chatResult as ResponseError<ChatResult>
             assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
             assert.strictEqual(typedChatResult.message, 'invalid state')
-        })
-
-        it('returns a user-friendly message when input is too long', async () => {
-            generateAssistantResponseStub.restore()
-            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
-            generateAssistantResponseStub.callsFake(() => {
-                const error = new Error('Input is too long')
-                throw error
-            })
-
-            const chatResult = await chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello with large context' } },
-                mockCancellationToken
-            )
-
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(
-                typedChatResult.data?.body,
-                'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.'
-            )
         })
 
         describe('#extractDocumentContext', () => {
