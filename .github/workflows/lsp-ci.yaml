@@ -7,7 +7,7 @@ on:
 
 jobs:
     test:
-        name: Test
+        name: Test (Ubuntu)
         runs-on: ubuntu-latest
         steps:
             - name: Sync Code
@@ -24,7 +24,7 @@ jobs:
               run: |
                   npm run test
     build:
-        name: Package
+        name: Package (Ubuntu)
         runs-on: ubuntu-latest
         steps:
             - name: Sync Code
@@ -45,7 +45,7 @@ jobs:
             - name: Attach bundles
               uses: actions/upload-artifact@v4
               with:
-                  name: language-servers-${{ matrix.runs-on }}
+                  name: language-servers-ubuntu
                   # Make sure you don't include node_modules
                   path: app/**/build/*
     test-windows:
@@ -86,6 +86,47 @@ jobs:
             - name: Attach bundles
               uses: actions/upload-artifact@v4
               with:
-                  name: language-servers-pack-win-${{ matrix.runs-on }}
+                  name: language-servers-windows
+                  # Make sure you don't include node_modules
+                  path: app/**/build/*
+    test-macos:
+        name: Test (macOS)
+        runs-on: macos-latest
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v3
+            - name: Set up Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18
+            - name: Build
+              run: |
+                  npm ci
+            - name: Test
+              run: |
+                  npm run test
+    build-macos:
+        name: Package (macOS)
+        runs-on: macos-latest
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v3
+            - name: Set up Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18
+            - name: Build
+              run: |
+                  npm ci
+            - name: Create runtime bundles
+              run: |
+                  npm run package
+            - name: Test bundles
+              run: |
+                  npm run test-bundles --workspaces --if-present
+            - name: Attach bundles
+              uses: actions/upload-artifact@v4
+              with:
+                  name: language-servers-macos
                   # Make sure you don't include node_modules
                   path: app/**/build/*
