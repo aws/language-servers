@@ -39,6 +39,7 @@ export const QAgenticChatServer =
                                 },
                             ],
                         },
+                        mcpServers: true,
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },

@@ -26,6 +26,8 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    ListMcpServersResult,
+    McpServerClickResult,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
@@ -40,6 +42,8 @@ import {
     MynahUIProps,
     QuickActionCommand,
     ChatItemButton,
+    TextBasedFormItem,
+    DetailedListItem,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -68,6 +72,8 @@ export interface InboundChatApi {
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
+    listMcpServers(params: ListMcpServersResult): void
+    mcpServerClick(params: McpServerClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
     createTabId(openTab?: boolean): string | undefined
 }
@@ -1063,6 +1069,111 @@ ${params.message}`,
         }
     }
 
+    const listMcpServers = (params: ListMcpServersResult) => {
+        // Convert the ListMcpServersResult to the format expected by mynahUi.openDetailedList
+        const detailedList: any = {
+            selectable: params.selectable,
+            textDirection: params.textDirection,
+            header: params.header
+                ? {
+                      title: params.header.title,
+                      description: params.header.description,
+                      actions: params.header.actions?.map(action => ({
+                          ...action,
+                          icon: toMynahIcon(action.icon),
+                      })),
+                  }
+                : undefined,
+            filterOptions: params.filterOptions?.map(filter => ({
+                ...filter,
+                icon: toMynahIcon(filter.icon),
+            })),
+            filterActions: params.filterActions?.map(action => ({
+                ...action,
+                icon: toMynahIcon(action.icon),
+            })),
+            list: params.list.map(group => ({
+                groupName: group.groupName,
+                children: group.children?.map(item => ({
+                    title: item.title,
+                    description: item.description,
+                    icon: toMynahIcon(item.icon),
+                    status: item.status
+                        ? {
+                              icon: toMynahIcon(item.status.icon),
+                              text: item.status.text,
+                          }
+                        : undefined,
+                    iconForegroundStatus: item.iconForegroundStatus,
+                    groupActions: item.groupActions,
+                    actions: item.actions?.map(action => ({
+                        id: action.id,
+                        text: action.text,
+                        description: action.description,
+                        icon: toMynahIcon(action.icon),
+                        status: action.status,
+                        disabled: action.disabled,
+                    })),
+                })),
+            })),
+        }
+
+        if (detailedList.filterOptions && detailedList.filterOptions.length > 0) {
+            // eslint-disable-next-line no-extra-semi
+            ;(detailedList.filterOptions[0] as TextBasedFormItem).autoFocus = true
+        }
+
+        const mcpSheet = mynahUi.openDetailedList({
+            detailedList: detailedList,
+            events: {
+                onFilterValueChange: (filterValues: Record<string, any>, isValid: boolean) => {
+                    messager.onListMcpServers(filterValues)
+                },
+                onFilterActionClick: (action, filterValues?: Record<string, any>, isValid?: boolean) => {
+                    // Handle filter actions if needed
+                },
+                onKeyPress: (e: KeyboardEvent) => {
+                    if (e.key === 'Escape') {
+                        mcpSheet.close()
+                    }
+                },
+                onItemSelect: (item: DetailedListItem) => {
+                    if (!item.id) {
+                        throw new Error('MCP server id is not defined')
+                    }
+                    messager.onMcpServerClick(item.id)
+                },
+                onItemClick: (item: DetailedListItem) => {
+                    if (item.id) {
+                        messager.onMcpServerClick(item.id)
+                    }
+                },
+                onActionClick: (action: ChatItemButton, item?: DetailedListItem) => {
+                    messager.onMcpServerClick(action.id)
+                },
+                onClose: () => {
+                    // No need to store reference
+                },
+                onTitleActionClick: button => {
+                    // Handle title actions if needed
+                },
+                onBackClick: () => {
+                    // Handle back click if needed
+                },
+            },
+        })
+    }
+
+    const mcpServerClick = (params: McpServerClickResult) => {
+        if (!params.success) {
+            mynahUi.notify({
+                content: `Failed to open the MCP server`,
+                type: NotificationType.ERROR,
+            })
+        }
+        console.log('mcpServerClick', params)
+    }
+
     const getSerializedChat = (requestId: string, params: GetSerializedChatParams) => {
         const supportedFormats = ['markdown', 'html']
 
@@ -1104,6 +1215,8 @@ ${params.message}`,
         sendContextCommands: sendContextCommands,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
+        listMcpServers: listMcpServers,
+        mcpServerClick: mcpServerClick,
         getSerializedChat: getSerializedChat,
         createTabId: createTabId,
     }

@@ -212,14 +212,10 @@ export class Messager {
     }
 
     onListMcpServers = (filter?: Record<string, FilterValue>): void => {
-        const mcpFilter: Record<string, FilterValue> = {
-            type: 'mcp',
-            category: 'server',
-        }
-        this.chatApi.listMcpServers({ filter: mcpFilter })
+        this.chatApi.listMcpServers({ filter })
     }
 
-    onMcpServerClick(id: string, action?: ConversationAction) {
+    onMcpServerClick = (id: string, action?: ConversationAction): void => {
         this.chatApi.mcpServerClick({ id: id, action })
     }
 

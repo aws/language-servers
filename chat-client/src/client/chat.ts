@@ -61,9 +61,15 @@ import {
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
     LIST_CONVERSATIONS_REQUEST_METHOD,
+    LIST_MCP_SERVERS_REQUEST_METHOD,
     LinkClickParams,
     ListConversationsParams,
     ListConversationsResult,
+    ListMcpServersParams,
+    ListMcpServersResult,
+    MCP_SERVER_CLICK_REQUEST_METHOD,
+    McpServerClickParams,
+    McpServerClickResult,
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
@@ -182,6 +188,12 @@ export const createChat = (
             case CONVERSATION_CLICK_REQUEST_METHOD:
                 mynahApi.conversationClicked(message.params as ConversationClickResult)
                 break
+            case LIST_MCP_SERVERS_REQUEST_METHOD:
+                mynahApi.listMcpServers(message.params as ListMcpServersResult)
+                break
+            case MCP_SERVER_CLICK_REQUEST_METHOD:
+                mynahApi.mcpServerClick(message.params as McpServerClickResult)
+                break
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
@@ -206,13 +218,16 @@ export const createChat = (
                     tabFactory.updateQuickActionCommands(quickActionCommandGroups)
                 }
 
+                if (params?.mcpServers && config?.agenticMode) {
+                    tabFactory.enableMcp()
+                }
+
                 if (params?.history) {
                     tabFactory.enableHistory()
                 }
 
                 if (params?.export) {
                     tabFactory.enableExport()
-                    tabFactory.enableMcp()
                 }
 
                 const initialTabId = mynahApi.createTabId()
@@ -333,10 +348,12 @@ export const createChat = (
         listConversations: (params: ListConversationsParams) => {
             sendMessageToClient({ command: LIST_CONVERSATIONS_REQUEST_METHOD, params })
         },
-        listMcpServers: (params: ListConversationsParams) => {
-            sendMessageToClient({ command: LIST_CONVERSATIONS_REQUEST_METHOD, params })
+        listMcpServers: (params: ListMcpServersParams) => {
+            sendMessageToClient({ command: LIST_MCP_SERVERS_REQUEST_METHOD, params })
         },
-        mcpServerClick: function (params: ConversationClickParams): void {},
+        mcpServerClick: function (params: McpServerClickParams): void {
+            sendMessageToClient({ command: MCP_SERVER_CLICK_REQUEST_METHOD, params })
+        },
         conversationClick: (params: ConversationClickParams) => {
             sendMessageToClient({ command: CONVERSATION_CLICK_REQUEST_METHOD, params })
         },

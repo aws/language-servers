@@ -35,6 +35,10 @@ import {
     GetSerializedChatResult,
     PROMPT_INPUT_OPTION_CHANGE_METHOD,
     BUTTON_CLICK_REQUEST_METHOD,
+    McpServerClickParams,
+    ListMcpServersParams,
+    LIST_MCP_SERVERS_REQUEST_METHOD,
+    MCP_SERVER_CLICK_REQUEST_METHOD,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
@@ -57,6 +61,8 @@ export type ServerMessageCommand =
     | typeof FILE_CLICK_NOTIFICATION_METHOD
     | typeof LIST_CONVERSATIONS_REQUEST_METHOD
     | typeof CONVERSATION_CLICK_REQUEST_METHOD
+    | typeof LIST_MCP_SERVERS_REQUEST_METHOD
+    | typeof MCP_SERVER_CLICK_REQUEST_METHOD
     | typeof TAB_BAR_ACTION_REQUEST_METHOD
     | typeof GET_SERIALIZED_CHAT_REQUEST_METHOD
     | typeof PROMPT_INPUT_OPTION_CHANGE_METHOD
@@ -89,5 +95,7 @@ export type ServerMessageParams =
     | FileClickParams
     | ListConversationsParams
     | ConversationClickParams
+    | ListMcpServersParams
+    | McpServerClickParams
     | TabBarActionParams
     | GetSerializedChatResult
