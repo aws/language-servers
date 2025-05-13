@@ -445,7 +445,7 @@ export const createMynahUi = (
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
             if (buttonId === ChatHistory.TabBarButtonId) {
-                messager.onListConversations()
+                messager.onListConversations(undefined, true)
                 return
             }
 

@@ -180,6 +180,7 @@ describe('AgenticChatController', () => {
             readFile: sinon.stub().resolves(),
             writeFile: fsWriteFileStub.resolves(),
             rm: sinon.stub().resolves(),
+            getFileSize: sinon.stub().resolves(),
         }
 
         // Add agent with runTool method to testFeatures
