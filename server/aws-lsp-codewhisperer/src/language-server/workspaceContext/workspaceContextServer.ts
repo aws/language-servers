@@ -301,14 +301,7 @@ export const WorkspaceContextServer = (): Server => features => {
             },
         })
         const workspaceState = workspaceFolderManager.getWorkspaceState()
-        if (!workspaceState.webSocketClient) {
-            logging.log(`WebSocket client is not connected yet, adding didSave message to queue`)
-            workspaceState.messageQueue.push(message)
-        } else {
-            workspaceState.webSocketClient.send(message).catch(error => {
-                logging.error(`Error while sending didSave message: ${error}`)
-            })
-        }
+        workspaceState.messageQueue.push(message)
     })
 
     lsp.workspace.onDidCreateFiles(async event => {
@@ -356,14 +349,7 @@ export const WorkspaceContextServer = (): Server => features => {
                         },
                     },
                 })
-                if (!workspaceState.webSocketClient) {
-                    logging.log(`WebSocket client is not connected yet, adding didCreateFiles message to queue`)
-                    workspaceState.messageQueue.push(message)
-                } else {
-                    workspaceState.webSocketClient.send(message).catch(error => {
-                        logging.error(`Error while sending didCreateFiles message: ${error}`)
-                    })
-                }
+                workspaceState.messageQueue.push(message)
             }
         }
     })
@@ -406,14 +392,7 @@ export const WorkspaceContextServer = (): Server => features => {
                         },
                     },
                 })
-                if (!workspaceState.webSocketClient) {
-                    logging.log(`WebSocket client is not connected yet, adding didDeleteFiles message to queue`)
-                    workspaceState.messageQueue.push(message)
-                } else {
-                    workspaceState.webSocketClient.send(message).catch(error => {
-                        logging.error(`Error while sending didDeleteFiles message: ${error}`)
-                    })
-                }
+                workspaceState.messageQueue.push(message)
             }
         }
     })
@@ -456,14 +435,7 @@ export const WorkspaceContextServer = (): Server => features => {
                         },
                     },
                 })
-                if (!workspaceState.webSocketClient) {
-                    logging.log(`WebSocket client is not connected yet, adding didRenameFiles message to queue`)
-                    workspaceState.messageQueue.push(message)
-                } else {
-                    workspaceState.webSocketClient.send(message).catch(error => {
-                        logging.error(`Error while sending didRenameFiles message: ${error}`)
-                    })
-                }
+                workspaceState.messageQueue.push(message)
             }
         }
     })

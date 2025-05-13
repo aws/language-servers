@@ -44,8 +44,10 @@ export class WorkspaceFolderManager {
     private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 40 seconds
     private readonly INITIAL_CONNECTION_TIMEOUT = 2 * 60 * 1000 // 2 minutes
     private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 5 minutes
+    private readonly MESSAGE_PUBLISH_INTERVAL: number = 100
     private continuousMonitorInterval: NodeJS.Timeout | undefined
     private optOutMonitorInterval: NodeJS.Timeout | undefined
+    private messageQueueConsumerInterval: NodeJS.Timeout | undefined
     private isOptedOut: boolean = false
 
     static createInstance(
@@ -115,6 +117,23 @@ export class WorkspaceFolderManager {
             remoteWorkspaceState: 'CREATION_PENDING',
             messageQueue: [],
         }
+
+        this.messageQueueConsumerInterval = setInterval(() => {
+            if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
+                const message = this.workspaceState.messageQueue[0]
+                if (message) {
+                    this.workspaceState.webSocketClient
+                        .send(message)
+                        .then(() => {
+                            this.logging.log(` Message sent successfully: ${message}`)
+                            this.workspaceState.messageQueue.shift()
+                        })
+                        .catch(error => {
+                            this.logging.error(`Error sending message: ${error}`)
+                        })
+                }
+            }
+        }, this.MESSAGE_PUBLISH_INTERVAL)
     }
 
     /**
@@ -252,17 +271,7 @@ export class WorkspaceFolderManager {
                         },
                     },
                 })
-
-                if (!this.workspaceState.webSocketClient) {
-                    this.logging.log(
-                        `WebSocket client is not connected yet, adding didChangeWorkspaceFolders message to queue`
-                    )
-                    this.workspaceState.messageQueue.push(message)
-                } else {
-                    this.workspaceState.webSocketClient.send(message).catch(error => {
-                        this.logging.error(`Error while sending didChangeWorkspaceFolders message: ${error}`)
-                    })
-                }
+                this.workspaceState.messageQueue.push(message)
             }
             this.dependencyDiscoverer.disposeWorkspaceFolder(folder)
         }
@@ -297,14 +306,7 @@ export class WorkspaceFolderManager {
             },
         })
 
-        if (!this.workspaceState.webSocketClient) {
-            this.logging.log(`WebSocket client is not connected yet, adding didChangeDependencyPaths message to queue`)
-            this.workspaceState.messageQueue.push(message)
-        } else {
-            this.workspaceState.webSocketClient.send(message).catch(e => {
-                this.logging.error(`Error sending didChangeDependencyPaths message: ${e}`)
-            })
-        }
+        this.workspaceState.messageQueue.push(message)
     }
 
     private async establishConnection(existingMetadata: WorkspaceMetadata) {
@@ -334,8 +336,6 @@ export class WorkspaceFolderManager {
         const webSocketClient = new WebSocketClient(websocketUrl, this.logging, this.credentialsProvider)
         this.workspaceState.remoteWorkspaceState = 'CONNECTED'
         this.workspaceState.webSocketClient = webSocketClient
-
-        await this.processMessagesInQueue()
     }
 
     async initializeWorkspaceStatusMonitor() {
@@ -576,16 +576,6 @@ export class WorkspaceFolderManager {
         return createWorkspaceResult
     }
 
-    // could this cause messages to be lost??????
-    private async processMessagesInQueue() {
-        while (this.workspaceState.messageQueue.length > 0) {
-            const message = this.workspaceState.messageQueue.shift()
-            await this.workspaceState.webSocketClient?.send(message).catch(error => {
-                this.logging.error(`Error sending message: ${error}`)
-            })
-        }
-    }
-
     /**
      * All the filesMetadata elements passed to the function belongs to the same workspace folder.
      * @param filesMetadata
@@ -595,7 +585,6 @@ export class WorkspaceFolderManager {
         if (filesMetadata.length == 0) {
             return
         }
-        const inMemoryQueueEvents: any[] = []
         for (const fileMetadata of filesMetadata) {
             try {
                 const s3Url = await this.uploadToS3(fileMetadata)
@@ -632,7 +621,7 @@ export class WorkspaceFolderManager {
                 })
 
                 // We add this event to the front of the queue here to prevent any race condition that might put events before the didChangeWorkspaceFolders event
-                inMemoryQueueEvents.unshift(event)
+                this.workspaceState.messageQueue.push(event)
                 this.logging.log(`Added didChangeWorkspaceFolders event to queue`)
             } catch (error) {
                 this.logging.error(
@@ -640,32 +629,6 @@ export class WorkspaceFolderManager {
                 )
             }
         }
-
-        try {
-            if (this.workspaceState.webSocketClient) {
-                inMemoryQueueEvents.forEach((event, index) => {
-                    try {
-                        this.workspaceState.webSocketClient?.send(event).catch(error => {
-                            this.logging.error(
-                                `Error sending event: ${error instanceof Error ? error.message : 'Unknown error'}, eventIndex=${index}`
-                            )
-                        })
-                        this.logging.log(`Successfully sent event ${index + 1}/${inMemoryQueueEvents.length}`)
-                    } catch (error) {
-                        this.logging.error(
-                            `Failed to send event via WebSocket:${error instanceof Error ? error.message : 'Unknown error'}, eventIndex=${index}`
-                        )
-                    }
-                })
-            } else {
-                this.workspaceState.messageQueue.push(...inMemoryQueueEvents)
-                this.logging.log(`Added ${inMemoryQueueEvents.length} events to message queue`)
-            }
-        } catch (error) {
-            this.logging.error(`Error in final processing: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        }
-
-        this.logging.log(`Completed processing ${inMemoryQueueEvents.length} queued WebSocket events`)
     }
 
     // TODO, this function is unused at the moment
