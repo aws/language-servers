@@ -6,6 +6,7 @@ import {
     Logging,
     SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
+import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { Request } from 'aws-sdk/lib/core'
@@ -46,7 +47,6 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
-import { getBearerTokenFromProvider } from './utils'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -151,7 +151,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 }
 
 /**
- * Hint: to get an instance of this, see `AmazonQTokenServiceManager.getCodewhispererService()`.
+ * Hint: to get an instance of this: `AmazonQTokenServiceManager.getInstance().getCodewhispererService()`
  */
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
@@ -172,12 +172,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             endpoint: this.codeWhispererEndpoint,
             onRequestSetup: [
                 req => {
-                    logging.error(`xxx req=${req.operation}`)
+                    logging.debug(`CodeWhispererServiceToken: req=${req.operation}`)
                     this.trackRequest(req)
                     req.on('build', async ({ httpRequest }) => {
                         try {
                             const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
-                            logging.error(`xxx req=${req.operation} token=${creds?.token}`)
                             if (!creds?.token) {
                                 throw new Error('Authorization failed, bearer token is not set')
                             }
@@ -186,7 +185,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                                 `${!this.shareCodeWhispererContentWithAWS}`
                         } catch (err) {
                             this.completeRequest(req)
-                            // throw err
+                            throw err
                         }
                     })
                     req.on('complete', () => {
@@ -386,15 +385,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         this.#getSubscriptionStatusPromise = (async () => {
             try {
-                this.logging.debug('xxx getSubscriptionStatus')
-                // const creds = this.credentialsProvider.getCredentials('bearer') as BearerCredentials
-                // if (!creds?.token) {
-                //     throw new Error('Authorization failed, bearer token is not set')
-                // }
-
                 const resp = await this.createSubscriptionToken({
                     accountId: '111111111111', // Special dummy account for checking Subscription status.
-                    // clientToken: creds.token,
+                    // clientToken: this.credentialsProvider.getCredentials('bearer').token,
                 })
                 return resp
             } finally {

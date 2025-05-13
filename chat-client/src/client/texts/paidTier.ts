@@ -1,6 +1,6 @@
-import { ChatItem, ChatItemButton, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
+import { ChatItem, ChatItemButton, ChatItemFormItem, ChatItemType, TextBasedFormItem } from '@aws/mynah-ui'
 
-export const paidTierCard: ChatItem = {
+export const freeTierLimitReachedCard: ChatItem = {
     type: ChatItemType.ANSWER,
     title: 'FREE TIER LIMIT REACHED',
     header: {
@@ -8,14 +8,34 @@ export const paidTierCard: ChatItem = {
         iconStatus: 'primary',
         body: 'Upgrade to Amazon Q Pro',
     },
-    messageId: 'paidTierCardId',
+    messageId: 'freetier-limit',
     fullWidth: true,
     canBeDismissed: false,
     body: 'You have reached the free tier limit. Upgrade to Amazon Q Pro.\n\n[Learn More...](https://aws.amazon.com/q/pricing/)',
 }
 
-export const paidTierPromptInput: ChatItemFormItem = {
-    type: 'switch',
+export const paidTierSuccessCard: ChatItem = {
+    type: ChatItemType.ANSWER,
+    title: 'UPGRADED TO AMAZON Q PRO',
+    header: {
+        icon: 'q',
+        iconStatus: 'primary',
+        body: 'Welcome to Amazon Q Pro',
+        status: {
+            status: 'success',
+            icon: 'q',
+            text: 'Success',
+        },
+    },
+    messageId: 'paidtier-success',
+    fullWidth: true,
+    canBeDismissed: true,
+    body: 'Upgraded to Amazon Q Pro\n\n[Learn More...](https://aws.amazon.com/q/)',
+}
+
+export const paidTierPromptInput: TextBasedFormItem = {
+    placeholder: '111111111111',
+    type: 'textinput',
     id: 'paid-tier',
     tooltip: 'Upgrade to Amazon Q Pro',
     value: 'true',

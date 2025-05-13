@@ -108,7 +108,6 @@ export abstract class BaseAmazonQServiceManager<
     abstract handleOnUpdateConfiguration(params: UpdateConfigurationParams, token: CancellationToken): Promise<void>
 
     public async handleDidChangeConfiguration(): Promise<void> {
-        this.logging.debug('xxxx 7 handleDidChangeConfiguration')
         if (this.isConfigChangeInProgress) {
             this.logging.debug(CONFIGURATION_CHANGE_IN_PROGRESS_MSG)
             return
@@ -130,7 +129,6 @@ export abstract class BaseAmazonQServiceManager<
     }
 
     protected updateCachedServiceConfig(): void {
-        this.logging.debug('xxxx 8 updateCachedServiceConfig')
         if (this.cachedCodewhispererService) {
             const customizationArn = this.configurationCache.getProperty('customizationArn')
             this.logging.debug(`Using customization=${customizationArn}`)

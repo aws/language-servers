@@ -152,7 +152,7 @@ export const QAgenticChatServer =
         })
 
         // ;(chat as any).onPromptInputButtonClick((params: any) => {
-        //     chatController.setUpgradeQMode(params.tabId, 'paidtier')
+        //     chatController.setPaidTierMode(params.tabId, 'paidtier')
         // })
 
         chat.onButtonClick(params => {
