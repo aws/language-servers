@@ -896,8 +896,7 @@ export const createMynahUi = (
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
         // Adding this conditional check to show the stop message in the center.
-        const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
-            message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
+        const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
         // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
         const shouldMute = message.header?.status?.text !== undefined
