@@ -62,7 +62,6 @@ export const QConfigurationServerToken =
             logging.debug('Using enhanced customizations with metadata')
 
             // Fetch profiles first
-            console.log('111111111111111')
             const developerProfiles = await serverConfigurationProvider.listAvailableProfiles(token)
 
             // Then use those profiles to fetch customizations
@@ -123,7 +122,6 @@ export const QConfigurationServerToken =
                             if (isCustomizationsWithDeveloperProfileEnabled()) {
                                 customizations = await enhancedCustomizationsWithMetadata(token)
                             } else {
-                                console.log('22222222222222')
                                 ;[customizations, developerProfiles] = await Promise.all([
                                     serverConfigurationProvider.listAvailableCustomizations(),
                                     serverConfigurationProvider.listAvailableProfiles(token),
@@ -144,7 +142,6 @@ export const QConfigurationServerToken =
 
                             return customizations
                         case Q_DEVELOPER_PROFILES_CONFIGURATION_SECTION:
-                            console.log('33333333333333')
                             developerProfiles = await serverConfigurationProvider.listAvailableProfiles(token)
 
                             throwIfCancelled(token)
@@ -193,7 +190,6 @@ export class ServerConfigurationProvider {
     }
 
     async listAvailableProfiles(token: CancellationToken): Promise<AmazonQDeveloperProfile[]> {
-        console.log('123123123123')
         if (!this.serviceManager.getEnableDeveloperProfileSupport()) {
             this.logging.debug('Q developer profiles disabled - returning empty list')
             return []
