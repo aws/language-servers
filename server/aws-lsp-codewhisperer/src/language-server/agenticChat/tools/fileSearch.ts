@@ -3,7 +3,7 @@ import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath }
 import { workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { DEFAULT_EXCLUDE_ENTRIES } from '../../chat/constants'
+import { DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_FILES } from '../../chat/constants'
 
 export interface FileSearchParams {
     path: string
@@ -78,14 +78,17 @@ export class FileSearch {
             const listing = await workspaceUtils.readDirectoryRecursively(
                 { workspace: this.workspace, logging: this.logging },
                 path,
-                { maxDepth: params.maxDepth, excludeEntries: DEFAULT_EXCLUDE_ENTRIES }
+                { maxDepth: params.maxDepth, excludeDirs: DEFAULT_EXCLUDE_DIRS, excludeFiles: DEFAULT_EXCLUDE_FILES }
             )
 
             // Create regex pattern for filtering
             const regex = new RegExp(params.pattern, params.caseSensitive ? '' : 'i')
 
-            // Filter the results based on the pattern
-            const filteredResults = listing.filter(item => regex.test(item))
+            // Filter the file results based on the pattern
+            const filteredResults = listing
+                .filter(item => item.startsWith('[F] '))
+                .map(item => item.substring(4))
+                .filter(item => regex.test(item))
 
             if (filteredResults.length === 0) {
                 return this.createOutput(`No files matching pattern "${params.pattern}" found in ${path}`)
@@ -111,22 +114,37 @@ export class FileSearch {
         return {
             name: 'fileSearch',
             description:
-                'Search for files in a directory and its subdirectories using regex patterns. It filters out build outputs such as `build/`, `out/` and `dist` and dependency directories such as `node_modules/`.\n * Results are filtered by the provided regex pattern.\n * Case sensitivity can be controlled with the caseSensitive parameter.\n * Results clearly distinguish between files, directories or symlinks with [F], [D] and [L] prefixes.',
+                'Search for files in a directory and its subdirectories using regex patterns.\n\n' +
+                '## Overview\n' +
+                'This tool searches for files matching a regex pattern, ignoring common build and dependency directories.\n\n' +
+                '## When to use\n' +
+                '- When you need to find files with specific naming patterns\n' +
+                '- When you need to locate files before using more targeted tools like fsRead\n' +
+                '- When you need to search across a project structure\n\n' +
+                '## When not to use\n' +
+                '- When you need to search file contents\n' +
+                '- When you already know the exact file path\n' +
+                '- When you need to list all files in a directory (use listDirectory instead)\n\n' +
+                '## Notes\n' +
+                '- This tool is more effective than running a command like `find` using `executeBash` tool\n' +
+                '- Case sensitivity can be controlled with the caseSensitive parameter\n' +
+                '- Use the `maxDepth` parameter to control how deep the directory traversal goes',
             inputSchema: {
                 type: 'object',
                 properties: {
                     path: {
                         type: 'string',
-                        description: 'Absolute path to a directory, e.g., `/repo`.',
+                        description:
+                            'Absolute path to a directory, e.g. `/repo` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\` for Windows',
                     },
                     pattern: {
                         type: 'string',
-                        description: 'Regex pattern to match against file and directory names.',
+                        description: 'Regex pattern to match against file names.',
                     },
                     maxDepth: {
                         type: 'number',
                         description:
-                            'Maximum depth to traverse when searching directories. Use `0` to search only the specified directory, `1` to include immediate subdirectories, etc. If it is not provided, it will search all subdirectories recursively.',
+                            'Maximum depth to traverse when searching files. Use `0` to search only under the specified directory, `1` to include immediate subdirectories, etc. If it is not provided, it will search all subdirectories recursively.',
                     },
                     caseSensitive: {
                         type: 'boolean',
