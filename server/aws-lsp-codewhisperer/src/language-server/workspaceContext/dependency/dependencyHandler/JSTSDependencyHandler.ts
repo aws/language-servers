@@ -52,11 +52,20 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
      * - version: the version of the dependency
      * - path: the path to the dependency
      */
-    initiateDependencyMap(): void {
-        this.jstsDependencyInfos.forEach(jstsDependencyInfo => {
+    initiateDependencyMap(folders: WorkspaceFolder[]): void {
+        // Filter out the jstsDependencyInfos that are in the folders
+        const jstsDependencyInfoToBeInitiated = this.jstsDependencyInfos.filter(jstsDependencyInfo => {
+            return folders.includes(jstsDependencyInfo.workspaceFolder)
+        })
+
+        jstsDependencyInfoToBeInitiated.forEach(jstsDependencyInfo => {
             // TODO, check if try catch is necessary here
             try {
                 let generatedDependencyMap: Map<string, Dependency> = this.generateDependencyMap(jstsDependencyInfo)
+                // If the dependency map doesn't exist, create a new one
+                if (!this.dependencyMap.has(jstsDependencyInfo.workspaceFolder)) {
+                    this.dependencyMap.set(jstsDependencyInfo.workspaceFolder, new Map<string, Dependency>())
+                }
                 generatedDependencyMap.forEach((dep, name) => {
                     this.dependencyMap.get(jstsDependencyInfo.workspaceFolder)?.set(name, dep)
                 })
@@ -159,13 +168,18 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
      * It will setup watchers for the .classpath files.
      * When a change is detected, it will update the dependency map.
      */
-    setupWatchers(): void {
-        this.jstsDependencyInfos.forEach((jstsDependencyInfo: JSTSDependencyInfo) => {
+    setupWatchers(folders: WorkspaceFolder[]): void {
+        // Filter out the jstsDependencyInfos that are in the folders
+        const jstsDependencyInfoToBeWatched = this.jstsDependencyInfos.filter(jstsDependencyInfo => {
+            return folders.includes(jstsDependencyInfo.workspaceFolder)
+        })
+
+        jstsDependencyInfoToBeWatched.forEach((jstsDependencyInfo: JSTSDependencyInfo) => {
             const packageJsonPath = jstsDependencyInfo.packageJsonPath
-            this.logging.log(`Setting up Javascript/Typescript dependency watcher for ${packageJsonPath}`)
             if (this.dependencyWatchers.has(packageJsonPath)) {
                 return
             }
+            this.logging.log(`Setting up Javascript/Typescript dependency watcher for ${packageJsonPath}`)
             try {
                 const watcher = fs.watch(packageJsonPath, async eventType => {
                     if (eventType === 'change') {
@@ -205,5 +219,12 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 }
             }
         })
+    }
+
+    disposeDependencyInfo(workspaceFolder: WorkspaceFolder): void {
+        // Remove the dependency info for the workspace folder
+        this.jstsDependencyInfos = this.jstsDependencyInfos.filter(
+            (jstsDependencyInfo: JSTSDependencyInfo) => jstsDependencyInfo.workspaceFolder.uri !== workspaceFolder.uri
+        )
     }
 }

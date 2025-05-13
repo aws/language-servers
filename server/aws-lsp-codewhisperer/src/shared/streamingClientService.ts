@@ -4,6 +4,8 @@ import {
     GenerateAssistantResponseCommandOutput as GenerateAssistantResponseCommandOutputCodeWhispererStreaming,
     SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputCodeWhispererStreaming,
+    ExportResultArchiveCommandInput as ExportResultArchiveCommandInputCodeWhispererStreaming,
+    ExportResultArchiveCommandOutput as ExportResultArchiveCommandOutputCodeWhispererStreaming,
 } from '@amzn/codewhisperer-streaming'
 import {
     QDeveloperStreaming,
@@ -14,6 +16,7 @@ import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-se
 import { getBearerTokenFromProvider } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
+import { clientTimeoutMs } from '../language-server/agenticChat/constants'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -74,6 +77,10 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             endpoint,
             token: tokenProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            requestHandler: {
+                keepAlive: true,
+                requestTimeout: clientTimeoutMs,
+            },
             customUserAgent: customUserAgent,
         })
     }
@@ -115,6 +122,19 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
         this.inflightRequests.delete(controller)
 
+        return response
+    }
+
+    public async exportResultArchive(
+        request: ExportResultArchiveCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<ExportResultArchiveCommandOutputCodeWhispererStreaming> {
+        const controller: AbortController = abortController ?? new AbortController()
+        this.inflightRequests.add(controller)
+        const response = await this.client.exportResultArchive(
+            this.profileArn ? { ...request, profileArn: this.profileArn } : request
+        )
+        this.inflightRequests.delete(controller)
         return response
     }
 }

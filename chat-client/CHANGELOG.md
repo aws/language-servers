@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.9](https://github.com/aws/language-servers/compare/chat-client/v0.1.8...chat-client/v0.1.9) (2025-05-09)
+
+
+### Bug Fixes
+
+* add visibleName property to fix empty directory name when the directory ends with a slash ([#1302](https://github.com/aws/language-servers/issues/1302)) ([f6d573c](https://github.com/aws/language-servers/commit/f6d573cc8e6b23cfdcfd9baa5a5c8e705579b23c))
+* fix for status duplicates for permission checks ([#1237](https://github.com/aws/language-servers/issues/1237)) ([a77949a](https://github.com/aws/language-servers/commit/a77949a482cd352ebc5c7eeebb1468a052a5496d))
+* permission check ux changes ([#1290](https://github.com/aws/language-servers/issues/1290)) ([170113f](https://github.com/aws/language-servers/commit/170113f97eccf7827cfc72da33d9dc9c7e4afb3f))
+* prefix if user reject/stop command, whole card should be dimmed ([#1212](https://github.com/aws/language-servers/issues/1212)) ([394db61](https://github.com/aws/language-servers/commit/394db61133e09cfaeff2f7510ab60c571c562130))
+* stop button showing in non-agentic chat ([#1230](https://github.com/aws/language-servers/issues/1230)) ([5c1b6c2](https://github.com/aws/language-servers/commit/5c1b6c2ed992befca03120635a23b4aa8cda5ebf))
+* stop chat response first when close tab ([#1292](https://github.com/aws/language-servers/issues/1292)) ([3733b43](https://github.com/aws/language-servers/commit/3733b433a771ece77ae83f55c8e8e3bd13dcd96b))
+* undo buttom not dimmed the card ([#1276](https://github.com/aws/language-servers/issues/1276)) ([49bd9c9](https://github.com/aws/language-servers/commit/49bd9c95d8f9213fe878720a20c13d8f045778ee))
+
+## [0.1.8](https://github.com/aws/language-servers/compare/chat-client/v0.1.7...chat-client/v0.1.8) (2025-05-07)
+
+
+### Bug Fixes
+
+* fix for status duplicates for permission checks ([#1237](https://github.com/aws/language-servers/issues/1237)) ([a77949a](https://github.com/aws/language-servers/commit/a77949a482cd352ebc5c7eeebb1468a052a5496d))
+* prefix if user reject/stop command, whole card should be dimmed ([#1212](https://github.com/aws/language-servers/issues/1212)) ([394db61](https://github.com/aws/language-servers/commit/394db61133e09cfaeff2f7510ab60c571c562130))
+* stop button showing in non-agentic chat ([#1230](https://github.com/aws/language-servers/issues/1230)) ([5c1b6c2](https://github.com/aws/language-servers/commit/5c1b6c2ed992befca03120635a23b4aa8cda5ebf))
+
 ## [0.1.7](https://github.com/aws/language-servers/compare/chat-client/v0.1.6...chat-client/v0.1.7) (2025-05-06)
 
 

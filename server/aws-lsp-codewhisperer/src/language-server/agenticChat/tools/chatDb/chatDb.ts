@@ -368,21 +368,21 @@ export class ChatDatabase {
      * 5. If the last message is from the assistant and it contains tool uses, and a next user
      *    message is set without tool results, then the user message will have cancelled tool results.
      */
-    fixHistory(tabId: string, newUserMessage: ChatMessage, conversationId: string): void {
+    fixHistory(tabId: string, newUserMessage: ChatMessage, conversationId: string): boolean {
         if (!this.#initialized) {
-            return
+            return true
         }
         const historyId = this.#historyIdMapping.get(tabId)
         this.#features.logging.info(`Fixing history: tabId=${tabId}, historyId=${historyId || 'undefined'}`)
 
         if (!historyId) {
-            return
+            return true
         }
 
         const tabCollection = this.#db.getCollection<Tab>(TabCollection)
         const tabData = tabCollection.findOne({ historyId })
         if (!tabData) {
-            return
+            return true
         }
 
         let allMessages = tabData.conversations.flatMap((conversation: Conversation) => conversation.messages)
@@ -401,7 +401,7 @@ export class ChatDatabase {
         this.ensureValidMessageSequence(allMessages)
 
         //  If the last message is from the assistant and it contains tool uses, and a next user message is set without tool results, then the user message will have cancelled tool results.
-        this.handleToolUses(allMessages, newUserMessage)
+        const isValid = this.validateToolUses(allMessages, newUserMessage)
         const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
 
         tabData.conversations = [
@@ -414,6 +414,7 @@ export class ChatDatabase {
         tabData.updatedAt = new Date()
         tabCollection.update(tabData)
         this.#features.logging.info(`Updated tab data in collection`)
+        return isValid
     }
 
     private trimHistoryToMaxLength(messages: Message[]): Message[] {
@@ -611,7 +612,7 @@ export class ChatDatabase {
         }
     }
 
-    private handleToolUses(messages: Message[], newUserMessage: ChatMessage): void {
+    private validateToolUses(messages: Message[], newUserMessage: ChatMessage): boolean {
         if (messages.length === 0) {
             if (newUserMessage.userInputMessage?.userInputMessageContext?.toolResults) {
                 this.#features.logging.debug('No history message found, but new user message has tool results.')
@@ -619,12 +620,49 @@ export class ChatDatabase {
                 // tool results are empty, so content must not be empty
                 newUserMessage.userInputMessage.content = 'Conversation history was too large, so it was cleared.'
             }
-            return
+            return true
         }
 
         const lastMsg = messages[messages.length - 1]
+        const toolResults = newUserMessage.userInputMessage?.userInputMessageContext?.toolResults
+
+        if (toolResults && toolResults.length > 0) {
+            // If last message has no tool uses but new message has tool results, this is invalid
+            if (!lastMsg.toolUses || lastMsg.toolUses.length === 0) {
+                this.#features.logging.warn('New message has tool results but last message has no tool uses')
+                return false
+            }
+
+            const toolUseIds = new Set(lastMsg.toolUses.map(toolUse => toolUse.toolUseId))
+            const validToolResults = toolResults.filter(toolResult => toolUseIds.has(toolResult.toolUseId))
+            const invalidToolResults = toolResults.filter(toolResult => !toolUseIds.has(toolResult.toolUseId))
+
+            if (invalidToolResults.length > 0) {
+                this.#features.logging.warn(
+                    `Found ${invalidToolResults.length} tool results without matching tool uses, marking them as cancelled`
+                )
+
+                // Mark invalid tool results as cancelled
+                for (const invalidResult of invalidToolResults) {
+                    invalidResult.status = ToolResultStatus.ERROR
+                    invalidResult.content = [
+                        {
+                            text: 'Tool use was cancelled by the user',
+                        },
+                    ]
+                }
+
+                // Update the tool results in the message
+                if (newUserMessage.userInputMessage?.userInputMessageContext) {
+                    newUserMessage.userInputMessage.userInputMessageContext.toolResults = [
+                        ...validToolResults,
+                        ...invalidToolResults,
+                    ]
+                }
+            }
+        }
+
         if (lastMsg.toolUses && lastMsg.toolUses.length > 0) {
-            const toolResults = newUserMessage.userInputMessage?.userInputMessageContext?.toolResults
             if (!toolResults || toolResults.length === 0) {
                 this.#features.logging.debug(
                     `No tools results in last user message following a tool use message from assisstant, marking as canceled`
@@ -645,5 +683,6 @@ export class ChatDatabase {
                 }
             }
         }
+        return true
     }
 }

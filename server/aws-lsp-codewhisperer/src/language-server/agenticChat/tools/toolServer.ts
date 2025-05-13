@@ -5,7 +5,7 @@ import { ListDirectory, ListDirectoryParams } from './listDirectory'
 import { ExecuteBash, ExecuteBashParams } from './executeBash'
 import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
-import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
+import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
 import { McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 
@@ -28,17 +28,22 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         return await fsWriteTool.invoke(input)
     })
 
-    agent.addTool(listDirectoryTool.getSpec(), (input: ListDirectoryParams, token?: CancellationToken) =>
-        listDirectoryTool.invoke(input, token)
-    )
+    agent.addTool(listDirectoryTool.getSpec(), async (input: ListDirectoryParams, token?: CancellationToken) => {
+        await listDirectoryTool.validate(input)
+        return await listDirectoryTool.invoke(input, token)
+    })
 
     return () => {}
 }
 
 export const BashToolsServer: Server = ({ logging, workspace, agent, lsp }) => {
     const bashTool = new ExecuteBash({ logging, workspace, lsp })
-    agent.addTool(bashTool.getSpec(), (input: ExecuteBashParams, token?: CancellationToken, updates?: WritableStream) =>
-        bashTool.invoke(input, token, updates)
+    agent.addTool(
+        bashTool.getSpec(),
+        async (input: ExecuteBashParams, token?: CancellationToken, updates?: WritableStream) => {
+            await bashTool.validate(input)
+            return await bashTool.invoke(input, token, updates)
+        }
     )
     return () => {}
 }

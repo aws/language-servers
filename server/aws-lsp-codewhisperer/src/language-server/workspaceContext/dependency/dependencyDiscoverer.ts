@@ -123,9 +123,9 @@ export class DependencyDiscoverer {
         }
 
         for (const dependencyHandler of this.dependencyHandlerRegistry) {
-            dependencyHandler.initiateDependencyMap()
-            dependencyHandler.setupWatchers()
-            await dependencyHandler.zipDependencyMap()
+            dependencyHandler.initiateDependencyMap(folders)
+            dependencyHandler.setupWatchers(folders)
+            await dependencyHandler.zipDependencyMap(folders)
         }
         this.logging.log(`Dependency search completed successfully`)
     }
