@@ -1,11 +1,4 @@
 import {
-    ApplyWorkspaceEditParams,
-    CreateFile,
-    Range,
-    TextDocumentEdit,
-    TextEdit,
-} from '@aws/language-server-runtimes/protocol'
-import {
     CommandValidation,
     ExplanatoryParams,
     fileExists,
@@ -15,7 +8,6 @@ import {
 } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { URI } from 'vscode-uri'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/16aa8768834f41ae512522473a6a962bb96abe51/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
