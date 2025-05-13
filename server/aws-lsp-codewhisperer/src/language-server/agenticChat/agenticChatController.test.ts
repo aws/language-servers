@@ -191,6 +191,7 @@ describe('AgenticChatController', () => {
                 }))
             ),
             addTool: sinon.stub().resolves(),
+            removeTool: sinon.stub().resolves(),
         }
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
