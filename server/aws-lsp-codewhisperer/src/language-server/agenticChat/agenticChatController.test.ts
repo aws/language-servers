@@ -47,6 +47,7 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
+import * as constants from './constants'
 import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
@@ -133,6 +134,9 @@ describe('AgenticChatController', () => {
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
+        // Override the response timeout for tests to avoid long waits
+        sinon.stub(constants, 'responseTimeoutMs').value(100)
+
         sinon.stub(chokidar, 'watch').returns({
             on: sinon.stub(),
             close: sinon.stub(),
