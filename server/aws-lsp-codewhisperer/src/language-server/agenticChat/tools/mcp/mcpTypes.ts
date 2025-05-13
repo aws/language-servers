@@ -3,6 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export type McpServerStatus = 'INITIALIZING' | 'ENABLED' | 'FAILED' | 'DISABLED'
+
+export interface McpServerRuntimeState {
+    status: McpServerStatus
+    toolsCount: number
+    lastError?: string
+}
+
 export interface McpToolDefinition {
     serverName: string
     toolName: string

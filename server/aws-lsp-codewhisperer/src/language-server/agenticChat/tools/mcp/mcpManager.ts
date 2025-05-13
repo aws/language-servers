@@ -6,9 +6,19 @@
 import type { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type { MCPServerConfig, McpToolDefinition, ListToolsResponse } from './mcpTypes'
+import type {
+    MCPServerConfig,
+    McpToolDefinition,
+    ListToolsResponse,
+    McpServerRuntimeState,
+    McpServerStatus,
+} from './mcpTypes'
 import { loadMcpServerConfigs } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
+import { EventEmitter } from 'events'
+
+export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
+export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
 
 /**
  * Manages MCP servers and their tools
@@ -18,6 +28,8 @@ export class McpManager {
     private clients: Map<string, Client>
     private mcpTools: McpToolDefinition[]
     private mcpServers: Map<string, MCPServerConfig>
+    private mcpServerStates: Map<string, McpServerRuntimeState>
+    public readonly events: EventEmitter
 
     private constructor(
         private configPaths: string[],
@@ -26,6 +38,8 @@ export class McpManager {
         this.mcpTools = []
         this.clients = new Map<string, Client>()
         this.mcpServers = new Map<string, MCPServerConfig>()
+        this.mcpServerStates = new Map<string, McpServerRuntimeState>()
+        this.events = new EventEmitter()
         this.features.logging.info(`MCP manager: initialized with ${configPaths.length} configs`)
     }
 
@@ -53,6 +67,20 @@ export class McpManager {
     }
 
     /**
+     * Return the current runtime state for one server.
+     */
+    public getServerState(serverName: string): McpServerRuntimeState | undefined {
+        return this.mcpServerStates.get(serverName)
+    }
+
+    /**
+     * Return a copy of the entire server‑state map.
+     */
+    public getAllServerStates(): Map<string, McpServerRuntimeState> {
+        return new Map(this.mcpServerStates)
+    }
+
+    /**
      * Load configurations and initialize each enabled server.
      */
     private async discoverAllServers(): Promise<void> {
@@ -61,6 +89,8 @@ export class McpManager {
         for (const [name, cfg] of this.mcpServers.entries()) {
             if (cfg.disabled) {
                 this.features.logging.info(`MCP: server '${name}' is disabled, skipping`)
+                this.setState(name, 'DISABLED', 0)
+                this.emitToolsChanged(name)
                 continue
             }
             await this.initOneServer(name, cfg)
@@ -73,6 +103,7 @@ export class McpManager {
      */
     private async initOneServer(serverName: string, cfg: MCPServerConfig): Promise<void> {
         const DEFAULT_SERVER_INIT_TIMEOUT_MS = 60_000
+        this.setState(serverName, 'INITIALIZING', 0)
         try {
             this.features.logging.debug(`MCP: initializing server [${serverName}]`)
 
@@ -124,23 +155,24 @@ export class McpManager {
                 }
                 const toolName = t.name
                 this.features.logging.info(`MCP: discovered tool ${serverName}::${toolName}`)
-                const disabled = cfg.toolOverrides?.[toolName]?.disabled
-                if (!disabled)
-                    this.mcpTools.push({
-                        serverName,
-                        toolName,
-                        description: t.description ?? '',
-                        inputSchema: t.inputSchema ?? {},
-                    })
+                this.mcpTools.push({
+                    serverName,
+                    toolName,
+                    description: t.description ?? '',
+                    inputSchema: t.inputSchema ?? {},
+                })
             }
+            this.setState(serverName, 'ENABLED', resp.tools.length)
+            this.emitToolsChanged(serverName)
         } catch (e: any) {
             const client = this.clients.get(serverName)
             if (client) {
                 await client.close()
                 this.clients.delete(serverName)
             }
-            this.mcpServers.delete(serverName)
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
+            this.setState(serverName, 'FAILED', 0, e.message)
+            this.emitToolsChanged(serverName)
             this.features.logging.warn(`MCP: server [${serverName}] init failed: ${e.message}`)
         }
     }
@@ -150,6 +182,24 @@ export class McpManager {
      */
     public getAllTools(): McpToolDefinition[] {
         return [...this.mcpTools]
+    }
+
+    /**
+     * Return a list of all enabled tools.
+     */
+    public getEnabledTools(): McpToolDefinition[] {
+        return this.mcpTools.filter(t => {
+            const cfg = this.mcpServers.get(t.serverName)
+            return cfg && !cfg.disabled && !this.isToolDisabled(t.serverName, t.toolName)
+        })
+    }
+
+    /**
+     * Returns true if the given tool on the given server is currently disabled.
+     */
+    public isToolDisabled(server: string, tool: string): boolean {
+        const cfg = this.mcpServers.get(server)
+        return !!cfg?.toolOverrides?.[tool]?.disabled
     }
 
     /**
@@ -214,7 +264,12 @@ export class McpManager {
         const newCfg: MCPServerConfig = { ...cfg, __configPath__: configPath }
         this.mcpServers.set(serverName, newCfg)
 
-        await this.initOneServer(serverName, newCfg)
+        if (cfg.disabled) {
+            this.setState(serverName, 'DISABLED', 0)
+            this.emitToolsChanged(serverName)
+        } else {
+            await this.initOneServer(serverName, newCfg)
+        }
     }
 
     /**
@@ -233,7 +288,8 @@ export class McpManager {
         }
         this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
         this.mcpServers.delete(serverName)
-
+        this.mcpServerStates.delete(serverName)
+        this.emitToolsChanged(serverName)
         await this.mutateConfigFile(cfg.__configPath__, json => {
             delete json.mcpServers[serverName]
         })
@@ -273,9 +329,12 @@ export class McpManager {
             this.clients.delete(serverName)
         }
         this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
+        this.mcpServers.set(serverName, newCfg)
 
-        if (!newCfg.disabled) {
-            this.mcpServers.set(serverName, newCfg)
+        if (newCfg.disabled) {
+            this.setState(serverName, 'DISABLED', 0)
+            this.emitToolsChanged(serverName)
+        } else {
             await this.initOneServer(serverName, newCfg)
         }
     }
@@ -296,6 +355,7 @@ export class McpManager {
         this.clients.clear()
         this.mcpTools = []
         this.mcpServers.clear()
+        this.mcpServerStates.clear()
         McpManager.#instance = undefined
     }
 
@@ -335,5 +395,26 @@ export class McpManager {
             this.features.logging.error(`MCP: failed to update config at ${configPath}: ${e.message}`)
             throw e
         }
+    }
+
+    /**
+     * Updates the runtime state for a given server, including status, tool count, and optional error message.
+     * This is used by the UI to reflect real-time server status.
+     * @private
+     */
+    private setState(server: string, status: McpServerStatus, toolsCount: number, lastError?: string) {
+        const st: McpServerRuntimeState = { status, toolsCount, lastError }
+        this.mcpServerStates.set(server, st)
+        this.events.emit(MCP_SERVER_STATUS_CHANGED, server, { ...st })
+    }
+
+    /**
+     * Emits an event when the tools associated with a server change.
+     * Used to refresh the Agent's tool list.
+     * @private
+     */
+    private emitToolsChanged(server: string) {
+        const enabled = this.getEnabledTools().filter(t => t.serverName === server)
+        this.events.emit(AGENT_TOOLS_CHANGED, server, enabled)
     }
 }

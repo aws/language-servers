@@ -5,9 +5,10 @@ import { ListDirectory, ListDirectoryParams } from './listDirectory'
 import { ExecuteBash, ExecuteBashParams } from './executeBash'
 import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
-import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
-import { McpManager } from './mcp/mcpManager'
+import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
+import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
+import { McpToolDefinition } from './mcp/mcpTypes'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -63,6 +64,28 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 }
 
 export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
+    const registered: Record<string, string[]> = {}
+
+    function registerServerTools(server: string, defs: McpToolDefinition[]) {
+        // 1) remove old tools
+        for (const name of registered[server] ?? []) {
+            agent.removeTool(name)
+        }
+        registered[server] = []
+
+        // 2) add new enabled tools
+        for (const def of defs) {
+            const namespaced = `${def.serverName}_${def.toolName}`
+            const tool = new McpTool({ logging, workspace, lsp }, def)
+
+            agent.addTool({ name: namespaced, description: def.description, inputSchema: def.inputSchema }, input =>
+                tool.invoke(input)
+            )
+            registered[server].push(namespaced)
+            logging.info(`MCP: registered tool ${namespaced}`)
+        }
+    }
+
     lsp.onInitialized(async () => {
         // todo: move to constants
         const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
@@ -72,18 +95,18 @@ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 
         const mgr = await McpManager.init(allPaths, { logging, workspace, lsp })
 
-        for (const def of mgr.getAllTools()) {
-            const baseSpec = def
-            const namespaced = `${def.serverName}_${def.toolName}`
-            const tool = new McpTool({ logging, workspace, lsp }, def)
-
-            //todo: handle enable/disable here
-            agent.addTool(
-                { name: namespaced, description: baseSpec.description, inputSchema: baseSpec.inputSchema },
-                (input: any) => tool.invoke(input)
-            )
-            logging.info(`MCP: registered tool ${namespaced}`)
+        const byServer: Record<string, McpToolDefinition[]> = {}
+        // only register enabled tools
+        for (const d of mgr.getEnabledTools()) {
+            ;(byServer[d.serverName] ||= []).push(d)
         }
+        for (const [server, defs] of Object.entries(byServer)) {
+            registerServerTools(server, defs)
+        }
+
+        mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
+            registerServerTools(server, defs)
+        })
     })
 
     return async () => {
