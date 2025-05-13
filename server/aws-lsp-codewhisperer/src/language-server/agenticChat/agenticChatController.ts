@@ -1095,7 +1095,6 @@ export class AgenticChatController implements ChatHandlers {
 
         const toolMsgId = toolUse.toolUseId!
         const chatMsgId = chatResultStream.getResult().messageId
-        let headerEmitted = false
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
@@ -1116,10 +1115,8 @@ export class AgenticChatController implements ChatHandlers {
                     type: 'tool',
                     messageId: toolMsgId,
                     body: chunk,
-                    header: headerEmitted ? undefined : initialHeader,
+                    header: initialHeader,
                 })
-
-                headerEmitted = true
             },
 
             close: async () => {
