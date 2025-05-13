@@ -33,12 +33,8 @@ const IGNORE_PATTERNS = [
     '**/dist/**',
     '**/build/**',
     '**/out/**',
-    // Test directories
-    '**/test/**',
-    '**/tests/**',
     '**/coverage/**',
-    // Hidden directories and files
-    '**/.*/**',
+    // Hidden files
     '**/.*',
     // Logs and temporary files
     '**/logs/**',
