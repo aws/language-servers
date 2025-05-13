@@ -19,6 +19,7 @@ export class TabFactory {
     private history: boolean = false
     private export: boolean = false
     private agenticMode: boolean = false
+    initialTabId: string
 
     public static generateUniqueId() {
         // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
@@ -31,7 +32,9 @@ export class TabFactory {
         private defaultTabData: DefaultTabData,
         private quickActionCommands?: QuickActionCommandGroup[],
         private bannerMessage?: ChatMessage
-    ) {}
+    ) {
+        this.initialTabId = TabFactory.generateUniqueId()
+    }
 
     public createTab(disclaimerCardActive: boolean): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
