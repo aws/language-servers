@@ -29,7 +29,7 @@ import {
 import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
 import {
     AmazonQDeveloperProfile,
-    getListAllAvailableProfilesHandler,
+    fetchProfilesFromRegion,
     signalsAWSQDeveloperProfilesEnabled,
 } from './qDeveloperProfiles'
 import { isStringOrNull } from '../utils'
@@ -151,6 +151,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         try {
             if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn !== undefined) {
                 const profileArn = params.settings.profileArn
+                const region = params.settings.region
 
                 if (!isStringOrNull(profileArn)) {
                     throw new Error('Expected params.settings.profileArn to be of either type string or null')
@@ -318,17 +319,18 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
 
         const parsedArn = parse(newProfileArn)
-        const endpoint = AWS_Q_ENDPOINTS.get(parsedArn.region)
+        const region = parsedArn.region
+        const endpoint = AWS_Q_ENDPOINTS.get(region)
         if (!endpoint) {
             throw new Error('Requested profileArn region is not supported')
         }
 
-        const profiles = await getListAllAvailableProfilesHandler(this.serviceFactory)({
-            connectionType: 'identityCenter',
-            logging: this.logging,
-            token: token,
-            endpoints: new Map([[parsedArn.region, endpoint]]),
-        })
+        const profiles = await fetchProfilesFromRegion(
+            this.serviceFactory(region, endpoint),
+            region,
+            this.logging,
+            token
+        )
 
         this.handleTokenCancellationRequest(token)
 
