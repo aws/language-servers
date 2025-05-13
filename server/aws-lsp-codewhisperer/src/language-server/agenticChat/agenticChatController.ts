@@ -176,7 +176,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryService = telemetryService
         this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
-        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
+        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb, telemetryService)
         this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,

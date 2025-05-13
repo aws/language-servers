@@ -184,7 +184,7 @@ describe('workspaceUtils', function () {
             const result = (
                 await readDirectoryRecursively(testFeatures, tempFolder.path, {
                     customFormatCallback: getEntryPath,
-                    excludeEntries: ['file4-bad', 'file2-bad'],
+                    excludeFiles: ['file4-bad', 'file2-bad'],
                 })
             ).sort()
             assert.deepStrictEqual(
@@ -209,7 +209,7 @@ describe('workspaceUtils', function () {
             const result = (
                 await readDirectoryRecursively(testFeatures, tempFolder.path, {
                     customFormatCallback: getEntryPath,
-                    excludeEntries: ['subdir12-bad'],
+                    excludeDirs: ['subdir12-bad'],
                 })
             ).sort()
             assert.deepStrictEqual(result, [subdir1.path, file1, subdir11.path, file3, subdir2.path, file2].sort())

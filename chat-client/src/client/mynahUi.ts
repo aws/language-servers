@@ -233,6 +233,7 @@ export const createMynahUi = (
         },
         onReady: () => {
             messager.onUiReady()
+            messager.onTabAdd(tabFactory.initialTabId)
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
@@ -444,7 +445,7 @@ export const createMynahUi = (
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
             if (buttonId === ChatHistory.TabBarButtonId) {
-                messager.onListConversations()
+                messager.onListConversations(undefined, true)
                 return
             }
 
@@ -483,7 +484,15 @@ export const createMynahUi = (
     }
 
     const mynahUiProps: MynahUIProps = {
-        tabs: {},
+        tabs: {
+            [tabFactory.initialTabId]: {
+                isSelected: true,
+                store: {
+                    ...tabFactory.createTab(true),
+                    chatItems: tabFactory.getChatItems(true, true),
+                },
+            },
+        },
         defaults: {
             store: tabFactory.createTab(false),
         },

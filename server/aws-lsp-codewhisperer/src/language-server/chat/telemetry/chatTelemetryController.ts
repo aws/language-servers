@@ -431,6 +431,9 @@ export class ChatTelemetryController {
                         }
                         await this.emitInteractWithMessageMetric(params.tabId, clickLinkData)
                         break
+                    case ChatUIEventName.HistoryButtonClick:
+                        this.#telemetryService.emitUiClick({ elementId: 'amazonq_historyTabButton' })
+                        break
                 }
             }
         } catch (err) {
