@@ -172,7 +172,6 @@ export const createMynahUi = (
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
-    const initialTabId = TabFactory.generateUniqueId()
 
     let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
@@ -234,7 +233,7 @@ export const createMynahUi = (
         },
         onReady: () => {
             messager.onUiReady()
-            messager.onTabAdd(initialTabId)
+            messager.onTabAdd(tabFactory.initialTabId)
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
@@ -486,7 +485,7 @@ export const createMynahUi = (
 
     const mynahUiProps: MynahUIProps = {
         tabs: {
-            [initialTabId]: {
+            [tabFactory.initialTabId]: {
                 isSelected: true,
                 store: {
                     ...tabFactory.createTab(true),
