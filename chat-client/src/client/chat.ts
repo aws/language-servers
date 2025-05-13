@@ -216,9 +216,6 @@ export const createChat = (
                     tabFactory.enableExport()
                 }
 
-                const initialTabId = mynahApi.createTabId()
-                if (initialTabId) mynahUi.selectTab(initialTabId)
-
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
                 const highlightCommand = featureConfig.get('highlightCommand')
 
