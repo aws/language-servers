@@ -321,7 +321,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             throw new Error('Requested profileArn region is not supported')
         }
 
-        // Hack to inject a dummy profile name as it's not used by client ide for now, if client IDE starts consuming name field then we should also pass both profile name and arn from the IDE
+        // Hack to inject a dummy profile name as it's not used by client IDE for now, if client IDE starts consuming name field then we should also pass both profile name and arn from the IDE
         const newProfile: AmazonQDeveloperProfile = {
             arn: newProfileArn,
             name: 'Not being used',
