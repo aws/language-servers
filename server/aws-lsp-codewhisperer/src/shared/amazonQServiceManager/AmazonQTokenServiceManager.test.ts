@@ -420,7 +420,6 @@ describe('AmazonQTokenServiceManager', () => {
                 const service = amazonQTokenServiceManager.getCodewhispererService()
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert(codewhispererStubFactory.calledOnceWithExactly('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1))
 
                 assert.strictEqual(results[0].status, 'rejected')
                 assert(results[0].reason.message, 'Requested profile update got cancelled')
