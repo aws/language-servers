@@ -1,4 +1,5 @@
 name: Language Server CI
+
 on:
     push:
         branches: [main, dev, feature/*]
@@ -7,8 +8,11 @@ on:
 
 jobs:
     test:
-        name: Test (Ubuntu)
-        runs-on: ubuntu-latest
+        name: Test (${{ matrix.os }})
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
         steps:
             - name: Sync Code
               uses: actions/checkout@v3
@@ -19,13 +23,17 @@ jobs:
             - name: Build
               run: |
                   npm ci
-                  npm run check:formatting
+                  ${{ matrix.os == 'ubuntu-latest' && 'npm run check:formatting' || '' }}
             - name: Test
               run: |
                   npm run test
+
     build:
-        name: Package (Ubuntu)
-        runs-on: ubuntu-latest
+        name: Package (${{ matrix.os }})
+        runs-on: ${{ matrix.os }}
+        strategy:
+            matrix:
+                os: [ubuntu-latest, windows-latest, macos-latest]
         steps:
             - name: Sync Code
               uses: actions/checkout@v3
@@ -45,88 +53,6 @@ jobs:
             - name: Attach bundles
               uses: actions/upload-artifact@v4
               with:
-                  name: language-servers-ubuntu
-                  # Make sure you don't include node_modules
-                  path: app/**/build/*
-    test-windows:
-        name: Test (Windows)
-        runs-on: windows-latest
-        steps:
-            - name: Sync Code
-              uses: actions/checkout@v3
-            - name: Set up Node
-              uses: actions/setup-node@v3
-              with:
-                  node-version: 18
-            - name: Build
-              run: |
-                  npm ci
-            - name: Test
-              run: |
-                  npm run test
-    build-windows:
-        name: Package (Windows)
-        runs-on: windows-latest
-        steps:
-            - name: Sync Code
-              uses: actions/checkout@v3
-            - name: Set up Node
-              uses: actions/setup-node@v3
-              with:
-                  node-version: 18
-            - name: Build
-              run: |
-                  npm ci
-            - name: Create runtime bundles
-              run: |
-                  npm run package
-            - name: Test bundles
-              run: |
-                  npm run test-bundles --workspaces --if-present
-            - name: Attach bundles
-              uses: actions/upload-artifact@v4
-              with:
-                  name: language-servers-windows
-                  # Make sure you don't include node_modules
-                  path: app/**/build/*
-    test-macos:
-        name: Test (macOS)
-        runs-on: macos-latest
-        steps:
-            - name: Sync Code
-              uses: actions/checkout@v3
-            - name: Set up Node
-              uses: actions/setup-node@v3
-              with:
-                  node-version: 18
-            - name: Build
-              run: |
-                  npm ci
-            - name: Test
-              run: |
-                  npm run test
-    build-macos:
-        name: Package (macOS)
-        runs-on: macos-latest
-        steps:
-            - name: Sync Code
-              uses: actions/checkout@v3
-            - name: Set up Node
-              uses: actions/setup-node@v3
-              with:
-                  node-version: 18
-            - name: Build
-              run: |
-                  npm ci
-            - name: Create runtime bundles
-              run: |
-                  npm run package
-            - name: Test bundles
-              run: |
-                  npm run test-bundles --workspaces --if-present
-            - name: Attach bundles
-              uses: actions/upload-artifact@v4
-              with:
-                  name: language-servers-macos
+                  name: language-servers-${{ matrix.os }}
                   # Make sure you don't include node_modules
                   path: app/**/build/*
