@@ -119,7 +119,8 @@ export async function requiresPathAcceptance(
 ): Promise<CommandValidation> {
     try {
         // First check if the path is already approved
-        if (toolName !== 'fsWrite') {
+        // Skip this check only if toolName is explicitly 'fsWrite'
+        if (!toolName || toolName !== 'fsWrite') {
             if (isPathApproved(path, approvedPaths)) {
                 return { requiresAcceptance: false }
             }
