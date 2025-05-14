@@ -13,6 +13,7 @@ import { ConversationItemGroup, OpenTabParams, OpenTabResult } from '@aws/langua
 import { InitializeParams } from '@aws/language-server-runtimes/protocol'
 import { ChatHistoryActionType } from '../../shared/telemetry/types'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { URI } from 'vscode-uri'
 
 describe('TabBarController', () => {
     let testFeatures: TestFeatures
@@ -348,7 +349,11 @@ describe('TabBarController', () => {
             )
 
             // Write serialized content to file
-            sinon.assert.calledWith(fsWriteFileStub, '/testworkspace/test.md', 'Test Serialized Content')
+            sinon.assert.calledWith(
+                fsWriteFileStub,
+                URI.file('/testworkspace/test.md').fsPath,
+                'Test Serialized Content'
+            )
 
             sinon.assert.calledWith(telemetryService.emitChatHistoryAction as sinon.SinonStub, {
                 action: ChatHistoryActionType.Export,
@@ -423,7 +428,11 @@ describe('TabBarController', () => {
             )
 
             // Write serialized content to file
-            sinon.assert.calledWith(fsWriteFileStub, '/testworkspace/test.md', 'Test Serialized Content')
+            sinon.assert.calledWith(
+                fsWriteFileStub,
+                URI.file('/testworkspace/test.md').fsPath,
+                'Test Serialized Content'
+            )
 
             sinon.assert.calledWith(telemetryService.emitExportTab as sinon.SinonStub, {
                 filenameExt: 'markdown',
