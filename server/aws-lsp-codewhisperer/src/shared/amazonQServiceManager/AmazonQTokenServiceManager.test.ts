@@ -26,7 +26,6 @@ import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
 import { generateSingletonInitializationTests } from './testUtils'
-import { SinonFakeTimers } from 'sinon'
 
 export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
     {
@@ -63,11 +62,8 @@ describe('AmazonQTokenServiceManager', () => {
 
     let amazonQTokenServiceManager: AmazonQTokenServiceManager
     let features: TestFeatures
-    let clock: SinonFakeTimers
 
     beforeEach(() => {
-        clock = sinon.useFakeTimers()
-
         // Override endpoints for testing
         AWS_Q_ENDPOINTS.set('us-east-1', TEST_ENDPOINT_US_EAST_1)
         AWS_Q_ENDPOINTS.set('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1)
@@ -107,7 +103,6 @@ describe('AmazonQTokenServiceManager', () => {
         AmazonQTokenServiceManager.resetInstance()
         features.dispose()
         sinon.restore()
-        clock.restore()
     })
 
     const setupServiceManager = (enableProfiles = false) => {
