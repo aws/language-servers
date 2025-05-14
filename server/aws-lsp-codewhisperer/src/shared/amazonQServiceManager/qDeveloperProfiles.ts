@@ -86,7 +86,7 @@ export const getListAllAvailableProfilesHandler =
         return allProfiles
     }
 
-export async function fetchProfilesFromRegion(
+async function fetchProfilesFromRegion(
     service: CodeWhispererServiceToken,
     region: string,
     logging: Logging,
