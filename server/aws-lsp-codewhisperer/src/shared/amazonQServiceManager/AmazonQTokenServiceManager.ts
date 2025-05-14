@@ -85,6 +85,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         super(features)
     }
 
+    // @VisibleForTesting, please DO NOT use in production
+    setState(state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED') {
+        this.state = state
+    }
+
     public static initInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
@@ -322,6 +327,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
 
         // Hack to inject a dummy profile name as it's not used by client IDE for now, if client IDE starts consuming name field then we should also pass both profile name and arn from the IDE
+        // when service is ready to take more tps, revert https://github.com/aws/language-servers/pull/1329
         const newProfile: AmazonQDeveloperProfile = {
             arn: newProfileArn,
             name: 'Not being used',
