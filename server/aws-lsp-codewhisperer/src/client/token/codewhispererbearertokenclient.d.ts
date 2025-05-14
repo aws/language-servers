@@ -1879,8 +1879,8 @@ declare namespace CodeWhispererBearerTokenClient {
     timestamp: Timestamp;
     acceptedCharacterCount: PrimitiveInteger;
     unmodifiedAcceptedCharacterCount: PrimitiveInteger;
-    addedCharacterCount: PrimitiveInteger;
-    unmodifiedAddedCharacterCount: PrimitiveInteger;
+    addedCharacterCount?: PrimitiveInteger;
+    unmodifiedAddedCharacterCount?: PrimitiveInteger;
   }
   export interface UserSettings {
     hasConsentedToCrossRegionCalls?: Boolean;
