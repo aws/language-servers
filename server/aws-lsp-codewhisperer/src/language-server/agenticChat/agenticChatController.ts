@@ -674,7 +674,7 @@ export class AgenticChatController implements ChatHandlers {
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
-                    session.getConversationType(),
+                    'AgenticChat',
                     undefined,
                     undefined,
                     'Succeeded',
@@ -705,9 +705,9 @@ export class AgenticChatController implements ChatHandlers {
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
-                    session.getConversationType(),
-                    toolNames,
-                    toolUseIds,
+                    'AgenticChatWithToolUse',
+                    toolNames ?? undefined,
+                    toolUseIds ?? undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
                     latency,
@@ -723,7 +723,7 @@ export class AgenticChatController implements ChatHandlers {
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
-                    session.getConversationType(),
+                    'AgenticChatWithToolUse',
                     undefined,
                     undefined,
                     'Failed',
