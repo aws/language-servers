@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.39](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.38...lsp-codewhisperer/v0.0.39) (2025-05-14)
+
+
+### Bug Fixes
+
+* **amazonq:** export q chat in windows not working due to invalid path ([#1330](https://github.com/aws/language-servers/issues/1330)) ([2dfc9cb](https://github.com/aws/language-servers/commit/2dfc9cbf53dad772ae40f96ce6e026b41d887a51))
+
 ## [0.0.38](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.37...lsp-codewhisperer/v0.0.38) (2025-05-14)
 
 
