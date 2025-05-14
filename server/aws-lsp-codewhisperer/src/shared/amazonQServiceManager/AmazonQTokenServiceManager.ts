@@ -330,7 +330,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         // when service is ready to take more tps, revert https://github.com/aws/language-servers/pull/1329
         const newProfile: AmazonQDeveloperProfile = {
             arn: newProfileArn,
-            name: 'Not being used',
+            name: 'Client provided profile',
             identityDetails: {
                 region: parsedArn.region,
             },
