@@ -3,6 +3,7 @@
  * Will be deleted or merged.
  */
 
+import * as crypto from 'crypto'
 import * as path from 'path'
 import {
     ChatTriggerType,
@@ -451,6 +452,10 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
 
+            // Generate a unique ID for this prompt
+            const promptId = crypto.randomUUID()
+            session.setCurrentPromptId(promptId)
+
             // Start the agent loop
             const finalResult = await this.#runAgentLoop(
                 initialRequestInput,
@@ -458,6 +463,7 @@ export class AgenticChatController implements ChatHandlers {
                 metric,
                 chatResultStream,
                 params.tabId,
+                promptId,
                 session.conversationId,
                 token,
                 triggerContext.documentReference
@@ -541,6 +547,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         chatResultStream: AgenticChatResultStream,
         tabId: string,
+        promptId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList
@@ -556,7 +563,8 @@ export class AgenticChatController implements ChatHandlers {
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
             // Check for cancellation
-            if (token?.isCancellationRequested) {
+            if (this.#isPromptCanceled(token, session, promptId)) {
+                this.#debug('Stopping agent loop - cancelled by user')
                 throw new CancellationError('user')
             }
 
@@ -570,7 +578,7 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Fix the history to maintain invariants
             if (currentMessage) {
-                const isHistoryValid = this.#chatHistoryDb.fixHistory(
+                const isHistoryValid = this.#chatHistoryDb.fixAndValidateHistory(
                     tabId,
                     currentMessage,
                     conversationIdentifier ?? ''
@@ -607,14 +615,18 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
-                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                    body: currentMessage.userInputMessage?.content ?? '',
-                    type: 'prompt' as any,
-                    userIntent: currentMessage.userInputMessage?.userIntent,
-                    origin: currentMessage.userInputMessage?.origin,
-                    userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
-                    shouldDisplayMessage: shouldDisplayMessage,
-                })
+                if (this.#isPromptCanceled(token, session, promptId)) {
+                    this.#debug('Skipping adding user message to history - cancelled by user')
+                } else {
+                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
+                        body: currentMessage.userInputMessage?.content ?? '',
+                        type: 'prompt' as any,
+                        userIntent: currentMessage.userInputMessage?.userIntent,
+                        origin: currentMessage.userInputMessage?.origin,
+                        userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
+                        shouldDisplayMessage: shouldDisplayMessage,
+                    })
+                }
             }
             shouldDisplayMessage = true
 
@@ -634,11 +646,13 @@ export class AgenticChatController implements ChatHandlers {
             if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
                 const content =
                     'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
-                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
-                    body: 'Response timed out - message took too long to generate',
-                    type: 'answer',
-                    shouldDisplayMessage: false,
-                })
+                if (!this.#isPromptCanceled(token, session, promptId)) {
+                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                        body: 'Response timed out - message took too long to generate',
+                        type: 'answer',
+                        shouldDisplayMessage: false,
+                    })
+                }
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
                 shouldDisplayMessage = false
                 continue
@@ -646,24 +660,28 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
-                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
-                    body: result.data?.chatResult.body,
-                    type: 'answer' as any,
-                    codeReference: result.data.chatResult.codeReference,
-                    relatedContent:
-                        result.data.chatResult.relatedContent?.content &&
-                        result.data.chatResult.relatedContent.content.length > 0
-                            ? result.data?.chatResult.relatedContent
-                            : undefined,
-                    toolUses: Object.keys(result.data?.toolUses!)
-                        .filter(k => result.data!.toolUses[k].stop)
-                        .map(k => ({
-                            toolUseId: result.data!.toolUses[k].toolUseId,
-                            name: result.data!.toolUses[k].name,
-                            input: result.data!.toolUses[k].input,
-                        })),
-                    shouldDisplayMessage: shouldDisplayMessage,
-                })
+                if (this.#isPromptCanceled(token, session, promptId)) {
+                    this.#debug('Skipping adding assistant message to history - cancelled by user')
+                } else {
+                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                        body: result.data?.chatResult.body,
+                        type: 'answer' as any,
+                        codeReference: result.data.chatResult.codeReference,
+                        relatedContent:
+                            result.data.chatResult.relatedContent?.content &&
+                            result.data.chatResult.relatedContent.content.length > 0
+                                ? result.data?.chatResult.relatedContent
+                                : undefined,
+                        toolUses: Object.keys(result.data?.toolUses!)
+                            .filter(k => result.data!.toolUses[k].stop)
+                            .map(k => ({
+                                toolUseId: result.data!.toolUses[k].toolUseId,
+                                name: result.data!.toolUses[k].name,
+                                input: result.data!.toolUses[k].input,
+                            })),
+                        shouldDisplayMessage: shouldDisplayMessage,
+                    })
+                }
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
             }
@@ -1148,12 +1166,16 @@ export class AgenticChatController implements ChatHandlers {
      * @param err
      * @returns
      */
-    isUserAction(err: unknown, token?: CancellationToken): boolean {
+    isUserAction(err: unknown, token?: CancellationToken, session?: ChatSessionService): boolean {
         return (
             CancellationError.isUserCancelled(err) ||
             err instanceof ToolApprovalException ||
             (token?.isCancellationRequested ?? false)
         )
+    }
+
+    #isPromptCanceled(token: CancellationToken | undefined, session: ChatSessionService, promptId: string): boolean {
+        return token?.isCancellationRequested === true || !session.isCurrentPrompt(promptId)
     }
 
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {

@@ -56,6 +56,9 @@ export const workspaceChunkMaxSize = 40_960
 // limit for the length of additionalContent
 export const additionalContextMaxLength = 100
 
+// maximum number of workspace folders allowed by the API
+export const maxWorkspaceFolders = 100
+
 export class AgenticChatTriggerContext {
     private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
 
@@ -106,7 +109,8 @@ export class AgenticChatTriggerContext {
         additionalContent?: AdditionalContentEntryAddition[]
     ): Promise<GenerateAssistantResponseCommandInput> {
         const { prompt } = params
-        const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolderPaths(this.#lsp) }
+        const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#lsp).slice(0, maxWorkspaceFolders)
+        const defaultEditorState = { workspaceFolders }
 
         const hasWorkspace = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
 
