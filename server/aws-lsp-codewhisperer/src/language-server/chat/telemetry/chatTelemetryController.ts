@@ -319,7 +319,8 @@ export class ChatTelemetryController {
         tabId: string,
         metric: Partial<CombinedConversationEvent>,
         requestId?: string,
-        errorReason?: string
+        errorReason?: string,
+        agenticCodingMode?: boolean
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.MessageResponseError,
@@ -337,6 +338,7 @@ export class ChatTelemetryController {
                 reasonDesc: getTelemetryReasonDesc(errorReason),
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 result: 'Succeeded',
+                enabled: agenticCodingMode,
                 [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
                 languageServerVersion: metric.languageServerVersion,
             },

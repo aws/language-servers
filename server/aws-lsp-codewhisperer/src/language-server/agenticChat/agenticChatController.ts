@@ -499,7 +499,7 @@ export class AgenticChatController implements ChatHandlers {
                     buttons: [],
                 }
             }
-            return this.#handleRequestError(err, errorMessageId, params.tabId, metric)
+            return this.#handleRequestError(err, errorMessageId, params.tabId, metric, session.pairProgrammingMode)
         }
     }
 
@@ -1713,7 +1713,8 @@ export class AgenticChatController implements ChatHandlers {
         err: any,
         errorMessageId: string,
         tabId: string,
-        metric: Metric<CombinedConversationEvent>
+        metric: Metric<CombinedConversationEvent>,
+        agenticCodingMode: boolean
     ): ChatResult | ResponseError<ChatResult> {
         const errorMessage = getErrorMessage(err)
         const requestID = getRequestID(err) ?? ''
@@ -1723,13 +1724,20 @@ export class AgenticChatController implements ChatHandlers {
         // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
         if (err.code && err.code in unactionableErrorCodes) {
             const customErrMessage = unactionableErrorCodes[err.code as keyof typeof unactionableErrorCodes]
-            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, customErrMessage)
+            this.#telemetryController.emitMessageResponseError(
+                tabId,
+                metric.metric,
+                requestID,
+                customErrMessage,
+                agenticCodingMode
+            )
         } else {
             this.#telemetryController.emitMessageResponseError(
                 tabId,
                 metric.metric,
                 requestID,
-                errorMessage ?? genericErrorMsg
+                errorMessage ?? genericErrorMsg,
+                agenticCodingMode
             )
         }
 
