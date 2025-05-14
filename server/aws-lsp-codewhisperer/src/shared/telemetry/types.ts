@@ -35,6 +35,7 @@ export interface CodeWhispererPerceivedLatencyEvent {
     duration?: number
     codewhispererLanguage: CodewhispererLanguage
     credentialStartUrl?: string
+    codewhispererCustomizationArn?: string
 }
 
 export interface CodeWhispererUserTriggerDecisionEvent {
@@ -72,6 +73,12 @@ export interface CodeWhispererCodePercentageEvent {
     codewhispererSuggestedTokens: number
     codewhispererPercentage: number
     successCount: number
+}
+
+export interface UserWrittenPercentageEvent {
+    codewhispererLanguage: string
+    userWrittenCodeCharacterCount: number
+    userWrittenCodeLineCount: number
 }
 
 export interface CodeWhispererUserDecisionEvent {
@@ -148,6 +155,10 @@ export interface TransformationJobArtifactsDownloadedEvent {
     error: string
 }
 
+export interface PollingCancelledEvent {
+    CancelPollingEnabled: Boolean
+}
+
 export interface TransformationFailureEvent {
     [key: string]: any
     category: string
@@ -167,6 +178,10 @@ export enum ChatTelemetryEventName {
     ModifyCode = 'amazonq_modifyCode',
     ToolUseSuggested = 'amazonq_toolUseSuggested',
     InteractWithAgenticChat = 'amazonq_interactWithAgenticChat',
+    LoadHistory = 'amazonq_loadHistory',
+    ChatHistoryAction = 'amazonq_performChatHistoryAction',
+    ExportTab = 'amazonq_exportTab',
+    UiClick = 'ui_click',
 }
 
 export interface ChatTelemetryEventMap {
@@ -182,6 +197,10 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.ModifyCode]: ModifyCodeEvent
     [ChatTelemetryEventName.ToolUseSuggested]: ToolUseSuggestedEvent
     [ChatTelemetryEventName.InteractWithAgenticChat]: InteractWithAgenticChatEvent
+    [ChatTelemetryEventName.LoadHistory]: LoadHistoryEvent
+    [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
+    [ChatTelemetryEventName.ExportTab]: ExportTabEvent
+    [ChatTelemetryEventName.UiClick]: UiClickEvent
 }
 
 export type ToolUseSuggestedEvent = {
@@ -264,6 +283,33 @@ export type ExitFocusConversationEvent = {
     cwsprChatConversationId: string
 }
 
+export type UiClickEvent = {
+    elementId: string
+}
+
+export type LoadHistoryEvent = {
+    amazonqTimeToLoadHistory: number
+    amazonqHistoryFileSize: number
+    openTabCount: number
+    result: Result
+    languageServerVersion?: string
+}
+
+export type ChatHistoryActionEvent = {
+    action: ChatHistoryActionType
+    result: Result
+    languageServerVersion?: string
+    filenameExt?: string
+    amazonqTimeToSearchHistory?: number
+    amazonqHistoryFileSize?: number
+}
+
+export type ExportTabEvent = {
+    filenameExt: string
+    result: Result
+    languageServerVersion?: string
+}
+
 export enum ChatInteractionType {
     InsertAtCursor = 'insertAtCursor',
     CopySnippet = 'copySnippet',
@@ -274,6 +320,13 @@ export enum ChatInteractionType {
     Upvote = 'upvote',
     Downvote = 'downvote',
     ClickBodyLink = 'clickBodyLink',
+}
+
+export enum ChatHistoryActionType {
+    Search = 'search',
+    Export = 'export',
+    Open = 'open',
+    Delete = 'delete',
 }
 
 export type ChatConversationType = 'Chat' | 'Assign' | 'Transform' | 'AgenticChat' | 'AgenticChatWithToolUse'

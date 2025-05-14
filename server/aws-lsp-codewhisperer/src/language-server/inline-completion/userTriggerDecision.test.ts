@@ -89,20 +89,24 @@ describe('Telemetry', () => {
                     insertText: DEFAULT_SUGGESTIONS[0].content,
                     range: undefined,
                     references: undefined,
+                    mostRelevantMissingImports: undefined,
                 },
                 {
                     itemId: DEFAULT_SUGGESTIONS[1].itemId,
                     insertText: DEFAULT_SUGGESTIONS[1].content,
                     range: undefined,
                     references: undefined,
+                    mostRelevantMissingImports: undefined,
                 },
                 {
                     itemId: DEFAULT_SUGGESTIONS[2].itemId,
                     insertText: DEFAULT_SUGGESTIONS[2].content,
                     range: undefined,
                     references: undefined,
+                    mostRelevantMissingImports: undefined,
                 },
             ],
+            partialResultToken: undefined,
         }
         const EXPECTED_RESPONSE_CONTEXT: ResponseContext = {
             requestId: 'cwspr-request-id',
@@ -247,12 +251,13 @@ describe('Telemetry', () => {
                 language: 'csharp',
                 requestContext: {
                     fileContext: {
-                        filename: 'file:///test.cs',
+                        filename: 'test.cs',
                         programmingLanguage: {
                             languageName: 'csharp',
                         },
                         leftFileContent: 'class HelloWorld\n{\n    static void Main(',
                         rightFileContent: ')\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                        workspaceFolder: undefined,
                     },
                     maxResults: 1,
                 },
@@ -429,7 +434,7 @@ describe('Telemetry', () => {
                     classifierResult: -0.8524073111924992,
                     requestContext: {
                         fileContext: {
-                            filename: 'file:///test.cs',
+                            filename: 'test.cs',
                             programmingLanguage: {
                                 languageName: 'csharp',
                             },
@@ -877,10 +882,11 @@ describe('Telemetry', () => {
                     language: 'csharp',
                     requestContext: {
                         fileContext: {
-                            filename: 'file:///test.cs',
+                            filename: 'test.cs',
                             programmingLanguage: { languageName: 'csharp' },
                             leftFileContent: 'class HelloWorld\n{\n    static void Main(',
                             rightFileContent: ')\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                            workspaceFolder: undefined,
                         },
                         maxResults: 1,
                     },
@@ -1027,12 +1033,13 @@ describe('Telemetry', () => {
                     language: 'csharp',
                     requestContext: {
                         fileContext: {
-                            filename: 'file:///test.cs',
+                            filename: 'test.cs',
                             programmingLanguage: {
                                 languageName: 'csharp',
                             },
                             leftFileContent: 'class HelloWorld\n{\n    static void Main(',
                             rightFileContent: ')\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                            workspaceFolder: undefined,
                         },
                         maxResults: 1,
                     },
@@ -1141,10 +1148,11 @@ describe('Telemetry', () => {
                     language: 'csharp',
                     requestContext: {
                         fileContext: {
-                            filename: 'file:///test.cs',
+                            filename: 'test.cs',
                             programmingLanguage: { languageName: 'csharp' },
                             leftFileContent: 'class HelloWorld\n{\n    static void Main(',
                             rightFileContent: ')\n    {\n        Console.WriteLine("Hello World!");\n    }\n}\n',
+                            workspaceFolder: undefined,
                         },
                         maxResults: 1,
                     },

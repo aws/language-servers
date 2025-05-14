@@ -32,7 +32,9 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
 
     const MOCKED_AWS_CODEWHISPERER_SECTION = {
         includeSuggestionsWithCodeReferences: true,
+        includeImportsWithSuggestions: true,
         shareCodeWhispererContentWithAWS: true,
+        sendUserWrittenCodeMetrics: false,
     }
 
     beforeEach(() => {
@@ -50,7 +52,9 @@ describe('getAmazonQRelatedWorkspaceConfigs', () => {
             optOutTelemetryPreference: 'OPTOUT',
             inlineSuggestions: { extraContext: MOCKED_AWS_Q_SECTION.inlineSuggestions.extraContext },
             includeSuggestionsWithCodeReferences: MOCKED_AWS_CODEWHISPERER_SECTION.includeSuggestionsWithCodeReferences,
+            includeImportsWithSuggestions: MOCKED_AWS_CODEWHISPERER_SECTION.includeImportsWithSuggestions,
             shareCodeWhispererContentWithAWS: MOCKED_AWS_CODEWHISPERER_SECTION.shareCodeWhispererContentWithAWS,
+            sendUserWrittenCodeMetrics: MOCKED_AWS_CODEWHISPERER_SECTION.sendUserWrittenCodeMetrics,
             projectContext: {
                 enableLocalIndexing: MOCKED_AWS_Q_SECTION.projectContext.enableLocalIndexing,
                 enableGpuAcceleration: MOCKED_AWS_Q_SECTION.projectContext?.enableGpuAcceleration,
@@ -97,7 +101,9 @@ describe('AmazonQConfigurationCache', () => {
                 extraContext: 'some-extra-context',
             },
             includeSuggestionsWithCodeReferences: false,
+            includeImportsWithSuggestions: false,
             shareCodeWhispererContentWithAWS: true,
+            sendUserWrittenCodeMetrics: false,
             projectContext: {
                 enableLocalIndexing: true,
                 enableGpuAcceleration: true,

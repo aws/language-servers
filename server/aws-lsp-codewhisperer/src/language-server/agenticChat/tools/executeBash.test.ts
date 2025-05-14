@@ -29,13 +29,13 @@ describe('ExecuteBash Tool', () => {
 
     it('pass validation for a safe command (read-only)', async () => {
         const execBash = new ExecuteBash(features)
-        await execBash.validate('ls')
+        await execBash.validate({ command: 'ls' })
     })
 
     it('fail validation if the command is empty', async () => {
         const execBash = new ExecuteBash(features)
         await assert.rejects(
-            execBash.validate('   '),
+            execBash.validate({ command: '  ' }),
             /command cannot be empty/i,
             'Expected an error for empty command'
         )
@@ -56,7 +56,7 @@ describe('ExecuteBash Tool', () => {
     it('whichCommand cannot find the first arg', async () => {
         const execBash = new ExecuteBash(features)
         await assert.rejects(
-            execBash.validate('noSuchCmd'),
+            execBash.validate({ command: 'noSuchCmd' }),
             /not found on PATH/i,
             'Expected not found error from whichCommand'
         )

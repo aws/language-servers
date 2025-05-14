@@ -175,7 +175,7 @@ export class FsWrite {
                 '- When you need to delete a file (no delete operation is available)\n' +
                 '- When you need to rename or move a file\n\n' +
                 '## Command details\n' +
-                '- The `create` command will override the file at `path` if it already exists as a file, and otherwise create a new file. Use this command for initial file creation, such as scaffolding a new project. You should also use this command when overwriting large boilerplate files where you want to replace the entire content at once.\n' +
+                '- The `create` command will override the file at `path` if it already exists as a file, and otherwise create a new file. Make sure the `path` exists first when using this command for initial file creation, such as scaffolding a new project. You should also use this command when overwriting large boilerplate files where you want to replace the entire content at once.\n' +
                 '- The `insert` command will insert `newStr` after `insertLine` and place it on its own line.\n' +
                 '- The `append` command will add content to the end of an existing file, automatically adding a newline if the file does not end with one.\n' +
                 '- The `strReplace` command will replace `oldStr` in an existing file with `newStr`.\n\n' +

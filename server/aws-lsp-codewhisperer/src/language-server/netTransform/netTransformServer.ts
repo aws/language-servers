@@ -19,6 +19,8 @@ import {
     emitTransformationJobStartedTelemetry,
     emitTransformationPlanReceivedFailure,
     emitTransformationPlanReceivedTelemetry,
+    emitCancelPollingTelemetry,
+    emitCancelPollingFailure,
 } from './metrics'
 import {
     CancelTransformRequest,
@@ -39,6 +41,8 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
+const CancelPollingCommand = 'aws/qNetTransform/cancelPolling'
+import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 /**
@@ -115,6 +119,10 @@ export const QNetTransformServerToken =
                         )
                         return response
                     }
+                    case CancelPollingCommand: {
+                        await transformHandler.cancelPollingAsync()
+                        emitCancelPollingTelemetry(telemetry)
+                    }
                 }
                 return
             } catch (e: any) {
@@ -156,6 +164,10 @@ export const QNetTransformServerToken =
                         emitTransformationJobArtifactsDownloadedFailure(telemetry, request, e)
                         break
                     }
+                    case CancelPollingCommand: {
+                        emitCancelPollingFailure(telemetry, e)
+                        break
+                    }
                 }
             }
         }
@@ -180,6 +192,7 @@ export const QNetTransformServerToken =
                             GetTransformPlanCommand,
                             CancelTransformCommand,
                             DownloadArtifactsCommand,
+                            CancelPollingCommand,
                         ],
                     },
                 },

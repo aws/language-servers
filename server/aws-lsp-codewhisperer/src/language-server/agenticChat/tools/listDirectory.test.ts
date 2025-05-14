@@ -1,5 +1,4 @@
 import * as assert from 'assert'
-import { Writable } from 'stream'
 import { ListDirectory } from './listDirectory'
 import { testFolder } from '@aws/lsp-core'
 import * as path from 'path'
@@ -55,11 +54,8 @@ describe('ListDirectory Tool', () => {
         const result = await listDirectory.invoke({ path: tempFolder.path, maxDepth: 0 })
 
         assert.strictEqual(result.output.kind, 'text')
-        const lines = result.output.content.split('\n')
-        const hasFileA = lines.some((line: string | string[]) => line.includes('[F] ') && line.includes('fileA.txt'))
-        const hasSubfolder = lines.some(
-            (line: string | string[]) => line.includes('[D] ') && line.includes('subfolder')
-        )
+        const hasFileA = result.output.content.includes('`-- fileA.txt')
+        const hasSubfolder = result.output.content.includes('subfolder/\n')
 
         assert.ok(hasFileA, 'Should list fileA.txt in the directory output')
         assert.ok(hasSubfolder, 'Should list the subfolder in the directory output')
@@ -74,12 +70,9 @@ describe('ListDirectory Tool', () => {
         const result = await listDirectory.invoke({ path: tempFolder.path })
 
         assert.strictEqual(result.output.kind, 'text')
-        const lines = result.output.content.split('\n')
-        const hasFileA = lines.some((line: string | string[]) => line.includes('[F] ') && line.includes('fileA.txt'))
-        const hasSubfolder = lines.some(
-            (line: string | string[]) => line.includes('[D] ') && line.includes('subfolder')
-        )
-        const hasFileB = lines.some((line: string | string[]) => line.includes('[F] ') && line.includes('fileB.md'))
+        const hasFileA = result.output.content.includes('`-- fileA.txt')
+        const hasSubfolder = result.output.content.includes('subfolder/\n')
+        const hasFileB = result.output.content.includes('`-- fileB.md')
 
         assert.ok(hasFileA, 'Should list fileA.txt in the directory output')
         assert.ok(hasSubfolder, 'Should list the subfolder in the directory output')
@@ -95,14 +88,24 @@ describe('ListDirectory Tool', () => {
         const result = await listDirectory.invoke({ path: tempFolder.path })
 
         assert.strictEqual(result.output.kind, 'text')
-        const lines = result.output.content.split('\n')
-        const hasNodeModules = lines.some(
-            (line: string | string[]) => line.includes('[D] ') && line.includes('node_modules')
-        )
-        const hasFileC = lines.some((line: string | string[]) => line.includes('[F] ') && line.includes('fileC.md'))
+        const hasNodeModules = result.output.content.includes('node_modules/\n')
+        const hasFileC = result.output.content.includes('`-- fileC.md')
 
         assert.ok(!hasNodeModules, 'Should not list node_modules in the directory output')
         assert.ok(!hasFileC, 'Should not list fileC.md under node_modules in the directory output')
+    })
+
+    it('includes files that only start with ignored entry', async () => {
+        const nestedFolder = await tempFolder.nest('foo')
+        await nestedFolder.write('output.md', 'this is some text')
+
+        const listDirectory = new ListDirectory(testFeatures)
+        await listDirectory.validate({ path: tempFolder.path })
+        const result = await listDirectory.invoke({ path: tempFolder.path })
+        assert.strictEqual(result.output.kind, 'text')
+        const hasOutput = result.output.content.includes('`-- output.md')
+
+        assert.ok(hasOutput, 'Should list output.md under foo in the directory output')
     })
 
     it('throws error if path does not exist', async () => {

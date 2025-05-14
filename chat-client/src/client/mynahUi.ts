@@ -233,6 +233,7 @@ export const createMynahUi = (
         },
         onReady: () => {
             messager.onUiReady()
+            messager.onTabAdd(tabFactory.initialTabId)
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
@@ -269,6 +270,7 @@ export const createMynahUi = (
             messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
+            messager.onStopChatResponse(tabId)
             messager.onTabRemove(tabId)
         },
         onTabChange: (tabId: string) => {
@@ -443,7 +445,7 @@ export const createMynahUi = (
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
             if (buttonId === ChatHistory.TabBarButtonId) {
-                messager.onListConversations()
+                messager.onListConversations(undefined, true)
                 return
             }
 
@@ -482,7 +484,15 @@ export const createMynahUi = (
     }
 
     const mynahUiProps: MynahUIProps = {
-        tabs: {},
+        tabs: {
+            [tabFactory.initialTabId]: {
+                isSelected: true,
+                store: {
+                    ...tabFactory.createTab(disclaimerCardActive),
+                    chatItems: tabFactory.getChatItems(true, programmingModeCardActive),
+                },
+            },
+        },
         defaults: {
             store: tabFactory.createTab(false),
         },
@@ -494,11 +504,12 @@ export const createMynahUi = (
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
             },
-            // RTS max user input is 600k, we need to leave around 500 chars to user to type the question
+            // Total model context window limit 600k.
+            // 500k for user input, 100k for context, history, system prompt.
             // beside, MynahUI will automatically crop it depending on the available chars left from the prompt field itself by using a 96 chars of threshold
-            // if we want to max user input as 599500, need to configure the maxUserInput as 599596
-            maxUserInput: 599596,
-            userInputLengthWarningThreshold: 550000,
+            // if we want to max user input as 500000, need to configure the maxUserInput as 500096
+            maxUserInput: 500096,
+            userInputLengthWarningThreshold: 450000,
         },
     }
 
@@ -617,7 +628,7 @@ export const createMynahUi = (
                             : am.type === 'directive'
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
-                    ...prepareChatItemFromMessage(am, isPairProgrammingMode),
+                    ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -826,7 +837,6 @@ export const createMynahUi = (
                     type: oldMessage.type,
                     ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
                 }
-
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
         }
@@ -847,7 +857,11 @@ export const createMynahUi = (
         })
     }
 
-    const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
+    const prepareChatItemFromMessage = (
+        message: ChatMessage,
+        isPairProgrammingMode: boolean,
+        isPartialResult?: boolean
+    ): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
         const fileList = toMynahFileList(message.fileList)
@@ -869,6 +883,11 @@ export const createMynahUi = (
                     details: toDetailsWithoutIcon(header.fileList.details),
                 }
             }
+            if (!isPartialResult) {
+                if (processedHeader && processedHeader.status?.status !== 'error') {
+                    processedHeader.status = undefined
+                }
+            }
         }
 
         // Check if header should be included
@@ -886,6 +905,12 @@ export const createMynahUi = (
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
+        // Adding this conditional check to show the stop message in the center.
+        const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
+            message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
+
+        // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
+        const shouldMute = message.header?.status?.text !== undefined
 
         return {
             body: message.body,
@@ -895,6 +920,7 @@ export const createMynahUi = (
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
+            contentHorizontalAlignment,
             wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'
@@ -902,6 +928,7 @@ export const createMynahUi = (
                     : isPairProgrammingMode
                       ? { 'insert-to-cursor': null }
                       : undefined,
+            ...(shouldMute ? { muted: true } : {}),
         }
     }
 

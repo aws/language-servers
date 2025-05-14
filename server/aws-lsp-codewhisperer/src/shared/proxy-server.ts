@@ -7,6 +7,7 @@ import { QConfigurationServerToken } from '../language-server/configuration/qCon
 import { getOrThrowBaseTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
 import { getOrThrowBaseIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
 import { LocalProjectContextServer } from '../language-server/localProjectContext/localProjectContextServer'
+import { WorkspaceContextServer } from '../language-server/workspaceContext/workspaceContextServer'
 
 export const CodeWhispererServerTokenProxy = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
 
@@ -24,3 +25,5 @@ export const QAgenticChatServerTokenProxy = QAgenticChatServer()
 export const QConfigurationServerTokenProxy = QConfigurationServerToken()
 
 export const QLocalProjectContextServerTokenProxy = LocalProjectContextServer()
+
+export const WorkspaceContextServerTokenProxy = WorkspaceContextServer()

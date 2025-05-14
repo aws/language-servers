@@ -36,7 +36,7 @@ const MAX_Q_DEVELOPER_PROFILES_PER_PAGE = 10
 
 export const getListAllAvailableProfilesHandler =
     (service: (region: string, endpoint: string) => CodeWhispererServiceToken): ListAllAvailableProfilesHandler =>
-    async ({ connectionType, logging, endpoints, token }) => {
+    async ({ connectionType, logging, endpoints, token }): Promise<AmazonQDeveloperProfile[]> => {
         if (!connectionType || connectionType !== 'identityCenter') {
             logging.debug('Connection type is not set or not identityCenter - returning empty response.')
             return []

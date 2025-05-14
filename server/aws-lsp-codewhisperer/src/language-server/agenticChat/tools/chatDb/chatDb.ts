@@ -50,6 +50,8 @@ export class ChatDatabase {
     #dbDirectory: string
     #features: Features
     #initialized: boolean = false
+    #loadTimeMs?: number
+    #dbFileSize?: number
 
     constructor(features: Features) {
         this.#features = features
@@ -61,14 +63,26 @@ export class ChatDatabase {
         )
         const workspaceId = this.getWorkspaceIdentifier()
         const dbName = `chat-history-${workspaceId}.json`
+        const dbPath = path.join(this.#dbDirectory, dbName)
 
-        this.#features.logging.log(`Initializing database at ${this.#dbDirectory}/${dbName}`)
+        this.#features.logging.log(`Initializing database at ${dbPath}`)
+
+        this.#features.workspace.fs
+            .getFileSize(dbPath)
+            .then(({ size }) => {
+                this.#dbFileSize = size
+            })
+            .catch(err => {
+                this.#features.logging.log(`Error getting db file size: ${err}`)
+            })
+
+        const startTime = Date.now()
 
         this.#db = new Loki(dbName, {
             adapter: new FileSystemAdapter(features.workspace, this.#dbDirectory),
             autosave: true,
             autoload: true,
-            autoloadCallback: () => this.databaseInitialize(),
+            autoloadCallback: () => this.databaseInitialize(startTime),
             autosaveInterval: 1000,
             persistenceMethod: 'fs',
         })
@@ -115,7 +129,15 @@ export class ChatDatabase {
         return 'no-workspace'
     }
 
-    async databaseInitialize() {
+    /**
+     * Gets the current size of the database file in bytes.
+     * @returns Promise that resolves to the file size in bytes, or undefined if the file doesn't exist
+     */
+    getDatabaseFileSize(): number | undefined {
+        return this.#dbFileSize
+    }
+
+    async databaseInitialize(startTime: number) {
         let entries = this.#db.getCollection(TabCollection)
         if (entries === null) {
             this.#features.logging.log(`Creating new collection`)
@@ -125,6 +147,7 @@ export class ChatDatabase {
             })
         }
         this.#initialized = true
+        this.#loadTimeMs = Date.now() - startTime
     }
 
     getOpenTabs() {
@@ -132,6 +155,10 @@ export class ChatDatabase {
             const collection = this.#db.getCollection<Tab>(TabCollection)
             return collection.find({ isOpen: true })
         }
+    }
+
+    getLoadTime() {
+        return this.#loadTimeMs
     }
 
     getTab(historyId: string) {
@@ -197,12 +224,14 @@ export class ChatDatabase {
      * - Groups the filtered results by date
      * - If no results are found, returns a single group with a "No matches found" message
      **/
-    searchMessages(filter: string): ConversationItemGroup[] {
+    searchMessages(filter: string): { results: ConversationItemGroup[]; searchTime: number } {
         let searchResults: ConversationItemGroup[] = []
+        const startTime = Date.now()
+
         if (this.#initialized) {
             if (!filter) {
                 this.#features.logging.log(`Empty search filter, returning all history`)
-                return this.getHistory()
+                return { results: this.getHistory(), searchTime: Date.now() - startTime }
             }
 
             this.#features.logging.log(`Searching for ${filter}`)
@@ -223,7 +252,7 @@ export class ChatDatabase {
             this.#features.logging.log(`No matches found`)
             searchResults = [{ items: [{ id: EMPTY_CONVERSATION_LIST_ID, description: 'No matches found' }] }]
         }
-        return searchResults
+        return { results: searchResults, searchTime: Date.now() - startTime }
     }
 
     /**
@@ -313,8 +342,9 @@ export class ChatDatabase {
 
             const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
             const tabTitle =
-                (message.type === 'prompt' && message.body.trim().length > 0 ? message.body : tabData?.title) ||
-                'Amazon Q Chat'
+                (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
+                    ? message.body
+                    : tabData?.title) || 'Amazon Q Chat'
             message = this.formatChatHistoryMessage(message)
             if (tabData) {
                 this.#features.logging.log(`Updating existing tab with historyId=${historyId}`)
@@ -367,21 +397,21 @@ export class ChatDatabase {
      * 5. If the last message is from the assistant and it contains tool uses, and a next user
      *    message is set without tool results, then the user message will have cancelled tool results.
      */
-    fixHistory(tabId: string, newUserMessage: ChatMessage, conversationId: string): void {
+    fixHistory(tabId: string, newUserMessage: ChatMessage, conversationId: string): boolean {
         if (!this.#initialized) {
-            return
+            return true
         }
         const historyId = this.#historyIdMapping.get(tabId)
         this.#features.logging.info(`Fixing history: tabId=${tabId}, historyId=${historyId || 'undefined'}`)
 
         if (!historyId) {
-            return
+            return true
         }
 
         const tabCollection = this.#db.getCollection<Tab>(TabCollection)
         const tabData = tabCollection.findOne({ historyId })
         if (!tabData) {
-            return
+            return true
         }
 
         let allMessages = tabData.conversations.flatMap((conversation: Conversation) => conversation.messages)
@@ -400,7 +430,7 @@ export class ChatDatabase {
         this.ensureValidMessageSequence(allMessages)
 
         //  If the last message is from the assistant and it contains tool uses, and a next user message is set without tool results, then the user message will have cancelled tool results.
-        this.handleToolUses(allMessages, newUserMessage)
+        const isValid = this.validateToolUses(allMessages, newUserMessage)
         const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
 
         tabData.conversations = [
@@ -413,6 +443,7 @@ export class ChatDatabase {
         tabData.updatedAt = new Date()
         tabCollection.update(tabData)
         this.#features.logging.info(`Updated tab data in collection`)
+        return isValid
     }
 
     private trimHistoryToMaxLength(messages: Message[]): Message[] {
@@ -610,7 +641,7 @@ export class ChatDatabase {
         }
     }
 
-    private handleToolUses(messages: Message[], newUserMessage: ChatMessage): void {
+    private validateToolUses(messages: Message[], newUserMessage: ChatMessage): boolean {
         if (messages.length === 0) {
             if (newUserMessage.userInputMessage?.userInputMessageContext?.toolResults) {
                 this.#features.logging.debug('No history message found, but new user message has tool results.')
@@ -618,12 +649,49 @@ export class ChatDatabase {
                 // tool results are empty, so content must not be empty
                 newUserMessage.userInputMessage.content = 'Conversation history was too large, so it was cleared.'
             }
-            return
+            return true
         }
 
         const lastMsg = messages[messages.length - 1]
+        const toolResults = newUserMessage.userInputMessage?.userInputMessageContext?.toolResults
+
+        if (toolResults && toolResults.length > 0) {
+            // If last message has no tool uses but new message has tool results, this is invalid
+            if (!lastMsg.toolUses || lastMsg.toolUses.length === 0) {
+                this.#features.logging.warn('New message has tool results but last message has no tool uses')
+                return false
+            }
+
+            const toolUseIds = new Set(lastMsg.toolUses.map(toolUse => toolUse.toolUseId))
+            const validToolResults = toolResults.filter(toolResult => toolUseIds.has(toolResult.toolUseId))
+            const invalidToolResults = toolResults.filter(toolResult => !toolUseIds.has(toolResult.toolUseId))
+
+            if (invalidToolResults.length > 0) {
+                this.#features.logging.warn(
+                    `Found ${invalidToolResults.length} tool results without matching tool uses, marking them as cancelled`
+                )
+
+                // Mark invalid tool results as cancelled
+                for (const invalidResult of invalidToolResults) {
+                    invalidResult.status = ToolResultStatus.ERROR
+                    invalidResult.content = [
+                        {
+                            text: 'Tool use was cancelled by the user',
+                        },
+                    ]
+                }
+
+                // Update the tool results in the message
+                if (newUserMessage.userInputMessage?.userInputMessageContext) {
+                    newUserMessage.userInputMessage.userInputMessageContext.toolResults = [
+                        ...validToolResults,
+                        ...invalidToolResults,
+                    ]
+                }
+            }
+        }
+
         if (lastMsg.toolUses && lastMsg.toolUses.length > 0) {
-            const toolResults = newUserMessage.userInputMessage?.userInputMessageContext?.toolResults
             if (!toolResults || toolResults.length === 0) {
                 this.#features.logging.debug(
                     `No tools results in last user message following a tool use message from assisstant, marking as canceled`
@@ -644,5 +712,6 @@ export class ChatDatabase {
                 }
             }
         }
+        return true
     }
 }

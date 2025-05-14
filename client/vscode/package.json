@@ -254,6 +254,12 @@
                     "scope": "resource",
                     "type": "boolean",
                     "description": "Share CodeWhisperer content with AWS"
+                },
+                "amazonQ.workspaceContext": {
+                    "scope": "window",
+                    "type": "boolean",
+                    "description": "Allow Amazon Q to create remote workspace for quality improvements",
+                    "default": "true"
                 }
             }
         },
@@ -340,8 +346,8 @@
     "devDependencies": {
         "@aws-sdk/credential-providers": "^3.731.1",
         "@aws-sdk/types": "^3.734.0",
-        "@aws/chat-client-ui-types": "^0.1.32",
-        "@aws/language-server-runtimes": "^0.2.77",
+        "@aws/chat-client-ui-types": "^0.1.33",
+        "@aws/language-server-runtimes": "^0.2.80",
         "@types/uuid": "^9.0.8",
         "@types/vscode": "^1.98.0",
         "jose": "^5.2.4",

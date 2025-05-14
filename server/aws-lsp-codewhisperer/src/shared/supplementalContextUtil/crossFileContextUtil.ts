@@ -29,6 +29,7 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { QueryInlineProjectContextRequestV2 } from 'local-indexing'
 import { URI } from 'vscode-uri'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
+import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 
 type CrossFileSupportedLanguage =
     | 'java'
@@ -65,7 +66,8 @@ export async function fetchSupplementalContextForSrc(
     document: TextDocument,
     position: Position,
     workspace: Workspace,
-    cancellationToken: CancellationToken
+    cancellationToken: CancellationToken,
+    amazonQServiceManager?: AmazonQBaseServiceManager
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     const supplementalContextConfig = getSupplementalContextConfig(document.languageId)
 
@@ -74,15 +76,17 @@ export async function fetchSupplementalContextForSrc(
     }
     //TODO: add logic for other strategies once available
     if (supplementalContextConfig === 'codemap') {
-        return await codemapContext(document, position, workspace, cancellationToken)
+        return await codemapContext(document, position, workspace, cancellationToken, amazonQServiceManager)
     }
+    return { supplementalContextItems: [], strategy: 'Empty' }
 }
 
 export async function codemapContext(
     document: TextDocument,
     position: Position,
     workspace: Workspace,
-    cancellationToken: CancellationToken
+    cancellationToken: CancellationToken,
+    amazonQServiceManager?: AmazonQBaseServiceManager
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     let strategy: SupplementalContextStrategy = 'Empty'
 
@@ -95,7 +99,7 @@ export async function codemapContext(
 
     const projectContextPromise = waitUntil(
         async function () {
-            return await fetchProjectContext(document, position, 'codemap')
+            return await fetchProjectContext(document, position, 'codemap', amazonQServiceManager)
         },
         { timeout: supplementalContextTimeoutInMs, interval: 5, truthy: false }
     )
@@ -133,7 +137,8 @@ export async function codemapContext(
 export async function fetchProjectContext(
     document: TextDocument,
     position: Position,
-    target: 'default' | 'codemap' | 'bm25'
+    target: 'default' | 'codemap' | 'bm25',
+    amazonQServiceManager?: AmazonQBaseServiceManager
 ): Promise<CodeWhispererSupplementalContextItem[]> {
     const inputChunk: Chunk = getInputChunk(document, position, crossFileContextConfig.numberOfLinesEachChunk)
     const fsPath = URI.parse(document.uri).fsPath
@@ -142,6 +147,17 @@ export async function fetchProjectContext(
         query: inputChunk.content,
         filePath: fsPath,
         target,
+    }
+    let enableWorkspaceContext = true
+
+    if (amazonQServiceManager) {
+        const config = amazonQServiceManager.getConfiguration()
+        if (config.projectContext?.enableLocalIndexing === false) {
+            enableWorkspaceContext = false
+        }
+    }
+    if (!enableWorkspaceContext) {
+        return []
     }
 
     try {

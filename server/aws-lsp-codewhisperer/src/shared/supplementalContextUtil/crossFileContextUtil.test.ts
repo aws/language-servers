@@ -249,8 +249,16 @@ describe('crossFileContextUtil', function () {
     })
     describe('codemapContext', () => {
         let sandbox: sinon.SinonSandbox
+        let amazonQServiceManager: any
         beforeEach(() => {
             sandbox = sinon.createSandbox()
+            amazonQServiceManager = {
+                getConfiguration: sandbox.stub().returns({
+                    projectContext: {
+                        enableLocalIndexing: true,
+                    },
+                }),
+            }
         })
         afterEach(() => {
             sandbox.restore()
@@ -271,13 +279,47 @@ describe('crossFileContextUtil', function () {
                 document,
                 { line: 0, character: 0 },
                 features.workspace,
-                fakeCancellationToken
+                fakeCancellationToken,
+                amazonQServiceManager
             )
             assert.deepStrictEqual(result, {
                 supplementalContextItems: [],
                 strategy: 'Empty',
             })
         })
+
+        it('should return Empty strategy when workspace context is disabled', async () => {
+            const document = TextDocument.create(
+                'file:///testfile.java',
+                'java',
+                1,
+                'line_1\nline_2\nline_3\nline_4\nline_5\nline_6\nline_7'
+            )
+
+            amazonQServiceManager.getConfiguration.returns({
+                projectContext: {
+                    enableLocalIndexing: false,
+                },
+            })
+
+            const instanceStub = sandbox.stub(LocalProjectContextController, 'getInstance')
+
+            const result = await crossFile.codemapContext(
+                document,
+                { line: 0, character: 0 },
+                features.workspace,
+                fakeCancellationToken,
+                amazonQServiceManager
+            )
+
+            sinon.assert.notCalled(instanceStub)
+
+            assert.deepStrictEqual(result, {
+                supplementalContextItems: [],
+                strategy: 'Empty',
+            })
+        })
+
         it('should return codemap strategy when project context exists', async () => {
             const document = TextDocument.create(
                 'file:///testfile.java',
@@ -296,7 +338,8 @@ describe('crossFileContextUtil', function () {
                 document,
                 { line: 0, character: 0 },
                 features.workspace,
-                fakeCancellationToken
+                fakeCancellationToken,
+                amazonQServiceManager
             )
             assert.deepStrictEqual(result, {
                 supplementalContextItems: [{ content: 'someOtherContet', filePath: '/path/', score: 29.879 }],
@@ -321,7 +364,8 @@ describe('crossFileContextUtil', function () {
                 document,
                 { line: 0, character: 0 },
                 features.workspace,
-                fakeCancellationToken
+                fakeCancellationToken,
+                amazonQServiceManager
             )
             assert.deepStrictEqual(result, {
                 supplementalContextItems: [
