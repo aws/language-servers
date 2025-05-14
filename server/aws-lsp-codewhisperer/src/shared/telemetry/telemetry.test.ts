@@ -120,11 +120,11 @@ class HelloWorld
                     customizationArn: undefined,
                     totalCharacterCount: totalInsertCharacters,
                     acceptedCharacterCount: codeWhispererCharacters,
-                    credentialStartUrl: undefined,
                 },
                 {
                     percentage: codePercentage,
                     successCount: 1,
+                    credentialStartUrl: undefined,
                 }
             )
         })
