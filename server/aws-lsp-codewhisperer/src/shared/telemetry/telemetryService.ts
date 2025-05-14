@@ -18,18 +18,24 @@ import {
     TelemetryEvent,
     ChatAddMessageEvent,
     UserIntent,
+    InlineChatEvent,
 } from '../../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
     ChatConversationType,
+    ChatHistoryActionEvent,
     ChatInteractionType,
     ChatTelemetryEventName,
     CodeWhispererUserTriggerDecisionEvent,
+    ExportTabEvent,
     InteractWithMessageEvent,
+    LoadHistoryEvent,
+    UiClickEvent,
 } from './types'
 import { CodewhispererLanguage, getRuntimeLanguage } from '../languageDetection'
 import { CONVERSATION_ID_METRIC_KEY } from '../../language-server/chat/telemetry/chatTelemetryController'
 import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
+import { InlineChatResultParams } from '@aws/language-server-runtimes/protocol'
 
 export class TelemetryService {
     // Using Base service manager here to support fallback cases such as in codeWhispererServer
@@ -349,6 +355,8 @@ export class TelemetryService {
             acceptedCharacterCount: number
             totalCharacterCount: number
             customizationArn?: string
+            userWrittenCodeCharacterCount?: number
+            userWrittenCodeLineCount?: number
         },
         additionalParams: Partial<{
             percentage: number
@@ -374,12 +382,50 @@ export class TelemetryService {
             acceptedCharacterCount: params.acceptedCharacterCount,
             totalCharacterCount: params.totalCharacterCount,
             timestamp: new Date(Date.now()),
+            userWrittenCodeCharacterCount: params.userWrittenCodeCharacterCount,
+            userWrittenCodeLineCount: params.userWrittenCodeLineCount,
         }
         if (params.customizationArn) event.customizationArn = params.customizationArn
 
         return this.invokeSendTelemetryEvent({
             codeCoverageEvent: event,
         })
+    }
+
+    public emitExportTab(event: ExportTabEvent) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.ExportTab,
+                data: event,
+            })
+        }
+    }
+
+    public emitLoadHistory(event: LoadHistoryEvent) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.LoadHistory,
+                data: event,
+            })
+        }
+    }
+
+    public emitChatHistoryAction(event: ChatHistoryActionEvent) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.ChatHistoryAction,
+                data: event,
+            })
+        }
+    }
+
+    public emitUiClick(event: UiClickEvent) {
+        if (this.enableTelemetryEventsToDestination) {
+            this.telemetry.emitMetric({
+                name: ChatTelemetryEventName.UiClick,
+                data: { elementId: event.elementId },
+            })
+        }
     }
 
     public emitChatAddMessage(
@@ -419,12 +465,15 @@ export class TelemetryService {
             cwsprChatCodeContextLength: number
             cwsprChatFocusFileContextLength: number
             languageServerVersion?: string
+            requestIds?: string[]
         }>
     ) {
         if (!params.conversationId || !params.messageId) {
             return
         }
         const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
+        // truncate requestIds if longer than 875 so it does not go over field limit
+        const truncatedRequestIds = additionalParams.requestIds?.slice(0, 875)
 
         if (this.enableTelemetryEventsToDestination) {
             this.telemetry.emitMetric({
@@ -464,6 +513,7 @@ export class TelemetryService {
                     cwsprChatCodeContextLength: additionalParams.cwsprChatCodeContextLength,
                     result: 'Succeeded',
                     languageServerVersion: additionalParams.languageServerVersion,
+                    requestIds: truncatedRequestIds,
                 },
             })
         }
@@ -492,6 +542,31 @@ export class TelemetryService {
         }
         return this.invokeSendTelemetryEvent({
             chatAddMessageEvent: event,
+        })
+    }
+
+    public emitInlineChatResultLog(params: InlineChatResultParams) {
+        const event: InlineChatEvent = {
+            requestId: params.requestId,
+            timestamp: new Date(),
+            inputLength: params.inputLength,
+            numSelectedLines: params.selectedLines,
+            numSuggestionAddChars: params.suggestionAddedChars,
+            numSuggestionAddLines: params.suggestionAddedLines,
+            numSuggestionDelChars: params.suggestionDeletedChars,
+            numSuggestionDelLines: params.suggestionDeletedLines,
+            codeIntent: params.codeIntent,
+            userDecision: params.userDecision,
+            responseStartLatency: params.responseStartLatency,
+            responseEndLatency: params.responseEndLatency,
+        }
+        if (params.programmingLanguage) {
+            event.programmingLanguage = {
+                languageName: getRuntimeLanguage(params.programmingLanguage.languageName as CodewhispererLanguage),
+            }
+        }
+        return this.invokeSendTelemetryEvent({
+            inlineChatEvent: event,
         })
     }
 }

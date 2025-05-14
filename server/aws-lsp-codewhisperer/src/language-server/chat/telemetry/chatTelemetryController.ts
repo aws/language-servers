@@ -242,6 +242,7 @@ export class ChatTelemetryController {
                 cwsprChatCodeContextCount: metric.cwsprChatCodeContextCount,
                 cwsprChatFocusFileContextLength: metric.cwsprChatFocusFileContextLength,
                 languageServerVersion: metric.languageServerVersion,
+                requestIds: metric.requestIds,
             }
         )
     }
@@ -430,6 +431,9 @@ export class ChatTelemetryController {
                             codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
                         }
                         await this.emitInteractWithMessageMetric(params.tabId, clickLinkData)
+                        break
+                    case ChatUIEventName.HistoryButtonClick:
+                        this.#telemetryService.emitUiClick({ elementId: 'amazonq_historyTabButton' })
                         break
                 }
             }

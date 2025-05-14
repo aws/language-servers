@@ -22,6 +22,7 @@ export class TabFactory {
     private agenticMode: boolean = false
     private modelSelectionEnabled: boolean = false
     private region: Region = 'us-east-1'
+    initialTabId: string
 
     public static generateUniqueId() {
         // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
@@ -34,7 +35,9 @@ export class TabFactory {
         private defaultTabData: DefaultTabData,
         private quickActionCommands?: QuickActionCommandGroup[],
         private bannerMessage?: ChatMessage
-    ) {}
+    ) {
+        this.initialTabId = TabFactory.generateUniqueId()
+    }
 
     public createTab(disclaimerCardActive: boolean): MynahUIDataModel {
         const modelSelection = modelSelectionForRegion[this.region]
@@ -61,8 +64,8 @@ export class TabFactory {
                       ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
-                          body: `Hi, I'm Amazon Q. I can answer your software development questions. 
-                        Ask me to explain, debug, or optimize your code. 
+                          body: `Hi, I'm Amazon Q. I can answer your software development questions.
+                        Ask me to explain, debug, or optimize your code.
                         You can enter \`/\` to see a list of quick actions.`,
                       },
                       ...(!this.agenticMode

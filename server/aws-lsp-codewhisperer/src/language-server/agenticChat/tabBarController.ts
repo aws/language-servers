@@ -17,6 +17,8 @@ import {
 } from '@aws/language-server-runtimes-types'
 import { URI, Utils } from 'vscode-uri'
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { ChatHistoryActionType } from '../../shared/telemetry/types'
 
 /**
  * Controller for managing chat history and export functionality.
@@ -35,10 +37,12 @@ export class TabBarController {
     readonly #DebounceTime = 300 // milliseconds
     #features: Features
     #chatHistoryDb: ChatDatabase
+    #telemetryService: TelemetryService
 
-    constructor(features: Features, chatHistoryDb: ChatDatabase) {
+    constructor(features: Features, chatHistoryDb: ChatDatabase, telemetryService: TelemetryService) {
         this.#features = features
         this.#chatHistoryDb = chatHistoryDb
+        this.#telemetryService = telemetryService
     }
 
     /**
@@ -71,9 +75,20 @@ export class TabBarController {
         }
 
         if (searchFilter) {
+            const dbSize = this.#chatHistoryDb.getDatabaseFileSize()
+
             let list: ConversationItemGroup[] = await new Promise<any[]>(resolve => {
                 this.#searchTimeout = setTimeout(() => {
-                    const results = this.#chatHistoryDb.searchMessages(searchFilter)
+                    const { results, searchTime } = this.#chatHistoryDb.searchMessages(searchFilter)
+
+                    this.#telemetryService.emitChatHistoryAction({
+                        action: ChatHistoryActionType.Search,
+                        languageServerVersion: this.#features.runtime.serverInfo.version,
+                        amazonqHistoryFileSize: dbSize,
+                        amazonqTimeToSearchHistory: searchTime,
+                        result: 'Succeeded',
+                    })
+
                     resolve(results)
                 }, this.#DebounceTime)
             })
@@ -145,8 +160,18 @@ export class TabBarController {
                 const selectedTab = this.#chatHistoryDb.getTab(historyID)
                 await this.restoreTab(selectedTab)
             }
+            this.#telemetryService.emitChatHistoryAction({
+                action: ChatHistoryActionType.Open,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
         } else if (params.action === 'delete') {
             this.#chatHistoryDb.deleteHistory(historyID)
+            this.#telemetryService.emitChatHistoryAction({
+                action: ChatHistoryActionType.Delete,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
         } else if (params.action === 'export') {
             let openTabID = this.#chatHistoryDb.getOpenTabId(historyID)
 
@@ -164,7 +189,14 @@ export class TabBarController {
                 return { ...params, success: false }
             }
 
-            await this.onExportTab(openTabID)
+            const format = await this.onExportTab(openTabID)
+
+            this.#telemetryService.emitChatHistoryAction({
+                action: ChatHistoryActionType.Export,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                filenameExt: format,
+                result: 'Succeeded',
+            })
         } else {
             this.#features.logging.error(`Unsupported action: ${params.action}`)
             return { ...params, success: false }
@@ -175,7 +207,13 @@ export class TabBarController {
 
     async onTabBarAction(params: TabBarActionParams) {
         if (params.action === 'export' && params.tabId) {
-            await this.onExportTab(params.tabId)
+            const format = await this.onExportTab(params.tabId)
+
+            this.#telemetryService.emitExportTab({
+                filenameExt: format,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
 
             return { ...params, success: true }
         }
@@ -209,7 +247,9 @@ export class TabBarController {
             format,
         })
 
-        await this.#features.workspace.fs.writeFile(targetPath.path, content)
+        await this.#features.workspace.fs.writeFile(targetPath.fsPath, content)
+
+        return format
     }
 
     /**
@@ -242,6 +282,13 @@ export class TabBarController {
                     await this.restoreTab(conversation)
                 }
             }
+            this.#telemetryService.emitLoadHistory({
+                amazonqTimeToLoadHistory: this.#chatHistoryDb.getLoadTime() ?? -1,
+                amazonqHistoryFileSize: this.#chatHistoryDb.getDatabaseFileSize() ?? -1,
+                openTabCount: openConversations.length,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
         }
     }
 

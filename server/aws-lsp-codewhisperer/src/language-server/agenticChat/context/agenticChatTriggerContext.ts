@@ -111,7 +111,9 @@ export class AgenticChatTriggerContext {
 
         const hasWorkspace = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
 
-        let promptContent = prompt.escapedPrompt ?? prompt.prompt
+        // prompt.prompt is what user typed in the input, should be sent to backend
+        // prompt.escapedPrompt is HTML serialized string, which should only be used for UI.
+        let promptContent = prompt.prompt ?? prompt.escapedPrompt
 
         // When the user adds @sage context, ** gets prepended and appended to the prompt because of markdown.
         // This intereferes with routing logic thus we need to remove it

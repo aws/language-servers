@@ -122,6 +122,7 @@ import {
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
+import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -148,6 +149,7 @@ export class AgenticChatController implements ChatHandlers {
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
     #stoppedToolUses = new Set<string>()
+    #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -174,7 +176,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryService = telemetryService
         this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
-        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
+        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb, telemetryService)
         this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
@@ -341,6 +343,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController.dispose()
         this.#chatHistoryDb.close()
         this.#contextCommandsProvider?.dispose()
+        this.#userWrittenCodeTracker?.dispose()
     }
 
     async onListConversations(params: ListConversationsParams) {
@@ -387,6 +390,9 @@ export class AgenticChatController implements ChatHandlers {
 
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
+            if (triggerContext.programmingLanguage?.languageName) {
+                this.#userWrittenCodeTracker?.recordUsageCount(triggerContext.programmingLanguage.languageName)
+            }
             const isNewConversation = !session.conversationId
             session.contextListSent = false
             if (isNewConversation) {
@@ -571,8 +577,14 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.#validateRequest(currentRequestInput)
+            this.#truncateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
+
+            if (response.$metadata.requestId) {
+                metric.mergeWith({
+                    requestIds: [response.$metadata.requestId],
+                })
+            }
             this.#features.logging.info(
                 `generateAssistantResponse ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
             )
@@ -660,6 +672,7 @@ export class AgenticChatController implements ChatHandlers {
                     shouldDisplayMessage = false
                 }
                 metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
+                metric.setDimension('requestIds', metric.metric.requestIds)
             } else {
                 // Send an error card to UI?
                 toolResults = pendingToolUses.map(toolUse => ({
@@ -690,17 +703,21 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
-     * performs pre-validation of request before sending to backend service.
+     * performs truncation of request before sending to backend service.
      * @param request
      */
-    #validateRequest(request: GenerateAssistantResponseCommandInput) {
+    #truncateRequest(request: GenerateAssistantResponseCommandInput) {
         // Note: these logs are very noisy, but contain information redacted on the backend.
         this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
+        if (!request?.conversationState?.currentMessage?.userInputMessage) {
+            return
+        }
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
         if (message && message.length > generateAssistantResponseInputLimit) {
-            throw new AgenticChatError(
-                `Message is too long with ${message.length} characters, max is ${generateAssistantResponseInputLimit}`,
-                'PromptCharacterLimit'
+            this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
+            request.conversationState.currentMessage.userInputMessage.content = message.substring(
+                0,
+                generateAssistantResponseInputLimit
             )
         }
     }
@@ -1734,7 +1751,9 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async onInlineChatResult(handler: InlineChatResultParams) {}
+    async onInlineChatResult(params: InlineChatResultParams) {
+        await this.#telemetryService.emitInlineChatResultLog(params)
+    }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
         // Implementation based on https://github.com/aws/aws-toolkit-vscode/blob/1814cc84228d4bf20270574c5980b91b227f31cf/packages/core/src/amazonq/commons/controllers/contentController.ts#L38
@@ -1803,7 +1822,10 @@ export class AgenticChatController implements ChatHandlers {
                 ],
             },
         }
+
+        this.#userWrittenCodeTracker?.onQStartsMakingEdits()
         const applyResult = await this.#features.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
+        this.#userWrittenCodeTracker?.onQFinishesEdits()
 
         if (applyResult.applied) {
             this.#log(`Q Chat server inserted code successfully`)
@@ -2220,6 +2242,9 @@ export class AgenticChatController implements ChatHandlers {
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
+        if (newConfig.sendUserWrittenCodeMetrics) {
+            this.#userWrittenCodeTracker = UserWrittenCodeTracker.getInstance(this.#telemetryService)
+        }
         this.#log(`Chat configuration updated customizationArn to ${this.#customizationArn}`)
         /*
             The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination

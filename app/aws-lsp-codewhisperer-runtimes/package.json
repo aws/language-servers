@@ -11,10 +11,11 @@
         "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 node scripts/dev-server.js start",
         "stop-dev-server": "node scripts/dev-server.js stop",
         "test": "node scripts/test-runner.js",
-        "test-bundles": "node scripts/test-bundles.js"
+        "test-bundles": "node scripts/test-bundles.js",
+        "local-build": "node scripts/local-build.js"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.78",
+        "@aws/language-server-runtimes": "^0.2.80",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
         "cross-env": "^7.0.3",

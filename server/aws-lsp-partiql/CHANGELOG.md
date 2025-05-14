@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.9](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.8...lsp-partiql/v0.0.9) (2025-05-14)
+
+
+### Bug Fixes
+
+* bump runtimes and fix broken test ([#1323](https://github.com/aws/language-servers/issues/1323)) ([7d1a7b9](https://github.com/aws/language-servers/commit/7d1a7b9700ee2cc154dfe357ebbb62597d3f1582))
+
 ## [0.0.8](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.7...lsp-partiql/v0.0.8) (2025-05-01)
 
 

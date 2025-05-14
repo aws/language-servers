@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.8](https://github.com/aws/language-servers/compare/lsp-core/v0.0.7...lsp-core/v0.0.8) (2025-05-14)
+
+
+### Bug Fixes
+
+* update fileSearch toolSpec and implementation ([#1320](https://github.com/aws/language-servers/issues/1320)) ([4b18f25](https://github.com/aws/language-servers/commit/4b18f25dfb8595f18b2773dddaa5bfbc64cf519d))
+
 ## [0.0.7](https://github.com/aws/language-servers/compare/lsp-core/v0.0.6...lsp-core/v0.0.7) (2025-05-09)
 
 

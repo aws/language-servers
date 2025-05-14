@@ -242,6 +242,7 @@ export const createMynahUi = (
         },
         onReady: () => {
             messager.onUiReady()
+            messager.onTabAdd(tabFactory.initialTabId)
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
@@ -453,7 +454,7 @@ export const createMynahUi = (
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
             if (buttonId === ChatHistory.TabBarButtonId) {
-                messager.onListConversations()
+                messager.onListConversations(undefined, true)
                 return
             }
 
@@ -492,7 +493,15 @@ export const createMynahUi = (
     }
 
     const mynahUiProps: MynahUIProps = {
-        tabs: {},
+        tabs: {
+            [tabFactory.initialTabId]: {
+                isSelected: true,
+                store: {
+                    ...tabFactory.createTab(disclaimerCardActive),
+                    chatItems: tabFactory.getChatItems(true, programmingModeCardActive),
+                },
+            },
+        },
         defaults: {
             store: tabFactory.createTab(false),
         },
@@ -504,11 +513,12 @@ export const createMynahUi = (
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
             },
-            // RTS max user input is 600k, we need to leave around 500 chars to user to type the question
+            // Total model context window limit 600k.
+            // 500k for user input, 100k for context, history, system prompt.
             // beside, MynahUI will automatically crop it depending on the available chars left from the prompt field itself by using a 96 chars of threshold
-            // if we want to max user input as 599500, need to configure the maxUserInput as 599596
-            maxUserInput: 599596,
-            userInputLengthWarningThreshold: 550000,
+            // if we want to max user input as 500000, need to configure the maxUserInput as 500096
+            maxUserInput: 500096,
+            userInputLengthWarningThreshold: 450000,
         },
     }
 

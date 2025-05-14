@@ -19,8 +19,8 @@
         "test-unit": "mocha \"./out/**/*.test.js\""
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.78",
-        "@aws/lsp-core": "0.0.7",
+        "@aws/language-server-runtimes": "^0.2.80",
+        "@aws/lsp-core": "0.0.8",
         "vscode-languageserver": "^9.0.1"
     },
     "devDependencies": {

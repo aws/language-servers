@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.0.39](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.38...lsp-codewhisperer/v0.0.39) (2025-05-14)
+
+
+### Bug Fixes
+
+* **amazonq:** export q chat in windows not working due to invalid path ([#1330](https://github.com/aws/language-servers/issues/1330)) ([2dfc9cb](https://github.com/aws/language-servers/commit/2dfc9cbf53dad772ae40f96ce6e026b41d887a51))
+
+## [0.0.38](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.37...lsp-codewhisperer/v0.0.38) (2025-05-14)
+
+
+### Features
+
+* add userWrittenCodeTracker ([#1308](https://github.com/aws/language-servers/issues/1308)) ([c10819e](https://github.com/aws/language-servers/commit/c10819ea2c25ce564c75fb43a6792f3c919b757a))
+* **amazonq:** telemetry for chat history and export ([#1314](https://github.com/aws/language-servers/issues/1314)) ([aaa08a4](https://github.com/aws/language-servers/commit/aaa08a4f29ac34f85ec9badf975d6e2e8d114627))
+* merge updates for inline completions ([#1299](https://github.com/aws/language-servers/issues/1299)) ([44d81f0](https://github.com/aws/language-servers/commit/44d81f0b5754747d77bda60b40cc70950413a737))
+
+
+### Bug Fixes
+
+* allowing reading multiple files with fsRead, minor tool validation fix ([#1297](https://github.com/aws/language-servers/issues/1297)) ([6568811](https://github.com/aws/language-servers/commit/65688116c4ebf4e4bda821d30226bdb2a334ca3d))
+* **amazonq:** 500k max input limit in user input box. Align payload prompt with user typed prompt. ([#1325](https://github.com/aws/language-servers/issues/1325)) ([3338cc1](https://github.com/aws/language-servers/commit/3338cc1b5dcfd375385d7db2fa693870687dba8a))
+* bug fix for exportResultsArchive to call with profileArn as parameter ([#1300](https://github.com/aws/language-servers/issues/1300)) ([16162f6](https://github.com/aws/language-servers/commit/16162f67315d174acacb2feb163fa8d9044e147f))
+* bug in skip edit for userWrittenCode ([#1315](https://github.com/aws/language-servers/issues/1315)) ([86a136b](https://github.com/aws/language-servers/commit/86a136b5db9c3a3d15e12421e9b941107842b475))
+* bump runtimes and fix broken test ([#1323](https://github.com/aws/language-servers/issues/1323)) ([7d1a7b9](https://github.com/aws/language-servers/commit/7d1a7b9700ee2cc154dfe357ebbb62597d3f1582))
+* duplicate suggestion in inline response ([#1331](https://github.com/aws/language-servers/issues/1331)) ([23b0c90](https://github.com/aws/language-servers/commit/23b0c901b9f98490af93b75abe6ccd44ed56fddf))
+* truncate userInputMessage to first 500k characters ([#1327](https://github.com/aws/language-servers/issues/1327)) ([d6f84db](https://github.com/aws/language-servers/commit/d6f84db58f59afe85351380d7fad5320a2889f1c))
+* update fileSearch toolSpec and implementation ([#1320](https://github.com/aws/language-servers/issues/1320)) ([4b18f25](https://github.com/aws/language-servers/commit/4b18f25dfb8595f18b2773dddaa5bfbc64cf519d))
+* update ignore pattern of glob for sspc ([#1319](https://github.com/aws/language-servers/issues/1319)) ([6f56600](https://github.com/aws/language-servers/commit/6f566008a7b5b726418e3de535e55c63285de532))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.7 to ^0.0.8
+
 ## [0.0.37](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.36...lsp-codewhisperer/v0.0.37) (2025-05-09)
 
 

@@ -52,6 +52,7 @@ import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceMana
 // import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import path = require('path')
 import { getRelativePath } from '../workspaceContext/util'
+import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -276,6 +277,7 @@ export const CodewhispererServerFactory =
 
         // CodePercentage and codeDiff tracker have a dependency on TelemetryService, so initialization is also delayed to `onInitialized` handler
         let codePercentageTracker: CodePercentageTracker
+        let userWrittenCodeTracker: UserWrittenCodeTracker | undefined
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
         const onInlineCompletionHandler = async (
@@ -457,6 +459,8 @@ export const CodewhispererServerFactory =
             selectionRange?: Range
         ): Promise<InlineCompletionListWithReferences> => {
             codePercentageTracker.countInvocation(session.language)
+
+            userWrittenCodeTracker?.recordUsageCount(session.language)
 
             if (isNewSession) {
                 // Populate the session with information from codewhisperer response
@@ -644,9 +648,15 @@ export const CodewhispererServerFactory =
         const updateConfiguration = (updatedConfig: AmazonQWorkspaceConfig) => {
             logging.debug('Updating configuration of inline complete server.')
 
-            const { customizationArn, optOutTelemetryPreference } = updatedConfig
+            const { customizationArn, optOutTelemetryPreference, sendUserWrittenCodeMetrics } = updatedConfig
 
             codePercentageTracker.customizationArn = customizationArn
+            if (sendUserWrittenCodeMetrics) {
+                userWrittenCodeTracker = UserWrittenCodeTracker.getInstance(telemetryService)
+            }
+            if (userWrittenCodeTracker) {
+                userWrittenCodeTracker.customizationArn = customizationArn
+            }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
                             The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
@@ -706,6 +716,20 @@ export const CodewhispererServerFactory =
 
             p.contentChanges.forEach(change => {
                 codePercentageTracker.countTotalTokens(languageId, change.text, false)
+
+                const { sendUserWrittenCodeMetrics } = amazonQServiceManager.getConfiguration()
+                if (!sendUserWrittenCodeMetrics) {
+                    return
+                }
+                // exclude cases that the document change is from Q suggestions
+                const currentSession = sessionManager.getCurrentSession()
+                if (
+                    !currentSession?.suggestions.some(
+                        suggestion => suggestion?.insertText && suggestion.insertText === change.text
+                    )
+                ) {
+                    userWrittenCodeTracker?.countUserWrittenTokens(languageId, change.text)
+                }
             })
 
             // Record last user modification time for any document
@@ -719,6 +743,7 @@ export const CodewhispererServerFactory =
 
         return async () => {
             codePercentageTracker?.dispose()
+            userWrittenCodeTracker?.dispose()
             await codeDiffTracker?.shutdown()
         }
     }
