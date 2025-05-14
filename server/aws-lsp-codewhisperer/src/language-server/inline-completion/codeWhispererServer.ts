@@ -707,19 +707,23 @@ export const CodewhispererServerFactory =
                 workspace,
                 logging,
                 async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
-                    await telemetryService.emitUserModificationEvent({
-                        sessionId: entry.sessionId,
-                        requestId: entry.requestId,
-                        languageId: entry.languageId,
-                        customizationArn: entry.customizationArn,
-                        timestamp: new Date(),
-                        acceptedCharacterCount: entry.originalString.length,
-                        modificationPercentage: percentage,
-                        unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
-                        completionType: entry.completionType,
-                        triggerType: entry.triggerType,
-                        credentialStartUrl: entry.credentialStartUrl,
-                    })
+                    await telemetryService.emitUserModificationEvent(
+                        {
+                            sessionId: entry.sessionId,
+                            requestId: entry.requestId,
+                            languageId: entry.languageId,
+                            customizationArn: entry.customizationArn,
+                            timestamp: new Date(),
+                            acceptedCharacterCount: entry.originalString.length,
+                            modificationPercentage: percentage,
+                            unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
+                        },
+                        {
+                            completionType: entry.completionType,
+                            triggerType: entry.triggerType,
+                            credentialStartUrl: entry.credentialStartUrl,
+                        }
+                    )
                 }
             )
 

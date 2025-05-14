@@ -317,30 +317,34 @@ export class TelemetryService {
         })
     }
 
-    public emitUserModificationEvent(params: {
-        sessionId: string
-        requestId: string
-        languageId: CodewhispererLanguage
-        customizationArn?: string
-        timestamp: Date
-        modificationPercentage: number
-        acceptedCharacterCount: number
-        unmodifiedAcceptedCharacterCount: number
-        completionType: string
-        triggerType: string
-        credentialStartUrl: string | undefined
-    }) {
+    public emitUserModificationEvent(
+        params: {
+            sessionId: string
+            requestId: string
+            languageId: CodewhispererLanguage
+            customizationArn?: string
+            timestamp: Date
+            modificationPercentage: number
+            acceptedCharacterCount: number
+            unmodifiedAcceptedCharacterCount: number
+        },
+        additionalParams: {
+            completionType: string
+            triggerType: string
+            credentialStartUrl: string | undefined
+        }
+    ) {
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserModificationEvent = {
                 codewhispererRequestId: params.requestId,
                 codewhispererSessionId: params.sessionId,
-                codewhispererCompletionType: params.completionType,
-                codewhispererTriggerType: params.triggerType,
+                codewhispererCompletionType: additionalParams.completionType,
+                codewhispererTriggerType: additionalParams.triggerType,
                 codewhispererLanguage: getRuntimeLanguage(params.languageId),
                 codewhispererModificationPercentage: params.modificationPercentage,
                 codewhispererCharactersAccepted: params.acceptedCharacterCount,
                 codewhispererCharactersModified: params.unmodifiedAcceptedCharacterCount,
-                credentialStartUrl: params.credentialStartUrl,
+                credentialStartUrl: additionalParams.credentialStartUrl,
             }
             this.telemetry.emitMetric({
                 name: 'codewhisperer_userModification',
@@ -373,11 +377,11 @@ export class TelemetryService {
             customizationArn?: string
             userWrittenCodeCharacterCount?: number
             userWrittenCodeLineCount?: number
-            credentialStartUrl?: string
         },
         additionalParams: Partial<{
             percentage: number
             successCount: number
+            credentialStartUrl?: string
         }>
     ) {
         if (this.enableTelemetryEventsToDestination) {
@@ -390,7 +394,7 @@ export class TelemetryService {
                     codewhispererPercentage: additionalParams.percentage,
                     successCount: additionalParams.successCount,
                     codewhispererCustomizationArn: params.customizationArn,
-                    credentialStartUrl: params.credentialStartUrl,
+                    credentialStartUrl: additionalParams.credentialStartUrl,
                 },
             })
         }

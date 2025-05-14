@@ -1800,19 +1800,24 @@ describe('CodeWhisperer Server', () => {
 
                 await clock.tickAsync(5 * 60 * 1000 + 30)
 
-                sinon.assert.calledOnceWithExactly(telemetryServiceSpy, {
-                    sessionId: 'cwspr-session-id',
-                    requestId: 'cwspr-request-id',
-                    languageId: 'csharp',
-                    customizationArn: undefined,
-                    timestamp: new Date(startTime.getTime() + 5 * 60 * 1000),
-                    acceptedCharacterCount: 14,
-                    modificationPercentage: 0.9285714285714286,
-                    unmodifiedAcceptedCharacterCount: 1,
-                    completionType: 'Line',
-                    triggerType: 'OnDemand',
-                    credentialStartUrl: undefined,
-                })
+                sinon.assert.calledOnceWithExactly(
+                    telemetryServiceSpy,
+                    {
+                        sessionId: 'cwspr-session-id',
+                        requestId: 'cwspr-request-id',
+                        languageId: 'csharp',
+                        customizationArn: undefined,
+                        timestamp: new Date(startTime.getTime() + 5 * 60 * 1000),
+                        acceptedCharacterCount: 14,
+                        modificationPercentage: 0.9285714285714286,
+                        unmodifiedAcceptedCharacterCount: 1,
+                    },
+                    {
+                        completionType: 'Line',
+                        triggerType: 'OnDemand',
+                        credentialStartUrl: undefined,
+                    }
+                )
             })
         })
     })

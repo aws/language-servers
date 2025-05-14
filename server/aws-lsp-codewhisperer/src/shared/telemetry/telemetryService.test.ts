@@ -613,19 +613,23 @@ describe('TelemetryService', () => {
         telemetryService.updateOptOutPreference('OPTIN')
         telemetryService.updateEnableTelemetryEventsToDestination(true)
 
-        telemetryService.emitUserModificationEvent({
-            sessionId: 'test-session-id',
-            requestId: 'test-request-id',
-            languageId: 'typescript',
-            customizationArn: 'test-arn',
-            timestamp: new Date(),
-            modificationPercentage: 0.2,
-            acceptedCharacterCount: 100,
-            unmodifiedAcceptedCharacterCount: 80,
-            completionType: 'test-completion-type',
-            triggerType: 'test-trigger-type',
-            credentialStartUrl: 'test-url',
-        })
+        telemetryService.emitUserModificationEvent(
+            {
+                sessionId: 'test-session-id',
+                requestId: 'test-request-id',
+                languageId: 'typescript',
+                customizationArn: 'test-arn',
+                timestamp: new Date(),
+                modificationPercentage: 0.2,
+                acceptedCharacterCount: 100,
+                unmodifiedAcceptedCharacterCount: 80,
+            },
+            {
+                completionType: 'test-completion-type',
+                triggerType: 'test-trigger-type',
+                credentialStartUrl: 'test-url',
+            }
+        )
 
         const expectedEvent = {
             telemetryEvent: {
