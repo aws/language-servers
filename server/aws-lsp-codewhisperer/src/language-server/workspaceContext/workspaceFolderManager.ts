@@ -39,6 +39,7 @@ export class WorkspaceFolderManager {
     private workspaceState: WorkspaceState
     private remoteWorkspaceIdPromise: Promise<string>
     private remoteWorkspaceIdResolver!: (id: string) => void
+    private remoteWorkspaceIdRejecter!: (reason: Error) => void
     private workspaceFolders: WorkspaceFolder[]
     private credentialsProvider: CredentialsProvider
     private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 40 seconds
@@ -110,8 +111,9 @@ export class WorkspaceFolderManager {
             })
         })
 
-        this.remoteWorkspaceIdPromise = new Promise<string>(resolve => {
+        this.remoteWorkspaceIdPromise = new Promise<string>((resolve, reject) => {
             this.remoteWorkspaceIdResolver = resolve
+            this.remoteWorkspaceIdRejecter = reject
         })
         this.workspaceState = {
             remoteWorkspaceState: 'CREATION_PENDING',
@@ -432,7 +434,7 @@ export class WorkspaceFolderManager {
 
         if (!metadata) {
             // Workspace no longer exists, Recreate it.
-            this.resetRemoteWorkspaceId()
+            this.resetRemoteWorkspaceId() // workspaceId would change if remote record is gone
             await this.handleWorkspaceCreatedState(skipUploads)
             return
         }
@@ -473,16 +475,31 @@ export class WorkspaceFolderManager {
             return this.workspaceState.workspaceId
         }
 
-        // Otherwise, wait for the promise to resolve
-        return this.remoteWorkspaceIdPromise
+        // Otherwise, wait for the promise to resolve or catch the rejection and retry
+        try {
+            return await this.remoteWorkspaceIdPromise
+        } catch (error) {
+            this.logging.log(`Waiting for a new remote workspaceId`)
+            return this.waitForRemoteWorkspaceId()
+        }
     }
 
     private resetRemoteWorkspaceId() {
-        this.logging.log('Waiting for a new remote workspaceId')
         this.workspaceState.workspaceId = undefined
-        this.remoteWorkspaceIdPromise = new Promise<string>(resolve => {
+
+        // Store the old rejecter
+        const oldRejecter = this.remoteWorkspaceIdRejecter
+
+        // Create new promise first
+        this.remoteWorkspaceIdPromise = new Promise<string>((resolve, reject) => {
             this.remoteWorkspaceIdResolver = resolve
+            this.remoteWorkspaceIdRejecter = reject
         })
+
+        // Then reject the old promise if it exists
+        if (oldRejecter) {
+            oldRejecter(new Error('Remote workspaceId reset requested'))
+        }
     }
 
     private async startOptOutMonitor() {
