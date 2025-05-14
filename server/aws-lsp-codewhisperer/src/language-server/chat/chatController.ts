@@ -67,6 +67,8 @@ type ChatHandlers = Omit<
     | 'getSerializedChat'
     | 'onTabBarAction'
     | 'chatOptionsUpdate'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
 >
 
 export class ChatController implements ChatHandlers {
