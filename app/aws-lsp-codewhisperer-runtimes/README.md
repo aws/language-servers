@@ -25,6 +25,13 @@ or
 node ./out/iam-standalone.js --stdio
 ```
 
+### Creating packaged build for agent-standalone server and chat-client
+There is a single shortcut command to generate packaged build for the mentioned server and client without having to run multiple commands inside separate directories. 
+This aims to ease the integration with the clients for testing purposes. The command has to run inside `app/aws-lsp-codewhisperer-runtimes` directory. Following is the command:
+```bash
+npm run local-build
+```
+
 ### Creating (new) bundle configurations
 
 **It is important to note** that any configuration should atleast contain a variation of the [AmazonQServiceServer](https://github.com/aws/language-servers/blob/main/server/aws-lsp-codewhisperer/src/shared/amazonQServer.ts) (either IAM or Token). For standalone configurations, the

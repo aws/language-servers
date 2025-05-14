@@ -22,7 +22,7 @@ const baseConfig = {
         ],
     },
     output: {
-        path: __dirname,
+        path: path.resolve(__dirname, 'build'),
         globalObject: 'this',
         library: {
             type: 'umd',
@@ -44,8 +44,7 @@ const nodeJsBearerTokenBundleConfig = {
     },
     output: {
         ...baseConfig.output,
-        path: __dirname,
-        filename: `build/[name].js`,
+        filename: `[name].js`,
         chunkFormat: false,
     },
     resolve: {

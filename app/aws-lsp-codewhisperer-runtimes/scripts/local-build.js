@@ -5,6 +5,7 @@ const fs = require('fs')
 const SCRIPT_DIR = __dirname
 const ROOT_DIR = path.resolve(SCRIPT_DIR, '../../../')
 const CHAT_CLIENT_PATH = path.resolve(ROOT_DIR, 'chat-client')
+const CODE_WHISPERER_RUNTIMES_PATH = path.resolve(ROOT_DIR, 'app/aws-lsp-codewhisperer-runtimes')
 const CUSTOM_WEBPACK_PATH = path.join(SCRIPT_DIR, '../custom-webpack-config.js')
 
 function executeCommand(command, cwd) {
@@ -78,14 +79,12 @@ function createServerArtifact() {
         console.log('\nStep 3: Running compile in root directory...')
         executeCommand('npm run compile', ROOT_DIR)
 
-        // Step 4: Handle webpack config and run package
         console.log('\nStep 4: Running package in target directory...')
 
-        // Backup original webpack config and place custom one
         handleWebpackConfig('backup')
 
         try {
-            executeCommand('npm --prefix ./app/aws-lsp-codewhisperer-runtimes run package', ROOT_DIR)
+            executeCommand('npm run package', CODE_WHISPERER_RUNTIMES_PATH)
         } finally {
             handleWebpackConfig('restore')
         }
