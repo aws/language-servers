@@ -103,6 +103,9 @@ describe('TelemetryService', () => {
         firstCompletionDisplayLatency: 100,
         timeToFirstRecommendation: 200,
         getAggregatedUserTriggerDecision: () => 'Accept',
+        updateAndGetStreakLength() {
+            return -1
+        },
         startPosition: {
             line: 12,
             character: 23,
@@ -308,6 +311,8 @@ describe('TelemetryService', () => {
                     numberOfRecommendations: 1,
                     perceivedLatencyMilliseconds: undefined,
                     acceptedCharacterCount: 17,
+                    addedCharacterCount: 17,
+                    streakLength: -1,
                 },
             },
             optOutPreference: 'OPTIN',
@@ -590,6 +595,7 @@ describe('TelemetryService', () => {
                     acceptedCharacterCount: 123,
                     totalCharacterCount: 456,
                     timestamp: new Date(Date.now()),
+                    addedCharacterCount: 123,
                 },
             },
             optOutPreference: 'OPTIN',
@@ -704,6 +710,8 @@ describe('TelemetryService', () => {
                     timestamp: new Date(),
                     acceptedCharacterCount: 100,
                     unmodifiedAcceptedCharacterCount: 80,
+                    addedCharacterCount: 100,
+                    unmodifiedAddedCharacterCount: 80,
                 },
             },
             optOutPreference: 'OPTIN',
