@@ -24,6 +24,7 @@ import {
     ChatConversationType,
     ChatInteractionType,
     ChatTelemetryEventName,
+    CodeWhispererUserModificationEvent,
     CodeWhispererUserTriggerDecisionEvent,
     InteractWithMessageEvent,
 } from './types'
@@ -197,6 +198,9 @@ export class TelemetryService {
                 codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
                 codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
                 codewhispererCustomizationArn: session.customizationArn,
+                codewhispererCharactersAccepted: this.getAcceptedCharacterCount(session),
+                codewhispererSuggestionImportCount: session.codewhispererSuggestionImportCount,
+                codewhispererSupplementalContextStrategyId: session.supplementalMetadata?.strategy,
             }
             this.telemetry.emitMetric({
                 name: 'codewhisperer_userTriggerDecision',
@@ -243,6 +247,11 @@ export class TelemetryService {
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
         })
+    }
+
+    private getAcceptedCharacterCount(session: CodeWhispererSession) {
+        let acceptedSuggestion = session.suggestions.find(s => s.itemId === session.acceptedSuggestionId)
+        return acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
     }
 
     public emitChatInteractWithMessage(
@@ -317,7 +326,28 @@ export class TelemetryService {
         modificationPercentage: number
         acceptedCharacterCount: number
         unmodifiedAcceptedCharacterCount: number
+        completionType: string
+        triggerType: string
+        credentialStartUrl: string | undefined
     }) {
+        if (this.enableTelemetryEventsToDestination) {
+            const data: CodeWhispererUserModificationEvent = {
+                codewhispererRequestId: params.requestId,
+                codewhispererSessionId: params.sessionId,
+                codewhispererCompletionType: params.completionType,
+                codewhispererTriggerType: params.triggerType,
+                codewhispererLanguage: getRuntimeLanguage(params.languageId),
+                codewhispererModificationPercentage: params.modificationPercentage,
+                codewhispererCharactersAccepted: params.acceptedCharacterCount,
+                codewhispererCharactersModified: params.unmodifiedAcceptedCharacterCount,
+                credentialStartUrl: params.credentialStartUrl,
+            }
+            this.telemetry.emitMetric({
+                name: 'codewhisperer_userModification',
+                data: data,
+            })
+        }
+
         return this.invokeSendTelemetryEvent({
             userModificationEvent: {
                 sessionId: params.sessionId,
@@ -343,6 +373,7 @@ export class TelemetryService {
             customizationArn?: string
             userWrittenCodeCharacterCount?: number
             userWrittenCodeLineCount?: number
+            credentialStartUrl?: string
         },
         additionalParams: Partial<{
             percentage: number
@@ -358,6 +389,8 @@ export class TelemetryService {
                     codewhispererSuggestedTokens: params.acceptedCharacterCount,
                     codewhispererPercentage: additionalParams.percentage,
                     successCount: additionalParams.successCount,
+                    codewhispererCustomizationArn: params.customizationArn,
+                    credentialStartUrl: params.credentialStartUrl,
                 },
             })
         }

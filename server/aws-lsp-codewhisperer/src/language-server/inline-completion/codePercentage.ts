@@ -40,6 +40,7 @@ export class CodePercentageTracker {
                                 customizationArn: this.customizationArn,
                                 totalCharacterCount: event.codewhispererTotalTokens,
                                 acceptedCharacterCount: event.codewhispererSuggestedTokens,
+                                credentialStartUrl: event.credentialStartUrl,
                             },
                             {
                                 percentage: event.codewhispererPercentage,

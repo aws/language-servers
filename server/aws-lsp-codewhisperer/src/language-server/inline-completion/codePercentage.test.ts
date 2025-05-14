@@ -47,6 +47,7 @@ describe('CodePercentage', () => {
                 totalCharacterCount: 20,
                 acceptedCharacterCount: 10,
                 customizationArn: undefined,
+                credentialStartUrl: undefined,
             },
             {
                 percentage: 50,
@@ -86,6 +87,7 @@ describe('CodePercentage', () => {
                 totalCharacterCount: 20,
                 acceptedCharacterCount: 10,
                 customizationArn: undefined,
+                credentialStartUrl: undefined,
             },
             {
                 percentage: 50,
@@ -100,6 +102,7 @@ describe('CodePercentage', () => {
                 totalCharacterCount: 30,
                 acceptedCharacterCount: 10,
                 customizationArn: undefined,
+                credentialStartUrl: undefined,
             },
             {
                 percentage: 33.33,
@@ -125,6 +128,7 @@ describe('CodePercentage', () => {
                 totalCharacterCount: 20,
                 acceptedCharacterCount: 10,
                 customizationArn: 'test-arn',
+                credentialStartUrl: undefined,
             },
             {
                 percentage: 50,
@@ -148,6 +152,7 @@ describe('CodePercentage', () => {
                     totalCharacterCount: 51,
                     acceptedCharacterCount: 0,
                     customizationArn: undefined,
+                    credentialStartUrl: undefined,
                 },
                 {
                     percentage: 0,
@@ -169,6 +174,7 @@ describe('CodePercentage', () => {
                     totalCharacterCount: 1,
                     acceptedCharacterCount: 0,
                     customizationArn: undefined,
+                    credentialStartUrl: undefined,
                 },
                 {
                     percentage: 0,
@@ -190,6 +196,7 @@ describe('CodePercentage', () => {
                     totalCharacterCount: 1,
                     acceptedCharacterCount: 0,
                     customizationArn: undefined,
+                    credentialStartUrl: undefined,
                 },
                 {
                     percentage: 0,
@@ -211,6 +218,7 @@ describe('CodePercentage', () => {
                     totalCharacterCount: 1,
                     acceptedCharacterCount: 0,
                     customizationArn: undefined,
+                    credentialStartUrl: undefined,
                 },
                 {
                     percentage: 0,
@@ -236,6 +244,7 @@ describe('CodePercentage', () => {
                     totalCharacterCount: 10,
                     acceptedCharacterCount: 0,
                     customizationArn: undefined,
+                    credentialStartUrl: undefined,
                 },
                 {
                     percentage: 0,
@@ -268,6 +277,7 @@ describe('CodePercentage', () => {
                     totalCharacterCount: 4,
                     acceptedCharacterCount: 0,
                     customizationArn: undefined,
+                    credentialStartUrl: undefined,
                 },
                 {
                     percentage: 0,
@@ -289,6 +299,7 @@ describe('CodePercentage', () => {
                     totalCharacterCount: 0,
                     acceptedCharacterCount: 0,
                     customizationArn: undefined,
+                    credentialStartUrl: undefined,
                 },
                 {
                     percentage: 0,
