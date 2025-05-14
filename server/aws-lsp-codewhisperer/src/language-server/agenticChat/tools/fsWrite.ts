@@ -131,7 +131,7 @@ export class FsWrite {
     }
 
     public async requiresAcceptance(params: FsWriteParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
+        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths, 'fsWrite')
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {

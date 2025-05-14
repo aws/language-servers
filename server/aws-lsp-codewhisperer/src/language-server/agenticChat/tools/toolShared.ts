@@ -114,9 +114,15 @@ export async function requiresPathAcceptance(
     path: string,
     lsp: Features['lsp'],
     logging: Features['logging'],
-    approvedPaths?: Set<string>
+    approvedPaths?: Set<string>,
+    toolName?: string
 ): Promise<CommandValidation> {
     try {
+        // Skip check for fsWrite tool
+        if (toolName === 'fsWrite') {
+            return { requiresAcceptance: false }
+        }
+
         // First check if the path is already approved
         if (isPathApproved(path, approvedPaths)) {
             return { requiresAcceptance: false }
