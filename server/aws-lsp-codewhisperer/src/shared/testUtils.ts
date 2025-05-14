@@ -4,6 +4,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { SsoConnectionType } from './utils'
 import { stubInterface } from 'ts-sinon'
 import { StreamingClientServiceBase } from './streamingClientService'
+import { SessionData } from '../language-server/inline-completion/session/sessionManager'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -121,9 +122,13 @@ export const EXPECTED_RESULT = {
             insertText: EXPECTED_SUGGESTION[0].content,
             range: undefined,
             references: undefined,
+            mostRelevantMissingImports: undefined,
         },
     ],
+    partialResultToken: undefined,
 }
+
+export const EXPECTED_NEXT_TOKEN = 'randomNextToken'
 
 export const EXPECTED_REFERENCE = {
     licenseName: 'test license',
@@ -133,9 +138,39 @@ export const EXPECTED_REFERENCE = {
 }
 
 export const EXPECTED_SUGGESTION_LIST: Suggestion[] = [
-    { itemId: 'cwspr-item-id-1', content: 'recommendation without reference' },
+    {
+        itemId: 'cwspr-item-id-1',
+        content: 'recommendation without reference',
+    },
     { itemId: 'cwspr-item-id-2', content: 'recommendation with reference', references: [EXPECTED_REFERENCE] },
 ]
+
+export const EXPECTED_SUGGESTION_LIST_WITH_IMPORTS: Suggestion[] = [
+    {
+        itemId: 'cwspr-item-id-1',
+        content: 'recommendation with import',
+        mostRelevantMissingImports: [{ statement: 'import_foo' }],
+    },
+]
+
+export const EXPECTED_RESULT_WITH_IMPORTS = {
+    sessionId: EXPECTED_SESSION_ID,
+    items: [
+        {
+            itemId: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS[0].itemId,
+            insertText: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS[0].content,
+            range: undefined,
+            references: undefined,
+            mostRelevantMissingImports: [{ statement: 'import_foo' }],
+        },
+    ],
+    partialResultToken: undefined,
+}
+
+export const EXPECTED_RESULT_WITHOUT_IMPORTS = {
+    ...EXPECTED_RESULT_WITH_IMPORTS,
+    items: [{ ...EXPECTED_RESULT_WITH_IMPORTS.items[0], mostRelevantMissingImports: undefined }],
+}
 
 export const EXPECTED_RESULT_WITH_REFERENCES = {
     sessionId: EXPECTED_SESSION_ID,
@@ -145,6 +180,7 @@ export const EXPECTED_RESULT_WITH_REFERENCES = {
             insertText: EXPECTED_SUGGESTION_LIST[0].content,
             range: undefined,
             references: undefined,
+            mostRelevantMissingImports: undefined,
         },
         {
             itemId: EXPECTED_SUGGESTION_LIST[1].itemId,
@@ -161,8 +197,10 @@ export const EXPECTED_RESULT_WITH_REFERENCES = {
                     },
                 },
             ],
+            mostRelevantMissingImports: undefined,
         },
     ],
+    partialResultToken: undefined,
 }
 
 export const EXPECTED_RESULT_WITHOUT_REFERENCES = {
@@ -173,11 +211,32 @@ export const EXPECTED_RESULT_WITHOUT_REFERENCES = {
             insertText: EXPECTED_SUGGESTION_LIST[0].content,
             range: undefined,
             references: undefined,
+            mostRelevantMissingImports: undefined,
         },
     ],
+    partialResultToken: undefined,
 }
 
 export const EMPTY_RESULT = { items: [], sessionId: '' }
+
+export const SAMPLE_SESSION_DATA: SessionData = {
+    document: SOME_FILE,
+    startPosition: {
+        line: 0,
+        character: 0,
+    },
+    triggerType: 'OnDemand',
+    language: 'csharp',
+    requestContext: {
+        fileContext: {
+            filename: SOME_FILE.uri,
+            programmingLanguage: { languageName: 'csharp' },
+            leftFileContent: '',
+            rightFileContent: HELLO_WORLD_IN_CSHARP,
+        },
+        maxResults: 5,
+    },
+}
 
 export const createIterableResponse = <T>(data: T[]): AsyncIterable<T> => {
     let index = 0

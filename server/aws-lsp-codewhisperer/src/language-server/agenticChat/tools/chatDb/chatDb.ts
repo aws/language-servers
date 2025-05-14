@@ -50,6 +50,8 @@ export class ChatDatabase {
     #dbDirectory: string
     #features: Features
     #initialized: boolean = false
+    #loadTimeMs?: number
+    #dbFileSize?: number
 
     constructor(features: Features) {
         this.#features = features
@@ -61,14 +63,26 @@ export class ChatDatabase {
         )
         const workspaceId = this.getWorkspaceIdentifier()
         const dbName = `chat-history-${workspaceId}.json`
+        const dbPath = path.join(this.#dbDirectory, dbName)
 
-        this.#features.logging.log(`Initializing database at ${this.#dbDirectory}/${dbName}`)
+        this.#features.logging.log(`Initializing database at ${dbPath}`)
+
+        this.#features.workspace.fs
+            .getFileSize(dbPath)
+            .then(({ size }) => {
+                this.#dbFileSize = size
+            })
+            .catch(err => {
+                this.#features.logging.log(`Error getting db file size: ${err}`)
+            })
+
+        const startTime = Date.now()
 
         this.#db = new Loki(dbName, {
             adapter: new FileSystemAdapter(features.workspace, this.#dbDirectory),
             autosave: true,
             autoload: true,
-            autoloadCallback: () => this.databaseInitialize(),
+            autoloadCallback: () => this.databaseInitialize(startTime),
             autosaveInterval: 1000,
             persistenceMethod: 'fs',
         })
@@ -115,7 +129,15 @@ export class ChatDatabase {
         return 'no-workspace'
     }
 
-    async databaseInitialize() {
+    /**
+     * Gets the current size of the database file in bytes.
+     * @returns Promise that resolves to the file size in bytes, or undefined if the file doesn't exist
+     */
+    getDatabaseFileSize(): number | undefined {
+        return this.#dbFileSize
+    }
+
+    async databaseInitialize(startTime: number) {
         let entries = this.#db.getCollection(TabCollection)
         if (entries === null) {
             this.#features.logging.log(`Creating new collection`)
@@ -125,6 +147,7 @@ export class ChatDatabase {
             })
         }
         this.#initialized = true
+        this.#loadTimeMs = Date.now() - startTime
     }
 
     getOpenTabs() {
@@ -132,6 +155,10 @@ export class ChatDatabase {
             const collection = this.#db.getCollection<Tab>(TabCollection)
             return collection.find({ isOpen: true })
         }
+    }
+
+    getLoadTime() {
+        return this.#loadTimeMs
     }
 
     getTab(historyId: string) {
@@ -197,12 +224,14 @@ export class ChatDatabase {
      * - Groups the filtered results by date
      * - If no results are found, returns a single group with a "No matches found" message
      **/
-    searchMessages(filter: string): ConversationItemGroup[] {
+    searchMessages(filter: string): { results: ConversationItemGroup[]; searchTime: number } {
         let searchResults: ConversationItemGroup[] = []
+        const startTime = Date.now()
+
         if (this.#initialized) {
             if (!filter) {
                 this.#features.logging.log(`Empty search filter, returning all history`)
-                return this.getHistory()
+                return { results: this.getHistory(), searchTime: Date.now() - startTime }
             }
 
             this.#features.logging.log(`Searching for ${filter}`)
@@ -223,7 +252,7 @@ export class ChatDatabase {
             this.#features.logging.log(`No matches found`)
             searchResults = [{ items: [{ id: EMPTY_CONVERSATION_LIST_ID, description: 'No matches found' }] }]
         }
-        return searchResults
+        return { results: searchResults, searchTime: Date.now() - startTime }
     }
 
     /**

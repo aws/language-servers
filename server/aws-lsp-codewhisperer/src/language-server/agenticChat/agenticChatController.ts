@@ -121,6 +121,8 @@ import {
 } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
+import { CommandCategory } from './tools/executeBash'
+import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -147,6 +149,7 @@ export class AgenticChatController implements ChatHandlers {
     #additionalContextProvider: AdditionalContextProvider
     #contextCommandsProvider: ContextCommandsProvider
     #stoppedToolUses = new Set<string>()
+    #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -173,7 +176,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryService = telemetryService
         this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
-        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
+        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb, telemetryService)
         this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
@@ -340,6 +343,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController.dispose()
         this.#chatHistoryDb.close()
         this.#contextCommandsProvider?.dispose()
+        this.#userWrittenCodeTracker?.dispose()
     }
 
     async onListConversations(params: ListConversationsParams) {
@@ -386,6 +390,9 @@ export class AgenticChatController implements ChatHandlers {
 
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
+            if (triggerContext.programmingLanguage?.languageName) {
+                this.#userWrittenCodeTracker?.recordUsageCount(triggerContext.programmingLanguage.languageName)
+            }
             const isNewConversation = !session.conversationId
             session.contextListSent = false
             if (isNewConversation) {
@@ -569,7 +576,7 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.#validateRequest(currentRequestInput)
+            this.#truncateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
             this.#features.logging.info(
                 `generateAssistantResponse ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
@@ -667,7 +674,7 @@ export class AgenticChatController implements ChatHandlers {
                 }))
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
                     content =
-                        'Your toolUse input is incomplete because it is too large. Break this task down into multiple tool uses with smaller input. Do not apologize.'
+                        'Your toolUse input is incomplete, try again. If the error happens consistently, break this task down into multiple tool uses with smaller input. Do not apologize.'
                     shouldDisplayMessage = false
                 }
             }
@@ -688,17 +695,21 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
-     * performs pre-validation of request before sending to backend service.
+     * performs truncation of request before sending to backend service.
      * @param request
      */
-    #validateRequest(request: GenerateAssistantResponseCommandInput) {
+    #truncateRequest(request: GenerateAssistantResponseCommandInput) {
         // Note: these logs are very noisy, but contain information redacted on the backend.
         this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
+        if (!request?.conversationState?.currentMessage?.userInputMessage) {
+            return
+        }
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
         if (message && message.length > generateAssistantResponseInputLimit) {
-            throw new AgenticChatError(
-                `Message is too long with ${message.length} characters, max is ${generateAssistantResponseInputLimit}`,
-                'PromptCharacterLimit'
+            this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
+            request.conversationState.currentMessage.userInputMessage.content = message.substring(
+                0,
+                generateAssistantResponseInputLimit
             )
         }
     }
@@ -788,7 +799,7 @@ export class AgenticChatController implements ChatHandlers {
                         const approvedPaths = session.approvedPaths
 
                         // Pass the approved paths to the tool's requiresAcceptance method
-                        const { requiresAcceptance, warning } = await tool.requiresAcceptance(
+                        const { requiresAcceptance, warning, commandCategory } = await tool.requiresAcceptance(
                             toolUse.input as any,
                             approvedPaths
                         )
@@ -798,7 +809,8 @@ export class AgenticChatController implements ChatHandlers {
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
                                 requiresAcceptance,
-                                warning
+                                warning,
+                                commandCategory
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
@@ -1064,6 +1076,22 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    /**
+     * Get a description for the tooltip based on command category
+     * @param commandCategory The category of the command
+     * @returns A descriptive message for the tooltip
+     */
+    #getCommandCategoryDescription(category: CommandCategory): string | undefined {
+        switch (category) {
+            case CommandCategory.Mutate:
+                return 'This command may modify your code and/or files.'
+            case CommandCategory.Destructive:
+                return 'This command may cause significant data loss or damage.'
+            default:
+                return undefined
+        }
+    }
+
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
         if (toolUse.name !== 'executeBash') {
             return
@@ -1154,43 +1182,34 @@ export class AgenticChatController implements ChatHandlers {
 
         // For file operations and other tools, create appropriate confirmation UI
         let header: {
-            body: string
+            body: string | undefined
             status: { status: 'info' | 'success' | 'warning' | 'error'; icon: string; text: string }
         }
-        let body: string
+        let body: string | undefined
 
         switch (toolName) {
             case 'fsWrite':
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
                 header = {
-                    body: 'File Write',
+                    body: undefined,
                     status: {
-                        status: isAccept ? 'success' : 'error',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Allowed' : 'Rejected',
+                        status: 'success',
+                        icon: 'ok',
+                        text: 'Allowed',
                     },
                 }
-                body = isAccept
-                    ? `File modification allowed: \`${writeFilePath}\``
-                    : `File modification rejected: \`${writeFilePath}\``
                 break
 
             case 'fsRead':
             case 'listDirectory':
                 // Common handling for read operations
-                const path = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
-                const isDirectory = toolName === 'listDirectory'
                 header = {
-                    body: isDirectory ? 'Directory Listing' : 'File Read',
+                    body: undefined,
                     status: {
-                        status: isAccept ? 'success' : 'error',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Allowed' : 'Rejected',
+                        status: 'success',
+                        icon: 'ok',
+                        text: 'Allowed',
                     },
                 }
-                body = isAccept
-                    ? `${isDirectory ? 'Directory listing' : 'File read'} allowed: \`${path}\``
-                    : `${isDirectory ? 'Directory listing' : 'File read'} rejected: \`${path}\``
                 break
 
             case 'fileSearch':
@@ -1260,6 +1279,7 @@ export class AgenticChatController implements ChatHandlers {
         toolUse: ToolUse,
         requiresAcceptance: Boolean,
         warning?: string,
+        commandCategory?: CommandCategory,
         toolType?: string
     ): ChatResult {
         let buttons: Button[] = []
@@ -1289,6 +1309,7 @@ export class AgenticChatController implements ChatHandlers {
                           },
                           {
                               id: 'reject-shell-command',
+                              status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
                           },
@@ -1297,10 +1318,22 @@ export class AgenticChatController implements ChatHandlers {
                 header = {
                     status: requiresAcceptance
                         ? {
-                              icon: 'warning',
-                              status: 'warning',
+                              icon:
+                                  commandCategory === CommandCategory.Destructive
+                                      ? 'warning'
+                                      : commandCategory === CommandCategory.Mutate
+                                        ? 'info'
+                                        : 'none',
+                              status:
+                                  commandCategory === CommandCategory.Destructive
+                                      ? 'warning'
+                                      : commandCategory === CommandCategory.Mutate
+                                        ? 'info'
+                                        : undefined,
                               position: 'left',
-                              // TODO: Add `description` if necessary to show a tooltip
+                              description: this.#getCommandCategoryDescription(
+                                  commandCategory ?? CommandCategory.ReadOnly
+                              ),
                           }
                         : {},
                     body: 'shell',
@@ -1341,14 +1374,21 @@ export class AgenticChatController implements ChatHandlers {
                     },
                 ]
                 header = {
-                    icon: 'warning',
-                    iconForegroundStatus: 'warning',
+                    icon: 'tools',
+                    iconForegroundStatus: 'tools',
                     body: '#### Allow read-only tools outside your workspace',
                     buttons,
                 }
                 // ⚠️ Warning: This accesses files outside the workspace
-                const readFilePath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams).path
-                body = `I need permission to read files and list directories outside the workspace.\n\`${readFilePath}\``
+                if (toolUse.name === 'fsRead') {
+                    const paths = (toolUse.input as unknown as FsReadParams).paths
+                    const formattedPaths: string[] = []
+                    paths.forEach(element => formattedPaths.push(`\`${element}\``))
+                    body = `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
+                } else {
+                    const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
+                    body = `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
+                }
                 break
         }
 
@@ -1356,7 +1396,7 @@ export class AgenticChatController implements ChatHandlers {
             type: 'tool',
             messageId: this.#getMessageIdForToolUse(toolType, toolUse),
             header,
-            body: warning ? warning + (toolType === 'executeBash' ? '' : '\n\n') + body : body,
+            body: warning ? (toolType === 'executeBash' ? '' : '\n\n') + body : body,
         }
     }
 
@@ -1408,21 +1448,29 @@ export class AgenticChatController implements ChatHandlers {
         } else {
             chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
         }
+        let currentPaths = []
+        if (toolUse.name === 'fsRead') {
+            currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
+        } else {
+            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
+        }
 
-        const currentPath = (toolUse.input as unknown as FsReadParams | ListDirectoryParams | FileSearchParams)?.path
-        if (!currentPath) return
-        const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
-        // Check if path already exists in the list
-        const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
-        if (!isPathAlreadyProcessed) {
-            const currentFileDetail = {
-                relativeFilePath: currentPath,
-                lineRanges: [{ first: -1, second: -1 }],
+        if (!currentPaths) return
+
+        for (const currentPath of currentPaths) {
+            const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
+            // Check if path already exists in the list
+            const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
+            if (!isPathAlreadyProcessed) {
+                const currentFileDetail = {
+                    relativeFilePath: currentPath,
+                    lineRanges: [{ first: -1, second: -1 }],
+                }
+                chatResultStream.addMessageOperation(messageIdToUpdate, toolUse.name!, [
+                    ...existingPaths,
+                    currentFileDetail,
+                ])
             }
-            chatResultStream.addMessageOperation(messageIdToUpdate, toolUse.name!, [
-                ...existingPaths,
-                currentFileDetail,
-            ])
         }
         let title: string
         const itemCount = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths.length
@@ -1760,7 +1808,10 @@ export class AgenticChatController implements ChatHandlers {
                 ],
             },
         }
+
+        this.#userWrittenCodeTracker?.onQStartsMakingEdits()
         const applyResult = await this.#features.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
+        this.#userWrittenCodeTracker?.onQFinishesEdits()
 
         if (applyResult.applied) {
             this.#log(`Q Chat server inserted code successfully`)
@@ -1809,7 +1860,7 @@ export class AgenticChatController implements ChatHandlers {
     onLinkClick() {}
 
     async onReady() {
-        await this.#tabBarController.loadChats()
+        await this.restorePreviousChats()
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
@@ -2175,6 +2226,9 @@ export class AgenticChatController implements ChatHandlers {
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
+        if (newConfig.sendUserWrittenCodeMetrics) {
+            this.#userWrittenCodeTracker = UserWrittenCodeTracker.getInstance(this.#telemetryService)
+        }
         this.#log(`Chat configuration updated customizationArn to ${this.#customizationArn}`)
         /*
             The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
@@ -2195,6 +2249,14 @@ export class AgenticChatController implements ChatHandlers {
             return tools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
         }
         return tools
+    }
+
+    async restorePreviousChats() {
+        try {
+            await this.#tabBarController.loadChats()
+        } catch (error) {
+            this.#log('Error restoring previous chats: ' + error)
+        }
     }
 
     #createDeferred() {

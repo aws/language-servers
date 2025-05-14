@@ -47,6 +47,7 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
+import * as constants from './constants'
 import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
@@ -133,6 +134,9 @@ describe('AgenticChatController', () => {
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
+        // Override the response timeout for tests to avoid long waits
+        sinon.stub(constants, 'responseTimeoutMs').value(100)
+
         sinon.stub(chokidar, 'watch').returns({
             on: sinon.stub(),
             close: sinon.stub(),
@@ -176,6 +180,7 @@ describe('AgenticChatController', () => {
             readFile: sinon.stub().resolves(),
             writeFile: fsWriteFileStub.resolves(),
             rm: sinon.stub().resolves(),
+            getFileSize: sinon.stub().resolves(),
         }
 
         // Add agent with runTool method to testFeatures
@@ -187,6 +192,7 @@ describe('AgenticChatController', () => {
                 }))
             ),
             addTool: sinon.stub().resolves(),
+            removeTool: sinon.stub().resolves(),
         }
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
@@ -956,19 +962,20 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.data?.body, errorMsg)
         })
 
-        it('does not make backend request when input is too long ', async function () {
-            const input = 'X'.repeat(generateAssistantResponseInputLimit + 1)
-            const chatResult = await chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: input } },
-                mockCancellationToken
+        it('truncate input to 500k character ', async function () {
+            const input = 'X'.repeat(generateAssistantResponseInputLimit + 10)
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+            generateAssistantResponseStub.callsFake(() => {})
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: input } }, mockCancellationToken)
+            assert.ok(generateAssistantResponseStub.called)
+            const calledRequestInput: GenerateAssistantResponseCommandInput =
+                generateAssistantResponseStub.firstCall.firstArg
+            assert.deepStrictEqual(
+                calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
+                generateAssistantResponseInputLimit
             )
-
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.ok(typedChatResult.message.includes('too long'))
-            assert.ok(typedChatResult.data?.body?.includes('too long'))
-            assert.ok(generateAssistantResponseStub.notCalled)
         })
-
         it('shows generic errorMsg on internal errors', async function () {
             const chatResult = await chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
@@ -1066,26 +1073,6 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.message, 'invalid state')
         })
 
-        it('returns a user-friendly message when input is too long', async () => {
-            generateAssistantResponseStub.restore()
-            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
-            generateAssistantResponseStub.callsFake(() => {
-                const error = new Error('Input is too long')
-                throw error
-            })
-
-            const chatResult = await chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello with large context' } },
-                mockCancellationToken
-            )
-
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(
-                typedChatResult.data?.body,
-                'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.'
-            )
-        })
-
         describe('#extractDocumentContext', () => {
             const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
             let extractDocumentContextStub: sinon.SinonStub
@@ -1120,11 +1107,7 @@ describe('AgenticChatController', () => {
                 ]
 
                 sinon.stub(LocalProjectContextController, 'getInstance').resolves(localProjectContextController)
-
-                Object.defineProperty(localProjectContextController, 'isEnabled', {
-                    get: () => true,
-                })
-
+                sinon.stub(localProjectContextController, 'isIndexingEnabled').returns(true)
                 sinon.stub(localProjectContextController, 'queryVectorIndex').resolves(mockRelevantDocs)
 
                 await chatController.onChatPrompt(
