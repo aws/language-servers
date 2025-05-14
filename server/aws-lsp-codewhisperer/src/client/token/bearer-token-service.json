@@ -1379,7 +1379,13 @@
         },
         "CodeCoverageEvent": {
             "type": "structure",
-            "required": ["programmingLanguage", "acceptedCharacterCount", "totalCharacterCount", "timestamp"],
+            "required": [
+                "programmingLanguage",
+                "acceptedCharacterCount",
+                "totalCharacterCount",
+                "timestamp",
+                "addedCharacterCount"
+            ],
             "members": {
                 "customizationArn": {
                     "shape": "CustomizationArn"
@@ -1410,6 +1416,9 @@
                 },
                 "userWrittenCodeLineCount": {
                     "shape": "CodeCoverageEventUserWrittenCodeLineCountInteger"
+                },
+                "addedCharacterCount": {
+                    "shape": "PrimitiveInteger"
                 }
             }
         },
@@ -5835,7 +5844,9 @@
                 "modificationPercentage",
                 "timestamp",
                 "acceptedCharacterCount",
-                "unmodifiedAcceptedCharacterCount"
+                "unmodifiedAcceptedCharacterCount",
+                "addedCharacterCount",
+                "unmodifiedAddedCharacterCount"
             ],
             "members": {
                 "sessionId": {
@@ -5861,6 +5872,12 @@
                 },
                 "unmodifiedAcceptedCharacterCount": {
                     "shape": "PrimitiveInteger"
+                },
+                "addedCharacterCount": {
+                    "shape": "PrimitiveInteger"
+                },
+                "unmodifiedAddedCharacterCount": {
+                    "shape": "PrimitiveInteger"
                 }
             }
         },
@@ -5882,7 +5899,9 @@
                 "completionType",
                 "suggestionState",
                 "recommendationLatencyMilliseconds",
-                "timestamp"
+                "timestamp",
+                "addedCharacterCount",
+                "deletedCharacterCount"
             ],
             "members": {
                 "sessionId": {
@@ -5932,6 +5951,12 @@
                 },
                 "removedIdeDiagnostics": {
                     "shape": "IdeDiagnosticList"
+                },
+                "addedCharacterCount": {
+                    "shape": "PrimitiveInteger"
+                },
+                "deletedCharacterCount": {
+                    "shape": "PrimitiveInteger"
                 }
             }
         },
