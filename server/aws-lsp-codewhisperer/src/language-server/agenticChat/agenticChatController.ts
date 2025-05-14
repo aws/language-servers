@@ -31,6 +31,8 @@ import {
     TextDocument,
     ListMcpServersParams,
     McpServerClickParams,
+    DetailedListItem,
+    DetailedListGroup,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -358,45 +360,61 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onListMcpServers(params: ListMcpServersParams) {
-        console.log(params)
         const mcpManagerServerConfigs = McpManager.instance.getAllServerConfigs()
         const serversAndTools = McpManager.instance.listServersAndTools()
 
-        // Transform server configs into conversation items
-        const items = Array.from(mcpManagerServerConfigs.entries()).map(([serverName, config]) => {
+        // Transform server configs into DetailedListItem objects
+        const activeItems: DetailedListItem[] = []
+        const disabledItems: DetailedListItem[] = []
+
+        Array.from(mcpManagerServerConfigs.entries()).forEach(([serverName, config]) => {
             const toolNames = serversAndTools[serverName] || []
             const toolsCount = toolNames.length
 
-            return {
-                id: `mcp-server-${serverName}`,
+            const item: DetailedListItem = {
                 title: serverName,
-                subtitle: config.disabled ? 'Disabled' : `${toolsCount} tools available`,
                 description: `Command: ${config.command}`,
-                timestamp: new Date().toISOString(),
-                status: !config.disabled, // true if enabled, false if disabled
-                metadata: {
-                    serverName,
-                    toolCount: toolsCount,
-                    command: config.command,
-                    args: config.args,
-                    disabled: config.disabled,
-                },
+            }
+
+            if (config.disabled) {
+                disabledItems.push(item)
+            } else {
+                activeItems.push(item)
             }
         })
 
-        // Group the items
-        const serverGroup = {
-            title: 'MCP Servers',
-            items,
+        // Create the groups
+        const groups: DetailedListGroup[] = []
+
+        if (activeItems.length > 0) {
+            groups.push({
+                groupName: 'Active',
+                children: activeItems,
+            })
         }
 
+        if (disabledItems.length > 0) {
+            groups.push({
+                groupName: 'Disabled',
+                children: disabledItems,
+            })
+        }
+
+        // Return the result in the expected format
         return {
-            header: { title: 'MCP Servers' },
-            list: [serverGroup],
+            header: {
+                title: 'MCP Servers',
+                description:
+                    "Q automatically uses any MCP servers that have been added, so you don't have to add them as context.",
+            },
+            list: groups,
         }
     }
     async onMcpServerClick(params: McpServerClickParams) {
-        console.log(params)
+        return {
+            id: params.id,
+            success: true,
+        }
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {

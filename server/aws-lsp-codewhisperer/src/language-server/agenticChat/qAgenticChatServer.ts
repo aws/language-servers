@@ -136,6 +136,14 @@ export const QAgenticChatServer =
             return chatController.onConversationClick(params)
         })
 
+        chat.onListMcpServers(params => {
+            return chatController.onListMcpServers(params)
+        })
+
+        chat.onMcpServerClick(params => {
+            return chatController.onMcpServerClick(params)
+        })
+
         chat.onCreatePrompt((params) => {
             return chatController.onCreatePrompt(params)
         })

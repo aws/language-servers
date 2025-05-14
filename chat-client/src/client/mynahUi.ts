@@ -1072,49 +1072,80 @@ ${params.message}`,
     const listMcpServers = (params: ListMcpServersResult) => {
         // Convert the ListMcpServersResult to the format expected by mynahUi.openDetailedList
         const detailedList: any = {
-            selectable: params.selectable,
-            textDirection: params.textDirection,
+            selectable: false,
+            textDirection: 'row',
             header: params.header
                 ? {
                       title: params.header.title,
                       description: params.header.description,
-                      actions: params.header.actions?.map(action => ({
-                          ...action,
-                          icon: toMynahIcon(action.icon),
-                      })),
+                      actions: [
+                          {
+                              id: 'add-new-mcp',
+                              icon: toMynahIcon('plus'),
+                              status: 'clear',
+                              description: 'Add new MCP',
+                          },
+                          {
+                              id: 'refresh-mcp-list',
+                              icon: toMynahIcon('refresh'),
+                              status: 'clear',
+                              description: 'Refresh MCP servers',
+                          },
+                      ],
                   }
                 : undefined,
             filterOptions: params.filterOptions?.map(filter => ({
                 ...filter,
                 icon: toMynahIcon(filter.icon),
             })),
-            filterActions: params.filterActions?.map(action => ({
-                ...action,
-                icon: toMynahIcon(action.icon),
-            })),
             list: params.list.map(group => ({
                 groupName: group.groupName,
-                children: group.children?.map(item => ({
-                    title: item.title,
-                    description: item.description,
-                    icon: toMynahIcon(item.icon),
-                    status: item.status
-                        ? {
-                              icon: toMynahIcon(item.status.icon),
-                              text: item.status.text,
-                          }
-                        : undefined,
-                    iconForegroundStatus: item.iconForegroundStatus,
-                    groupActions: item.groupActions,
-                    actions: item.actions?.map(action => ({
-                        id: action.id,
-                        text: action.text,
-                        description: action.description,
-                        icon: toMynahIcon(action.icon),
-                        status: action.status,
-                        disabled: action.disabled,
-                    })),
-                })),
+                children: group.children?.map(item => {
+                    // Determine icon based on group name and status
+                    let icon = 'ok-circled'
+                    const iconForegroundStatus = 'success'
+
+                    if (group.groupName === 'Disabled') {
+                        icon = 'block'
+                    }
+
+                    // Create actions based on group name
+                    const actions = []
+                    if (group.groupName === 'Active') {
+                        actions.push({
+                            id: 'open-mcp-xx',
+                            icon: toMynahIcon('right-open'),
+                        })
+                    } else if (group.groupName === 'Disabled') {
+                        actions.push({
+                            id: 'enable-mcp-' + item.title.toLowerCase(),
+                            icon: toMynahIcon('ok-circled'),
+                            text: 'Enable',
+                            description: 'Enable',
+                        })
+                        actions.push({
+                            id: 'delete-mcp-' + item.title.toLowerCase(),
+                            icon: toMynahIcon('trash'),
+                            text: 'Delete',
+                            description: 'Delete',
+                        })
+                        actions.push({
+                            id: 'open-mcp-xx',
+                            icon: toMynahIcon('right-open'),
+                            disabled: true,
+                        })
+                    }
+
+                    return {
+                        id: 'mcp-server-' + item.title.toLowerCase(),
+                        title: item.title,
+                        description: item.description,
+                        icon: toMynahIcon(icon),
+                        iconForegroundStatus: iconForegroundStatus,
+                        groupActions: false,
+                        actions: actions,
+                    }
+                }),
             })),
         }
 
@@ -1126,11 +1157,8 @@ ${params.message}`,
         const mcpSheet = mynahUi.openDetailedList({
             detailedList: detailedList,
             events: {
-                onFilterValueChange: (filterValues: Record<string, any>, isValid: boolean) => {
+                onFilterValueChange: (filterValues: Record<string, any>) => {
                     messager.onListMcpServers(filterValues)
-                },
-                onFilterActionClick: (action, filterValues?: Record<string, any>, isValid?: boolean) => {
-                    // Handle filter actions if needed
                 },
                 onKeyPress: (e: KeyboardEvent) => {
                     if (e.key === 'Escape') {
@@ -1155,10 +1183,7 @@ ${params.message}`,
                     // No need to store reference
                 },
                 onTitleActionClick: button => {
-                    // Handle title actions if needed
-                },
-                onBackClick: () => {
-                    // Handle back click if needed
+                    messager.onMcpServerClick(button.id)
                 },
             },
         })
