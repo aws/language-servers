@@ -327,7 +327,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
 
         // Hack to inject a dummy profile name as it's not used by client IDE for now, if client IDE starts consuming name field then we should also pass both profile name and arn from the IDE
-        // when service is ready to take more tps, revert https://github.com/aws/language-servers/pull/1329
+        // When service is ready to take more tps, revert https://github.com/aws/language-servers/pull/1329 to add profile validation
         const newProfile: AmazonQDeveloperProfile = {
             arn: newProfileArn,
             name: 'Client provided profile',
