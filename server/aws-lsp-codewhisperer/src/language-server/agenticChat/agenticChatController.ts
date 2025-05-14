@@ -578,6 +578,12 @@ export class AgenticChatController implements ChatHandlers {
             // Phase 3: Request Execution
             this.#truncateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
+
+            if (response.$metadata.requestId) {
+                metric.mergeWith({
+                    requestIds: [response.$metadata.requestId],
+                })
+            }
             this.#features.logging.info(
                 `generateAssistantResponse ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
             )
@@ -665,6 +671,7 @@ export class AgenticChatController implements ChatHandlers {
                     shouldDisplayMessage = false
                 }
                 metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
+                metric.setDimension('requestIds', metric.metric.requestIds)
             } else {
                 // Send an error card to UI?
                 toolResults = pendingToolUses.map(toolUse => ({

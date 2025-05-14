@@ -250,6 +250,7 @@ export type AddMessageEvent = {
     cwsprChatConversationType: ChatConversationType
     codewhispererCustomizationArn?: string
     languageServerVersion?: string
+    requestIds?: string[]
 
     // context related metrics
     cwsprChatHasContextList?: boolean

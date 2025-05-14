@@ -457,12 +457,15 @@ export class TelemetryService {
             cwsprChatCodeContextLength: number
             cwsprChatFocusFileContextLength: number
             languageServerVersion?: string
+            requestIds?: string[]
         }>
     ) {
         if (!params.conversationId || !params.messageId) {
             return
         }
         const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
+        // truncate requestIds if longer than 875 so it does not go over field limit
+        const truncatedRequestIds = additionalParams.requestIds?.slice(0, 875)
 
         if (this.enableTelemetryEventsToDestination) {
             this.telemetry.emitMetric({
@@ -502,6 +505,7 @@ export class TelemetryService {
                     cwsprChatCodeContextLength: additionalParams.cwsprChatCodeContextLength,
                     result: 'Succeeded',
                     languageServerVersion: additionalParams.languageServerVersion,
+                    requestIds: truncatedRequestIds,
                 },
             })
         }

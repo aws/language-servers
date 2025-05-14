@@ -801,6 +801,7 @@ describe('TelemetryService', () => {
                     codewhispererCustomizationArn: 'cust-123',
                     result: 'Succeeded',
                     languageServerVersion: undefined,
+                    requestIds: undefined,
                     cwsprChatHasContextList: true,
                     cwsprChatFolderContextCount: 0,
                     cwsprChatFileContextCount: 0,
