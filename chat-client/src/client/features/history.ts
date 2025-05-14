@@ -75,7 +75,7 @@ export class ChatHistoryList {
 
     private onActionClick = (action: ChatItemButton) => {
         const conversationAction = this.getConversationAction(action.text)
-        this.messager.onMcpServerClick(action.id, conversationAction)
+        this.messager.onConversationClick(action.id, conversationAction)
     }
 
     private onClose = () => {
