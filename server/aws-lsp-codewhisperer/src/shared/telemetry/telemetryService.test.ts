@@ -735,6 +735,7 @@ describe('TelemetryService', () => {
                     requestLength: 100,
                     responseLength: 3000,
                     numberOfCodeBlocks: 0,
+                    agenticCodingMode: true,
                 },
                 {
                     cwsprChatHasContextList: true,
@@ -800,6 +801,7 @@ describe('TelemetryService', () => {
                     cwsprChatActiveEditorImportCount: undefined,
                     codewhispererCustomizationArn: 'cust-123',
                     result: 'Succeeded',
+                    enabled: true,
                     languageServerVersion: undefined,
                     requestIds: undefined,
                     cwsprChatHasContextList: true,

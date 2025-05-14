@@ -27,6 +27,7 @@ export class ChatSessionService {
     public contextListSent: boolean = false
     #abortController?: AbortController
     #conversationId?: string
+    #conversationType: string = 'AgenticChat'
     #deferredToolExecution: Record<string, DeferredHandler> = {}
     #toolUseLookup: Map<
         string,
@@ -36,6 +37,14 @@ export class ChatSessionService {
     // Map to store approved paths to avoid repeated validation
     #approvedPaths: Set<string> = new Set<string>()
     #serviceManager?: AmazonQBaseServiceManager
+
+    public getConversationType(): string {
+        return this.#conversationType
+    }
+
+    public setConversationType(value: string) {
+        this.#conversationType = value
+    }
 
     public get conversationId(): string | undefined {
         return this.#conversationId
