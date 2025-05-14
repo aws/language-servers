@@ -58,6 +58,8 @@ const TEST_ENDPOINT_EU_CENTRAL_1 = 'http://amazon-q-in-eu-central-1-endpoint'
 describe('AmazonQTokenServiceManager', () => {
     let codewhispererServiceStub: StubbedInstance<CodeWhispererServiceToken>
     let codewhispererStubFactory: sinon.SinonStub<any[], StubbedInstance<CodeWhispererServiceToken>>
+    let sdkInitializatorSpy: sinon.SinonSpy
+    let getListAllAvailableProfilesHandlerStub: sinon.SinonStub
 
     let amazonQTokenServiceManager: AmazonQTokenServiceManager
     let features: TestFeatures
@@ -70,9 +72,25 @@ describe('AmazonQTokenServiceManager', () => {
         AWS_Q_ENDPOINTS.set('us-east-1', TEST_ENDPOINT_US_EAST_1)
         AWS_Q_ENDPOINTS.set('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1)
 
+        getListAllAvailableProfilesHandlerStub = sinon
+            .stub()
+            .resolves(
+                Promise.resolve(mockedProfiles).then(() =>
+                    new Promise(resolve => setTimeout(resolve, 1)).then(() => mockedProfiles)
+                )
+            )
+
+        sinon
+            .stub(qDeveloperProfilesFetcherModule, 'getListAllAvailableProfilesHandler')
+            .returns(getListAllAvailableProfilesHandlerStub)
+
         AmazonQTokenServiceManager.resetInstance()
 
         features = new TestFeatures()
+
+        sdkInitializatorSpy = Object.assign(sinon.spy(features.sdkInitializator), {
+            v2: sinon.spy(features.sdkInitializator.v2),
+        })
 
         codewhispererServiceStub = stubInterface<CodeWhispererServiceToken>()
         // @ts-ignore
@@ -811,7 +829,9 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.throws(() => amazonQTokenServiceManager.getCodewhispererService())
             })
 
-            it.skip('fetches profiles only from 1 region associated with requested profileArn', async () => {
+            // Due to service limitation, validation was removed for the sake of recovering API availability
+            // When service is ready to take more tps, revert https://github.com/aws/language-servers/pull/1329 to add profile validation
+            it('should not call service to validate profile and always assume its validness', async () => {
                 setupServiceManager(true)
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
@@ -826,6 +846,9 @@ describe('AmazonQTokenServiceManager', () => {
                     },
                     {} as CancellationToken
                 )
+
+                sinon.assert.notCalled(getListAllAvailableProfilesHandlerStub)
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
             })
         })
     })
