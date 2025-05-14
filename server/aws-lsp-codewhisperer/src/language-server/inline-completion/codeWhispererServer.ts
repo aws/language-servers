@@ -495,7 +495,7 @@ export const CodewhispererServerFactory =
             sessionManager.activateSession(session)
 
             // Process suggestions to apply Empty or Filter filters
-            const filteredSuggestions = session.suggestions
+            const filteredSuggestions = suggestionResponse.suggestions
                 // Empty suggestion filter
                 .filter(suggestion => {
                     if (suggestion.content === '') {
