@@ -18,6 +18,7 @@ import {
     TelemetryEvent,
     ChatAddMessageEvent,
     UserIntent,
+    InlineChatEvent,
 } from '../../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
@@ -34,6 +35,7 @@ import {
 import { CodewhispererLanguage, getRuntimeLanguage } from '../languageDetection'
 import { CONVERSATION_ID_METRIC_KEY } from '../../language-server/chat/telemetry/chatTelemetryController'
 import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
+import { InlineChatResultParams } from '@aws/language-server-runtimes/protocol'
 
 export class TelemetryService {
     // Using Base service manager here to support fallback cases such as in codeWhispererServer
@@ -528,6 +530,31 @@ export class TelemetryService {
         }
         return this.invokeSendTelemetryEvent({
             chatAddMessageEvent: event,
+        })
+    }
+
+    public emitInlineChatResultLog(params: InlineChatResultParams) {
+        const event: InlineChatEvent = {
+            requestId: params.requestId,
+            timestamp: new Date(),
+            inputLength: params.inputLength,
+            numSelectedLines: params.selectedLines,
+            numSuggestionAddChars: params.suggestionAddedChars,
+            numSuggestionAddLines: params.suggestionAddedLines,
+            numSuggestionDelChars: params.suggestionDeletedChars,
+            numSuggestionDelLines: params.suggestionDeletedLines,
+            codeIntent: params.codeIntent,
+            userDecision: params.userDecision,
+            responseStartLatency: params.responseStartLatency,
+            responseEndLatency: params.responseEndLatency,
+        }
+        if (params.programmingLanguage) {
+            event.programmingLanguage = {
+                languageName: getRuntimeLanguage(params.programmingLanguage.languageName as CodewhispererLanguage),
+            }
+        }
+        return this.invokeSendTelemetryEvent({
+            inlineChatEvent: event,
         })
     }
 }
