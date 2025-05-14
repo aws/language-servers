@@ -98,6 +98,8 @@ export async function loadMcpServerConfigs(
                     typeof (entry as any).initializationTimeout === 'number'
                         ? (entry as any).initializationTimeout
                         : undefined,
+                timeout:
+                    typeof (entry as any).executionTimeout === 'number' ? (entry as any).executionTimeout : undefined,
                 __configPath__: fsPath,
             }
 

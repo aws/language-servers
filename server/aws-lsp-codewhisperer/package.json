@@ -38,6 +38,7 @@
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
         "archiver": "^7.0.1",
+        "async-mutex": "^0.5.0",
         "aws-sdk": "^2.1403.0",
         "chokidar": "^4.0.3",
         "deepmerge": "^4.3.1",

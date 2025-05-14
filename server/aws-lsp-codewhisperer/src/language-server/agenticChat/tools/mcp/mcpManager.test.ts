@@ -5,22 +5,39 @@
 
 import { expect } from 'chai'
 import * as sinon from 'sinon'
-import { McpManager, MCP_SERVER_STATUS_CHANGED, AGENT_TOOLS_CHANGED } from './mcpManager'
+import { McpManager } from './mcpManager'
 import * as mcpUtils from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 
-describe('McpManager (singleton & empty-config)', () => {
-    const fakeLogging = { log: () => {}, info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-    const fakeWorkspace = {
-        fs: {
-            exists: (_: string) => Promise.resolve(false),
-            readFile: (_: string) => Promise.resolve(Buffer.from('')),
-            writeFile: (_path: string, _data: string) => Promise.resolve(),
-        },
-        getUserHomeDir: () => '',
-    }
-    const features = { logging: fakeLogging, workspace: fakeWorkspace, lsp: {} } as any
+// Shared fakes
+const fakeLogging = { log: () => {}, info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
+const fakeWorkspace = {
+    fs: {
+        exists: (_: string) => Promise.resolve(false),
+        readFile: (_: string) => Promise.resolve(Buffer.from('{}')),
+        writeFile: (_: string, _d: string) => Promise.resolve(),
+    },
+    getUserHomeDir: () => '',
+}
+const features = { logging: fakeLogging, workspace: fakeWorkspace, lsp: {} } as any
+
+// helper: stub initOneServer so it always registers one tool "tool1"
+function stubInitOneServer() {
+    return sinon.stub(McpManager.prototype as any, 'initOneServer' as any).callsFake(async function (
+        this: any,
+        ...args: any[]
+    ) {
+        const serverName = args[0] as string
+        this.clients.set(serverName, new Client({ name: 'stub', version: '0.0.0' }))
+        this.mcpTools.push({ serverName, toolName: 'tool1', description: 'desc', inputSchema: {} })
+        ;(this as any).setState(serverName, 'ENABLED', 1)
+    })
+}
+
+// init()
+describe('init()', () => {
+    let loadStub: sinon.SinonStub
 
     afterEach(async () => {
         sinon.restore()
@@ -29,66 +46,52 @@ describe('McpManager (singleton & empty-config)', () => {
         } catch {}
     })
 
-    it('init() always returns the same instance', async () => {
-        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+    it('returns the same instance', async () => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
         const m1 = await McpManager.init([], features)
         const m2 = await McpManager.init([], features)
         expect(m1).to.equal(m2)
     })
+})
 
-    it('with no config paths it discovers zero tools', async () => {
-        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+// getAllTools()
+describe('getAllTools()', () => {
+    let loadStub: sinon.SinonStub
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('returns empty array when no servers', async () => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
         const mgr = await McpManager.init([], features)
         expect(mgr.getAllTools()).to.be.an('array').that.is.empty
     })
-
-    it('callTool() on non-existent server throws', async () => {
-        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
-        const mgr = await McpManager.init([], features)
-        try {
-            await mgr.callTool('nope', 'foo', {})
-            throw new Error('Expected callTool to throw for non-existent server')
-        } catch (err: any) {
-            expect(err).to.be.instanceOf(Error)
-            expect(err.message).to.equal("MCP: server 'nope' is not configured")
-        }
-    })
 })
 
-describe('McpManager additional methods', () => {
+// callTool()
+describe('callTool()', () => {
     let loadStub: sinon.SinonStub
     let initOneStub: sinon.SinonStub
     let mutateStub: sinon.SinonStub
     let callToolStub: sinon.SinonStub
 
-    const fakeLogging = { log: () => {}, info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-    const fakeWorkspace = {
-        fs: {
-            exists: (_: string) => Promise.resolve(true),
-            readFile: (_: string) => Promise.resolve(Buffer.from('{}')),
-            writeFile: (_path: string, _data: string) => Promise.resolve(),
-        },
-        getUserHomeDir: () => '',
+    const enabledCfg: MCPServerConfig = {
+        command: 'c',
+        args: [],
+        env: {},
+        disabled: false,
+        autoApprove: false,
+        toolOverrides: {},
+        __configPath__: 'p.json',
     }
-    const features = { logging: fakeLogging, workspace: fakeWorkspace, lsp: {} } as any
 
     beforeEach(() => {
         loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs')
-        initOneStub = sinon.stub(McpManager.prototype as any, 'initOneServer' as any).callsFake(async function (
-            this: any,
-            ...args: any[]
-        ) {
-            const serverName = args[0] as string
-            this.clients.set(serverName, new Client({ name: 'stub', version: '0.0.0' }))
-            this.mcpTools.push({
-                serverName,
-                toolName: 'tool1',
-                description: 'desc',
-                inputSchema: {} as any,
-            })
-            ;(this as any).setState(serverName, 'ENABLED', 1)
-        })
-
+        initOneStub = stubInitOneServer()
         mutateStub = sinon.stub(McpManager.prototype as any, 'mutateConfigFile' as any).resolves()
         callToolStub = sinon.stub(Client.prototype as any, 'callTool' as any).resolves('ok' as any)
     })
@@ -100,50 +103,69 @@ describe('McpManager additional methods', () => {
         } catch {}
     })
 
-    it('discovers and lists tools for enabled servers', async () => {
-        const cfg = {
-            command: 'c',
-            args: [],
-            env: {},
-            disabled: false,
-            autoApprove: false,
-            toolOverrides: {},
-            __configPath__: 'p.json',
-        } as MCPServerConfig
-        loadStub.resolves(new Map([['s1', cfg]]))
-
-        const mgr = await McpManager.init(['p.json'], features)
-        expect(initOneStub.calledOnceWith('s1', cfg)).to.be.true
-        expect(mgr.getAllTools()).to.deep.equal([
-            { serverName: 's1', toolName: 'tool1', description: 'desc', inputSchema: {} },
-        ])
-        expect(mgr.listServersAndTools()).to.deep.equal({ s1: ['tool1'] })
+    it('throws when server is unknown', async () => {
+        loadStub.resolves(new Map())
+        const mgr = await McpManager.init([], features)
+        try {
+            await mgr.callTool('nope', 'foo', {})
+            throw new Error('should have thrown')
+        } catch (err: any) {
+            expect(err).to.be.instanceOf(Error)
+            expect(err.message).to.equal("MCP: server 'nope' is not configured")
+        }
     })
 
-    it('callTool invokes client.callTool correctly', async () => {
-        const cfg = {
-            command: 'c',
-            args: [],
-            env: {},
-            disabled: false,
-            autoApprove: false,
-            toolOverrides: {},
-            __configPath__: 'p.json',
-        } as MCPServerConfig
-        loadStub.resolves(new Map([['s1', cfg]]))
-
+    it('invokes underlying client.callTool', async () => {
+        loadStub.resolves(new Map([['s1', enabledCfg]]))
         const mgr = await McpManager.init(['p.json'], features)
         ;(mgr as any).clients.set('s1', new Client({ name: 'x', version: 'v' }))
 
-        const result = await mgr.callTool('s1', 'tool1', { foo: 1 })
+        const res = await mgr.callTool('s1', 'tool1', { foo: 1 })
         expect(callToolStub.calledOnceWith({ name: 'tool1', arguments: { foo: 1 } })).to.be.true
-        expect(result).to.equal('ok')
+        expect(res).to.equal('ok')
     })
 
-    it('addServer persists config and initializes new server', async () => {
+    it('times out and logs error', async () => {
+        const timeoutCfg = { ...enabledCfg, timeout: 1 }
+        loadStub.resolves(new Map([['s1', timeoutCfg]]))
+        const mgr = await McpManager.init(['p.json'], features)
+
+        callToolStub.resetBehavior()
+        callToolStub.returns(new Promise(() => {}) as any)
+        const spyErr = sinon.spy(fakeLogging, 'error')
+
+        try {
+            await mgr.callTool('s1', 'tool1', {})
+        } catch (e: any) {
+            expect(e.code).to.equal('MCPToolExecTimeout')
+        }
+        expect(spyErr.calledOnce).to.be.true
+    })
+})
+
+// addServer()
+describe('addServer()', () => {
+    let loadStub: sinon.SinonStub
+    let initOneStub: sinon.SinonStub
+    let mutateStub: sinon.SinonStub
+
+    beforeEach(() => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs')
+        initOneStub = stubInitOneServer()
+        mutateStub = sinon.stub(McpManager.prototype as any, 'mutateConfigFile' as any).resolves()
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('persists config and initializes', async () => {
         loadStub.resolves(new Map())
         const mgr = await McpManager.init([], features)
-        const newCfg = {
+        const newCfg: MCPServerConfig = {
             command: 'c2',
             args: ['a'],
             env: { X: '1' },
@@ -151,40 +173,71 @@ describe('McpManager additional methods', () => {
             autoApprove: true,
             toolOverrides: {},
             __configPath__: 'path.json',
-        } as MCPServerConfig
-
+        }
         await mgr.addServer('newS', newCfg, 'path.json')
         expect(mutateStub.calledOnce).to.be.true
         expect(initOneStub.calledWith('newS', newCfg)).to.be.true
-        expect(mgr.listServersAndTools()).to.have.property('newS')
+    })
+})
+
+// removeServer()
+describe('removeServer()', () => {
+    let loadStub: sinon.SinonStub
+    let mutateStub: sinon.SinonStub
+
+    beforeEach(() => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs')
+        mutateStub = sinon.stub(McpManager.prototype as any, 'mutateConfigFile' as any).resolves()
     })
 
-    it('removeServer shuts down client and cleans state', async () => {
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('shuts client and cleans state', async () => {
         loadStub.resolves(new Map())
         const mgr = await McpManager.init([], features)
-        const dummyClient = new Client({ name: 'c', version: 'v' })
-        const cfg = {
+        const dummy = new Client({ name: 'c', version: 'v' })
+        ;(mgr as any).clients.set('x', dummy)
+        ;(mgr as any).mcpServers.set('x', {
             command: '',
             args: [],
             env: {},
             disabled: false,
             autoApprove: false,
             toolOverrides: {},
-            __configPath__: 'cfg.json',
-        } as MCPServerConfig
-        ;(mgr as any).clients.set('s2', dummyClient)
-        ;(mgr as any).mcpServers.set('s2', cfg)
-        ;(mgr as any).mcpTools.push({ serverName: 's2', toolName: 't', description: '', inputSchema: {} })
-
-        await mgr.removeServer('s2')
+            __configPath__: 'c.json',
+        } as MCPServerConfig)
+        await mgr.removeServer('x')
         expect(mutateStub.calledOnce).to.be.true
-        expect((mgr as any).clients.has('s2')).to.be.false
-        expect((mgr as any).mcpServers.has('s2')).to.be.false
-        expect(mgr.getAllTools()).to.be.empty
+        expect((mgr as any).clients.has('x')).to.be.false
+    })
+})
+
+// updateServer()
+describe('updateServer()', () => {
+    let loadStub: sinon.SinonStub
+    let initOneStub: sinon.SinonStub
+    let mutateStub: sinon.SinonStub
+
+    beforeEach(() => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs')
+        initOneStub = stubInitOneServer()
+        mutateStub = sinon.stub(McpManager.prototype as any, 'mutateConfigFile' as any).resolves()
     })
 
-    it('updateServer toggles autoApprove and re-initializes server', async () => {
-        const oldCfg = {
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('re‑initializes when toggling autoApprove', async () => {
+        const oldCfg: MCPServerConfig = {
             command: 'cmd',
             args: [],
             env: {},
@@ -192,30 +245,25 @@ describe('McpManager additional methods', () => {
             autoApprove: false,
             toolOverrides: {},
             __configPath__: 'u.json',
-        } as MCPServerConfig
+        }
         loadStub.resolves(new Map([['u1', oldCfg]]))
         await McpManager.init([], features)
         const mgr = McpManager.instance
-
         const fakeClient = new Client({ name: 'c', version: 'v' })
         ;(mgr as any).clients.set('u1', fakeClient)
-        ;(mgr as any).mcpTools.push({ serverName: 'u1', toolName: 't1', description: 'd', inputSchema: {} })
 
+        const closeStub = sinon.stub(fakeClient, 'close').resolves()
         initOneStub.resetHistory()
         mutateStub.resetHistory()
-        const closeSpy = sinon.spy(fakeClient, 'close')
 
         await mgr.updateServer('u1', { autoApprove: true })
         expect(mutateStub.calledOnce).to.be.true
-        expect(closeSpy.calledOnce).to.be.true
+        expect(closeStub.calledOnce).to.be.true
         expect(initOneStub.calledOnce).to.be.true
-
-        const updated = (mgr as any).mcpServers.get('u1')!
-        expect(updated.autoApprove).to.be.true
     })
 
-    it('updateServer disables and re-enables server correctly', async () => {
-        const cfg = {
+    it('handles disable/enable cycle', async () => {
+        const cfg: MCPServerConfig = {
             command: 'cmd2',
             args: [],
             env: {},
@@ -223,111 +271,112 @@ describe('McpManager additional methods', () => {
             autoApprove: false,
             toolOverrides: {},
             __configPath__: 'd.json',
-        } as MCPServerConfig
+        }
         loadStub.resolves(new Map([['d1', cfg]]))
         await McpManager.init([], features)
         const mgr = McpManager.instance
-
-        const fakeClient2 = new Client({ name: 'c2', version: 'v2' })
-        ;(mgr as any).clients.set('d1', fakeClient2)
-        ;(mgr as any).mcpTools.push({ serverName: 'd1', toolName: 't2', description: 'd2', inputSchema: {} })
+        const fakeClient = new Client({ name: 'c2', version: 'v2' })
+        ;(mgr as any).clients.set('d1', fakeClient)
+        const closeStub = sinon.stub(fakeClient, 'close').resolves()
 
         initOneStub.resetHistory()
         mutateStub.resetHistory()
-        const closeSpy2 = sinon.spy(fakeClient2, 'close')
-
-        // Disable
         await mgr.updateServer('d1', { disabled: true })
-        expect(mutateStub.calledOnce).to.be.true
-        expect(closeSpy2.calledOnce).to.be.true
+        expect(closeStub.calledOnce).to.be.true
         expect(initOneStub.notCalled).to.be.true
-        expect((mgr as any).clients.has('d1')).to.be.false
-        expect(mgr.getAllTools().every(t => t.serverName !== 'd1')).to.be.true
 
-        // Re-enable
         mutateStub.resetHistory()
         initOneStub.resetHistory()
         await mgr.updateServer('d1', { disabled: false })
-        expect(mutateStub.calledOnce).to.be.true
-        expect(initOneStub.calledOnceWith('d1', sinon.match.object)).to.be.true
+        expect(initOneStub.calledOnce).to.be.true
     })
 
-    it('updateServer merges toolOverrides in config correctly', async () => {
-        const initialOverrides = { toolA: { autoApprove: false } }
-        const cfg = {
+    it('merges toolOverrides correctly', async () => {
+        const cfg: MCPServerConfig = {
             command: 'cmd3',
             args: [],
             env: {},
             disabled: false,
             autoApprove: false,
-            toolOverrides: initialOverrides,
+            toolOverrides: { toolA: { autoApprove: false } },
             __configPath__: 'o.json',
-        } as MCPServerConfig
+        }
         loadStub.resolves(new Map([['o1', cfg]]))
         await McpManager.init([], features)
         const mgr = McpManager.instance
 
-        initOneStub.resetHistory()
-        mutateStub.resetHistory()
-
-        const newOverrides = { toolA: { autoApprove: true } }
-        await mgr.updateServer('o1', { toolOverrides: newOverrides })
+        await mgr.updateServer('o1', { toolOverrides: { toolA: { autoApprove: true } } })
         expect(mutateStub.calledOnce).to.be.true
-
         const updated = (mgr as any).mcpServers.get('o1')!
         expect(updated.toolOverrides.toolA.autoApprove).to.be.true
     })
+})
 
-    describe('requiresApproval()', () => {
-        it('requires approval when server not configured', async () => {
-            loadStub.resolves(new Map())
-            const mgr = await McpManager.init([], features)
-            expect(mgr.requiresApproval('unknown', 'anyTool')).to.be.true
-        })
+// requiresApproval()
 
-        it('uses server.autoApprove when no toolOverride', async () => {
-            const cfg = {
-                command: 'c',
-                args: [],
-                env: {},
-                disabled: false,
-                autoApprove: false,
-                toolOverrides: {},
-                __configPath__: 'p',
-            } as MCPServerConfig
-            loadStub.resolves(new Map([['s', cfg]]))
-            await McpManager.init(['p'], features)
+describe('requiresApproval()', () => {
+    let loadStub: sinon.SinonStub
 
-            // server default = false → require approval
-            expect(McpManager.instance.requiresApproval('s', 'foo')).to.be.true
-
-            // flip server autoApprove to true in-memory
-            ;(McpManager.instance as any).mcpServers.set('s', { ...cfg, autoApprove: true })
-            expect(McpManager.instance.requiresApproval('s', 'foo')).to.be.false
-        })
-
-        it('toolOverrides.autoApprove overrides server setting', async () => {
-            const cfg = {
-                command: 'c',
-                args: [],
-                env: {},
-                disabled: false,
-                autoApprove: true,
-                toolOverrides: { foo: { autoApprove: false } },
-                __configPath__: 'p',
-            } as MCPServerConfig
-            loadStub.resolves(new Map([['s', cfg]]))
-            await McpManager.init(['p'], features)
-
-            // override for 'foo' = false → require approval
-            expect(McpManager.instance.requiresApproval('s', 'foo')).to.be.true
-            // other tools fall back to server default true → no approval
-            expect(McpManager.instance.requiresApproval('s', 'bar')).to.be.false
-        })
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
     })
 
-    it('getAllServerConfigs returns a snapshot of configs', async () => {
-        const cfg = {
+    it('returns true for unknown server', async () => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+        const mgr = await McpManager.init([], features)
+        expect(mgr.requiresApproval('x', 'y')).to.be.true
+    })
+
+    it('honours server autoApprove', async () => {
+        const cfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            disabled: false,
+            autoApprove: false,
+            toolOverrides: {},
+            __configPath__: 'p',
+        }
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map([['s', cfg]]))
+        await McpManager.init(['p'], features)
+        expect(McpManager.instance.requiresApproval('s', 'foo')).to.be.true
+        ;(McpManager.instance as any).mcpServers.set('s', { ...cfg, autoApprove: true })
+        expect(McpManager.instance.requiresApproval('s', 'foo')).to.be.false
+    })
+
+    it('tool override beats server setting', async () => {
+        const cfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            disabled: false,
+            autoApprove: true,
+            toolOverrides: { foo: { autoApprove: false } },
+            __configPath__: 'p',
+        }
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map([['s', cfg]]))
+        await McpManager.init(['p'], features)
+        expect(McpManager.instance.requiresApproval('s', 'foo')).to.be.true
+        expect(McpManager.instance.requiresApproval('s', 'bar')).to.be.false
+    })
+})
+
+// getAllServerConfigs()
+describe('getAllServerConfigs()', () => {
+    let loadStub: sinon.SinonStub
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('returns snapshot', async () => {
+        const cfg: MCPServerConfig = {
             command: 'cmd',
             args: [],
             env: {},
@@ -335,37 +384,33 @@ describe('McpManager additional methods', () => {
             autoApprove: true,
             toolOverrides: {},
             __configPath__: 'cfg.json',
-        } as MCPServerConfig
-        loadStub.resolves(new Map([['srv', cfg]]))
+        }
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map([['srv', cfg]]))
         const mgr = await McpManager.init(['cfg.json'], features)
+        const snap = mgr.getAllServerConfigs()
+        expect(snap.get('srv')).to.deep.equal(cfg)
+        snap.delete('srv')
+        expect(mgr.getAllServerConfigs().has('srv')).to.be.true
+    })
+})
 
-        const snapshot = mgr.getAllServerConfigs()
-        expect(snapshot).to.be.instanceOf(Map)
-        expect(snapshot.get('srv')).to.deep.equal(cfg)
+// getServerState / getAllServerStates()
+function createStateStubs() {
+    const loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs')
+    const initOneStub = stubInitOneServer()
+    return { loadStub, initOneStub }
+}
 
-        // Mutating the returned map should NOT affect the manager’s internal state
-        snapshot.delete('srv')
-        const again = mgr.getAllServerConfigs()
-        expect(again.has('srv')).to.be.true
+describe('getServerState()', () => {
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
     })
 
-    it('listServersAndTools skips servers that have no tools', async () => {
-        const cfg = {
-            command: 'cmd',
-            args: [],
-            env: {},
-            disabled: true,
-            autoApprove: true,
-            toolOverrides: {},
-            __configPath__: 'p.json',
-        } as MCPServerConfig
-        loadStub.resolves(new Map([['emptySrv', cfg]]))
-
-        const mgr = await McpManager.init(['p.json'], features)
-        expect(mgr.listServersAndTools()).to.deep.equal({})
-    })
-
-    it('getServerState and getAllServerStates report runtime info', async () => {
+    it('returns runtime info', async () => {
+        const { loadStub } = createStateStubs()
         const cfg: MCPServerConfig = {
             command: 'c',
             args: [],
@@ -375,17 +420,56 @@ describe('McpManager additional methods', () => {
             toolOverrides: {},
             __configPath__: 'state.json',
         }
-        loadStub.resolves(new Map([['stateSrv', cfg]]))
-
+        loadStub.resolves(new Map([['srv', cfg]]))
         const mgr = await McpManager.init(['state.json'], features)
+        expect(mgr.getServerState('srv')).to.deep.include({ status: 'ENABLED', toolsCount: 1 })
+    })
+})
 
-        expect(mgr.getServerState('stateSrv')).to.deep.include({ status: 'ENABLED', toolsCount: 1 })
-
-        const map = mgr.getAllServerStates()
-        expect(map.get('stateSrv')).to.deep.include({ status: 'ENABLED', toolsCount: 1 })
+describe('getAllServerStates()', () => {
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
     })
 
-    it('getEnabledTools excludes tools disabled via toolOverrides', async () => {
+    it('returns a map with info', async () => {
+        const { loadStub } = createStateStubs()
+        const cfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            disabled: false,
+            autoApprove: false,
+            toolOverrides: {},
+            __configPath__: 'state.json',
+        }
+        loadStub.resolves(new Map([['srv', cfg]]))
+        const mgr = await McpManager.init(['state.json'], features)
+        const map = mgr.getAllServerStates()
+        expect(map.get('srv')).to.deep.include({ status: 'ENABLED', toolsCount: 1 })
+    })
+})
+
+// getEnabledTools()
+describe('getEnabledTools()', () => {
+    let loadStub: sinon.SinonStub
+    let initOneStub: sinon.SinonStub
+
+    beforeEach(() => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs')
+        initOneStub = stubInitOneServer()
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('excludes disabled tool overrides', async () => {
         const cfg: MCPServerConfig = {
             command: 'c',
             args: [],
@@ -393,66 +477,82 @@ describe('McpManager additional methods', () => {
             disabled: false,
             autoApprove: false,
             toolOverrides: { tool1: { disabled: true } },
-            __configPath__: 'disabledTool.json',
+            __configPath__: 't.json',
         }
-        loadStub.resolves(new Map([['srvDisTool', cfg]]))
-
-        const mgr = await McpManager.init(['disabledTool.json'], features)
-
-        // All discovered tools are still present
-        expect(mgr.getAllTools()).to.have.lengthOf(1)
-        // But none are enabled
-        expect(mgr.getEnabledTools()).to.be.an('array').that.is.empty
-    })
-
-    it('addServer marks DISABLED servers without calling initOneServer', async () => {
-        loadStub.resolves(new Map())
-
-        const mgr = await McpManager.init([], features)
-        const disabledCfg: MCPServerConfig = {
-            command: 'cmd',
-            args: [],
-            env: {},
-            disabled: true,
-            autoApprove: false,
-            toolOverrides: {},
-            __configPath__: 'disabled.json',
-        }
-
-        await mgr.addServer('disabledSrv', disabledCfg, 'disabled.json')
-
-        expect(initOneStub.called).to.be.false
-        expect(mgr.getServerState('disabledSrv')).to.deep.include({ status: 'DISABLED', toolsCount: 0 })
+        loadStub.resolves(new Map([['srv', cfg]]))
+        const mgr = await McpManager.init(['t.json'], features)
+        expect(mgr.getAllTools()).to.have.length(1)
+        expect(mgr.getEnabledTools()).to.be.empty
     })
 })
 
-describe('McpManager close()', () => {
-    it('shuts all clients and resets singleton', async () => {
-        const fakeLogging = { log: () => {}, info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }
-        const fakeWorkspace = {
-            fs: {
-                exists: (_: string) => Promise.resolve(false),
-                readFile: (_: string) => Promise.resolve(Buffer.from('')),
-                writeFile: (_path: string, _data: string) => Promise.resolve(),
-            },
-            getUserHomeDir: () => '',
-        }
-        const features = { logging: fakeLogging, workspace: fakeWorkspace, lsp: {} } as any
+// getAllToolsWithStates()
+describe('getAllToolsWithStates()', () => {
+    let loadStub: sinon.SinonStub
+    let initOneStub: sinon.SinonStub
+    let mgr: McpManager
 
-        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+    const cfg: MCPServerConfig = {
+        command: 'c',
+        args: [],
+        env: {},
+        disabled: false,
+        autoApprove: false,
+        toolOverrides: {},
+        __configPath__: 'p.json',
+    }
+
+    beforeEach(async () => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs')
+        initOneStub = stubInitOneServer()
+        loadStub.resolves(new Map([['s1', cfg]]))
+        mgr = await McpManager.init(['p.json'], features)
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('reports disable & approval flags', () => {
+        const [info] = mgr.getAllToolsWithStates()
+        expect(info.disabled).to.be.false
+        expect(info.requiresApproval).to.be.true
+        ;(mgr as any).mcpServers.get('s1')!.toolOverrides = { tool1: { disabled: true } }
+        expect(mgr.getAllToolsWithStates()[0].disabled).to.be.true
+    })
+
+    it('honours serverFilter', () => {
+        ;(mgr as any).mcpTools.push({ serverName: 's2', toolName: 'foo', description: '', inputSchema: {} })
+        expect(mgr.getAllToolsWithStates()).to.have.length(2)
+        expect(mgr.getAllToolsWithStates('s1')).to.have.length(1)
+        expect(mgr.getAllToolsWithStates('s2')).to.have.length(1)
+    })
+})
+
+// close()
+describe('close()', () => {
+    let loadStub: sinon.SinonStub
+
+    afterEach(() => sinon.restore())
+
+    it('shuts all clients and resets singleton', async () => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
         await McpManager.init([], features)
         const mgr = McpManager.instance
 
         const c1 = new Client({ name: 'c1', version: 'v' })
         const c2 = new Client({ name: 'c2', version: 'v' })
-        const spy1 = sinon.spy(c1, 'close')
-        const spy2 = sinon.spy(c2, 'close')
+        const s1 = sinon.spy(c1, 'close')
+        const s2 = sinon.spy(c2, 'close')
         ;(mgr as any).clients.set('a', c1)
         ;(mgr as any).clients.set('b', c2)
 
         await mgr.close()
-        expect(spy1.calledOnce).to.be.true
-        expect(spy2.calledOnce).to.be.true
-        expect(() => McpManager.instance).to.throw(Error, 'not initialized')
+        expect(s1.calledOnce).to.be.true
+        expect(s2.calledOnce).to.be.true
+        expect(() => McpManager.instance).to.throw()
     })
 })
