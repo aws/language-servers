@@ -809,6 +809,7 @@ describe('AmazonQTokenServiceManager', () => {
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
+                sinon.assert.calledOnce(codewhispererServiceStub.abortInflightRequests)
                 assert.throws(() => amazonQTokenServiceManager.getCodewhispererService())
             })
 
