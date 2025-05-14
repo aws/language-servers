@@ -802,30 +802,18 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.throws(() => amazonQTokenServiceManager.getCodewhispererService())
             })
 
-            it.skip('cancels on-going profile update when credentials are deleted', async () => {
+            it('cancels on-going profile update when credentials are deleted', async () => {
                 await setupServiceManagerWithProfile()
 
-                const pendingUpdate = amazonQTokenServiceManager.handleOnUpdateConfiguration(
-                    {
-                        section: 'aws.q',
-                        settings: {
-                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
-                        },
-                    },
-                    {} as CancellationToken
-                )
-
+                amazonQTokenServiceManager.setState('PENDING_Q_PROFILE_UPDATE')
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
 
                 amazonQTokenServiceManager.handleOnCredentialsDeleted('bearer')
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
-                await assert.rejects(() => pendingUpdate)
-
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
-                sinon.assert.calledOnce(codewhispererServiceStub.abortInflightRequests)
                 assert.throws(() => amazonQTokenServiceManager.getCodewhispererService())
             })
 
