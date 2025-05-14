@@ -488,8 +488,8 @@ export const createMynahUi = (
             [tabFactory.initialTabId]: {
                 isSelected: true,
                 store: {
-                    ...tabFactory.createTab(true),
-                    chatItems: tabFactory.getChatItems(true, true),
+                    ...tabFactory.createTab(disclaimerCardActive),
+                    chatItems: tabFactory.getChatItems(true, programmingModeCardActive),
                 },
             },
         },
