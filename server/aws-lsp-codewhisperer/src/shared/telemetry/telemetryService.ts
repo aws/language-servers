@@ -19,13 +19,6 @@ import {
     ChatAddMessageEvent,
     UserIntent,
     InlineChatEvent,
-    UUID,
-    Timestamp,
-    PrimitiveInteger,
-    Boolean,
-    InlineChatUserDecision,
-    Double,
-    ProgrammingLanguage,
 } from '../../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
