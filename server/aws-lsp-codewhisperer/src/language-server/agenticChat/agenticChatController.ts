@@ -109,6 +109,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
@@ -926,6 +927,7 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsRead':
                     case 'listDirectory':
                     case 'fileSearch':
+                    case 'grepSearch':
                     case 'fsWrite':
                     case 'executeBash': {
                         const toolMap = {
@@ -933,6 +935,7 @@ export class AgenticChatController implements ChatHandlers {
                             listDirectory: { Tool: ListDirectory },
                             fsWrite: { Tool: FsWrite },
                             executeBash: { Tool: ExecuteBash },
+                            grepSearch: { Tool: GrepSearch },
                             fileSearch: { Tool: FileSearch },
                         }
 
@@ -1042,8 +1045,11 @@ export class AgenticChatController implements ChatHandlers {
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
                         break
-                    case 'codeSearch':
-                        // no need to write tool result for code search.
+                    case 'grepSearch':
+                        const grepSearchResult = this.#processGrepSearchResult(toolUse, result, chatResultStream)
+                        if (grepSearchResult) {
+                            await chatResultStream.writeResultBlock(grepSearchResult)
+                        }
                         break
                     case 'fsWrite':
                         const input = toolUse.input as unknown as FsWriteParams
@@ -1711,6 +1717,73 @@ export class AgenticChatController implements ChatHandlers {
         return {
             type: 'tool',
             fileList,
+            messageId: messageIdToUpdate,
+            body: '',
+        }
+    }
+
+    /**
+     * Process grep search results and format them for display in the chat UI
+     */
+    #processGrepSearchResult(
+        toolUse: ToolUse,
+        result: any,
+        chatResultStream: AgenticChatResultStream
+    ): ChatMessage | undefined {
+        if (toolUse.name !== 'grepSearch') {
+            return undefined
+        }
+
+        let messageIdToUpdate = toolUse.toolUseId!
+        const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
+
+        if (currentId) {
+            messageIdToUpdate = currentId
+        } else {
+            chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
+        }
+
+        // Extract search results from the tool output
+        const output = result.output.content as SanitizedRipgrepOutput
+        if (!output || !output.fileMatches || !Array.isArray(output.fileMatches)) {
+            return {
+                type: 'tool',
+                messageId: messageIdToUpdate,
+                body: 'No search results found.',
+            }
+        }
+
+        // Process the matches into a structured format
+        const matches = output.fileMatches
+        const fileDetails: Record<string, FileDetails> = {}
+
+        // Create file details directly from matches
+        for (const match of matches) {
+            const filePath = match.filePath
+            if (!filePath) continue
+
+            fileDetails[filePath] = {
+                description: `${match.matches.length} matches`,
+                lineRanges: [{ first: -1, second: -1 }],
+            }
+        }
+
+        // Create sorted array of file paths
+        const sortedFilePaths = Object.keys(fileDetails)
+
+        // Create the context list for display
+        const query = (toolUse.input as any)?.query || 'search term'
+        const matchCount = matches.length
+
+        const contextList: FileList = {
+            rootFolderTitle: `Searched for "${query}", ${output.matchCount} found`,
+            filePaths: sortedFilePaths,
+            details: fileDetails,
+        }
+
+        return {
+            type: 'tool',
+            fileList: contextList,
             messageId: messageIdToUpdate,
             body: '',
         }
