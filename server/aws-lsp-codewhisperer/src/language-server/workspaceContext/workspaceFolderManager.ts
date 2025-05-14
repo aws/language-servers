@@ -173,14 +173,14 @@ export class WorkspaceFolderManager {
         // Wait for remote workspace id
         await this.waitForRemoteWorkspaceId()
 
+        // Sync workspace source codes
+        await this.syncSourceCodesToS3(folders).catch(e => {
+            this.logging.warn(`Error during syncing workspace source codes: ${e}`)
+        })
+
         // Kick off dependency discovery but don't wait
         this.dependencyDiscoverer.searchDependencies(folders).catch(e => {
             this.logging.warn(`Error during dependency discovery: ${e}`)
-        })
-
-        // Sync workspace source codes
-        this.syncSourceCodesToS3(folders).catch(e => {
-            this.logging.warn(`Error during syncing workspace source codes: ${e}`)
         })
     }
 
@@ -537,8 +537,8 @@ export class WorkspaceFolderManager {
             this.logging.log(`Workspace [${this.workspaceIdentifier}] created successfully, establishing connection`)
             await this.waitForInitialConnection()
             if (!skipUploads) {
-                this.syncSourceCodesToS3(this.workspaceFolders)
-                this.dependencyDiscoverer.syncDependenciesToS3(this.workspaceFolders)
+                await this.syncSourceCodesToS3(this.workspaceFolders)
+                this.dependencyDiscoverer.reSyncDependenciesToS3(this.workspaceFolders)
             }
             return
         }
@@ -563,8 +563,8 @@ export class WorkspaceFolderManager {
         this.logging.log(`Retry succeeded for workspace creation, establishing connection`)
         await this.waitForInitialConnection()
         if (!skipUploads) {
-            this.syncSourceCodesToS3(this.workspaceFolders)
-            this.dependencyDiscoverer.syncDependenciesToS3(this.workspaceFolders)
+            await this.syncSourceCodesToS3(this.workspaceFolders)
+            this.dependencyDiscoverer.reSyncDependenciesToS3(this.workspaceFolders)
         }
     }
 
