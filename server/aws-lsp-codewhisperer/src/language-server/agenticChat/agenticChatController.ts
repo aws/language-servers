@@ -62,6 +62,7 @@ import {
 import { v4 as uuid } from 'uuid'
 import {
     AddMessageEvent,
+    ChatConversationType,
     ChatInteractionType,
     ChatTelemetryEventName,
     CombinedConversationEvent,
@@ -150,6 +151,8 @@ export class AgenticChatController implements ChatHandlers {
     #contextCommandsProvider: ContextCommandsProvider
     #stoppedToolUses = new Set<string>()
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
+    #toolUseStartTimes: Record<string, number> = {}
+    #toolUseLatencies: Array<{ toolName: string; toolUseId: string; latency: number }> = []
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -224,7 +227,12 @@ export class AgenticChatController implements ChatHandlers {
             try {
                 await this.#undoFileChange(toolUseId, session.data)
                 this.#updateUndoButtonAfterClick(params.tabId, toolUseId, session.data)
-                this.#telemetryController.emitInteractWithAgenticChat('RejectDiff', params.tabId)
+                this.#telemetryController.emitInteractWithAgenticChat(
+                    'RejectDiff',
+                    params.tabId,
+                    session.data?.pairProgrammingMode,
+                    session.data?.getConversationType()
+                )
             } catch (err: any) {
                 return { success: false, failureReason: err.message }
             }
@@ -410,11 +418,17 @@ export class AgenticChatController implements ChatHandlers {
                     messageId: 'stopped' + uuid(),
                     body: 'You stopped your current work, please provide additional examples or ask another question.',
                 })
-                this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
+                this.#telemetryController.emitInteractWithAgenticChat(
+                    'StopChat',
+                    params.tabId,
+                    session.pairProgrammingMode,
+                    session.getConversationType()
+                )
                 session.abortRequest()
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
             })
+            session.setConversationType('AgenticChat')
 
             const chatResultStream = this.#getChatResultStream(params.partialResultToken)
 
@@ -657,12 +671,24 @@ export class AgenticChatController implements ChatHandlers {
 
             if (pendingToolUses.length === 0) {
                 // No more tool uses, we're done
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    session.getConversationType(),
+                    undefined,
+                    undefined,
+                    'Succeeded',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    undefined,
+                    session.pairProgrammingMode
+                )
                 finalResult = result
                 break
             }
 
             let content = ''
             let toolResults: ToolResult[]
+            session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
                 toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
@@ -670,8 +696,23 @@ export class AgenticChatController implements ChatHandlers {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                     shouldDisplayMessage = false
                 }
-                metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
+                const conversationType = session.getConversationType() as ChatConversationType
+                metric.setDimension('cwsprChatConversationType', conversationType)
                 metric.setDimension('requestIds', metric.metric.requestIds)
+                const toolNames = this.#toolUseLatencies.map(item => item.toolName)
+                const toolUseIds = this.#toolUseLatencies.map(item => item.toolUseId)
+                const latency = this.#toolUseLatencies.map(item => item.latency)
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    session.getConversationType(),
+                    toolNames,
+                    toolUseIds,
+                    'Succeeded',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    latency,
+                    session.pairProgrammingMode
+                )
             } else {
                 // Send an error card to UI?
                 toolResults = pendingToolUses.map(toolUse => ({
@@ -679,11 +720,26 @@ export class AgenticChatController implements ChatHandlers {
                     status: ToolResultStatus.ERROR,
                     content: [{ text: result.error }],
                 }))
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    session.getConversationType(),
+                    undefined,
+                    undefined,
+                    'Failed',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    undefined,
+                    session.pairProgrammingMode
+                )
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
                     content =
                         'Your toolUse input is incomplete, try again. If the error happens consistently, break this task down into multiple tool uses with smaller input. Do not apologize.'
                     shouldDisplayMessage = false
                 }
+            }
+            if (result.success && this.#toolUseLatencies.length > 0) {
+                // Clear latencies for the next LLM call
+                this.#toolUseLatencies = []
             }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
@@ -767,6 +823,11 @@ export class AgenticChatController implements ChatHandlers {
             if (!toolUse.name || !toolUse.toolUseId) continue
             session.toolUseLookup.set(toolUse.toolUseId, toolUse)
 
+            // Record the start time for this tool use for latency calculation
+            if (toolUse.toolUseId) {
+                this.#toolUseStartTimes[toolUse.toolUseId] = Date.now()
+            }
+
             try {
                 // TODO: Can we move this check in the event parser before the stream completes?
                 const availableToolNames = this.#getTools(session).map(tool => tool.toolSpecification.name)
@@ -822,13 +883,23 @@ export class AgenticChatController implements ChatHandlers {
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
                             if (isExecuteBash) {
-                                this.#telemetryController.emitInteractWithAgenticChat('GeneratedCommand', tabId)
+                                this.#telemetryController.emitInteractWithAgenticChat(
+                                    'GeneratedCommand',
+                                    tabId,
+                                    session.pairProgrammingMode,
+                                    session.getConversationType()
+                                )
                             }
                             if (requiresAcceptance) {
                                 await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
                             }
                             if (isExecuteBash) {
-                                this.#telemetryController.emitInteractWithAgenticChat('RunCommand', tabId)
+                                this.#telemetryController.emitInteractWithAgenticChat(
+                                    'RunCommand',
+                                    tabId,
+                                    session.pairProgrammingMode,
+                                    session.getConversationType()
+                                )
                             }
                         }
                         break
@@ -910,7 +981,12 @@ export class AgenticChatController implements ChatHandlers {
                                 fileChange: { ...cachedToolUse.fileChange, after: doc?.getText() },
                             })
                         }
-                        this.#telemetryController.emitInteractWithAgenticChat('GeneratedDiff', tabId)
+                        this.#telemetryController.emitInteractWithAgenticChat(
+                            'GeneratedDiff',
+                            tabId,
+                            session.pairProgrammingMode,
+                            session.getConversationType()
+                        )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     default:
@@ -924,11 +1000,28 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 this.#updateUndoAllState(toolUse, session)
 
-                if (toolUse.name) {
+                if (toolUse.name && toolUse.toolUseId) {
+                    // Calculate latency if we have a start time for this tool use
+                    let latency: number | undefined = undefined
+                    if (this.#toolUseStartTimes[toolUse.toolUseId]) {
+                        latency = Date.now() - this.#toolUseStartTimes[toolUse.toolUseId]
+                        delete this.#toolUseStartTimes[toolUse.toolUseId]
+
+                        if (latency !== undefined) {
+                            this.#toolUseLatencies.push({
+                                toolName: toolUse.name,
+                                toolUseId: toolUse.toolUseId,
+                                latency: latency,
+                            })
+                        }
+                    }
+
                     this.#telemetryController.emitToolUseSuggested(
                         toolUse,
                         session.conversationId ?? '',
-                        this.#features.runtime.serverInfo.version ?? ''
+                        this.#features.runtime.serverInfo.version ?? '',
+                        latency,
+                        session.pairProgrammingMode
                     )
                 }
             } catch (err) {
@@ -1576,6 +1669,7 @@ export class AgenticChatController implements ChatHandlers {
 
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+        metric.setDimension('enabled', session.pairProgrammingMode)
         const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
         if (profileArn) {
             this.#telemetryService.updateProfileArn(profileArn)
@@ -2178,6 +2272,10 @@ export class AgenticChatController implements ChatHandlers {
         if (!toolUseEvent.stop && toolUseId) {
             if (!toolUseStartTimes[toolUseId]) {
                 toolUseStartTimes[toolUseId] = Date.now()
+                // Also record in the class-level toolUseStartTimes for latency calculation
+                if (!this.#toolUseStartTimes[toolUseId]) {
+                    this.#toolUseStartTimes[toolUseId] = Date.now()
+                }
                 this.#debug(`ToolUseEvent ${toolUseId} started`)
                 toolUseLoadingTimeouts[toolUseId] = setTimeout(async () => {
                     this.#debug(

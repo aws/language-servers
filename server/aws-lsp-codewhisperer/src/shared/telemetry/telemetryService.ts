@@ -436,6 +436,7 @@ export class TelemetryService {
             responseLength?: number
             numberOfCodeBlocks?: number
             hasProjectLevelContext?: number
+            agenticCodingMode?: boolean
         },
         additionalParams: Partial<{
             chatTriggerInteraction: string
@@ -504,6 +505,7 @@ export class TelemetryService {
                     cwsprChatCodeContextCount: additionalParams.cwsprChatCodeContextCount,
                     cwsprChatCodeContextLength: additionalParams.cwsprChatCodeContextLength,
                     result: 'Succeeded',
+                    enabled: params.agenticCodingMode,
                     languageServerVersion: additionalParams.languageServerVersion,
                     requestIds: truncatedRequestIds,
                 },
