@@ -91,7 +91,7 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
-import { AgenticChatResultStream, ResultStreamWriter } from './agenticChatResultStream'
+import { AgenticChatResultStream, progressPrefix, ResultStreamWriter } from './agenticChatResultStream'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
@@ -834,15 +834,17 @@ export class AgenticChatController implements ChatHandlers {
                 if (!availableToolNames.includes(toolUse.name)) {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
                 }
+
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 const { explanation } = toolUse.input as unknown as ExplanatoryParams
                 if (explanation) {
+                    const explanationMessageId = toolUse.toolUseId + '_explanation'
                     await chatResultStream.writeResultBlock({
                         type: 'directive',
-                        messageId: toolUse.toolUseId + '_explanation',
+                        messageId: explanationMessageId,
                         body: explanation,
                     })
                 }
@@ -2203,6 +2205,55 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async #showToolUseIntemediateResult(
+        data: AgenticChatResultWithMetadata,
+        chatResultStream: AgenticChatResultStream
+    ) {
+        function extractKey(incompleteJson: string, key: string): string | undefined {
+            const pattern = new RegExp(`"${key}":\\s*"([^"]*)"`, 'g')
+            const match = pattern.exec(incompleteJson)
+            return match?.[1]
+        }
+        const toolUses = Object.values(data.toolUses)
+        for (const toolUse of toolUses) {
+            if (toolUse.name === 'fsWrite' && typeof toolUse.input === 'string') {
+                const filepath = extractKey(toolUse.input, 'path')
+                const msgId = progressPrefix + toolUse.toolUseId
+                const blockId = chatResultStream.getMessageBlockId(msgId)
+                // render fs write UI as soon as fs write starts
+                if (filepath && !blockId) {
+                    const fileName = path.basename(filepath)
+                    await chatResultStream.writeResultBlock({
+                        type: 'tool',
+                        messageId: msgId,
+                        header: {
+                            fileList: {
+                                filePaths: [fileName],
+                                details: {
+                                    [fileName]: {
+                                        description: filepath,
+                                    },
+                                },
+                            },
+                            buttons: [{ id: 'fsWrite-progress', text: '', icon: 'progress' }],
+                        },
+                    })
+                }
+                // render the tool use explanatory as soon as this is received.
+                const explanation = extractKey(toolUse.input, 'explanation')
+                const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
+                const explainBlockId = chatResultStream.getMessageBlockId(messageId)
+                if (explanation && !explainBlockId) {
+                    await chatResultStream.writeResultBlock({
+                        type: 'directive',
+                        messageId: messageId,
+                        body: explanation,
+                    })
+                }
+            }
+        }
+    }
+
     async #processGenerateAssistantResponseResponse(
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
@@ -2251,6 +2302,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseStartTimes,
                     toolUseLoadingTimeouts
                 )
+                await this.#showToolUseIntemediateResult(result.data, chatResultStream)
             }
         }
         await streamWriter.close()
