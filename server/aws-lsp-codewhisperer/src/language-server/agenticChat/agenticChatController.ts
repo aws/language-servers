@@ -40,6 +40,10 @@ import {
     InlineChatParams,
     ConversationClickParams,
     ListConversationsParams,
+    ListMcpServersParams,
+    McpServerClickParams,
+    DetailedListItem,
+    DetailedListGroup,
     TabBarActionParams,
     CreatePromptParams,
     FileClickParams,
@@ -134,6 +138,8 @@ type ChatHandlers = Omit<
     | 'sendContextCommands'
     | 'onListConversations'
     | 'onConversationClick'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
     | 'onTabBarAction'
     | 'getSerializedChat'
     | 'chatOptionsUpdate'
@@ -355,6 +361,64 @@ export class AgenticChatController implements ChatHandlers {
 
     async onConversationClick(params: ConversationClickParams) {
         return this.#tabBarController.onConversationClick(params)
+    }
+
+    async onListMcpServers(params: ListMcpServersParams) {
+        const mcpManagerServerConfigs = McpManager.instance.getAllServerConfigs()
+        const serversAndTools = McpManager.instance.listServersAndTools()
+
+        // Transform server configs into DetailedListItem objects
+        const activeItems: DetailedListItem[] = []
+        const disabledItems: DetailedListItem[] = []
+
+        Array.from(mcpManagerServerConfigs.entries()).forEach(([serverName, config]) => {
+            const toolNames = serversAndTools[serverName] || []
+            const toolsCount = toolNames.length
+
+            const item: DetailedListItem = {
+                title: serverName,
+                description: `Command: ${config.command}`,
+            }
+
+            if (config.disabled) {
+                disabledItems.push(item)
+            } else {
+                activeItems.push(item)
+            }
+        })
+
+        // Create the groups
+        const groups: DetailedListGroup[] = []
+
+        if (activeItems.length > 0) {
+            groups.push({
+                groupName: 'Active',
+                children: activeItems,
+            })
+        }
+
+        if (disabledItems.length > 0) {
+            groups.push({
+                groupName: 'Disabled',
+                children: disabledItems,
+            })
+        }
+
+        // Return the result in the expected format
+        return {
+            header: {
+                title: 'MCP Servers',
+                description:
+                    "Q automatically uses any MCP servers that have been added, so you don't have to add them as context.",
+            },
+            list: groups,
+        }
+    }
+    async onMcpServerClick(params: McpServerClickParams) {
+        return {
+            id: params.id,
+            success: true,
+        }
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {

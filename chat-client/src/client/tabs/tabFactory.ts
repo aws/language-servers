@@ -15,10 +15,13 @@ export type DefaultTabData = MynahUIDataModel
 
 export const ExportTabBarButtonId = 'export'
 
+export const McpServerTabButtonId = 'mcp_init'
+
 export class TabFactory {
     private history: boolean = false
     private export: boolean = false
     private agenticMode: boolean = false
+    private mcp: boolean = false
 
     public static generateUniqueId() {
         // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
@@ -90,6 +93,10 @@ export class TabFactory {
         this.agenticMode = true
     }
 
+    public enableMcp() {
+        this.mcp = true
+    }
+
     public getDefaultTabData(): DefaultTabData {
         const tabData = {
             ...this.defaultTabData,
@@ -120,6 +127,14 @@ export class TabFactory {
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {
         const tabBarButtons = [...(this.defaultTabData.tabBarButtons ?? [])]
+
+        if (this.mcp) {
+            tabBarButtons.push({
+                id: McpServerTabButtonId,
+                icon: MynahIcons.MCP,
+                description: 'Opening MCP Servers configuration',
+            })
+        }
 
         if (this.history) {
             tabBarButtons.push({

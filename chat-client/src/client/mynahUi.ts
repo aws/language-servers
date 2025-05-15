@@ -26,6 +26,8 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    ListMcpServersResult,
+    McpServerClickResult,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
@@ -40,10 +42,12 @@ import {
     MynahUIProps,
     QuickActionCommand,
     ChatItemButton,
+    TextBasedFormItem,
+    DetailedListItem,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
-import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
+import { ExportTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
@@ -68,6 +72,8 @@ export interface InboundChatApi {
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
+    listMcpServers(params: ListMcpServersResult): void
+    mcpServerClick(params: McpServerClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
     createTabId(openTab?: boolean): string | undefined
 }
@@ -443,6 +449,11 @@ export const createMynahUi = (
             return false
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
+            if (buttonId === McpServerTabButtonId) {
+                messager.onListMcpServers()
+                return
+            }
+
             if (buttonId === ChatHistory.TabBarButtonId) {
                 messager.onListConversations()
                 return
@@ -1060,6 +1071,135 @@ ${params.message}`,
         }
     }
 
+    const listMcpServers = (params: ListMcpServersResult) => {
+        // Convert the ListMcpServersResult to the format expected by mynahUi.openDetailedList
+        const detailedList: any = {
+            selectable: false,
+            textDirection: 'row',
+            header: params.header
+                ? {
+                      title: params.header.title,
+                      description: params.header.description,
+                      actions: [
+                          {
+                              id: 'add-new-mcp',
+                              icon: toMynahIcon('plus'),
+                              status: 'clear',
+                              description: 'Add new MCP',
+                          },
+                          {
+                              id: 'refresh-mcp-list',
+                              icon: toMynahIcon('refresh'),
+                              status: 'clear',
+                              description: 'Refresh MCP servers',
+                          },
+                      ],
+                  }
+                : undefined,
+            filterOptions: params.filterOptions?.map(filter => ({
+                ...filter,
+                icon: toMynahIcon(filter.icon),
+            })),
+            list: params.list.map(group => ({
+                groupName: group.groupName,
+                children: group.children?.map(item => {
+                    // Determine icon based on group name and status
+                    let icon = 'ok-circled'
+                    const iconForegroundStatus = 'success'
+
+                    if (group.groupName === 'Disabled') {
+                        icon = 'block'
+                    }
+
+                    // Create actions based on group name
+                    const actions = []
+                    if (group.groupName === 'Active') {
+                        actions.push({
+                            id: 'open-mcp-xx',
+                            icon: toMynahIcon('right-open'),
+                        })
+                    } else if (group.groupName === 'Disabled') {
+                        actions.push({
+                            id: 'enable-mcp-' + item.title.toLowerCase(),
+                            icon: toMynahIcon('ok-circled'),
+                            text: 'Enable',
+                            description: 'Enable',
+                        })
+                        actions.push({
+                            id: 'delete-mcp-' + item.title.toLowerCase(),
+                            icon: toMynahIcon('trash'),
+                            text: 'Delete',
+                            description: 'Delete',
+                        })
+                        actions.push({
+                            id: 'open-mcp-xx',
+                            icon: toMynahIcon('right-open'),
+                            disabled: true,
+                        })
+                    }
+
+                    return {
+                        id: 'mcp-server-' + item.title.toLowerCase(),
+                        title: item.title,
+                        description: item.description,
+                        icon: toMynahIcon(icon),
+                        iconForegroundStatus: iconForegroundStatus,
+                        groupActions: false,
+                        actions: actions,
+                    }
+                }),
+            })),
+        }
+
+        if (detailedList.filterOptions && detailedList.filterOptions.length > 0) {
+            // eslint-disable-next-line no-extra-semi
+            ;(detailedList.filterOptions[0] as TextBasedFormItem).autoFocus = true
+        }
+
+        const mcpSheet = mynahUi.openDetailedList({
+            detailedList: detailedList,
+            events: {
+                onFilterValueChange: (filterValues: Record<string, any>) => {
+                    messager.onListMcpServers(filterValues)
+                },
+                onKeyPress: (e: KeyboardEvent) => {
+                    if (e.key === 'Escape') {
+                        mcpSheet.close()
+                    }
+                },
+                onItemSelect: (item: DetailedListItem) => {
+                    if (!item.id) {
+                        throw new Error('MCP server id is not defined')
+                    }
+                    messager.onMcpServerClick(item.id)
+                },
+                onItemClick: (item: DetailedListItem) => {
+                    if (item.id) {
+                        messager.onMcpServerClick(item.id)
+                    }
+                },
+                onActionClick: (action: ChatItemButton, item?: DetailedListItem) => {
+                    messager.onMcpServerClick(action.id)
+                },
+                onClose: () => {
+                    // No need to store reference
+                },
+                onTitleActionClick: button => {
+                    messager.onMcpServerClick(button.id)
+                },
+            },
+        })
+    }
+
+    const mcpServerClick = (params: McpServerClickResult) => {
+        if (!params.success) {
+            mynahUi.notify({
+                content: `Failed to open the MCP server`,
+                type: NotificationType.ERROR,
+            })
+        }
+    }
+
     const getSerializedChat = (requestId: string, params: GetSerializedChatParams) => {
         const supportedFormats = ['markdown', 'html']
 
@@ -1101,6 +1241,8 @@ ${params.message}`,
         sendContextCommands: sendContextCommands,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
+        listMcpServers: listMcpServers,
+        mcpServerClick: mcpServerClick,
         getSerializedChat: getSerializedChat,
         createTabId: createTabId,
     }

@@ -53,6 +53,8 @@ describe('MynahUI', () => {
             fileClick: sinon.stub(),
             listConversations: sinon.stub(),
             conversationClick: sinon.stub(),
+            listMcpServers: sinon.stub(),
+            mcpServerClick: sinon.stub(),
             tabBarAction: sinon.stub(),
             onGetSerializedChat: sinon.stub(),
             promptInputOptionChange: sinon.stub(),
