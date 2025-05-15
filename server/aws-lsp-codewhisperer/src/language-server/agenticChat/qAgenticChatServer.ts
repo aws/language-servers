@@ -10,10 +10,10 @@ import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { safeGet } from '../../shared/utils'
-import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
+import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
+import { safeGet } from '../../shared/utils'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -52,8 +52,8 @@ export const QAgenticChatServer =
         }
 
         lsp.onInitialized(async () => {
-            // Initialize service manager and inject it to chatSessionManagementService to pass it down
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance(features)
+            // Get initialized service manager and inject it to chatSessionManagementService to pass it down
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
             chatSessionManagementService =
                 ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager)
 
@@ -75,12 +75,6 @@ export const QAgenticChatServer =
                 amazonQServiceManager
             )
 
-            /* 
-                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                            
-                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                    */
-            await amazonQServiceManager.handleDidChangeConfiguration()
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
         })
 
@@ -140,7 +134,7 @@ export const QAgenticChatServer =
         chat.onConversationClick(params => {
             return chatController.onConversationClick(params)
         })
-       
+
         chat.onCreatePrompt((params) => {
             return chatController.onCreatePrompt(params)
         })
@@ -155,6 +149,14 @@ export const QAgenticChatServer =
 
         chat.onPromptInputOptionChange(params => {
             return chatController.onPromptInputOptionChange(params)
+        })
+
+        chat.onButtonClick(params => {
+            return chatController.onButtonClick(params)
+        })
+
+        chat.onInlineChatResult(params => {
+            return chatController.onInlineChatResult(params)
         })
 
         logging.log('Q Chat server has been initialized')

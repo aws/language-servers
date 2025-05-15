@@ -12,6 +12,7 @@ export const LINK_CLICK_TELEMETRY_EVENT = 'linkClick'
 export const INFO_LINK_CLICK_TELEMETRY_EVENT = 'infoLinkClick'
 export const SOURCE_LINK_CLICK_TELEMETRY_EVENT = 'sourceLinkClick'
 export const AUTH_FOLLOW_UP_CLICKED_TELEMETRY_EVENT = 'authFollowupClicked'
+export const HISTORY_BUTTON_CLICK_TELEMETRY_EVENT = 'historyButtonClick'
 
 export enum RelevancyVoteType {
     UP = 'upvote',

@@ -25,6 +25,7 @@ import {
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../testUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
+import { generateSingletonInitializationTests } from './testUtils'
 
 export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperProfile[] = [
     {
@@ -82,8 +83,7 @@ describe('AmazonQTokenServiceManager', () => {
         AmazonQTokenServiceManager.resetInstance()
 
         features = new TestFeatures()
-        // @ts-ignore
-        features.logging = console
+
         sdkInitializatorSpy = Object.assign(sinon.spy(features.sdkInitializator), {
             v2: sinon.spy(features.sdkInitializator.v2),
         })
@@ -118,9 +118,10 @@ describe('AmazonQTokenServiceManager', () => {
                 },
             },
         }
-        features.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        features.setClientParams(cachedInitializeParams)
 
-        amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features)
+        AmazonQTokenServiceManager.initInstance(features)
+        amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance()
         amazonQTokenServiceManager.setServiceFactory(codewhispererStubFactory)
     }
 
@@ -140,7 +141,7 @@ describe('AmazonQTokenServiceManager', () => {
 
         setCredentials('identityCenter')
 
-        await features.doUpdateConfiguration(
+        await amazonQTokenServiceManager.handleOnUpdateConfiguration(
             {
                 section: 'aws.q',
                 settings: {
@@ -156,6 +157,10 @@ describe('AmazonQTokenServiceManager', () => {
 
         return service
     }
+
+    describe('Initialization process', () => {
+        generateSingletonInitializationTests(AmazonQTokenServiceManager)
+    })
 
     describe('Client is not connected', () => {
         it('should be in PENDING_CONNECTION state when bearer token is not set', () => {
@@ -187,8 +192,7 @@ describe('AmazonQTokenServiceManager', () => {
         it('should clear local state variables on receiving bearer token deletion event', () => {
             amazonQTokenServiceManager.getCodewhispererService()
 
-            const callback = features.credentialsProvider.onCredentialsDeleted.firstCall.args[0]
-            callback('bearer')
+            amazonQTokenServiceManager.handleOnCredentialsDeleted('bearer')
 
             assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
             assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'none')
@@ -201,8 +205,7 @@ describe('AmazonQTokenServiceManager', () => {
         it('should not clear local state variables on receiving iam token deletion event', () => {
             amazonQTokenServiceManager.getCodewhispererService()
 
-            const callback = features.credentialsProvider.onCredentialsDeleted.firstCall.args[0]
-            callback('iam')
+            amazonQTokenServiceManager.handleOnCredentialsDeleted('iam')
 
             assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
             assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'builderId')
@@ -241,7 +244,7 @@ describe('AmazonQTokenServiceManager', () => {
         })
 
         it('should initialize service with region set by client', async () => {
-            features.lsp.getClientInitializeParams.returns({
+            features.setClientParams({
                 processId: 0,
                 rootUri: 'some-root-uri',
                 capabilities: {},
@@ -319,7 +322,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
                 await assert.doesNotReject(
-                    features.doUpdateConfiguration(
+                    amazonQTokenServiceManager.handleOnUpdateConfiguration(
                         {
                             section: 'aws.q',
                             settings: {
@@ -355,7 +358,7 @@ describe('AmazonQTokenServiceManager', () => {
 
                 setCredentials('identityCenter')
 
-                await features.doUpdateConfiguration(
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -390,7 +393,7 @@ describe('AmazonQTokenServiceManager', () => {
                     firstRequestStarted = true
                     return originalHandleProfileChange.apply(amazonQTokenServiceManager, args)
                 }
-                const firstUpdate = features.doUpdateConfiguration(
+                const firstUpdate = amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -402,7 +405,7 @@ describe('AmazonQTokenServiceManager', () => {
                 while (!firstRequestStarted) {
                     await new Promise(resolve => setTimeout(resolve, 1))
                 }
-                const secondUpdate = features.doUpdateConfiguration(
+                const secondUpdate = amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -417,10 +420,8 @@ describe('AmazonQTokenServiceManager', () => {
                 const service = amazonQTokenServiceManager.getCodewhispererService()
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
                 assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
-                assert(codewhispererStubFactory.calledOnceWithExactly('eu-central-1', TEST_ENDPOINT_EU_CENTRAL_1))
 
-                assert.strictEqual(results[0].status, 'rejected')
-                assert(results[0].reason.message, 'Requested profile update got cancelled')
+                assert.strictEqual(results[0].status, 'fulfilled')
                 assert.strictEqual(results[1].status, 'fulfilled')
             })
 
@@ -430,7 +431,7 @@ describe('AmazonQTokenServiceManager', () => {
 
                 setCredentials('identityCenter')
 
-                await features.doUpdateConfiguration(
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -457,7 +458,7 @@ describe('AmazonQTokenServiceManager', () => {
 
                 // Profile change
 
-                await features.doUpdateConfiguration(
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -490,7 +491,7 @@ describe('AmazonQTokenServiceManager', () => {
 
                 setCredentials('identityCenter')
 
-                await features.doUpdateConfiguration(
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -517,7 +518,7 @@ describe('AmazonQTokenServiceManager', () => {
 
                 // Profile change
 
-                await features.doUpdateConfiguration(
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -549,13 +550,14 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(await streamingClient2.client.config.region(), 'eu-central-1')
             })
 
-            it('handles Profile configuration change from valid to invalid profile', async () => {
+            // As we're not validating profile at this moment, there is no "invalid" profile
+            it.skip('handles Profile configuration change from valid to invalid profile', async () => {
                 setupServiceManager(true)
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
                 setCredentials('identityCenter')
 
-                await features.doUpdateConfiguration(
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -583,7 +585,7 @@ describe('AmazonQTokenServiceManager', () => {
                 // Profile change to invalid profile
 
                 await assert.rejects(
-                    features.doUpdateConfiguration(
+                    amazonQTokenServiceManager.handleOnUpdateConfiguration(
                         {
                             section: 'aws.q',
                             settings: {
@@ -613,14 +615,15 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.deepStrictEqual(codewhispererStubFactory.lastCall.args, ['us-east-1', TEST_ENDPOINT_US_EAST_1])
             })
 
-            it('handles non-existing profile selection', async () => {
+            // As we're not validating profile at this moment, there is no "non-existing" profile
+            it.skip('handles non-existing profile selection', async () => {
                 setupServiceManager(true)
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
                 setCredentials('identityCenter')
 
                 await assert.rejects(
-                    features.doUpdateConfiguration(
+                    amazonQTokenServiceManager.handleOnUpdateConfiguration(
                         {
                             section: 'aws.q',
                             settings: {
@@ -660,25 +663,9 @@ describe('AmazonQTokenServiceManager', () => {
                 )
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE')
 
-                await features.doUpdateConfiguration(
-                    {
-                        section: 'aws.q',
-                        settings: {
-                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
-                        },
-                    },
-                    {} as CancellationToken
-                )
+                amazonQTokenServiceManager.setState('PENDING_Q_PROFILE_UPDATE')
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
 
-                const pendingProfileUpdate = features.doUpdateConfiguration(
-                    {
-                        section: 'aws.q',
-                        settings: {
-                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
-                        },
-                    },
-                    {} as CancellationToken
-                )
                 assert.throws(
                     () => amazonQTokenServiceManager.getCodewhispererService(),
                     AmazonQServicePendingProfileUpdateError
@@ -688,9 +675,15 @@ describe('AmazonQTokenServiceManager', () => {
                     AmazonQServicePendingProfileUpdateError
                 )
 
-                assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
-
-                await pendingProfileUpdate
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
+                    {
+                        section: 'aws.q',
+                        settings: {
+                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
+                        },
+                    },
+                    {} as CancellationToken
+                )
 
                 const service = amazonQTokenServiceManager.getCodewhispererService()
                 const streamingClient = amazonQTokenServiceManager.getStreamingClient()
@@ -723,7 +716,7 @@ describe('AmazonQTokenServiceManager', () => {
                 )
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE')
 
-                await features.doUpdateConfiguration(
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -749,15 +742,7 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.strictEqual(await streamingClient.client.config.region(), 'us-east-1')
 
                 // Updaing profile
-                const pendingProfileUpdate = features.doUpdateConfiguration(
-                    {
-                        section: 'aws.q',
-                        settings: {
-                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
-                        },
-                    },
-                    {} as CancellationToken
-                )
+                amazonQTokenServiceManager.setState('PENDING_Q_PROFILE_UPDATE')
                 assert.throws(
                     () => amazonQTokenServiceManager.getCodewhispererService(),
                     AmazonQServicePendingProfileUpdateError
@@ -768,14 +753,12 @@ describe('AmazonQTokenServiceManager', () => {
                 )
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
-
-                await pendingProfileUpdate
             })
 
             it('resets to PENDING_PROFILE from INITIALIZED when receiving null profileArn', async () => {
                 await setupServiceManagerWithProfile()
 
-                await features.doUpdateConfiguration(
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -793,19 +776,12 @@ describe('AmazonQTokenServiceManager', () => {
             it('resets to PENDING_Q_PROFILE from PENDING_Q_PROFILE_UPDATE when receiving null profileArn', async () => {
                 await setupServiceManagerWithProfile()
 
-                const pendingUpdate = features.doUpdateConfiguration(
-                    {
-                        section: 'aws.q',
-                        settings: {
-                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
-                        },
-                    },
-                    {} as CancellationToken
-                )
+                amazonQTokenServiceManager.setState('PENDING_Q_PROFILE_UPDATE')
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
 
-                const nullRequest = features.doUpdateConfiguration(
+                // Null profile arn
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -814,8 +790,6 @@ describe('AmazonQTokenServiceManager', () => {
                     },
                     {} as CancellationToken
                 )
-
-                await Promise.allSettled([pendingUpdate, nullRequest])
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
@@ -826,23 +800,12 @@ describe('AmazonQTokenServiceManager', () => {
             it('cancels on-going profile update when credentials are deleted', async () => {
                 await setupServiceManagerWithProfile()
 
-                const pendingUpdate = features.doUpdateConfiguration(
-                    {
-                        section: 'aws.q',
-                        settings: {
-                            profileArn: 'arn:aws:testprofilearn:eu-central-1:11111111111111:profile/QQQQQQQQQQQQ',
-                        },
-                    },
-                    {} as CancellationToken
-                )
-
+                amazonQTokenServiceManager.setState('PENDING_Q_PROFILE_UPDATE')
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_Q_PROFILE_UPDATE')
 
-                features.credentialsProvider.onCredentialsDeleted.firstCall.firstArg('bearer')
+                amazonQTokenServiceManager.handleOnCredentialsDeleted('bearer')
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
-
-                await assert.rejects(() => pendingUpdate)
 
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
                 assert.strictEqual(amazonQTokenServiceManager.getActiveProfileArn(), undefined)
@@ -850,13 +813,15 @@ describe('AmazonQTokenServiceManager', () => {
                 assert.throws(() => amazonQTokenServiceManager.getCodewhispererService())
             })
 
-            it('fetches profiles only from 1 region associated with requested profileArn', async () => {
+            // Due to service limitation, validation was removed for the sake of recovering API availability
+            // When service is ready to take more tps, revert https://github.com/aws/language-servers/pull/1329 to add profile validation
+            it('should not call service to validate profile and always assume its validness', async () => {
                 setupServiceManager(true)
                 assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
                 setCredentials('identityCenter')
 
-                await features.doUpdateConfiguration(
+                await amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -866,9 +831,8 @@ describe('AmazonQTokenServiceManager', () => {
                     {} as CancellationToken
                 )
 
-                sinon.assert.calledOnceWithMatch(getListAllAvailableProfilesHandlerStub, {
-                    endpoints: new Map([['us-east-1', TEST_ENDPOINT_US_EAST_1]]),
-                })
+                sinon.assert.notCalled(getListAllAvailableProfilesHandlerStub)
+                assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
             })
         })
     })
@@ -881,7 +845,7 @@ describe('AmazonQTokenServiceManager', () => {
             assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
 
             await assert.rejects(
-                features.doUpdateConfiguration(
+                amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -903,7 +867,7 @@ describe('AmazonQTokenServiceManager', () => {
             setCredentials('builderId')
 
             await assert.rejects(
-                features.doUpdateConfiguration(
+                amazonQTokenServiceManager.handleOnUpdateConfiguration(
                     {
                         section: 'aws.q',
                         settings: {
@@ -1051,7 +1015,7 @@ describe('AmazonQTokenServiceManager', () => {
             setupServiceManager()
             setCredentials('identityCenter')
 
-            amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance(features)
+            amazonQTokenServiceManager = AmazonQTokenServiceManager.getInstance()
             const service = amazonQTokenServiceManager.getCodewhispererService()
 
             assert.strictEqual(service.customizationArn, undefined)
@@ -1069,9 +1033,9 @@ describe('AmazonQTokenServiceManager', () => {
 
     describe('Initialize', () => {
         it('should throw when initialize is called before LSP has been initialized with InitializeParams', () => {
-            features.lsp.getClientInitializeParams.returns(undefined)
+            features.resetClientParams()
 
-            assert.throws(() => AmazonQTokenServiceManager.getInstance(features), AmazonQServiceInitializationError)
+            assert.throws(() => AmazonQTokenServiceManager.initInstance(features), AmazonQServiceInitializationError)
         })
     })
 })

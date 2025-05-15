@@ -21,17 +21,22 @@ import {
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 import {
     EMPTY_RESULT,
+    EXPECTED_NEXT_TOKEN,
     EXPECTED_REFERENCE,
     EXPECTED_RESPONSE_CONTEXT,
     EXPECTED_RESULT,
+    EXPECTED_RESULT_WITHOUT_IMPORTS,
     EXPECTED_RESULT_WITHOUT_REFERENCES,
+    EXPECTED_RESULT_WITH_IMPORTS,
     EXPECTED_RESULT_WITH_REFERENCES,
     EXPECTED_SESSION_ID,
     EXPECTED_SUGGESTION,
     EXPECTED_SUGGESTION_LIST,
+    EXPECTED_SUGGESTION_LIST_WITH_IMPORTS,
     HELLO_WORLD_IN_CSHARP,
     HELLO_WORLD_LINE,
     HELLO_WORLD_WITH_WINDOWS_ENDING,
+    SAMPLE_SESSION_DATA,
     SINGLE_LINE_FILE_CUTOFF_INDEX,
     SOME_CLOSED_FILE,
     SOME_FILE,
@@ -46,6 +51,7 @@ import { CodeDiffTracker } from './codeDiffTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
+import { URI } from 'vscode-uri'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -53,9 +59,21 @@ const updateConfiguration = async (
 ): Promise<TestFeatures> => {
     features.lsp.workspace.getConfiguration.returns(getConfigurationReturns ?? Promise.resolve({}))
 
+    // Mocked trigger of didChangeConfiguration in amazonQServer
+    await TestAmazonQServiceManager.getInstance().handleDidChangeConfiguration()
+
     // Invoke event twice to ensure LSP Router propagates didChangeConfiguration notification and allows time for it to take effect in tests
     await features.openDocument(SOME_FILE).doChangeConfiguration()
     await features.openDocument(SOME_FILE).doChangeConfiguration()
+
+    return features
+}
+
+const startServer = async (features: TestFeatures, server: Server): Promise<TestFeatures> => {
+    await features.initialize(server)
+
+    // Mocked trigger of didChangeConfiguration in amazonQServer
+    await TestAmazonQServiceManager.getInstance().handleDidChangeConfiguration()
 
     return features
 }
@@ -112,15 +130,14 @@ describe('CodeWhisperer Server', () => {
             //@ts-ignore
             features.logging = console
 
+            TestAmazonQServiceManager.resetInstance()
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
-
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
 
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features
                 .openDocument(SOME_FILE)
@@ -150,12 +167,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -180,12 +199,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: firstTwoLines,
                     rightFileContent: remainingLines,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -234,12 +255,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri,
+                    filename: URI.parse(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -265,6 +288,7 @@ describe('CodeWhisperer Server', () => {
 
             await updateConfiguration(
                 features,
+
                 Promise.resolve({
                     inlineSuggestions: {
                         extraContext,
@@ -285,12 +309,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: extraContext + '\n',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -326,12 +352,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE_WITH_EXTENSION.uri,
+                    filename: URI.parse(SOME_FILE_WITH_EXTENSION.uri).path.substring(1),
                     programmingLanguage: { languageName: 'cpp' },
                     leftFileContent: '',
                     rightFileContent: HELLO_WORLD_IN_CSHARP,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
 
             // Check the service was called with the right parameters
@@ -390,8 +418,10 @@ describe('CodeWhisperer Server', () => {
                         insertText: deletedLine.concat('\n    '),
                         range: undefined,
                         references: undefined,
+                        mostRelevantMissingImports: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -409,12 +439,14 @@ describe('CodeWhisperer Server', () => {
             const rightContext = lines.slice(cutOffLine).join('\n')
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: MY_FILE.uri,
+                    filename: URI.parse(MY_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: leftContext,
                     rightFileContent: rightContext,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -444,12 +476,14 @@ describe('CodeWhisperer Server', () => {
             const modifiedRightContext = lines.slice(cutOffLine).join('\n')
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: MY_WINDOWS_FILE.uri,
+                    filename: URI.parse(MY_WINDOWS_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: modifiedLeftContext,
                     rightFileContent: modifiedRightContext,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 5,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -470,8 +504,10 @@ describe('CodeWhisperer Server', () => {
                         insertText: HELLO_WORLD_LINE.substring(0, SINGLE_LINE_FILE_CUTOFF_INDEX),
                         range: undefined,
                         references: undefined,
+                        mostRelevantMissingImports: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -502,8 +538,10 @@ describe('CodeWhisperer Server', () => {
                         insertText: EXPECTED_SUGGESTION[0].content,
                         range: undefined,
                         references: undefined,
+                        mostRelevantMissingImports: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
 
             const result = await features.doInlineCompletionWithReferences(
@@ -534,6 +572,54 @@ describe('CodeWhisperer Server', () => {
             assert.deepEqual(result, EMPTY_RESULT)
         })
 
+        // pagination
+        it('returns next token from service', async () => {
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: { ...EXPECTED_RESPONSE_CONTEXT, nextToken: EXPECTED_NEXT_TOKEN },
+                })
+            )
+
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, { ...EXPECTED_RESULT, partialResultToken: EXPECTED_NEXT_TOKEN })
+        })
+
+        it('handles partialResultToken in request', async () => {
+            const manager = SessionManager.getInstance()
+            manager.createSession(SAMPLE_SESSION_DATA)
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    partialResultToken: EXPECTED_NEXT_TOKEN,
+                },
+                CancellationToken.None
+            )
+
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    filename: SOME_FILE.uri,
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: '',
+                    rightFileContent: HELLO_WORLD_IN_CSHARP,
+                },
+                maxResults: 5,
+                nextToken: EXPECTED_NEXT_TOKEN,
+            }
+
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+        })
+
         describe('Supplemental Context', () => {
             it('should send supplemental context when using token authentication', async () => {
                 const test_service = sinon.createStubInstance(
@@ -558,8 +644,6 @@ describe('CodeWhisperer Server', () => {
                     initBaseTestServiceManager(test_features, test_service)
                 )
 
-                features.lsp.getClientInitializeParams.returns({} as InitializeParams)
-
                 test_features.credentialsProvider.hasCredentials.returns(true)
                 test_features.credentialsProvider.getConnectionType.returns('builderId')
 
@@ -567,7 +651,7 @@ describe('CodeWhisperer Server', () => {
                 test_features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
                 // Start the server and open a document
-                await test_features.start(test_server)
+                await startServer(test_features, test_server)
 
                 // Open files supporting cross-file context
                 test_features
@@ -585,16 +669,18 @@ describe('CodeWhisperer Server', () => {
 
                 const expectedGenerateSuggestionsRequest = {
                     fileContext: {
-                        filename: 'file:///TargetFile.java',
+                        filename: 'TargetFile.java',
                         programmingLanguage: { languageName: 'java' },
                         leftFileContent: '',
                         rightFileContent: '',
+                        // workspaceFolder: undefined,
                     },
                     maxResults: 5,
                     supplementalContexts: [
                         { content: 'sample-content', filePath: '/SampleFile.java' },
                         { content: 'sample-content', filePath: '/SampleFile.java' },
                     ],
+                    // workspaceId: undefined,
                 }
                 sinon.assert.calledOnceWithExactly(test_service.generateSuggestions, expectedGenerateSuggestionsRequest)
 
@@ -638,7 +724,6 @@ describe('CodeWhisperer Server', () => {
         beforeEach(async () => {
             // Set up the server with a mock service, returning predefined recommendations
             service = stubCodeWhispererService()
-            service.customizationArn = undefined
             service.generateSuggestions.returns(
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST,
@@ -648,9 +733,9 @@ describe('CodeWhisperer Server', () => {
 
             // Initialize the features, but don't start server yet
             features = new TestFeatures()
+            //@ts-ignore
+            features.logging = console
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
-
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
         })
 
         afterEach(() => {
@@ -660,7 +745,7 @@ describe('CodeWhisperer Server', () => {
 
         it('should return all recommendations if no settings are specificed', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
-            await features.start(server)
+            await startServer(features, server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -674,9 +759,56 @@ describe('CodeWhisperer Server', () => {
             assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_REFERENCES)
         })
 
+        it('should not include import statements if no settings are specified', async () => {
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+            await startServer(features, server)
+
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            // Check the completion result
+            assert.deepEqual(result, EXPECTED_RESULT_WITHOUT_IMPORTS)
+        })
+
+        it('should include import statements if enabled', async () => {
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({ includeImportsWithSuggestions: true }))
+            await startServer(features, server)
+
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            assert.deepEqual(result, EXPECTED_RESULT_WITH_IMPORTS)
+        })
+
         it('should filter recommendations with references if GetConfiguration is not handled by the client', async () => {
             features.lsp.workspace.getConfiguration.returns(Promise.reject(new Error('GetConfiguration failed')))
-            await features.start(server)
+            await startServer(features, server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -694,7 +826,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -712,7 +844,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: false })
             )
-            await features.start(server)
+            await startServer(features, server)
             const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -730,7 +862,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const afterConfigChange = await updateConfiguration(
                 features,
@@ -754,7 +886,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: false })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const afterConfigChange = await updateConfiguration(
                 features,
@@ -778,7 +910,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const EXPECTED_SUGGESTION: Suggestion[] = [{ itemId: 'cwspr-item-id', content: HELLO_WORLD_IN_CSHARP }]
             service.generateSuggestions.returns(
@@ -804,7 +936,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
@@ -844,8 +976,10 @@ describe('CodeWhisperer Server', () => {
                                 },
                             },
                         ],
+                        mostRelevantMissingImports: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -870,7 +1004,7 @@ describe('CodeWhisperer Server', () => {
             features.lsp.workspace.getConfiguration.returns(
                 Promise.resolve({ includeSuggestionsWithCodeReferences: true })
             )
-            await features.start(server)
+            await startServer(features, server)
 
             const cutOffLine = 2
             const lines = HELLO_WORLD_IN_CSHARP.split('\n')
@@ -903,8 +1037,10 @@ describe('CodeWhisperer Server', () => {
                         insertText: insertText,
                         range: undefined,
                         references: undefined,
+                        mostRelevantMissingImports: undefined,
                     },
                 ],
+                partialResultToken: undefined,
             }
             service.generateSuggestions.returns(
                 Promise.resolve({
@@ -943,7 +1079,7 @@ describe('CodeWhisperer Server', () => {
                 features.lsp.workspace.getConfiguration.returns(
                     Promise.resolve({ includeSuggestionsWithCodeReferences: false })
                 )
-                await features.start(server)
+                await startServer(features, server)
 
                 const result = await features.openDocument(SOME_FILE).doInlineCompletionWithReferences(
                     {
@@ -991,13 +1127,11 @@ describe('CodeWhisperer Server', () => {
             features = new TestFeatures()
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
-
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features.openDocument(SOME_FILE)
         })
@@ -1024,12 +1158,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: SPECIAL_CHARACTER_HELLO_WORLD.substring(0, 1),
                     rightFileContent: SPECIAL_CHARACTER_HELLO_WORLD.substring(1, SPECIAL_CHARACTER_HELLO_WORLD.length),
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 1,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -1056,12 +1192,14 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
-                    filename: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: LEFT_FILE_CONTEXT,
                     rightFileContent: RIGHT_FILE_CONTEXT,
+                    // workspaceFolder: undefined,
                 },
                 maxResults: 1,
+                // workspaceId: undefined,
             }
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
@@ -1128,10 +1266,8 @@ describe('CodeWhisperer Server', () => {
 
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
-
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features.openDocument(SOME_FILE)
         })
@@ -1240,12 +1376,11 @@ describe('CodeWhisperer Server', () => {
             features = new TestFeatures()
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features.openDocument(SOME_FILE)
         })
@@ -1257,6 +1392,13 @@ describe('CodeWhisperer Server', () => {
         })
 
         it('should emit Success ServiceInvocation telemetry on successful response', async () => {
+            await updateConfiguration(
+                features,
+                Promise.resolve({
+                    includeImportsWithSuggestions: true,
+                })
+            )
+
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -1286,6 +1428,8 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Succeeded',
+                    codewhispererImportRecommendationEnabled: true,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1334,6 +1478,8 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Succeeded',
+                    codewhispererImportRecommendationEnabled: false,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1373,6 +1519,9 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Failed',
+                    codewhispererImportRecommendationEnabled: undefined,
+                    traceId: 'notSet',
                 },
                 errorData: {
                     reason: 'TestError',
@@ -1415,6 +1564,9 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Failed',
+                    codewhispererImportRecommendationEnabled: undefined,
+                    traceId: 'notSet',
                 },
                 errorData: {
                     reason: 'UnknownError',
@@ -1469,6 +1621,9 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Failed',
+                    codewhispererImportRecommendationEnabled: undefined,
+                    traceId: 'notSet',
                 },
                 errorData: {
                     reason: 'TestAWSError',
@@ -1501,6 +1656,9 @@ describe('CodeWhisperer Server', () => {
                     duration: 50,
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
+                    codewhispererCustomizationArn: undefined,
+                    result: 'Succeeded',
+                    passive: true,
                 },
             }
             sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
@@ -1609,6 +1767,9 @@ describe('CodeWhisperer Server', () => {
                     startPosition: { line: 0, character: 0 },
                     endPosition: { line: 0, character: 14 },
                     customizationArn: undefined,
+                    completionType: 'Line',
+                    triggerType: 'OnDemand',
+                    credentialStartUrl: undefined,
                 })
             })
 
@@ -1639,16 +1800,24 @@ describe('CodeWhisperer Server', () => {
 
                 await clock.tickAsync(5 * 60 * 1000 + 30)
 
-                sinon.assert.calledOnceWithExactly(telemetryServiceSpy, {
-                    sessionId: 'cwspr-session-id',
-                    requestId: 'cwspr-request-id',
-                    languageId: 'csharp',
-                    customizationArn: undefined,
-                    timestamp: new Date(startTime.getTime() + 5 * 60 * 1000),
-                    acceptedCharacterCount: 14,
-                    modificationPercentage: 0.9285714285714286,
-                    unmodifiedAcceptedCharacterCount: 1,
-                })
+                sinon.assert.calledOnceWithExactly(
+                    telemetryServiceSpy,
+                    {
+                        sessionId: 'cwspr-session-id',
+                        requestId: 'cwspr-request-id',
+                        languageId: 'csharp',
+                        customizationArn: undefined,
+                        timestamp: new Date(startTime.getTime() + 5 * 60 * 1000),
+                        acceptedCharacterCount: 14,
+                        modificationPercentage: 0.9285714285714286,
+                        unmodifiedAcceptedCharacterCount: 1,
+                    },
+                    {
+                        completionType: 'Line',
+                        triggerType: 'OnDemand',
+                        credentialStartUrl: undefined,
+                    }
+                )
             })
         })
     })
@@ -1681,12 +1850,11 @@ describe('CodeWhisperer Server', () => {
             features = new TestFeatures()
             server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
 
-            features.lsp.getClientInitializeParams.returns({} as InitializeParams)
             // Return no specific configuration for CodeWhisperer
             features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
 
             // Start the server and open a document
-            await features.start(server)
+            await startServer(features, server)
 
             features.openDocument(SOME_FILE).openDocument(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID)
         })
@@ -1767,7 +1935,7 @@ describe('CodeWhisperer Server', () => {
             const EXPECTED_COMPLETION_RESPONSES = [
                 { sessionId: '', items: [] },
                 { sessionId: '', items: [] },
-                { sessionId: SESSION_IDS_LOG[2], items: EXPECTED_RESULT.items }, // Last session wins
+                { sessionId: SESSION_IDS_LOG[2], items: EXPECTED_RESULT.items, partialResultToken: undefined }, // Last session wins
             ]
             // Only last request must return completion items
             assert.deepEqual(getCompletionsResponses, EXPECTED_COMPLETION_RESPONSES)

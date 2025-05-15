@@ -10,12 +10,19 @@ import sinon from 'ts-sinon'
 import { AgenticChatEventParser } from './agenticChatEventParser'
 import { Metric } from '../../shared/telemetry/metric'
 import { AddMessageEvent } from '../../shared/telemetry/types'
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { TestFeatures } from '@aws/language-server-runtimes/testing'
 
 describe('AgenticChatEventParser', () => {
     const mockMessageId = 'mock-message-id'
+    let logging: Features['logging']
+
+    before(function () {
+        logging = new TestFeatures().logging
+    })
 
     it('set error if invalidState event is received', () => {
-        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
+        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>(), logging)
 
         sinon.assert.match(
             chatEventParser.processPartialEvent({
@@ -44,7 +51,7 @@ describe('AgenticChatEventParser', () => {
     })
 
     it('set error if error event is received', () => {
-        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
+        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>(), logging)
 
         sinon.assert.match(
             chatEventParser.processPartialEvent({
@@ -77,7 +84,7 @@ describe('AgenticChatEventParser', () => {
     })
 
     it('processPartialEvent appends new event on top of the previous result', () => {
-        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
+        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>(), logging)
 
         assert.deepStrictEqual(
             chatEventParser.processPartialEvent({
@@ -127,7 +134,7 @@ describe('AgenticChatEventParser', () => {
     })
 
     it('processPartialEvent with messageMetadataEvent appends conversation id', () => {
-        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
+        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>(), logging)
 
         chatEventParser.processPartialEvent({
             messageMetadataEvent: {
@@ -158,7 +165,7 @@ describe('AgenticChatEventParser', () => {
     })
 
     it('ensures body is an empty string instead of undefined when adding to history', () => {
-        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
+        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>(), logging)
 
         // Only add messageMetadataEvent but no assistantResponseEvent
         chatEventParser.processPartialEvent({
@@ -174,7 +181,7 @@ describe('AgenticChatEventParser', () => {
     })
 
     it('getResult returns the accumulated result', () => {
-        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>())
+        const chatEventParser = new AgenticChatEventParser(mockMessageId, new Metric<AddMessageEvent>(), logging)
 
         chatEventParser.processPartialEvent({
             assistantResponseEvent: {

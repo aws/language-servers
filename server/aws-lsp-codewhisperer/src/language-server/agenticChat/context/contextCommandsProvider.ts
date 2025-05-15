@@ -1,11 +1,18 @@
 import * as path from 'path'
 import { FSWatcher, watch } from 'chokidar'
-import { ContextCommand, ContextCommandGroup } from '@aws/language-server-runtimes/protocol'
+import {
+    ContextCommand,
+    ContextCommandGroup,
+    CreateFilesParams,
+    DeleteFilesParams,
+    RenameFilesParams,
+} from '@aws/language-server-runtimes/protocol'
 import { Disposable } from 'vscode-languageclient/node'
-import { Chat, Logging, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { Chat, Logging, Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { getUserPromptsDirectory, promptFileExtension } from './contextUtils'
 import { ContextCommandItem } from 'local-indexing'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
+import { URI } from 'vscode-uri'
 
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
@@ -13,9 +20,37 @@ export class ContextCommandsProvider implements Disposable {
     constructor(
         private readonly logging: Logging,
         private readonly chat: Chat,
-        private readonly workspace: Workspace
+        private readonly workspace: Workspace,
+        private readonly lsp: Lsp
     ) {
         this.registerPromptFileWatcher()
+        this.lsp.workspace.onDidCreateFiles(async event => {
+            const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
+            await this.updateContextCommandsOnFileChange(filePaths, true)
+        })
+        this.lsp.workspace.onDidDeleteFiles(async event => {
+            const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
+            await this.updateContextCommandsOnFileChange(filePaths, false)
+        })
+        this.lsp.workspace.onDidRenameFiles(async event => {
+            const oldFiles = event.files.map(file => URI.parse(file.oldUri).fsPath)
+            await this.updateContextCommandsOnFileChange(oldFiles, false)
+            const newFiles = event.files.map(file => URI.parse(file.newUri).fsPath)
+            await this.updateContextCommandsOnFileChange(newFiles, true)
+        })
+    }
+
+    async updateContextCommandsOnFileChange(filePaths: string[], isAdd: boolean) {
+        try {
+            const localProjectContextController = await LocalProjectContextController.getInstance()
+            const shouldUpdate = await localProjectContextController.shouldUpdateContextCommand(filePaths, isAdd)
+            if (shouldUpdate) {
+                const contextItems = await localProjectContextController.getContextCommandItems()
+                await this.processContextCommandUpdate(contextItems)
+            }
+        } catch (error) {
+            this.logging.error(`Error updating context commands on file change: ${error}`)
+        }
     }
 
     registerPromptFileWatcher() {
@@ -125,11 +160,16 @@ export class ContextCommandsProvider implements Disposable {
             description: 'Add a saved prompt to context',
             icon: 'magic',
         }
-        const allCommands = [
+        const workspaceCmd = {
+            command: '@workspace',
+            description: 'Reference all code in workspace.',
+        }
+        const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
+        const allCommands: ContextCommandGroup[] = [
             {
-                commands: [folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup],
+                commands: commands,
             },
-        ] as ContextCommandGroup[]
+        ]
 
         for (const item of items) {
             const wsFolderName = path.basename(item.workspaceFolder)
@@ -154,6 +194,7 @@ export class ContextCommandsProvider implements Disposable {
             } else if (item.symbol) {
                 codeCmds.push({
                     ...baseItem,
+                    command: item.symbol.name,
                     description: `${item.symbol.kind}, ${path.join(wsFolderName, item.relativePath)}, L${item.symbol.range.start.line}-${item.symbol.range.end.line}`,
                     label: 'code',
                     icon: 'code-block',

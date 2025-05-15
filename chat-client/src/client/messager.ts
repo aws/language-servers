@@ -21,6 +21,7 @@ import {
     TriggerType,
 } from '@aws/chat-client-ui-types'
 import {
+    ButtonClickParams,
     ChatParams,
     ConversationAction,
     ConversationClickParams,
@@ -50,6 +51,7 @@ import {
     ENTER_FOCUS,
     ERROR_MESSAGE_TELEMETRY_EVENT,
     EXIT_FOCUS,
+    HISTORY_BUTTON_CLICK_TELEMETRY_EVENT,
     INFO_LINK_CLICK_TELEMETRY_EVENT,
     INSERT_TO_CURSOR_POSITION_TELEMETRY_EVENT,
     LINK_CLICK_TELEMETRY_EVENT,
@@ -90,6 +92,9 @@ export interface OutboundChatApi {
     tabBarAction(params: TabBarActionParams): void
     onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
     promptInputOptionChange(params: PromptInputOptionChangeParams): void
+    stopChatResponse(tabId: string): void
+    sendButtonClickEvent(params: ButtonClickParams): void
+    onOpenSettings(settingKey: string): void
 }
 
 export class Messager {
@@ -201,8 +206,11 @@ export class Messager {
         this.chatApi.fileClick(params)
     }
 
-    onListConversations = (filter?: Record<string, FilterValue>): void => {
+    onListConversations = (filter?: Record<string, FilterValue>, tabButtonClicked?: boolean): void => {
         this.chatApi.listConversations({ filter })
+        if (tabButtonClicked) {
+            this.chatApi.telemetry({ triggerType: 'click', name: HISTORY_BUTTON_CLICK_TELEMETRY_EVENT })
+        }
     }
 
     onConversationClick = (conversationId: string, action?: ConversationAction): void => {
@@ -219,5 +227,17 @@ export class Messager {
 
     onPromptInputOptionChange = (params: PromptInputOptionChangeParams): void => {
         this.chatApi.promptInputOptionChange(params)
+    }
+
+    onStopChatResponse = (tabId: string): void => {
+        this.chatApi.stopChatResponse(tabId)
+    }
+
+    onButtonClick = (params: ButtonClickParams): void => {
+        this.chatApi.sendButtonClickEvent(params)
+    }
+
+    onOpenSettings = (settingKey: string): void => {
+        this.chatApi.onOpenSettings(settingKey)
     }
 }

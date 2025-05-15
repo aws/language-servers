@@ -1,5 +1,65 @@
 # Changelog
 
+## [0.1.8](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.7...lsp-yaml/v0.1.8) (2025-05-14)
+
+
+### Bug Fixes
+
+* bump runtimes and fix broken test ([#1323](https://github.com/aws/language-servers/issues/1323)) ([7d1a7b9](https://github.com/aws/language-servers/commit/7d1a7b9700ee2cc154dfe357ebbb62597d3f1582))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.7 to ^0.0.8
+
+## [0.1.7](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.6...lsp-yaml/v0.1.7) (2025-05-09)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.6 to ^0.0.7
+
+## [0.1.6](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.5...lsp-yaml/v0.1.6) (2025-05-07)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.5 to ^0.0.6
+
+## [0.1.5](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.4...lsp-yaml/v0.1.5) (2025-05-06)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.4 to ^0.0.5
+
+## [0.1.4](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.3...lsp-yaml/v0.1.4) (2025-05-01)
+
+
+### Features
+
+* workspace open settings ([#1055](https://github.com/aws/language-servers/issues/1055)) ([f3018da](https://github.com/aws/language-servers/commit/f3018da706663b0f64bc5b4becc2fd600d5ff5b6))
+
+
+### Bug Fixes
+
+* onFileClick logic is crashing the whole process if no workspace is open ([#1119](https://github.com/aws/language-servers/issues/1119)) ([0211223](https://github.com/aws/language-servers/commit/0211223a93dd3ddcb5b7b06882e2a10eb09fa01c))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.3 to ^0.0.4
+
 ## [0.1.3](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.2...lsp-yaml/v0.1.3) (2025-04-07)
 
 

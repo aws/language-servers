@@ -10,6 +10,7 @@ import {
     FileSystemAdapter,
     Message,
     TabType,
+    chatMessageToMessage,
     groupTabsByDate,
     messageToChatMessage,
     messageToStreamingMessage,
@@ -17,6 +18,7 @@ import {
 } from './util'
 import { ChatMessage } from '@aws/language-server-runtimes/protocol'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { ChatMessage as StreamingMessage } from '@amzn/codewhisperer-streaming'
 
 describe('ChatDb Utilities', () => {
     describe('messageToStreamingMessage', () => {
@@ -33,6 +35,7 @@ describe('ChatDb Utilities', () => {
                     content: 'Hello',
                     userInputMessageContext: {},
                     userIntent: undefined,
+                    origin: 'IDE',
                 },
             })
         })
@@ -51,9 +54,7 @@ describe('ChatDb Utilities', () => {
                 assistantResponseMessage: {
                     messageId: 'msg-1',
                     content: 'Response',
-                    references: [
-                        { url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' },
-                    ],
+                    toolUses: [],
                 },
             })
         })
@@ -70,12 +71,16 @@ describe('ChatDb Utilities', () => {
 
             const result = messageToChatMessage(message)
 
-            assert.deepStrictEqual(result, {
-                body: 'Hello',
-                type: 'prompt',
-                codeReference: [{ url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' }],
-                relatedContent: { content: [{ title: 'Sources', url: 'google.com' }] },
-            })
+            assert.deepStrictEqual(result, [
+                {
+                    body: 'Hello',
+                    type: 'prompt',
+                    codeReference: [
+                        { url: 'test.js', recommendationContentSpan: { start: 10, end: 15 }, information: '' },
+                    ],
+                    relatedContent: { content: [{ title: 'Sources', url: 'google.com' }] },
+                },
+            ])
         })
 
         it('should omit relatedContent when content array is empty', () => {
@@ -87,11 +92,69 @@ describe('ChatDb Utilities', () => {
 
             const result = messageToChatMessage(message)
 
+            assert.deepStrictEqual(result, [
+                {
+                    body: 'Hello',
+                    type: 'prompt',
+                    relatedContent: undefined,
+                    codeReference: undefined,
+                },
+            ])
+        })
+    })
+
+    describe('chatMessageToMessage', () => {
+        it('should convert userInputMessage to prompt Message', () => {
+            const chatMessage: StreamingMessage = {
+                userInputMessage: {
+                    content: 'Hello',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+            }
+
+            const result = chatMessageToMessage(chatMessage)
+
             assert.deepStrictEqual(result, {
                 body: 'Hello',
+                origin: 'IDE',
                 type: 'prompt',
-                relatedContent: undefined,
-                codeReference: undefined,
+                userInputMessageContext: {
+                    toolResults: [],
+                },
+                userIntent: undefined,
+            })
+        })
+
+        it('should convert assistantResponseMessage to answer Message', () => {
+            const chatMessage: StreamingMessage = {
+                assistantResponseMessage: {
+                    messageId: 'msg-123',
+                    content: 'Response content',
+                    toolUses: [
+                        {
+                            toolUseId: 'tool-1',
+                            name: 'testTool',
+                            input: { key: 'value' },
+                        },
+                    ],
+                },
+            }
+
+            const result = chatMessageToMessage(chatMessage)
+
+            assert.deepStrictEqual(result, {
+                body: 'Response content',
+                type: 'answer',
+                messageId: 'msg-123',
+                toolUses: [
+                    {
+                        toolUseId: 'tool-1',
+                        name: 'testTool',
+                        input: { key: 'value' },
+                    },
+                ],
             })
         })
     })

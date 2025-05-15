@@ -51,6 +51,7 @@ describe('CodePercentage', () => {
             {
                 percentage: 50,
                 successCount: 1,
+                credentialStartUrl: undefined,
             }
         )
     })
@@ -90,6 +91,7 @@ describe('CodePercentage', () => {
             {
                 percentage: 50,
                 successCount: 1,
+                credentialStartUrl: undefined,
             }
         )
 
@@ -104,6 +106,7 @@ describe('CodePercentage', () => {
             {
                 percentage: 33.33,
                 successCount: 1,
+                credentialStartUrl: undefined,
             }
         )
     })
@@ -129,6 +132,7 @@ describe('CodePercentage', () => {
             {
                 percentage: 50,
                 successCount: 1,
+                credentialStartUrl: undefined,
             }
         )
     })
@@ -152,6 +156,7 @@ describe('CodePercentage', () => {
                 {
                     percentage: 0,
                     successCount: 0,
+                    credentialStartUrl: undefined,
                 }
             )
         })
@@ -173,6 +178,7 @@ describe('CodePercentage', () => {
                 {
                     percentage: 0,
                     successCount: 0,
+                    credentialStartUrl: undefined,
                 }
             )
         })
@@ -194,6 +200,7 @@ describe('CodePercentage', () => {
                 {
                     percentage: 0,
                     successCount: 0,
+                    credentialStartUrl: undefined,
                 }
             )
         })
@@ -215,6 +222,7 @@ describe('CodePercentage', () => {
                 {
                     percentage: 0,
                     successCount: 0,
+                    credentialStartUrl: undefined,
                 }
             )
         })
@@ -240,6 +248,7 @@ describe('CodePercentage', () => {
                 {
                     percentage: 0,
                     successCount: 0,
+                    credentialStartUrl: undefined,
                 }
             )
         })
@@ -272,6 +281,7 @@ describe('CodePercentage', () => {
                 {
                     percentage: 0,
                     successCount: 0,
+                    credentialStartUrl: undefined,
                 }
             )
         })
@@ -293,6 +303,7 @@ describe('CodePercentage', () => {
                 {
                     percentage: 0,
                     successCount: 0,
+                    credentialStartUrl: undefined,
                 }
             )
         })

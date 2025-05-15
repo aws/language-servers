@@ -25,6 +25,20 @@ or
 node ./out/iam-standalone.js --stdio
 ```
 
+### Creating packaged build for agent-standalone server and chat-client
+There is a single shortcut command to generate packaged build for the mentioned server and client without having to run multiple commands inside separate directories. 
+This aims to ease the integration with the clients for testing purposes. The command has to run inside `app/aws-lsp-codewhisperer-runtimes` directory. Following is the command:
+```bash
+npm run local-build
+```
+
+### Creating (new) bundle configurations
+
+**It is important to note** that any configuration should atleast contain a variation of the [AmazonQServiceServer](https://github.com/aws/language-servers/blob/main/server/aws-lsp-codewhisperer/src/shared/amazonQServer.ts) (either IAM or Token). For standalone configurations, the
+helper functions `createIAMRuntimeProps` and `createTokenRuntimeProps` can be used to ensure the correct `AmazonQServiceServer` is injected along with the chosen
+other servers in the configuration. To create webworker configurations, use `iam-webworker.ts` as an example.
+
+
 ## Development and Testing Web Worker Implementation
 
 For development and testing purposes, you can use the `start` script (after bundling with the `package` script) to run a development server that helps validate the web worker bundled implementation and basic language server communication:

@@ -31,7 +31,7 @@ describe('AgenticChatTriggerContext', () => {
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
-        testFeatures.lsp.getClientInitializeParams.returns({
+        testFeatures.setClientParams({
             workspaceFolders: mockWorkspaceFolders,
         } as InitializeParams)
         sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext').resolves(mockDocumentContext)
@@ -107,12 +107,12 @@ describe('AgenticChatTriggerContext', () => {
 
     it('includes workspace folders as part of editor state in chat params', async () => {
         const triggerContext = new AgenticChatTriggerContext(testFeatures)
-        const chatParams = triggerContext.getChatParamsFromTrigger(
+        const chatParams = await triggerContext.getChatParamsFromTrigger(
             { tabId: 'tab', prompt: {} },
             {},
             ChatTriggerType.MANUAL
         )
-        const chatParamsWithMore = triggerContext.getChatParamsFromTrigger(
+        const chatParamsWithMore = await triggerContext.getChatParamsFromTrigger(
             { tabId: 'tab', prompt: {} },
             { cursorState: {} as CursorState, relativeFilePath: '' },
             ChatTriggerType.MANUAL

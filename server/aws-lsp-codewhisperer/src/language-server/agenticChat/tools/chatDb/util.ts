@@ -16,6 +16,9 @@ import {
     Origin,
     UserInputMessageContext,
     UserIntent,
+    ToolUse,
+    UserInputMessage,
+    AssistantResponseMessage,
 } from '@amzn/codewhisperer-streaming'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 
@@ -65,7 +68,8 @@ export type Message = {
     userIntent?: UserIntent
     origin?: Origin
     userInputMessageContext?: UserInputMessageContext
-    // toolUses?: ToolUse[]
+    toolUses?: ToolUse[]
+    shouldDisplayMessage?: boolean
 }
 
 /**
@@ -77,13 +81,14 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
               assistantResponseMessage: {
                   messageId: msg.messageId,
                   content: msg.body,
-                  references: msg.codeReference || [],
+                  toolUses: msg.toolUses || [],
               },
           }
         : {
               userInputMessage: {
                   content: msg.body,
                   userIntent: msg.userIntent,
+                  origin: msg.origin || 'IDE',
                   userInputMessageContext: msg.userInputMessageContext || {},
               },
           }
@@ -92,12 +97,61 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
 /**
  * Converts Message to LSP Protocol ChatMessage
  */
-export function messageToChatMessage(msg: Message): ChatMessage {
-    return {
-        body: msg.body,
-        type: msg.type,
-        codeReference: msg.codeReference,
-        relatedContent: msg.relatedContent && msg.relatedContent?.content.length > 0 ? msg.relatedContent : undefined,
+export function messageToChatMessage(msg: Message): ChatMessage[] {
+    const chatMessages: ChatMessage[] = [
+        {
+            body: msg.body,
+            type: msg.type,
+            codeReference: msg.codeReference,
+            relatedContent:
+                msg.relatedContent && msg.relatedContent?.content.length > 0 ? msg.relatedContent : undefined,
+        },
+    ]
+
+    // Check if there are any toolUses with explanations that should be displayed as directive messages
+    if (msg.toolUses && msg.toolUses.length > 0) {
+        for (const toolUse of msg.toolUses) {
+            if (toolUse.input && typeof toolUse.input === 'object') {
+                const input = toolUse.input as any
+                if (input.explanation) {
+                    chatMessages.push({
+                        body: input.explanation,
+                        type: 'directive',
+                    })
+                }
+            }
+        }
+    }
+    return chatMessages
+}
+
+/**
+ * Converts codewhisperer-streaming ChatMessage to Message
+ */
+export function chatMessageToMessage(chatMessage: StreamingMessage): Message {
+    if ('userInputMessage' in chatMessage) {
+        const userInputMessage = chatMessage.userInputMessage as UserInputMessage
+        return {
+            body: userInputMessage.content || '',
+            type: 'prompt',
+            userIntent: userInputMessage.userIntent,
+            origin: userInputMessage.origin || 'IDE',
+            userInputMessageContext: userInputMessage.userInputMessageContext || {},
+        }
+    } else if ('assistantResponseMessage' in chatMessage) {
+        const assistantResponseMessage = chatMessage.assistantResponseMessage as AssistantResponseMessage
+        return {
+            body: assistantResponseMessage.content || '',
+            type: 'answer',
+            messageId: assistantResponseMessage.messageId,
+            toolUses: assistantResponseMessage.toolUses || [],
+        }
+    } else {
+        // Default fallback for unexpected message format
+        return {
+            body: '',
+            type: 'prompt',
+        }
     }
 }
 

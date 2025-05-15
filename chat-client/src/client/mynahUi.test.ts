@@ -17,6 +17,7 @@ describe('MynahUI', () => {
 
     let getSelectedTabIdStub: sinon.SinonStub
     let createTabStub: sinon.SinonStub
+    let getChatItemsStub: sinon.SinonStub
     let getAllTabsStub: sinon.SinonStub
     let updateStoreSpy: sinon.SinonSpy
     let addChatItemSpy: sinon.SinonSpy
@@ -55,6 +56,9 @@ describe('MynahUI', () => {
             tabBarAction: sinon.stub(),
             onGetSerializedChat: sinon.stub(),
             promptInputOptionChange: sinon.stub(),
+            stopChatResponse: sinon.stub(),
+            sendButtonClickEvent: sinon.stub(),
+            onOpenSettings: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
@@ -65,7 +69,9 @@ describe('MynahUI', () => {
         const tabFactory = new TabFactory({})
         createTabStub = sinon.stub(tabFactory, 'createTab')
         createTabStub.returns({})
-        const mynahUiResult = createMynahUi(messager, tabFactory, true, true)
+        getChatItemsStub = sinon.stub(tabFactory, 'getChatItems')
+        getChatItemsStub.returns([])
+        const mynahUiResult = createMynahUi(messager, tabFactory, true, true, undefined, undefined, true)
         mynahUi = mynahUiResult[0]
         inboundChatApi = mynahUiResult[1]
         getSelectedTabIdStub = sinon.stub(mynahUi, 'getSelectedTabId')
@@ -90,12 +96,16 @@ describe('MynahUI', () => {
             const tabId = 'tab-1'
             const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt' }
 
-            handleChatPrompt(mynahUi, tabId, prompt, messager)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, undefined, undefined, true)
 
             assert.notCalled(onQuickActionSpy)
-            assert.calledWith(onChatPromptSpy, { prompt, tabId })
+            assert.calledWith(onChatPromptSpy, { prompt, tabId, context: undefined })
             assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.PROMPT, body: prompt.escapedPrompt })
-            assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
+            assert.calledWith(updateStoreSpy, tabId, {
+                loadingChat: true,
+                promptInputDisabledState: false,
+                cancelButtonWhenLoading: true,
+            })
             assert.calledWith(addChatItemSpy, tabId, { type: ChatItemType.ANSWER_STREAM })
         })
 
@@ -115,7 +125,7 @@ describe('MynahUI', () => {
             const tabId = 'tab-1'
             const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt', command: '/help' }
 
-            handleChatPrompt(mynahUi, tabId, prompt, messager)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, undefined, undefined, true)
 
             assert.notCalled(onChatPromptSpy)
             assert.calledWith(onQuickActionSpy, {
@@ -124,17 +134,23 @@ describe('MynahUI', () => {
                 tabId,
             })
             assert.calledOnce(updateStoreSpy)
-            assert.calledWith(updateStoreSpy, tabId, { loadingChat: true, promptInputDisabledState: true })
+            assert.calledWith(updateStoreSpy, tabId, {
+                loadingChat: true,
+                promptInputDisabledState: false,
+                cancelButtonWhenLoading: true,
+            })
         })
     })
 
     describe('openTab', () => {
         it('should create a new tab with welcome messages if tabId not passed and previous messages not passed', () => {
             createTabStub.resetHistory()
+            getChatItemsStub.resetHistory()
 
             inboundChatApi.openTab(requestId, {})
 
-            sinon.assert.calledOnceWithExactly(createTabStub, true, false, false, undefined)
+            sinon.assert.calledOnceWithExactly(createTabStub, false)
+            sinon.assert.calledOnceWithExactly(getChatItemsStub, true, false, undefined)
             sinon.assert.notCalled(selectTabSpy)
             sinon.assert.calledOnce(onOpenTabSpy)
         })
@@ -154,6 +170,7 @@ describe('MynahUI', () => {
             ]
 
             createTabStub.resetHistory()
+            getChatItemsStub.resetHistory()
 
             inboundChatApi.openTab(requestId, {
                 newTabOptions: {
@@ -163,19 +180,21 @@ describe('MynahUI', () => {
                 },
             })
 
-            sinon.assert.calledOnceWithExactly(createTabStub, false, false, false, mockMessages)
+            sinon.assert.calledOnceWithExactly(createTabStub, false)
+            sinon.assert.calledOnceWithExactly(getChatItemsStub, false, false, mockMessages)
             sinon.assert.notCalled(selectTabSpy)
             sinon.assert.calledOnce(onOpenTabSpy)
         })
 
         it('should call onOpenTab if a new tab if tabId not passed and tab not created', () => {
             createTabStub.resetHistory()
+            getChatItemsStub.resetHistory()
             updateStoreSpy.restore()
             sinon.stub(mynahUi, 'updateStore').returns(undefined)
 
             inboundChatApi.openTab(requestId, {})
 
-            sinon.assert.calledOnceWithExactly(createTabStub, true, false, false, undefined)
+            sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.notCalled(selectTabSpy)
             sinon.assert.calledOnceWithMatch(onOpenTabSpy, requestId, { type: 'InvalidRequest' })
         })
@@ -218,7 +237,7 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns(undefined)
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
-            sinon.assert.calledOnceWithExactly(createTabStub, false, false, false, undefined)
+            sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledThrice(updateStoreSpy)
         })
 
@@ -234,7 +253,7 @@ describe('MynahUI', () => {
             getSelectedTabIdStub.returns(tabId)
             inboundChatApi.sendGenericCommand({ genericCommand, selection, tabId, triggerType })
 
-            sinon.assert.calledOnceWithExactly(createTabStub, false, false, false, undefined)
+            sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledThrice(updateStoreSpy)
         })
 
@@ -279,7 +298,7 @@ describe('MynahUI', () => {
 
             sinon.assert.calledOnceWithMatch(updateStoreSpy, tabId, {
                 loadingChat: true,
-                promptInputDisabledState: true,
+                promptInputDisabledState: false,
             })
         })
     })
@@ -395,7 +414,15 @@ describe('withAdapter', () => {
             telemetry: sinon.stub(),
         } as OutboundChatApi)
         const tabFactory = new TabFactory({})
-        const mynahUiResult = createMynahUi(messager as Messager, tabFactory, true, true, chatClientAdapter)
+        const mynahUiResult = createMynahUi(
+            messager as Messager,
+            tabFactory,
+            true,
+            true,
+            chatClientAdapter,
+            undefined,
+            true
+        )
         mynahUi = mynahUiResult[0]
     })
 

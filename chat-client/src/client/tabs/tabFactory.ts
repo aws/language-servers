@@ -18,6 +18,8 @@ export const ExportTabBarButtonId = 'export'
 export class TabFactory {
     private history: boolean = false
     private export: boolean = false
+    private agenticMode: boolean = false
+    initialTabId: string
 
     public static generateUniqueId() {
         // from https://github.com/aws/mynah-ui/blob/a3799f47ca4b7c02850264e328539a40709a6858/src/helper/guid.ts#L6
@@ -28,39 +30,51 @@ export class TabFactory {
 
     constructor(
         private defaultTabData: DefaultTabData,
-        private quickActionCommands?: QuickActionCommandGroup[]
-    ) {}
+        private quickActionCommands?: QuickActionCommandGroup[],
+        private bannerMessage?: ChatMessage
+    ) {
+        this.initialTabId = TabFactory.generateUniqueId()
+    }
 
-    public createTab(
-        needWelcomeMessages: boolean,
-        disclaimerCardActive: boolean,
-        pairProgrammingCardActive: boolean,
-        chatMessages?: ChatMessage[]
-    ): MynahUIDataModel {
+    public createTab(disclaimerCardActive: boolean): MynahUIDataModel {
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
-            chatItems: needWelcomeMessages
+            ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
+            promptInputOptions: this.agenticMode ? [pairProgrammingPromptInput] : [],
+            cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
+        }
+        return tabData
+    }
+
+    public getChatItems(
+        needWelcomeMessages: boolean,
+        pairProgrammingCardActive: boolean,
+        chatMessages?: ChatMessage[]
+    ): ChatItem[] {
+        return [
+            ...(this.bannerMessage ? [this.getBannerMessage() as ChatItem] : []),
+            ...(needWelcomeMessages
                 ? [
-                      ...(pairProgrammingCardActive ? [programmerModeCard] : []),
+                      ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
                           body: `Hi, I'm Amazon Q. I can answer your software development questions. 
                         Ask me to explain, debug, or optimize your code. 
                         You can enter \`/\` to see a list of quick actions.`,
                       },
-                      {
-                          type: ChatItemType.ANSWER,
-                          followUp: this.getWelcomeBlock(),
-                      },
+                      ...(!this.agenticMode
+                          ? [
+                                {
+                                    type: ChatItemType.ANSWER,
+                                    followUp: this.getWelcomeBlock(),
+                                },
+                            ]
+                          : []),
                   ]
                 : chatMessages
                   ? (chatMessages as ChatItem[])
-                  : [],
-            ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
-            cancelButtonWhenLoading: false,
-            promptInputOptions: [pairProgrammingPromptInput],
-        }
-        return tabData
+                  : []),
+        ]
     }
 
     public updateQuickActionCommands(quickActionCommands: QuickActionCommandGroup[]) {
@@ -75,6 +89,10 @@ export class TabFactory {
         this.export = true
     }
 
+    public enableAgenticMode() {
+        this.agenticMode = true
+    }
+
     public getDefaultTabData(): DefaultTabData {
         const tabData = {
             ...this.defaultTabData,
@@ -85,21 +103,22 @@ export class TabFactory {
         return tabData
     }
 
-    private getWelcomeBlock() {
-        return {
-            text: 'Try Examples:',
-            options: [
-                {
-                    pillText: 'Explain selected code',
-                    prompt: 'Explain selected code',
-                    type: 'init-prompt',
-                },
-                {
-                    pillText: 'How can Amazon Q help me?',
-                    type: 'help',
-                },
-            ],
+    public setInfoMessages(messages: ChatMessage[] | undefined) {
+        if (messages?.length) {
+            // For now this messages array is only populated with banner data hence we use the first item
+            this.bannerMessage = messages[0]
         }
+    }
+
+    private getBannerMessage(): ChatItem | undefined {
+        if (this.bannerMessage) {
+            return {
+                type: ChatItemType.ANSWER,
+                status: 'info',
+                ...this.bannerMessage,
+            } as ChatItem
+        }
+        return undefined
     }
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {
@@ -122,5 +141,23 @@ export class TabFactory {
         }
 
         return tabBarButtons.length ? tabBarButtons : undefined
+    }
+
+    // Legacy welcome messages block
+    private getWelcomeBlock() {
+        return {
+            text: 'Try Examples:',
+            options: [
+                {
+                    pillText: 'Explain selected code',
+                    prompt: 'Explain selected code',
+                    type: 'init-prompt',
+                },
+                {
+                    pillText: 'How can Amazon Q help me?',
+                    type: 'help',
+                },
+            ],
+        }
     }
 }

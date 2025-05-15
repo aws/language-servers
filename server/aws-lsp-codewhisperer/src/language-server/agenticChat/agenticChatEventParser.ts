@@ -14,6 +14,8 @@ import {
 import { Result } from '../types'
 import { AddMessageEvent } from '../../shared/telemetry/types'
 import { Metric } from '../../shared/telemetry/metric'
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { loggingUtils } from '@aws/lsp-core'
 
 export type ChatResultWithMetadata = {
     chatResult: ChatResult
@@ -37,6 +39,7 @@ export class AgenticChatEventParser implements ChatResult {
     conversationId?: string
 
     #metric: Metric<AddMessageEvent>
+    #logging: Features['logging']
     #lastChunkTime: number = 0
     #totalEvents = {
         followupPromptEvent: 0,
@@ -71,19 +74,17 @@ export class AgenticChatEventParser implements ChatResult {
         }
     }
 
-    constructor(messageId: string, metric: Metric<AddMessageEvent>) {
+    constructor(messageId: string, metric: Metric<AddMessageEvent>, logging: Features['logging']) {
         this.messageId = messageId
         this.#metric = metric
+        this.#logging = logging
     }
 
     public get totalEvents() {
         return this.#totalEvents
     }
 
-    public processPartialEvent(
-        chatEvent: ChatResponseStream,
-        contextList?: FileList
-    ): Result<ChatResultWithMetadata, string> {
+    public processPartialEvent(chatEvent: ChatResponseStream): Result<ChatResultWithMetadata, string> {
         const {
             messageMetadataEvent,
             followupPromptEvent,
@@ -101,9 +102,12 @@ export class AgenticChatEventParser implements ChatResult {
                 cwsprChatTimeBetweenChunks: [],
             })
         } else {
-            this.#metric.mergeWith({
-                cwsprChatTimeBetweenChunks: [Date.now() - this.#lastChunkTime],
-            })
+            const chatTime = Date.now() - this.#lastChunkTime
+            if (chatTime !== 0) {
+                this.#metric.mergeWith({
+                    cwsprChatTimeBetweenChunks: [chatTime],
+                })
+            }
         }
 
         this.#lastChunkTime = Date.now()
@@ -113,9 +117,6 @@ export class AgenticChatEventParser implements ChatResult {
         } else if (invalidStateEvent) {
             this.error = invalidStateEvent.message ?? invalidStateEvent.reason ?? 'Invalid state'
         } else if (assistantResponseEvent?.content) {
-            if (contextList?.filePaths?.length) {
-                this.contextList = contextList
-            }
             this.#totalEvents.assistantResponseEvent += 1
             this.body = (this.body ?? '') + assistantResponseEvent.content
         } else if (toolUseEvent) {
@@ -136,15 +137,28 @@ export class AgenticChatEventParser implements ChatResult {
                 }
 
                 if (toolUseEvent.stop) {
-                    const parsedInput =
-                        typeof this.toolUses[toolUseId].input === 'string'
-                            ? JSON.parse(this.toolUses[toolUseId].input === '' ? '{}' : this.toolUses[toolUseId].input)
-                            : this.toolUses[toolUseId].input
+                    const finalInput = this.toolUses[toolUseId].input
+                    let parsedInput
+                    try {
+                        if (typeof finalInput === 'string') {
+                            parsedInput = JSON.parse(finalInput === '' ? '{}' : finalInput)
+                        } else {
+                            parsedInput = finalInput
+                        }
+                    } catch (err) {
+                        this.#logging.error(
+                            `Error parsing tool use input: ${this.toolUses[toolUseId].input}:${loggingUtils.formatErr(err)}`
+                        )
+                        this.error = `ToolUse input is invalid JSON: "${this.toolUses[toolUseId].input}".`
+                        parsedInput = {}
+                    }
                     this.toolUses[toolUseId] = {
                         ...this.toolUses[toolUseId],
                         input: parsedInput,
                     }
-                    console.log(`ToolUseEvent: ${toolUseId} ${name} ${this.toolUses[toolUseId].input}`)
+                    this.#logging.log(
+                        `ToolUseEvent: ${toolUseId} ${name} ${loggingUtils.formatObj(this.toolUses[toolUseId].input)}`
+                    )
                 }
             }
         } else if (followupPromptEvent?.followupPrompt) {
