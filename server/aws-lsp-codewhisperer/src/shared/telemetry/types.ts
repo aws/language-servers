@@ -25,6 +25,9 @@ export interface CodeWhispererServiceInvocationEvent {
     codewhispererSupplementalContextIsUtg?: boolean
     codewhispererSupplementalContextLatency?: number
     codewhispererSupplementalContextLength?: number
+    codewhispererImportRecommendationEnabled?: boolean
+    result?: 'Succeeded' | 'Failed'
+    traceId?: string
 }
 
 export interface CodeWhispererPerceivedLatencyEvent {
@@ -36,6 +39,8 @@ export interface CodeWhispererPerceivedLatencyEvent {
     codewhispererLanguage: CodewhispererLanguage
     credentialStartUrl?: string
     codewhispererCustomizationArn?: string
+    passive?: boolean
+    result?: 'Succeeded' | 'Failed'
 }
 
 export interface CodeWhispererUserTriggerDecisionEvent {
@@ -64,8 +69,24 @@ export interface CodeWhispererUserTriggerDecisionEvent {
     codewhispererSupplementalContextTimeout?: boolean
     codewhispererSupplementalContextIsUtg?: boolean
     codewhispererSupplementalContextLength?: number
+    codewhispererCharactersAccepted?: number
+    codewhispererSuggestionImportCount?: number
+    codewhispererSupplementalContextStrategyId?: string
 }
 
+export interface CodeWhispererUserModificationEvent {
+    codewhispererRequestId?: string
+    codewhispererSessionId?: string
+    codewhispererCompletionType?: string
+    codewhispererTriggerType: string
+    codewhispererLanguage: string
+    codewhispererModificationPercentage: number
+    credentialStartUrl?: string
+    codewhispererCharactersAccepted?: number
+    codewhispererCharactersModified?: number
+}
+
+// 2tracker
 export interface CodeWhispererCodePercentageEvent {
     codewhispererTotalTokens: number
     codewhispererLanguage: string
@@ -73,6 +94,8 @@ export interface CodeWhispererCodePercentageEvent {
     codewhispererSuggestedTokens: number
     codewhispererPercentage: number
     successCount: number
+    codewhispererCustomizationArn?: string
+    credentialStartUrl?: string
 }
 
 export interface UserWrittenPercentageEvent {

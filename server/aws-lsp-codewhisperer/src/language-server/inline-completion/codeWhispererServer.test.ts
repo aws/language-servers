@@ -1392,6 +1392,13 @@ describe('CodeWhisperer Server', () => {
         })
 
         it('should emit Success ServiceInvocation telemetry on successful response', async () => {
+            await updateConfiguration(
+                features,
+                Promise.resolve({
+                    includeImportsWithSuggestions: true,
+                })
+            )
+
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -1421,6 +1428,8 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Succeeded',
+                    codewhispererImportRecommendationEnabled: true,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1469,6 +1478,8 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Succeeded',
+                    codewhispererImportRecommendationEnabled: false,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1508,6 +1519,9 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Failed',
+                    codewhispererImportRecommendationEnabled: undefined,
+                    traceId: 'notSet',
                 },
                 errorData: {
                     reason: 'TestError',
@@ -1550,6 +1564,9 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Failed',
+                    codewhispererImportRecommendationEnabled: undefined,
+                    traceId: 'notSet',
                 },
                 errorData: {
                     reason: 'UnknownError',
@@ -1604,6 +1621,9 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Failed',
+                    codewhispererImportRecommendationEnabled: undefined,
+                    traceId: 'notSet',
                 },
                 errorData: {
                     reason: 'TestAWSError',
@@ -1637,6 +1657,8 @@ describe('CodeWhisperer Server', () => {
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Succeeded',
+                    passive: true,
                 },
             }
             sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
@@ -1745,6 +1767,9 @@ describe('CodeWhisperer Server', () => {
                     startPosition: { line: 0, character: 0 },
                     endPosition: { line: 0, character: 14 },
                     customizationArn: undefined,
+                    completionType: 'Line',
+                    triggerType: 'OnDemand',
+                    credentialStartUrl: undefined,
                 })
             })
 
@@ -1775,16 +1800,24 @@ describe('CodeWhisperer Server', () => {
 
                 await clock.tickAsync(5 * 60 * 1000 + 30)
 
-                sinon.assert.calledOnceWithExactly(telemetryServiceSpy, {
-                    sessionId: 'cwspr-session-id',
-                    requestId: 'cwspr-request-id',
-                    languageId: 'csharp',
-                    customizationArn: undefined,
-                    timestamp: new Date(startTime.getTime() + 5 * 60 * 1000),
-                    acceptedCharacterCount: 14,
-                    modificationPercentage: 0.9285714285714286,
-                    unmodifiedAcceptedCharacterCount: 1,
-                })
+                sinon.assert.calledOnceWithExactly(
+                    telemetryServiceSpy,
+                    {
+                        sessionId: 'cwspr-session-id',
+                        requestId: 'cwspr-request-id',
+                        languageId: 'csharp',
+                        customizationArn: undefined,
+                        timestamp: new Date(startTime.getTime() + 5 * 60 * 1000),
+                        acceptedCharacterCount: 14,
+                        modificationPercentage: 0.9285714285714286,
+                        unmodifiedAcceptedCharacterCount: 1,
+                    },
+                    {
+                        completionType: 'Line',
+                        triggerType: 'OnDemand',
+                        credentialStartUrl: undefined,
+                    }
+                )
             })
         })
     })

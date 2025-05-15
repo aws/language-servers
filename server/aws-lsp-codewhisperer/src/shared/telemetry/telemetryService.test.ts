@@ -106,6 +106,7 @@ describe('TelemetryService', () => {
             line: 12,
             character: 23,
         },
+        codewhispererSuggestionImportCount: 10,
     }
 
     beforeEach(() => {
@@ -315,6 +316,9 @@ describe('TelemetryService', () => {
                 codewhispererSupplementalContextIsUtg: undefined,
                 codewhispererSupplementalContextLength: undefined,
                 codewhispererCustomizationArn: 'test-arn',
+                codewhispererCharactersAccepted: 17,
+                codewhispererSuggestionImportCount: 10,
+                codewhispererSupplementalContextStrategyId: undefined,
             },
         })
     })
@@ -566,6 +570,8 @@ describe('TelemetryService', () => {
                 codewhispererSuggestedTokens: 123,
                 codewhispererPercentage: 50,
                 successCount: 1,
+                codewhispererCustomizationArn: 'test-arn',
+                credentialStartUrl: undefined,
             },
         })
     })
@@ -603,19 +609,27 @@ describe('TelemetryService', () => {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, {} as Telemetry, logging)
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         telemetryService.updateOptOutPreference('OPTIN')
+        telemetryService.updateEnableTelemetryEventsToDestination(true)
 
-        telemetryService.emitUserModificationEvent({
-            sessionId: 'test-session-id',
-            requestId: 'test-request-id',
-            languageId: 'typescript',
-            customizationArn: 'test-arn',
-            timestamp: new Date(),
-            modificationPercentage: 0.2,
-            acceptedCharacterCount: 100,
-            unmodifiedAcceptedCharacterCount: 80,
-        })
+        telemetryService.emitUserModificationEvent(
+            {
+                sessionId: 'test-session-id',
+                requestId: 'test-request-id',
+                languageId: 'typescript',
+                customizationArn: 'test-arn',
+                timestamp: new Date(),
+                modificationPercentage: 0.2,
+                acceptedCharacterCount: 100,
+                unmodifiedAcceptedCharacterCount: 80,
+            },
+            {
+                completionType: 'test-completion-type',
+                triggerType: 'test-trigger-type',
+                credentialStartUrl: 'test-url',
+            }
+        )
 
         const expectedEvent = {
             telemetryEvent: {
@@ -634,6 +648,20 @@ describe('TelemetryService', () => {
             },
             optOutPreference: 'OPTIN',
         }
+        sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
+            name: 'codewhisperer_userModification',
+            data: {
+                codewhispererRequestId: 'test-request-id',
+                codewhispererSessionId: 'test-session-id',
+                codewhispererCompletionType: 'test-completion-type',
+                codewhispererTriggerType: 'test-trigger-type',
+                codewhispererLanguage: 'typescript',
+                codewhispererModificationPercentage: 0.2,
+                credentialStartUrl: 'test-url',
+                codewhispererCharactersAccepted: 100,
+                codewhispererCharactersModified: 80,
+            },
+        })
         sinon.assert.calledOnceWithExactly(codeWhisperServiceStub.sendTelemetryEvent, expectedEvent)
     })
 
