@@ -351,7 +351,7 @@ export class WorkspaceFolderManager {
             this.logging.log(`Starting continuous monitor for workspace [${this.workspaceIdentifier}]`)
             const intervalId = setInterval(async () => {
                 try {
-                    this.checkRemoteWorkspaceStatusAndReact()
+                    await this.checkRemoteWorkspaceStatusAndReact()
                 } catch (error) {
                     this.logging.error(`Error monitoring workspace status: ${error}`)
                 }
@@ -538,7 +538,9 @@ export class WorkspaceFolderManager {
             await this.waitForInitialConnection()
             if (!skipUploads) {
                 await this.syncSourceCodesToS3(this.workspaceFolders)
-                this.dependencyDiscoverer.reSyncDependenciesToS3(this.workspaceFolders)
+                this.dependencyDiscoverer.reSyncDependenciesToS3(this.workspaceFolders).catch(e => {
+                    this.logging.warn(`Error during re-syncing dependencies: ${e}`)
+                })
             }
             return
         }
@@ -564,7 +566,9 @@ export class WorkspaceFolderManager {
         await this.waitForInitialConnection()
         if (!skipUploads) {
             await this.syncSourceCodesToS3(this.workspaceFolders)
-            this.dependencyDiscoverer.reSyncDependenciesToS3(this.workspaceFolders)
+            this.dependencyDiscoverer.reSyncDependenciesToS3(this.workspaceFolders).catch(e => {
+                this.logging.warn(`Error during re-syncing dependencies: ${e}`)
+            })
         }
     }
 

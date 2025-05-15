@@ -239,7 +239,9 @@ export const WorkspaceContextServer = (): Server => features => {
                     return
                 }
 
-                workspaceFolderManager.initializeWorkspaceStatusMonitor()
+                workspaceFolderManager.initializeWorkspaceStatusMonitor().catch(error => {
+                    logging.error(`Error while initializing workspace status monitoring: ${error}`)
+                })
                 logging.log(`Workspace context workflow initialized`)
                 artifactManager.updateWorkspaceFolders(workspaceFolders)
                 workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders).catch(error => {
