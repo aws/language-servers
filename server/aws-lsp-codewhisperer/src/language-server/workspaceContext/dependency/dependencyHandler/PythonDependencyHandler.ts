@@ -3,7 +3,7 @@ import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import * as path from 'path'
 import * as fs from 'fs'
 import { FileMetadata } from '../../artifactManager'
-import { isDirectory } from '../../util'
+import { resolveSymlink, isDirectory } from '../../util'
 
 export interface PythonDependencyInfo extends BaseDependencyInfo {
     vscCodeSettingsJsonPath: string
@@ -155,8 +155,11 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
 
             for (const item of sitePackagesContent) {
                 const itemPath = path.join(sitePackagesPath, item)
-
-                this.transformPathToDependency(item, itemPath, dependencyMap)
+                try {
+                    this.transformPathToDependency(item, itemPath, dependencyMap)
+                } catch (error) {
+                    this.logging.warn(`Error processing item ${item} in ${sitePackagesPath}: ${error}`)
+                }
             }
         }
         return dependencyMap
@@ -172,21 +175,27 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
             return
         }
 
-        // Add to dependency map if not already present
-        if (!dependencyMap.has(dependencyName)) {
-            let dependencySize: number = 0
-            if (isDirectory(dependencyPath)) {
-                dependencySize = this.getDirectorySize(dependencyPath)
-            } else {
-                dependencySize = fs.statSync(dependencyPath).size
+        try {
+            // Add to dependency map if not already present
+            if (!dependencyMap.has(dependencyName)) {
+                let dependencySize: number = 0
+                let truePath: string = resolveSymlink(dependencyPath)
+
+                if (isDirectory(truePath)) {
+                    dependencySize = this.getDirectorySize(truePath)
+                } else {
+                    dependencySize = fs.statSync(truePath).size
+                }
+                dependencyMap.set(dependencyName, {
+                    name: dependencyName,
+                    version: 'unknown',
+                    path: truePath,
+                    size: dependencySize,
+                    zipped: false,
+                })
             }
-            dependencyMap.set(dependencyName, {
-                name: dependencyName,
-                version: 'unknown',
-                path: dependencyPath,
-                size: dependencySize,
-                zipped: false,
-            })
+        } catch (error) {
+            this.logging.warn(`Error processing dependency ${dependencyName}: ${error}`)
         }
     }
 
@@ -204,7 +213,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
         const dependencyName = metadataDir.split('-')[0]
 
         // Check if we have this package in our dependency map
-        const dependencyPath = path.join(sitePackagesPath, dependencyName)
+        const dependencyPath = resolveSymlink(path.join(sitePackagesPath, dependencyName))
         if (fs.existsSync(dependencyPath)) {
             // Mark the package as updated
             const updatedDependency = {
@@ -224,7 +233,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
         fileName: string,
         updatedDependencyMap: Map<string, Dependency>
     ): void {
-        const dependencyPath = path.join(sitePackagesPath, fileName)
+        const dependencyPath = resolveSymlink(path.join(sitePackagesPath, fileName))
         if (fs.existsSync(dependencyPath)) {
             const updatedDependency = {
                 name: fileName,
