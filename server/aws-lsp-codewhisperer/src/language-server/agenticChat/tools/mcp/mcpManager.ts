@@ -16,6 +16,7 @@ import type {
 import { loadMcpServerConfigs } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
+import { Mutex } from 'async-mutex'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -30,6 +31,7 @@ export class McpManager {
     private mcpServers: Map<string, MCPServerConfig>
     private mcpServerStates: Map<string, McpServerRuntimeState>
     public readonly events: EventEmitter
+    private static readonly configMutex = new Mutex()
 
     private constructor(
         private configPaths: string[],
@@ -185,6 +187,24 @@ export class McpManager {
     }
 
     /**
+     * Return all tools and their enabled & approval flags. (this will be replaced with the state enum later)
+     * If serverFilter is given, only tools from that server are returned.
+     */
+    public getAllToolsWithStates(serverFilter?: string): {
+        tool: McpToolDefinition
+        disabled: boolean
+        requiresApproval: boolean
+    }[] {
+        return this.mcpTools
+            .filter(t => !serverFilter || t.serverName === serverFilter)
+            .map(toolDef => ({
+                tool: toolDef,
+                disabled: this.isToolDisabled(toolDef.serverName, toolDef.toolName),
+                requiresApproval: this.requiresApproval(toolDef.serverName, toolDef.toolName),
+            }))
+    }
+
+    /**
      * Return a list of all enabled tools.
      */
     public getEnabledTools(): McpToolDefinition[] {
@@ -226,6 +246,8 @@ export class McpManager {
      * @throws if server or tool is missing, disabled, or disconnected(shouldn't happen).
      */
     public async callTool(server: string, tool: string, args: any): Promise<any> {
+        const DEFAULT_TOOL_EXEC_TIMEOUT_MS = 60_000
+
         const cfg = this.mcpServers.get(server)
         if (!cfg) throw new Error(`MCP: server '${server}' is not configured`)
         if (cfg.disabled) throw new Error(`MCP: server '${server}' is disabled`)
@@ -238,7 +260,28 @@ export class McpManager {
         const client = this.clients.get(server)
         if (!client) throw new Error(`MCP: server '${server}' not connected`)
 
-        return client.callTool({ name: tool, arguments: args })
+        const execTimeout = cfg.timeout ?? DEFAULT_TOOL_EXEC_TIMEOUT_MS
+        const callPromise = client.callTool({ name: tool, arguments: args })
+        const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(
+                () =>
+                    reject(
+                        new AgenticChatError(
+                            `MCP: tool '${server}::${tool}' execution timed out after ${execTimeout} ms`,
+                            'MCPToolExecTimeout'
+                        )
+                    ),
+                execTimeout
+            )
+        )
+        try {
+            return await Promise.race([callPromise, timeoutPromise])
+        } catch (err: unknown) {
+            if (err instanceof AgenticChatError && err.code === 'MCPToolExecTimeout') {
+                this.features.logging.error(err.message)
+            }
+            throw err
+        }
     }
 
     /**
@@ -381,20 +424,22 @@ export class McpManager {
     }
 
     /**
-     * Read, mutate, and write the JSON config at the given path.
+     * Read, mutate, and write the JSON config at the given path atomically
      * @private
      */
     private async mutateConfigFile(configPath: string, mutator: (json: any) => void): Promise<void> {
-        try {
-            const raw = await this.features.workspace.fs.readFile(configPath)
-            const json = JSON.parse(raw.toString())
-            json.mcpServers = json.mcpServers || {}
-            mutator(json)
-            await this.features.workspace.fs.writeFile(configPath, JSON.stringify(json, null, 2))
-        } catch (e: any) {
-            this.features.logging.error(`MCP: failed to update config at ${configPath}: ${e.message}`)
-            throw e
-        }
+        return McpManager.configMutex
+            .runExclusive(async () => {
+                const raw = await this.features.workspace.fs.readFile(configPath)
+                const json = JSON.parse(raw.toString())
+                json.mcpServers = json.mcpServers || {}
+                mutator(json)
+                await this.features.workspace.fs.writeFile(configPath, JSON.stringify(json, null, 2))
+            })
+            .catch((e: any) => {
+                this.features.logging.error(`MCP: failed to update config at ${configPath}: ${e.message}`)
+                throw e
+            })
     }
 
     /**

@@ -23,6 +23,7 @@ export interface MCPServerConfig {
     args?: string[]
     env?: Record<string, string>
     initializationTimeout?: number
+    timeout?: number
     disabled?: boolean
     autoApprove?: boolean
     toolOverrides?: Record<string, { autoApprove?: boolean; disabled?: boolean }>
