@@ -127,7 +127,7 @@ export class WorkspaceFolderManager {
                     this.workspaceState.webSocketClient
                         .send(message)
                         .then(() => {
-                            this.logging.log(` Message sent successfully: ${message}`)
+                            this.logging.log(` Message sent successfully`)
                             this.workspaceState.messageQueue.shift()
                         })
                         .catch(error => {
