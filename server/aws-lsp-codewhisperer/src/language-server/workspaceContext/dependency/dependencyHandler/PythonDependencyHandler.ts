@@ -4,6 +4,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { FileMetadata } from '../../artifactManager'
 import { resolveSymlink, isDirectory } from '../../util'
+import { DependencyWatcher } from './DependencyWatcher'
 
 export interface PythonDependencyInfo extends BaseDependencyInfo {
     vscCodeSettingsJsonPath: string
@@ -113,24 +114,29 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
 
                 this.logging.log(`Setting up Python dependency watcher for ${sitePackagesPath}`)
                 try {
-                    const watcher = fs.watch(sitePackagesPath, { recursive: false }, async (eventType, fileName) => {
-                        if (!fileName) return
-                        // Handle event types
-                        if (eventType === 'rename') {
-                            const updatedDependencyMap: Map<string, Dependency> = new Map<string, Dependency>()
+                    const callBackDependencyUpdate = async (events: string[]) => {
+                        const updatedDependencyMap: Map<string, Dependency> = new Map<string, Dependency>()
+                        for (const fileName of events) {
                             if (this.isMetadataDirectory(fileName)) {
                                 this.handleMetadataChange(sitePackagesPath, fileName, updatedDependencyMap)
                             } else {
                                 this.handlePackageChange(sitePackagesPath, fileName, updatedDependencyMap)
                             }
-                            let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
-                                pythonDependencyInfo.workspaceFolder,
-                                updatedDependencyMap,
-                                true
-                            )
-                            this.emitDependencyChange(pythonDependencyInfo.workspaceFolder, zips)
                         }
-                    })
+                        let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                            pythonDependencyInfo.workspaceFolder,
+                            updatedDependencyMap,
+                            true
+                        )
+                        this.emitDependencyChange(pythonDependencyInfo.workspaceFolder, zips)
+                    } // end of callback function
+
+                    const watcher = new DependencyWatcher(
+                        sitePackagesPath,
+                        callBackDependencyUpdate,
+                        this.logging,
+                        this.DEPENDENCY_WATCHER_EVENT_BATCH_INTERVAL
+                    )
                     this.dependencyWatchers.set(sitePackagesPath, watcher)
                     this.logging.log(`Started watching Python site-packages: ${sitePackagesPath}`)
                 } catch (error) {
@@ -270,7 +276,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 pythonDependencyInfo.sitePackagesPaths.forEach((sitePackagesPath: string) => {
                     if (this.dependencyWatchers.has(sitePackagesPath)) {
                         this.logging.log(`Disposing dependency watcher for ${sitePackagesPath}`)
-                        this.dependencyWatchers.get(sitePackagesPath)?.close()
+                        this.dependencyWatchers.get(sitePackagesPath)?.dispose()
                         this.dependencyWatchers.delete(sitePackagesPath)
                     }
                 })
