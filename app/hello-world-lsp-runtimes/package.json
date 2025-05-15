@@ -18,10 +18,10 @@
         "@aws/language-server-runtimes": "^0.2.80"
     },
     "devDependencies": {
-        "@types/chai": "^4.3.5",
+        "@types/chai": "^5.2.2",
         "@types/chai-as-promised": "^7.1.5",
         "@types/mocha": "^10.0.9",
-        "chai": "^4.3.7",
+        "chai": "^5.2.0",
         "chai-as-promised": "^7.1.1",
         "mocha": "^11.0.1",
         "ts-loader": "^9.4.4",
