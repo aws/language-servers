@@ -14,7 +14,7 @@
         "test-bundles": "node scripts/test-bundles.js"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.78",
+        "@aws/language-server-runtimes": "^0.2.81",
         "@aws/lsp-codewhisperer": "*",
         "copyfiles": "^2.4.1",
         "cross-env": "^7.0.3",

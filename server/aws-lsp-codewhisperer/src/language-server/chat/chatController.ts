@@ -13,6 +13,11 @@ import {
     PromptInputOptionChangeParams,
     ButtonClickParams,
     ButtonClickResult,
+    ListMcpServersParams,
+    ListMcpServersResult,
+    McpServerClickParams,
+    McpServerClickResult,
+    RequestHandler,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -64,6 +69,8 @@ type ChatHandlers = Omit<
     | 'onCreatePrompt'
     | 'onListConversations'
     | 'onConversationClick'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
     | 'getSerializedChat'
     | 'onTabBarAction'
     | 'chatOptionsUpdate'
