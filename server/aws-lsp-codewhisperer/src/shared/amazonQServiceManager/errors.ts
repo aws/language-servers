@@ -1,10 +1,11 @@
 // Base error class for Amazon Q
 export class AmazonQError extends Error {
     public code: string
-    constructor(message: string, code: string) {
+    constructor(message: string, code: string, cause?: unknown) {
         super(message)
         this.name = 'AmazonQError'
         this.code = code
+        this.cause = cause
     }
 }
 
@@ -86,8 +87,8 @@ export class AmazonQServiceConnectionExpiredError extends AmazonQError {
 }
 
 export class AmazonQFreeTierLimitError extends AmazonQError {
-    constructor(message: string = 'Free tier limit reached. Upgrade to Amazon Q Pro.') {
-        super(message, 'E_AMAZON_Q_FREE_TIER_LIMIT')
+    constructor(cause?: unknown, message: string = 'Free tier limit reached. Upgrade to Amazon Q Pro.') {
+        super(message, 'E_AMAZON_Q_FREE_TIER_LIMIT', cause)
         this.name = 'AmazonQFreeTierLimitError'
     }
 }

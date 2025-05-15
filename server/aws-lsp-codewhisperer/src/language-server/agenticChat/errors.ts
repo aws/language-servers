@@ -6,6 +6,7 @@ type AgenticChatErrorCode =
     | 'FailedResult' // general error when processing tool results
     | 'InputTooLong' // too much context given to backend service.
     | 'PromptCharacterLimit' // customer prompt exceeds
+    | 'AmazonQFreeTierLimitError' // Free Tier limit was reached.
     | 'ResponseProcessingTimeout' // response didn't finish streaming in the allowed time
     | 'RequestAborted' // request was aborted by the user
 
@@ -13,6 +14,7 @@ export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'QModelResponse',
     'InputTooLong',
     'PromptCharacterLimit',
+    'AmazonQFreeTierLimitError',
 ]
 
 export const unactionableErrorCodes: Partial<Record<AgenticChatErrorCode, string>> = {
