@@ -114,12 +114,16 @@ export async function requiresPathAcceptance(
     path: string,
     lsp: Features['lsp'],
     logging: Features['logging'],
-    approvedPaths?: Set<string>
+    approvedPaths?: Set<string>,
+    toolName?: string
 ): Promise<CommandValidation> {
     try {
         // First check if the path is already approved
-        if (isPathApproved(path, approvedPaths)) {
-            return { requiresAcceptance: false }
+        // Skip this check only if toolName is explicitly 'fsWrite'
+        if (!toolName || toolName !== 'fsWrite') {
+            if (isPathApproved(path, approvedPaths)) {
+                return { requiresAcceptance: false }
+            }
         }
 
         const workspaceFolders = getWorkspaceFolderPaths(lsp)
