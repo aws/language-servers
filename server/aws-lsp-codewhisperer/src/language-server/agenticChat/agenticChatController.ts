@@ -460,7 +460,8 @@ export class AgenticChatController implements ChatHandlers {
                 params.tabId,
                 session.conversationId,
                 token,
-                triggerContext.documentReference
+                triggerContext.documentReference,
+                params.prompt.escapedPrompt ?? params.prompt.prompt
             )
 
             // Phase 5: Result Handling - This happens only once
@@ -543,7 +544,8 @@ export class AgenticChatController implements ChatHandlers {
         tabId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
-        documentReference?: FileList
+        documentReference?: FileList,
+        originalPrompt?: string
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
@@ -608,7 +610,8 @@ export class AgenticChatController implements ChatHandlers {
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
                 this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                    body: currentMessage.userInputMessage?.content ?? '',
+                    // Use originalPrompt to preserve @sage and @workspace in prompt
+                    body: originalPrompt ?? '',
                     type: 'prompt' as any,
                     userIntent: currentMessage.userInputMessage?.userIntent,
                     origin: currentMessage.userInputMessage?.origin,

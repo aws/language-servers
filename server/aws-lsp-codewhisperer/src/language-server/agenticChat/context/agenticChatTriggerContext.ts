@@ -115,7 +115,7 @@ export class AgenticChatTriggerContext {
         let promptContent = prompt.prompt ?? prompt.escapedPrompt
 
         // When the user adds @sage context, ** gets prepended and appended to the prompt because of markdown.
-        // This intereferes with routing logic thus we need to remove it
+        // This interferes with routing logic thus we need to remove it
         if (promptContent && promptContent.includes('@sage')) {
             promptContent = promptContent.replace(/\*\*@sage\*\*/g, '@sage')
         }
