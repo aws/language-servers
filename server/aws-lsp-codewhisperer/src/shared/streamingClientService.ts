@@ -105,7 +105,7 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             return response
         } catch (e) {
             if (isFreeTierLimitError(e)) {
-                throw new AmazonQFreeTierLimitError()
+                throw new AmazonQFreeTierLimitError(e)
             }
             throw e
         } finally {
@@ -131,8 +131,9 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
             return response
         } catch (e) {
+            // TODO add a test for this
             if (isFreeTierLimitError(e)) {
-                throw new AmazonQFreeTierLimitError()
+                throw new AmazonQFreeTierLimitError(e)
             }
             throw e
         } finally {

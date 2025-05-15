@@ -29,6 +29,10 @@ export function isAwsError(error: unknown): error is AWSError {
 }
 
 export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
+    if (!e) {
+        return false
+    }
+
     // Non-AWS HTTP throttling error:
     // const statusCode = getHttpStatusCode(e)
     // if (statusCode === 429 || e.message.includes('Too many requests')) {
@@ -48,6 +52,18 @@ export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
  * See `client/token/bearer-token-service.json`.
  */
 export function isFreeTierLimitError(e: unknown): e is ThrottlingException {
+    if (!e) {
+        return false
+    }
+
+    if (hasCode(e) && (e.code === 'AmazonQFreeTierLimitError' || e.code === 'E_AMAZON_Q_FREE_TIER_LIMIT')) {
+        return true
+    }
+
+    if ((e as Error).name === 'AmazonQFreeTierLimitError') {
+        return true
+    }
+
     if (!isAwsThrottlingError(e)) {
         return false
     }
@@ -60,6 +76,10 @@ export function isFreeTierLimitError(e: unknown): e is ThrottlingException {
 }
 
 export function isQuotaExceededError(e: unknown): e is AWSError {
+    if (!e) {
+        return false
+    }
+
     // From client/token/bearer-token-service.json
     if (isFreeTierLimitError(e)) {
         return true
@@ -154,6 +174,17 @@ export function getErrorMsg(err: Error | undefined, withCause: boolean = false):
     }
 
     return msg
+}
+
+/**
+ * Gets a useful, but not excessive, error message for logs and user messages.
+ */
+export function fmtError(e: any): string {
+    const code = getErrorId(e)
+    const requestId = getRequestID(e)
+    const msg = getErrorMsg(e as Error)
+
+    return `${code}: "${msg}", requestId: ${requestId}`
 }
 
 /**
@@ -283,6 +314,7 @@ export function parseJson(jsonString: string) {
     }
 }
 
+/** @deprecated Use `getErrorMsg()` instead. */
 export function getErrorMessage(error: any): string {
     if (error?.cause?.message) {
         return error?.cause?.message
@@ -295,6 +327,9 @@ export function getErrorMessage(error: any): string {
 export function getRequestID(error: any): string | undefined {
     if (hasCause(error) && error.cause.$metadata?.requestId) {
         return error.cause.$metadata.requestId
+    }
+    if (typeof error.requestId === 'string') {
+        return error.requestId
     }
     if (error instanceof CodeWhispererStreamingServiceException) {
         return error.$metadata.requestId

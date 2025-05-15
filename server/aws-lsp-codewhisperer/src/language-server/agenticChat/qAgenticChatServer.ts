@@ -29,7 +29,13 @@ export const QAgenticChatServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             return {
-                capabilities: {},
+                capabilities: {
+                    executeCommandProvider: {
+                        commands: [
+                            'aws/chat/manageSubscription',
+                        ],
+                    }
+                },
                 awsServerCapabilities: {
                     chatOptions: {
                         quickActions: {
@@ -76,6 +82,10 @@ export const QAgenticChatServer =
             )
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
+        })
+
+        lsp.onExecuteCommand((params, token) => {
+            return chatController.onExecuteCommand(params, token)
         })
 
         chat.onTabAdd(params => {
@@ -141,6 +151,10 @@ export const QAgenticChatServer =
 
         chat.onFileClicked((params) => {
             return chatController.onFileClicked(params)
+        })
+
+        chat.onFollowUpClicked((params) => {
+            return chatController.onFollowUpClicked(params)
         })
 
         chat.onTabBarAction(params => {

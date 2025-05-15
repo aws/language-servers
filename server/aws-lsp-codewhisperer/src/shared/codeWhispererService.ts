@@ -5,6 +5,7 @@ import {
     Workspace,
     Logging,
     SDKInitializator,
+    CancellationToken,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -396,5 +397,32 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         })()
 
         return this.#getSubscriptionStatusPromise
+    }
+
+    /**
+     * Polls the service until subscription status changes to "ACTIVE".
+     *
+     * Returns true on success, or false on timeout/cancellation.
+     */
+    async waitUntilSubscriptionActive(cancelToken?: CancellationToken): Promise<boolean> {
+        const r = await waitUntil(
+            async () => {
+                if (cancelToken?.isCancellationRequested) {
+                    return false
+                }
+                const s = await this.getSubscriptionStatus()
+                this.logging.info(`waitUntilSubscriptionActive: ${s.status}`)
+                if (s.status === 'ACTIVE') {
+                    return true
+                }
+            },
+            {
+                timeout: 60 * 60 * 1000, // 1 hour
+                interval: 2000,
+                truthy: true,
+            }
+        )
+
+        return !!r
     }
 }
