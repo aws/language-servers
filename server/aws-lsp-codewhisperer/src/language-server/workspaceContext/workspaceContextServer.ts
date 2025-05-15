@@ -127,10 +127,6 @@ export const WorkspaceContextServer = (): Server => features => {
     }
 
     const evaluateABTesting = async () => {
-        // TODO: Temporary override for client-side A/B check
-        abTestingEnabled = true
-        abTestingEvaluated = true
-
         if (abTestingEvaluated) {
             return
         }

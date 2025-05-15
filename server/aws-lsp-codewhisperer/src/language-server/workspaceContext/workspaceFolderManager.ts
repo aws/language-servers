@@ -45,7 +45,7 @@ export class WorkspaceFolderManager {
     private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 40 seconds
     private readonly INITIAL_CONNECTION_TIMEOUT = 2 * 60 * 1000 // 2 minutes
     private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 5 minutes
-    private readonly MESSAGE_PUBLISH_INTERVAL: number = 100
+    private readonly MESSAGE_PUBLISH_INTERVAL: number = 100 // 100 milliseconds
     private continuousMonitorInterval: NodeJS.Timeout | undefined
     private optOutMonitorInterval: NodeJS.Timeout | undefined
     private messageQueueConsumerInterval: NodeJS.Timeout | undefined
