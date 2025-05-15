@@ -157,6 +157,17 @@ export function getErrorMsg(err: Error | undefined, withCause: boolean = false):
 }
 
 /**
+ * Gets a useful, but not excessive, error message for logs and user messages.
+ */
+export function fmtError(e: any): string {
+    const code = getErrorId(e)
+    const requestId = getRequestID(e)
+    const msg = getErrorMsg(e as Error)
+
+    return `${code}: "${msg}", requestId: ${requestId}`
+}
+
+/**
  * Removes potential PII from a string, for logging/telemetry.
  *
  * Examples:
@@ -283,6 +294,7 @@ export function parseJson(jsonString: string) {
     }
 }
 
+/** @deprecated Use `getErrorMsg()` instead. */
 export function getErrorMessage(error: any): string {
     if (error?.cause?.message) {
         return error?.cause?.message
@@ -293,6 +305,9 @@ export function getErrorMessage(error: any): string {
 }
 
 export function getRequestID(error: any): string | undefined {
+    if (typeof error.requestId === 'string') {
+        return error.requestId
+    }
     if (hasCause(error) && error.cause.$metadata?.requestId) {
         return error.cause.$metadata.requestId
     }

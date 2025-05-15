@@ -57,7 +57,12 @@ import {
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
-import { paidTierSuccessCard, freeTierLimitReachedCard, upgradeQButton } from './texts/paidTier'
+import {
+    paidTierSuccessCard,
+    freeTierLimitReachedCard,
+    freeTierLimitStickyCard,
+    upgradeQButton,
+} from './texts/paidTier'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -827,34 +832,61 @@ export const createMynahUi = (
      * Shows a message if the user reaches free-tier limit.
      * Shows a message if the user just upgraded to paid-tier.
      */
-    const onPaidTierModeChange = (
-        tabId: string,
-        mode: 'paidtier' | 'paidtier-success' | 'freetier' | 'freetier-limit'
-    ) => {
-        if (!['paidtier', 'paidtier-success', 'freetier', 'freetier-limit'].includes(mode)) {
-            return // invalid mode
+    const onPaidTierModeChange = (tabId: string, mode: string | undefined) => {
+        if (
+            !mode ||
+            !['freetier', 'freetier-limit', 'freetier-upgrade-pending', 'paidtier', 'paidtier-success'].includes(mode)
+        ) {
+            return false // invalid mode
         }
 
         tabId = tabId !== '' ? tabId : getOrCreateTabId()!
 
-        // Detect if the tab is already showing the "Upgrade Q" calls-to-action.
-        const didShowLimitReached = mynahUi.getTabData(tabId)?.getStore()?.promptInputButtons?.[0] === upgradeQButton
-        if (mode === 'freetier-limit' && !didShowLimitReached) {
-            mynahUi.addChatItem(tabId, freeTierLimitReachedCard)
+        // Detect if the tab is already showing the "Upgrade Q" UI.
+        const didShowLimitReached =
+            mynahUi.getTabData(tabId)?.getStore()?.promptInputStickyCard?.messageId ===
+            freeTierLimitStickyCard.messageId
+
+        if (mode === 'freetier-limit') {
+            mynahUi.updateStore(tabId, {
+                promptInputStickyCard: freeTierLimitStickyCard,
+            })
+
+            if (!didShowLimitReached) {
+                // Avoid duplicate "limit reached" cards.
+                mynahUi.addChatItem(tabId, freeTierLimitReachedCard)
+            }
+        } else if (mode === 'freetier-upgrade-pending') {
+            // Change the sticky banner to show a progress spinner.
+            const card: typeof freeTierLimitStickyCard = {
+                ...freeTierLimitStickyCard,
+                icon: 'progress',
+            }
+            mynahUi.updateStore(tabId, {
+                // Show a progress ribbon.
+                promptInputProgress: {
+                    status: 'default',
+                    text: 'Waiting for subscription status...',
+                    value: -1, // infinite
+                    // valueText: 'Waiting 2...',
+                },
+                promptInputStickyCard: card,
+            })
         } else if (mode === 'paidtier-success') {
             mynahUi.addChatItem(tabId, paidTierSuccessCard)
         }
 
         mynahUi.updateStore(tabId, {
-            promptInputButtons: mode === 'freetier-limit' ? [upgradeQButton] : [],
+            // promptInputButtons: mode === 'freetier-limit' ? [upgradeQButton] : [],
             promptInputDisabledState: mode === 'freetier-limit',
         })
+
+        return true
     }
 
     const updateChat = (params: ChatUpdateParams) => {
         // HACK: Special field sent by `agenticChatController.ts:setPaidTierMode()`.
-        if ((params as any).paidTierMode) {
-            onPaidTierModeChange(params.tabId, (params as any).paidTierMode as any)
+        if (onPaidTierModeChange(params.tabId, (params as any).paidTierMode as string)) {
             return
         }
 
