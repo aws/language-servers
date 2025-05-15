@@ -136,6 +136,7 @@ describe('callTool()', () => {
 
         try {
             await mgr.callTool('s1', 'tool1', {})
+            throw new Error('Expected callTool to throw on timeout')
         } catch (e: any) {
             expect(e.code).to.equal('MCPToolExecTimeout')
         }
@@ -313,7 +314,6 @@ describe('updateServer()', () => {
 })
 
 // requiresApproval()
-
 describe('requiresApproval()', () => {
     let loadStub: sinon.SinonStub
 

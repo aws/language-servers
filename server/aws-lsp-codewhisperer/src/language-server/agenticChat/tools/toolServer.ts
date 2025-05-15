@@ -9,6 +9,7 @@ import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWo
 import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { McpToolDefinition } from './mcp/mcpTypes'
+import { getGlobalMcpConfigPath, getWorkspaceMcpConfigPaths } from './mcp/mcpUtils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -89,8 +90,8 @@ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     lsp.onInitialized(async () => {
         // todo: move to constants
         const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
-        const wsConfigPaths = wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
-        const globalConfigPath = `${workspace.fs.getUserHomeDir()}/.aws/amazonq/mcp.json`
+        const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
+        const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
         const allPaths = [...wsConfigPaths, globalConfigPath]
 
         const mgr = await McpManager.init(allPaths, { logging, workspace, lsp })
