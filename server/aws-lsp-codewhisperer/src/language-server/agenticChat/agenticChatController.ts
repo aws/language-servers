@@ -31,6 +31,8 @@ import {
     TextDocument,
     ChatUpdateParams,
     MessageType,
+    ExecuteCommandParams,
+    FollowUpClickParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -77,10 +79,10 @@ import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryControll
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
 import {
-    getErrorMessage,
+    fmtError,
+    getErrorMsg,
     getHttpStatusCode,
     getRequestID,
-    getSsoConnectionType,
     isFreeTierLimitError,
     isNullish,
 } from '../../shared/utils'
@@ -203,6 +205,19 @@ export class AgenticChatController implements ChatHandlers {
         )
     }
 
+    async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
+        this.#log(`onExecuteCommand: ${params.command}`)
+        switch (params.command) {
+            case 'aws/chat/manageSubscription': {
+                const awsAccountId = params.arguments?.[0]
+                this.onManageSubscription('', awsAccountId)
+            }
+            default:
+                // Unknown command.
+                return
+        }
+    }
+
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
         this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
         const session = this.#chatSessionManagementService.getSession(params.tabId)
@@ -263,73 +278,9 @@ export class AgenticChatController implements ChatHandlers {
             this.#stoppedToolUses.add(params.messageId)
             await this.#renderStoppedShellCommand(params.tabId, params.messageId)
             return { success: true }
-        } else if (params.buttonId === 'upgrade-q') {
-            const awsAccountId = (params as any).awsAccountId
-            if (typeof awsAccountId !== 'string') {
-                this.#log(`invalid awsAccountId: ${awsAccountId}`)
-                return {
-                    success: false,
-                    failureReason: 'invalid awsAccountId',
-                }
-            }
+        } else if (params.buttonId === 'paidtier-upgrade-q') {
+            this.setPaidTierMode(params.tabId, 'upgrade-start')
 
-            // Note: intentionally async.
-            try {
-                const r = await AmazonQTokenServiceManager.getInstance()
-                    ?.getCodewhispererService()
-                    .createSubscriptionToken({
-                        accountId: awsAccountId,
-                    })
-
-                if (!r.encodedVerificationUrl) {
-                    this.#log('missing encodedVerificationUrl in server response')
-                    this.#features.lsp.window
-                        .showMessage({
-                            message: 'Subscription request failed. Check the account id.',
-                            type: MessageType.Error,
-                        })
-                        .catch(e => {
-                            this.#log(`showMessage failed: ${(e as Error).message}`)
-                        })
-                    return {
-                        success: false,
-                        failureReason: 'missing encodedVerificationUrl in server response',
-                    }
-                }
-
-                const uri = r.encodedVerificationUrl
-
-                try {
-                    URI.parse(uri)
-                } catch (e) {
-                    this.#log(`invalid encodedVerificationUrl: '${uri}': ${(e as Error).message}`)
-                    return {
-                        success: false,
-                        failureReason: 'invalid encodedVerificationUrl',
-                    }
-                }
-
-                this.#features.lsp.window
-                    .showMessage({
-                        message: 'Upgraded to [Amazon Q Pro](https://aws.amazon.com/q/)',
-                        type: MessageType.Info,
-                    })
-                    .catch(e => {
-                        this.#log(`showMessage failed: ${(e as Error).message}`)
-                    })
-
-                this.#features.lsp.window.showDocument({
-                    external: true, // Client is expected to open the URL in a web browser.
-                    uri: uri,
-                })
-            } catch (e) {
-                return {
-                    success: false,
-                    failureReason: 'createSubscriptionToken failed',
-                }
-            }
-
-            this.setPaidTierMode(params.tabId, 'paidtier-success')
             return { success: true }
         } else {
             return {
@@ -1375,10 +1326,11 @@ export class AgenticChatController implements ChatHandlers {
      */
     isUserAction(err: unknown, token?: CancellationToken, session?: ChatSessionService): boolean {
         return (
-            CancellationError.isUserCancelled(err) ||
-            err instanceof ToolApprovalException ||
-            isRequestAbortedError(err) ||
-            (token?.isCancellationRequested ?? false)
+            !isFreeTierLimitError(err) &&
+            (CancellationError.isUserCancelled(err) ||
+                err instanceof ToolApprovalException ||
+                isRequestAbortedError(err) ||
+                (token?.isCancellationRequested ?? false))
         )
     }
 
@@ -2019,7 +1971,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         agenticCodingMode: boolean
     ): Promise<ChatResult | ResponseError<ChatResult>> {
-        const errorMessage = getErrorMessage(err)
+        const errorMessage = getErrorMsg(err)
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
@@ -2029,10 +1981,14 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.cwsprChatConversationId = conversationId
         await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed')
 
-        // TODO handle free tier limit exceeded
         if (isFreeTierLimitError(err)) {
             this.setPaidTierMode(tabId, 'freetier-limit')
-            // throw new AmazonQFreeTierLimitError()
+            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
+                type: 'answer',
+                body: `AmazonQFreeTierLimitError: Free tier limit reached. Upgrade to Amazon Q Pro. ${requestID ? `\n\nRequest ID: ${requestID}` : ''}`,
+                messageId: 'freetier-limit',
+                buttons: [],
+            })
         }
 
         // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
@@ -2067,7 +2023,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         if (authFollowType) {
-            this.#log(`Q auth error: ${getErrorMessage(err)}`)
+            this.#log(`Q auth error: ${getErrorMsg(err)}`)
 
             return createAuthFollowUpResult(authFollowType)
         }
@@ -2132,7 +2088,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
-                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
+                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMsg(err)}`)
                 return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
             }
             this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
@@ -2283,7 +2239,21 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    onFollowUpClicked() {}
+    async onFollowUpClicked(params: FollowUpClickParams) {
+        this.#log(`onFollowUpClicked: ${JSON.stringify(params)}`)
+
+        if (params.followUp.type === 'awsAccountId') {
+            const awsAccountId = params.followUp.pillText
+            const errmsg = await this.onManageSubscription(params.tabId, awsAccountId)
+            if (errmsg) {
+                return {
+                    success: false,
+                    failureReason: errmsg,
+                }
+            }
+            return { success: true }
+        }
+    }
 
     onInfoLinkClick() {}
 
@@ -2353,6 +2323,8 @@ export class AgenticChatController implements ChatHandlers {
             name: ChatTelemetryEventName.EnterFocusConversation,
             data: {},
         })
+
+        this.setPaidTierMode(params.tabId)
     }
 
     onTabRemove(params: TabRemoveParams) {
@@ -2521,31 +2493,28 @@ export class AgenticChatController implements ChatHandlers {
      * - 'paidtier': disable any "free-tier limit" UI.
      */
     setPaidTierMode(tabId?: string, mode?: PaidTierMode) {
-        this.#log(`xxx setPaidTierMode: mode=${mode}`)
-
-        if (mode === 'freetier-limit') {
-            this.#paidTierMode = mode // Sticky until 'paidtier' is sent.
-        } else if (mode === 'paidtier') {
-            this.#paidTierMode = mode
-        } else if (this.#paidTierMode === 'freetier-limit' && mode === 'freetier') {
-            mode = 'freetier-limit'
+        if (this.#paidTierMode === 'freetier-limit' && mode === 'freetier') {
+            // mode = 'freetier-limit' // Sticky while 'freetier'.
         } else if (!mode) {
             // Note: intentionally async.
             AmazonQTokenServiceManager.getInstance()
-                ?.getCodewhispererService()
+                .getCodewhispererService()
                 .getSubscriptionStatus()
                 .then(o => {
-                    this.#log(`xxx getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
+                    this.#log(`setPaidTierMode: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
                     this.setPaidTierMode(tabId, o.status === 'ACTIVE' ? 'paidtier' : 'freetier')
                 })
                 .catch(err => {
-                    this.#log(`xxx getSubscriptionStatus failed: ${JSON.stringify(err)}`)
+                    this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
                 })
             // const isFreeTierUser = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
             // mode = isFreeTierUser ? 'freetier' : 'paidtier'
 
             return
         }
+
+        this.#paidTierMode = mode
+        this.#log(`setPaidTierMode: mode=${mode}`)
 
         const o: ChatUpdateParams = {
             tabId: tabId ?? '',
@@ -2554,6 +2523,159 @@ export class AgenticChatController implements ChatHandlers {
         // Special flag recognized by `chat-client/src/client/mynahUi.ts`.
         ;(o as any).paidTierMode = mode
         this.#features.chat.sendChatUpdate(o)
+    }
+
+    /**
+     * User invoked "Manage Subscription" or "Upgrade Q".
+     *
+     * - Navigates to the "Manage Subscription" page for PAID-TIER user.
+     * - Starts the "Upgrade Q" flow for a FREE-TIER user:
+     *   1. `awsAccountId` was provided by the IDE extension.
+     *   2. Call `createSubscriptionToken(awsAccountId)`.
+     *   3. Set the UI to show "Waiting…" progress indicator.
+     *   4. Return result, and...
+     *   5. ASYNCHRONOUSLY poll subscription status until success.
+     *      - Update the UI on success/failure.
+     *
+     * If `awsAccountId` is not given:
+     * - For FREE-TIER user: prompts for AWS account.
+     * - For PAID-TIER user: navigates to the "Manage Subscription" AWS console page.
+     *
+     * @param awsAccountId AWS account ID to create subscription for
+     * @returns `undefined` on success, or error message on failure.
+     */
+    async onManageSubscription(tabId: string, awsAccountId?: string): Promise<string | undefined> {
+        const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+
+        if (!awsAccountId) {
+            // If no awsAccountId was provided:
+            // 1. Check if the user is subscribed.
+            //    - If not subscribed, start the "Upgrade Q" flow (request awsAccountId).
+            //    - If subscribed, navigate user to the generic "Manage Subscriptions" AWS console page.
+            //
+            // Note: intentionally async.
+            client
+                .getSubscriptionStatus()
+                .then(o => {
+                    this.#log(`onManageSubscription: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
+                    const uri =
+                        o.status === 'ACTIVE'
+                            ? // Paid-tier user: navigate them to the "Manage Subscriptions" AWS console page.
+                              'https://us-east-1.console.aws.amazon.com/amazonq/developer/home?region=us-east-1#/subscriptions?tab=users'
+                            : // Free-tier user: navigate them to "Upgrade Q" flow in AWS console.
+                              o.encodedVerificationUrl
+                    if (o.status === 'ACTIVE') {
+                        // Navigate user to the browser URL..
+                        this.#features.lsp.window
+                            .showDocument({
+                                external: true, // Client is expected to open the URL in a web browser.
+                                uri: uri,
+                            })
+                            .catch(e => {
+                                this.#log(`onManageSubscription: showDocument failed: ${fmtError(e)}`)
+                            })
+                    } else {
+                        this.setPaidTierMode(tabId, 'freetier-upgrade-info')
+                    }
+                })
+                .catch(err => {
+                    this.#log(`onManageSubscription: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
+                })
+
+            return
+        }
+
+        try {
+            const r = await client.createSubscriptionToken({
+                accountId: awsAccountId,
+            })
+
+            if (!r.encodedVerificationUrl) {
+                this.#log('onManageSubscription: missing encodedVerificationUrl in server response')
+                this.#features.lsp.window
+                    .showMessage({
+                        message: 'Subscription request failed. Check the account id.',
+                        type: MessageType.Error,
+                    })
+                    .catch(e => {
+                        this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
+                    })
+                return 'missing encodedVerificationUrl in server response'
+            }
+
+            const uri = r.encodedVerificationUrl
+
+            try {
+                URI.parse(uri)
+            } catch (e) {
+                this.#log(`onManageSubscription: invalid encodedVerificationUrl: '${uri}': ${(e as Error).message}`)
+                return 'invalid encodedVerificationUrl'
+            }
+
+            this.#log(
+                `onManageSubscription: createSubscriptionToken status: ${r.status} encodedVerificationUrl: '${uri}'`
+            )
+            // Set UI to "progress" mode.
+            this.setPaidTierMode(tabId, 'upgrade-pending')
+
+            // Navigate user to the browser, where they will complete "Upgrade Q" flow.
+            await this.#features.lsp.window.showDocument({
+                external: true, // Client is expected to open the URL in a web browser.
+                uri: uri,
+            })
+
+            // Now asynchronously wait for the user to complete the "Upgrade Q" flow.
+            client
+                .waitUntilSubscriptionActive()
+                .then(r => {
+                    if (r !== true) {
+                        this.setPaidTierMode(tabId, 'freetier')
+
+                        this.#features.lsp.window
+                            .showMessage({
+                                message: 'Timeout or cancellation while waiting for Amazon Q subscription',
+                                type: MessageType.Error,
+                            })
+                            .catch(e => {
+                                this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
+                            })
+
+                        return
+                    }
+
+                    this.setPaidTierMode(tabId, 'paidtier')
+
+                    this.#features.lsp.window
+                        .showMessage({
+                            message: 'Upgraded to [Amazon Q Pro](https://aws.amazon.com/q/)',
+                            type: MessageType.Info,
+                        })
+                        .catch(e => {
+                            this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
+                        })
+                })
+                .catch(e => {
+                    this.#log(`onManageSubscription: waitUntilSubscriptionActive failed: ${(e as Error).message}`)
+                })
+
+            return undefined
+        } catch (e) {
+            this.#log(`onManageSubscription: createSubscriptionToken failed: ${fmtError(e)}`)
+            // TOOD: for visbility, the least-bad option is showMessage, which appears as an IDE notification.
+            // But it likely makes sense to route this to chat ERROR_MESSAGE mynahApi.showError(), so the message will appear in chat.
+            // https://github.com/aws/language-servers/blob/1b154570c9cf1eb1d56141095adea4459426b774/chat-client/src/client/chat.ts#L176-L178
+            // I could not confirm if there is a way to route to that from here, yet.
+            this.#features.lsp.window
+                .showMessage({
+                    message: `createSubscriptionToken failed: ${fmtError(e)}`,
+                    type: MessageType.Error,
+                })
+                .catch(e => {
+                    this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
+                })
+
+            return 'Failed to create subscription token'
+        }
     }
 
     async #processGenerateAssistantResponseResponseWithTimeout(

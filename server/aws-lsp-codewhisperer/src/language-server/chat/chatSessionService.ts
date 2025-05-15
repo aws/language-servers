@@ -13,6 +13,8 @@ import {
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
 import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapErrorWithCode } from '../agenticChat/errors'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { getRequestID, isFreeTierLimitError } from '../../shared/utils'
+import { AmazonQFreeTierLimitError } from '../../shared/amazonQServiceManager/errors'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -152,9 +154,16 @@ export class ChatSessionService {
             try {
                 return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {
+                const requestId = getRequestID(e)
+                if (isFreeTierLimitError(e)) {
+                    throw new AgenticChatError(
+                        'Request aborted',
+                        'AmazonQFreeTierLimitError',
+                        e instanceof Error ? e : undefined,
+                        requestId
+                    )
+                }
                 if (isRequestAbortedError(e)) {
-                    const requestId =
-                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
                     throw new AgenticChatError(
                         'Request aborted',
                         'RequestAborted',
@@ -163,8 +172,6 @@ export class ChatSessionService {
                     )
                 }
                 if (isInputTooLongError(e)) {
-                    const requestId =
-                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
                     throw new AgenticChatError(
                         'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.',
                         'InputTooLong',

@@ -1,1 +1,7 @@
-export type PaidTierMode = 'paidtier' | 'paidtier-success' | 'freetier' | 'freetier-limit'
+export type PaidTierMode =
+    | 'freetier'
+    | 'freetier-limit'
+    | 'upgrade-start'
+    | 'upgrade-pending'
+    | 'freetier-upgrade-info'
+    | 'paidtier'
