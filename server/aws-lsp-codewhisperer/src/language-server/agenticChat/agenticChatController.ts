@@ -736,6 +736,31 @@ export class AgenticChatController implements ChatHandlers {
                         'Your toolUse input is incomplete, try again. If the error happens consistently, break this task down into multiple tool uses with smaller input. Do not apologize.'
                     shouldDisplayMessage = false
                 }
+                // send error state to UI
+                for (const toolUse of pendingToolUses) {
+                    if (toolUse.toolUseId) {
+                        await this.#features.chat.sendChatUpdate({
+                            tabId,
+                            state: { inProgress: false },
+                            data: {
+                                messages: [
+                                    {
+                                        messageId: toolUse.toolUseId,
+                                        type: 'tool',
+                                        header: {
+                                            status: {
+                                                status: 'error',
+                                                icon: 'error',
+                                                text: 'Error',
+                                            },
+                                            buttons: [],
+                                        },
+                                    },
+                                ],
+                            },
+                        })
+                    }
+                }
             }
             if (result.success && this.#toolUseLatencies.length > 0) {
                 // Clear latencies for the next LLM call
