@@ -496,6 +496,48 @@ describe('CodeWhispererSession', function () {
             assert.equal(session.getAggregatedUserTriggerDecision(), 'Discard')
         })
     })
+
+    describe('getAndUpdateStreakLength()', function () {
+        it('should return 0 if user rejects suggestion A', function () {
+            const session = new CodeWhispererSession(data)
+
+            assert.equal(session.getAndUpdateStreakLength('Reject'), -1)
+            assert.equal(session.streakLength, 0)
+        })
+
+        it('should return -1 for A and 1 for B if user accepts suggestion A and rejects B', function () {
+            const session = new CodeWhispererSession(data)
+
+            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
+            assert.equal(session.streakLength, 1)
+            assert.equal(session.getAndUpdateStreakLength('Reject'), 1)
+            assert.equal(session.streakLength, 0)
+        })
+
+        it('should return -1 for A, -1 for B, and 2 for C if user accepts A, accepts B, and rejects C', function () {
+            const session = new CodeWhispererSession(data)
+
+            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
+            assert.equal(session.streakLength, 1)
+            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
+            assert.equal(session.streakLength, 2)
+            assert.equal(session.getAndUpdateStreakLength('Reject'), 2)
+            assert.equal(session.streakLength, 0)
+        })
+
+        it('should return -1 for A, -1 for B, and 1 for C if user accepts A, make an edit, accepts B, and rejects C', function () {
+            const session = new CodeWhispererSession(data)
+
+            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
+            assert.equal(session.streakLength, 1)
+            assert.equal(session.getAndUpdateStreakLength('Discard'), 1)
+            assert.equal(session.streakLength, 0)
+            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
+            assert.equal(session.streakLength, 1)
+            assert.equal(session.getAndUpdateStreakLength('Reject'), 1)
+            assert.equal(session.streakLength, 0)
+        })
+    })
 })
 
 describe('SessionManager', function () {

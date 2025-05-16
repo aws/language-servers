@@ -5901,7 +5901,8 @@
                 "recommendationLatencyMilliseconds",
                 "timestamp",
                 "addedCharacterCount",
-                "deletedCharacterCount"
+                "deletedCharacterCount",
+                "streakLength"
             ],
             "members": {
                 "sessionId": {
@@ -5956,6 +5957,9 @@
                     "shape": "PrimitiveInteger"
                 },
                 "deletedCharacterCount": {
+                    "shape": "PrimitiveInteger"
+                },
+                "streakLength": {
                     "shape": "PrimitiveInteger"
                 }
             }
