@@ -2270,7 +2270,10 @@ export class AgenticChatController implements ChatHandlers {
                         },
                     })
                 }
-                // render the tool use explanatory as soon as this is received.
+            }
+
+            // render the tool use explanatory as soon as this is received for all tool uses.
+            if (typeof toolUse.input === 'string') {
                 const explanation = extractKey(toolUse.input, 'explanation')
                 const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
                 if (explanation && !chatResultStream.hasMessage(messageId)) {
