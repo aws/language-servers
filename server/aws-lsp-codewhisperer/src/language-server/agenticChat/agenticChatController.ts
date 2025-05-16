@@ -2230,7 +2230,7 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #showToolUseIntemediateResult(
+    async #showToolUseIntermediateResult(
         data: AgenticChatResultWithMetadata,
         chatResultStream: AgenticChatResultStream,
         streamWriter: ResultStreamWriter
@@ -2336,7 +2336,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseStartTimes,
                     toolUseLoadingTimeouts
                 )
-                await this.#showToolUseIntemediateResult(result.data, chatResultStream, streamWriter)
+                await this.#showToolUseIntermediateResult(result.data, chatResultStream, streamWriter)
             }
         }
         await streamWriter.close()
