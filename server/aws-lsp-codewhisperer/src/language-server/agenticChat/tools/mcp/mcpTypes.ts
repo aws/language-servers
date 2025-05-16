@@ -30,6 +30,12 @@ export interface MCPServerConfig {
     __configPath__?: string
 }
 
+export interface MCPServerPermissionUpdate {
+    disabled?: boolean
+    autoApprove?: boolean
+    toolOverrides?: Record<string, { autoApprove?: boolean; disabled?: boolean }>
+}
+
 export interface ListToolsResponse {
     tools: {
         name?: string

@@ -12,6 +12,7 @@ import type {
     ListToolsResponse,
     McpServerRuntimeState,
     McpServerStatus,
+    MCPServerPermissionUpdate,
 } from './mcpTypes'
 import { loadMcpServerConfigs } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
@@ -434,7 +435,56 @@ export class McpManager {
     }
 
     /**
-     * Read, mutate, and write the JSON config at the given path atomically
+     * Update permission for given server: if only tool permission changes, does not teardown and re-init.
+     */
+    public async updateServerPermission(serverName: string, perm: MCPServerPermissionUpdate): Promise<void> {
+        const oldCfg = this.mcpServers.get(serverName)
+        if (!oldCfg || !oldCfg.__configPath__) {
+            throw new Error(`MCP: server '${serverName}' not found`)
+        }
+
+        await this.mutateConfigFile(oldCfg.__configPath__, json => {
+            json.mcpServers ||= {}
+            json.mcpServers[serverName] = {
+                ...json.mcpServers[serverName],
+                ...perm,
+            }
+        })
+
+        const newCfg: MCPServerConfig = {
+            ...oldCfg,
+            ...perm,
+            __configPath__: oldCfg.__configPath__,
+        }
+        this.mcpServers.set(serverName, newCfg)
+
+        const oldDisabled = !!oldCfg.disabled // undefined -> false
+        const newDisabled = perm.disabled ?? oldDisabled // no value -> old value
+
+        if (perm.disabled !== undefined && newDisabled !== oldDisabled) {
+            // Server level ENABLED → DISABLED
+            if (newDisabled) {
+                const client = this.clients.get(serverName)
+                if (client) {
+                    await client.close()
+                    this.clients.delete(serverName)
+                }
+                this.setState(serverName, 'DISABLED', 0)
+            } else {
+                // Server level DISABLED → ENABLED
+                await this.initOneServer(serverName, newCfg)
+                return
+            }
+        } else {
+            const count = this.mcpTools.filter(t => t.serverName === serverName).length
+            this.setState(serverName, newDisabled ? 'DISABLED' : 'ENABLED', count)
+        }
+
+        this.emitToolsChanged(serverName)
+    }
+
+    /**
+     * Read, mutate, and write the JSON config at the given path.
      * @private
      */
     private async mutateConfigFile(configPath: string, mutator: (json: any) => void): Promise<void> {
