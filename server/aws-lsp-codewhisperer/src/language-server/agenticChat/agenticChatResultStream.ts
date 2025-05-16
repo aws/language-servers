@@ -203,6 +203,10 @@ export class AgenticChatResultStream {
         this.#state.chatResultBlocks = this.#state.chatResultBlocks.filter(block => block.messageId !== messageId)
     }
 
+    hasMessage(messageId: string): boolean {
+        return this.#state.chatResultBlocks.some(block => block.messageId === messageId)
+    }
+
     getMessageBlockId(messageId: string): number | undefined {
         for (const [i, block] of this.#state.chatResultBlocks.entries()) {
             if (block.messageId === messageId) {

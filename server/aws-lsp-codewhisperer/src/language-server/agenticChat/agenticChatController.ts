@@ -835,6 +835,17 @@ export class AgenticChatController implements ChatHandlers {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
                 }
 
+                // remove progress UI
+                if (chatResultStream.hasMessage(progressPrefix + toolUse.toolUseId)) {
+                    const blockId = chatResultStream.getMessageBlockId(progressPrefix + toolUse.toolUseId)
+                    if (blockId !== undefined) {
+                        await chatResultStream.overwriteResultBlock(
+                            { ...loadingMessage, messageId: progressPrefix + toolUse.toolUseId },
+                            blockId
+                        )
+                    }
+                }
+
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
@@ -2219,9 +2230,8 @@ export class AgenticChatController implements ChatHandlers {
             if (toolUse.name === 'fsWrite' && typeof toolUse.input === 'string') {
                 const filepath = extractKey(toolUse.input, 'path')
                 const msgId = progressPrefix + toolUse.toolUseId
-                const blockId = chatResultStream.getMessageBlockId(msgId)
                 // render fs write UI as soon as fs write starts
-                if (filepath && !blockId) {
+                if (filepath && !chatResultStream.hasMessage(msgId)) {
                     const fileName = path.basename(filepath)
                     await chatResultStream.writeResultBlock({
                         type: 'tool',
@@ -2242,8 +2252,7 @@ export class AgenticChatController implements ChatHandlers {
                 // render the tool use explanatory as soon as this is received.
                 const explanation = extractKey(toolUse.input, 'explanation')
                 const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
-                const explainBlockId = chatResultStream.getMessageBlockId(messageId)
-                if (explanation && !explainBlockId) {
+                if (explanation && !chatResultStream.hasMessage(messageId)) {
                     await chatResultStream.writeResultBlock({
                         type: 'directive',
                         messageId: messageId,
