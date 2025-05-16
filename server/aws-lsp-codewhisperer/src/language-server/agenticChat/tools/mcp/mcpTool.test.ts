@@ -13,8 +13,11 @@ describe('McpTool', () => {
     const fakeFeatures = {
         logging: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {}, log: () => {} },
         workspace: {
-            fs: { exists: () => Promise.resolve(false), readFile: () => Promise.resolve(Buffer.from('')) },
-            getUserHomeDir: () => '',
+            fs: {
+                exists: () => Promise.resolve(false),
+                readFile: () => Promise.resolve(Buffer.from('')),
+                getUserHomeDir: () => '',
+            },
         },
         lsp: {},
     } as unknown as Pick<
