@@ -232,8 +232,7 @@ export class TabBarController {
         const defaultFileName = `q-dev-chat-${new Date().toISOString().split('T')[0]}.md`
         try {
             let defaultUri
-            const clientParams = this.#features.lsp.getClientInitializeParams()
-            let workspaceFolders = clientParams?.workspaceFolders
+            let workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
             if (workspaceFolders && workspaceFolders.length > 0) {
                 const workspaceUri = URI.parse(workspaceFolders[0].uri)
                 defaultUri = Utils.joinPath(workspaceUri, defaultFileName)

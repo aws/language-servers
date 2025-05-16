@@ -183,7 +183,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb, telemetryService)
-        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
+        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
             this.#features.chat,
@@ -2132,7 +2132,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async #resolveAbsolutePath(relativePath: string): Promise<string | undefined> {
         try {
-            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)
+            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
             for (const workspaceRoot of workspaceFolders) {
                 const candidatePath = path.join(workspaceRoot, relativePath)
                 if (await this.#features.workspace.fs.exists(candidatePath)) {
