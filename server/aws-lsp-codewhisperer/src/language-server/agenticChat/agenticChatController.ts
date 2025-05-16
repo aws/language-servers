@@ -736,31 +736,6 @@ export class AgenticChatController implements ChatHandlers {
                         'Your toolUse input is incomplete, try again. If the error happens consistently, break this task down into multiple tool uses with smaller input. Do not apologize.'
                     shouldDisplayMessage = false
                 }
-                // send error state to UI
-                for (const toolUse of pendingToolUses) {
-                    if (toolUse.toolUseId) {
-                        await this.#features.chat.sendChatUpdate({
-                            tabId,
-                            state: { inProgress: false },
-                            data: {
-                                messages: [
-                                    {
-                                        messageId: toolUse.toolUseId,
-                                        type: 'tool',
-                                        header: {
-                                            status: {
-                                                status: 'error',
-                                                icon: 'error',
-                                                text: 'Error',
-                                            },
-                                            buttons: [],
-                                        },
-                                    },
-                                ],
-                            },
-                        })
-                    }
-                }
             }
             if (result.success && this.#toolUseLatencies.length > 0) {
                 // Clear latencies for the next LLM call
@@ -862,16 +837,7 @@ export class AgenticChatController implements ChatHandlers {
 
                 // remove progress UI
                 const progressMessageId = progressPrefix + toolUse.toolUseId
-                if (chatResultStream.hasMessage(progressMessageId)) {
-                    const blockId = chatResultStream.getMessageBlockId(progressMessageId)
-                    if (blockId !== undefined) {
-                        await chatResultStream.overwriteResultBlock(
-                            { ...loadingMessage, messageId: progressMessageId },
-                            blockId
-                        )
-                    }
-                    await chatResultStream.removeResultBlock(progressMessageId)
-                }
+                await chatResultStream.removeResultBlockAndUpdateUI(progressMessageId)
 
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
@@ -1086,6 +1052,36 @@ export class AgenticChatController implements ChatHandlers {
                             content: [{ text: 'Command stopped by user' }],
                         })
                         continue
+                    }
+                }
+                // display fs write failure status in the UX of that file card
+                if (toolUse.name === 'fsWrite' && toolUse.toolUseId) {
+                    const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
+                    const fsParam = toolUse.input as unknown as FsWriteParams
+                    const fileName = path.basename(fsParam.path)
+                    const errorResult = {
+                        type: 'tool',
+                        messageId: toolUse.toolUseId,
+                        header: {
+                            fileList: {
+                                filePaths: [fileName],
+                                details: {
+                                    [fileName]: {
+                                        description: fsParam.path,
+                                    },
+                                },
+                            },
+                            status: {
+                                status: 'error',
+                                icon: 'error',
+                                text: 'Error',
+                            },
+                        },
+                    } as ChatResult
+                    if (existingCard) {
+                        await chatResultStream.overwriteResultBlock(errorResult, existingCard)
+                    } else {
+                        await chatResultStream.writeResultBlock(errorResult)
                     }
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
@@ -2266,7 +2262,11 @@ export class AgenticChatController implements ChatHandlers {
                                     },
                                 },
                             },
-                            buttons: [{ id: 'fsWrite-progress', text: '', icon: 'progress' }],
+                            status: {
+                                status: 'info',
+                                icon: 'progress',
+                                text: '',
+                            },
                         },
                     })
                 }

@@ -203,6 +203,16 @@ export class AgenticChatResultStream {
         this.#state.chatResultBlocks = this.#state.chatResultBlocks.filter(block => block.messageId !== messageId)
     }
 
+    async removeResultBlockAndUpdateUI(messageId: string) {
+        if (this.hasMessage(messageId)) {
+            const blockId = this.getMessageBlockId(messageId)
+            if (blockId !== undefined) {
+                await this.overwriteResultBlock({ body: '', messageId: messageId }, blockId)
+            }
+            await this.removeResultBlock(messageId)
+        }
+    }
+
     hasMessage(messageId: string): boolean {
         return this.#state.chatResultBlocks.some(block => block.messageId === messageId)
     }
