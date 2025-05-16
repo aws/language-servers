@@ -4,6 +4,7 @@ import { workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_FILES } from '../../chat/constants'
+import { CancellationToken } from '@aws/language-server-runtimes/protocol'
 
 export interface FileSearchParams {
     path: string
@@ -71,14 +72,15 @@ export class FileSearch {
         return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
     }
 
-    public async invoke(params: FileSearchParams): Promise<InvokeOutput> {
+    public async invoke(params: FileSearchParams, token?: CancellationToken): Promise<InvokeOutput> {
         const path = sanitize(params.path)
         try {
             // Get all files and directories
             const listing = await workspaceUtils.readDirectoryRecursively(
                 { workspace: this.workspace, logging: this.logging },
                 path,
-                { maxDepth: params.maxDepth, excludeDirs: DEFAULT_EXCLUDE_DIRS, excludeFiles: DEFAULT_EXCLUDE_FILES }
+                { maxDepth: params.maxDepth, excludeDirs: DEFAULT_EXCLUDE_DIRS, excludeFiles: DEFAULT_EXCLUDE_FILES },
+                token
             )
 
             // Create regex pattern for filtering
