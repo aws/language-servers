@@ -319,7 +319,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     dispose(): void {
         this.dependencyMap.clear()
         this.dependencyUploadedSizeMap.clear()
-        this.dependencyWatchers.forEach(watcher => watcher.close())
+        this.dependencyWatchers.forEach(watcher => watcher.dispose())
         this.dependencyWatchers.clear()
     }
 
