@@ -836,8 +836,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
 
                 // remove progress UI
-                const progressMessageId = progressPrefix + toolUse.toolUseId
-                await chatResultStream.removeResultBlockAndUpdateUI(progressMessageId)
+                await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
 
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
@@ -2236,6 +2235,7 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream,
         streamWriter: ResultStreamWriter
     ) {
+        // extract the key value from incomplete JSON response stream
         function extractKey(incompleteJson: string, key: string): string | undefined {
             const pattern = new RegExp(`"${key}":\\s*"([^"]*)"`, 'g')
             const match = pattern.exec(incompleteJson)
