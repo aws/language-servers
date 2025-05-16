@@ -415,9 +415,27 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
     async onMcpServerClick(params: McpServerClickParams) {
-        return {
-            id: params.id,
-            success: true,
+        switch (params.id) {
+            case 'refresh-mcp-list':
+                try {
+                    await McpManager.instance.reinitializeMcpServers()
+                    return {
+                        id: params.id,
+                        success: true,
+                    }
+                } catch (err) {
+                    this.#features.logging.error(`Failed to reinitialize MCP servers: ${err}`)
+                    return {
+                        id: params.id,
+                        success: false,
+                        error: err instanceof Error ? err.message : 'Unknown error when reinitializing MCP server',
+                    }
+                }
+            default:
+                return {
+                    id: params.id,
+                    success: true,
+                }
         }
     }
 

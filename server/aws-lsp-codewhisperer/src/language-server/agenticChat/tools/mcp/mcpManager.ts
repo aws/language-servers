@@ -413,6 +413,28 @@ export class McpManager {
     }
 
     /**
+     * Reinitialize all MCP servers by closing existing connections and rediscovering servers
+     */
+    public async reinitializeMcpServers(): Promise<void> {
+        this.features.logging.info('Reinitializing MCP servers')
+
+        try {
+            // Close all existing connections
+            await this.close()
+
+            // Reinitialize with the same configuration paths
+            const newMcpManager = await McpManager.init(this.configPaths, this.features)
+
+            this.features.logging.info(
+                `MCP servers reinitialized completed with mcpServers count: ${newMcpManager.mcpServers.size}`
+            )
+        } catch (err: any) {
+            this.features.logging.error(`Error reinitializing MCP servers: ${err.message}`)
+            throw err
+        }
+    }
+
+    /**
      * Check if a tool requires approval.
      */
     public requiresApproval(server: string, tool: string): boolean {
