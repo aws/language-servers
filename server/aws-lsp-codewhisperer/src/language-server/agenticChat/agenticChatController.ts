@@ -836,29 +836,23 @@ export class AgenticChatController implements ChatHandlers {
                 }
 
                 // remove progress UI
-                if (chatResultStream.hasMessage(progressPrefix + toolUse.toolUseId)) {
-                    const blockId = chatResultStream.getMessageBlockId(progressPrefix + toolUse.toolUseId)
+                const progressMessageId = progressPrefix + toolUse.toolUseId
+                if (chatResultStream.hasMessage(progressMessageId)) {
+                    const blockId = chatResultStream.getMessageBlockId(progressMessageId)
                     if (blockId !== undefined) {
                         await chatResultStream.overwriteResultBlock(
-                            { ...loadingMessage, messageId: progressPrefix + toolUse.toolUseId },
+                            { ...loadingMessage, messageId: progressMessageId },
                             blockId
                         )
                     }
+                    await chatResultStream.removeResultBlock(progressMessageId)
                 }
 
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
-                const { explanation } = toolUse.input as unknown as ExplanatoryParams
-                if (explanation) {
-                    const explanationMessageId = toolUse.toolUseId + '_explanation'
-                    await chatResultStream.writeResultBlock({
-                        type: 'directive',
-                        messageId: explanationMessageId,
-                        body: explanation,
-                    })
-                }
+
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
@@ -2218,7 +2212,8 @@ export class AgenticChatController implements ChatHandlers {
 
     async #showToolUseIntemediateResult(
         data: AgenticChatResultWithMetadata,
-        chatResultStream: AgenticChatResultStream
+        chatResultStream: AgenticChatResultStream,
+        streamWriter: ResultStreamWriter
     ) {
         function extractKey(incompleteJson: string, key: string): string | undefined {
             const pattern = new RegExp(`"${key}":\\s*"([^"]*)"`, 'g')
@@ -2233,6 +2228,7 @@ export class AgenticChatController implements ChatHandlers {
                 // render fs write UI as soon as fs write starts
                 if (filepath && !chatResultStream.hasMessage(msgId)) {
                     const fileName = path.basename(filepath)
+                    await streamWriter.close()
                     await chatResultStream.writeResultBlock({
                         type: 'tool',
                         messageId: msgId,
@@ -2253,6 +2249,7 @@ export class AgenticChatController implements ChatHandlers {
                 const explanation = extractKey(toolUse.input, 'explanation')
                 const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
                 if (explanation && !chatResultStream.hasMessage(messageId)) {
+                    await streamWriter.close()
                     await chatResultStream.writeResultBlock({
                         type: 'directive',
                         messageId: messageId,
@@ -2311,7 +2308,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseStartTimes,
                     toolUseLoadingTimeouts
                 )
-                await this.#showToolUseIntemediateResult(result.data, chatResultStream)
+                await this.#showToolUseIntemediateResult(result.data, chatResultStream, streamWriter)
             }
         }
         await streamWriter.close()
