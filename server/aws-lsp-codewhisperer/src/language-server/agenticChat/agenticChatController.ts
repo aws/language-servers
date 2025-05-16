@@ -532,7 +532,8 @@ export class AgenticChatController implements ChatHandlers {
             profileArn,
             [],
             this.#getTools(session),
-            additionalContext
+            additionalContext,
+            session.modelId
         )
 
         return requestInput
@@ -1698,6 +1699,10 @@ export class AgenticChatController implements ChatHandlers {
         if (profileArn) {
             this.#telemetryService.updateProfileArn(profileArn)
         }
+        const modelId = session.modelId
+        if (modelId) {
+            this.#telemetryService.updateModelId(modelId)
+        }
         if (triggerContext.contextInfo) {
             metric.mergeWith({
                 cwsprChatHasContextList: triggerContext.documentReference?.filePaths?.length ? true : false,
@@ -2360,7 +2365,9 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
 
-        session.pairProgrammingMode = !session.pairProgrammingMode
+        session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
+        session.modelId =
+            params.optionsValues['model-selection'] === 'auto' ? undefined : params.optionsValues['model-selection']
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
