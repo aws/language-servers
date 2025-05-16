@@ -861,11 +861,10 @@ export class EclipseConfigGenerator {
     private async initializeProjectFiles(): Promise<void> {
         try {
             const eclipseFiles = ['.project', '.classpath']
-
             for (const fileName of eclipseFiles) {
                 const pattern = path.join(this.workspacePath, '**', fileName)
                 const files = await glob(pattern, {
-                    ignore: IGNORE_PATTERNS,
+                    ignore: IGNORE_PATTERNS.filter(p => p !== '**/.*'),
                     onlyFiles: true,
                     followSymbolicLinks: false,
                     dot: true,
