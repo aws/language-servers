@@ -92,7 +92,7 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
-import { AgenticChatResultStream, ResultStreamWriter } from './agenticChatResultStream'
+import { AgenticChatResultStream, progressPrefix, ResultStreamWriter } from './agenticChatResultStream'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
@@ -854,18 +854,15 @@ export class AgenticChatController implements ChatHandlers {
                 if (!availableToolNames.includes(toolUse.name)) {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
                 }
+
+                // remove progress UI
+                await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
+
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
-                const { explanation } = toolUse.input as unknown as ExplanatoryParams
-                if (explanation) {
-                    await chatResultStream.writeResultBlock({
-                        type: 'directive',
-                        messageId: toolUse.toolUseId + '_explanation',
-                        body: explanation,
-                    })
-                }
+
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
@@ -1074,6 +1071,36 @@ export class AgenticChatController implements ChatHandlers {
                             content: [{ text: 'Command stopped by user' }],
                         })
                         continue
+                    }
+                }
+                // display fs write failure status in the UX of that file card
+                if (toolUse.name === 'fsWrite' && toolUse.toolUseId) {
+                    const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
+                    const fsParam = toolUse.input as unknown as FsWriteParams
+                    const fileName = path.basename(fsParam.path)
+                    const errorResult = {
+                        type: 'tool',
+                        messageId: toolUse.toolUseId,
+                        header: {
+                            fileList: {
+                                filePaths: [fileName],
+                                details: {
+                                    [fileName]: {
+                                        description: fsParam.path,
+                                    },
+                                },
+                            },
+                            status: {
+                                status: 'error',
+                                icon: 'error',
+                                text: 'Error',
+                            },
+                        },
+                    } as ChatResult
+                    if (existingCard) {
+                        await chatResultStream.overwriteResultBlock(errorResult, existingCard)
+                    } else {
+                        await chatResultStream.writeResultBlock(errorResult)
                     }
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
@@ -2227,6 +2254,64 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async #showToolUseIntermediateResult(
+        data: AgenticChatResultWithMetadata,
+        chatResultStream: AgenticChatResultStream,
+        streamWriter: ResultStreamWriter
+    ) {
+        // extract the key value from incomplete JSON response stream
+        function extractKey(incompleteJson: string, key: string): string | undefined {
+            const pattern = new RegExp(`"${key}":\\s*"([^"]*)"`, 'g')
+            const match = pattern.exec(incompleteJson)
+            return match?.[1]
+        }
+        const toolUses = Object.values(data.toolUses)
+        for (const toolUse of toolUses) {
+            if (toolUse.name === 'fsWrite' && typeof toolUse.input === 'string') {
+                const filepath = extractKey(toolUse.input, 'path')
+                const msgId = progressPrefix + toolUse.toolUseId
+                // render fs write UI as soon as fs write starts
+                if (filepath && !chatResultStream.hasMessage(msgId)) {
+                    const fileName = path.basename(filepath)
+                    await streamWriter.close()
+                    await chatResultStream.writeResultBlock({
+                        type: 'tool',
+                        messageId: msgId,
+                        header: {
+                            fileList: {
+                                filePaths: [fileName],
+                                details: {
+                                    [fileName]: {
+                                        description: filepath,
+                                    },
+                                },
+                            },
+                            status: {
+                                status: 'info',
+                                icon: 'progress',
+                                text: '',
+                            },
+                        },
+                    })
+                }
+            }
+
+            // render the tool use explanatory as soon as this is received for all tool uses.
+            if (typeof toolUse.input === 'string') {
+                const explanation = extractKey(toolUse.input, 'explanation')
+                const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
+                if (explanation && !chatResultStream.hasMessage(messageId)) {
+                    await streamWriter.close()
+                    await chatResultStream.writeResultBlock({
+                        type: 'directive',
+                        messageId: messageId,
+                        body: explanation,
+                    })
+                }
+            }
+        }
+    }
+
     async #processGenerateAssistantResponseResponse(
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
@@ -2275,6 +2360,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseStartTimes,
                     toolUseLoadingTimeouts
                 )
+                await this.#showToolUseIntermediateResult(result.data, chatResultStream, streamWriter)
             }
         }
         await streamWriter.close()
