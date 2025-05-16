@@ -3,14 +3,14 @@ import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { StreamingClientServiceToken, StreamingClientServiceIAM } from '../../shared/streamingClientService'
-import * as path from 'path'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 describe('Chat Session Service', () => {
     let abortStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
-    let amazonQServiceManager: StubbedInstance<AmazonQTokenServiceManager>
+    let amazonQServiceManager: StubbedInstance<AmazonQBaseServiceManager>
     let codeWhispererStreamingClient: StubbedInstance<StreamingClientServiceToken>
     const mockConversationId = 'mockConversationId'
 
@@ -34,7 +34,7 @@ describe('Chat Session Service', () => {
         codeWhispererStreamingClient = stubInterface<StreamingClientServiceToken>()
         codeWhispererStreamingClient.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-        amazonQServiceManager = stubInterface<AmazonQTokenServiceManager>()
+        amazonQServiceManager = stubInterface<AmazonQBaseServiceManager>()
         amazonQServiceManager.getStreamingClient.returns(codeWhispererStreamingClient)
 
         abortStub = sinon.stub(AbortController.prototype, 'abort')
@@ -223,6 +223,26 @@ describe('Chat Session Service', () => {
 
         sinon.assert.calledOnce(abortStub)
         assert.strictEqual(chatSessionServiceIAM.conversationId, undefined)
+    })
+
+    describe('Prompt ID', () => {
+        let chatSessionService: ChatSessionService
+
+        beforeEach(() => {
+            chatSessionService = new ChatSessionService()
+        })
+
+        it('should initialize with undefined promptId', () => {
+            assert.strictEqual(chatSessionService.isCurrentPrompt('test-id'), false)
+        })
+
+        it('should set and check current prompt ID', () => {
+            const promptId = 'test-prompt-id'
+            chatSessionService.setCurrentPromptId(promptId)
+
+            assert.strictEqual(chatSessionService.isCurrentPrompt(promptId), true)
+            assert.strictEqual(chatSessionService.isCurrentPrompt('different-id'), false)
+        })
     })
 
     describe('Approved Paths', () => {

@@ -214,10 +214,23 @@ export function parseJson(jsonString: string) {
 }
 
 export function getErrorMessage(error: any): string {
-    if (error instanceof Error) {
+    if (error?.cause?.message) {
+        return error?.cause?.message
+    } else if (error instanceof Error) {
         return error.message
     }
     return String(error)
+}
+
+export function getRequestID(error: any): string | undefined {
+    if (hasCause(error) && error.cause.$metadata?.requestId) {
+        return error.cause.$metadata.requestId
+    }
+    if (error instanceof CodeWhispererStreamingServiceException) {
+        return error.$metadata.requestId
+    }
+
+    return undefined
 }
 
 export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvider) {

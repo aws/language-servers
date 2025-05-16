@@ -51,8 +51,8 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -67,6 +67,8 @@ type ChatHandlers = Omit<
     | 'getSerializedChat'
     | 'onTabBarAction'
     | 'chatOptionsUpdate'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
 >
 
 export class ChatController implements ChatHandlers {
@@ -76,20 +78,20 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #amazonQServiceManager: AmazonQBaseServiceManager
+    #serviceManager: AmazonQBaseServiceManager
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        amazonQServiceManager: AmazonQBaseServiceManager
+        serviceManager: AmazonQBaseServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
-        this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging)
+        this.#triggerContext = new QChatTriggerContext(features.workspace, features.logging, serviceManager)
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
-        this.#amazonQServiceManager = amazonQServiceManager
+        this.#serviceManager = serviceManager
     }
 
     dispose() {
@@ -151,24 +153,6 @@ export class ChatController implements ChatHandlers {
             if (isAwsError(err) || (isObject(err) && 'statusCode' in err && typeof err.statusCode === 'number')) {
                 metric.setDimension('cwsprChatRepsonseCode', err.statusCode ?? 400)
                 this.#telemetryController.emitMessageResponseError(params.tabId, metric.metric)
-            }
-
-            if (err instanceof AmazonQServicePendingSigninError) {
-                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
-
-                return createAuthFollowUpResult('full-auth')
-            }
-
-            if (err instanceof AmazonQServicePendingProfileError) {
-                this.#log(`Q Chat SSO Connection error: ${getErrorMessage(err)}`)
-
-                const followUpResult = createAuthFollowUpResult('use-supported-auth')
-                // Access first element in array
-                if (followUpResult.followUp?.options) {
-                    followUpResult.followUp.options[0].pillText = 'Select Q Developer Profile'
-                }
-
-                return followUpResult
             }
 
             const authFollowType = getAuthFollowUpType(err)
@@ -263,7 +247,7 @@ export class ChatController implements ChatHandlers {
                 this.#customizationArn
             )
 
-            const client = this.#amazonQServiceManager.getStreamingClient()
+            const client = this.#serviceManager.getStreamingClient()
             response = await client.sendMessage(requestInput)
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
@@ -303,7 +287,9 @@ export class ChatController implements ChatHandlers {
         }
     }
 
-    async onInlineChatResult(handler: InlineChatResultParams) {}
+    async onInlineChatResult(params: InlineChatResultParams) {
+        await this.#telemetryService.emitInlineChatResultLog(params)
+    }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
         // Implementation based on https://github.com/aws/aws-toolkit-vscode/blob/1814cc84228d4bf20270574c5980b91b227f31cf/packages/core/src/amazonq/commons/controllers/contentController.ts#L38

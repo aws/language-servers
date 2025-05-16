@@ -39,6 +39,9 @@ jobs:
             - name: Create runtime bundles
               run: |
                   npm run package
+            - name: Test bundles
+              run: |
+                  npm run test-bundles --workspaces --if-present
             - name: Attach bundles
               uses: actions/upload-artifact@v4
               with:
@@ -77,6 +80,9 @@ jobs:
             - name: Create runtime bundles
               run: |
                   npm run package
+            - name: Test bundles
+              run: |
+                  npm run test-bundles --workspaces --if-present
             - name: Attach bundles
               uses: actions/upload-artifact@v4
               with:

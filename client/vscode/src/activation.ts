@@ -124,6 +124,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                 awsClientCapabilities: {
                     q: {
                         developerProfiles: process.env.ENABLE_AMAZON_Q_PROFILES === 'true',
+                        customizationsWithMetadata: process.env.ENABLE_CUSTOMIZATIONS_WITH_METADATA === 'true',
                     },
                     window: {
                         notifications: true,
@@ -159,8 +160,14 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
 
     // Activate chat server after LSP initialize handshake is done
     const enableChat = process.env.ENABLE_CHAT === 'true'
+    const agenticMode = process.env.ENABLE_AGENTIC_UI_MODE === 'true'
     if (enableChat) {
-        registerChat(client, extensionContext.extensionUri, enableEncryptionInit ? encryptionKey : undefined)
+        registerChat(
+            client,
+            extensionContext.extensionUri,
+            enableEncryptionInit ? encryptionKey : undefined,
+            agenticMode
+        )
     }
 
     const enableAwsQSection = process.env.ENABLE_AWS_Q_SECTION === 'true'

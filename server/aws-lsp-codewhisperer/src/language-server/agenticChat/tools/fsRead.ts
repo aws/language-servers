@@ -1,19 +1,20 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { URI } from 'vscode-uri'
 import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { workspaceUtils } from '@aws/lsp-core'
-import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
-
-// Port of https://github.com/aws/aws-toolkit-vscode/blob/5a0404eb0e2c637ca3bd119714f5c7a24634f746/packages/core/src/codewhispererChat/tools/fsRead.ts#L17
 
 export interface FsReadParams {
+    paths: string[]
+}
+
+export interface FileReadResult {
     path: string
-    readRange?: number[]
+    content: string
+    truncated: boolean
 }
 
 export class FsRead {
     static maxResponseSize = 200_000
+    static maxResponseSizeTotal = 400_000
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
     private readonly lsp: Features['lsp']
@@ -25,44 +26,32 @@ export class FsRead {
     }
 
     public async validate(params: FsReadParams): Promise<void> {
-        await validatePath(params.path, this.workspace.fs.exists)
-    }
-
-    public async queueDescription(params: FsReadParams, updates: WritableStream, requiresAcceptance: boolean) {
-        const updateWriter = updates.getWriter()
-        const closeWriter = async (w: WritableStreamDefaultWriter) => {
-            await w.close()
-            w.releaseLock()
+        for (const path of params.paths) {
+            await validatePath(path, this.workspace.fs.exists)
         }
-        if (!requiresAcceptance) {
-            await closeWriter(updateWriter)
-            return
-        }
-        await updateWriter.write(`Reading file: [${params.path}]`)
-
-        const [start, end] = params.readRange ?? []
-
-        if (start && end) {
-            await updateWriter.write(`from line ${start} to ${end}`)
-        } else if (start) {
-            const msg =
-                start > 0 ? `from line ${start} to end of file` : `${start} line from the end of file to end of file`
-            await updateWriter.write(msg)
-        } else {
-            await updateWriter.write('all lines')
-        }
-        await closeWriter(updateWriter)
     }
 
     public async requiresAcceptance(params: FsReadParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
+        // Check acceptance for all paths in the array
+        for (const path of params.paths) {
+            const validation = await requiresPathAcceptance(path, this.lsp, this.logging, approvedPaths)
+            if (validation.requiresAcceptance) {
+                return validation
+            }
+        }
+        return { requiresAcceptance: false }
     }
 
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
-        const path = sanitize(params.path)
-        const fileContents = await this.readFile(path)
-        this.logging.info(`Read file: ${path}, size: ${fileContents.length}`)
-        return this.handleFileRange(params, fileContents)
+        const fileResult: FileReadResult[] = []
+        for (const path of params.paths) {
+            const sanitizedPath = sanitize(path)
+            const content = await this.readFile(sanitizedPath)
+            this.logging.info(`Read file: ${sanitizedPath}, size: ${content.length}`)
+            fileResult.push({ path, content, truncated: false })
+        }
+
+        return this.createOutput(fileResult)
     }
 
     private async readFile(filePath: string): Promise<string> {
@@ -70,54 +59,26 @@ export class FsRead {
         return await this.workspace.fs.readFile(filePath)
     }
 
-    private handleFileRange(params: FsReadParams, fullText: string): InvokeOutput {
-        if (!params.readRange || params.readRange.length === 0) {
-            this.logging.log('No range provided. returning entire file.')
-            return this.createOutput(fullText)
+    private createOutput(fileResult: FileReadResult[]): InvokeOutput {
+        let totalSize = 0
+        for (const result of fileResult) {
+            const exceedsMaxSize = result.content.length > FsRead.maxResponseSize
+            if (exceedsMaxSize) {
+                this.logging.info(`FsRead: truncating ${result.path} to first ${FsRead.maxResponseSize} characters`)
+                result.content = result.content.substring(0, FsRead.maxResponseSize - 3) + '...'
+                result.truncated = true
+            }
+            totalSize += result.content.length
         }
 
-        const lines = fullText.split('\n')
-        const [start, end] = this.parseLineRange(lines.length, params.readRange)
-        if (start > end) {
-            this.logging.error(`Invalid range: ${params.readRange.join('-')}`)
-            return this.createOutput('')
+        if (totalSize > FsRead.maxResponseSizeTotal) {
+            throw Error('Files are too large, please break the file read into smaller chunks')
         }
 
-        this.logging.log(`Reading file: ${params.path}, lines ${start + 1}-${end + 1}`)
-        const slice = lines.slice(start, end + 1).join('\n')
-        return this.createOutput(slice)
-    }
-
-    private parseLineRange(lineCount: number, range: number[]): [number, number] {
-        const startIdx = range[0]
-        let endIdx = range.length >= 2 ? range[1] : undefined
-
-        if (endIdx === undefined) {
-            endIdx = -1
-        }
-
-        const convert = (i: number): number => {
-            return i < 0 ? lineCount + i : i - 1
-        }
-
-        const finalStart = Math.max(0, Math.min(lineCount - 1, convert(startIdx)))
-        const finalEnd = Math.max(0, Math.min(lineCount - 1, convert(endIdx)))
-        return [finalStart, finalEnd]
-    }
-
-    private createOutput(content: string): InvokeOutput {
-        const exceedsMaxSize = content.length > FsRead.maxResponseSize
-        if (exceedsMaxSize) {
-            this.logging.info(`FsRead: truncating response to first ${FsRead.maxResponseSize} characters`)
-            content = content.substring(0, FsRead.maxResponseSize - 3) + '...'
-        }
         return {
             output: {
                 kind: 'json',
-                content: {
-                    content,
-                    truncated: exceedsMaxSize,
-                },
+                content: fileResult,
             },
         }
     }
@@ -126,45 +87,34 @@ export class FsRead {
         return {
             name: 'fsRead',
             description:
-                'A tool for reading a file.\n\n' +
+                'A tool for reading files.\n\n' +
                 '## Overview\n' +
-                'This tool returns the contents of a file, with optional line range specification.\n\n' +
+                'This tool returns the contents of files.\n\n' +
                 '## When to use\n' +
-                '- When you need to examine the content of a file\n' +
-                '- When you need to read specific line ranges from a file\n' +
+                '- When you need to examine the content of a file or multiple files\n' +
                 '- When you need to analyze code or configuration files\n\n' +
                 '## When not to use\n' +
                 '- When you need to search for patterns across multiple files\n' +
                 '- When you need to process files in binary format\n\n' +
                 '## Notes\n' +
+                '- Prioritize reading multiple files at once by passing in multiple paths rather than calling this tool with a single path multiple times\n' +
+                '- When reading multiple files, the total characters combined cannot exceed 400K characters, break the step into smaller chunks if it happens\n' +
                 '- This tool is more effective than running a command like `head -n` using `executeBash` tool\n' +
-                '- If the file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output\n' +
-                '- For large files (>200K characters), you may need to make multiple calls with specific `readRange` values, but ONLY do this if:\n' +
-                '  * The initial read was truncated (indicated by `truncated=true` in the output)\n' +
-                '  * A specific `readRange` is needed to focus on relevant sections\n' +
-                '  * The user explicitly asks to read more of the file\n' +
-                '- DO NOT re-read the file again using `readRange` unless explicitly asked by the user\n\n' +
-                '## Related tools\n' +
-                '- fsWrite: Use to modify the file after reading\n' +
-                '- listDirectory: Use to find files before reading them',
+                '- If a file exceeds 200K characters, this tool will only read the first 200K characters of the file with a `truncated=true` in the output',
             inputSchema: {
                 type: 'object',
                 properties: {
-                    path: {
-                        description:
-                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows.',
-                        type: 'string',
-                    },
-                    readRange: {
-                        description:
-                            'Optional parameter when reading files.\n * If none is given, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting `[startLine, -1]` shows all lines from `startLine` to the end of the file.',
+                    paths: {
+                        description: 'List of file paths to read in a sequence',
                         type: 'array',
                         items: {
-                            type: 'number',
+                            type: 'string',
+                            description:
+                                'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows.',
                         },
                     },
                 },
-                required: ['path'],
+                required: ['paths'],
             },
         } as const
     }

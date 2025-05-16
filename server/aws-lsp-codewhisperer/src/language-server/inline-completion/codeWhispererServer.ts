@@ -241,6 +241,9 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
     requestId: string
     languageId: CodewhispererLanguage
     customizationArn?: string
+    completionType?: string
+    triggerType?: string
+    credentialStartUrl?: string
 }
 
 export const CodewhispererServerFactory =
@@ -604,6 +607,9 @@ export const CodewhispererServerFactory =
                 startPosition: session.startPosition,
                 endPosition: endPosition,
                 customizationArn: session.customizationArn,
+                completionType: getCompletionType(acceptedSuggestion),
+                triggerType: session.triggerType,
+                credentialStartUrl: session.credentialStartUrl,
             })
         }
 
@@ -698,16 +704,23 @@ export const CodewhispererServerFactory =
                 workspace,
                 logging,
                 async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
-                    await telemetryService.emitUserModificationEvent({
-                        sessionId: entry.sessionId,
-                        requestId: entry.requestId,
-                        languageId: entry.languageId,
-                        customizationArn: entry.customizationArn,
-                        timestamp: new Date(),
-                        acceptedCharacterCount: entry.originalString.length,
-                        modificationPercentage: percentage,
-                        unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
-                    })
+                    await telemetryService.emitUserModificationEvent(
+                        {
+                            sessionId: entry.sessionId,
+                            requestId: entry.requestId,
+                            languageId: entry.languageId,
+                            customizationArn: entry.customizationArn,
+                            timestamp: new Date(),
+                            acceptedCharacterCount: entry.originalString.length,
+                            modificationPercentage: percentage,
+                            unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
+                        },
+                        {
+                            completionType: entry.completionType || 'LINE',
+                            triggerType: entry.triggerType || 'OnDemand',
+                            credentialStartUrl: entry.credentialStartUrl,
+                        }
+                    )
                 }
             )
 

@@ -6,29 +6,33 @@ export const programmerModeCard: ChatItem = {
     header: {
         icon: 'code-block',
         iconStatus: 'primary',
-        body: '## Pair Programmer',
+        body: '### An interactive, agentic coding experience',
     },
     messageId: 'programmerModeCardId',
     fullWidth: true,
     canBeDismissed: true,
-    body: 'Amazon Q Developer chat can now write code and run shell commands on your behalf. Disable Pair Programmer if you prefer a read-only experience.',
+    body: 'Amazon Q can now help you write, modify, and maintain code by combining the power of natural language understanding with the ability to take actions on your behalf such as directly making code changes, modifying files, and running commands.',
 }
 
 export const pairProgrammingPromptInput: ChatItemFormItem = {
     type: 'switch',
     id: 'pair-programmer-mode',
-    tooltip: 'Turn off for read only responses',
-    alternateTooltip: 'Turn on to allow Q to run commands and generate code diffs',
+    tooltip: 'Turn OFF agentic coding',
+    alternateTooltip: 'Turn ON agentic coding',
     value: 'true',
     icon: 'code-block',
 }
 
 export const pairProgrammingModeOn: ChatItem = {
     type: ChatItemType.DIRECTIVE,
-    body: 'You are using **pair programming**: Q can now list files, preview code diffs and allow you to run shell commands.',
+    contentHorizontalAlignment: 'center',
+    fullWidth: true,
+    body: 'Agentic coding - ON',
 }
 
 export const pairProgrammingModeOff: ChatItem = {
     type: ChatItemType.DIRECTIVE,
-    body: 'You turned off **pair programming**. Q will not include code diffs or run commands in the chat.',
+    contentHorizontalAlignment: 'center',
+    fullWidth: true,
+    body: 'Agentic coding - OFF',
 }

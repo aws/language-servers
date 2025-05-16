@@ -45,6 +45,7 @@ export interface LocalProjectContextInitializationOptions {
     indexCacheDirPath?: string
     enableGpuAcceleration?: boolean
     indexWorkerThreads?: number
+    enableIndexing?: boolean
 }
 
 export class LocalProjectContextController {
@@ -55,6 +56,7 @@ export class LocalProjectContextController {
     private _contextCommandSymbolsUpdated = false
     private readonly clientName: string
     private readonly log: Logging
+    private _isIndexingEnabled: boolean = false
 
     private ignoreFilePatterns?: string[]
     private includeSymlinks?: boolean
@@ -81,8 +83,8 @@ export class LocalProjectContextController {
     public static async getInstance(): Promise<LocalProjectContextController> {
         try {
             await waitUntil(async () => this.instance, {
-                interval: 100,
-                timeout: 600,
+                interval: 1000,
+                timeout: 60_000,
                 truthy: true,
             })
 
@@ -92,12 +94,7 @@ export class LocalProjectContextController {
 
             return this.instance
         } catch (error) {
-            // throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
-            return {
-                isEnabled: true,
-                getContextCommandItems: () => [],
-                shouldUpdateContextCommandSymbolsOnce: () => false,
-            } as unknown as LocalProjectContextController
+            throw new Error(`Failed to get LocalProjectContextController instance: ${error}`)
         }
     }
 
@@ -111,11 +108,10 @@ export class LocalProjectContextController {
         indexCacheDirPath = path.join(homedir(), '.aws', 'amazonq', 'cache'),
         enableGpuAcceleration = false,
         indexWorkerThreads = 0,
+        enableIndexing = false,
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
-            if (this._vecLib) {
-                return
-            }
+            // update states according to configuration
             this.includeSymlinks = includeSymlinks
             this.maxFileSizeMB = maxFileSizeMB
             this.maxIndexSizeMB = maxIndexSizeMB
@@ -140,12 +136,28 @@ export class LocalProjectContextController {
                     `index worker thread count: ${indexWorkerThreads}`
             )
 
+            // build index if vecLib was initialized but indexing was not enabled before
+            if (this._vecLib) {
+                if (enableIndexing && !this._isIndexingEnabled) {
+                    void this.buildIndex()
+                }
+                if (!enableIndexing && this._isIndexingEnabled) {
+                    void this._vecLib?.clear?.()
+                }
+                this._isIndexingEnabled = enableIndexing
+                return
+            }
+
+            // initialize vecLib and index if needed
             const libraryPath = this.getVectorLibraryPath()
             const vecLib = vectorLib ?? (await eval(`import("${libraryPath}")`))
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
-                void this.buildIndex()
+                if (enableIndexing) {
+                    void this.buildIndex()
+                }
                 LocalProjectContextController.instance = this
+                this._isIndexingEnabled = enableIndexing
             } else {
                 this.log.warn(`Vector library could not be imported from: ${libraryPath}`)
             }
@@ -175,7 +187,7 @@ export class LocalProjectContextController {
     }
 
     public async updateIndex(filePaths: string[], operation: UpdateMode): Promise<void> {
-        if (!this._vecLib) {
+        if (!this.isIndexingEnabled()) {
             return
         }
 
@@ -190,6 +202,10 @@ export class LocalProjectContextController {
     async buildIndex(): Promise<void> {
         try {
             if (this._vecLib) {
+                if (!this.workspaceFolders.length) {
+                    this.log.info('skip building index because no workspace folder found')
+                    return
+                }
                 const sourceFiles = await this.processWorkspaceFolders(
                     this.workspaceFolders,
                     this.ignoreFilePatterns,
@@ -199,7 +215,9 @@ export class LocalProjectContextController {
                     this.maxFileSizeMB,
                     this.maxIndexSizeMB
                 )
-                await this._vecLib?.buildIndex(sourceFiles, this.indexCacheDirPath, 'all')
+
+                const projectRoot = URI.parse(this.workspaceFolders.sort()[0].uri).fsPath
+                await this._vecLib?.buildIndex(sourceFiles, projectRoot, 'all')
                 this.log.info('Context index built successfully')
             }
         } catch (error) {
@@ -219,8 +237,8 @@ export class LocalProjectContextController {
                     merged.push(addition)
                 }
             }
-            if (this._vecLib) {
-                await this.buildIndex()
+            if (this._vecLib && this._isIndexingEnabled) {
+                void this.buildIndex()
             }
         } catch (error) {
             this.log.error(`Error in updateWorkspaceFolders: ${error}`)
@@ -230,7 +248,7 @@ export class LocalProjectContextController {
     public async queryInlineProjectContext(
         request: QueryInlineProjectContextRequestV2
     ): Promise<InlineProjectContext[]> {
-        if (!this._vecLib) {
+        if (!this.isIndexingEnabled()) {
             return []
         }
 
@@ -244,7 +262,7 @@ export class LocalProjectContextController {
     }
 
     public async queryVectorIndex(request: QueryRequest): Promise<Chunk[]> {
-        if (!this._vecLib) {
+        if (!this.isIndexingEnabled()) {
             return []
         }
 
@@ -333,6 +351,10 @@ export class LocalProjectContextController {
             this.log.error(`Error in getContextCommandPrompt: ${error}`)
             return []
         }
+    }
+
+    public isIndexingEnabled(): boolean {
+        return this._vecLib !== undefined && this._isIndexingEnabled
     }
 
     private fileMeetsFileSizeConstraints(filePath: string, sizeConstraints: SizeConstraints): boolean {

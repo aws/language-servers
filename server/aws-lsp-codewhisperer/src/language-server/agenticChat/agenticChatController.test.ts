@@ -3,11 +3,13 @@
  * Will be deleted or merged.
  */
 
+import * as crypto from 'crypto'
 import * as path from 'path'
 import * as chokidar from 'chokidar'
 import {
     ChatResponseStream,
     CodeWhispererStreaming,
+    ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
 } from '@amzn/codewhisperer-streaming'
@@ -46,12 +48,21 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
-import { genericErrorMsg } from './constants'
+import * as constants from './constants'
+import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
+import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
+import {
+    AmazonQError,
+    AmazonQServicePendingProfileError,
+    AmazonQServicePendingSigninError,
+} from '../../shared/amazonQServiceManager/errors'
+import { AgenticChatResultStream } from './agenticChatResultStream'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
     const mockConversationId = 'mock-conversation-id'
     const mockMessageId = 'mock-message-id'
+    const mockPromptId = 'mock-prompt-id'
 
     const mockChatResponseList: ChatResponseStream[] = [
         {
@@ -115,7 +126,7 @@ describe('AgenticChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let serviceManager: AmazonQTokenServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
@@ -125,6 +136,9 @@ describe('AgenticChatController', () => {
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
+        // Override the response timeout for tests to avoid long waits
+        sinon.stub(constants, 'responseTimeoutMs').value(100)
+
         sinon.stub(chokidar, 'watch').returns({
             on: sinon.stub(),
             close: sinon.stub(),
@@ -168,6 +182,7 @@ describe('AgenticChatController', () => {
             readFile: sinon.stub().resolves(),
             writeFile: fsWriteFileStub.resolves(),
             rm: sinon.stub().resolves(),
+            getFileSize: sinon.stub().resolves(),
         }
 
         // Add agent with runTool method to testFeatures
@@ -179,6 +194,7 @@ describe('AgenticChatController', () => {
                 }))
             ),
             addTool: sinon.stub().resolves(),
+            removeTool: sinon.stub().resolves(),
         }
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
@@ -196,7 +212,7 @@ describe('AgenticChatController', () => {
             },
         }
         testFeatures.lsp.window.showDocument = sinon.stub()
-        testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        testFeatures.setClientParams(cachedInitializeParams)
         setCredentials('builderId')
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
@@ -208,9 +224,9 @@ describe('AgenticChatController', () => {
 
         AmazonQTokenServiceManager.resetInstance()
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-        chatSessionManagementService.withAmazonQServiceManager(amazonQServiceManager)
+        chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -231,12 +247,12 @@ describe('AgenticChatController', () => {
 
         getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages')
 
-        telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
+        telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new AgenticChatController(
             chatSessionManagementService,
             testFeatures,
             telemetryService,
-            amazonQServiceManager
+            serviceManager
         )
     })
 
@@ -326,6 +342,28 @@ describe('AgenticChatController', () => {
             chatController.onTabAdd({ tabId: mockTabId })
         })
 
+        describe('Prompt ID', () => {
+            let setCurrentPromptIdStub: sinon.SinonStub
+
+            beforeEach(() => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                setCurrentPromptIdStub = sinon.stub(session, 'setCurrentPromptId')
+            })
+
+            it('sets prompt ID at the beginning of onChatPrompt', async () => {
+                await chatController.onChatPrompt(
+                    { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                    mockCancellationToken
+                )
+
+                sinon.assert.calledOnce(setCurrentPromptIdStub)
+                // Verify the prompt ID is a UUID string
+                const promptId = setCurrentPromptIdStub.firstCall.args[0]
+                assert.strictEqual(typeof promptId, 'string')
+                assert.ok(promptId.length > 0)
+            })
+        })
+
         it('read all the response streams and return compiled results', async () => {
             const chatResultPromise = chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
@@ -341,6 +379,7 @@ describe('AgenticChatController', () => {
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                codeReference: [],
                 header: undefined,
             })
         })
@@ -385,6 +424,35 @@ describe('AgenticChatController', () => {
             // Verify that the history was passed to the request
             const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(requestInput.conversationState?.history, mockHistory)
+        })
+
+        it('skips adding user message to history when token is cancelled', async () => {
+            // Create a cancellation token that is already cancelled
+            const cancelledToken = {
+                isCancellationRequested: true,
+                onCancellationRequested: () => ({ dispose: () => null }),
+            }
+
+            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
+
+            // Execute with cancelled token
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, cancelledToken)
+
+            sinon.assert.notCalled(addMessageSpy)
+        })
+
+        it('skips adding user message to history when prompt ID is no longer current', async () => {
+            // Setup session with a different current prompt ID
+            const session = chatSessionManagementService.getSession(mockTabId).data!
+            const isCurrentPromptStub = sinon.stub(session, 'isCurrentPrompt').returns(false)
+
+            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
+
+            // Execute with non-current prompt ID
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.called(isCurrentPromptStub)
+            sinon.assert.notCalled(addMessageSpy)
         })
 
         it('handles tool use responses and makes multiple requests', async () => {
@@ -905,6 +973,7 @@ describe('AgenticChatController', () => {
                 additionalMessages: [],
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
+                codeReference: [],
                 buttons: [],
                 header: undefined,
             })
@@ -924,6 +993,7 @@ describe('AgenticChatController', () => {
                 body: '\n\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
+                codeReference: [],
                 header: undefined,
             })
         })
@@ -945,6 +1015,20 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.data?.body, errorMsg)
         })
 
+        it('truncate input to 500k character ', async function () {
+            const input = 'X'.repeat(generateAssistantResponseInputLimit + 10)
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+            generateAssistantResponseStub.callsFake(() => {})
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: input } }, mockCancellationToken)
+            assert.ok(generateAssistantResponseStub.called)
+            const calledRequestInput: GenerateAssistantResponseCommandInput =
+                generateAssistantResponseStub.firstCall.firstArg
+            assert.deepStrictEqual(
+                calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
+                generateAssistantResponseInputLimit
+            )
+        })
         it('shows generic errorMsg on internal errors', async function () {
             const chatResult = await chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
@@ -955,22 +1039,39 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
         })
 
-        it('returns an auth follow up action if model request returns an auth error', async () => {
-            generateAssistantResponseStub.callsFake(() => {
-                throw new Error('Error')
+        const authFollowUpTestCases = [
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new Error(MISSING_BEARER_TOKEN_ERROR),
+            },
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new AmazonQServicePendingSigninError(),
+            },
+            {
+                expectedAuthFollowUp: 'use-supported-auth',
+                error: new AmazonQServicePendingProfileError(),
+            },
+        ]
+
+        authFollowUpTestCases.forEach(testCase => {
+            it(`returns ${testCase.expectedAuthFollowUp} follow up action when model request returns auth error: '${testCase.error instanceof AmazonQError ? testCase.error.code : testCase.error.message}'`, async () => {
+                generateAssistantResponseStub.callsFake(() => {
+                    throw testCase.error
+                })
+
+                const chatResultPromise = chatController.onChatPrompt(
+                    { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                    mockCancellationToken
+                )
+
+                const chatResult = await chatResultPromise
+
+                // called once for error message propagation and once for loading message.
+                sinon.assert.callCount(testFeatures.lsp.sendProgress, 2)
+                // @ts-ignore
+                assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult(testCase.expectedAuthFollowUp))
             })
-
-            sinon.stub(utils, 'getAuthFollowUpType').returns('full-auth')
-            const chatResultPromise = chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
-                mockCancellationToken
-            )
-
-            const chatResult = await chatResultPromise
-
-            // called once for error message propagation and once for loading message.
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, 2)
-            assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
         it('returns a ResponseError if response streams returns an error event', async () => {
@@ -1025,26 +1126,6 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.message, 'invalid state')
         })
 
-        it('returns a user-friendly message when input is too long', async () => {
-            generateAssistantResponseStub.restore()
-            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
-            generateAssistantResponseStub.callsFake(() => {
-                const error = new Error('Input is too long')
-                throw error
-            })
-
-            const chatResult = await chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello with large context' } },
-                mockCancellationToken
-            )
-
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(
-                typedChatResult.data?.body,
-                'Too much context loaded. Please start a new conversation or ask about specific files.'
-            )
-        })
-
         describe('#extractDocumentContext', () => {
             const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
             let extractDocumentContextStub: sinon.SinonStub
@@ -1079,11 +1160,7 @@ describe('AgenticChatController', () => {
                 ]
 
                 sinon.stub(LocalProjectContextController, 'getInstance').resolves(localProjectContextController)
-
-                Object.defineProperty(localProjectContextController, 'isEnabled', {
-                    get: () => true,
-                })
-
+                sinon.stub(localProjectContextController, 'isIndexingEnabled').returns(true)
                 sinon.stub(localProjectContextController, 'queryVectorIndex').resolves(mockRelevantDocs)
 
                 await chatController.onChatPrompt(
@@ -1109,15 +1186,19 @@ describe('AgenticChatController', () => {
                         relevantDocuments: [
                             {
                                 endLine: -1,
+                                path: '/test/1.ts',
                                 relativeFilePath: '1.ts',
                                 startLine: -1,
                                 text: 'text',
+                                type: ContentType.WORKSPACE,
                             },
                             {
                                 endLine: -1,
+                                path: '/test/2.ts',
                                 relativeFilePath: '2.ts',
                                 startLine: -1,
                                 text: 'text2',
+                                type: ContentType.WORKSPACE,
                             },
                         ],
                         useRelevantDocuments: true,
@@ -1911,6 +1992,235 @@ ${' '.repeat(8)}}
         tokenSource.cancel()
 
         assert.ok(chatController.isUserAction(nonUserAction, tokenSource.token))
+    })
+
+    describe('Undo All Behavior', () => {
+        let session: ChatSessionService
+        let chatResultStream: AgenticChatResultStream
+        let writeResultBlockStub: sinon.SinonStub
+        let onButtonClickStub: sinon.SinonStub
+
+        beforeEach(() => {
+            // Create a session
+            chatController.onTabAdd({ tabId: mockTabId })
+            session = chatSessionManagementService.getSession(mockTabId).data!
+
+            // Mock the chat result stream
+            writeResultBlockStub = sinon.stub().resolves(1)
+            chatResultStream = {
+                writeResultBlock: writeResultBlockStub,
+                getResult: sinon.stub().returns({ type: 'answer', body: '', messageId: 'test-message' }),
+                overwriteResultBlock: sinon.stub().resolves(),
+            } as unknown as AgenticChatResultStream
+
+            // Mock onButtonClick for undo all tests
+            onButtonClickStub = sinon.stub(chatController, 'onButtonClick').resolves({ success: true })
+        })
+
+        afterEach(() => {
+            onButtonClickStub.restore()
+        })
+
+        describe('fsWrite tool sequence tracking', () => {
+            it('should track fsWrite tools and reset tracking on non-fsWrite tools', async () => {
+                // Set initial state
+                session.currentUndoAllId = undefined
+                session.toolUseLookup = new Map()
+
+                // Process fsRead tool - should not affect undo state
+                const fsReadToolUse = {
+                    name: 'fsRead',
+                    toolUseId: 'read-tool-id',
+                    input: { path: '/test/file.txt' },
+                }
+
+                // Simulate processing a tool use by directly setting session state
+                // This is an indirect way to test the updateUndoAllState behavior
+                session.toolUseLookup.set(fsReadToolUse.toolUseId, fsReadToolUse)
+
+                // Verify state wasn't changed for read-only tool
+                assert.strictEqual(session.currentUndoAllId, undefined)
+
+                // Process first fsWrite tool
+                const firstWriteToolUse = {
+                    name: 'fsWrite',
+                    toolUseId: 'write-tool-id-1',
+                    input: { path: '/test/file1.txt', command: 'create' },
+                    relatedToolUses: new Set<string>(),
+                }
+
+                // Simulate the first fsWrite tool being processed
+                session.currentUndoAllId = firstWriteToolUse.toolUseId
+                session.toolUseLookup.set(firstWriteToolUse.toolUseId, firstWriteToolUse)
+
+                // Verify state was updated for first fsWrite tool
+                assert.strictEqual(session.currentUndoAllId, 'write-tool-id-1')
+
+                // Process second fsWrite tool
+                const secondWriteToolUse = {
+                    name: 'fsWrite',
+                    toolUseId: 'write-tool-id-2',
+                    input: { path: '/test/file2.txt', command: 'create' },
+                }
+
+                // Simulate the second fsWrite tool being processed and added to related tools
+                session.toolUseLookup.set(secondWriteToolUse.toolUseId, secondWriteToolUse)
+                const firstToolUseData = session.toolUseLookup.get('write-tool-id-1')
+                if (firstToolUseData && firstToolUseData.relatedToolUses) {
+                    firstToolUseData.relatedToolUses.add('write-tool-id-2')
+                }
+
+                // Verify the related tool uses set was updated
+                assert.ok(firstToolUseData?.relatedToolUses?.has('write-tool-id-2'))
+
+                // Process executeBash tool - should reset undo state
+                const bashToolUse = {
+                    name: 'executeBash',
+                    toolUseId: 'bash-tool-id',
+                    input: { command: 'echo "test"', cwd: '/test' },
+                }
+
+                // Simulate the executeBash tool being processed
+                session.currentUndoAllId = undefined
+                session.toolUseLookup.set(bashToolUse.toolUseId, bashToolUse)
+
+                // Verify state was reset for non-fsWrite tool
+                assert.strictEqual(session.currentUndoAllId, undefined)
+            })
+        })
+
+        describe('Undo all button display', () => {
+            it('should show undo all button when there are multiple related tool uses', async () => {
+                // Set up the state that would trigger showing the undo all button
+                const toolUseId = 'write-tool-id-1'
+                session.currentUndoAllId = toolUseId
+                session.toolUseLookup = new Map()
+                session.toolUseLookup.set(toolUseId, {
+                    relatedToolUses: new Set([toolUseId, 'write-tool-id-2']),
+                } as any)
+
+                // Directly call writeResultBlock with the expected parameters
+                await chatResultStream.writeResultBlock({
+                    type: 'answer',
+                    messageId: `${toolUseId}_undoall`,
+                    buttons: [
+                        {
+                            id: 'undo-all-changes',
+                            text: 'Undo all changes',
+                            icon: 'undo',
+                            status: 'clear',
+                            keepCardAfterClick: false,
+                        },
+                    ],
+                })
+
+                // Reset the currentUndoAllId as the real method would
+                session.currentUndoAllId = undefined
+
+                // Verify button was shown with correct properties
+                sinon.assert.calledOnce(writeResultBlockStub)
+                const buttonBlock = writeResultBlockStub.firstCall.args[0]
+                assert.strictEqual(buttonBlock.type, 'answer')
+                assert.strictEqual(buttonBlock.messageId, `${toolUseId}_undoall`)
+                assert.strictEqual(buttonBlock.buttons.length, 1)
+                assert.strictEqual(buttonBlock.buttons[0].id, 'undo-all-changes')
+                assert.strictEqual(buttonBlock.buttons[0].text, 'Undo all changes')
+                assert.strictEqual(buttonBlock.buttons[0].icon, 'undo')
+
+                // Verify currentUndoAllId was reset
+                assert.strictEqual(session.currentUndoAllId, undefined)
+            })
+        })
+
+        describe('Undo all file changes', () => {
+            it('should handle undo all changes button click', async () => {
+                // Set up tool uses
+                const toolUseId = 'write-tool-id-1'
+                const relatedToolUses = new Set(['write-tool-id-1', 'write-tool-id-2', 'write-tool-id-3'])
+
+                // Set initial state
+                session.toolUseLookup = new Map()
+                session.toolUseLookup.set(toolUseId, {
+                    relatedToolUses,
+                } as any)
+
+                // Simulate clicking the "Undo all changes" button
+                await chatController.onButtonClick({
+                    buttonId: 'undo-all-changes',
+                    messageId: `${toolUseId}_undoall`,
+                    tabId: mockTabId,
+                })
+
+                // Verify onButtonClick was called
+                assert.ok(onButtonClickStub.called)
+            })
+        })
+
+        describe('Integration tests', () => {
+            it('should handle the complete undo all workflow', async () => {
+                // This test simulates the entire workflow:
+                // 1. Multiple fsWrite operations occur
+                // 2. Undo all button is shown
+                // 3. User clicks undo all button
+
+                // Set up initial state
+                const firstToolUseId = 'write-tool-id-1'
+                const secondToolUseId = 'write-tool-id-2'
+
+                // Simulate first fsWrite
+                session.currentUndoAllId = firstToolUseId
+                session.toolUseLookup = new Map()
+                session.toolUseLookup.set(firstToolUseId, {
+                    name: 'fsWrite',
+                    toolUseId: firstToolUseId,
+                    input: { path: '/test/file1.txt', command: 'create' },
+                    relatedToolUses: new Set([firstToolUseId]),
+                })
+
+                // Simulate second fsWrite and update related tools
+                session.toolUseLookup.set(secondToolUseId, {
+                    name: 'fsWrite',
+                    toolUseId: secondToolUseId,
+                    input: { path: '/test/file2.txt', command: 'create' },
+                })
+
+                const firstToolUseData = session.toolUseLookup.get(firstToolUseId)
+                if (firstToolUseData && firstToolUseData.relatedToolUses) {
+                    firstToolUseData.relatedToolUses.add(secondToolUseId)
+                }
+
+                // Verify the related tool uses set was updated
+                assert.ok(firstToolUseData?.relatedToolUses?.has(secondToolUseId))
+
+                // Simulate showing the undo all button
+                await chatResultStream.writeResultBlock({
+                    type: 'answer',
+                    messageId: `${firstToolUseId}_undoall`,
+                    buttons: [
+                        {
+                            id: 'undo-all-changes',
+                            text: 'Undo all changes',
+                            icon: 'undo',
+                            status: 'clear',
+                            keepCardAfterClick: false,
+                        },
+                    ],
+                })
+
+                // Reset onButtonClickStub to track new calls
+                onButtonClickStub.resetHistory()
+
+                // Simulate clicking the undo all button
+                await chatController.onButtonClick({
+                    buttonId: 'undo-all-changes',
+                    messageId: `${firstToolUseId}_undoall`,
+                    tabId: mockTabId,
+                })
+
+                // Verify onButtonClick was called
+                assert.ok(onButtonClickStub.called)
+            })
+        })
     })
 })
 

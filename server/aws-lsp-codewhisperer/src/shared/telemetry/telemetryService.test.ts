@@ -18,7 +18,6 @@ import { ChatInteractionType } from './types'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../amazonQServiceManager/testUtils'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 
 class MockCredentialsProvider implements CredentialsProvider {
     private mockIamCredentials: IamCredentials | undefined
@@ -68,7 +67,7 @@ describe('TelemetryService', () => {
     let clock: sinon.SinonFakeTimers
     let telemetryService: TelemetryService
     let mockCredentialsProvider: MockCredentialsProvider
-    let baseAmazonQServiceManagerStub: AmazonQBaseServiceManager
+    let serviceManagerStub: TestAmazonQServiceManager
     let codeWhisperServiceStub: StubbedInstance<CodeWhispererServiceToken>
 
     const logging: Logging = {
@@ -107,6 +106,7 @@ describe('TelemetryService', () => {
             line: 12,
             character: 23,
         },
+        codewhispererSuggestionImportCount: 10,
     }
 
     beforeEach(() => {
@@ -123,7 +123,7 @@ describe('TelemetryService', () => {
         codeWhisperServiceStub.getCredentialsType.returns('bearer')
 
         const features = new TestFeatures()
-        baseAmazonQServiceManagerStub = initBaseTestServiceManager(features, codeWhisperServiceStub)
+        serviceManagerStub = initBaseTestServiceManager(features, codeWhisperServiceStub)
     })
 
     afterEach(() => {
@@ -133,12 +133,7 @@ describe('TelemetryService', () => {
     })
 
     it('updateUserContext updates the userContext property', () => {
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            {} as Telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, {} as Telemetry, logging)
         const mockUserContext: UserContext = {
             clientId: 'aaaabbbbccccdddd',
             ideCategory: 'ECLIPSE',
@@ -152,12 +147,7 @@ describe('TelemetryService', () => {
     })
 
     it('updateOptOutPreference updates the optOutPreference property', () => {
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            {} as Telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, {} as Telemetry, logging)
         const mockOptOutPreference: OptOutPreference = 'OPTIN'
         telemetryService.updateOptOutPreference(mockOptOutPreference)
 
@@ -165,24 +155,14 @@ describe('TelemetryService', () => {
     })
 
     it('updateEnableTelemetryEventsToDestination updates the enableTelemetryEventsToDestination property', () => {
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            {} as Telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, {} as Telemetry, logging)
         telemetryService.updateEnableTelemetryEventsToDestination(true)
 
         sinon.assert.match((telemetryService as any).enableTelemetryEventsToDestination, true)
     })
 
     it('getSuggestionState fetches the suggestion state from CodeWhispererSession', () => {
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            {} as Telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, {} as Telemetry, logging)
         const getSuggestionState = (telemetryService as any).getSuggestionState.bind(telemetryService)
         let session = {
             getAggregatedUserTriggerDecision: () => {
@@ -225,12 +205,7 @@ describe('TelemetryService', () => {
     it('should not emit user trigger decision if login is invalid (IAM)', () => {
         codeWhisperServiceStub.getCredentialsType.returns('iam')
 
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
 
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
 
@@ -243,12 +218,7 @@ describe('TelemetryService', () => {
                 startUrl: BUILDER_ID_START_URL,
             },
         })
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
 
         telemetryService.updateOptOutPreference('OPTOUT')
 
@@ -258,12 +228,7 @@ describe('TelemetryService', () => {
     })
 
     it('should handle SSO connection type change at runtime', () => {
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
 
         telemetryService.updateOptOutPreference('OPTOUT') // Disables telemetry for builderId startUrl
         mockCredentialsProvider.setConnectionMetadata({
@@ -317,12 +282,7 @@ describe('TelemetryService', () => {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         telemetryService.updateEnableTelemetryEventsToDestination(true)
         telemetryService.updateOptOutPreference('OPTIN')
 
@@ -356,6 +316,9 @@ describe('TelemetryService', () => {
                 codewhispererSupplementalContextIsUtg: undefined,
                 codewhispererSupplementalContextLength: undefined,
                 codewhispererCustomizationArn: 'test-arn',
+                codewhispererCharactersAccepted: 17,
+                codewhispererSuggestionImportCount: 10,
+                codewhispererSupplementalContextStrategyId: undefined,
             },
         })
     })
@@ -366,12 +329,7 @@ describe('TelemetryService', () => {
                 startUrl: BUILDER_ID_START_URL,
             },
         })
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         telemetryService.updateEnableTelemetryEventsToDestination(false)
         telemetryService.updateOptOutPreference('OPTOUT')
         telemetryService.emitUserTriggerDecision(mockSession as CodeWhispererSession)
@@ -391,12 +349,7 @@ describe('TelemetryService', () => {
                     startUrl: 'idc-start-url',
                 },
             })
-            telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
-                mockCredentialsProvider,
-                telemetry,
-                logging
-            )
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         })
 
         afterEach(() => {
@@ -467,7 +420,7 @@ describe('TelemetryService', () => {
                 },
             })
             telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
+                serviceManagerStub,
                 mockCredentialsProvider,
                 {} as Telemetry,
                 logging
@@ -500,12 +453,7 @@ describe('TelemetryService', () => {
 
         it('should not send InteractWithMessage when credentialsType is IAM', () => {
             codeWhisperServiceStub.getCredentialsType.returns('iam')
-            telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
-                mockCredentialsProvider,
-                telemetry,
-                logging
-            )
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
             const metric = {
                 cwsprChatMessageId: 'message123',
                 codewhispererCustomizationArn: 'arn:123',
@@ -527,12 +475,7 @@ describe('TelemetryService', () => {
                     startUrl: BUILDER_ID_START_URL,
                 },
             })
-            telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
-                mockCredentialsProvider,
-                telemetry,
-                logging
-            )
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
             telemetryService.updateOptOutPreference('OPTOUT')
             const metric = {
                 cwsprChatMessageId: 'message123',
@@ -590,6 +533,8 @@ describe('TelemetryService', () => {
                     acceptedCharacterCount: 123,
                     totalCharacterCount: 456,
                     timestamp: new Date(Date.now()),
+                    userWrittenCodeCharacterCount: undefined,
+                    userWrittenCodeLineCount: undefined,
                 },
             },
             optOutPreference: 'OPTIN',
@@ -599,12 +544,7 @@ describe('TelemetryService', () => {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         telemetryService.updateOptOutPreference('OPTIN')
         telemetryService.updateEnableTelemetryEventsToDestination(true)
 
@@ -630,6 +570,8 @@ describe('TelemetryService', () => {
                 codewhispererSuggestedTokens: 123,
                 codewhispererPercentage: 50,
                 successCount: 1,
+                codewhispererCustomizationArn: 'test-arn',
+                credentialStartUrl: undefined,
             },
         })
     })
@@ -640,12 +582,7 @@ describe('TelemetryService', () => {
                 startUrl: BUILDER_ID_START_URL,
             },
         })
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         telemetryService.updateOptOutPreference('OPTOUT')
         telemetryService.updateEnableTelemetryEventsToDestination(false)
 
@@ -672,24 +609,27 @@ describe('TelemetryService', () => {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            {} as Telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         telemetryService.updateOptOutPreference('OPTIN')
+        telemetryService.updateEnableTelemetryEventsToDestination(true)
 
-        telemetryService.emitUserModificationEvent({
-            sessionId: 'test-session-id',
-            requestId: 'test-request-id',
-            languageId: 'typescript',
-            customizationArn: 'test-arn',
-            timestamp: new Date(),
-            modificationPercentage: 0.2,
-            acceptedCharacterCount: 100,
-            unmodifiedAcceptedCharacterCount: 80,
-        })
+        telemetryService.emitUserModificationEvent(
+            {
+                sessionId: 'test-session-id',
+                requestId: 'test-request-id',
+                languageId: 'typescript',
+                customizationArn: 'test-arn',
+                timestamp: new Date(),
+                modificationPercentage: 0.2,
+                acceptedCharacterCount: 100,
+                unmodifiedAcceptedCharacterCount: 80,
+            },
+            {
+                completionType: 'test-completion-type',
+                triggerType: 'test-trigger-type',
+                credentialStartUrl: 'test-url',
+            }
+        )
 
         const expectedEvent = {
             telemetryEvent: {
@@ -708,6 +648,20 @@ describe('TelemetryService', () => {
             },
             optOutPreference: 'OPTIN',
         }
+        sinon.assert.calledOnceWithExactly(telemetry.emitMetric as sinon.SinonStub, {
+            name: 'codewhisperer_userModification',
+            data: {
+                codewhispererRequestId: 'test-request-id',
+                codewhispererSessionId: 'test-session-id',
+                codewhispererCompletionType: 'test-completion-type',
+                codewhispererTriggerType: 'test-trigger-type',
+                codewhispererLanguage: 'typescript',
+                codewhispererModificationPercentage: 0.2,
+                credentialStartUrl: 'test-url',
+                codewhispererCharactersAccepted: 100,
+                codewhispererCharactersModified: 80,
+            },
+        })
         sinon.assert.calledOnceWithExactly(codeWhisperServiceStub.sendTelemetryEvent, expectedEvent)
     })
 
@@ -717,12 +671,7 @@ describe('TelemetryService', () => {
                 startUrl: 'idc-start-url',
             },
         })
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         telemetryService.updateEnableTelemetryEventsToDestination(true)
         telemetryService.updateOptOutPreference('OPTIN')
 
@@ -764,12 +713,7 @@ describe('TelemetryService', () => {
                 startUrl: BUILDER_ID_START_URL,
             },
         })
-        telemetryService = new TelemetryService(
-            baseAmazonQServiceManagerStub,
-            mockCredentialsProvider,
-            telemetry,
-            logging
-        )
+        telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         telemetryService.updateEnableTelemetryEventsToDestination(false)
         telemetryService.updateOptOutPreference('OPTOUT')
         telemetryService.emitChatUserModificationEvent({
@@ -796,12 +740,7 @@ describe('TelemetryService', () => {
             })
 
             codeWhisperServiceStub.getCredentialsType.returns('bearer')
-            telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
-                mockCredentialsProvider,
-                telemetry,
-                logging
-            )
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
         })
 
         afterEach(() => {
@@ -824,6 +763,7 @@ describe('TelemetryService', () => {
                     requestLength: 100,
                     responseLength: 3000,
                     numberOfCodeBlocks: 0,
+                    agenticCodingMode: true,
                 },
                 {
                     cwsprChatHasContextList: true,
@@ -831,9 +771,11 @@ describe('TelemetryService', () => {
                     cwsprChatFileContextCount: 0,
                     cwsprChatRuleContextCount: 0,
                     cwsprChatPromptContextCount: 0,
+                    cwsprChatCodeContextCount: 2,
                     cwsprChatFileContextLength: 0,
                     cwsprChatRuleContextLength: 0,
                     cwsprChatPromptContextLength: 0,
+                    cwsprChatCodeContextLength: 500,
                     cwsprChatFocusFileContextLength: 0,
                 }
             )
@@ -877,7 +819,7 @@ describe('TelemetryService', () => {
                     cwsprChatSourceLinkCount: undefined,
                     cwsprChatReferencesCount: undefined,
                     cwsprChatFollowUpCount: undefined,
-                    cwsprTimeToFirstChunk: 100,
+                    cwsprChatTimeToFirstChunk: 100,
                     cwsprChatFullResponseLatency: 400,
                     cwsprChatTimeBetweenChunks: undefined,
                     cwsprChatRequestLength: 100,
@@ -887,15 +829,19 @@ describe('TelemetryService', () => {
                     cwsprChatActiveEditorImportCount: undefined,
                     codewhispererCustomizationArn: 'cust-123',
                     result: 'Succeeded',
+                    enabled: true,
                     languageServerVersion: undefined,
+                    requestIds: undefined,
                     cwsprChatHasContextList: true,
                     cwsprChatFolderContextCount: 0,
                     cwsprChatFileContextCount: 0,
                     cwsprChatRuleContextCount: 0,
                     cwsprChatPromptContextCount: 0,
+                    cwsprChatCodeContextCount: 2,
                     cwsprChatFileContextLength: 0,
                     cwsprChatRuleContextLength: 0,
                     cwsprChatPromptContextLength: 0,
+                    cwsprChatCodeContextLength: 500,
                     cwsprChatFocusFileContextLength: 0,
                 },
             })
@@ -908,7 +854,7 @@ describe('TelemetryService', () => {
                 },
             })
             telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
+                serviceManagerStub,
                 mockCredentialsProvider,
                 {} as Telemetry,
                 logging
@@ -961,12 +907,7 @@ describe('TelemetryService', () => {
 
         it('should not send ChatAddMessage when credentialsType is IAM', () => {
             codeWhisperServiceStub.getCredentialsType.returns('iam')
-            telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
-                mockCredentialsProvider,
-                telemetry,
-                logging
-            )
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
             telemetryService.emitChatAddMessage(
                 {
                     conversationId: 'conv123',
@@ -984,12 +925,7 @@ describe('TelemetryService', () => {
                     startUrl: BUILDER_ID_START_URL,
                 },
             })
-            telemetryService = new TelemetryService(
-                baseAmazonQServiceManagerStub,
-                mockCredentialsProvider,
-                telemetry,
-                logging
-            )
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
             telemetryService.updateOptOutPreference('OPTOUT')
             telemetryService.emitChatAddMessage(
                 {
@@ -999,6 +935,121 @@ describe('TelemetryService', () => {
                 },
                 {}
             )
+            sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
+        })
+    })
+
+    describe('Inline chat result notification', () => {
+        let telemetryService: TelemetryService
+        let mockCredentialsProvider: MockCredentialsProvider
+
+        beforeEach(() => {
+            mockCredentialsProvider = new MockCredentialsProvider()
+            mockCredentialsProvider.setConnectionMetadata({
+                sso: {
+                    startUrl: 'idc-start-url',
+                },
+            })
+
+            codeWhisperServiceStub.getCredentialsType.returns('bearer')
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
+        })
+
+        afterEach(() => {
+            sinon.restore()
+        })
+
+        it('should send InlineChatEvent with correct parameters', () => {
+            const timestamp = new Date()
+            telemetryService.emitInlineChatResultLog({
+                requestId: 'mock-request-id',
+                inputLength: 10,
+                selectedLines: 2,
+                suggestionAddedChars: 20,
+                suggestionAddedLines: 3,
+                suggestionDeletedChars: 10,
+                suggestionDeletedLines: 2,
+                codeIntent: true,
+                userDecision: 'ACCEPT',
+                responseStartLatency: 1250,
+                responseEndLatency: 1500,
+                programmingLanguage: {
+                    languageName: 'typescript',
+                },
+            })
+
+            const expectedEvent = {
+                telemetryEvent: {
+                    inlineChatEvent: {
+                        requestId: 'mock-request-id',
+                        timestamp: timestamp,
+                        inputLength: 10,
+                        numSelectedLines: 2,
+                        numSuggestionAddChars: 20,
+                        numSuggestionAddLines: 3,
+                        numSuggestionDelChars: 10,
+                        numSuggestionDelLines: 2,
+                        codeIntent: true,
+                        userDecision: 'ACCEPT',
+                        responseStartLatency: 1250,
+                        responseEndLatency: 1500,
+                        programmingLanguage: {
+                            languageName: 'typescript',
+                        },
+                    },
+                },
+            }
+            sinon.assert.calledOnceWithExactly(codeWhisperServiceStub.sendTelemetryEvent, expectedEvent)
+        })
+
+        it('should not send InlineChatEvent when credentialsType is IAM', () => {
+            codeWhisperServiceStub.getCredentialsType.returns('iam')
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
+            const timestamp = new Date()
+            telemetryService.emitInlineChatResultLog({
+                requestId: 'mock-request-id',
+                inputLength: 10,
+                selectedLines: 2,
+                suggestionAddedChars: 20,
+                suggestionAddedLines: 3,
+                suggestionDeletedChars: 10,
+                suggestionDeletedLines: 2,
+                codeIntent: true,
+                userDecision: 'ACCEPT',
+                responseStartLatency: 1250,
+                responseEndLatency: 1500,
+                programmingLanguage: {
+                    languageName: 'typescript',
+                },
+            })
+            sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
+        })
+
+        it('should not send InlineChatEvent when login is BuilderID, but user chose OPTOUT option', () => {
+            mockCredentialsProvider.setConnectionMetadata({
+                sso: {
+                    startUrl: BUILDER_ID_START_URL,
+                },
+            })
+            telemetryService = new TelemetryService(serviceManagerStub, mockCredentialsProvider, telemetry, logging)
+            telemetryService.updateOptOutPreference('OPTOUT')
+            const timestamp = new Date()
+            telemetryService.emitInlineChatResultLog({
+                requestId: 'mock-request-id',
+                inputLength: 10,
+                selectedLines: 2,
+                suggestionAddedChars: 20,
+                suggestionAddedLines: 3,
+                suggestionDeletedChars: 10,
+                suggestionDeletedLines: 2,
+                codeIntent: true,
+                userDecision: 'ACCEPT',
+                responseStartLatency: 1250,
+                responseEndLatency: 1500,
+                programmingLanguage: {
+                    languageName: 'typescript',
+                },
+            })
             sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
         })
     })

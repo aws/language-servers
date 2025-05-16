@@ -11,6 +11,7 @@ import {
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import {
     AmazonQError,
+    AmazonQServiceAlreadyInitializedError,
     AmazonQServiceInitializationError,
     AmazonQServiceInvalidProfileError,
     AmazonQServiceNoProfileSupportError,
@@ -26,11 +27,7 @@ import {
     QServiceManagerFeatures,
 } from './BaseAmazonQServiceManager'
 import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../constants'
-import {
-    AmazonQDeveloperProfile,
-    getListAllAvailableProfilesHandler,
-    signalsAWSQDeveloperProfilesEnabled,
-} from './qDeveloperProfiles'
+import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './qDeveloperProfiles'
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
@@ -57,11 +54,10 @@ import { parse } from '@aws-sdk/util-arn-parser'
  * - identityCenter: Connected via Identity Center
  *
  * AmazonQTokenServiceManager is a singleton class, which must be instantiated with Language Server runtimes [Features](https://github.com/aws/language-server-runtimes/blob/21d5d1dc7c73499475b7c88c98d2ce760e5d26c8/runtimes/server-interface/server.ts#L31-L42)
- * To get access to current CodeWhispererServiceToken client object, call `getCodewhispererService()` mathod:
+ * in the `AmazonQServiceServer` via the `initBaseTokenServiceManager` factory. Dependencies of this class can access the singleton via
+ * the `getOrThrowBaseTokenServiceManager` factory or `getInstance()` method after the initialized notification has been received during
+ * the LSP hand shake.
  *
- * @example
- * const AmazonQServiceManager = AmazonQTokenServiceManager.getInstance(features);
- * const codewhispererService = AmazonQServiceManager.getCodewhispererService();
  */
 export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     CodeWhispererServiceToken,
@@ -89,11 +85,29 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         super(features)
     }
 
-    public static getInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
+    // @VisibleForTesting, please DO NOT use in production
+    setState(state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED') {
+        this.state = state
+    }
+
+    public static initInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
             AmazonQTokenServiceManager.instance.initialize()
+
+            return AmazonQTokenServiceManager.instance
         }
+
+        throw new AmazonQServiceAlreadyInitializedError()
+    }
+
+    public static getInstance(): AmazonQTokenServiceManager {
+        if (!AmazonQTokenServiceManager.instance) {
+            throw new AmazonQServiceInitializationError(
+                'Amazon Q service has not been initialized yet. Make sure the Amazon Q server is present and properly initialized.'
+            )
+        }
+
         return AmazonQTokenServiceManager.instance
     }
 
@@ -119,65 +133,57 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.connectionType = 'none'
         this.state = 'PENDING_CONNECTION'
 
-        this.setupAuthListener()
-        this.setupConfigurationListeners()
-
         this.log('Manager instance is initialize')
     }
 
-    private setupAuthListener(): void {
-        this.features.credentialsProvider.onCredentialsDeleted((type: CredentialsType) => {
-            this.log(`Received credentials delete event for type: ${type}`)
-            if (type === 'iam') {
-                return
-            }
-            this.cancelActiveProfileChangeToken()
+    public handleOnCredentialsDeleted(type: CredentialsType): void {
+        this.log(`Received credentials delete event for type: ${type}`)
+        if (type === 'iam') {
+            return
+        }
+        this.cancelActiveProfileChangeToken()
 
-            this.resetCodewhispererService()
-            this.connectionType = 'none'
-            this.state = 'PENDING_CONNECTION'
-        })
+        this.resetCodewhispererService()
+        this.connectionType = 'none'
+        this.state = 'PENDING_CONNECTION'
     }
 
-    private setupConfigurationListeners(): void {
-        this.features.lsp.workspace.onUpdateConfiguration(
-            async (params: UpdateConfigurationParams, _token: CancellationToken) => {
-                try {
-                    if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn !== undefined) {
-                        const profileArn = params.settings.profileArn
+    public async handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken) {
+        try {
+            if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn !== undefined) {
+                const profileArn = params.settings.profileArn
+                const region = params.settings.region
 
-                        if (!isStringOrNull(profileArn)) {
-                            throw new Error('Expected params.settings.profileArn to be of either type string or null')
-                        }
-
-                        this.log(`Profile update is requested for profile ${profileArn}`)
-                        this.cancelActiveProfileChangeToken()
-                        this.profileChangeTokenSource = new CancellationTokenSource()
-
-                        await this.handleProfileChange(profileArn, this.profileChangeTokenSource.token)
-                    }
-                } catch (error) {
-                    this.log('Error updating profiles: ' + error)
-                    if (error instanceof AmazonQServiceProfileUpdateCancelled) {
-                        throw new ResponseError(LSPErrorCodes.ServerCancelled, error.message, {
-                            awsErrorCode: error.code,
-                        })
-                    }
-                    if (error instanceof AmazonQError) {
-                        throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
-                            awsErrorCode: error.code,
-                        })
-                    }
-
-                    throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
-                } finally {
-                    if (this.profileChangeTokenSource) {
-                        this.profileChangeTokenSource.dispose()
-                        this.profileChangeTokenSource = undefined
-                    }
+                if (!isStringOrNull(profileArn)) {
+                    throw new Error('Expected params.settings.profileArn to be of either type string or null')
                 }
+
+                this.log(`Profile update is requested for profile ${profileArn}`)
+                this.cancelActiveProfileChangeToken()
+                this.profileChangeTokenSource = new CancellationTokenSource()
+
+                await this.handleProfileChange(profileArn, this.profileChangeTokenSource.token)
             }
-        )
+        } catch (error) {
+            this.log('Error updating profiles: ' + error)
+            if (error instanceof AmazonQServiceProfileUpdateCancelled) {
+                throw new ResponseError(LSPErrorCodes.ServerCancelled, error.message, {
+                    awsErrorCode: error.code,
+                })
+            }
+            if (error instanceof AmazonQError) {
+                throw new ResponseError(LSPErrorCodes.RequestFailed, error.message, {
+                    awsErrorCode: error.code,
+                })
+            }
+
+            throw new ResponseError(LSPErrorCodes.RequestFailed, 'Failed to update configuration')
+        } finally {
+            if (this.profileChangeTokenSource) {
+                this.profileChangeTokenSource.dispose()
+                this.profileChangeTokenSource = undefined
+            }
+        }
     }
 
     /**
@@ -314,21 +320,21 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
 
         const parsedArn = parse(newProfileArn)
-        const endpoint = AWS_Q_ENDPOINTS.get(parsedArn.region)
+        const region = parsedArn.region
+        const endpoint = AWS_Q_ENDPOINTS.get(region)
         if (!endpoint) {
             throw new Error('Requested profileArn region is not supported')
         }
 
-        const profiles = await getListAllAvailableProfilesHandler(this.serviceFactory)({
-            connectionType: 'identityCenter',
-            logging: this.logging,
-            token: token,
-            endpoints: new Map([[parsedArn.region, endpoint]]),
-        })
-
-        this.handleTokenCancellationRequest(token)
-
-        const newProfile = profiles.find(el => el.arn === newProfileArn)
+        // Hack to inject a dummy profile name as it's not used by client IDE for now, if client IDE starts consuming name field then we should also pass both profile name and arn from the IDE
+        // When service is ready to take more tps, revert https://github.com/aws/language-servers/pull/1329 to add profile validation
+        const newProfile: AmazonQDeveloperProfile = {
+            arn: newProfileArn,
+            name: 'Client provided profile',
+            identityDetails: {
+                region: parsedArn.region,
+            },
+        }
 
         if (!newProfile || !newProfile.identityDetails?.region) {
             this.log(`Amazon Q Profile ${newProfileArn} is not valid`)
@@ -576,6 +582,8 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 }
 
-export const initBaseTokenServiceManager = (features: QServiceManagerFeatures): AmazonQBaseServiceManager => {
-    return AmazonQTokenServiceManager.getInstance(features)
-}
+export const initBaseTokenServiceManager = (features: QServiceManagerFeatures) =>
+    AmazonQTokenServiceManager.initInstance(features)
+
+export const getOrThrowBaseTokenServiceManager = (): AmazonQBaseServiceManager =>
+    AmazonQTokenServiceManager.getInstance()

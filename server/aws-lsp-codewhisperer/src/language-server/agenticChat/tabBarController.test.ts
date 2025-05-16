@@ -11,12 +11,16 @@ import { ChatDatabase, EMPTY_CONVERSATION_LIST_ID } from './tools/chatDb/chatDb'
 import { Tab } from './tools/chatDb/util'
 import { ConversationItemGroup, OpenTabParams, OpenTabResult } from '@aws/language-server-runtimes-types'
 import { InitializeParams } from '@aws/language-server-runtimes/protocol'
+import { ChatHistoryActionType } from '../../shared/telemetry/types'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { URI } from 'vscode-uri'
 
 describe('TabBarController', () => {
     let testFeatures: TestFeatures
     let chatHistoryDb: ChatDatabase
     let tabBarController: TabBarController
     let clock: sinon.SinonFakeTimers
+    let telemetryService: TelemetryService
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
@@ -29,9 +33,17 @@ describe('TabBarController', () => {
             setHistoryIdMapping: sinon.stub(),
             getOpenTabs: sinon.stub().returns([]),
             updateTabOpenState: sinon.stub(),
+            getDatabaseFileSize: sinon.stub(),
+            getLoadTime: sinon.stub(),
         } as unknown as ChatDatabase
 
-        tabBarController = new TabBarController(testFeatures, chatHistoryDb)
+        telemetryService = {
+            emitChatHistoryAction: sinon.stub(),
+            emitExportTab: sinon.stub(),
+            emitLoadHistory: sinon.stub(),
+        } as any
+
+        tabBarController = new TabBarController(testFeatures, chatHistoryDb, telemetryService)
         clock = sinon.useFakeTimers()
     })
 
@@ -56,7 +68,7 @@ describe('TabBarController', () => {
 
         it('should perform debounced search when search filter is provided', async () => {
             const mockSearchResults = [{ id: 'result1' }]
-            ;(chatHistoryDb.searchMessages as sinon.SinonStub).returns(mockSearchResults)
+            ;(chatHistoryDb.searchMessages as sinon.SinonStub).returns({ results: mockSearchResults, searchTime: 100 })
 
             const promise = tabBarController.onListConversations({ filter: { search: 'test query' } })
 
@@ -67,10 +79,26 @@ describe('TabBarController', () => {
 
             assert.deepStrictEqual(result.list, mockSearchResults)
             sinon.assert.calledWith(chatHistoryDb.searchMessages as sinon.SinonStub, 'test query')
+            sinon.assert.calledWith(telemetryService.emitChatHistoryAction as sinon.SinonStub, {
+                action: ChatHistoryActionType.Search,
+                languageServerVersion: testFeatures.runtime.serverInfo.version,
+                amazonqHistoryFileSize: undefined,
+                amazonqTimeToSearchHistory: 100,
+                result: 'Succeeded',
+            })
         })
 
         it('should clear previous timeout when multiple search requests are made', async () => {
             const clearTimeoutSpy = sinon.spy(global, 'clearTimeout')
+
+            // Setup mock return values for searchMessages
+            const mockSearchResults1 = [{ id: 'result1' }]
+            const mockSearchResults2 = [{ id: 'result2' }]
+            ;(chatHistoryDb.searchMessages as sinon.SinonStub)
+                .onFirstCall()
+                .returns({ results: mockSearchResults1, searchTime: 100 })
+                .onSecondCall()
+                .returns({ results: mockSearchResults2, searchTime: 100 })
 
             // First search request
             const promise1 = tabBarController.onListConversations({ filter: { search: 'first query' } })
@@ -109,7 +137,7 @@ describe('TabBarController', () => {
         })
 
         it('should attach Export action if client supports window.showSaveFileDialog protocol', async () => {
-            testFeatures.lsp.getClientInitializeParams.returns({
+            testFeatures.setClientParams({
                 initializationOptions: {
                     aws: {
                         awsClientCapabilities: {
@@ -158,7 +186,7 @@ describe('TabBarController', () => {
                     items: [{ id: 'history1' }, { id: 'history2' }],
                 },
             ]
-            ;(chatHistoryDb.searchMessages as sinon.SinonStub).returns(mockSearchResults)
+            ;(chatHistoryDb.searchMessages as sinon.SinonStub).returns({ results: mockSearchResults, searchTime: 100 })
 
             const promise = tabBarController.onListConversations({
                 filter: {
@@ -186,7 +214,7 @@ describe('TabBarController', () => {
             const mockSearchResults: ConversationItemGroup[] = [
                 { items: [{ id: 'empty', description: 'No matches found' }] },
             ]
-            ;(chatHistoryDb.searchMessages as sinon.SinonStub).returns(mockSearchResults)
+            ;(chatHistoryDb.searchMessages as sinon.SinonStub).returns({ results: mockSearchResults, searchTime: 100 })
 
             const promise = tabBarController.onListConversations({
                 filter: {
@@ -218,6 +246,11 @@ describe('TabBarController', () => {
             await tabBarController.onConversationClick({ id: historyId })
 
             sinon.assert.calledWith(openTabStub, { tabId: openTabId })
+            sinon.assert.calledWith(telemetryService.emitChatHistoryAction as sinon.SinonStub, {
+                action: ChatHistoryActionType.Open,
+                languageServerVersion: testFeatures.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
         })
 
         it('should restore tab when conversation is not already open', async () => {
@@ -242,6 +275,11 @@ describe('TabBarController', () => {
             const result = await tabBarController.onConversationClick({ id: historyId, action: 'delete' })
 
             sinon.assert.calledWith(chatHistoryDb.deleteHistory as sinon.SinonStub, historyId)
+            sinon.assert.calledWith(telemetryService.emitChatHistoryAction as sinon.SinonStub, {
+                action: ChatHistoryActionType.Delete,
+                languageServerVersion: testFeatures.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
             assert.strictEqual(result.success, true)
         })
 
@@ -268,7 +306,7 @@ describe('TabBarController', () => {
         let fsWriteFileStub: sinon.SinonStub
 
         beforeEach(() => {
-            testFeatures.lsp.getClientInitializeParams.returns({
+            testFeatures.setClientParams({
                 workspaceFolders: [
                     {
                         uri: 'file:///testworkspace',
@@ -311,7 +349,18 @@ describe('TabBarController', () => {
             )
 
             // Write serialized content to file
-            sinon.assert.calledWith(fsWriteFileStub, '/testworkspace/test.md', 'Test Serialized Content')
+            sinon.assert.calledWith(
+                fsWriteFileStub,
+                URI.file('/testworkspace/test.md').fsPath,
+                'Test Serialized Content'
+            )
+
+            sinon.assert.calledWith(telemetryService.emitChatHistoryAction as sinon.SinonStub, {
+                action: ChatHistoryActionType.Export,
+                languageServerVersion: testFeatures.runtime.serverInfo.version,
+                filenameExt: 'markdown',
+                result: 'Succeeded',
+            })
 
             assert.strictEqual(result.success, true)
         })
@@ -379,7 +428,17 @@ describe('TabBarController', () => {
             )
 
             // Write serialized content to file
-            sinon.assert.calledWith(fsWriteFileStub, '/testworkspace/test.md', 'Test Serialized Content')
+            sinon.assert.calledWith(
+                fsWriteFileStub,
+                URI.file('/testworkspace/test.md').fsPath,
+                'Test Serialized Content'
+            )
+
+            sinon.assert.calledWith(telemetryService.emitExportTab as sinon.SinonStub, {
+                filenameExt: 'markdown',
+                languageServerVersion: testFeatures.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
 
             assert.strictEqual(result.success, true)
         })
@@ -436,6 +495,13 @@ describe('TabBarController', () => {
             sinon.assert.calledTwice(restoreTabStub)
             sinon.assert.calledWith(restoreTabStub.firstCall, mockTabs[0])
             sinon.assert.calledWith(restoreTabStub.secondCall, mockTabs[1])
+            sinon.assert.calledWith(telemetryService.emitLoadHistory as sinon.SinonStub, {
+                openTabCount: 2,
+                amazonqTimeToLoadHistory: -1,
+                amazonqHistoryFileSize: -1,
+                languageServerVersion: testFeatures.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
         })
 
         it('should only load chats once', async () => {
@@ -448,6 +514,14 @@ describe('TabBarController', () => {
             await tabBarController.loadChats() // Second call should be ignored
 
             sinon.assert.calledOnce(restoreTabStub)
+            sinon.assert.calledOnce(telemetryService.emitLoadHistory as sinon.SinonStub)
+            sinon.assert.calledWith(telemetryService.emitLoadHistory as sinon.SinonStub, {
+                openTabCount: 1,
+                amazonqTimeToLoadHistory: -1,
+                amazonqHistoryFileSize: -1,
+                languageServerVersion: testFeatures.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
         })
 
         it('should not restore tabs with empty conversations', async () => {

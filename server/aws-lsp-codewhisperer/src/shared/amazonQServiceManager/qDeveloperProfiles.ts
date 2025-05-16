@@ -8,6 +8,7 @@ import {
 import { isBool, isObject, SsoConnectionType } from '../utils'
 import { AWS_Q_ENDPOINTS } from '../../shared/constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { AmazonQServiceProfileThrottlingError } from './errors'
 
 export interface AmazonQDeveloperProfile {
     arn: string
@@ -35,7 +36,7 @@ const MAX_Q_DEVELOPER_PROFILES_PER_PAGE = 10
 
 export const getListAllAvailableProfilesHandler =
     (service: (region: string, endpoint: string) => CodeWhispererServiceToken): ListAllAvailableProfilesHandler =>
-    async ({ connectionType, logging, endpoints, token }) => {
+    async ({ connectionType, logging, endpoints, token }): Promise<AmazonQDeveloperProfile[]> => {
         if (!connectionType || connectionType !== 'identityCenter') {
             logging.debug('Connection type is not set or not identityCenter - returning empty response.')
             return []
@@ -60,12 +61,27 @@ export const getListAllAvailableProfilesHandler =
         }
 
         const fulfilledResults = result.filter(settledResult => settledResult.status === 'fulfilled')
+        const hasThrottlingError = result.some(
+            re => re.status === `rejected` && re.reason?.name == `ThrottlingException`
+        )
+        const throttlingErrorMessage = 'Request was throttled while retrieving profiles'
 
+        // Handle case when no successful results
         if (fulfilledResults.length === 0) {
+            if (hasThrottlingError) {
+                logging.error(throttlingErrorMessage)
+                throw new AmazonQServiceProfileThrottlingError(throttlingErrorMessage)
+            }
             throw new ResponseError(LSPErrorCodes.RequestFailed, `Failed to retrieve profiles from all queried regions`)
         }
 
         fulfilledResults.forEach(fulfilledResult => allProfiles.push(...fulfilledResult.value))
+
+        // Check for partial throttling
+        if (hasThrottlingError && allProfiles.length == 0) {
+            logging.error(throttlingErrorMessage)
+            throw new AmazonQServiceProfileThrottlingError(throttlingErrorMessage)
+        }
 
         return allProfiles
     }

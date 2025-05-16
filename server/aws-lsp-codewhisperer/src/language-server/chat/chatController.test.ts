@@ -27,6 +27,12 @@ import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import {
+    AmazonQError,
+    AmazonQServicePendingProfileError,
+    AmazonQServicePendingSigninError,
+} from '../../shared/amazonQServiceManager/errors'
+import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 
 describe('ChatController', () => {
     const mockTabId = 'tab-1'
@@ -96,7 +102,7 @@ describe('ChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let serviceManager: AmazonQTokenServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
     let telemetryService: TelemetryService
@@ -132,7 +138,7 @@ describe('ChatController', () => {
                 },
             },
         }
-        testFeatures.lsp.getClientInitializeParams.returns(cachedInitializeParams)
+        testFeatures.setClientParams(cachedInitializeParams)
         setCredentials('builderId')
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
@@ -143,9 +149,10 @@ describe('ChatController', () => {
 
         AmazonQTokenServiceManager.resetInstance()
 
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance(testFeatures)
+        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
+
         chatSessionManagementService = ChatSessionManagementService.getInstance()
-        chatSessionManagementService.withAmazonQServiceManager(amazonQServiceManager)
+        chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
@@ -164,12 +171,12 @@ describe('ChatController', () => {
             onClientTelemetry: sinon.stub(),
         }
 
-        telemetryService = new TelemetryService(amazonQServiceManager, mockCredentialsProvider, telemetry, logging)
+        telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new ChatController(
             chatSessionManagementService,
             testFeatures,
             telemetryService,
-            amazonQServiceManager
+            serviceManager
         )
     })
 
@@ -321,21 +328,38 @@ describe('ChatController', () => {
             assert.ok(chatResult instanceof ResponseError)
         })
 
-        it('returns a auth follow up action if sendMessage returns an auth error', async () => {
-            sendMessageStub.callsFake(() => {
-                throw new Error('Error')
+        const authFollowUpTestCases = [
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new Error(MISSING_BEARER_TOKEN_ERROR),
+            },
+            {
+                expectedAuthFollowUp: 'full-auth',
+                error: new AmazonQServicePendingSigninError(),
+            },
+            {
+                expectedAuthFollowUp: 'use-supported-auth',
+                error: new AmazonQServicePendingProfileError(),
+            },
+        ]
+
+        authFollowUpTestCases.forEach(testCase => {
+            it(`returns ${testCase.expectedAuthFollowUp} follow up action when sendMessage throws ${testCase.error instanceof AmazonQError ? testCase.error.code : testCase.error.message}`, async () => {
+                sendMessageStub.callsFake(() => {
+                    throw testCase.error
+                })
+
+                const chatResultPromise = chatController.onChatPrompt(
+                    { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
+                    mockCancellationToken
+                )
+
+                const chatResult = await chatResultPromise
+
+                sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
+                // @ts-ignore
+                assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult(testCase.expectedAuthFollowUp))
             })
-
-            sinon.stub(utils, 'getAuthFollowUpType').returns('full-auth')
-            const chatResultPromise = chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello' }, partialResultToken: 1 },
-                mockCancellationToken
-            )
-
-            const chatResult = await chatResultPromise
-
-            sinon.assert.callCount(testFeatures.lsp.sendProgress, 0)
-            assert.deepStrictEqual(chatResult, utils.createAuthFollowUpResult('full-auth'))
         })
 
         it('returns a ResponseError if response streams return an error event', async () => {

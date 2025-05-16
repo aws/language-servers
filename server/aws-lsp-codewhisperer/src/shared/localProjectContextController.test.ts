@@ -6,6 +6,7 @@ import { Dirent } from 'fs'
 import * as path from 'path'
 import { URI } from 'vscode-uri'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
+import sinon from 'ts-sinon'
 
 class LoggingMock {
     public error: SinonStub
@@ -76,7 +77,7 @@ describe('LocalProjectContextController', () => {
     describe('init', () => {
         it('should initialize vector library successfully', async () => {
             const buildIndexSpy = spy(controller, 'buildIndex')
-            await controller.init({ vectorLib: vectorLibMock })
+            await controller.init({ vectorLib: vectorLibMock, enableIndexing: true })
 
             sinonAssert.notCalled(logging.error)
             sinonAssert.called(vectorLibMock.start)
@@ -90,6 +91,16 @@ describe('LocalProjectContextController', () => {
             await controller.init({ vectorLib: vectorLibMock })
 
             sinonAssert.called(logging.error)
+        })
+
+        it('should not call buildIndex if not enabled', async () => {
+            const buildIndexSpy = spy(controller, 'buildIndex')
+            await controller.init({ vectorLib: vectorLibMock, enableIndexing: false })
+
+            sinonAssert.notCalled(logging.error)
+            sinonAssert.called(vectorLibMock.start)
+            const vecLib = await vectorLibMock.start()
+            sinonAssert.notCalled(buildIndexSpy)
         })
     })
 
@@ -108,6 +119,19 @@ describe('LocalProjectContextController', () => {
         })
 
         it('should return empty array when vector library is not initialized', async () => {
+            sinon.stub(controller, 'isIndexingEnabled').returns(true)
+            const uninitializedController = new LocalProjectContextController(
+                'testClient',
+                mockWorkspaceFolders,
+                logging as any
+            )
+
+            const result = await uninitializedController.queryVectorIndex({ query: 'test' })
+            assert.deepStrictEqual(result, [])
+        })
+
+        it('should return empty array when indexing is disabled', async () => {
+            sinon.stub(controller, 'isIndexingEnabled').returns(false)
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
@@ -119,11 +143,13 @@ describe('LocalProjectContextController', () => {
         })
 
         it('should return chunks from vector library', async () => {
+            sinon.stub(controller, 'isIndexingEnabled').returns(true)
             const result = await controller.queryVectorIndex({ query: 'test' })
             assert.deepStrictEqual(result, ['mockChunk1', 'mockChunk2'])
         })
 
         it('should handle query errors', async () => {
+            sinon.stub(controller, 'isIndexingEnabled').returns(true)
             const vecLib = await vectorLibMock.start()
             vecLib.queryVectorIndex.rejects(new Error('Query failed'))
 
@@ -139,6 +165,23 @@ describe('LocalProjectContextController', () => {
         })
 
         it('should return empty array when vector library is not initialized', async () => {
+            sinon.stub(controller, 'isIndexingEnabled').returns(true)
+            const uninitializedController = new LocalProjectContextController(
+                'testClient',
+                mockWorkspaceFolders,
+                logging as any
+            )
+
+            const result = await uninitializedController.queryInlineProjectContext({
+                query: 'test',
+                filePath: 'test.java',
+                target: 'test',
+            })
+            assert.deepStrictEqual(result, [])
+        })
+
+        it('should return empty array when indexing is disabled', async () => {
+            sinon.stub(controller, 'isIndexingEnabled').returns(false)
             const uninitializedController = new LocalProjectContextController(
                 'testClient',
                 mockWorkspaceFolders,
@@ -154,6 +197,7 @@ describe('LocalProjectContextController', () => {
         })
 
         it('should return context from vector library', async () => {
+            sinon.stub(controller, 'isIndexingEnabled').returns(true)
             const result = await controller.queryInlineProjectContext({
                 query: 'test',
                 filePath: 'test.java',
@@ -163,6 +207,7 @@ describe('LocalProjectContextController', () => {
         })
 
         it('should handle query errors', async () => {
+            sinon.stub(controller, 'isIndexingEnabled').returns(true)
             const vecLib = await vectorLibMock.start()
             vecLib.queryInlineProjectContext.rejects(new Error('Query failed'))
 
@@ -178,6 +223,7 @@ describe('LocalProjectContextController', () => {
 
     describe('updateIndex', () => {
         beforeEach(async () => {
+            sinon.stub(controller, 'isIndexingEnabled').returns(true)
             await controller.init({ vectorLib: vectorLibMock })
         })
 

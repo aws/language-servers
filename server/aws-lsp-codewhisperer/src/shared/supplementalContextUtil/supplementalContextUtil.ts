@@ -13,6 +13,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { crossFileContextConfig } from '../models/constants'
 import * as os from 'os'
+import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 
 export class CancellationError extends Error {}
 
@@ -21,7 +22,8 @@ export async function fetchSupplementalContext(
     position: Position,
     workspace: Workspace,
     logging: Logging,
-    cancellationToken: CancellationToken
+    cancellationToken: CancellationToken,
+    amazonQServiceManager?: AmazonQBaseServiceManager
 ): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = performance.now()
 
@@ -42,7 +44,8 @@ export async function fetchSupplementalContext(
                 document,
                 position,
                 workspace,
-                cancellationToken
+                cancellationToken,
+                amazonQServiceManager
             )
         }
 

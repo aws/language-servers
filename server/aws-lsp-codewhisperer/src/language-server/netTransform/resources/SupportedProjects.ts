@@ -16,10 +16,4 @@ export const supportedProjects = [
     'Unknown',
 ]
 
-export const unsupportedViewComponents = [
-    '@Scripts',
-    '@Styles',
-    '@Session',
-    '@FormsAuthentication',
-    '@PagedListRenderOptions',
-]
+export const unsupportedViewComponents = ['@Session', '@PagedListRenderOptions']

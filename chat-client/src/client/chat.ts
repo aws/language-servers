@@ -41,6 +41,7 @@ import {
     CONTEXT_COMMAND_NOTIFICATION_METHOD,
     CONVERSATION_CLICK_REQUEST_METHOD,
     CREATE_PROMPT_NOTIFICATION_METHOD,
+    ChatMessage,
     ChatOptionsUpdateParams,
     ChatParams,
     ChatUpdateParams,
@@ -91,16 +92,19 @@ import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
 
-const DEFAULT_TAB_DATA = {
-    tabTitle: 'Chat',
-    promptInputInfo:
-        'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
-    promptInputPlaceholder: 'Ask a question. Use @ to add context, / for quick actions',
+const getDefaultTabConfig = (agenticMode?: Boolean) => {
+    return {
+        tabTitle: 'Chat',
+        promptInputInfo:
+            'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
+        promptInputPlaceholder: `Ask a question. Use${agenticMode ? ' @ to add context,' : ''} / for quick actions`,
+    }
 }
 
 type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     disclaimerAcknowledged?: boolean
     pairProgrammingAcknowledged?: boolean
+    agenticMode?: boolean
 }
 
 export const createChat = (
@@ -126,6 +130,7 @@ export const createChat = (
     }
 
     const featureConfig: Map<string, FeatureContext> = parseFeatureConfig(featureConfigSerialized)
+
     /**
      * Handles incoming messages from the IDE or other sources.
      * Routes messages to appropriate handlers based on command type.
@@ -212,11 +217,25 @@ export const createChat = (
                     tabFactory.enableExport()
                 }
 
-                const initialTabId = mynahApi.createTabId()
-                if (initialTabId) mynahUi.selectTab(initialTabId)
-
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
                 const highlightCommand = featureConfig.get('highlightCommand')
+
+                if (tabFactory.initialTabId && allExistingTabs[tabFactory.initialTabId] && params?.chatNotifications) {
+                    // Edge case: push banner message to initial tab when ChatOptions are received
+                    // Because initial tab is added to MynahUi store at initialisation,
+                    // that tab does not have banner message, which arrives in ChatOptions above.
+                    const store = mynahUi.getTabData(tabFactory.initialTabId)?.getStore() || {}
+                    const chatItems = store.chatItems || []
+                    const updatedInitialItems = tabFactory.getChatItems(false, false, chatItems as ChatMessage[])
+
+                    // First clear the tab, so that messages are not appended https://github.com/aws/mynah-ui/blob/38608dff905b3790d85c73e2911ec7071c8a8cdf/docs/USAGE.md#using-updatestore-function
+                    mynahUi.updateStore(tabFactory.initialTabId, {
+                        chatItems: [],
+                    })
+                    mynahUi.updateStore(tabFactory.initialTabId, {
+                        chatItems: updatedInitialItems,
+                    })
+                }
 
                 for (const tabId in allExistingTabs) {
                     mynahUi.updateStore(tabId, {
@@ -372,9 +391,13 @@ export const createChat = (
     }
 
     const messager = new Messager(chatApi)
-    const tabFactory = new TabFactory(DEFAULT_TAB_DATA, [
+    const tabFactory = new TabFactory(getDefaultTabConfig(config?.agenticMode), [
         ...(config?.quickActionCommands ? config.quickActionCommands : []),
     ])
+
+    if (config?.agenticMode) {
+        tabFactory.enableAgenticMode()
+    }
 
     const [mynahUi, api] = createMynahUi(
         messager,
@@ -382,7 +405,8 @@ export const createChat = (
         config?.disclaimerAcknowledged ?? false,
         config?.pairProgrammingAcknowledged ?? false,
         chatClientAdapter,
-        featureConfig
+        featureConfig,
+        !!config?.agenticMode
     )
 
     mynahApi = api

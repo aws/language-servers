@@ -31,13 +31,48 @@ export const HELP_MESSAGE = `I'm Amazon Q, a generative AI assistant. Learn more
 
 export const DEFAULT_HELP_FOLLOW_UP_PROMPT = 'How can Amazon Q help me?'
 
-export const DEFAULT_EXCLUDE_PATTERNS = [
+export const DEFAULT_EXCLUDE_DIRS = [
     // Dependency directories
     'node_modules',
     // Build outputs
     'dist',
     'build',
     'out',
+    // Version control
+    '.git',
+    '.svn',
+    '.hg',
+    // IDE and Editor
+    '.idea',
+    '.vscode',
+    '.vs',
+    '.metals',
+    '.bloop',
+    '.ensime_cache',
+    '.project',
+    // Python Specific
+    '.venv',
+    'venv',
+    '.virtualenv',
+    'eggs',
+    '.eggs',
+    'sdist',
+    '.ipynb_checkpoints',
+    // Environment and Config
+    '.env',
+    '.aws-sam',
+    '.brazil',
+    '.rvm',
+    '.gem',
+    // Cache and Temporary
+    '.cache',
+    '.sass-cache',
+    '.pytest_cache',
+    '__pycache__',
+    'tmp',
+]
+
+export const DEFAULT_EXCLUDE_FILES = [
     // OS specific files
     '.DS_Store',
 ]

@@ -17,6 +17,9 @@ import {
 } from '@aws/language-server-runtimes-types'
 import { URI, Utils } from 'vscode-uri'
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
+import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { ChatHistoryActionType } from '../../shared/telemetry/types'
+import { CancellationError } from '@aws/lsp-core'
 
 /**
  * Controller for managing chat history and export functionality.
@@ -35,10 +38,12 @@ export class TabBarController {
     readonly #DebounceTime = 300 // milliseconds
     #features: Features
     #chatHistoryDb: ChatDatabase
+    #telemetryService: TelemetryService
 
-    constructor(features: Features, chatHistoryDb: ChatDatabase) {
+    constructor(features: Features, chatHistoryDb: ChatDatabase, telemetryService: TelemetryService) {
         this.#features = features
         this.#chatHistoryDb = chatHistoryDb
+        this.#telemetryService = telemetryService
     }
 
     /**
@@ -71,9 +76,20 @@ export class TabBarController {
         }
 
         if (searchFilter) {
+            const dbSize = this.#chatHistoryDb.getDatabaseFileSize()
+
             let list: ConversationItemGroup[] = await new Promise<any[]>(resolve => {
                 this.#searchTimeout = setTimeout(() => {
-                    const results = this.#chatHistoryDb.searchMessages(searchFilter)
+                    const { results, searchTime } = this.#chatHistoryDb.searchMessages(searchFilter)
+
+                    this.#telemetryService.emitChatHistoryAction({
+                        action: ChatHistoryActionType.Search,
+                        languageServerVersion: this.#features.runtime.serverInfo.version,
+                        amazonqHistoryFileSize: dbSize,
+                        amazonqTimeToSearchHistory: searchTime,
+                        result: 'Succeeded',
+                    })
+
                     resolve(results)
                 }, this.#DebounceTime)
             })
@@ -145,8 +161,18 @@ export class TabBarController {
                 const selectedTab = this.#chatHistoryDb.getTab(historyID)
                 await this.restoreTab(selectedTab)
             }
+            this.#telemetryService.emitChatHistoryAction({
+                action: ChatHistoryActionType.Open,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
         } else if (params.action === 'delete') {
             this.#chatHistoryDb.deleteHistory(historyID)
+            this.#telemetryService.emitChatHistoryAction({
+                action: ChatHistoryActionType.Delete,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
         } else if (params.action === 'export') {
             let openTabID = this.#chatHistoryDb.getOpenTabId(historyID)
 
@@ -164,7 +190,17 @@ export class TabBarController {
                 return { ...params, success: false }
             }
 
-            await this.onExportTab(openTabID)
+            const exportTabResponse = await this.onExportTab(openTabID)
+
+            this.#telemetryService.emitChatHistoryAction({
+                action: ChatHistoryActionType.Export,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                filenameExt: exportTabResponse.format,
+                result: exportTabResponse.result,
+            })
+            if (exportTabResponse.result !== 'Succeeded') {
+                return { ...params, success: false }
+            }
         } else {
             this.#features.logging.error(`Unsupported action: ${params.action}`)
             return { ...params, success: false }
@@ -175,9 +211,17 @@ export class TabBarController {
 
     async onTabBarAction(params: TabBarActionParams) {
         if (params.action === 'export' && params.tabId) {
-            await this.onExportTab(params.tabId)
+            const exportTabResponse = await this.onExportTab(params.tabId)
 
-            return { ...params, success: true }
+            this.#telemetryService.emitExportTab({
+                filenameExt: exportTabResponse.format,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                result: exportTabResponse.result,
+            })
+
+            const actionResult = exportTabResponse.result === 'Succeeded'
+
+            return { ...params, success: actionResult }
         }
 
         this.#features.logging.error(`Unsupported action ${params.action}`)
@@ -186,30 +230,55 @@ export class TabBarController {
 
     async onExportTab(tabId: string) {
         const defaultFileName = `q-dev-chat-${new Date().toISOString().split('T')[0]}.md`
+        try {
+            let defaultUri
+            const clientParams = this.#features.lsp.getClientInitializeParams()
+            let workspaceFolders = clientParams?.workspaceFolders
+            if (workspaceFolders && workspaceFolders.length > 0) {
+                const workspaceUri = URI.parse(workspaceFolders[0].uri)
+                defaultUri = Utils.joinPath(workspaceUri, defaultFileName)
+            } else {
+                defaultUri = URI.file(defaultFileName)
+            }
 
-        let defaultUri
-        const clientParams = this.#features.lsp.getClientInitializeParams()
-        let workspaceFolders = clientParams?.workspaceFolders
-        if (workspaceFolders && workspaceFolders.length > 0) {
-            const workspaceUri = URI.parse(workspaceFolders[0].uri)
-            defaultUri = Utils.joinPath(workspaceUri, defaultFileName)
-        } else {
-            defaultUri = URI.file(defaultFileName)
+            const { targetUri } = await this.#features.lsp.window.showSaveFileDialog({
+                supportedFormats: ['markdown', 'html'],
+                defaultUri: defaultUri.toString(),
+            })
+
+            if (targetUri === null || targetUri === '') {
+                // If user cancelled the show save file dialog, targetUri will be empty.
+                throw new CancellationError('user')
+            }
+
+            const targetPath = URI.parse(targetUri)
+            const format = targetPath.fsPath.endsWith('.md') ? 'markdown' : 'html'
+            const { content } = await this.#features.chat.getSerializedChat({
+                tabId,
+                format,
+            })
+
+            await this.#features.workspace.fs.writeFile(targetPath.fsPath, content)
+
+            return {
+                format: format,
+                result: 'Succeeded' as const,
+            }
+        } catch (error: any) {
+            if (error instanceof CancellationError) {
+                this.#features.logging.debug('Export cancelled by user')
+                return {
+                    format: '',
+                    result: 'Cancelled' as const,
+                }
+            }
+
+            this.#features.logging.error(`Unable to export tab "${tabId}": ${error.message || error}`)
+            return {
+                format: '',
+                result: 'Failed' as const,
+            }
         }
-
-        const { targetUri } = await this.#features.lsp.window.showSaveFileDialog({
-            supportedFormats: ['markdown', 'html'],
-            defaultUri: defaultUri.toString(),
-        })
-
-        const targetPath = URI.parse(targetUri)
-        const format = targetPath.fsPath.endsWith('.md') ? 'markdown' : 'html'
-        const { content } = await this.#features.chat.getSerializedChat({
-            tabId,
-            format,
-        })
-
-        await this.#features.workspace.fs.writeFile(targetPath.path, content)
     }
 
     /**
@@ -218,7 +287,7 @@ export class TabBarController {
     async restoreTab(selectedTab?: Tab | null) {
         if (selectedTab) {
             const messages = selectedTab.conversations.flatMap((conv: Conversation) =>
-                conv.messages.flatMap(msg => messageToChatMessage(msg))
+                conv.messages.filter(msg => msg.shouldDisplayMessage != false).flatMap(msg => messageToChatMessage(msg))
             )
 
             const { tabId } = await this.#features.chat.openTab({ newTabOptions: { data: { messages } } })
@@ -242,6 +311,13 @@ export class TabBarController {
                     await this.restoreTab(conversation)
                 }
             }
+            this.#telemetryService.emitLoadHistory({
+                amazonqTimeToLoadHistory: this.#chatHistoryDb.getLoadTime() ?? -1,
+                amazonqHistoryFileSize: this.#chatHistoryDb.getDatabaseFileSize() ?? -1,
+                openTabCount: openConversations.length,
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+                result: 'Succeeded',
+            })
         }
     }
 

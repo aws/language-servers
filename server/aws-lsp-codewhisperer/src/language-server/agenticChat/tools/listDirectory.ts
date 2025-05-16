@@ -3,8 +3,7 @@ import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath }
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { DEFAULT_EXCLUDE_PATTERNS } from '../../chat/constants'
-import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
+import { DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_FILES } from '../../chat/constants'
 import { CancellationToken } from '@aws/language-server-runtimes/protocol'
 
 export interface ListDirectoryParams {
@@ -62,13 +61,13 @@ export class ListDirectory {
     public async invoke(params: ListDirectoryParams, token?: CancellationToken): Promise<InvokeOutput> {
         const path = sanitize(params.path)
         try {
-            const listing = await workspaceUtils.readDirectoryRecursively(
+            const result = await workspaceUtils.readDirectoryWithTreeOutput(
                 { workspace: this.workspace, logging: this.logging },
                 path,
-                { maxDepth: params.maxDepth, excludePatterns: DEFAULT_EXCLUDE_PATTERNS },
+                { maxDepth: params.maxDepth, excludeDirs: DEFAULT_EXCLUDE_DIRS, excludeFiles: DEFAULT_EXCLUDE_FILES },
                 token
             )
-            return this.createOutput(listing.join('\n'))
+            return this.createOutput(result)
         } catch (error: any) {
             if (CancellationError.isUserCancelled(error)) {
                 // bubble this up to the main agentic chat loop
@@ -92,9 +91,9 @@ export class ListDirectory {
         return {
             name: 'listDirectory',
             description:
-                'List the contents of a directory and its subdirectories.\n\n' +
+                'List the contents of a directory and its subdirectories in a tree-like format.\n\n' +
                 '## Overview\n' +
-                'This tool recursively lists directory contents, ignoring common build and dependency directories.\n\n' +
+                'This tool recursively lists directory contents in a visual tree structure, ignoring common build and dependency directories.\n\n' +
                 '## When to use\n' +
                 '- When exploring a codebase or project structure\n' +
                 '- When you need to discover files in a directory hierarchy\n' +
@@ -106,11 +105,8 @@ export class ListDirectory {
                 '## Notes\n' +
                 '- This tool will ignore directories such as `build/`, `out/`, `dist/` and `node_modules/`\n' +
                 '- This tool is more effective than running a command like `ls` using `executeBash` tool\n' +
-                '- Results clearly distinguish between files, directories or symlinks with [F], [D] and [L] prefixes\n' +
-                '- Use the `maxDepth` parameter to control how deep the directory traversal goes\n\n' +
-                '## Related tools\n' +
-                '- fsRead: Use to examine files after finding them\n' +
-                '- fsWrite: Use to modify files after finding them',
+                '- Results are displayed in a tree format with directories ending in `/` and symbolic links ending in `@`\n' +
+                '- Use the `maxDepth` parameter to control how deep the directory traversal goes',
             inputSchema: {
                 type: 'object',
                 properties: {
