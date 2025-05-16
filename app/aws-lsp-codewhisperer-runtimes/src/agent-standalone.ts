@@ -10,6 +10,7 @@ import {
 import { IdentityServer } from '@aws/lsp-identity'
 import { BashToolsServer, FsToolsServer } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
 import { createTokenRuntimeProps } from './standalone-common'
+import { SsoAuthServer } from '@amzn/device-sso-auth-lsp'
 
 const MAJOR = 0
 const MINOR = 1
@@ -26,6 +27,7 @@ const props = createTokenRuntimeProps(VERSION, [
     FsToolsServer,
     BashToolsServer,
     QLocalProjectContextServerTokenProxy,
+    SsoAuthServer,
     // McpToolsServer,
     // LspToolsServer,
 ])
