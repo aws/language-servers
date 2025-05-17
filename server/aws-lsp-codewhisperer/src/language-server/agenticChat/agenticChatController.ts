@@ -862,7 +862,17 @@ export class AgenticChatController implements ChatHandlers {
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
-
+                // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
+                if (toolUse.name !== 'fsWrite') {
+                    const { explanation } = toolUse.input as unknown as ExplanatoryParams
+                    if (explanation) {
+                        await chatResultStream.writeResultBlock({
+                            type: 'directive',
+                            messageId: toolUse.toolUseId + '_explanation',
+                            body: explanation,
+                        })
+                    }
+                }
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
@@ -2294,10 +2304,7 @@ export class AgenticChatController implements ChatHandlers {
                         },
                     })
                 }
-            }
-
-            // render the tool use explanatory as soon as this is received for all tool uses.
-            if (typeof toolUse.input === 'string') {
+                // render the tool use explanatory as soon as this is received for fsWrite
                 const explanation = extractKey(toolUse.input, 'explanation')
                 const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
                 if (explanation && !chatResultStream.hasMessage(messageId)) {
