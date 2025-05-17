@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.40](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.39...lsp-codewhisperer/v0.0.40) (2025-05-17)
+
+
+### Features
+
+* migrate inline completion telemetry to Flare ([#1336](https://github.com/aws/language-servers/issues/1336)) ([fcbdde4](https://github.com/aws/language-servers/commit/fcbdde4593cb55a728b996d3e04e90f9b6c6fa70))
+
+
+### Bug Fixes
+
+* add requestIds for each LLM call for amazonq_addMessage metric ([#1338](https://github.com/aws/language-servers/issues/1338)) ([4324c90](https://github.com/aws/language-servers/commit/4324c90224ad9f94b82d9e68e80f7563bdb5f2ea))
+* add robust validation logic to fixHistory ([#1340](https://github.com/aws/language-servers/issues/1340)) ([14dac87](https://github.com/aws/language-servers/commit/14dac87358c7e1fd79a5e49614fd33c46d43bf72))
+* adding error handling for export tab ([#1350](https://github.com/aws/language-servers/issues/1350)) ([6bdd1ac](https://github.com/aws/language-servers/commit/6bdd1acb22bb089f8a5fd257a2fe47e212650382))
+* adding new telemetry metrics and addtional fields for existing metrics ([#1341](https://github.com/aws/language-servers/issues/1341)) ([d242225](https://github.com/aws/language-servers/commit/d2422252a27c57b05609c0829b0741b29c4d9236))
+* only do render on partial results for fsWrite ([#1354](https://github.com/aws/language-servers/issues/1354)) ([9931592](https://github.com/aws/language-servers/commit/993159293edc32f7dc5bd0cfb999562ffee830ed))
+* re-categorize error status code ([#1355](https://github.com/aws/language-servers/issues/1355)) ([a98a842](https://github.com/aws/language-servers/commit/a98a842fb5ac8d680e973d97058c22a49e5c3284))
+* Reduce perceived latency of fsWrite. Show fsWrite errors in the UX  ([#1351](https://github.com/aws/language-servers/issues/1351)) ([f1e873b](https://github.com/aws/language-servers/commit/f1e873b95fbd119a0303ae1f234f9f1efa1fef56))
+
 ## [0.0.39](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.38...lsp-codewhisperer/v0.0.39) (2025-05-14)
 
 
