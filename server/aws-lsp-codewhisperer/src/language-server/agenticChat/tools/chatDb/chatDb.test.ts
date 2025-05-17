@@ -41,11 +41,12 @@ describe('ChatDatabase', () => {
                     mkdir: sinon.stub().resolves(undefined),
                     writeFile: sinon.stub().resolves(undefined),
                 },
-            },
-            lsp: {
-                getClientInitializeParams: sinon.stub().returns({
-                    workspaceFolders: [{ uri: 'file:///workspace' }],
-                }),
+                getAllWorkspaceFolders: sinon.stub().returns([
+                    {
+                        uri: 'file:///workspace',
+                        name: 'workspace',
+                    },
+                ]) as any,
             },
         } as unknown as Features
 

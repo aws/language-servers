@@ -306,14 +306,12 @@ describe('TabBarController', () => {
         let fsWriteFileStub: sinon.SinonStub
 
         beforeEach(() => {
-            testFeatures.setClientParams({
-                workspaceFolders: [
-                    {
-                        uri: 'file:///testworkspace',
-                        name: 'workspace',
-                    },
-                ],
-            } as InitializeParams)
+            testFeatures.workspace.getAllWorkspaceFolders = sinon.stub().returns([
+                {
+                    uri: 'file:///testworkspace',
+                    name: 'workspace',
+                },
+            ]) as any
 
             showSaveFileDialogStub = sinon.stub().returns({
                 targetUri: 'file:///testworkspace/test.md',

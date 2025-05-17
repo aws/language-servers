@@ -14,9 +14,9 @@ describe('ExecuteBash Tool', () => {
 
     before(function () {
         features = new TestFeatures()
-        features.setClientParams({
-            workspaceFolders: [{ uri: URI.file(workspaceFolder).toString(), name: 'test' }],
-        } as InitializeParams)
+        features.workspace.getAllWorkspaceFolders = sinon
+            .stub()
+            .returns([{ uri: URI.file(workspaceFolder).toString(), name: 'test' }]) as any
     })
 
     beforeEach(() => {

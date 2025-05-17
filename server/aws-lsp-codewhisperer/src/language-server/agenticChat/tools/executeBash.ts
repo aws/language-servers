@@ -144,10 +144,10 @@ const IS_WINDOWS_PLATFORM = process.platform === 'win32'
 export class ExecuteBash {
     private childProcess?: ChildProcess
     private readonly logging: Features['logging']
-    private readonly lsp: Features['lsp']
-    constructor(features: Pick<Features, 'logging' | 'lsp'> & Partial<Features>) {
+    private readonly workspace: Features['workspace']
+    constructor(features: Pick<Features, 'logging' | 'workspace'> & Partial<Features>) {
         this.logging = features.logging
-        this.lsp = features.lsp
+        this.workspace = features.workspace
     }
 
     public async validate(input: ExecuteBashParams): Promise<void> {
@@ -241,7 +241,10 @@ export class ExecuteBash {
                             continue
                         }
 
-                        const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), fullPath)
+                        const isInWorkspace = workspaceUtils.isInWorkspace(
+                            getWorkspaceFolderPaths(this.workspace),
+                            fullPath
+                        )
                         if (!isInWorkspace) {
                             return {
                                 requiresAcceptance: true,
@@ -291,7 +294,7 @@ export class ExecuteBash {
             if (params.cwd) {
                 // Check if the cwd is already approved
                 if (!(approvedPaths && isPathApproved(params.cwd, approvedPaths))) {
-                    const workspaceFolders = getWorkspaceFolderPaths(this.lsp)
+                    const workspaceFolders = getWorkspaceFolderPaths(this.workspace)
 
                     // If there are no workspace folders, we can't validate the path
                     if (!workspaceFolders || workspaceFolders.length === 0) {

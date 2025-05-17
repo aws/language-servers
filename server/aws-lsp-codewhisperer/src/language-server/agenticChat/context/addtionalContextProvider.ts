@@ -8,7 +8,7 @@ import {
     workspaceChunkMaxSize,
 } from './agenticChatTriggerContext'
 import { URI } from 'vscode-uri'
-import { Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { pathUtils, workspaceUtils } from '@aws/lsp-core'
 import {
     additionalContentNameLimit,
@@ -19,14 +19,11 @@ import {
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 
 export class AdditionalContextProvider {
-    constructor(
-        private readonly workspace: Workspace,
-        private readonly lsp: Lsp
-    ) {}
+    constructor(private readonly workspace: Workspace) {}
 
     async collectWorkspaceRules(): Promise<ContextCommandItem[]> {
         const rulesFiles: ContextCommandItem[] = []
-        let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.lsp)
+        let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.workspace)
 
         if (!workspaceFolders.length) {
             return rulesFiles
@@ -78,7 +75,7 @@ export class AdditionalContextProvider {
         const workspaceRules = await this.collectWorkspaceRules()
         let workspaceFolderPath = triggerContext.workspaceFolder?.uri
             ? URI.parse(triggerContext.workspaceFolder.uri).fsPath
-            : workspaceUtils.getWorkspaceFolderPaths(this.lsp)[0]
+            : workspaceUtils.getWorkspaceFolderPaths(this.workspace)[0]
 
         if (workspaceRules.length > 0) {
             additionalContextCommands.push(...workspaceRules)

@@ -19,7 +19,13 @@ describe('FileSearch Tool', () => {
                     .access(path)
                     .then(() => true)
                     .catch(() => false),
-            readdir: path => fs.readdir(path, { withFileTypes: true }),
+            readdir: async dirPath => {
+                const entries = await fs.readdir(dirPath, { withFileTypes: true })
+                return entries.map(entry => {
+                    ;(entry as any).parentPath = dirPath
+                    return entry
+                })
+            },
         } as Features['workspace']['fs']
         tempFolder = await testFolder.TestFolder.create()
     })

@@ -26,7 +26,7 @@
         "postinstall": "node patchYamlPackage.js"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.80",
+        "@aws/language-server-runtimes": "^0.2.82",
         "@aws/lsp-core": "^0.0.8",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8",

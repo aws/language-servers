@@ -31,9 +31,7 @@ describe('AgenticChatTriggerContext', () => {
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
-        testFeatures.setClientParams({
-            workspaceFolders: mockWorkspaceFolders,
-        } as InitializeParams)
+        testFeatures.workspace.getAllWorkspaceFolders = sinon.stub().returns(mockWorkspaceFolders) as any
         sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext').resolves(mockDocumentContext)
     })
 

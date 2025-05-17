@@ -113,16 +113,11 @@ describe('FsRead Tool', () => {
             ...features,
             lsp: {
                 ...features.lsp,
-                getClientInitializeParams: () => ({
-                    workspaceFolders: [{ uri: 'file:///workspace/folder', name: 'workspace' }],
-                    processId: 123,
-                    rootUri: 'file:///workspace/folder',
-                    capabilities: {},
-                }),
             },
             workspace: {
                 ...features.workspace,
                 getTextDocument: async s => ({}) as TextDocument,
+                getAllWorkspaceFolders: () => [{ uri: 'file:///workspace/folder', name: 'workspace' }],
             },
         })
         const result = await fsRead.requiresAcceptance({ paths: ['/workspace/folder/file.txt'] })

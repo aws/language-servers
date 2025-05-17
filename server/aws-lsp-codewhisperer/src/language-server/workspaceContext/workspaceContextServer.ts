@@ -31,10 +31,10 @@ export const WorkspaceContextServer = (): Server => features => {
     let amazonQServiceManager: AmazonQTokenServiceManager
 
     lsp.addInitializer((params: InitializeParams) => {
-        workspaceFolders = params.workspaceFolders || []
-        if (params.workspaceFolders) {
-            workspaceFolders = params.workspaceFolders
-        } else {
+        const folders = workspace.getAllWorkspaceFolders()
+        workspaceFolders = folders || params.workspaceFolders || []
+
+        if (!folders) {
             logging.warn(`No workspace folders set during initialization`)
         }
 
