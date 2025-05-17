@@ -27,11 +27,12 @@ import {
     LinkClickParams,
     ListConversationsResult,
     ListMcpServersResult,
-    McpServerClickResult,
+    // McpServerClickResult,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
+import { Button, McpServerClickResult } from '@aws/language-server-runtimes/protocol' // TODO: just for testing
 import {
     ChatItem,
     ChatItemType,
@@ -1192,10 +1193,99 @@ ${params.message}`,
     }
 
     const mcpServerClick = (params: McpServerClickResult) => {
-        if (!params.success) {
+        if (params.id === 'add-new-mcp') {
+            console.log(`mcpServerClick: params`, params)
+            // Use type assertion to tell TypeScript that params has a header property
+            const paramsWithHeader = params as McpServerClickResult & {
+                header?: { title?: string; description?: string }
+                filterOptions?: Array<{
+                    type: 'textarea' | 'textinput' | 'select' | 'numericinput' | 'radiogroup'
+                    id: string
+                    title: string
+                    description?: string
+                    icon?: string
+                    options?: Array<{ label: string; value: string }>
+                }>
+                filterActions: Button[]
+            }
+
+            // Create a default DetailedList structure with the data from params
+            const detailedList: any = {
+                selectable: false,
+                textDirection: 'row',
+                header: {
+                    title: paramsWithHeader.header?.title || 'Add MCP Server',
+                    description: paramsWithHeader.header?.description || '',
+                },
+                filterOptions: paramsWithHeader.filterOptions?.map(filter => ({
+                    ...filter,
+                    icon: filter.icon ? toMynahIcon(filter.icon) : undefined,
+                })),
+                filterActions: paramsWithHeader.filterActions,
+            }
+
+            // If we have actual data from params, use it to populate the list
+            const paramsWithList = params as McpServerClickResult & {
+                list?: Array<{ groupName: string; children?: Array<{ title: string; description?: string }> }>
+            }
+            if (paramsWithList.list && paramsWithList.list.length > 0) {
+                // We need to convert the list structure to match the expected DetailedList format
+                // This is a simplified approach that focuses on the essential data
+                detailedList.list = []
+
+                // Process each group
+                paramsWithList.list.forEach(group => {
+                    const convertedGroup: any = {
+                        groupName: group.groupName,
+                        children: [],
+                    }
+
+                    // Process each child item in the group
+                    if (group.children) {
+                        group.children.forEach(item => {
+                            convertedGroup.children.push({
+                                title: item.title,
+                                description: item.description,
+                            })
+                        })
+                    }
+
+                    detailedList.list!.push(convertedGroup)
+                })
+            }
+
+            const events = {
+                onFilterActionClick: (
+                    params: McpServerClickResult,
+                    filterValues?: Record<string, any>,
+                    isValid?: boolean
+                ) => {
+                    console.log(`Filter action clicked: ${params.id}`)
+                    console.log(`Filters: ${JSON.stringify(filterValues ?? {})}`)
+                    if (params.id === 'cancel-mcp') {
+                        console.log('Cancel button is clicked')
+                        // listMcpServers(params)
+                        // mcpSheet.update(sampleMCPList, false)
+                    } else if (params.id === 'save-mcp') {
+                        mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
+                        console.log('Save button is clicked')
+                        setTimeout(() => {
+                            mynahUi.toggleSplashLoader(false)
+                        }, 3000)
+                    }
+                },
+            }
+
+            const data = {
+                detailedList,
+                events,
+            }
+            console.log(`mcpServerClick: data`, data)
+            mynahUi.openDetailedList(data, true)
+        } else if (params.id === 'open-mcp-xx') {
             mynahUi.notify({
-                content: `Failed to open the MCP server`,
-                type: NotificationType.ERROR,
+                content: ` Permissions WIP UX`,
+                type: NotificationType.INFO,
             })
         }
     }

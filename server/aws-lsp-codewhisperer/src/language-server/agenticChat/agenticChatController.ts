@@ -29,6 +29,7 @@ import {
     InlineChatResultParams,
     PromptInputOptionChangeParams,
     TextDocument,
+    McpServerClickResult,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -414,10 +415,86 @@ export class AgenticChatController implements ChatHandlers {
             list: groups,
         }
     }
-    async onMcpServerClick(params: McpServerClickParams) {
+
+    async onMcpServerClick(params: McpServerClickParams): Promise<McpServerClickResult> {
+        this.#log(`[VSCode Server] onMcpServerClick event with params: ${JSON.stringify(params)}`)
+        if (params.id === 'add-new-mcp') {
+            return {
+                id: params.id,
+                header: {
+                    title: 'Add MCP Server',
+                    status: {},
+                    actions: [],
+                },
+                list: [],
+                filterActions: [
+                    {
+                        id: 'cancel-mcp',
+                        text: 'Cancel',
+                    },
+                    {
+                        id: 'save-mcp',
+                        text: 'Save',
+                        status: 'primary',
+                    },
+                ],
+                filterOptions: [
+                    {
+                        type: 'radiogroup',
+                        id: 'scope',
+                        title: 'Scope',
+                        options: [
+                            {
+                                label: `Global - Used globally. Edit config`,
+                                value: 'Yes',
+                            },
+                            {
+                                label: `This workspace - Only used in this workspace. Edit config`,
+                                value: 'No',
+                            },
+                        ],
+                    },
+                    {
+                        type: 'textinput', // User input text
+                        id: 'name',
+                        title: 'Name',
+                    },
+                    {
+                        type: 'select', // Drop down
+                        id: 'transport',
+                        title: 'Transport',
+                        options: [
+                            {
+                                label: 'stdio',
+                                value: 'yes',
+                            },
+                        ],
+                    },
+                    {
+                        type: 'textinput', // User input text
+                        id: 'command',
+                        title: 'Command',
+                    },
+                    {
+                        type: 'numericinput',
+                        id: 'timeout',
+                        title: 'Timeout',
+                        description: 'Seconds',
+                    },
+                ],
+            }
+        } else if (params.id === 'open-mcp-xx') {
+            // Edit
+        }
         return {
             id: params.id,
-            success: true,
+            header: {
+                title: 'MCP Servers',
+                status: {},
+                description:
+                    'Q automatically uses any MCP servers that have been added, so you don\'t have to add them as context. All MCPs are defaulted to "Ask before running".',
+                actions: [],
+            },
         }
     }
 
