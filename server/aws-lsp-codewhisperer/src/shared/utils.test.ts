@@ -244,12 +244,7 @@ describe('isStringOrNull', () => {
 
 describe('getHttpStatusCode', () => {
     it('should return 500 for InputTooLong errors', () => {
-        const err = new Error('Input is too long')
-        expect(getHttpStatusCode(err)).to.equal(500)
-    })
-
-    it('should return 500 for ImproperlyFormedRequest errors', () => {
-        const err = new Error('Improperly formed request.')
+        const err = { code: 'InputTooLong' }
         expect(getHttpStatusCode(err)).to.equal(500)
     })
 

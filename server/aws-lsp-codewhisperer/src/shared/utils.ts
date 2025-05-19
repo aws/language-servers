@@ -7,11 +7,7 @@ import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING
 import { CodeWhispererStreamingServiceException } from '@amzn/codewhisperer-streaming'
 import { ServiceException } from '@smithy/smithy-client'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
-import {
-    isImproperlyFormedRequest,
-    isInputTooLongError,
-    unactionableErrorCodes,
-} from '../language-server/agenticChat/errors'
+import { isInputTooLongError, unactionableErrorCodes } from '../language-server/agenticChat/errors'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -326,8 +322,8 @@ export function isStringOrNull(object: any): object is string | null {
 // Port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/c22efa03e73b241564c8051c35761eb8620edb83/packages/core/src/shared/errors.ts#L648
 export function getHttpStatusCode(err: unknown): number | undefined {
-    // RTS throws validation errors with a 400 status code to LSP, we convert them to 500 from the perspective of the user
-    if (isInputTooLongError(err) || isImproperlyFormedRequest(err)) {
+    // RTS throws InputTooLong as a validation error with a 400 status code to LSP, we convert it to 500 from the perspective of the user
+    if (isInputTooLongError(err)) {
         return 500
     }
 
