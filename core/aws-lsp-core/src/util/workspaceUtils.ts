@@ -12,14 +12,16 @@ export async function readDirectoryRecursively(
     folderPath: string,
     options?: {
         maxDepth?: number
-        excludeEntries?: string[]
+        excludeDirs?: string[]
+        excludeFiles?: string[]
         customFormatCallback?: (entry: Dirent) => string
         failOnError?: boolean
     },
     token?: CancellationToken
 ): Promise<string[]> {
     const dirExists = await features.workspace.fs.exists(folderPath)
-    const excludeEntries = options?.excludeEntries ?? []
+    const excludeFiles = options?.excludeFiles ?? []
+    const excludeDirs = options?.excludeDirs ?? []
     if (!dirExists) {
         throw new Error(`Directory does not exist: ${folderPath}`)
     }
@@ -58,9 +60,16 @@ export async function readDirectoryRecursively(
         }
         for (const entry of entries) {
             const childPath = getEntryPath(entry)
-            if (excludeEntries.includes(entry.name)) {
-                features.logging.log(`Skipping path ${childPath} due to match in [${excludeEntries.join(', ')}]`)
-                continue
+            if (entry.isDirectory()) {
+                if (excludeDirs.includes(entry.name)) {
+                    features.logging.log(`Skipping directory ${childPath} due to match in [${excludeDirs.join(', ')}]`)
+                    continue
+                }
+            } else {
+                if (excludeFiles.includes(entry.name)) {
+                    features.logging.log(`Skipping file ${childPath} due to match in [${excludeFiles.join(', ')}]`)
+                    continue
+                }
             }
             results.push(formatter(entry))
             if (entry.isDirectory() && (options?.maxDepth === undefined || depth < options?.maxDepth)) {

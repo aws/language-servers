@@ -74,6 +74,8 @@ type ChatHandlers = Omit<
     | 'getSerializedChat'
     | 'onTabBarAction'
     | 'chatOptionsUpdate'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
 >
 
 export class ChatController implements ChatHandlers {
@@ -292,7 +294,9 @@ export class ChatController implements ChatHandlers {
         }
     }
 
-    async onInlineChatResult(handler: InlineChatResultParams) {}
+    async onInlineChatResult(params: InlineChatResultParams) {
+        await this.#telemetryService.emitInlineChatResultLog(params)
+    }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
         // Implementation based on https://github.com/aws/aws-toolkit-vscode/blob/1814cc84228d4bf20270574c5980b91b227f31cf/packages/core/src/amazonq/commons/controllers/contentController.ts#L38

@@ -3,6 +3,7 @@
  * Will be deleted or merged.
  */
 
+import * as crypto from 'crypto'
 import * as path from 'path'
 import {
     ChatTriggerType,
@@ -66,6 +67,7 @@ import {
 import { v4 as uuid } from 'uuid'
 import {
     AddMessageEvent,
+    ChatConversationType,
     ChatInteractionType,
     ChatTelemetryEventName,
     CombinedConversationEvent,
@@ -94,7 +96,7 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
-import { AgenticChatResultStream, ResultStreamWriter } from './agenticChatResultStream'
+import { AgenticChatResultStream, progressPrefix, ResultStreamWriter } from './agenticChatResultStream'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
@@ -143,6 +145,8 @@ type ChatHandlers = Omit<
     | 'onTabBarAction'
     | 'getSerializedChat'
     | 'chatOptionsUpdate'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -159,6 +163,8 @@ export class AgenticChatController implements ChatHandlers {
     #contextCommandsProvider: ContextCommandsProvider
     #stoppedToolUses = new Set<string>()
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
+    #toolUseStartTimes: Record<string, number> = {}
+    #toolUseLatencies: Array<{ toolName: string; toolUseId: string; latency: number }> = []
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -185,7 +191,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryService = telemetryService
         this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
-        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb)
+        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb, telemetryService)
         this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
@@ -233,7 +239,12 @@ export class AgenticChatController implements ChatHandlers {
             try {
                 await this.#undoFileChange(toolUseId, session.data)
                 this.#updateUndoButtonAfterClick(params.tabId, toolUseId, session.data)
-                this.#telemetryController.emitInteractWithAgenticChat('RejectDiff', params.tabId)
+                this.#telemetryController.emitInteractWithAgenticChat(
+                    'RejectDiff',
+                    params.tabId,
+                    session.data?.pairProgrammingMode,
+                    session.data?.getConversationType()
+                )
             } catch (err: any) {
                 return { success: false, failureReason: err.message }
             }
@@ -477,11 +488,17 @@ export class AgenticChatController implements ChatHandlers {
                     messageId: 'stopped' + uuid(),
                     body: 'You stopped your current work, please provide additional examples or ask another question.',
                 })
-                this.#telemetryController.emitInteractWithAgenticChat('StopChat', params.tabId)
+                this.#telemetryController.emitInteractWithAgenticChat(
+                    'StopChat',
+                    params.tabId,
+                    session.pairProgrammingMode,
+                    session.getConversationType()
+                )
                 session.abortRequest()
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
             })
+            session.setConversationType('AgenticChat')
 
             const chatResultStream = this.#getChatResultStream(params.partialResultToken)
 
@@ -502,6 +519,10 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
 
+            // Generate a unique ID for this prompt
+            const promptId = crypto.randomUUID()
+            session.setCurrentPromptId(promptId)
+
             // Start the agent loop
             const finalResult = await this.#runAgentLoop(
                 initialRequestInput,
@@ -509,6 +530,7 @@ export class AgenticChatController implements ChatHandlers {
                 metric,
                 chatResultStream,
                 params.tabId,
+                promptId,
                 session.conversationId,
                 token,
                 triggerContext.documentReference
@@ -552,7 +574,7 @@ export class AgenticChatController implements ChatHandlers {
                     buttons: [],
                 }
             }
-            return this.#handleRequestError(err, errorMessageId, params.tabId, metric)
+            return this.#handleRequestError(err, errorMessageId, params.tabId, metric, session.pairProgrammingMode)
         }
     }
 
@@ -592,6 +614,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         chatResultStream: AgenticChatResultStream,
         tabId: string,
+        promptId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList
@@ -607,7 +630,8 @@ export class AgenticChatController implements ChatHandlers {
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
             // Check for cancellation
-            if (token?.isCancellationRequested) {
+            if (this.#isPromptCanceled(token, session, promptId)) {
+                this.#debug('Stopping agent loop - cancelled by user')
                 throw new CancellationError('user')
             }
 
@@ -621,7 +645,7 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Fix the history to maintain invariants
             if (currentMessage) {
-                const isHistoryValid = this.#chatHistoryDb.fixHistory(
+                const isHistoryValid = this.#chatHistoryDb.fixAndValidateHistory(
                     tabId,
                     currentMessage,
                     conversationIdentifier ?? ''
@@ -643,8 +667,14 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.#validateRequest(currentRequestInput)
+            this.#truncateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
+
+            if (response.$metadata.requestId) {
+                metric.mergeWith({
+                    requestIds: [response.$metadata.requestId],
+                })
+            }
             this.#features.logging.info(
                 `generateAssistantResponse ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
             )
@@ -652,14 +682,18 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
-                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                    body: currentMessage.userInputMessage?.content ?? '',
-                    type: 'prompt' as any,
-                    userIntent: currentMessage.userInputMessage?.userIntent,
-                    origin: currentMessage.userInputMessage?.origin,
-                    userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
-                    shouldDisplayMessage: shouldDisplayMessage,
-                })
+                if (this.#isPromptCanceled(token, session, promptId)) {
+                    this.#debug('Skipping adding user message to history - cancelled by user')
+                } else {
+                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
+                        body: currentMessage.userInputMessage?.content ?? '',
+                        type: 'prompt' as any,
+                        userIntent: currentMessage.userInputMessage?.userIntent,
+                        origin: currentMessage.userInputMessage?.origin,
+                        userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
+                        shouldDisplayMessage: shouldDisplayMessage,
+                    })
+                }
             }
             shouldDisplayMessage = true
 
@@ -679,11 +713,13 @@ export class AgenticChatController implements ChatHandlers {
             if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
                 const content =
                     'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
-                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
-                    body: 'Response timed out - message took too long to generate',
-                    type: 'answer',
-                    shouldDisplayMessage: false,
-                })
+                if (!this.#isPromptCanceled(token, session, promptId)) {
+                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                        body: 'Response timed out - message took too long to generate',
+                        type: 'answer',
+                        shouldDisplayMessage: false,
+                    })
+                }
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
                 shouldDisplayMessage = false
                 continue
@@ -691,24 +727,28 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
-                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
-                    body: result.data?.chatResult.body,
-                    type: 'answer' as any,
-                    codeReference: result.data.chatResult.codeReference,
-                    relatedContent:
-                        result.data.chatResult.relatedContent?.content &&
-                        result.data.chatResult.relatedContent.content.length > 0
-                            ? result.data?.chatResult.relatedContent
-                            : undefined,
-                    toolUses: Object.keys(result.data?.toolUses!)
-                        .filter(k => result.data!.toolUses[k].stop)
-                        .map(k => ({
-                            toolUseId: result.data!.toolUses[k].toolUseId,
-                            name: result.data!.toolUses[k].name,
-                            input: result.data!.toolUses[k].input,
-                        })),
-                    shouldDisplayMessage: shouldDisplayMessage,
-                })
+                if (this.#isPromptCanceled(token, session, promptId)) {
+                    this.#debug('Skipping adding assistant message to history - cancelled by user')
+                } else {
+                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                        body: result.data?.chatResult.body,
+                        type: 'answer' as any,
+                        codeReference: result.data.chatResult.codeReference,
+                        relatedContent:
+                            result.data.chatResult.relatedContent?.content &&
+                            result.data.chatResult.relatedContent.content.length > 0
+                                ? result.data?.chatResult.relatedContent
+                                : undefined,
+                        toolUses: Object.keys(result.data?.toolUses!)
+                            .filter(k => result.data!.toolUses[k].stop)
+                            .map(k => ({
+                                toolUseId: result.data!.toolUses[k].toolUseId,
+                                name: result.data!.toolUses[k].name,
+                                input: result.data!.toolUses[k].input,
+                            })),
+                        shouldDisplayMessage: shouldDisplayMessage,
+                    })
+                }
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
             }
@@ -718,12 +758,24 @@ export class AgenticChatController implements ChatHandlers {
 
             if (pendingToolUses.length === 0) {
                 // No more tool uses, we're done
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    'AgenticChat',
+                    undefined,
+                    undefined,
+                    'Succeeded',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    undefined,
+                    session.pairProgrammingMode
+                )
                 finalResult = result
                 break
             }
 
             let content = ''
             let toolResults: ToolResult[]
+            session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
                 toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
@@ -731,7 +783,23 @@ export class AgenticChatController implements ChatHandlers {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                     shouldDisplayMessage = false
                 }
-                metric.setDimension('cwsprChatConversationType', 'AgenticChatWithToolUse')
+                const conversationType = session.getConversationType() as ChatConversationType
+                metric.setDimension('cwsprChatConversationType', conversationType)
+                metric.setDimension('requestIds', metric.metric.requestIds)
+                const toolNames = this.#toolUseLatencies.map(item => item.toolName)
+                const toolUseIds = this.#toolUseLatencies.map(item => item.toolUseId)
+                const latency = this.#toolUseLatencies.map(item => item.latency)
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    'AgenticChatWithToolUse',
+                    toolNames ?? undefined,
+                    toolUseIds ?? undefined,
+                    'Succeeded',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    latency,
+                    session.pairProgrammingMode
+                )
             } else {
                 // Send an error card to UI?
                 toolResults = pendingToolUses.map(toolUse => ({
@@ -739,11 +807,26 @@ export class AgenticChatController implements ChatHandlers {
                     status: ToolResultStatus.ERROR,
                     content: [{ text: result.error }],
                 }))
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    'AgenticChatWithToolUse',
+                    undefined,
+                    undefined,
+                    'Failed',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    undefined,
+                    session.pairProgrammingMode
+                )
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
                     content =
                         'Your toolUse input is incomplete, try again. If the error happens consistently, break this task down into multiple tool uses with smaller input. Do not apologize.'
                     shouldDisplayMessage = false
                 }
+            }
+            if (result.success && this.#toolUseLatencies.length > 0) {
+                // Clear latencies for the next LLM call
+                this.#toolUseLatencies = []
             }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
@@ -762,17 +845,21 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
-     * performs pre-validation of request before sending to backend service.
+     * performs truncation of request before sending to backend service.
      * @param request
      */
-    #validateRequest(request: GenerateAssistantResponseCommandInput) {
+    #truncateRequest(request: GenerateAssistantResponseCommandInput) {
         // Note: these logs are very noisy, but contain information redacted on the backend.
         this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
+        if (!request?.conversationState?.currentMessage?.userInputMessage) {
+            return
+        }
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
         if (message && message.length > generateAssistantResponseInputLimit) {
-            throw new AgenticChatError(
-                `Message is too long with ${message.length} characters, max is ${generateAssistantResponseInputLimit}`,
-                'PromptCharacterLimit'
+            this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
+            request.conversationState.currentMessage.userInputMessage.content = message.substring(
+                0,
+                generateAssistantResponseInputLimit
             )
         }
     }
@@ -823,23 +910,35 @@ export class AgenticChatController implements ChatHandlers {
             if (!toolUse.name || !toolUse.toolUseId) continue
             session.toolUseLookup.set(toolUse.toolUseId, toolUse)
 
+            // Record the start time for this tool use for latency calculation
+            if (toolUse.toolUseId) {
+                this.#toolUseStartTimes[toolUse.toolUseId] = Date.now()
+            }
+
             try {
                 // TODO: Can we move this check in the event parser before the stream completes?
                 const availableToolNames = this.#getTools(session).map(tool => tool.toolSpecification.name)
                 if (!availableToolNames.includes(toolUse.name)) {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
                 }
+
+                // remove progress UI
+                await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
+
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
-                const { explanation } = toolUse.input as unknown as ExplanatoryParams
-                if (explanation) {
-                    await chatResultStream.writeResultBlock({
-                        type: 'directive',
-                        messageId: toolUse.toolUseId + '_explanation',
-                        body: explanation,
-                    })
+                // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
+                if (toolUse.name !== 'fsWrite') {
+                    const { explanation } = toolUse.input as unknown as ExplanatoryParams
+                    if (explanation) {
+                        await chatResultStream.writeResultBlock({
+                            type: 'directive',
+                            messageId: toolUse.toolUseId + '_explanation',
+                            body: explanation,
+                        })
+                    }
                 }
                 switch (toolUse.name) {
                     case 'fsRead':
@@ -878,13 +977,23 @@ export class AgenticChatController implements ChatHandlers {
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
                             if (isExecuteBash) {
-                                this.#telemetryController.emitInteractWithAgenticChat('GeneratedCommand', tabId)
+                                this.#telemetryController.emitInteractWithAgenticChat(
+                                    'GeneratedCommand',
+                                    tabId,
+                                    session.pairProgrammingMode,
+                                    session.getConversationType()
+                                )
                             }
                             if (requiresAcceptance) {
                                 await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
                             }
                             if (isExecuteBash) {
-                                this.#telemetryController.emitInteractWithAgenticChat('RunCommand', tabId)
+                                this.#telemetryController.emitInteractWithAgenticChat(
+                                    'RunCommand',
+                                    tabId,
+                                    session.pairProgrammingMode,
+                                    session.getConversationType()
+                                )
                             }
                         }
                         break
@@ -988,7 +1097,12 @@ export class AgenticChatController implements ChatHandlers {
                                 fileChange: { ...cachedToolUse.fileChange, after: doc?.getText() },
                             })
                         }
-                        this.#telemetryController.emitInteractWithAgenticChat('GeneratedDiff', tabId)
+                        this.#telemetryController.emitInteractWithAgenticChat(
+                            'GeneratedDiff',
+                            tabId,
+                            session.pairProgrammingMode,
+                            session.getConversationType()
+                        )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     // — DEFAULT ⇒ MCP tools
@@ -1015,11 +1129,28 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 this.#updateUndoAllState(toolUse, session)
 
-                if (toolUse.name) {
+                if (toolUse.name && toolUse.toolUseId) {
+                    // Calculate latency if we have a start time for this tool use
+                    let latency: number | undefined = undefined
+                    if (this.#toolUseStartTimes[toolUse.toolUseId]) {
+                        latency = Date.now() - this.#toolUseStartTimes[toolUse.toolUseId]
+                        delete this.#toolUseStartTimes[toolUse.toolUseId]
+
+                        if (latency !== undefined) {
+                            this.#toolUseLatencies.push({
+                                toolName: toolUse.name,
+                                toolUseId: toolUse.toolUseId,
+                                latency: latency,
+                            })
+                        }
+                    }
+
                     this.#telemetryController.emitToolUseSuggested(
                         toolUse,
                         session.conversationId ?? '',
-                        this.#features.runtime.serverInfo.version ?? ''
+                        this.#features.runtime.serverInfo.version ?? '',
+                        latency,
+                        session.pairProgrammingMode
                     )
                 }
             } catch (err) {
@@ -1052,6 +1183,36 @@ export class AgenticChatController implements ChatHandlers {
                             content: [{ text: 'Command stopped by user' }],
                         })
                         continue
+                    }
+                }
+                // display fs write failure status in the UX of that file card
+                if (toolUse.name === 'fsWrite' && toolUse.toolUseId) {
+                    const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
+                    const fsParam = toolUse.input as unknown as FsWriteParams
+                    const fileName = path.basename(fsParam.path)
+                    const errorResult = {
+                        type: 'tool',
+                        messageId: toolUse.toolUseId,
+                        header: {
+                            fileList: {
+                                filePaths: [fileName],
+                                details: {
+                                    [fileName]: {
+                                        description: fsParam.path,
+                                    },
+                                },
+                            },
+                            status: {
+                                status: 'error',
+                                icon: 'error',
+                                text: 'Error',
+                            },
+                        },
+                    } as ChatResult
+                    if (existingCard) {
+                        await chatResultStream.overwriteResultBlock(errorResult, existingCard)
+                    } else {
+                        await chatResultStream.writeResultBlock(errorResult)
                     }
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
@@ -1144,12 +1305,16 @@ export class AgenticChatController implements ChatHandlers {
      * @param err
      * @returns
      */
-    isUserAction(err: unknown, token?: CancellationToken): boolean {
+    isUserAction(err: unknown, token?: CancellationToken, session?: ChatSessionService): boolean {
         return (
             CancellationError.isUserCancelled(err) ||
             err instanceof ToolApprovalException ||
             (token?.isCancellationRequested ?? false)
         )
+    }
+
+    #isPromptCanceled(token: CancellationToken | undefined, session: ChatSessionService, promptId: string): boolean {
+        return token?.isCancellationRequested === true || !session.isCurrentPrompt(promptId)
     }
 
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
@@ -1685,6 +1850,7 @@ export class AgenticChatController implements ChatHandlers {
 
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+        metric.setDimension('enabled', session.pairProgrammingMode)
         const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
         if (profileArn) {
             this.#telemetryService.updateProfileArn(profileArn)
@@ -1728,7 +1894,8 @@ export class AgenticChatController implements ChatHandlers {
         err: any,
         errorMessageId: string,
         tabId: string,
-        metric: Metric<CombinedConversationEvent>
+        metric: Metric<CombinedConversationEvent>,
+        agenticCodingMode: boolean
     ): ChatResult | ResponseError<ChatResult> {
         const errorMessage = getErrorMessage(err)
         const requestID = getRequestID(err) ?? ''
@@ -1738,13 +1905,20 @@ export class AgenticChatController implements ChatHandlers {
         // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
         if (err.code && err.code in unactionableErrorCodes) {
             const customErrMessage = unactionableErrorCodes[err.code as keyof typeof unactionableErrorCodes]
-            this.#telemetryController.emitMessageResponseError(tabId, metric.metric, requestID, customErrMessage)
+            this.#telemetryController.emitMessageResponseError(
+                tabId,
+                metric.metric,
+                requestID,
+                customErrMessage,
+                agenticCodingMode
+            )
         } else {
             this.#telemetryController.emitMessageResponseError(
                 tabId,
                 metric.metric,
                 requestID,
-                errorMessage ?? genericErrorMsg
+                errorMessage ?? genericErrorMsg,
+                agenticCodingMode
             )
         }
 
@@ -1855,7 +2029,9 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async onInlineChatResult(handler: InlineChatResultParams) {}
+    async onInlineChatResult(params: InlineChatResultParams) {
+        await this.#telemetryService.emitInlineChatResultLog(params)
+    }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
         // Implementation based on https://github.com/aws/aws-toolkit-vscode/blob/1814cc84228d4bf20270574c5980b91b227f31cf/packages/core/src/amazonq/commons/controllers/contentController.ts#L38
@@ -2208,6 +2384,61 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async #showToolUseIntermediateResult(
+        data: AgenticChatResultWithMetadata,
+        chatResultStream: AgenticChatResultStream,
+        streamWriter: ResultStreamWriter
+    ) {
+        // extract the key value from incomplete JSON response stream
+        function extractKey(incompleteJson: string, key: string): string | undefined {
+            const pattern = new RegExp(`"${key}":\\s*"([^"]*)"`, 'g')
+            const match = pattern.exec(incompleteJson)
+            return match?.[1]
+        }
+        const toolUses = Object.values(data.toolUses)
+        for (const toolUse of toolUses) {
+            if (toolUse.name === 'fsWrite' && typeof toolUse.input === 'string') {
+                const filepath = extractKey(toolUse.input, 'path')
+                const msgId = progressPrefix + toolUse.toolUseId
+                // render fs write UI as soon as fs write starts
+                if (filepath && !chatResultStream.hasMessage(msgId)) {
+                    const fileName = path.basename(filepath)
+                    await streamWriter.close()
+                    await chatResultStream.writeResultBlock({
+                        type: 'tool',
+                        messageId: msgId,
+                        header: {
+                            fileList: {
+                                filePaths: [fileName],
+                                details: {
+                                    [fileName]: {
+                                        description: filepath,
+                                    },
+                                },
+                            },
+                            status: {
+                                status: 'info',
+                                icon: 'progress',
+                                text: '',
+                            },
+                        },
+                    })
+                }
+                // render the tool use explanatory as soon as this is received for fsWrite
+                const explanation = extractKey(toolUse.input, 'explanation')
+                const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
+                if (explanation && !chatResultStream.hasMessage(messageId)) {
+                    await streamWriter.close()
+                    await chatResultStream.writeResultBlock({
+                        type: 'directive',
+                        messageId: messageId,
+                        body: explanation,
+                    })
+                }
+            }
+        }
+    }
+
     async #processGenerateAssistantResponseResponse(
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
@@ -2256,6 +2487,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseStartTimes,
                     toolUseLoadingTimeouts
                 )
+                await this.#showToolUseIntermediateResult(result.data, chatResultStream, streamWriter)
             }
         }
         await streamWriter.close()
@@ -2285,6 +2517,10 @@ export class AgenticChatController implements ChatHandlers {
         if (!toolUseEvent.stop && toolUseId) {
             if (!toolUseStartTimes[toolUseId]) {
                 toolUseStartTimes[toolUseId] = Date.now()
+                // Also record in the class-level toolUseStartTimes for latency calculation
+                if (!this.#toolUseStartTimes[toolUseId]) {
+                    this.#toolUseStartTimes[toolUseId] = Date.now()
+                }
                 this.#debug(`ToolUseEvent ${toolUseId} started`)
                 toolUseLoadingTimeouts[toolUseId] = setTimeout(async () => {
                     this.#debug(

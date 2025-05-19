@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.10](https://github.com/aws/language-servers/compare/chat-client/v0.1.9...chat-client/v0.1.10) (2025-05-14)
+
+
+### Features
+
+* **amazonq:** telemetry for chat history and export ([#1314](https://github.com/aws/language-servers/issues/1314)) ([aaa08a4](https://github.com/aws/language-servers/commit/aaa08a4f29ac34f85ec9badf975d6e2e8d114627))
+
+
+### Bug Fixes
+
+* **amazonq:** 500k max input limit in user input box. Align payload prompt with user typed prompt. ([#1325](https://github.com/aws/language-servers/issues/1325)) ([3338cc1](https://github.com/aws/language-servers/commit/3338cc1b5dcfd375385d7db2fa693870687dba8a))
+* open initial tab using mynahUI defaults instead of waiting for ChatOptions ([#1322](https://github.com/aws/language-servers/issues/1322)) ([87178a5](https://github.com/aws/language-servers/commit/87178a554f23decb45fbdf26f067d0d9801f91a0))
+* remove @ mention in placeholder q chat text if agentic mode not available ([#1311](https://github.com/aws/language-servers/issues/1311)) ([28f84fc](https://github.com/aws/language-servers/commit/28f84fc82fd5e55ec1cdc61d1bcca6e4e447b12f))
+* stop buttom work expected ([#1307](https://github.com/aws/language-servers/issues/1307)) ([06c752e](https://github.com/aws/language-servers/commit/06c752e1dee106be73daa73f336213aad5413e67))
+* welcome card shows everytime ([#1332](https://github.com/aws/language-servers/issues/1332)) ([e030bdd](https://github.com/aws/language-servers/commit/e030bdd2f0daf61c062f64baa92563b539746e71))
+
 ## [0.1.9](https://github.com/aws/language-servers/compare/chat-client/v0.1.8...chat-client/v0.1.9) (2025-05-09)
 
 
@@ -177,8 +193,8 @@
 
 ### Changed
 
-- Update `@aws/chat-client-ui-types` to 0.1.0
-- Update `@aws/language-server-runtimes-types` to 0.1.0
+- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/language-server-runtimes-types` to 0.1.29
 - Shortened legal text in the footer
 
 ## [0.0.9] - 2024-11-20
@@ -202,8 +218,8 @@
 ### Changed
 
 - Changed legal text in the footer
-- Update `@aws/chat-client-ui-types` to 0.0.8
-- Update `@aws/language-server-runtimes-types` to to 0.0.7
+- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/language-server-runtimes-types` to 0.1.29
 - Upgraded dependency: `@aws/mynah-ui` from 4.15.11 to 4.18.0:
     - Inline code elements now wrap onto new lines
     - Send button no longer shifts out of the window when horizontally filling the prompt input without spaces (now it wraps)

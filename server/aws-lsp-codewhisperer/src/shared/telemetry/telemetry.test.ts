@@ -124,6 +124,7 @@ class HelloWorld
                 {
                     percentage: codePercentage,
                     successCount: 1,
+                    credentialStartUrl: undefined,
                 }
             )
         })

@@ -118,6 +118,8 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
         codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
         codewhispererCustomizationArn: session.customizationArn,
+        result: 'Succeeded',
+        codewhispererImportRecommendationEnabled: session.includeImportsWithSuggestions,
     }
     telemetry.emitMetric({
         name: 'codewhisperer_serviceInvocation',
@@ -147,6 +149,9 @@ const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhisper
         codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
         codewhispererCustomizationArn: session.customizationArn,
+        codewhispererImportRecommendationEnabled: session.includeImportsWithSuggestions,
+        result: 'Failed',
+        traceId: 'notSet',
     }
 
     telemetry.emitMetric({
@@ -172,6 +177,8 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
         codewhispererLanguage: session.language,
         credentialStartUrl: session.credentialStartUrl,
         codewhispererCustomizationArn: session.customizationArn,
+        result: 'Succeeded',
+        passive: true,
     }
 
     telemetry.emitMetric({
@@ -255,6 +262,9 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
     requestId: string
     languageId: CodewhispererLanguage
     customizationArn?: string
+    completionType: string
+    triggerType: string
+    credentialStartUrl?: string | undefined
 }
 
 export const CodewhispererServerFactory =
@@ -461,6 +471,8 @@ export const CodewhispererServerFactory =
             codePercentageTracker.countInvocation(session.language)
 
             userWrittenCodeTracker?.recordUsageCount(session.language)
+            session.includeImportsWithSuggestions =
+                amazonQServiceManager.getConfiguration().includeImportsWithSuggestions
 
             if (isNewSession) {
                 // Populate the session with information from codewhisperer response
@@ -495,7 +507,7 @@ export const CodewhispererServerFactory =
             sessionManager.activateSession(session)
 
             // Process suggestions to apply Empty or Filter filters
-            const filteredSuggestions = session.suggestions
+            const filteredSuggestions = suggestionResponse.suggestions
                 // Empty suggestion filter
                 .filter(suggestion => {
                     if (suggestion.content === '') {
@@ -546,6 +558,12 @@ export const CodewhispererServerFactory =
                 if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
             })
 
+            session.codewhispererSuggestionImportCount =
+                session.codewhispererSuggestionImportCount +
+                suggestionsWithRightContext.reduce((total, suggestion) => {
+                    return total + (suggestion.mostRelevantMissingImports?.length || 0)
+                }, 0)
+
             // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
             // close session and return empty results
             if (suggestionsWithRightContext.length === 0 && !suggestionResponse.responseContext.nextToken) {
@@ -593,6 +611,9 @@ export const CodewhispererServerFactory =
                 startPosition: session.startPosition,
                 endPosition: endPosition,
                 customizationArn: session.customizationArn,
+                completionType: getCompletionType(acceptedSuggestion),
+                triggerType: session.triggerType,
+                credentialStartUrl: session.credentialStartUrl,
             })
         }
 
@@ -686,16 +707,23 @@ export const CodewhispererServerFactory =
                 workspace,
                 logging,
                 async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
-                    await telemetryService.emitUserModificationEvent({
-                        sessionId: entry.sessionId,
-                        requestId: entry.requestId,
-                        languageId: entry.languageId,
-                        customizationArn: entry.customizationArn,
-                        timestamp: new Date(),
-                        acceptedCharacterCount: entry.originalString.length,
-                        modificationPercentage: percentage,
-                        unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
-                    })
+                    await telemetryService.emitUserModificationEvent(
+                        {
+                            sessionId: entry.sessionId,
+                            requestId: entry.requestId,
+                            languageId: entry.languageId,
+                            customizationArn: entry.customizationArn,
+                            timestamp: new Date(),
+                            acceptedCharacterCount: entry.originalString.length,
+                            modificationPercentage: percentage,
+                            unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
+                        },
+                        {
+                            completionType: entry.completionType,
+                            triggerType: entry.triggerType,
+                            credentialStartUrl: entry.credentialStartUrl,
+                        }
+                    )
                 }
             )
 

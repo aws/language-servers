@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.8](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.7...lsp-antlr4/v0.1.8) (2025-05-14)
+
+
+### Bug Fixes
+
+* bump runtimes and fix broken test ([#1323](https://github.com/aws/language-servers/issues/1323)) ([7d1a7b9](https://github.com/aws/language-servers/commit/7d1a7b9700ee2cc154dfe357ebbb62597d3f1582))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.7 to ^0.0.8
+
 ## [0.1.7](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.6...lsp-antlr4/v0.1.7) (2025-05-09)
 
 
@@ -65,7 +79,7 @@
 
 ### Bug Fixes
 
-* update @aws/language-server-runtimes to 0.2.48 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
+* update @aws/language-server-runtimes to 0.2.83 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
 
 ## [0.1.1](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.0...lsp-antlr4/v0.1.1) (2025-03-18)
 

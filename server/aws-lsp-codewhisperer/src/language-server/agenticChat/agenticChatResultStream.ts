@@ -44,6 +44,8 @@ interface FileDetailsWithPath extends FileDetails {
 
 type OperationType = 'read' | 'write' | 'listDir'
 
+export const progressPrefix = 'progress_'
+
 interface FileOperation {
     type: OperationType
     filePaths: FileDetailsWithPath[]
@@ -199,6 +201,29 @@ export class AgenticChatResultStream {
      */
     async removeResultBlock(messageId: string) {
         this.#state.chatResultBlocks = this.#state.chatResultBlocks.filter(block => block.messageId !== messageId)
+    }
+
+    async removeResultBlockAndUpdateUI(messageId: string) {
+        if (this.hasMessage(messageId)) {
+            const blockId = this.getMessageBlockId(messageId)
+            if (blockId !== undefined) {
+                await this.overwriteResultBlock({ body: '', messageId: messageId }, blockId)
+            }
+            await this.removeResultBlock(messageId)
+        }
+    }
+
+    hasMessage(messageId: string): boolean {
+        return this.#state.chatResultBlocks.some(block => block.messageId === messageId)
+    }
+
+    getMessageBlockId(messageId: string): number | undefined {
+        for (const [i, block] of this.#state.chatResultBlocks.entries()) {
+            if (block.messageId === messageId) {
+                return i
+            }
+        }
+        return undefined
     }
 
     getResultStreamWriter(): ResultStreamWriter {
