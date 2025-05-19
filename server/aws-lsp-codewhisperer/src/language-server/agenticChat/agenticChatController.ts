@@ -7,7 +7,6 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import {
     ChatTriggerType,
-    CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
@@ -114,7 +113,6 @@ import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
     genericErrorMsg,
-    maxAgentLoopIterations,
     loadingThresholdMs,
     generateAssistantResponseInputLimit,
     outputLimitExceedsPartialMsg,
@@ -558,7 +556,7 @@ export class AgenticChatController implements ChatHandlers {
         let shouldDisplayMessage = true
         metric.recordStart()
 
-        while (iterationCount < maxAgentLoopIterations) {
+        while (true) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
@@ -764,10 +762,6 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (iterationCount >= maxAgentLoopIterations) {
-            throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
-        }
-
         return (
             finalResult || {
                 success: false,
@@ -903,7 +897,17 @@ export class AgenticChatController implements ChatHandlers {
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
-
+                // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
+                if (toolUse.name !== 'fsWrite') {
+                    const { explanation } = toolUse.input as unknown as ExplanatoryParams
+                    if (explanation) {
+                        await chatResultStream.writeResultBlock({
+                            type: 'directive',
+                            messageId: toolUse.toolUseId + '_explanation',
+                            body: explanation,
+                        })
+                    }
+                }
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
@@ -2335,10 +2339,7 @@ export class AgenticChatController implements ChatHandlers {
                         },
                     })
                 }
-            }
-
-            // render the tool use explanatory as soon as this is received for all tool uses.
-            if (typeof toolUse.input === 'string') {
+                // render the tool use explanatory as soon as this is received for fsWrite
                 const explanation = extractKey(toolUse.input, 'explanation')
                 const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
                 if (explanation && !chatResultStream.hasMessage(messageId)) {
