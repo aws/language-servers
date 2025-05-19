@@ -432,8 +432,8 @@ export class ChatDatabase {
         // Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
         const isValid = this.validateNewMessageToolResults(allMessages, newUserMessage)
 
-        //  Make sure max characters ≤ MaxConversationHistoryCharacters - newUserMessageCharacterCount
-        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage, remainingCharacterBudget)
+        //  Make sure max characters ≤ remaining Character Budget
+        allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
 
         const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
 
@@ -502,18 +502,11 @@ export class ChatDatabase {
         }
     }
 
-    private trimMessagesToMaxLength(
-        messages: Message[],
-        newUserMessage: ChatMessage,
-        remainingCharacterBudget: number
-    ): Message[] {
+    private trimMessagesToMaxLength(messages: Message[], remainingCharacterBudget: number): Message[] {
         let totalCharacters = this.calculateHistoryCharacterCount(messages)
         this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
-        const currentUserInputCharacterCount = this.calculateCurrentMessageCharacterCount(
-            chatMessageToMessage(newUserMessage)
-        )
-        this.#features.logging.debug(`Current user message characters: ${currentUserInputCharacterCount}`)
-        const maxHistoryCharacterSize = Math.max(0, remainingCharacterBudget - currentUserInputCharacterCount)
+        this.#features.logging.debug(`Current remaining character budget: ${remainingCharacterBudget}`)
+        const maxHistoryCharacterSize = Math.max(0, remainingCharacterBudget)
         while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
             // Find the next valid user message to start from
             const indexToTrim = this.findIndexToTrim(messages)
