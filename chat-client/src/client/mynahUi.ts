@@ -119,6 +119,7 @@ export const handleChatPrompt = async (
             promptInputDisabledState: false,
         })
 
+        // Add a slight delay to make sure the stop message would render before the new prompt
         await new Promise(resolve => setTimeout(resolve, 50))
     }
 
@@ -912,8 +913,6 @@ export const createMynahUi = (
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
-        // Adding this conditional check to show the stop message in the center.
-        const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
         // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
         const shouldMute = message.header?.status?.text !== undefined
@@ -926,7 +925,6 @@ export const createMynahUi = (
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
-            contentHorizontalAlignment,
             wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'
