@@ -109,8 +109,9 @@ export class ChatDatabase {
      * Generates an identifier for the open workspace folder(s).
      */
     getWorkspaceIdentifier() {
-        let clientParams = this.#features.lsp.getClientInitializeParams()
-        let workspaceFolderPaths = clientParams?.workspaceFolders?.map(({ uri }) => new URL(uri).pathname)
+        let workspaceFolderPaths = this.#features.workspace
+            .getAllWorkspaceFolders()
+            ?.map(({ uri }) => new URL(uri).pathname)
         // Case 1: Multi-root workspace (unsaved)
         if (workspaceFolderPaths && workspaceFolderPaths.length > 1) {
             // Create hash from all folder paths combined

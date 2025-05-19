@@ -76,7 +76,7 @@ export class CodeSearch {
         } else {
             // Handle optional path parameter
             // Use current workspace folder as default if path is not provided
-            const workspaceFolders = getWorkspaceFolderPaths(this.lsp)
+            const workspaceFolders = getWorkspaceFolderPaths(this.workspace)
             if (workspaceFolders && workspaceFolders.length !== 0) {
                 this.logging.debug(`Using default workspace folder: ${workspaceFolders[0]}`)
                 searchPath = workspaceFolders[0]

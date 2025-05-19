@@ -102,9 +102,9 @@ export function getEntryPath(entry: Dirent) {
     return path.join(entry.parentPath, entry.name)
 }
 
-// TODO: port this to runtimes?
-export function getWorkspaceFolderPaths(lsp: Features['lsp']): string[] {
-    return lsp.getClientInitializeParams()?.workspaceFolders?.map(({ uri }) => URI.parse(uri).fsPath) ?? []
+export function getWorkspaceFolderPaths(workspace: Features['workspace']): string[] {
+    const workspaceFolders = workspace.getAllWorkspaceFolders()
+    return workspaceFolders?.map(({ uri }) => URI.parse(uri).fsPath) ?? []
 }
 
 export function isParentFolder(parentPath: string, childPath: string): boolean {
