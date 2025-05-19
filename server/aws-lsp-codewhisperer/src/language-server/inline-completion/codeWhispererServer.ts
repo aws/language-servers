@@ -592,15 +592,21 @@ export const CodewhispererServerFactory =
             logging.log('Recommendation failure: ' + error)
             emitServiceInvocationFailure(telemetry, session, error)
 
+            sessionManager.closeSession(session)
+
             if (error instanceof AmazonQError) {
-                throw error
+                throw new ResponseError(
+                    LSPErrorCodes.RequestFailed,
+                    error.message || 'Error processing suggestion requests',
+                    {
+                        awsErrorCode: error.code,
+                    }
+                )
             }
 
             if (hasConnectionExpired(error)) {
                 throw new AmazonQServiceConnectionExpiredError(getErrorMessage(error))
             }
-
-            sessionManager.closeSession(session)
 
             return EMPTY_RESULT
         }

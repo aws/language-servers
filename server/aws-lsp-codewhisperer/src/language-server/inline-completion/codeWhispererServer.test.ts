@@ -6,6 +6,7 @@ import {
     MetricEvent,
     Position,
     InitializeParams,
+    ResponseError,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -53,7 +54,7 @@ import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../sha
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
-import { AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
+import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -636,6 +637,22 @@ describe('CodeWhisperer Server', () => {
                 )
             // Throws expected error
             assert.rejects(promise, AmazonQServiceConnectionExpiredError)
+        })
+
+        it('throws ResponseError if error is AmazonQError', async () => {
+            service.generateSuggestions.returns(Promise.reject(new AmazonQError('test', '500')))
+
+            const promise = async () =>
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+            // Throws expected error
+            assert.rejects(promise, ResponseError)
         })
 
         describe('Supplemental Context', () => {
