@@ -1248,6 +1248,8 @@ export class AgenticChatController implements ChatHandlers {
                 return 'This command may modify your code and/or files.'
             case CommandCategory.Destructive:
                 return 'This command may cause significant data loss or damage.'
+            case CommandCategory.ReadOnly:
+                return 'This command is read-only'
             default:
                 return undefined
         }
@@ -1484,7 +1486,7 @@ export class AgenticChatController implements ChatHandlers {
                                       ? 'warning'
                                       : commandCategory === CommandCategory.Mutate
                                         ? 'info'
-                                        : 'none',
+                                        : 'eye',
                               status:
                                   commandCategory === CommandCategory.Destructive
                                       ? 'warning'
@@ -1496,7 +1498,11 @@ export class AgenticChatController implements ChatHandlers {
                                   commandCategory ?? CommandCategory.ReadOnly
                               ),
                           }
-                        : {},
+                        : {
+                              icon: 'eye',
+                              position: 'left',
+                              description: this.#getCommandCategoryDescription(CommandCategory.ReadOnly),
+                          },
                     body: 'shell',
                     buttons,
                 }
