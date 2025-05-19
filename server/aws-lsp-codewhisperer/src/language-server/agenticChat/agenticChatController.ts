@@ -152,6 +152,7 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
+import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -651,25 +652,26 @@ export class AgenticChatController implements ChatHandlers {
                 )
             }
             const remainingCharacterBudget = this.truncateRequest(currentRequestInput)
-            //  Fix the history to maintain invariants
+            //  Get and process the messages from history DB to maintain invariants for service requests
+            let messages: DbMessage[] = []
             if (currentMessage) {
-                const isHistoryValid = this.#chatHistoryDb.fixAndValidateHistory(
+                // Get preprocessed history messages from DB with size and number of character limits
+                let messages = this.#chatHistoryDb.getPreprocessedRequestHistory(
                     tabId,
                     currentMessage,
-                    conversationIdentifier ?? '',
                     remainingCharacterBudget
                 )
-                if (!isHistoryValid) {
+                if (!this.#chatHistoryDb.validateAndFixNewMessageToolResults(messages, currentMessage)) {
                     this.#features.logging.warn('Skipping request due to invalid tool result/tool use relationship')
                     break
                 }
             }
 
-            //  Retrieve the history from DB; Do not include chatHistory for requests going to Mynah Backend
+            //  Do not include chatHistory for requests going to Mynah Backend
             currentRequestInput.conversationState!.history = currentRequestInput.conversationState?.currentMessage
                 ?.userInputMessage?.userIntent
                 ? []
-                : this.#chatHistoryDb.getMessages(tabId)
+                : messages.map(msg => messageToStreamingMessage(msg))
 
             // Add loading message before making the request
             const loadingMessageId = `loading-${uuid()}`
@@ -702,6 +704,7 @@ export class AgenticChatController implements ChatHandlers {
                         origin: currentMessage.userInputMessage?.origin,
                         userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
                         shouldDisplayMessage: shouldDisplayMessage,
+                        timestamp: new Date(),
                     })
                 }
             }
@@ -728,6 +731,7 @@ export class AgenticChatController implements ChatHandlers {
                         body: 'Response timed out - message took too long to generate',
                         type: 'answer',
                         shouldDisplayMessage: false,
+                        timestamp: new Date(),
                     })
                 }
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
@@ -759,6 +763,13 @@ export class AgenticChatController implements ChatHandlers {
                                 input: result.data!.toolUses[k].input,
                             })),
                         shouldDisplayMessage: shouldDisplayMessage,
+                        timestamp: new Date(),
+                    })
+
+                    // Async process: Trimming history asynchronously if the size exceeds the max
+                    // This process will take several seconds
+                    this.#chatHistoryDb.trimHistoryToMaxSize().catch(err => {
+                        this.#features.logging.error(`Error trimming history: ${err}`)
                     })
                 }
             } else {
