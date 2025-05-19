@@ -836,20 +836,6 @@ export class AgenticChatController implements ChatHandlers {
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
                 truncatedCurrentDocument
         }
-
-        // 4. try to fit chat history
-        let truncatedChatHistory = []
-        if (request.conversationState.history) {
-            for (const history of request.conversationState.history) {
-                // use json strified string length to provide a conservative estimate
-                const historyLength = JSON.stringify(history).toString().length
-                if (remainingCharacterBudget > historyLength) {
-                    truncatedChatHistory.push(history)
-                    remainingCharacterBudget = remainingCharacterBudget - historyLength
-                }
-            }
-            request.conversationState.history = truncatedChatHistory
-        }
     }
 
     /**

@@ -1345,7 +1345,7 @@ describe('AgenticChatController', () => {
                     ?.relevantDocuments?.length || 0,
                 0
             )
-            assert.strictEqual(request.conversationState?.history?.length || 0, 0)
+            assert.strictEqual(request.conversationState?.history?.length || 0, 1)
         })
 
         it('should not modify user input message if within limit', () => {
@@ -1416,7 +1416,7 @@ describe('AgenticChatController', () => {
                     ?.relevantDocuments?.length || 0,
                 2
             )
-            assert.strictEqual(request.conversationState?.history?.length || 0, 0)
+            assert.strictEqual(request.conversationState?.history?.length || 0, 1)
         })
         it('should truncate current editor if combined length exceeds remaining budget', () => {
             const request: GenerateAssistantResponseCommandInput = {
@@ -1476,64 +1476,7 @@ describe('AgenticChatController', () => {
                     ?.relevantDocuments?.length || 0,
                 2
             )
-            assert.strictEqual(request.conversationState?.history?.length || 0, 2)
-        })
-
-        it('should truncate chat history if combined length exceeds remaining budget', () => {
-            const request: GenerateAssistantResponseCommandInput = {
-                conversationState: {
-                    currentMessage: {
-                        userInputMessage: {
-                            content: 'a'.repeat(400_000),
-                            userInputMessageContext: {
-                                editorState: {
-                                    relevantDocuments: [
-                                        {
-                                            relativeFilePath: '',
-                                            text: 'a'.repeat(100),
-                                        },
-                                    ],
-                                    document: {
-                                        relativeFilePath: '',
-                                        text: 'a'.repeat(10_000),
-                                    },
-                                },
-                            },
-                        },
-                    },
-                    history: [
-                        {
-                            userInputMessage: {
-                                content: 'a'.repeat(100),
-                            },
-                        },
-                        {
-                            userInputMessage: {
-                                content: 'a'.repeat(100),
-                            },
-                        },
-                        {
-                            userInputMessage: {
-                                content: 'a'.repeat(100_000),
-                            },
-                        },
-                    ],
-                    chatTriggerType: undefined,
-                },
-            }
-            chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
-            assert.strictEqual(
-                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
-                    ?.document?.text?.length || 0,
-                10_000
-            )
-            assert.strictEqual(
-                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
-                    ?.relevantDocuments?.length || 0,
-                1
-            )
-            assert.strictEqual(request.conversationState?.history?.length || 0, 2)
+            assert.strictEqual(request.conversationState?.history?.length || 0, 3)
         })
     })
 
