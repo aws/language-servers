@@ -1192,12 +1192,7 @@ ${params.message}`,
     }
 
     const mcpServerClick = (params: McpServerClickResult) => {
-        if (!params.success) {
-            mynahUi.notify({
-                content: `Failed to open the MCP server`,
-                type: NotificationType.ERROR,
-            })
-        }
+        // TODO: Add "add config" implementation here.
     }
 
     const getSerializedChat = (requestId: string, params: GetSerializedChatParams) => {
