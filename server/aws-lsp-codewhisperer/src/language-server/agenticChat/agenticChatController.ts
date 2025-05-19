@@ -573,13 +573,14 @@ export class AgenticChatController implements ChatHandlers {
                     `Warning: ${!currentMessage ? 'currentMessage' : ''}${!currentMessage && !conversationId ? ' and ' : ''}${!conversationId ? 'conversationIdentifier' : ''} is empty in agent loop iteration ${iterationCount}.`
                 )
             }
-
+            const remainingCharacterBudget = this.truncateRequest(currentRequestInput)
             //  Fix the history to maintain invariants
             if (currentMessage) {
                 const isHistoryValid = this.#chatHistoryDb.fixAndValidateHistory(
                     tabId,
                     currentMessage,
-                    conversationIdentifier ?? ''
+                    conversationIdentifier ?? '',
+                    remainingCharacterBudget
                 )
                 if (!isHistoryValid) {
                     this.#features.logging.warn('Skipping request due to invalid tool result/tool use relationship')
@@ -598,7 +599,7 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.truncateRequest(currentRequestInput)
+
             const response = await session.generateAssistantResponse(currentRequestInput)
 
             if (response.$metadata.requestId) {
@@ -775,14 +776,14 @@ export class AgenticChatController implements ChatHandlers {
      * performs truncation of request before sending to backend service.
      * @param request
      */
-    truncateRequest(request: GenerateAssistantResponseCommandInput) {
+    truncateRequest(request: GenerateAssistantResponseCommandInput): number {
+        let remainingCharacterBudget = generateAssistantResponseInputLimit
         // Note: these logs are very noisy, but contain information redacted on the backend.
         this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
-            return
+            return remainingCharacterBudget
         }
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
-        let remainingCharacterBudget = generateAssistantResponseInputLimit
 
         // 1. prioritize user input message
         let truncatedUserInputMessage = ''
@@ -830,6 +831,7 @@ export class AgenticChatController implements ChatHandlers {
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
                 truncatedCurrentDocument
         }
+        return remainingCharacterBudget
     }
 
     /**
