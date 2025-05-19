@@ -52,12 +52,3 @@ export function isInputTooLongError(error: unknown): boolean {
 
     return false
 }
-
-export function isImproperlyFormedRequest(error: unknown): boolean {
-    if (error instanceof Error) {
-        //  This is fragile (breaks if the backend changes their error message wording)
-        return error.message.includes('Improperly formed request')
-    }
-
-    return false
-}
