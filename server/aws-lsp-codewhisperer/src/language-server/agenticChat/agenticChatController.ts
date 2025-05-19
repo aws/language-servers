@@ -873,6 +873,7 @@ export class AgenticChatController implements ChatHandlers {
                         })
                     }
                 }
+                let requiresAcceptance = true
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
@@ -894,10 +895,10 @@ export class AgenticChatController implements ChatHandlers {
                         const approvedPaths = session.approvedPaths
 
                         // Pass the approved paths to the tool's requiresAcceptance method
-                        const { requiresAcceptance, warning, commandCategory } = await tool.requiresAcceptance(
-                            toolUse.input as any,
-                            approvedPaths
-                        )
+                        const result = await tool.requiresAcceptance(toolUse.input as any, approvedPaths)
+                        requiresAcceptance = result.requiresAcceptance
+                        const warning = result.warning
+                        const commandCategory = result.commandCategory
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -959,7 +960,7 @@ export class AgenticChatController implements ChatHandlers {
                     session.addApprovedPath(inputPath)
                 }
 
-                const ws = this.#getWritableStream(chatResultStream, toolUse)
+                const ws = this.#getWritableStream(chatResultStream, toolUse, requiresAcceptance)
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
 
                 let toolResultContent: ToolResultContentBlock
@@ -1255,7 +1256,11 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
+    #getWritableStream(
+        chatResultStream: AgenticChatResultStream,
+        toolUse: ToolUse,
+        requiresAcceptance: boolean = true
+    ): WritableStream | undefined {
         if (toolUse.name !== 'executeBash') {
             return
         }
@@ -1271,7 +1276,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const completedHeader: ChatMessage['header'] = {
             body: 'shell',
-            status: { status: 'success', icon: 'ok', text: 'Completed' },
+            status: { status: 'success', icon: 'ok', text: requiresAcceptance ? 'Completed' : 'Run automatically' },
             buttons: [],
         }
 
