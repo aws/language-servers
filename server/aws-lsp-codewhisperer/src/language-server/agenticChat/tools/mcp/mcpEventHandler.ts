@@ -10,7 +10,7 @@ import { Features } from '../../../types'
 /**
  * Controller for MCP UI-related functionality
  */
-export class McpUiController {
+export class McpEventHandler {
     #features: Features
 
     constructor(features: Features) {

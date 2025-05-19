@@ -129,7 +129,7 @@ import { URI } from 'vscode-uri'
 import { McpManager } from './tools/mcp/mcpManager'
 import { McpTool } from './tools/mcp/mcpTool'
 import { processMcpToolUseMessage } from './tools/mcp/mcpUtils'
-import { McpUiController } from './tools/mcp/mcpUiController'
+import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
@@ -161,7 +161,7 @@ export class AgenticChatController implements ChatHandlers {
     #contextCommandsProvider: ContextCommandsProvider
     #stoppedToolUses = new Set<string>()
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
-    #mcpUiController: McpUiController
+    #mcpEventHandler: McpEventHandler
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -196,7 +196,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.workspace,
             this.#features.lsp
         )
-        this.#mcpUiController = new McpUiController(features)
+        this.#mcpEventHandler = new McpEventHandler(features)
     }
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
@@ -368,11 +368,11 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onListMcpServers(params: ListMcpServersParams) {
-        return this.#mcpUiController.onListMcpServers()
+        return this.#mcpEventHandler.onListMcpServers()
     }
 
     async onMcpServerClick(params: McpServerClickParams): Promise<McpServerClickResult> {
-        return this.#mcpUiController.onMcpServerClick(params)
+        return this.#mcpEventHandler.onMcpServerClick(params)
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {
