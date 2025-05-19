@@ -647,3 +647,49 @@ describe('close()', () => {
         expect(() => McpManager.instance).to.throw()
     })
 })
+
+// reinitializeMcpServers()
+describe('reinitializeMcpServers()', () => {
+    let loadStub: sinon.SinonStub
+
+    beforeEach(() => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs')
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('calls necessary methods during reinitialization', async () => {
+        const cfg: MCPServerConfig = {
+            command: 'cmd',
+            args: [],
+            env: {},
+            disabled: false,
+            autoApprove: false,
+            toolOverrides: {},
+            __configPath__: 'cfg.json',
+        }
+        loadStub.resolves(new Map([['srv', cfg]]))
+
+        const mgr = await McpManager.init(['cfg.json'], features)
+
+        const closeStub = sinon.stub(mgr, 'close').resolves()
+        const initStub = sinon.stub(McpManager, 'init').resolves(mgr)
+
+        loadStub.resetHistory()
+
+        await mgr.reinitializeMcpServers()
+
+        expect(closeStub.calledOnce).to.be.true
+        expect(initStub.calledOnce).to.be.true
+        expect(initStub.firstCall.args[0]).to.deep.equal(['cfg.json'])
+        expect(initStub.firstCall.args[1]).to.equal(features)
+
+        closeStub.restore()
+        initStub.restore()
+    })
+})
