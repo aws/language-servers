@@ -146,7 +146,7 @@ export class McpEventHandler {
                 ],
             }
         } else if (params.id === 'open-mcp-xx') {
-            // Edit
+            // TODO: open-mcp-server functionality WIP
         }
         return {
             id: params.id,

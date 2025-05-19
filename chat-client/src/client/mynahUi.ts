@@ -13,6 +13,7 @@ import {
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
 import {
+    Button,
     ButtonClickParams,
     ChatMessage,
     ChatResult,
@@ -27,12 +28,11 @@ import {
     LinkClickParams,
     ListConversationsResult,
     ListMcpServersResult,
-    // McpServerClickResult,
+    McpServerClickResult,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
-import { Button, McpServerClickResult } from '@aws/language-server-runtimes/protocol' // TODO: just for testing
 import {
     ChatItem,
     ChatItemType,
@@ -1204,8 +1204,6 @@ ${params.message}`,
 
     const mcpServerClick = (params: McpServerClickResult) => {
         if (params.id === 'add-new-mcp') {
-            console.log(`mcpServerClick: params`, params)
-            // Use type assertion to tell TypeScript that params has a header property
             const paramsWithHeader = params as McpServerClickResult & {
                 header?: { title?: string; description?: string }
                 filterOptions?: Array<{
@@ -1234,13 +1232,11 @@ ${params.message}`,
                 filterActions: paramsWithHeader.filterActions,
             }
 
-            // If we have actual data from params, use it to populate the list
             const paramsWithList = params as McpServerClickResult & {
                 list?: Array<{ groupName: string; children?: Array<{ title: string; description?: string }> }>
             }
             if (paramsWithList.list && paramsWithList.list.length > 0) {
                 // We need to convert the list structure to match the expected DetailedList format
-                // This is a simplified approach that focuses on the essential data
                 detailedList.list = []
 
                 // Process each group
@@ -1270,15 +1266,14 @@ ${params.message}`,
                     filterValues?: Record<string, any>,
                     isValid?: boolean
                 ) => {
-                    console.log(`onFilterActionClick event clicked: ${params.id}`)
-                    console.log(`Filters: ${JSON.stringify(filterValues ?? {})}`)
+                    // TODO: WIP
                     if (params.id === 'cancel-mcp') {
-                        console.log('Cancel button is clicked')
-                        // listMcpServers(params)
-                        // mcpSheet.update(sampleMCPList, false)
+                        mynahUi.notify({
+                            content: `Cancelled config`,
+                            type: NotificationType.INFO,
+                        })
                     } else if (params.id === 'save-mcp') {
                         mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
-                        console.log('Save button is clicked')
                         setTimeout(() => {
                             mynahUi.toggleSplashLoader(false)
                         }, 3000)
@@ -1290,11 +1285,10 @@ ${params.message}`,
                 detailedList,
                 events,
             }
-            console.log(`mcpServerClick: data`, data)
             mynahUi.openDetailedList(data, true)
         } else if (params.id === 'open-mcp-xx') {
             mynahUi.notify({
-                content: ` Permissions WIP UX`,
+                content: ` Permissions UX`,
                 type: NotificationType.INFO,
             })
         }
