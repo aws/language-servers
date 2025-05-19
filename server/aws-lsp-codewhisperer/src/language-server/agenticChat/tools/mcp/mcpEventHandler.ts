@@ -6,6 +6,7 @@ import {
 } from '@aws/language-server-runtimes/protocol'
 import { McpManager } from './mcpManager'
 import { Features } from '../../../types'
+import { getGlobalMcpConfigPath } from './mcpUtils'
 
 /**
  * Controller for MCP UI-related functionality
@@ -108,11 +109,11 @@ export class McpEventHandler {
                         options: [
                             {
                                 label: `Global - Used globally. Edit config`,
-                                value: 'Yes',
+                                value: 'global',
                             },
                             {
                                 label: `This workspace - Only used in this workspace. Edit config`,
-                                value: 'No',
+                                value: 'workspace',
                             },
                         ],
                     },
@@ -147,6 +148,33 @@ export class McpEventHandler {
             }
         } else if (params.id === 'open-mcp-xx') {
             // TODO: open-mcp-server functionality WIP
+        } else if (params.id === 'save-mcp') {
+            if (!params.optionsValues) {
+                return {
+                    id: params.id,
+                    header: {
+                        title: 'MCP Servers',
+                        status: {},
+                        description:
+                            'Q automatically uses any MCP servers that have been added, so you don\'t have to add them as context. All MCPs are defaulted to "Ask before running".',
+                        actions: [],
+                    },
+                }
+            }
+
+            const config = {
+                name: params.optionsValues.name,
+                command: params.optionsValues.command,
+                transport: params.optionsValues.transport,
+                timeout: parseInt(params.optionsValues.timeout),
+                disabled: true,
+            }
+            let configPath = ''
+            if (params.optionsValues.scope === 'global') {
+                configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+            }
+            // TODO: According to workspace specific scope and persona and pass configPath to addServer
+            await McpManager.instance.addServer(config.name, config, configPath)
         }
         return {
             id: params.id,

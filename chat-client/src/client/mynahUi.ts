@@ -1263,7 +1263,7 @@ ${params.message}`,
             const events = {
                 onFilterActionClick: (
                     params: McpServerClickResult,
-                    filterValues?: Record<string, any>,
+                    filterValues?: Record<string, string>,
                     isValid?: boolean
                 ) => {
                     // TODO: WIP
@@ -1274,6 +1274,7 @@ ${params.message}`,
                         })
                     } else if (params.id === 'save-mcp') {
                         mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
+                        messager.onMcpServerClick(params.id, 'Save', filterValues)
                         setTimeout(() => {
                             mynahUi.toggleSplashLoader(false)
                         }, 3000)
