@@ -140,7 +140,7 @@ export const WorkspaceContextServer = (): Server => features => {
                 result.featureEvaluations?.some(
                     feature => feature.feature === 'ServiceSideWorkspaceContext' && feature.variation === 'TREATMENT'
                 ) ?? false
-            logging.log(`A/B testing enabled: ${abTestingEnabled}`)
+            logging.info(`A/B testing enabled: ${abTestingEnabled}`)
             abTestingEvaluated = true
         } catch (error: any) {
             logging.error(`Error while checking A/B status: ${error.code}`)

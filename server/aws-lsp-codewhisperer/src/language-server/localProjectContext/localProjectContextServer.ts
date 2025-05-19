@@ -65,7 +65,7 @@ export const LocalProjectContextServer =
                 telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
                 await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
-                logging.log('Local context server has been initialized')
+                logging.info('Local context server has been initialized')
             } catch (error) {
                 logging.error(`Failed to initialize local context server: ${error}`)
             }
