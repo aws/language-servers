@@ -155,6 +155,7 @@ export class DependencyDiscoverer {
         this.dependencyHandlerRegistry.forEach(dependencyHandler => {
             dependencyHandler.dispose()
         })
+        Atomics.store(this.dependencyUploadedSizeSum, 0, 0)
     }
 
     public disposeWorkspaceFolder(workspaceFolder: WorkspaceFolder) {

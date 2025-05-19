@@ -124,15 +124,12 @@ export class WorkspaceFolderManager {
             if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
                 const message = this.workspaceState.messageQueue[0]
                 if (message) {
-                    this.workspaceState.webSocketClient
-                        .send(message)
-                        .then(() => {
-                            this.logging.log(` Message sent successfully`)
-                            this.workspaceState.messageQueue.shift()
-                        })
-                        .catch(error => {
-                            this.logging.error(`Error sending message: ${error}`)
-                        })
+                    try {
+                        this.workspaceState.webSocketClient.send(message)
+                        this.workspaceState.messageQueue.shift()
+                    } catch (error) {
+                        this.logging.error(`Error sending message: ${error}`)
+                    }
                 }
             }
         }, this.MESSAGE_PUBLISH_INTERVAL)
@@ -640,8 +637,6 @@ export class WorkspaceFolderManager {
                         },
                     },
                 })
-
-                // We add this event to the front of the queue here to prevent any race condition that might put events before the didChangeWorkspaceFolders event
                 this.workspaceState.messageQueue.push(event)
                 this.logging.log(`Added didChangeWorkspaceFolders event to queue`)
             } catch (error) {

@@ -315,7 +315,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
     dispose(): void {
         this.dependencyMap.clear()
-        Atomics.store(this.dependencyUploadedSizeSum, 0, 0)
         this.dependencyUploadedSizeMap.clear()
         this.dependencyWatchers.forEach(watcher => watcher.close())
         this.dependencyWatchers.clear()
