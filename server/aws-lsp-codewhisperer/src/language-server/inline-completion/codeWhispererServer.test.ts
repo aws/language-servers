@@ -52,6 +52,8 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
+import { INVALID_TOKEN } from '../../shared/constants'
+import { AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -618,6 +620,22 @@ describe('CodeWhisperer Server', () => {
             }
 
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+        })
+
+        it('throws connection error if connection is expired', async () => {
+            service.generateSuggestions.returns(Promise.reject(new Error(INVALID_TOKEN)))
+
+            const promise = async () =>
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+            // Throws expected error
+            assert.rejects(promise, AmazonQServiceConnectionExpiredError)
         })
 
         describe('Supplemental Context', () => {
