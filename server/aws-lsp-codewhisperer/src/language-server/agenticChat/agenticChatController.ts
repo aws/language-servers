@@ -7,7 +7,6 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import {
     ChatTriggerType,
-    CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
@@ -114,7 +113,6 @@ import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
     genericErrorMsg,
-    maxAgentLoopIterations,
     loadingThresholdMs,
     generateAssistantResponseInputLimit,
     outputLimitExceedsPartialMsg,
@@ -558,7 +556,7 @@ export class AgenticChatController implements ChatHandlers {
         let shouldDisplayMessage = true
         metric.recordStart()
 
-        while (iterationCount < maxAgentLoopIterations) {
+        while (true) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
@@ -762,10 +760,6 @@ export class AgenticChatController implements ChatHandlers {
                 this.#toolUseLatencies = []
             }
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
-        }
-
-        if (iterationCount >= maxAgentLoopIterations) {
-            throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
         }
 
         return (
