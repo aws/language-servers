@@ -1260,7 +1260,7 @@ ${params.message}`,
                     filterValues?: Record<string, any>,
                     isValid?: boolean
                 ) => {
-                    console.log(`Filter action clicked: ${params.id}`)
+                    console.log(`onFilterActionClick event clicked: ${params.id}`)
                     console.log(`Filters: ${JSON.stringify(filterValues ?? {})}`)
                     if (params.id === 'cancel-mcp') {
                         console.log('Cancel button is clicked')
