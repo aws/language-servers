@@ -3,10 +3,10 @@
  * Will be deleted or merged.
  */
 
+import * as crypto from 'crypto'
 import * as path from 'path'
 import {
     ChatTriggerType,
-    CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
@@ -91,7 +91,7 @@ import {
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
-import { AgenticChatResultStream, ResultStreamWriter } from './agenticChatResultStream'
+import { AgenticChatResultStream, progressPrefix, ResultStreamWriter } from './agenticChatResultStream'
 import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
@@ -113,7 +113,6 @@ import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
     genericErrorMsg,
-    maxAgentLoopIterations,
     loadingThresholdMs,
     generateAssistantResponseInputLimit,
     outputLimitExceedsPartialMsg,
@@ -182,7 +181,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb, telemetryService)
-        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
+        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
             this.#features.chat,
@@ -451,6 +450,10 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream
             )
 
+            // Generate a unique ID for this prompt
+            const promptId = crypto.randomUUID()
+            session.setCurrentPromptId(promptId)
+
             // Start the agent loop
             const finalResult = await this.#runAgentLoop(
                 initialRequestInput,
@@ -458,6 +461,7 @@ export class AgenticChatController implements ChatHandlers {
                 metric,
                 chatResultStream,
                 params.tabId,
+                promptId,
                 session.conversationId,
                 token,
                 triggerContext.documentReference
@@ -541,6 +545,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         chatResultStream: AgenticChatResultStream,
         tabId: string,
+        promptId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList
@@ -551,12 +556,13 @@ export class AgenticChatController implements ChatHandlers {
         let shouldDisplayMessage = true
         metric.recordStart()
 
-        while (iterationCount < maxAgentLoopIterations) {
+        while (true) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
             // Check for cancellation
-            if (token?.isCancellationRequested) {
+            if (this.#isPromptCanceled(token, session, promptId)) {
+                this.#debug('Stopping agent loop - cancelled by user')
                 throw new CancellationError('user')
             }
 
@@ -570,7 +576,7 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Fix the history to maintain invariants
             if (currentMessage) {
-                const isHistoryValid = this.#chatHistoryDb.fixHistory(
+                const isHistoryValid = this.#chatHistoryDb.fixAndValidateHistory(
                     tabId,
                     currentMessage,
                     conversationIdentifier ?? ''
@@ -592,7 +598,7 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.#truncateRequest(currentRequestInput)
+            this.truncateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
 
             if (response.$metadata.requestId) {
@@ -607,14 +613,18 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
-                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                    body: currentMessage.userInputMessage?.content ?? '',
-                    type: 'prompt' as any,
-                    userIntent: currentMessage.userInputMessage?.userIntent,
-                    origin: currentMessage.userInputMessage?.origin,
-                    userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
-                    shouldDisplayMessage: shouldDisplayMessage,
-                })
+                if (this.#isPromptCanceled(token, session, promptId)) {
+                    this.#debug('Skipping adding user message to history - cancelled by user')
+                } else {
+                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
+                        body: currentMessage.userInputMessage?.content ?? '',
+                        type: 'prompt' as any,
+                        userIntent: currentMessage.userInputMessage?.userIntent,
+                        origin: currentMessage.userInputMessage?.origin,
+                        userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
+                        shouldDisplayMessage: shouldDisplayMessage,
+                    })
+                }
             }
             shouldDisplayMessage = true
 
@@ -634,11 +644,13 @@ export class AgenticChatController implements ChatHandlers {
             if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
                 const content =
                     'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
-                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
-                    body: 'Response timed out - message took too long to generate',
-                    type: 'answer',
-                    shouldDisplayMessage: false,
-                })
+                if (!this.#isPromptCanceled(token, session, promptId)) {
+                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                        body: 'Response timed out - message took too long to generate',
+                        type: 'answer',
+                        shouldDisplayMessage: false,
+                    })
+                }
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
                 shouldDisplayMessage = false
                 continue
@@ -646,24 +658,28 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
-                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
-                    body: result.data?.chatResult.body,
-                    type: 'answer' as any,
-                    codeReference: result.data.chatResult.codeReference,
-                    relatedContent:
-                        result.data.chatResult.relatedContent?.content &&
-                        result.data.chatResult.relatedContent.content.length > 0
-                            ? result.data?.chatResult.relatedContent
-                            : undefined,
-                    toolUses: Object.keys(result.data?.toolUses!)
-                        .filter(k => result.data!.toolUses[k].stop)
-                        .map(k => ({
-                            toolUseId: result.data!.toolUses[k].toolUseId,
-                            name: result.data!.toolUses[k].name,
-                            input: result.data!.toolUses[k].input,
-                        })),
-                    shouldDisplayMessage: shouldDisplayMessage,
-                })
+                if (this.#isPromptCanceled(token, session, promptId)) {
+                    this.#debug('Skipping adding assistant message to history - cancelled by user')
+                } else {
+                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                        body: result.data?.chatResult.body,
+                        type: 'answer' as any,
+                        codeReference: result.data.chatResult.codeReference,
+                        relatedContent:
+                            result.data.chatResult.relatedContent?.content &&
+                            result.data.chatResult.relatedContent.content.length > 0
+                                ? result.data?.chatResult.relatedContent
+                                : undefined,
+                        toolUses: Object.keys(result.data?.toolUses!)
+                            .filter(k => result.data!.toolUses[k].stop)
+                            .map(k => ({
+                                toolUseId: result.data!.toolUses[k].toolUseId,
+                                name: result.data!.toolUses[k].name,
+                                input: result.data!.toolUses[k].input,
+                            })),
+                        shouldDisplayMessage: shouldDisplayMessage,
+                    })
+                }
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
             }
@@ -746,10 +762,6 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (iterationCount >= maxAgentLoopIterations) {
-            throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
-        }
-
         return (
             finalResult || {
                 success: false,
@@ -763,19 +775,74 @@ export class AgenticChatController implements ChatHandlers {
      * performs truncation of request before sending to backend service.
      * @param request
      */
-    #truncateRequest(request: GenerateAssistantResponseCommandInput) {
+    truncateRequest(request: GenerateAssistantResponseCommandInput) {
         // Note: these logs are very noisy, but contain information redacted on the backend.
         this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
             return
         }
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
-        if (message && message.length > generateAssistantResponseInputLimit) {
-            this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
-            request.conversationState.currentMessage.userInputMessage.content = message.substring(
-                0,
-                generateAssistantResponseInputLimit
-            )
+        let remainingCharacterBudget = generateAssistantResponseInputLimit
+
+        // 1. prioritize user input message
+        let truncatedUserInputMessage = ''
+        if (message) {
+            if (message.length > generateAssistantResponseInputLimit) {
+                this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
+                truncatedUserInputMessage = message.substring(0, generateAssistantResponseInputLimit)
+                remainingCharacterBudget = remainingCharacterBudget - truncatedUserInputMessage.length
+                request.conversationState.currentMessage.userInputMessage.content = truncatedUserInputMessage
+            } else {
+                remainingCharacterBudget = remainingCharacterBudget - message.length
+            }
+        }
+
+        // 2. try to fit @context into budget
+        let truncatedRelevantDocuments = []
+        if (
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
+                ?.relevantDocuments
+        ) {
+            for (const relevantDoc of request.conversationState.currentMessage.userInputMessage.userInputMessageContext
+                ?.editorState?.relevantDocuments) {
+                const docLength = relevantDoc?.text?.length || 0
+                if (remainingCharacterBudget > docLength) {
+                    truncatedRelevantDocuments.push(relevantDoc)
+                    remainingCharacterBudget = remainingCharacterBudget - docLength
+                }
+            }
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.relevantDocuments =
+                truncatedRelevantDocuments
+        }
+
+        // 3. try to fit current file context
+        let truncatedCurrentDocument = undefined
+        if (request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState?.document) {
+            const docLength =
+                request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState?.document
+                    .text?.length || 0
+            if (remainingCharacterBudget > docLength) {
+                truncatedCurrentDocument =
+                    request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
+                        ?.document
+                remainingCharacterBudget = remainingCharacterBudget - docLength
+            }
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
+                truncatedCurrentDocument
+        }
+
+        // 4. try to fit chat history
+        let truncatedChatHistory = []
+        if (request.conversationState.history) {
+            for (const history of request.conversationState.history) {
+                // use json strified string length to provide a conservative estimate
+                const historyLength = JSON.stringify(history).toString().length
+                if (remainingCharacterBudget > historyLength) {
+                    truncatedChatHistory.push(history)
+                    remainingCharacterBudget = remainingCharacterBudget - historyLength
+                }
+            }
+            request.conversationState.history = truncatedChatHistory
         }
     }
 
@@ -836,17 +903,24 @@ export class AgenticChatController implements ChatHandlers {
                 if (!availableToolNames.includes(toolUse.name)) {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
                 }
+
+                // remove progress UI
+                await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
+
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
                 if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
-                const { explanation } = toolUse.input as unknown as ExplanatoryParams
-                if (explanation) {
-                    await chatResultStream.writeResultBlock({
-                        type: 'directive',
-                        messageId: toolUse.toolUseId + '_explanation',
-                        body: explanation,
-                    })
+                // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
+                if (toolUse.name !== 'fsWrite') {
+                    const { explanation } = toolUse.input as unknown as ExplanatoryParams
+                    if (explanation) {
+                        await chatResultStream.writeResultBlock({
+                            type: 'directive',
+                            messageId: toolUse.toolUseId + '_explanation',
+                            body: explanation,
+                        })
+                    }
                 }
                 switch (toolUse.name) {
                     case 'fsRead':
@@ -1058,6 +1132,36 @@ export class AgenticChatController implements ChatHandlers {
                         continue
                     }
                 }
+                // display fs write failure status in the UX of that file card
+                if (toolUse.name === 'fsWrite' && toolUse.toolUseId) {
+                    const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
+                    const fsParam = toolUse.input as unknown as FsWriteParams
+                    const fileName = path.basename(fsParam.path)
+                    const errorResult = {
+                        type: 'tool',
+                        messageId: toolUse.toolUseId,
+                        header: {
+                            fileList: {
+                                filePaths: [fileName],
+                                details: {
+                                    [fileName]: {
+                                        description: fsParam.path,
+                                    },
+                                },
+                            },
+                            status: {
+                                status: 'error',
+                                icon: 'error',
+                                text: 'Error',
+                            },
+                        },
+                    } as ChatResult
+                    if (existingCard) {
+                        await chatResultStream.overwriteResultBlock(errorResult, existingCard)
+                    } else {
+                        await chatResultStream.writeResultBlock(errorResult)
+                    }
+                }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
                 results.push({
@@ -1148,12 +1252,16 @@ export class AgenticChatController implements ChatHandlers {
      * @param err
      * @returns
      */
-    isUserAction(err: unknown, token?: CancellationToken): boolean {
+    isUserAction(err: unknown, token?: CancellationToken, session?: ChatSessionService): boolean {
         return (
             CancellationError.isUserCancelled(err) ||
             err instanceof ToolApprovalException ||
             (token?.isCancellationRequested ?? false)
         )
+    }
+
+    #isPromptCanceled(token: CancellationToken | undefined, session: ChatSessionService, promptId: string): boolean {
+        return token?.isCancellationRequested === true || !session.isCurrentPrompt(promptId)
     }
 
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
@@ -2083,7 +2191,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async #resolveAbsolutePath(relativePath: string): Promise<string | undefined> {
         try {
-            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)
+            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
             for (const workspaceRoot of workspaceFolders) {
                 const candidatePath = path.join(workspaceRoot, relativePath)
                 if (await this.#features.workspace.fs.exists(candidatePath)) {
@@ -2205,6 +2313,61 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async #showToolUseIntermediateResult(
+        data: AgenticChatResultWithMetadata,
+        chatResultStream: AgenticChatResultStream,
+        streamWriter: ResultStreamWriter
+    ) {
+        // extract the key value from incomplete JSON response stream
+        function extractKey(incompleteJson: string, key: string): string | undefined {
+            const pattern = new RegExp(`"${key}":\\s*"([^"]*)"`, 'g')
+            const match = pattern.exec(incompleteJson)
+            return match?.[1]
+        }
+        const toolUses = Object.values(data.toolUses)
+        for (const toolUse of toolUses) {
+            if (toolUse.name === 'fsWrite' && typeof toolUse.input === 'string') {
+                const filepath = extractKey(toolUse.input, 'path')
+                const msgId = progressPrefix + toolUse.toolUseId
+                // render fs write UI as soon as fs write starts
+                if (filepath && !chatResultStream.hasMessage(msgId)) {
+                    const fileName = path.basename(filepath)
+                    await streamWriter.close()
+                    await chatResultStream.writeResultBlock({
+                        type: 'tool',
+                        messageId: msgId,
+                        header: {
+                            fileList: {
+                                filePaths: [fileName],
+                                details: {
+                                    [fileName]: {
+                                        description: filepath,
+                                    },
+                                },
+                            },
+                            status: {
+                                status: 'info',
+                                icon: 'progress',
+                                text: '',
+                            },
+                        },
+                    })
+                }
+                // render the tool use explanatory as soon as this is received for fsWrite
+                const explanation = extractKey(toolUse.input, 'explanation')
+                const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
+                if (explanation && !chatResultStream.hasMessage(messageId)) {
+                    await streamWriter.close()
+                    await chatResultStream.writeResultBlock({
+                        type: 'directive',
+                        messageId: messageId,
+                        body: explanation,
+                    })
+                }
+            }
+        }
+    }
+
     async #processGenerateAssistantResponseResponse(
         response: GenerateAssistantResponseCommandOutput,
         metric: Metric<AddMessageEvent>,
@@ -2253,6 +2416,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseStartTimes,
                     toolUseLoadingTimeouts
                 )
+                await this.#showToolUseIntermediateResult(result.data, chatResultStream, streamWriter)
             }
         }
         await streamWriter.close()

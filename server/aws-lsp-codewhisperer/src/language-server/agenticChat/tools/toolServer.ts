@@ -65,7 +65,8 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     lsp.onInitialized(async () => {
         // todo: move to constants
-        const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
+        var workspaceFolders = workspace.getAllWorkspaceFolders()
+        const wsUris = workspaceFolders?.map(f => f.uri) ?? []
         const wsConfigPaths = wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
         const globalConfigPath = `${workspace.fs.getUserHomeDir()}/.aws/amazonq/mcp.json`
         const allPaths = [...wsConfigPaths, globalConfigPath]

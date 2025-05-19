@@ -26,6 +26,7 @@ export class ChatSessionService {
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
     #abortController?: AbortController
+    #currentPromptId?: string
     #conversationId?: string
     #conversationType: string = 'AgenticChat'
     #deferredToolExecution: Record<string, DeferredHandler> = {}
@@ -180,6 +181,23 @@ export class ChatSessionService {
 
     public dispose(): void {
         this.#abortController?.abort()
+    }
+
+    /**
+     * Sets the current prompt ID
+     * @param promptId The unique ID of the current prompt
+     */
+    public setCurrentPromptId(promptId: string): void {
+        this.#currentPromptId = promptId
+    }
+
+    /**
+     * Checks if the given prompt ID matches the current one
+     * @param promptId The prompt ID to check
+     * @returns True if the given prompt ID matches the current one
+     */
+    public isCurrentPrompt(promptId: string): boolean {
+        return this.#currentPromptId === promptId
     }
 
     public abortRequest(): void {

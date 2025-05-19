@@ -37,10 +37,10 @@ export const WorkspaceContextServer = (): Server => features => {
             logging.warn(`No workspaceIdentifier set!`)
         }
 
-        workspaceFolders = params.workspaceFolders || []
-        if (params.workspaceFolders) {
-            workspaceFolders = params.workspaceFolders
-        } else {
+        const folders = workspace.getAllWorkspaceFolders()
+        workspaceFolders = folders || params.workspaceFolders || []
+
+        if (!folders) {
             logging.warn(`No workspace folders set during initialization`)
         }
 
