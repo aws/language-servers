@@ -623,7 +623,7 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
-        it('throws connection error if connection is expired', async () => {
+        it('throws ResponseError with expected message if connection is expired', async () => {
             service.generateSuggestions.returns(Promise.reject(new Error(INVALID_TOKEN)))
 
             const promise = async () =>
@@ -636,7 +636,7 @@ describe('CodeWhisperer Server', () => {
                     CancellationToken.None
                 )
             // Throws expected error
-            assert.rejects(promise, AmazonQServiceConnectionExpiredError)
+            assert.rejects(promise, ResponseError, 'E_AMAZON_Q_CONNECTION_EXPIRED')
         })
 
         it('throws ResponseError if error is AmazonQError', async () => {

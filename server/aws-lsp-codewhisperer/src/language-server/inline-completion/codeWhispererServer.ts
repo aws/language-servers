@@ -594,18 +594,20 @@ export const CodewhispererServerFactory =
 
             sessionManager.closeSession(session)
 
-            if (error instanceof AmazonQError) {
-                throw new ResponseError(
-                    LSPErrorCodes.RequestFailed,
-                    error.message || 'Error processing suggestion requests',
-                    {
-                        awsErrorCode: error.code,
-                    }
-                )
-            }
+            let translatedError = error
 
             if (hasConnectionExpired(error)) {
-                throw new AmazonQServiceConnectionExpiredError(getErrorMessage(error))
+                translatedError = new AmazonQServiceConnectionExpiredError(getErrorMessage(error))
+            }
+
+            if (translatedError instanceof AmazonQError) {
+                throw new ResponseError(
+                    LSPErrorCodes.RequestFailed,
+                    translatedError.message || 'Error processing suggestion requests',
+                    {
+                        awsErrorCode: translatedError.code,
+                    }
+                )
             }
 
             return EMPTY_RESULT
