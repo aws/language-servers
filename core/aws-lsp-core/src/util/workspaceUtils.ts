@@ -99,13 +99,9 @@ export function formatListing(entry: Dirent): string {
 }
 
 export function getEntryPath(entry: Dirent) {
-    if (!entry.parentPath) {
-        throw new Error(`Entry is missing parentPath property: ${JSON.stringify(entry)}`)
-    }
     return path.join(entry.parentPath, entry.name)
 }
 
-// TODO: port this to runtimes?
 export function getWorkspaceFolderPaths(workspace: Features['workspace']): string[] {
     const workspaceFolders = workspace.getAllWorkspaceFolders()
     return workspaceFolders?.map(({ uri }) => URI.parse(uri).fsPath) ?? []
