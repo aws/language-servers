@@ -41,7 +41,7 @@
         "@typescript-eslint/eslint-plugin": "^8.18.2",
         "@typescript-eslint/parser": "^8.18.2",
         "conventional-changelog-conventionalcommits": "^8.0.0",
-        "eslint": "^8.42.0",
+        "eslint": "^9.27.0",
         "eslint-plugin-import": "^2.29.1",
         "eslint-plugin-unused-imports": "^4.1.4",
         "husky": "^9.1.7",
