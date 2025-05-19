@@ -8,6 +8,7 @@ import {
     getEndPositionForAcceptedSuggestion,
     safeGet,
     isStringOrNull,
+    getHttpStatusCode,
 } from './utils'
 import { expect } from 'chai'
 import { BUILDER_ID_START_URL } from './constants'
@@ -238,5 +239,47 @@ describe('isStringOrNull', () => {
         it(`should return: ${testCase.expected}, when passed: ${JSON.stringify(testCase.input)}`, () => {
             assert(isStringOrNull(testCase.input) === testCase.expected)
         })
+    })
+})
+
+describe('getHttpStatusCode', () => {
+    it('should return 500 for InputTooLong errors', () => {
+        const err = new Error('Input is too long')
+        expect(getHttpStatusCode(err)).to.equal(500)
+    })
+
+    it('should return 500 for ImproperlyFormedRequest errors', () => {
+        const err = new Error('Improperly formed request.')
+        expect(getHttpStatusCode(err)).to.equal(500)
+    })
+
+    it('should return 400 for unactionable errors', () => {
+        const err = { code: 'PromptCharacterLimit' }
+        expect(getHttpStatusCode(err)).to.equal(400)
+    })
+
+    it('should return status code from $response', () => {
+        const err = { $response: { statusCode: 403 } }
+        expect(getHttpStatusCode(err)).to.equal(403)
+    })
+
+    it('should return status code from $metadata', () => {
+        const err = { $metadata: { httpStatusCode: 404 } }
+        expect(getHttpStatusCode(err)).to.equal(404)
+    })
+
+    it('should return status code from cause.$metadata', () => {
+        const err = { cause: { $metadata: { httpStatusCode: 429 } } }
+        expect(getHttpStatusCode(err)).to.equal(429)
+    })
+
+    it('should return 500 when no status code is found', () => {
+        const err = { message: 'Some error' }
+        expect(getHttpStatusCode(err)).to.equal(500)
+    })
+
+    it('should return 500 for null or undefined', () => {
+        expect(getHttpStatusCode(null)).to.equal(500)
+        expect(getHttpStatusCode(undefined)).to.equal(500)
     })
 })

@@ -25,6 +25,7 @@ describe('loadMcpServerConfigs', () => {
             fs: {
                 exists: (p: string) => Promise.resolve(fs.existsSync(p)),
                 readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                getUserHomeDir: () => tmpDir,
             },
         }
         // logger that just swallows
@@ -76,5 +77,21 @@ describe('loadMcpServerConfigs', () => {
         expect(out.size).to.equal(2)
         expect(out.get('S')!.command).to.equal('one')
         expect(out.get('T')!.command).to.equal('three')
+    })
+
+    it('workspace config overrides global config of the same server', async () => {
+        const globalDir = path.join(tmpDir, '.aws', 'amazonq')
+        fs.mkdirSync(globalDir, { recursive: true })
+        const globalPath = path.join(globalDir, 'mcp.json')
+        fs.writeFileSync(globalPath, JSON.stringify({ mcpServers: { S: { command: 'globalCmd' } } }))
+
+        const overridePath = path.join(tmpDir, 'override.json')
+        fs.writeFileSync(overridePath, JSON.stringify({ mcpServers: { S: { command: 'workspaceCmd' } } }))
+
+        const out1 = await loadMcpServerConfigs(workspace, logger, [globalPath, overridePath])
+        expect(out1.get('S')!.command).to.equal('workspaceCmd')
+
+        const out2 = await loadMcpServerConfigs(workspace, logger, [overridePath, globalPath])
+        expect(out2.get('S')!.command).to.equal('workspaceCmd')
     })
 })

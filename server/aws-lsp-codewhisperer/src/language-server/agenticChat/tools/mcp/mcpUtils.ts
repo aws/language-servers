@@ -12,8 +12,10 @@ import { MCPServerConfig } from './mcpTypes'
  * - Deduplicates input paths.
  * - Normalizes file and URI inputs.
  * - Skips missing, unreadable, or invalid JSON files.
+ * - Handle server name conflicts, prioritize workspace config over global when both define the same server.
  * - Validates required fields and logs warnings for issues.
  */
+//  todo: handle config loading errors
 export async function loadMcpServerConfigs(
     workspace: Workspace,
     logging: Logger,
@@ -21,6 +23,7 @@ export async function loadMcpServerConfigs(
 ): Promise<Map<string, MCPServerConfig>> {
     const servers = new Map<string, MCPServerConfig>()
     const uniquePaths = Array.from(new Set(rawPaths))
+    const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
     for (const raw of uniquePaths) {
         // 1) normalize file:/ URIs → real fs paths
         let fsPath: string
@@ -69,10 +72,6 @@ export async function loadMcpServerConfigs(
 
         // 4) dedupe and validate
         for (const [name, entry] of Object.entries(json.mcpServers)) {
-            if (servers.has(name)) {
-                logging.warn(`Duplicate MCP server '${name}' in ${fsPath}, skipping.`)
-                continue
-            }
             if (!entry || typeof (entry as any).command !== 'string') {
                 logging.warn(`MCP server '${name}' in ${fsPath} missing required 'command', skipping.`)
                 continue
@@ -101,6 +100,22 @@ export async function loadMcpServerConfigs(
                 timeout:
                     typeof (entry as any).executionTimeout === 'number' ? (entry as any).executionTimeout : undefined,
                 __configPath__: fsPath,
+            }
+
+            if (servers.has(name)) {
+                const existing = servers.get(name)!
+                const existingIsGlobal = existing.__configPath__ === globalConfigPath
+                const currentIsGlobal = fsPath === globalConfigPath
+                if (existingIsGlobal && !currentIsGlobal) {
+                    logging.warn(
+                        `Workspace override for MCP server '${name}' in ${fsPath}; replacing global configuration.`
+                    )
+                } else {
+                    logging.warn(
+                        `Ignoring ${existingIsGlobal ? 'global' : 'workspace'} MCP server duplicate for '${name}' in ${fsPath}.`
+                    )
+                    continue
+                }
             }
 
             servers.set(name, cfg)
@@ -134,4 +149,14 @@ export function processMcpToolUseMessage(message: string) {
     ].join('\n')
 
     return collapsed
+}
+
+/** Given an array of workspace diretory, return each workspace mcp config location */
+export function getWorkspaceMcpConfigPaths(wsUris: string[]): string[] {
+    return wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
+}
+
+/** Given a user’s home directory, return the global mcp config location */
+export function getGlobalMcpConfigPath(homeDir: string): string {
+    return `${homeDir}/.aws/amazonq/mcp.json`
 }

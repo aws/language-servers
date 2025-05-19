@@ -51,6 +51,7 @@ import {
     ENTER_FOCUS,
     ERROR_MESSAGE_TELEMETRY_EVENT,
     EXIT_FOCUS,
+    HISTORY_BUTTON_CLICK_TELEMETRY_EVENT,
     INFO_LINK_CLICK_TELEMETRY_EVENT,
     INSERT_TO_CURSOR_POSITION_TELEMETRY_EVENT,
     LINK_CLICK_TELEMETRY_EVENT,
@@ -207,8 +208,11 @@ export class Messager {
         this.chatApi.fileClick(params)
     }
 
-    onListConversations = (filter?: Record<string, FilterValue>): void => {
+    onListConversations = (filter?: Record<string, FilterValue>, tabButtonClicked?: boolean): void => {
         this.chatApi.listConversations({ filter })
+        if (tabButtonClicked) {
+            this.chatApi.telemetry({ triggerType: 'click', name: HISTORY_BUTTON_CLICK_TELEMETRY_EVENT })
+        }
     }
 
     onConversationClick = (conversationId: string, action?: ConversationAction): void => {

@@ -3,6 +3,7 @@
  * Will be deleted or merged.
  */
 
+import * as crypto from 'crypto'
 import * as path from 'path'
 import * as chokidar from 'chokidar'
 import {
@@ -47,6 +48,7 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
+import * as constants from './constants'
 import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
@@ -93,6 +95,7 @@ describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
     const mockConversationId = 'mock-conversation-id'
     const mockMessageId = 'mock-message-id'
+    const mockPromptId = 'mock-prompt-id'
 
     const mockChatResponseList: ChatResponseStream[] = [
         {
@@ -166,6 +169,9 @@ describe('AgenticChatController', () => {
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
+        // Override the response timeout for tests to avoid long waits
+        sinon.stub(constants, 'responseTimeoutMs').value(100)
+
         sinon.stub(chokidar, 'watch').returns({
             on: sinon.stub(),
             close: sinon.stub(),
@@ -209,6 +215,7 @@ describe('AgenticChatController', () => {
             readFile: sinon.stub().resolves(),
             writeFile: fsWriteFileStub.resolves(),
             rm: sinon.stub().resolves(),
+            getFileSize: sinon.stub().resolves(),
         }
 
         // Add agent with runTool method to testFeatures
@@ -220,7 +227,7 @@ describe('AgenticChatController', () => {
                 }))
             ),
             addTool: sinon.stub().resolves(),
-            removeTool: sinon.stub().returns(undefined),
+            removeTool: sinon.stub().resolves(),
         }
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
@@ -368,6 +375,28 @@ describe('AgenticChatController', () => {
             chatController.onTabAdd({ tabId: mockTabId })
         })
 
+        describe('Prompt ID', () => {
+            let setCurrentPromptIdStub: sinon.SinonStub
+
+            beforeEach(() => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                setCurrentPromptIdStub = sinon.stub(session, 'setCurrentPromptId')
+            })
+
+            it('sets prompt ID at the beginning of onChatPrompt', async () => {
+                await chatController.onChatPrompt(
+                    { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                    mockCancellationToken
+                )
+
+                sinon.assert.calledOnce(setCurrentPromptIdStub)
+                // Verify the prompt ID is a UUID string
+                const promptId = setCurrentPromptIdStub.firstCall.args[0]
+                assert.strictEqual(typeof promptId, 'string')
+                assert.ok(promptId.length > 0)
+            })
+        })
+
         it('read all the response streams and return compiled results', async () => {
             const chatResultPromise = chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
@@ -428,6 +457,35 @@ describe('AgenticChatController', () => {
             // Verify that the history was passed to the request
             const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(requestInput.conversationState?.history, mockHistory)
+        })
+
+        it('skips adding user message to history when token is cancelled', async () => {
+            // Create a cancellation token that is already cancelled
+            const cancelledToken = {
+                isCancellationRequested: true,
+                onCancellationRequested: () => ({ dispose: () => null }),
+            }
+
+            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
+
+            // Execute with cancelled token
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, cancelledToken)
+
+            sinon.assert.notCalled(addMessageSpy)
+        })
+
+        it('skips adding user message to history when prompt ID is no longer current', async () => {
+            // Setup session with a different current prompt ID
+            const session = chatSessionManagementService.getSession(mockTabId).data!
+            const isCurrentPromptStub = sinon.stub(session, 'isCurrentPrompt').returns(false)
+
+            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
+
+            // Execute with non-current prompt ID
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.called(isCurrentPromptStub)
+            sinon.assert.notCalled(addMessageSpy)
         })
 
         it('handles tool use responses and makes multiple requests', async () => {
@@ -990,19 +1048,20 @@ describe('AgenticChatController', () => {
             assert.strictEqual(typedChatResult.data?.body, errorMsg)
         })
 
-        it('does not make backend request when input is too long ', async function () {
-            const input = 'X'.repeat(generateAssistantResponseInputLimit + 1)
-            const chatResult = await chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: input } },
-                mockCancellationToken
+        it('truncate input to 500k character ', async function () {
+            const input = 'X'.repeat(generateAssistantResponseInputLimit + 10)
+            generateAssistantResponseStub.restore()
+            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+            generateAssistantResponseStub.callsFake(() => {})
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: input } }, mockCancellationToken)
+            assert.ok(generateAssistantResponseStub.called)
+            const calledRequestInput: GenerateAssistantResponseCommandInput =
+                generateAssistantResponseStub.firstCall.firstArg
+            assert.deepStrictEqual(
+                calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
+                generateAssistantResponseInputLimit
             )
-
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.ok(typedChatResult.message.includes('too long'))
-            assert.ok(typedChatResult.data?.body?.includes('too long'))
-            assert.ok(generateAssistantResponseStub.notCalled)
         })
-
         it('shows generic errorMsg on internal errors', async function () {
             const chatResult = await chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
@@ -1098,26 +1157,6 @@ describe('AgenticChatController', () => {
             const typedChatResult = chatResult as ResponseError<ChatResult>
             assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
             assert.strictEqual(typedChatResult.message, 'invalid state')
-        })
-
-        it('returns a user-friendly message when input is too long', async () => {
-            generateAssistantResponseStub.restore()
-            generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
-            generateAssistantResponseStub.callsFake(() => {
-                const error = new Error('Input is too long')
-                throw error
-            })
-
-            const chatResult = await chatController.onChatPrompt(
-                { tabId: mockTabId, prompt: { prompt: 'Hello with large context' } },
-                mockCancellationToken
-            )
-
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(
-                typedChatResult.data?.body,
-                'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.'
-            )
         })
 
         describe('#extractDocumentContext', () => {

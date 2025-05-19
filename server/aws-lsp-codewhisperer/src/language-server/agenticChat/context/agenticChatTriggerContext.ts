@@ -56,6 +56,9 @@ export const workspaceChunkMaxSize = 40_960
 // limit for the length of additionalContent
 export const additionalContextMaxLength = 100
 
+// maximum number of workspace folders allowed by the API
+export const maxWorkspaceFolders = 100
+
 export class AgenticChatTriggerContext {
     private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
 
@@ -106,11 +109,14 @@ export class AgenticChatTriggerContext {
         additionalContent?: AdditionalContentEntryAddition[]
     ): Promise<GenerateAssistantResponseCommandInput> {
         const { prompt } = params
-        const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolderPaths(this.#lsp) }
+        const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#lsp).slice(0, maxWorkspaceFolders)
+        const defaultEditorState = { workspaceFolders }
 
         const hasWorkspace = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
 
-        let promptContent = prompt.escapedPrompt ?? prompt.prompt
+        // prompt.prompt is what user typed in the input, should be sent to backend
+        // prompt.escapedPrompt is HTML serialized string, which should only be used for UI.
+        let promptContent = prompt.prompt ?? prompt.escapedPrompt
 
         // When the user adds @sage context, ** gets prepended and appended to the prompt because of markdown.
         // This intereferes with routing logic thus we need to remove it

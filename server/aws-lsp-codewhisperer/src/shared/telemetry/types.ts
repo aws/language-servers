@@ -25,6 +25,9 @@ export interface CodeWhispererServiceInvocationEvent {
     codewhispererSupplementalContextIsUtg?: boolean
     codewhispererSupplementalContextLatency?: number
     codewhispererSupplementalContextLength?: number
+    codewhispererImportRecommendationEnabled?: boolean
+    result?: 'Succeeded' | 'Failed'
+    traceId?: string
 }
 
 export interface CodeWhispererPerceivedLatencyEvent {
@@ -36,6 +39,8 @@ export interface CodeWhispererPerceivedLatencyEvent {
     codewhispererLanguage: CodewhispererLanguage
     credentialStartUrl?: string
     codewhispererCustomizationArn?: string
+    passive?: boolean
+    result?: 'Succeeded' | 'Failed'
 }
 
 export interface CodeWhispererUserTriggerDecisionEvent {
@@ -64,8 +69,24 @@ export interface CodeWhispererUserTriggerDecisionEvent {
     codewhispererSupplementalContextTimeout?: boolean
     codewhispererSupplementalContextIsUtg?: boolean
     codewhispererSupplementalContextLength?: number
+    codewhispererCharactersAccepted?: number
+    codewhispererSuggestionImportCount?: number
+    codewhispererSupplementalContextStrategyId?: string
 }
 
+export interface CodeWhispererUserModificationEvent {
+    codewhispererRequestId?: string
+    codewhispererSessionId?: string
+    codewhispererCompletionType?: string
+    codewhispererTriggerType: string
+    codewhispererLanguage: string
+    codewhispererModificationPercentage: number
+    credentialStartUrl?: string
+    codewhispererCharactersAccepted?: number
+    codewhispererCharactersModified?: number
+}
+
+// 2tracker
 export interface CodeWhispererCodePercentageEvent {
     codewhispererTotalTokens: number
     codewhispererLanguage: string
@@ -73,6 +94,8 @@ export interface CodeWhispererCodePercentageEvent {
     codewhispererSuggestedTokens: number
     codewhispererPercentage: number
     successCount: number
+    codewhispererCustomizationArn?: string
+    credentialStartUrl?: string
 }
 
 export interface UserWrittenPercentageEvent {
@@ -177,7 +200,12 @@ export enum ChatTelemetryEventName {
     MessageResponseError = 'amazonq_messageResponseError',
     ModifyCode = 'amazonq_modifyCode',
     ToolUseSuggested = 'amazonq_toolUseSuggested',
+    AgencticLoop_InvokeLLM = 'amazonq_invokeLLM',
     InteractWithAgenticChat = 'amazonq_interactWithAgenticChat',
+    LoadHistory = 'amazonq_loadHistory',
+    ChatHistoryAction = 'amazonq_performChatHistoryAction',
+    ExportTab = 'amazonq_exportTab',
+    UiClick = 'ui_click',
 }
 
 export interface ChatTelemetryEventMap {
@@ -192,7 +220,23 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.MessageResponseError]: MessageResponseErrorEvent
     [ChatTelemetryEventName.ModifyCode]: ModifyCodeEvent
     [ChatTelemetryEventName.ToolUseSuggested]: ToolUseSuggestedEvent
+    [ChatTelemetryEventName.AgencticLoop_InvokeLLM]: AgencticLoop_InvokeLLMEvent
     [ChatTelemetryEventName.InteractWithAgenticChat]: InteractWithAgenticChatEvent
+    [ChatTelemetryEventName.LoadHistory]: LoadHistoryEvent
+    [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
+    [ChatTelemetryEventName.ExportTab]: ExportTabEvent
+    [ChatTelemetryEventName.UiClick]: UiClickEvent
+}
+
+export type AgencticLoop_InvokeLLMEvent = {
+    credentialStartUrl?: string
+    cwsprChatConversationId: string
+    cwsprChatConversationType: ChatConversationType
+    cwsprToolName: string
+    cwsprToolUseId: string
+    enabled?: boolean
+    languageServerVersion?: string
+    latency?: string
 }
 
 export type ToolUseSuggestedEvent = {
@@ -201,7 +245,9 @@ export type ToolUseSuggestedEvent = {
     cwsprChatConversationType: ChatConversationType
     cwsprToolName: string
     cwsprToolUseId: string
+    enabled?: boolean
     languageServerVersion?: string
+    perfE2ELatency?: string
 }
 
 export type InteractWithAgenticChatEvent = {
@@ -209,6 +255,7 @@ export type InteractWithAgenticChatEvent = {
     cwsprChatConversationId: string
     cwsprChatConversationType: ChatConversationType
     cwsprAgenticChatInteractionType: AgenticChatInteractionType
+    enabled?: boolean
 }
 
 export type ModifyCodeEvent = {
@@ -241,7 +288,9 @@ export type AddMessageEvent = {
     cwsprChatResponseLength?: number
     cwsprChatConversationType: ChatConversationType
     codewhispererCustomizationArn?: string
+    enabled?: boolean
     languageServerVersion?: string
+    requestIds?: string[]
 
     // context related metrics
     cwsprChatHasContextList?: boolean
@@ -275,6 +324,33 @@ export type ExitFocusConversationEvent = {
     cwsprChatConversationId: string
 }
 
+export type UiClickEvent = {
+    elementId: string
+}
+
+export type LoadHistoryEvent = {
+    amazonqTimeToLoadHistory: number
+    amazonqHistoryFileSize: number
+    openTabCount: number
+    result: Result
+    languageServerVersion?: string
+}
+
+export type ChatHistoryActionEvent = {
+    action: ChatHistoryActionType
+    result: Result
+    languageServerVersion?: string
+    filenameExt?: string
+    amazonqTimeToSearchHistory?: number
+    amazonqHistoryFileSize?: number
+}
+
+export type ExportTabEvent = {
+    filenameExt: string
+    result: Result
+    languageServerVersion?: string
+}
+
 export enum ChatInteractionType {
     InsertAtCursor = 'insertAtCursor',
     CopySnippet = 'copySnippet',
@@ -285,6 +361,13 @@ export enum ChatInteractionType {
     Upvote = 'upvote',
     Downvote = 'downvote',
     ClickBodyLink = 'clickBodyLink',
+}
+
+export enum ChatHistoryActionType {
+    Search = 'search',
+    Export = 'export',
+    Open = 'open',
+    Delete = 'delete',
 }
 
 export type ChatConversationType = 'Chat' | 'Assign' | 'Transform' | 'AgenticChat' | 'AgenticChatWithToolUse'
@@ -326,6 +409,7 @@ export type MessageResponseErrorEvent = {
     cwsprChatRepsonseCode: number
     cwsprChatRequestLength?: number
     cwsprChatConversationType: ChatConversationType
+    enabled?: boolean
     languageServerVersion?: string
 }
 

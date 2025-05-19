@@ -5,9 +5,9 @@
 
 import { expect } from 'chai'
 import * as sinon from 'sinon'
-import { McpManager } from './mcpManager'
+import { AGENT_TOOLS_CHANGED, MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import * as mcpUtils from './mcpUtils'
-import type { MCPServerConfig } from './mcpTypes'
+import type { MCPServerConfig, MCPServerPermissionUpdate } from './mcpTypes'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 
 // Shared fakes
@@ -136,6 +136,7 @@ describe('callTool()', () => {
 
         try {
             await mgr.callTool('s1', 'tool1', {})
+            throw new Error('Expected callTool to throw on timeout')
         } catch (e: any) {
             expect(e.code).to.equal('MCPToolExecTimeout')
         }
@@ -313,7 +314,6 @@ describe('updateServer()', () => {
 })
 
 // requiresApproval()
-
 describe('requiresApproval()', () => {
     let loadStub: sinon.SinonStub
 
@@ -483,6 +483,97 @@ describe('getEnabledTools()', () => {
         const mgr = await McpManager.init(['t.json'], features)
         expect(mgr.getAllTools()).to.have.length(1)
         expect(mgr.getEnabledTools()).to.be.empty
+    })
+
+    it('server-level permission change (enabled->disabled)', async () => {
+        const cfg = {
+            command: 'c',
+            args: [],
+            env: {},
+            disabled: false,
+            autoApprove: false,
+            toolOverrides: {},
+            __configPath__: 'srv.json',
+        } as MCPServerConfig
+        loadStub.resolves(new Map([['srv', cfg]]))
+        const mgr = await McpManager.init(['srv.json'], features)
+        const client = new Client({ name: 'x', version: 'v' })
+        ;(mgr as any).clients.set('srv', client)
+        ;(mgr as any).mcpTools.push({ serverName: 'srv', toolName: 'tool1', description: '', inputSchema: {} })
+
+        const statusEvents: any[] = []
+        mgr.events.on(MCP_SERVER_STATUS_CHANGED, (_, s) => statusEvents.push(s))
+        const toolsEvents: any[] = []
+        mgr.events.on(AGENT_TOOLS_CHANGED, (_, t) => toolsEvents.push(t))
+
+        const closeSpy = sinon.spy(client, 'close')
+        await mgr.updateServerPermission('srv', { disabled: true } as MCPServerPermissionUpdate)
+
+        expect(closeSpy.calledOnce).to.be.true
+        expect(statusEvents).to.deep.equal([{ status: 'DISABLED', toolsCount: 0, lastError: undefined }])
+        expect(toolsEvents).to.deep.equal([[]])
+    })
+
+    it('server-level permission change (disabled->enabled)', async () => {
+        const cfg = {
+            command: 'c',
+            args: [],
+            env: {},
+            disabled: true,
+            autoApprove: false,
+            toolOverrides: {},
+            __configPath__: 'srv2.json',
+        } as MCPServerConfig
+        loadStub.resolves(new Map([['srv2', cfg]]))
+        const mgr = await McpManager.init([], features)
+        ;(mgr as any).mcpServers.set('srv2', cfg)
+
+        await mgr.updateServerPermission('srv2', { disabled: false } as MCPServerPermissionUpdate)
+        expect(initOneStub.calledOnceWith('srv2')).to.be.true
+    })
+
+    it('disables individual tool-level permission and filters tool list', async () => {
+        const cfg = {
+            command: 'c',
+            args: [],
+            env: {},
+            disabled: false,
+            autoApprove: false,
+            toolOverrides: {},
+            __configPath__: 'srv3.json',
+        } as MCPServerConfig
+        loadStub.resolves(new Map([['srv3', cfg]]))
+        const mgr = await McpManager.init(['srv3.json'], features)
+        ;(mgr as any).mcpTools = [{ serverName: 'srv3', toolName: 'toolA', description: '', inputSchema: {} }]
+
+        const toolsEvents: any[] = []
+        mgr.events.on(AGENT_TOOLS_CHANGED, (_, t) => toolsEvents.push(t))
+        await mgr.updateServerPermission('srv3', { toolOverrides: { toolA: { disabled: true } } })
+
+        expect(toolsEvents[0]).to.deep.equal([])
+    })
+
+    it('re-enables individual tool-level permission and restores tool', async () => {
+        const cfg = {
+            command: 'c',
+            args: [],
+            env: {},
+            disabled: false,
+            autoApprove: false,
+            toolOverrides: { toolB: { disabled: true } },
+            __configPath__: 'srv4.json',
+        } as MCPServerConfig
+        loadStub.resolves(new Map([['srv4', cfg]]))
+        const mgr = await McpManager.init(['srv4.json'], features)
+        ;(mgr as any).mcpTools = [{ serverName: 'srv4', toolName: 'toolB', description: '', inputSchema: {} }]
+
+        const toolsEvents: any[] = []
+        mgr.events.on(AGENT_TOOLS_CHANGED, (_, t) => toolsEvents.push(t))
+        await mgr.updateServerPermission('srv4', { toolOverrides: { toolB: { disabled: false } } })
+
+        expect(toolsEvents[0]).to.deep.equal([
+            { serverName: 'srv4', toolName: 'toolB', description: '', inputSchema: {} },
+        ])
     })
 })
 

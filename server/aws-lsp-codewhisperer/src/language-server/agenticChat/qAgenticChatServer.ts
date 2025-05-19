@@ -164,6 +164,10 @@ export const QAgenticChatServer =
             return chatController.onButtonClick(params)
         })
 
+        chat.onInlineChatResult(params => {
+            return chatController.onInlineChatResult(params)
+        })
+
         logging.log('Q Chat server has been initialized')
 
         return () => {
