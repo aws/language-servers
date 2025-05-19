@@ -225,6 +225,26 @@ describe('Chat Session Service', () => {
         assert.strictEqual(chatSessionServiceIAM.conversationId, undefined)
     })
 
+    describe('Prompt ID', () => {
+        let chatSessionService: ChatSessionService
+
+        beforeEach(() => {
+            chatSessionService = new ChatSessionService()
+        })
+
+        it('should initialize with undefined promptId', () => {
+            assert.strictEqual(chatSessionService.isCurrentPrompt('test-id'), false)
+        })
+
+        it('should set and check current prompt ID', () => {
+            const promptId = 'test-prompt-id'
+            chatSessionService.setCurrentPromptId(promptId)
+
+            assert.strictEqual(chatSessionService.isCurrentPrompt(promptId), true)
+            assert.strictEqual(chatSessionService.isCurrentPrompt('different-id'), false)
+        })
+    })
+
     describe('Approved Paths', () => {
         let chatSessionService: ChatSessionService
 

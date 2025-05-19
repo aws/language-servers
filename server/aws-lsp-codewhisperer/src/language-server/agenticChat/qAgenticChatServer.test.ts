@@ -31,6 +31,7 @@ describe('QAgenticChatServer', () => {
             readFile: sinon.stub().resolves(),
             writeFile: sinon.stub().resolves(),
             rm: sinon.stub().resolves(),
+            getFileSize: sinon.stub().resolves(),
         }
 
         // @ts-ignore

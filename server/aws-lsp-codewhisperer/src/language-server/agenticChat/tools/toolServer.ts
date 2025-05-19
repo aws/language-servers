@@ -34,6 +34,10 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         await listDirectoryTool.validate(input)
         return await listDirectoryTool.invoke(input, token)
     })
+    agent.addTool(listDirectoryTool.getSpec(), async (input: ListDirectoryParams, token?: CancellationToken) => {
+        await listDirectoryTool.validate(input)
+        return await listDirectoryTool.invoke(input, token)
+    })
 
     return () => {}
 }

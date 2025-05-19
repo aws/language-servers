@@ -69,8 +69,8 @@ describe('FileSearch Tool', () => {
 
         assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
-        const hasFileA = lines.some(line => line.includes('[F] ') && line.includes('fileA.txt'))
-        const hasFileB = lines.some(line => line.includes('[F] ') && line.includes('fileB.md'))
+        const hasFileA = lines.some(line => !line.includes('[F] ') && line.includes('fileA.txt'))
+        const hasFileB = lines.some(line => !line.includes('[F] ') && line.includes('fileB.md'))
 
         assert.ok(hasFileA, 'Should find fileA.txt matching the pattern')
         assert.ok(!hasFileB, 'Should not find fileB.md as it does not match the pattern')
@@ -90,9 +90,9 @@ describe('FileSearch Tool', () => {
 
         assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
-        const hasFileA = lines.some(line => line.includes('[F] ') && line.includes('fileA.txt'))
-        const hasFileB = lines.some(line => line.includes('[F] ') && line.includes('fileB.txt'))
-        const hasFileC = lines.some(line => line.includes('[F] ') && line.includes('fileC.md'))
+        const hasFileA = lines.some(line => !line.includes('[F] ') && line.includes('fileA.txt'))
+        const hasFileB = lines.some(line => !line.includes('[F] ') && line.includes('fileB.txt'))
+        const hasFileC = lines.some(line => !line.includes('[F] ') && line.includes('fileC.md'))
 
         assert.ok(hasFileA, 'Should find fileA.txt in root directory')
         assert.ok(hasFileB, 'Should find fileB.txt in subfolder')
@@ -116,9 +116,9 @@ describe('FileSearch Tool', () => {
 
         assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
-        const hasRootFile = lines.some(line => line.includes('[F] ') && line.includes('root.txt'))
-        const hasLevel1File = lines.some(line => line.includes('[F] ') && line.includes('level1.txt'))
-        const hasLevel2File = lines.some(line => line.includes('[F] ') && line.includes('level2.txt'))
+        const hasRootFile = lines.some(line => !line.includes('[F] ') && line.includes('root.txt'))
+        const hasLevel1File = lines.some(line => !line.includes('[F] ') && line.includes('level1.txt'))
+        const hasLevel2File = lines.some(line => !line.includes('[F] ') && line.includes('level2.txt'))
 
         assert.ok(hasRootFile, 'Should find root.txt in root directory')
         assert.ok(hasLevel1File, 'Should find level1.txt in subfolder1')
@@ -138,8 +138,8 @@ describe('FileSearch Tool', () => {
 
         assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
-        const hasUpperFile = lines.some(line => line.includes('[F] ') && line.includes('FileUpper.txt'))
-        const hasLowerFile = lines.some(line => line.includes('[F] ') && line.includes('fileLower.txt'))
+        const hasUpperFile = lines.some(line => !line.includes('[F] ') && line.includes('FileUpper.txt'))
+        const hasLowerFile = lines.some(line => !line.includes('[F] ') && line.includes('fileLower.txt'))
 
         assert.ok(hasUpperFile, 'Should find FileUpper.txt with case-insensitive search')
         assert.ok(hasLowerFile, 'Should find fileLower.txt with case-insensitive search')
@@ -159,8 +159,8 @@ describe('FileSearch Tool', () => {
 
         assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
-        const hasUpperFile = lines.some(line => line.includes('[F] ') && line.includes('FileUpper.txt'))
-        const hasLowerFile = lines.some(line => line.includes('[F] ') && line.includes('fileLower.txt'))
+        const hasUpperFile = lines.some(line => !line.includes('[F] ') && line.includes('FileUpper.txt'))
+        const hasLowerFile = lines.some(line => !line.includes('[F] ') && line.includes('fileLower.txt'))
 
         assert.ok(!hasUpperFile, 'Should not find FileUpper.txt with case-sensitive search')
         assert.ok(hasLowerFile, 'Should find fileLower.txt with case-sensitive search')
@@ -179,8 +179,8 @@ describe('FileSearch Tool', () => {
 
         assert.strictEqual(result.output.kind, 'text')
         const lines = result.output.content.split('\n')
-        const hasRegularFile = lines.some(line => line.includes('[F] ') && line.includes('regular.txt'))
-        const hasExcludedFile = lines.some(line => line.includes('[F] ') && line.includes('excluded.txt'))
+        const hasRegularFile = lines.some(line => !line.includes('[F] ') && line.includes('regular.txt'))
+        const hasExcludedFile = lines.some(line => !line.includes('[F] ') && line.includes('excluded.txt'))
 
         assert.ok(hasRegularFile, 'Should find regular.txt in root directory')
         assert.ok(!hasExcludedFile, 'Should not find excluded.txt in node_modules directory')

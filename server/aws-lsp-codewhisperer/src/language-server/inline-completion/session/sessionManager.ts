@@ -69,6 +69,8 @@ export class CodeWhispererSession {
     previousTriggerDecisionTime?: number
     reportedUserDecision: boolean = false
     customizationArn?: string
+    includeImportsWithSuggestions?: boolean
+    codewhispererSuggestionImportCount: number = 0
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
