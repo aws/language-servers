@@ -774,6 +774,7 @@ export class AgenticChatController implements ChatHandlers {
 
     /**
      * performs truncation of request before sending to backend service.
+     * Returns the remaining character budget for chat history.
      * @param request
      */
     truncateRequest(request: GenerateAssistantResponseCommandInput): number {

@@ -1333,7 +1333,7 @@ describe('AgenticChatController', () => {
                     chatTriggerType: undefined,
                 },
             }
-            chatController.truncateRequest(request)
+            const result = chatController.truncateRequest(request)
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 500_000)
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
@@ -1346,6 +1346,7 @@ describe('AgenticChatController', () => {
                 0
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 1)
+            assert.strictEqual(result, 0)
         })
 
         it('should not modify user input message if within limit', () => {
@@ -1404,7 +1405,7 @@ describe('AgenticChatController', () => {
                     chatTriggerType: undefined,
                 },
             }
-            chatController.truncateRequest(request)
+            const result = chatController.truncateRequest(request)
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
@@ -1417,6 +1418,7 @@ describe('AgenticChatController', () => {
                 2
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 1)
+            assert.strictEqual(result, 99700)
         })
         it('should truncate current editor if combined length exceeds remaining budget', () => {
             const request: GenerateAssistantResponseCommandInput = {
@@ -1477,6 +1479,67 @@ describe('AgenticChatController', () => {
                 2
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
+        })
+        it('should return remaining budget for history', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(100_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        {
+                                            relativeFilePath: '',
+                                            text: 'a'.repeat(1000),
+                                        },
+                                        {
+                                            relativeFilePath: '',
+                                            text: 'a'.repeat(1000),
+                                        },
+                                    ],
+                                    document: {
+                                        relativeFilePath: '',
+                                        text: 'a'.repeat(100_000),
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    history: [
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(100),
+                            },
+                        },
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(100),
+                            },
+                        },
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(100_000),
+                            },
+                        },
+                    ],
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 100_000)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.document?.text?.length || 0,
+                100_000
+            )
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length || 2,
+                2
+            )
+            assert.strictEqual(request.conversationState?.history?.length || 0, 3)
+            assert.strictEqual(result, 298000)
         })
     })
 
