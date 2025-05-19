@@ -7,7 +7,6 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import {
     ChatTriggerType,
-    CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
@@ -114,7 +113,6 @@ import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
     genericErrorMsg,
-    maxAgentLoopIterations,
     loadingThresholdMs,
     generateAssistantResponseInputLimit,
     outputLimitExceedsPartialMsg,
@@ -558,7 +556,7 @@ export class AgenticChatController implements ChatHandlers {
         let shouldDisplayMessage = true
         metric.recordStart()
 
-        while (iterationCount < maxAgentLoopIterations) {
+        while (true) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
@@ -600,7 +598,7 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.#truncateRequest(currentRequestInput)
+            this.truncateRequest(currentRequestInput)
             const response = await session.generateAssistantResponse(currentRequestInput)
 
             if (response.$metadata.requestId) {
@@ -764,10 +762,6 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (iterationCount >= maxAgentLoopIterations) {
-            throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
-        }
-
         return (
             finalResult || {
                 success: false,
@@ -781,19 +775,74 @@ export class AgenticChatController implements ChatHandlers {
      * performs truncation of request before sending to backend service.
      * @param request
      */
-    #truncateRequest(request: GenerateAssistantResponseCommandInput) {
+    truncateRequest(request: GenerateAssistantResponseCommandInput) {
         // Note: these logs are very noisy, but contain information redacted on the backend.
         this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
             return
         }
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
-        if (message && message.length > generateAssistantResponseInputLimit) {
-            this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
-            request.conversationState.currentMessage.userInputMessage.content = message.substring(
-                0,
-                generateAssistantResponseInputLimit
-            )
+        let remainingCharacterBudget = generateAssistantResponseInputLimit
+
+        // 1. prioritize user input message
+        let truncatedUserInputMessage = ''
+        if (message) {
+            if (message.length > generateAssistantResponseInputLimit) {
+                this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
+                truncatedUserInputMessage = message.substring(0, generateAssistantResponseInputLimit)
+                remainingCharacterBudget = remainingCharacterBudget - truncatedUserInputMessage.length
+                request.conversationState.currentMessage.userInputMessage.content = truncatedUserInputMessage
+            } else {
+                remainingCharacterBudget = remainingCharacterBudget - message.length
+            }
+        }
+
+        // 2. try to fit @context into budget
+        let truncatedRelevantDocuments = []
+        if (
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
+                ?.relevantDocuments
+        ) {
+            for (const relevantDoc of request.conversationState.currentMessage.userInputMessage.userInputMessageContext
+                ?.editorState?.relevantDocuments) {
+                const docLength = relevantDoc?.text?.length || 0
+                if (remainingCharacterBudget > docLength) {
+                    truncatedRelevantDocuments.push(relevantDoc)
+                    remainingCharacterBudget = remainingCharacterBudget - docLength
+                }
+            }
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.relevantDocuments =
+                truncatedRelevantDocuments
+        }
+
+        // 3. try to fit current file context
+        let truncatedCurrentDocument = undefined
+        if (request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState?.document) {
+            const docLength =
+                request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState?.document
+                    .text?.length || 0
+            if (remainingCharacterBudget > docLength) {
+                truncatedCurrentDocument =
+                    request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
+                        ?.document
+                remainingCharacterBudget = remainingCharacterBudget - docLength
+            }
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
+                truncatedCurrentDocument
+        }
+
+        // 4. try to fit chat history
+        let truncatedChatHistory = []
+        if (request.conversationState.history) {
+            for (const history of request.conversationState.history) {
+                // use json strified string length to provide a conservative estimate
+                const historyLength = JSON.stringify(history).toString().length
+                if (remainingCharacterBudget > historyLength) {
+                    truncatedChatHistory.push(history)
+                    remainingCharacterBudget = remainingCharacterBudget - historyLength
+                }
+            }
+            request.conversationState.history = truncatedChatHistory
         }
     }
 
