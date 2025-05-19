@@ -7,6 +7,11 @@ import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING
 import { CodeWhispererStreamingServiceException } from '@amzn/codewhisperer-streaming'
 import { ServiceException } from '@smithy/smithy-client'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
+import {
+    isImproperlyFormedRequest,
+    isInputTooLongError,
+    unactionableErrorCodes,
+} from '../language-server/agenticChat/errors'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -214,10 +219,23 @@ export function parseJson(jsonString: string) {
 }
 
 export function getErrorMessage(error: any): string {
-    if (error instanceof Error) {
+    if (error?.cause?.message) {
+        return error?.cause?.message
+    } else if (error instanceof Error) {
         return error.message
     }
     return String(error)
+}
+
+export function getRequestID(error: any): string | undefined {
+    if (hasCause(error) && error.cause.$metadata?.requestId) {
+        return error.cause.$metadata.requestId
+    }
+    if (error instanceof CodeWhispererStreamingServiceException) {
+        return error.$metadata.requestId
+    }
+
+    return undefined
 }
 
 export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvider) {
@@ -308,6 +326,15 @@ export function isStringOrNull(object: any): object is string | null {
 // Port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/c22efa03e73b241564c8051c35761eb8620edb83/packages/core/src/shared/errors.ts#L648
 export function getHttpStatusCode(err: unknown): number | undefined {
+    // RTS throws validation errors with a 400 status code to LSP, we convert them to 500 from the perspective of the user
+    if (isInputTooLongError(err) || isImproperlyFormedRequest(err)) {
+        return 500
+    }
+
+    if (err && hasCode(err) && err.code in unactionableErrorCodes) {
+        return 400
+    }
+
     if (hasResponse(err) && err?.$response?.statusCode !== undefined) {
         return err?.$response?.statusCode
     }
@@ -318,7 +345,8 @@ export function getHttpStatusCode(err: unknown): number | undefined {
         return err.cause.$metadata.httpStatusCode
     }
 
-    return undefined
+    // If no status code is provided, default to 500
+    return 500
 }
 
 function hasResponse<T>(error: T): error is T & Pick<ServiceException, '$response'> {

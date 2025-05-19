@@ -71,7 +71,7 @@ describe('MynahUI', () => {
         createTabStub.returns({})
         getChatItemsStub = sinon.stub(tabFactory, 'getChatItems')
         getChatItemsStub.returns([])
-        const mynahUiResult = createMynahUi(messager, tabFactory, true, true)
+        const mynahUiResult = createMynahUi(messager, tabFactory, true, true, undefined, undefined, true)
         mynahUi = mynahUiResult[0]
         inboundChatApi = mynahUiResult[1]
         getSelectedTabIdStub = sinon.stub(mynahUi, 'getSelectedTabId')
@@ -96,7 +96,7 @@ describe('MynahUI', () => {
             const tabId = 'tab-1'
             const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt' }
 
-            handleChatPrompt(mynahUi, tabId, prompt, messager)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, undefined, undefined, true)
 
             assert.notCalled(onQuickActionSpy)
             assert.calledWith(onChatPromptSpy, { prompt, tabId, context: undefined })
@@ -125,7 +125,7 @@ describe('MynahUI', () => {
             const tabId = 'tab-1'
             const prompt = { prompt: 'Test prompt', escapedPrompt: 'Test prompt', command: '/help' }
 
-            handleChatPrompt(mynahUi, tabId, prompt, messager)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, undefined, undefined, true)
 
             assert.notCalled(onChatPromptSpy)
             assert.calledWith(onQuickActionSpy, {
@@ -414,7 +414,15 @@ describe('withAdapter', () => {
             telemetry: sinon.stub(),
         } as OutboundChatApi)
         const tabFactory = new TabFactory({})
-        const mynahUiResult = createMynahUi(messager as Messager, tabFactory, true, true, chatClientAdapter)
+        const mynahUiResult = createMynahUi(
+            messager as Messager,
+            tabFactory,
+            true,
+            true,
+            chatClientAdapter,
+            undefined,
+            true
+        )
         mynahUi = mynahUiResult[0]
     })
 

@@ -1,13 +1,9 @@
 import {
     CancellationToken,
-    CredentialsProvider,
     ExecuteCommandParams,
     InitializeParams,
     Server,
-    Workspace,
-    Logging,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import {
     emitTransformationJobArtifactsDownloadedFailure,
     emitTransformationJobArtifactsDownloadedTelemetry,
@@ -23,6 +19,8 @@ import {
     emitTransformationJobStartedTelemetry,
     emitTransformationPlanReceivedFailure,
     emitTransformationPlanReceivedTelemetry,
+    emitCancelPollingTelemetry,
+    emitCancelPollingFailure,
 } from './metrics'
 import {
     CancelTransformRequest,
@@ -43,6 +41,7 @@ const PollTransformForPlanCommand = 'aws/qNetTransform/pollTransformForPlan'
 const GetTransformPlanCommand = 'aws/qNetTransform/getTransformPlan'
 const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
+const CancelPollingCommand = 'aws/qNetTransform/cancelPolling'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
@@ -52,19 +51,11 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
  * @returns  NetTransform server
  */
 export const QNetTransformServerToken =
-    (
-        service: (
-            credentialsProvider: CredentialsProvider,
-            workspace: Workspace,
-            logging: Logging,
-            awsQRegion: string,
-            awsQEndpointUrl: string,
-            sdkInitializator: SDKInitializator
-        ) => CodeWhispererServiceToken
-    ): Server =>
-    ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
+    (): Server =>
+    ({ workspace, logging, lsp, telemetry, runtime }) => {
         let amazonQServiceManager: AmazonQTokenServiceManager
         let transformHandler: TransformHandler
+
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
             try {
                 switch (params.command) {
@@ -128,6 +119,10 @@ export const QNetTransformServerToken =
                         )
                         return response
                     }
+                    case CancelPollingCommand: {
+                        await transformHandler.cancelPollingAsync()
+                        emitCancelPollingTelemetry(telemetry)
+                    }
                 }
                 return
             } catch (e: any) {
@@ -169,6 +164,10 @@ export const QNetTransformServerToken =
                         emitTransformationJobArtifactsDownloadedFailure(telemetry, request, e)
                         break
                     }
+                    case CancelPollingCommand: {
+                        emitCancelPollingFailure(telemetry, e)
+                        break
+                    }
                 }
             }
         }
@@ -182,24 +181,6 @@ export const QNetTransformServerToken =
         }
 
         const onInitializeHandler = async (params: InitializeParams) => {
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance({
-                lsp,
-                logging,
-                runtime,
-                credentialsProvider,
-                sdkInitializator,
-                workspace,
-            })
-
-            transformHandler = new TransformHandler(amazonQServiceManager, workspace, logging, runtime)
-
-            /* 
-                    Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-                    
-                    TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                */
-            await amazonQServiceManager.handleDidChangeConfiguration()
-
             return {
                 capabilities: {
                     executeCommandProvider: {
@@ -211,12 +192,21 @@ export const QNetTransformServerToken =
                             GetTransformPlanCommand,
                             CancelTransformCommand,
                             DownloadArtifactsCommand,
+                            CancelPollingCommand,
                         ],
                     },
                 },
             }
         }
+
+        const onInitializedHandler = () => {
+            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+
+            transformHandler = new TransformHandler(amazonQServiceManager, workspace, logging, runtime)
+        }
+
         lsp.addInitializer(onInitializeHandler)
+        lsp.onInitialized(onInitializedHandler)
         lsp.onExecuteCommand(onExecuteCommandHandler)
 
         return () => {}

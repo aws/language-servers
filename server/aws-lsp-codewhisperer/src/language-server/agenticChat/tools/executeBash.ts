@@ -150,7 +150,8 @@ export class ExecuteBash {
         this.lsp = features.lsp
     }
 
-    public async validate(command: string): Promise<void> {
+    public async validate(input: ExecuteBashParams): Promise<void> {
+        const command = input.command
         if (!command.trim()) {
             throw new Error('Command cannot be empty.')
         }
@@ -208,16 +209,32 @@ export class ExecuteBash {
                 allCommands.push(currentCmd)
             }
 
+            // Track highest command category (ReadOnly < Mutate < Destructive)
+            let highestCommandCategory = CommandCategory.ReadOnly
+
             for (const cmdArgs of allCommands) {
                 if (cmdArgs.length === 0) {
-                    return { requiresAcceptance: true }
+                    return { requiresAcceptance: true, commandCategory: highestCommandCategory }
                 }
 
                 // For each command, validate arguments for path safety within workspace
                 for (const arg of cmdArgs) {
                     if (this.looksLikePath(arg)) {
-                        // If not absolute, resolve using workingDirectory if available.
-                        const fullPath = !isAbsolute(arg) && params.cwd ? join(params.cwd, arg) : arg
+                        // Special handling for tilde paths in Unix-like systems
+                        let fullPath: string
+                        if (!IS_WINDOWS_PLATFORM && arg.startsWith('~')) {
+                            // Treat tilde paths as absolute paths (they will be expanded by the shell)
+                            return {
+                                requiresAcceptance: true,
+                                warning: destructiveCommandWarningMessage,
+                                commandCategory: CommandCategory.Destructive,
+                            }
+                        } else if (!isAbsolute(arg) && params.cwd) {
+                            // If not absolute, resolve using workingDirectory if available
+                            fullPath = join(params.cwd, arg)
+                        } else {
+                            fullPath = arg
+                        }
 
                         // Check if the path is already approved
                         if (approvedPaths && isPathApproved(fullPath, approvedPaths)) {
@@ -226,7 +243,11 @@ export class ExecuteBash {
 
                         const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), fullPath)
                         if (!isInWorkspace) {
-                            return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
+                            return {
+                                requiresAcceptance: true,
+                                warning: outOfWorkspaceWarningmessage,
+                                commandCategory: highestCommandCategory,
+                            }
                         }
                     }
                 }
@@ -234,15 +255,36 @@ export class ExecuteBash {
                 const command = cmdArgs[0]
                 const category = commandCategories.get(command)
 
+                // Update the highest command category if current command has higher risk
+                if (category === CommandCategory.Destructive) {
+                    highestCommandCategory = CommandCategory.Destructive
+                } else if (
+                    category === CommandCategory.Mutate &&
+                    highestCommandCategory !== CommandCategory.Destructive
+                ) {
+                    highestCommandCategory = CommandCategory.Mutate
+                }
+
                 switch (category) {
                     case CommandCategory.Destructive:
-                        return { requiresAcceptance: true, warning: destructiveCommandWarningMessage }
+                        return {
+                            requiresAcceptance: true,
+                            warning: destructiveCommandWarningMessage,
+                            commandCategory: CommandCategory.Destructive,
+                        }
                     case CommandCategory.Mutate:
-                        return { requiresAcceptance: true, warning: mutateCommandWarningMessage }
+                        return {
+                            requiresAcceptance: true,
+                            warning: mutateCommandWarningMessage,
+                            commandCategory: CommandCategory.Mutate,
+                        }
                     case CommandCategory.ReadOnly:
                         continue
                     default:
-                        return { requiresAcceptance: true }
+                        return {
+                            requiresAcceptance: true,
+                            commandCategory: highestCommandCategory,
+                        }
                 }
             }
             // Finally, check if the cwd is outside the workspace
@@ -253,7 +295,11 @@ export class ExecuteBash {
 
                     // If there are no workspace folders, we can't validate the path
                     if (!workspaceFolders || workspaceFolders.length === 0) {
-                        return { requiresAcceptance: true, warning: outOfWorkspaceWarningmessage }
+                        return {
+                            requiresAcceptance: true,
+                            warning: outOfWorkspaceWarningmessage,
+                            commandCategory: highestCommandCategory,
+                        }
                     }
 
                     // Normalize paths for consistent comparison
@@ -266,16 +312,20 @@ export class ExecuteBash {
                     )
 
                     if (!isInWorkspace) {
-                        return { requiresAcceptance: true, warning: outOfWorkspaceWarningmessage }
+                        return {
+                            requiresAcceptance: true,
+                            warning: outOfWorkspaceWarningmessage,
+                            commandCategory: highestCommandCategory,
+                        }
                     }
                 }
             }
 
             // If we've checked all commands and none required acceptance, we're good
-            return { requiresAcceptance: false }
+            return { requiresAcceptance: false, commandCategory: highestCommandCategory }
         } catch (error) {
             this.logging.warn(`Error while checking acceptance: ${(error as Error).message}`)
-            return { requiresAcceptance: true }
+            return { requiresAcceptance: true, commandCategory: CommandCategory.ReadOnly }
         }
     }
 
@@ -289,11 +339,12 @@ export class ExecuteBash {
                 arg.startsWith('\\\\') || // UNC path
                 arg.startsWith('.\\') ||
                 arg.startsWith('..\\') ||
-                /^[a-zA-Z]:[/\\]/.test(arg)
+                /^[a-zA-Z]:[/\\]/.test(arg) ||
+                arg.startsWith('%') // Windows environment variables like %USERPROFILE%
             ) // Drive letter paths like C:\ or C:/
         } else {
             // Unix path patterns
-            return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../')
+            return arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../') || arg.startsWith('~')
         }
     }
 

@@ -6,6 +6,7 @@ import { DocumentContext, DocumentContextExtractor } from './documentContext'
 import { SendMessageCommandInput } from '../../../shared/streamingClientService'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { convertChunksToRelevantTextDocuments } from '../tools/relevantTextDocuments'
+import { AmazonQBaseServiceManager as AmazonQServiceManager } from '../../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -21,7 +22,11 @@ export class QChatTriggerContext {
     #documentContextExtractor: DocumentContextExtractor
     #logger: Features['logging']
 
-    constructor(workspace: Features['workspace'], logger: Features['logging']) {
+    constructor(
+        workspace: Features['workspace'],
+        logger: Features['logging'],
+        private amazonQServiceManager?: AmazonQServiceManager
+    ) {
         this.#workspace = workspace
         this.#documentContextExtractor = new DocumentContextExtractor({ logger, workspace })
         this.#logger = logger
@@ -120,6 +125,19 @@ export class QChatTriggerContext {
     async extractProjectContext(query?: string): Promise<RelevantTextDocument[]> {
         if (query) {
             try {
+                let enableWorkspaceContext = true
+
+                if (this.amazonQServiceManager) {
+                    const config = this.amazonQServiceManager.getConfiguration()
+                    if (config.projectContext?.enableLocalIndexing === false) {
+                        enableWorkspaceContext = false
+                    }
+                }
+
+                if (!enableWorkspaceContext) {
+                    this.#logger.debug('Workspace context is disabled, skipping project context extraction')
+                    return []
+                }
                 const contextController = await LocalProjectContextController.getInstance()
                 const resp = await contextController.queryVectorIndex({ query })
                 return convertChunksToRelevantTextDocuments(resp)

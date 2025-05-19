@@ -1,12 +1,16 @@
 import { FileDetails, QuickActionCommand, FileList, ContextCommand } from '@aws/language-server-runtimes/protocol'
 import { AdditionalContextPrompt, ContextCommandItem, ContextCommandItemType } from 'local-indexing'
 import * as path from 'path'
-import { AdditionalContentEntryAddition, TriggerContext } from './agenticChatTriggerContext'
+import {
+    AdditionalContentEntryAddition,
+    additionalContextMaxLength,
+    TriggerContext,
+    workspaceChunkMaxSize,
+} from './agenticChatTriggerContext'
 import { URI } from 'vscode-uri'
 import { Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { pathUtils, workspaceUtils } from '@aws/lsp-core'
 import {
-    additionalContentInnerContextLimit,
     additionalContentNameLimit,
     getUserPromptsDirectory,
     initialContextInfo,
@@ -50,6 +54,9 @@ export class AdditionalContextProvider {
     }
 
     getContextType(prompt: AdditionalContextPrompt): string {
+        if (prompt.name === 'symbol') {
+            return 'code'
+        }
         if (prompt.filePath.endsWith(promptFileExtension)) {
             if (pathUtils.isInDirectory(path.join('.amazonq', 'rules'), prompt.relativePath)) {
                 return 'rule'
@@ -81,15 +88,18 @@ export class AdditionalContextProvider {
             let fileContextCount = 0
             let folderContextCount = 0
             let promptContextCount = 0
+            let codeContextCount = 0
             additionalContextCommands.push(...this.mapToContextCommandItems(context, workspaceFolderPath))
             for (const c of context) {
                 if (typeof context !== 'string') {
-                    if (c.id === 'file') {
-                        fileContextCount++
-                    } else if (c.id === 'folder') {
-                        folderContextCount++
-                    } else if (c.id === 'prompt') {
+                    if (c.id === 'prompt') {
                         promptContextCount++
+                    } else if (c.label === 'file') {
+                        fileContextCount++
+                    } else if (c.label === 'folder') {
+                        folderContextCount++
+                    } else if (c.label === 'code') {
+                        codeContextCount++
                     }
                 }
             }
@@ -98,6 +108,7 @@ export class AdditionalContextProvider {
                 fileContextCount,
                 folderContextCount,
                 promptContextCount,
+                codeContextCount,
             }
         }
 
@@ -117,7 +128,8 @@ export class AdditionalContextProvider {
         let ruleContextLength = 0
         let fileContextLength = 0
         let promptContextLength = 0
-        for (const prompt of prompts.slice(0, 20)) {
+        let codeContextLength = 0
+        for (const prompt of prompts.slice(0, additionalContextMaxLength)) {
             const contextType = this.getContextType(prompt)
             const description =
                 contextType === 'rule' || contextType === 'prompt'
@@ -130,7 +142,7 @@ export class AdditionalContextProvider {
             const entry = {
                 name: prompt.name.substring(0, additionalContentNameLimit),
                 description: description.substring(0, additionalContentNameLimit),
-                innerContext: prompt.content.substring(0, additionalContentInnerContextLimit),
+                innerContext: prompt.content.substring(0, workspaceChunkMaxSize),
                 type: contextType,
                 path: prompt.filePath,
                 relativePath: relativePath,
@@ -140,17 +152,20 @@ export class AdditionalContextProvider {
             contextEntry.push(entry)
 
             if (contextType === 'rule') {
-                fileContextLength += prompt.content.length
+                ruleContextLength += prompt.content.length
             } else if (contextType === 'prompt') {
                 promptContextLength += prompt.content.length
+            } else if (contextType === 'code') {
+                codeContextLength += prompt.content.length
             } else {
-                ruleContextLength += prompt.content.length
+                fileContextLength += prompt.content.length
             }
         }
         triggerContext.contextInfo.contextLength = {
             ruleContextLength,
             fileContextLength,
             promptContextLength,
+            codeContextLength,
         }
         return contextEntry
     }
@@ -165,6 +180,7 @@ export class AdditionalContextProvider {
                         second: item.name === 'symbol' ? item.endLine : -1,
                     },
                 ],
+                description: item.path,
                 fullPath: item.path,
             }
         }

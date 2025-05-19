@@ -86,8 +86,6 @@ const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
     return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
 }
 
-const openTabKey = 'openTab'
-
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const promptTypeValue = optionsValues['pair-programmer-mode']
 
@@ -102,7 +100,8 @@ export const handleChatPrompt = (
     prompt: ChatPrompt,
     messager: Messager,
     triggerType?: TriggerType,
-    _eventId?: string
+    _eventId?: string,
+    agenticMode?: boolean
 ) => {
     let userPrompt = prompt.escapedPrompt
     messager.onStopChatResponse(tabId)
@@ -131,18 +130,29 @@ export const handleChatPrompt = (
         const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
         messager.onChatPrompt({ prompt, tabId, context }, triggerType)
     }
-    // Add user prompt to UI
+
+    initializeChatResponse(mynahUi, tabId, userPrompt, agenticMode)
+}
+
+const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: string, agenticMode?: boolean) => {
     mynahUi.addChatItem(tabId, {
         type: ChatItemType.PROMPT,
         body: userPrompt,
     })
 
     // Set UI to loading state
-    mynahUi.updateStore(tabId, {
-        loadingChat: true,
-        cancelButtonWhenLoading: true,
-        promptInputDisabledState: false,
-    })
+    if (agenticMode) {
+        mynahUi.updateStore(tabId, {
+            loadingChat: true,
+            cancelButtonWhenLoading: true,
+            promptInputDisabledState: false,
+        })
+    } else {
+        mynahUi.updateStore(tabId, {
+            loadingChat: true,
+            promptInputDisabledState: true,
+        })
+    }
 
     // Create initial empty response
     mynahUi.addChatItem(tabId, {
@@ -156,7 +166,8 @@ export const createMynahUi = (
     disclaimerAcknowledged: boolean,
     pairProgrammingCardAcknowledged: boolean,
     customChatClientAdapter?: ChatClientAdapter,
-    featureConfig?: Map<string, any>
+    featureConfig?: Map<string, any>,
+    agenticMode?: boolean
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -199,7 +210,15 @@ export const createMynahUi = (
                 mynahUi.updateStore(tabId, { promptInputDisabledState: false })
             } else {
                 const prompt = followUp.prompt ? followUp.prompt : followUp.pillText
-                handleChatPrompt(mynahUi, tabId, { prompt: prompt, escapedPrompt: prompt }, messager, 'click', eventId)
+                handleChatPrompt(
+                    mynahUi,
+                    tabId,
+                    { prompt: prompt, escapedPrompt: prompt },
+                    messager,
+                    'click',
+                    eventId,
+                    agenticMode
+                )
 
                 const payload: FollowUpClickParams = {
                     tabId,
@@ -210,10 +229,11 @@ export const createMynahUi = (
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
-            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId, agenticMode)
         },
         onReady: () => {
             messager.onUiReady()
+            messager.onTabAdd(tabFactory.initialTabId)
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
@@ -250,6 +270,7 @@ export const createMynahUi = (
             messager.onTabAdd(tabId)
         },
         onTabRemove: (tabId: string) => {
+            messager.onStopChatResponse(tabId)
             messager.onTabRemove(tabId)
         },
         onTabChange: (tabId: string) => {
@@ -424,7 +445,7 @@ export const createMynahUi = (
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
             if (buttonId === ChatHistory.TabBarButtonId) {
-                messager.onListConversations()
+                messager.onListConversations(undefined, true)
                 return
             }
 
@@ -439,7 +460,9 @@ export const createMynahUi = (
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
         onPromptInputOptionChange: (tabId, optionsValues) => {
-            handlePromptInputChange(mynahUi, tabId, optionsValues)
+            if (agenticMode) {
+                handlePromptInputChange(mynahUi, tabId, optionsValues)
+            }
             messager.onPromptInputOptionChange({ tabId, optionsValues })
         },
         onMessageDismiss: (tabId, messageId) => {
@@ -461,18 +484,32 @@ export const createMynahUi = (
     }
 
     const mynahUiProps: MynahUIProps = {
-        tabs: {},
+        tabs: {
+            [tabFactory.initialTabId]: {
+                isSelected: true,
+                store: {
+                    ...tabFactory.createTab(disclaimerCardActive),
+                    chatItems: tabFactory.getChatItems(true, programmingModeCardActive),
+                },
+            },
+        },
         defaults: {
             store: tabFactory.createTab(false),
         },
         config: {
             maxTabs: 10,
-            // RTS max user input is 600k, we need to leave around 500 chars to user to type the question
+            texts: {
+                ...uiComponentsTexts,
+                // Fallback to original texts in non-agentic chat mode
+                stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
+                spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
+            },
+            // Total model context window limit 600k.
+            // 500k for user input, 100k for context, history, system prompt.
             // beside, MynahUI will automatically crop it depending on the available chars left from the prompt field itself by using a 96 chars of threshold
-            // if we want to max user input as 599500, need to configure the maxUserInput as 599596
-            maxUserInput: 599596,
-            userInputLengthWarningThreshold: 550000,
-            texts: uiComponentsTexts,
+            // if we want to max user input as 500000, need to configure the maxUserInput as 500096
+            maxUserInput: 500096,
+            userInputLengthWarningThreshold: 450000,
         },
     }
 
@@ -555,6 +592,15 @@ export const createMynahUi = (
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        if (agenticMode) {
+            agenticAddChatResponse(chatResult, tabId, isPartialResult)
+        } else {
+            legacyAddChatResponse(chatResult, tabId, isPartialResult)
+        }
+    }
+
+    // addChatResponse handler to support Agentic chat UX changes for handling responses streaming.
+    const agenticAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
         const { type, ...chatResultWithoutType } = chatResult
         let header = toMynahHeader(chatResult.header)
         const fileList = toMynahFileList(chatResult.fileList)
@@ -582,7 +628,7 @@ export const createMynahUi = (
                             : am.type === 'directive'
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
-                    ...prepareChatItemFromMessage(am, isPairProgrammingMode),
+                    ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -620,7 +666,6 @@ export const createMynahUi = (
         if (Object.keys(chatResult).length === 0) {
             return
         }
-
         // If the response is auth follow-up show it as a system prompt
         const followUpOptions = chatResult.followUp?.options
         const isValidAuthFollowUp =
@@ -641,13 +686,25 @@ export const createMynahUi = (
             // mynahUi.updateStore(tabId, { promptInputDisabledState: true })
             return
         }
-
         const followUps = chatResult.followUp
             ? {
                   text: chatResult.followUp.text ?? 'Suggested follow up questions:',
                   options: chatResult.followUp.options,
               }
             : {}
+
+        const chatItem = {
+            ...chatResult,
+            body: chatResult.body,
+            type: ChatItemType.ANSWER_STREAM,
+            header: header,
+            buttons: buttons,
+            codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
+        }
+
+        if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
+            mynahUi.addChatItem(tabId, chatItem)
+        }
 
         mynahUi.endMessageStream(tabId, chatResult.messageId ?? '', {
             header: header,
@@ -668,11 +725,99 @@ export const createMynahUi = (
         })
     }
 
+    // addChatResponse handler to support extensions that haven't migrated to agentic chat yet
+    const legacyAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
+        const { type, ...chatResultWithoutType } = chatResult
+        let header = undefined
+
+        if (chatResult.contextList !== undefined) {
+            header = {
+                fileList: {
+                    fileTreeTitle: '',
+                    filePaths: chatResult.contextList.filePaths?.map(file => file),
+                    rootFolderTitle: 'Context',
+                    flatList: true,
+                    collapsed: true,
+                    hideFileCount: true,
+                    details: Object.fromEntries(
+                        Object.entries(chatResult.contextList.details || {}).map(([filePath, fileDetails]) => [
+                            filePath,
+                            {
+                                label:
+                                    fileDetails.lineRanges
+                                        ?.map(range =>
+                                            range.first === -1 || range.second === -1
+                                                ? ''
+                                                : `line ${range.first} - ${range.second}`
+                                        )
+                                        .join(', ') || '',
+                                description: filePath,
+                                clickable: true,
+                            },
+                        ])
+                    ),
+                },
+            }
+        }
+
+        if (isPartialResult) {
+            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
+            return
+        }
+
+        // If chat response from server is an empty object don't do anything
+        if (Object.keys(chatResult).length === 0) {
+            return
+        }
+        // If the response is auth follow-up show it as a system prompt
+        const followUpOptions = chatResult.followUp?.options
+        const isValidAuthFollowUp =
+            followUpOptions &&
+            followUpOptions.length > 0 &&
+            followUpOptions[0].type &&
+            isValidAuthFollowUpType(followUpOptions[0].type)
+        if (chatResult.body === '' && isValidAuthFollowUp) {
+            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.addChatItem(tabId, {
+                type: ChatItemType.SYSTEM_PROMPT,
+                ...chatResultWithoutType,
+            })
+
+            // TODO, prompt should be disabled until user is authenticated
+            // Currently we don't have a mechanism to notify chat-client about auth changes
+            // mynahUi.updateStore(tabId, { promptInputDisabledState: true })
+            return
+        }
+        const followUps = chatResult.followUp
+            ? {
+                  text: chatResult.followUp.text ?? 'Suggested follow up questions:',
+                  options: chatResult.followUp.options,
+              }
+            : {}
+
+        mynahUi.updateLastChatAnswer(tabId, {
+            header: header,
+            body: chatResult.body,
+            messageId: chatResult.messageId,
+            followUp: followUps,
+            relatedContent: chatResult.relatedContent,
+            canBeVoted: chatResult.canBeVoted,
+        })
+
+        mynahUi.endMessageStream(tabId, chatResult.messageId ?? '')
+
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            promptInputDisabledState: false,
+        })
+    }
+
     const updateChat = (params: ChatUpdateParams) => {
         const isChatLoading = params.state?.inProgress
         mynahUi.updateStore(params.tabId, {
             loadingChat: isChatLoading,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
         })
         if (params.data?.messages.length) {
             const { tabId } = params
@@ -692,7 +837,6 @@ export const createMynahUi = (
                     type: oldMessage.type,
                     ...prepareChatItemFromMessage(updatedMessage, getTabPairProgrammingMode(mynahUi, tabId)),
                 }
-
                 mynahUi.updateChatAnswerWithMessageId(tabId, updatedMessage.messageId, chatItem)
             })
         }
@@ -707,13 +851,17 @@ export const createMynahUi = (
         }))
         mynahUi.updateStore(tabId, {
             loadingChat: false,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
             chatItems: updatedItems,
             promptInputDisabledState: false,
         })
     }
 
-    const prepareChatItemFromMessage = (message: ChatMessage, isPairProgrammingMode: boolean): Partial<ChatItem> => {
+    const prepareChatItemFromMessage = (
+        message: ChatMessage,
+        isPairProgrammingMode: boolean,
+        isPartialResult?: boolean
+    ): Partial<ChatItem> => {
         const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
         const fileList = toMynahFileList(message.fileList)
@@ -722,7 +870,10 @@ export const createMynahUi = (
         if (message.type === 'tool') {
             processedHeader = { ...header }
             if (header?.buttons) {
-                processedHeader.buttons = header.buttons.map(button => ({ ...button, status: 'clear' }))
+                processedHeader.buttons = header.buttons.map(button => ({
+                    ...button,
+                    status: button.status ?? 'clear',
+                }))
             }
             if (header?.fileList) {
                 processedHeader.fileList = {
@@ -730,6 +881,11 @@ export const createMynahUi = (
                     fileTreeTitle: '',
                     hideFileCount: true,
                     details: toDetailsWithoutIcon(header.fileList.details),
+                }
+            }
+            if (!isPartialResult) {
+                if (processedHeader && processedHeader.status?.status !== 'error') {
+                    processedHeader.status = undefined
                 }
             }
         }
@@ -749,6 +905,12 @@ export const createMynahUi = (
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
+        // Adding this conditional check to show the stop message in the center.
+        const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] =
+            message.type === 'directive' && message.messageId?.startsWith('stopped') ? 'center' : undefined
+
+        // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
+        const shouldMute = message.header?.status?.text !== undefined
 
         return {
             body: message.body,
@@ -758,6 +920,7 @@ export const createMynahUi = (
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
+            contentHorizontalAlignment,
             wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'
@@ -765,6 +928,7 @@ export const createMynahUi = (
                     : isPairProgrammingMode
                       ? { 'insert-to-cursor': null }
                       : undefined,
+            ...(shouldMute ? { muted: true } : {}),
         }
     }
 
@@ -772,7 +936,12 @@ export const createMynahUi = (
         const tabId = getOrCreateTabId()
         if (!tabId) return
 
-        mynahUi.addToUserPrompt(tabId, params.selection, 'code')
+        if (params.autoSubmit && params.prompt) {
+            messager.onChatPrompt({ prompt: params.prompt, tabId, context: undefined }, 'contextMenu')
+            initializeChatResponse(mynahUi, tabId, params.prompt.prompt, agenticMode)
+        } else {
+            mynahUi.addToUserPrompt(tabId, params.selection, 'code')
+        }
         messager.onSendToPrompt(params, tabId)
     }
 
@@ -796,7 +965,7 @@ export const createMynahUi = (
         ].join('')
         const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 
-        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType)
+        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode)
     }
 
     const showError = (params: ErrorParams) => {
@@ -811,7 +980,7 @@ ${params.message}`,
 
         mynahUi.updateStore(tabId, {
             loadingChat: false,
-            cancelButtonWhenLoading: true,
+            cancelButtonWhenLoading: agenticMode,
             promptInputDisabledState: false,
         })
 

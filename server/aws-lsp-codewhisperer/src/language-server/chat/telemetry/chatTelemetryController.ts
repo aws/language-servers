@@ -169,7 +169,41 @@ export class ChatTelemetryController {
         }
     }
 
-    public emitToolUseSuggested(toolUse: ToolUse, conversationId: string, languageServerVersion: string) {
+    public emitAgencticLoop_InvokeLLM(
+        requestId: string,
+        conversationId: string,
+        conversationType: string,
+        toolName: string[] | undefined,
+        toolUseId: string[] | undefined,
+        result: string,
+        languageServerVersion: string,
+        latency?: number[],
+        agenticCodingMode?: boolean
+    ) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.AgencticLoop_InvokeLLM,
+            data: {
+                [CONVERSATION_ID_METRIC_KEY]: conversationId,
+                cwsprChatConversationType: conversationType,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                cwsprToolName: toolName,
+                cwsprToolUseId: toolUseId,
+                result,
+                languageServerVersion: languageServerVersion,
+                latency,
+                requestId,
+                enabled: agenticCodingMode,
+            },
+        })
+    }
+
+    public emitToolUseSuggested(
+        toolUse: ToolUse,
+        conversationId: string,
+        languageServerVersion: string,
+        latency?: number,
+        agenticCodingMode?: boolean
+    ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.ToolUseSuggested,
             data: {
@@ -178,20 +212,29 @@ export class ChatTelemetryController {
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 cwsprToolName: toolUse.name ?? '',
                 cwsprToolUseId: toolUse.toolUseId ?? '',
+                perfE2ELatency: latency,
                 result: 'Succeeded',
                 languageServerVersion: languageServerVersion,
+                enabled: agenticCodingMode,
             },
         })
     }
 
-    public emitInteractWithAgenticChat(interactionType: AgenticChatInteractionType, tabId: string) {
+    public emitInteractWithAgenticChat(
+        interactionType: AgenticChatInteractionType,
+        tabId: string,
+        agenticCodingMode?: boolean,
+        conversationType?: string
+    ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.InteractWithAgenticChat,
             data: {
-                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
-                cwsprChatConversationType: 'AgenticChat',
+                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId) ?? '',
+                cwsprChatConversationType: conversationType,
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 cwsprAgenticChatInteractionType: interactionType,
+                result: 'Succeeded',
+                enabled: agenticCodingMode,
             },
         })
     }
@@ -220,6 +263,7 @@ export class ChatTelemetryController {
                 requestLength: metric.cwsprChatRequestLength,
                 responseLength: metric.cwsprChatResponseLength,
                 numberOfCodeBlocks: metric.cwsprChatResponseCodeSnippetCount,
+                agenticCodingMode: metric.enabled,
             },
             {
                 chatTriggerInteraction: metric.cwsprChatTriggerInteraction,
@@ -237,7 +281,11 @@ export class ChatTelemetryController {
                 cwsprChatFileContextLength: metric.cwsprChatFileContextLength,
                 cwsprChatRuleContextLength: metric.cwsprChatRuleContextLength,
                 cwsprChatPromptContextLength: metric.cwsprChatPromptContextLength,
+                cwsprChatCodeContextLength: metric.cwsprChatCodeContextLength,
+                cwsprChatCodeContextCount: metric.cwsprChatCodeContextCount,
+                cwsprChatFocusFileContextLength: metric.cwsprChatFocusFileContextLength,
                 languageServerVersion: metric.languageServerVersion,
+                requestIds: metric.requestIds,
             }
         )
     }
@@ -271,7 +319,8 @@ export class ChatTelemetryController {
         tabId: string,
         metric: Partial<CombinedConversationEvent>,
         requestId?: string,
-        errorReason?: string
+        errorReason?: string,
+        agenticCodingMode?: boolean
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.MessageResponseError,
@@ -282,13 +331,14 @@ export class ChatTelemetryController {
                 cwsprChatProgrammingLanguage: metric.cwsprChatProgrammingLanguage,
                 cwsprChatActiveEditorTotalCharacters: metric.cwsprChatActiveEditorTotalCharacters,
                 cwsprChatActiveEditorImportCount: metric.cwsprChatActiveEditorImportCount,
-                cwsprChatRepsonseCode: metric.cwsprChatRepsonseCode,
+                cwsprChatResponseCode: metric.cwsprChatResponseCode,
                 cwsprChatRequestLength: metric.cwsprChatRequestLength,
                 cwsprChatConversationType: metric.cwsprChatConversationType,
                 requestId: requestId,
                 reasonDesc: getTelemetryReasonDesc(errorReason),
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 result: 'Succeeded',
+                enabled: agenticCodingMode,
                 [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
                 languageServerVersion: metric.languageServerVersion,
             },
@@ -426,6 +476,9 @@ export class ChatTelemetryController {
                             codewhispererCustomizationArn: this.getCustomizationId(params.tabId, params.messageId),
                         }
                         await this.emitInteractWithMessageMetric(params.tabId, clickLinkData)
+                        break
+                    case ChatUIEventName.HistoryButtonClick:
+                        this.#telemetryService.emitUiClick({ elementId: 'amazonq_historyTabButton' })
                         break
                 }
             }

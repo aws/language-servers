@@ -70,6 +70,8 @@ export class CodeWhispererSession {
     reportedUserDecision: boolean = false
     customizationArn?: string
     streakLength?: number = 0
+    includeImportsWithSuggestions?: boolean
+    codewhispererSuggestionImportCount: number = 0
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()

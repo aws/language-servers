@@ -50,7 +50,9 @@ describe('Chat', () => {
             postMessage: sandbox.stub(),
         }
 
-        mynahUi = createChat(clientApi)
+        mynahUi = createChat(clientApi, {
+            agenticMode: true,
+        })
     })
 
     afterEach(() => {
@@ -67,32 +69,17 @@ describe('Chat', () => {
     })
 
     it('publishes ready event when initialized', () => {
-        assert.calledWithExactly(clientApi.postMessage.firstCall, { command: READY_NOTIFICATION_METHOD })
-    })
+        assert.callCount(clientApi.postMessage, 4)
 
-    it('creates initial tab when chat options are provided', () => {
-        const bannerText = 'This is a test banner message'
-        const eventParams = {
-            command: CHAT_OPTIONS,
-            params: {
-                chatNotifications: {
-                    bannerText: bannerText,
-                },
-            },
-        }
-        const sendToPromptEvent = createInboundEvent(eventParams)
-        window.dispatchEvent(sendToPromptEvent)
-
-        assert.calledWithExactly(clientApi.postMessage.firstCall, { command: READY_NOTIFICATION_METHOD })
-
-        assert.calledWithExactly(clientApi.postMessage.secondCall, {
+        assert.calledWithExactly(clientApi.postMessage.firstCall, {
             command: TELEMETRY,
-            params: { name: ENTER_FOCUS },
+            params: { name: 'enterFocus' },
         })
+        assert.calledWithExactly(clientApi.postMessage.secondCall, { command: READY_NOTIFICATION_METHOD })
 
         assert.calledWithExactly(clientApi.postMessage.thirdCall, {
             command: TAB_ADD_NOTIFICATION_METHOD,
-            params: { tabId: sinon.match.string },
+            params: { tabId: initialTabId },
         })
 
         assert.calledWithExactly(clientApi.postMessage.lastCall, {
@@ -100,7 +87,7 @@ describe('Chat', () => {
             params: {
                 triggerType: 'click',
                 name: TAB_ADD_TELEMETRY_EVENT,
-                tabId: sinon.match.string,
+                tabId: initialTabId,
             },
         })
     })
@@ -392,7 +379,13 @@ describe('Chat', () => {
                 handleMessageReceive: handleMessageReceiveStub,
                 isSupportedTab: () => false,
             }
-            mynahUi = createChat(clientApi, {}, clientAdapter as ChatClientAdapter)
+            mynahUi = createChat(
+                clientApi,
+                {
+                    agenticMode: true,
+                },
+                clientAdapter as ChatClientAdapter
+            )
 
             const tabId = '123'
             const body = 'some response'

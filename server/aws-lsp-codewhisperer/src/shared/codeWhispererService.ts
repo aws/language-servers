@@ -405,4 +405,32 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
         return this.client.sendTelemetryEvent(this.withProfileArn(request)).promise()
     }
+
+    /**
+     * @description create a remote workspace
+     */
+    async createWorkspace(request: CodeWhispererTokenClient.CreateWorkspaceRequest) {
+        return this.client.createWorkspace(this.withProfileArn(request)).promise()
+    }
+
+    /**
+     * @description get list of workspace metadata
+     */
+    async listWorkspaceMetadata(request: CodeWhispererTokenClient.ListWorkspaceMetadataRequest) {
+        return this.client.listWorkspaceMetadata(this.withProfileArn(request)).promise()
+    }
+
+    /**
+     * @description delete the remote workspace
+     */
+    async deleteWorkspace(request: CodeWhispererTokenClient.DeleteWorkspaceRequest) {
+        return this.client.deleteWorkspace(this.withProfileArn(request)).promise()
+    }
+
+    /*
+     * @description get the list of feature evaluations
+     */
+    async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
+        return this.client.listFeatureEvaluations(this.withProfileArn(request)).promise()
+    }
 }

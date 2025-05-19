@@ -19,6 +19,7 @@ import {
     TransformationJobReceivedEvent,
     TransformationJobStartedEvent,
     TransformationPlanReceivedEvent,
+    PollingCancelledEvent,
 } from '../../shared/telemetry/types'
 import { flattenMetric } from '../../shared/utils'
 
@@ -285,6 +286,33 @@ export const emitTransformationJobArtifactsDownloadedFailure = (
 
     telemetry.emitMetric({
         name: 'codeTransform_artifactsAreDownloadedByUser',
+        result: 'Failed',
+        data,
+        errorData: {
+            reason: error.message || 'UnknownError',
+        },
+    })
+}
+
+export const emitCancelPollingTelemetry = (telemetry: Telemetry) => {
+    const data: PollingCancelledEvent = {
+        CancelPollingEnabled: true,
+    }
+
+    telemetry.emitMetric({
+        name: 'codeTransform_cancelPolling',
+        result: 'Succeeded',
+        data: flattenMetric(data),
+    })
+}
+
+export const emitCancelPollingFailure = (telemetry: Telemetry, error: Error) => {
+    const data: PollingCancelledEvent = {
+        CancelPollingEnabled: true,
+    }
+
+    telemetry.emitMetric({
+        name: 'codeTransform_cancelPolling',
         result: 'Failed',
         data,
         errorData: {

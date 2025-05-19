@@ -22,6 +22,13 @@ export class AmazonQServiceNotInitializedError extends AmazonQError {
     }
 }
 
+export class AmazonQServiceAlreadyInitializedError extends AmazonQError {
+    constructor(message: string = 'Amazon Q service manager was already previously initialized') {
+        super(message, 'E_AMAZON_Q_ALREADY_INITIALIZED_ERROR')
+        this.name = 'AmazonQServiceAlreadyInitializationError'
+    }
+}
+
 export class AmazonQServicePendingSigninError extends AmazonQError {
     constructor(message: string = 'Amazon Q service is not signed in') {
         super(message, 'E_AMAZON_Q_PENDING_CONNECTION')
@@ -61,6 +68,13 @@ export class AmazonQServiceNoProfileSupportError extends AmazonQError {
     constructor(message: string = 'Current Connection type does not support Amazon Q Profiles') {
         super(message, 'E_AMAZON_Q_CONNECTION_NO_PROFILE_SUPPORT')
         this.name = 'AmazonQServiceNoProfileSupportError'
+    }
+}
+
+export class AmazonQServiceProfileThrottlingError extends AmazonQError {
+    constructor(message: string = 'Amazon Q Profile has encountered throttling error') {
+        super(message, 'E_AMAZON_Q_PROFILE_THROTTLING')
+        this.name = 'AmazonQServiceProfileThrottlingError'
     }
 }
 

@@ -31,7 +31,7 @@ describe('AgenticChatTriggerContext', () => {
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
-        testFeatures.lsp.getClientInitializeParams.returns({
+        testFeatures.setClientParams({
             workspaceFolders: mockWorkspaceFolders,
         } as InitializeParams)
         sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext').resolves(mockDocumentContext)

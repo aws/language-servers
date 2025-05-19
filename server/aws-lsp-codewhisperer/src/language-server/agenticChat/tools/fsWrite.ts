@@ -175,7 +175,7 @@ export class FsWrite {
                 '- When you need to delete a file (no delete operation is available)\n' +
                 '- When you need to rename or move a file\n\n' +
                 '## Command details\n' +
-                '- The `create` command will override the file at `path` if it already exists as a file, and otherwise create a new file. Use this command for initial file creation, such as scaffolding a new project. You should also use this command when overwriting large boilerplate files where you want to replace the entire content at once.\n' +
+                '- The `create` command will override the file at `path` if it already exists as a file, and otherwise create a new file. Make sure the `path` exists first when using this command for initial file creation, such as scaffolding a new project. You should also use this command when overwriting large boilerplate files where you want to replace the entire content at once.\n' +
                 '- The `insert` command will insert `newStr` after `insertLine` and place it on its own line.\n' +
                 '- The `append` command will add content to the end of an existing file, automatically adding a newline if the file does not end with one.\n' +
                 '- The `strReplace` command will replace `oldStr` in an existing file with `newStr`.\n\n' +
@@ -185,10 +185,7 @@ export class FsWrite {
                 '- Prefer the `create` command if the complexity or number of changes would make `strReplace` unwieldy or error-prone.\n' +
                 '- The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces! Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`.\n' +
                 '- The `newStr` parameter should contain the edited lines that should replace the `oldStr`.\n' +
-                '- When multiple edits to the same file are needed, combine them into a single call whenever possible. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state.\n\n' +
-                '## Related tools\n' +
-                '- fsRead: Use to read the file before modifying it\n' +
-                '- listDirectory: Use to find files before modifying them',
+                '- When multiple edits to the same file are needed, combine them into a single call whenever possible. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state.',
             inputSchema: {
                 type: 'object',
                 properties: {

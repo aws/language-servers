@@ -44,6 +44,8 @@ interface FileDetailsWithPath extends FileDetails {
 
 type OperationType = 'read' | 'write' | 'listDir'
 
+export const progressPrefix = 'progress_'
+
 interface FileOperation {
     type: OperationType
     filePaths: FileDetailsWithPath[]
@@ -112,6 +114,7 @@ export class AgenticChatResultStream {
                         body: acc.body + AgenticChatResultStream.resultDelimiter + c.body,
                         ...(c.contextList && { contextList: c.contextList }),
                         header: Object.prototype.hasOwnProperty.call(c, 'header') ? c.header : acc.header,
+                        codeReference: [...(acc.codeReference ?? []), ...(c.codeReference ?? [])],
                     }
                 } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
                     return {
@@ -200,6 +203,29 @@ export class AgenticChatResultStream {
         this.#state.chatResultBlocks = this.#state.chatResultBlocks.filter(block => block.messageId !== messageId)
     }
 
+    async removeResultBlockAndUpdateUI(messageId: string) {
+        if (this.hasMessage(messageId)) {
+            const blockId = this.getMessageBlockId(messageId)
+            if (blockId !== undefined) {
+                await this.overwriteResultBlock({ body: '', messageId: messageId }, blockId)
+            }
+            await this.removeResultBlock(messageId)
+        }
+    }
+
+    hasMessage(messageId: string): boolean {
+        return this.#state.chatResultBlocks.some(block => block.messageId === messageId)
+    }
+
+    getMessageBlockId(messageId: string): number | undefined {
+        for (const [i, block] of this.#state.chatResultBlocks.entries()) {
+            if (block.messageId === messageId) {
+                return i
+            }
+        }
+        return undefined
+    }
+
     getResultStreamWriter(): ResultStreamWriter {
         // Note: if write calls are not awaited, stream can be out-of-order.
         if (this.#state.isLocked) {
@@ -223,6 +249,9 @@ export class AgenticChatResultStream {
                 return await this.#sendProgress(combinedResult)
             },
             close: async () => {
+                if (!this.#state.isLocked) {
+                    return
+                }
                 if (lastResult) {
                     this.#state.chatResultBlocks.push(lastResult)
                 }
