@@ -829,6 +829,10 @@
             "max": 20,
             "min": 0
         },
+        "AgenticChatEventStatus": {
+            "type": "string",
+            "enum": ["SUCCEEDED", "CANCELLED", "FAILED"]
+        },
         "AppStudioState": {
             "type": "structure",
             "required": ["namespace", "propertyName", "propertyContext"],
@@ -1010,6 +1014,9 @@
                 },
                 "hasProjectLevelContext": {
                     "shape": "Boolean"
+                },
+                "result": {
+                    "shape": "AgenticChatEventStatus"
                 }
             }
         },

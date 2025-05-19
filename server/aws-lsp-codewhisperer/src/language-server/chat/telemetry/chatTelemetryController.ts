@@ -23,6 +23,7 @@ import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completio
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 import { getEndPositionForAcceptedSuggestion, getTelemetryReasonDesc } from '../../../shared/utils'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
+import { AgenticChatEventStatus } from '../../../client/token/codewhispererbearertokenclient'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -239,7 +240,7 @@ export class ChatTelemetryController {
         })
     }
 
-    public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
+    public emitAddMessageMetric(tabId: string, metric: Partial<CombinedConversationEvent>, result?: string) {
         const conversationId = this.getConversationId(tabId)
         // Store the customization value associated with the message
         if (metric.cwsprChatMessageId && metric.codewhispererCustomizationArn) {
@@ -264,6 +265,7 @@ export class ChatTelemetryController {
                 responseLength: metric.cwsprChatResponseLength,
                 numberOfCodeBlocks: metric.cwsprChatResponseCodeSnippetCount,
                 agenticCodingMode: metric.enabled,
+                result: result,
             },
             {
                 chatTriggerInteraction: metric.cwsprChatTriggerInteraction,

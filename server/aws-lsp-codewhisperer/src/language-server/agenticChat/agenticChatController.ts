@@ -425,6 +425,8 @@ export class AgenticChatController implements ChatHandlers {
                     session.pairProgrammingMode,
                     session.getConversationType()
                 )
+                await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
+
                 session.abortRequest()
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
@@ -491,7 +493,6 @@ export class AgenticChatController implements ChatHandlers {
                 },
                 params.partialResultToken
             )
-
             if (this.isUserAction(err, token)) {
                 /**
                  * when the session is aborted it generates an error.
@@ -505,7 +506,14 @@ export class AgenticChatController implements ChatHandlers {
                     buttons: [],
                 }
             }
-            return this.#handleRequestError(err, errorMessageId, params.tabId, metric, session.pairProgrammingMode)
+            return this.#handleRequestError(
+                session.conversationId,
+                err,
+                errorMessageId,
+                params.tabId,
+                metric,
+                session.pairProgrammingMode
+            )
         }
     }
 
@@ -1799,7 +1807,7 @@ export class AgenticChatController implements ChatHandlers {
                 cwsprChatFocusFileContextLength: triggerContext.text?.length,
             })
         }
-        await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric)
+        await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Succeeded')
 
         this.#telemetryController.updateTriggerInfo(params.tabId, {
             lastMessageTrigger: {
@@ -1819,18 +1827,23 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Handles errors that occur during the request
      */
-    #handleRequestError(
+    async #handleRequestError(
+        conversationId: string | undefined,
         err: any,
         errorMessageId: string,
         tabId: string,
         metric: Metric<CombinedConversationEvent>,
         agenticCodingMode: boolean
-    ): ChatResult | ResponseError<ChatResult> {
+    ): Promise<ChatResult | ResponseError<ChatResult>> {
         const errorMessage = getErrorMessage(err)
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
 
+        metric.metric.requestIds = [requestID]
+        metric.metric.cwsprChatMessageId = errorMessageId
+        metric.metric.cwsprChatConversationId = conversationId
+        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed')
         // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
         if (err.code && err.code in unactionableErrorCodes) {
             const customErrMessage = unactionableErrorCodes[err.code as keyof typeof unactionableErrorCodes]
