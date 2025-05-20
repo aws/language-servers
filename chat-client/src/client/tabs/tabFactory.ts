@@ -10,6 +10,7 @@ import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
+import { modelSelectionForRegion, Region } from '../texts/modelSelection'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -19,6 +20,8 @@ export class TabFactory {
     private history: boolean = false
     private export: boolean = false
     private agenticMode: boolean = false
+    private modelSelectionEnabled: boolean = false
+    private region: Region = 'us-east-1'
     initialTabId: string
 
     public static generateUniqueId() {
@@ -37,10 +40,13 @@ export class TabFactory {
     }
 
     public createTab(disclaimerCardActive: boolean): MynahUIDataModel {
+        const modelSelection = modelSelectionForRegion[this.region]
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
-            promptInputOptions: this.agenticMode ? [pairProgrammingPromptInput] : [],
+            promptInputOptions: this.agenticMode
+                ? [pairProgrammingPromptInput, ...(this.modelSelectionEnabled ? [modelSelection] : [])]
+                : [],
             cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
         }
         return tabData
@@ -58,8 +64,8 @@ export class TabFactory {
                       ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
-                          body: `Hi, I'm Amazon Q. I can answer your software development questions. 
-                        Ask me to explain, debug, or optimize your code. 
+                          body: `Hi, I'm Amazon Q. I can answer your software development questions.
+                        Ask me to explain, debug, or optimize your code.
                         You can enter \`/\` to see a list of quick actions.`,
                       },
                       ...(!this.agenticMode
@@ -91,6 +97,14 @@ export class TabFactory {
 
     public enableAgenticMode() {
         this.agenticMode = true
+    }
+
+    public enableModelSelection() {
+        this.modelSelectionEnabled = true
+    }
+
+    public setRegion(region: Region) {
+        this.region = region
     }
 
     public getDefaultTabData(): DefaultTabData {
