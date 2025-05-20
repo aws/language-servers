@@ -7,7 +7,6 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import {
     ChatTriggerType,
-    CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     SendMessageCommandInput,
@@ -119,7 +118,6 @@ import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
     genericErrorMsg,
-    maxAgentLoopIterations,
     loadingThresholdMs,
     generateAssistantResponseInputLimit,
     outputLimitExceedsPartialMsg,
@@ -195,7 +193,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(features, this.#chatHistoryDb, telemetryService)
-        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace, features.lsp)
+        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
             this.#features.chat,
@@ -579,7 +577,7 @@ export class AgenticChatController implements ChatHandlers {
         let shouldDisplayMessage = true
         metric.recordStart()
 
-        while (iterationCount < maxAgentLoopIterations) {
+        while (true) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
@@ -596,13 +594,14 @@ export class AgenticChatController implements ChatHandlers {
                     `Warning: ${!currentMessage ? 'currentMessage' : ''}${!currentMessage && !conversationId ? ' and ' : ''}${!conversationId ? 'conversationIdentifier' : ''} is empty in agent loop iteration ${iterationCount}.`
                 )
             }
-
+            const remainingCharacterBudget = this.truncateRequest(currentRequestInput)
             //  Fix the history to maintain invariants
             if (currentMessage) {
                 const isHistoryValid = this.#chatHistoryDb.fixAndValidateHistory(
                     tabId,
                     currentMessage,
-                    conversationIdentifier ?? ''
+                    conversationIdentifier ?? '',
+                    remainingCharacterBudget
                 )
                 if (!isHistoryValid) {
                     this.#features.logging.warn('Skipping request due to invalid tool result/tool use relationship')
@@ -621,7 +620,8 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-            this.#truncateRequest(currentRequestInput)
+            // Note: these logs are very noisy, but contain information redacted on the backend.
+            this.#debug(`generateAssistantResponse Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
             const response = await session.generateAssistantResponse(currentRequestInput)
 
             if (response.$metadata.requestId) {
@@ -785,10 +785,6 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
-        if (iterationCount >= maxAgentLoopIterations) {
-            throw new AgenticChatError('Agent loop reached iteration limit', 'MaxAgentLoopIterations')
-        }
-
         return (
             finalResult || {
                 success: false,
@@ -800,22 +796,63 @@ export class AgenticChatController implements ChatHandlers {
 
     /**
      * performs truncation of request before sending to backend service.
+     * Returns the remaining character budget for chat history.
      * @param request
      */
-    #truncateRequest(request: GenerateAssistantResponseCommandInput) {
-        // Note: these logs are very noisy, but contain information redacted on the backend.
-        this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
+    truncateRequest(request: GenerateAssistantResponseCommandInput): number {
+        let remainingCharacterBudget = generateAssistantResponseInputLimit
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
-            return
+            return remainingCharacterBudget
         }
         const message = request.conversationState?.currentMessage?.userInputMessage?.content
-        if (message && message.length > generateAssistantResponseInputLimit) {
-            this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
-            request.conversationState.currentMessage.userInputMessage.content = message.substring(
-                0,
-                generateAssistantResponseInputLimit
-            )
+
+        // 1. prioritize user input message
+        let truncatedUserInputMessage = ''
+        if (message) {
+            if (message.length > generateAssistantResponseInputLimit) {
+                this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
+                truncatedUserInputMessage = message.substring(0, generateAssistantResponseInputLimit)
+                remainingCharacterBudget = remainingCharacterBudget - truncatedUserInputMessage.length
+                request.conversationState.currentMessage.userInputMessage.content = truncatedUserInputMessage
+            } else {
+                remainingCharacterBudget = remainingCharacterBudget - message.length
+            }
         }
+
+        // 2. try to fit @context into budget
+        let truncatedRelevantDocuments = []
+        if (
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
+                ?.relevantDocuments
+        ) {
+            for (const relevantDoc of request.conversationState.currentMessage.userInputMessage.userInputMessageContext
+                ?.editorState?.relevantDocuments) {
+                const docLength = relevantDoc?.text?.length || 0
+                if (remainingCharacterBudget > docLength) {
+                    truncatedRelevantDocuments.push(relevantDoc)
+                    remainingCharacterBudget = remainingCharacterBudget - docLength
+                }
+            }
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.relevantDocuments =
+                truncatedRelevantDocuments
+        }
+
+        // 3. try to fit current file context
+        let truncatedCurrentDocument = undefined
+        if (request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState?.document) {
+            const docLength =
+                request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState?.document
+                    .text?.length || 0
+            if (remainingCharacterBudget > docLength) {
+                truncatedCurrentDocument =
+                    request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
+                        ?.document
+                remainingCharacterBudget = remainingCharacterBudget - docLength
+            }
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
+                truncatedCurrentDocument
+        }
+        return remainingCharacterBudget
     }
 
     /**
@@ -2216,7 +2253,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async #resolveAbsolutePath(relativePath: string): Promise<string | undefined> {
         try {
-            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.lsp)
+            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
             for (const workspaceRoot of workspaceFolders) {
                 const candidatePath = path.join(workspaceRoot, relativePath)
                 if (await this.#features.workspace.fs.exists(candidatePath)) {

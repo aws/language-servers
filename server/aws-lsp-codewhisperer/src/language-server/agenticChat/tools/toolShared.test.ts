@@ -137,7 +137,6 @@ describe('toolShared', () => {
 
     describe('requiresPathAcceptance', () => {
         let features: TestFeatures
-        let mockLsp: Features['lsp']
         let mockLogging: {
             info: sinon.SinonSpy
             warn: sinon.SinonSpy
@@ -145,6 +144,7 @@ describe('toolShared', () => {
             log: sinon.SinonSpy
             debug: sinon.SinonSpy
         }
+        let mockWorkspace: Features['workspace']
         let getWorkspaceFolderPathsStub: sinon.SinonStub
         let isInWorkspaceStub: sinon.SinonStub
         let isPathApprovedStub: sinon.SinonStub
@@ -152,15 +152,16 @@ describe('toolShared', () => {
         beforeEach(() => {
             features = new TestFeatures()
 
-            // Mock LSP with workspace folders
-            mockLsp = {
-                getClientInitializeParams: sinon.stub().returns({
-                    workspaceFolders: [
-                        { uri: 'file:///workspace/folder1', name: 'workspace1' },
-                        { uri: 'file:///workspace/folder2', name: 'workspace2' },
-                    ],
-                }),
-            } as unknown as Features['lsp']
+            const mockWorkspaceFolder = {
+                uri: 'file://mock/workspace',
+                name: 'test',
+            }
+            mockWorkspace = {
+                getWorkspaceFolder: sinon.stub().returns(mockWorkspaceFolder),
+                fs: {
+                    existsSync: sinon.stub().returns(true),
+                },
+            } as unknown as Features['workspace']
 
             // Mock logging with properly typed spies
             mockLogging = {
@@ -205,7 +206,7 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                mockLsp,
+                mockWorkspace,
                 mockLogging as unknown as Features['logging'],
                 approvedPaths
             )
@@ -224,7 +225,7 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                mockLsp,
+                mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
 
@@ -246,7 +247,7 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                mockLsp,
+                mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
 
@@ -268,7 +269,7 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                mockLsp,
+                mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
 
@@ -287,7 +288,7 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                mockLsp,
+                mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
 
@@ -305,7 +306,11 @@ describe('toolShared', () => {
             isPathApprovedStub.throws(new Error('Test error'))
 
             // This should not throw even though logging is undefined
-            const result = await requiresPathAcceptance(filePath, mockLsp, undefined as unknown as Features['logging'])
+            const result = await requiresPathAcceptance(
+                filePath,
+                mockWorkspace,
+                undefined as unknown as Features['logging']
+            )
 
             assert.strictEqual(result.requiresAcceptance, true)
         })
@@ -318,7 +323,7 @@ describe('toolShared', () => {
 
             const result = await requiresPathAcceptance(
                 filePath,
-                mockLsp,
+                mockWorkspace,
                 mockLogging as unknown as Features['logging']
             )
 
