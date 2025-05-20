@@ -45,6 +45,8 @@ import {
     ChatItemButton,
     TextBasedFormItem,
     DetailedListItem,
+    SingularFormItem,
+    ListItemEntry,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -1224,12 +1226,15 @@ ${params.message}`,
 
     // Type definitions for MCP server parameters
     type McpFilterOption = {
-        type: 'textarea' | 'textinput' | 'select' | 'numericinput' | 'radiogroup'
+        type: 'textarea' | 'textinput' | 'select' | 'numericinput' | 'radiogroup' | 'list'
         id: string
         title: string
         description?: string
         icon?: string
         options?: Array<{ label: string; value: string }>
+        mandatory?: boolean
+        value?: ListItemEntry[]
+        items?: SingularFormItem[]
     }
 
     type McpListItem = {
@@ -1262,6 +1267,9 @@ ${params.message}`,
         return filterOptions?.map(filter => ({
             ...filter,
             icon: filter.icon ? toMynahIcon(filter.icon) : undefined,
+            mandatory: filter.mandatory ?? true,
+            value: filter.value ?? undefined,
+            items: filter.items ?? undefined,
         }))
     }
 
@@ -1398,13 +1406,10 @@ ${params.message}`,
                     isValid?: boolean
                 ) => {
                     if (actionParams.id === 'cancel-mcp') {
-                        mynahUi.notify({
-                            content: `Cancelled config`,
-                            type: NotificationType.INFO,
-                        })
+                        messager.onListMcpServers()
                     } else if (actionParams.id === 'save-mcp') {
                         mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
-                        messager.onMcpServerClick(actionParams.id, 'Save', filterValues)
+                        messager.onMcpServerClick(actionParams.id, 'Save configuration', filterValues)
                         setTimeout(() => {
                             mynahUi.toggleSplashLoader(false)
                         }, 3000)
