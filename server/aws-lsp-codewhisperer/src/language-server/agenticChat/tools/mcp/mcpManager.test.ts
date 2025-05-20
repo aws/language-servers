@@ -678,18 +678,14 @@ describe('reinitializeMcpServers()', () => {
         const mgr = await McpManager.init(['cfg.json'], features)
 
         const closeStub = sinon.stub(mgr, 'close').resolves()
-        const initStub = sinon.stub(McpManager, 'init').resolves(mgr)
-
         loadStub.resetHistory()
 
         await mgr.reinitializeMcpServers()
 
-        expect(closeStub.calledOnce).to.be.true
-        expect(initStub.calledOnce).to.be.true
-        expect(initStub.firstCall.args[0]).to.deep.equal(['cfg.json'])
-        expect(initStub.firstCall.args[1]).to.equal(features)
+        expect(closeStub.calledOnceWith(true)).to.be.true
+        expect(loadStub.calledOnce).to.be.true
+        expect(loadStub.firstCall.args[2]).to.deep.equal(['cfg.json'])
 
         closeStub.restore()
-        initStub.restore()
     })
 })
