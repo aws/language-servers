@@ -7,6 +7,7 @@ type AgenticChatErrorCode =
     | 'InputTooLong' // too much context given to backend service.
     | 'PromptCharacterLimit' // customer prompt exceeds
     | 'ResponseProcessingTimeout' // response didn't finish streaming in the allowed time
+    | 'RequestAborted' // request was aborted by the user
 
 export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'QModelResponse',
@@ -48,6 +49,19 @@ export function isInputTooLongError(error: unknown): boolean {
     if (error instanceof Error) {
         //  This is fragile (breaks if the backend changes their error message wording)
         return error.message.includes('Input is too long')
+    }
+
+    return false
+}
+
+export function isRequestAbortedError(error: unknown): boolean {
+    if (error instanceof AgenticChatError && error.code === 'RequestAborted') {
+        return true
+    }
+
+    if (error instanceof Error) {
+        //  This is fragile (breaks if the backend changes their error message wording)
+        return error.message.includes('Request aborted')
     }
 
     return false

@@ -11,7 +11,7 @@ import {
     SendMessageCommandOutput,
 } from '../../shared/streamingClientService'
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
-import { AgenticChatError, isInputTooLongError, wrapErrorWithCode } from '../agenticChat/errors'
+import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapErrorWithCode } from '../agenticChat/errors'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
@@ -151,11 +151,19 @@ export class ChatSessionService {
             try {
                 return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {
+                if (isRequestAbortedError(e)) {
+                    const requestId =
+                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
+                    throw new AgenticChatError(
+                        'Request aborted',
+                        'RequestAborted',
+                        e instanceof Error ? e : undefined,
+                        requestId
+                    )
+                }
                 if (isInputTooLongError(e)) {
-                    let requestId
-                    if (e instanceof CodeWhispererStreamingServiceException) {
-                        requestId = e.$metadata?.requestId
-                    }
+                    const requestId =
+                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
                     throw new AgenticChatError(
                         'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.',
                         'InputTooLong',
