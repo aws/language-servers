@@ -379,11 +379,12 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onListMcpServers(params: ListMcpServersParams) {
-        return this.#mcpEventHandler.onListMcpServers()
+        return this.#mcpEventHandler.onListMcpServers(params)
     }
 
     async onMcpServerClick(params: McpServerClickParams): Promise<McpServerClickResult> {
-        return this.#mcpEventHandler.onMcpServerClick(params)
+        const result = await this.#mcpEventHandler.onMcpServerClick(params)
+        return result as McpServerClickResult
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {

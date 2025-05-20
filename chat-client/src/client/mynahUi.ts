@@ -1116,41 +1116,42 @@ ${params.message}`,
                 children: group.children?.map(item => {
                     // Determine icon based on group name and status
                     let icon = 'ok-circled'
-                    const iconForegroundStatus = 'success'
+                    let iconForegroundStatus = 'success'
 
                     if (group.groupName === 'Disabled') {
                         icon = 'block'
+                        iconForegroundStatus = 'error'
                     }
 
                     // Create actions based on group name
                     const actions = []
                     if (group.groupName === 'Active') {
                         actions.push({
-                            id: 'open-mcp-xx',
+                            id: 'open-mcp-server',
                             icon: toMynahIcon('right-open'),
                         })
                     } else if (group.groupName === 'Disabled') {
                         actions.push({
-                            id: 'enable-mcp-' + item.title.toLowerCase(),
+                            id: 'enable-mcp-server',
                             icon: toMynahIcon('ok-circled'),
                             text: 'Enable',
                             description: 'Enable',
                         })
                         actions.push({
-                            id: 'delete-mcp-' + item.title.toLowerCase(),
+                            id: 'delete-mcp-server',
                             icon: toMynahIcon('trash'),
                             text: 'Delete',
                             description: 'Delete',
                         })
                         actions.push({
-                            id: 'open-mcp-xx',
+                            id: 'open-mcp-server',
                             icon: toMynahIcon('right-open'),
                             disabled: true,
                         })
                     }
 
                     return {
-                        id: 'mcp-server-' + item.title.toLowerCase(),
+                        id: 'mcp-server-click',
                         title: item.title,
                         description: item.description,
                         icon: toMynahIcon(icon),
@@ -1190,7 +1191,7 @@ ${params.message}`,
                     }
                 },
                 onActionClick: (action: ChatItemButton, item?: DetailedListItem) => {
-                    messager.onMcpServerClick(action.id)
+                    messager.onMcpServerClick(action.id, item?.title)
                 },
                 onClose: () => {
                     // No need to store reference
@@ -1287,11 +1288,103 @@ ${params.message}`,
                 events,
             }
             mynahUi.openDetailedList(data, true)
-        } else if (params.id === 'open-mcp-xx') {
-            mynahUi.notify({
-                content: ` Permissions UX`,
-                type: NotificationType.INFO,
-            })
+        } else if (params.id === 'open-mcp-server') {
+            // Create a detailed list for the MCP server configuration
+            const detailedList: any = {
+                selectable: false,
+                textDirection: 'row',
+                header: params.header
+                    ? {
+                          title: params.header.title,
+                          description: params.header.description,
+                          status: params.header.status,
+                          actions: params.header.actions?.map(action => ({
+                              ...action,
+                              icon: action.icon ? toMynahIcon(action.icon) : undefined,
+                              ...(action.id === 'mcp-details-menu'
+                                  ? {
+                                        items: [
+                                            {
+                                                id: 'mcp-disable-tool',
+                                                text: `Disable ${params.header?.title}`,
+                                                icon: toMynahIcon('block'),
+                                            },
+                                            {
+                                                id: 'mcp-delete-tool',
+                                                confirmation: {
+                                                    cancelButtonText: 'Cancel',
+                                                    confirmButtonText: 'Delete',
+                                                    title: 'Delete Filesystem MCP server',
+                                                    description:
+                                                        'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
+                                                },
+                                                text: `Delete ${params.header?.title}`,
+                                                icon: toMynahIcon('trash'),
+                                            },
+                                        ],
+                                    }
+                                  : {}),
+                          })),
+                      }
+                    : undefined,
+                filterOptions: params.filterOptions?.map(filter => ({
+                    ...filter,
+                    icon: filter.icon ? toMynahIcon(filter.icon) : undefined,
+                })),
+                list: params.list?.map(group => ({
+                    groupName: group.groupName,
+                    children: group.children?.map(item => ({
+                        id: item.title,
+                        title: item.title,
+                        description: item.description,
+                        icon: toMynahIcon('tools'),
+                        groupActions: item.groupActions,
+                    })),
+                })),
+            }
+            // Add filter actions if present
+            if (params.filterActions && params.filterActions.length > 0) {
+                detailedList.filterActions = params.filterActions.map(action => ({
+                    ...action,
+                    icon: action.icon ? toMynahIcon(action.icon) : undefined,
+                }))
+            }
+
+            // Open the detailed list UI
+            const mcpServerSheet = mynahUi.openDetailedList(
+                {
+                    detailedList: detailedList,
+                    events: {
+                        onFilterValueChange: (filterValues: Record<string, string>) => {
+                            // Handle filter value changes for tool permissions
+                            messager.onMcpServerClick('mcp-permission-change', detailedList.header?.title, filterValues)
+                        },
+
+                        onFilterActionClick: (
+                            action: ChatItemButton,
+                            filterValues?: Record<string, any>,
+                            isValid?: boolean
+                        ) => {},
+                        onTitleActionClick: (action: ChatItemButton) => {},
+                        onKeyPress: (e: KeyboardEvent) => {
+                            if (e.key === 'Escape') {
+                                mcpServerSheet.close()
+                            }
+                        },
+                        onActionClick: (action: ChatItemButton) => {
+                            // Handle action clicks (save, cancel, etc.)
+                            messager.onMcpServerClick(action.id)
+                        },
+                        onClose: () => {
+                            messager.onListMcpServers()
+                        },
+                        onBackClick: () => {
+                            messager.onListMcpServers()
+                        },
+                    },
+                },
+                true
+            )
         }
     }
 

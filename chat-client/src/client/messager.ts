@@ -34,6 +34,7 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsParams,
+    ListMcpServersParams,
     McpServerClickParams,
     OpenTabResult,
     PromptInputOptionChangeParams,
@@ -91,7 +92,7 @@ export interface OutboundChatApi {
     listConversations(params: ListConversationsParams): void
     conversationClick(params: ConversationClickParams): void
     mcpServerClick(params: McpServerClickParams): void
-    listMcpServers(params: ListConversationsParams): void
+    listMcpServers(params: ListMcpServersParams): void
     tabBarAction(params: TabBarActionParams): void
     onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
     promptInputOptionChange(params: PromptInputOptionChangeParams): void
