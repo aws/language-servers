@@ -217,19 +217,15 @@ export class AgenticChatResultStream {
         }
     }
 
-    async setProgressResultBlockStatusToError() {
+    async updateOngoingProgressResult(errorMessage: string) {
         for (const block of this.#state.chatResultBlocks) {
-            if (
-                block.messageId?.startsWith(progressPrefix) &&
-                block.header &&
-                block.header.status?.icon === 'progress'
-            ) {
+            if (block.messageId?.startsWith(progressPrefix) && block.header?.status?.icon === 'progress') {
+                await this.removeResultBlockAndUpdateUI(block.messageId)
                 block.header.status = {
                     status: 'error',
                     icon: 'error',
-                    text: 'Error',
+                    text: errorMessage,
                 }
-                await this.removeResultBlockAndUpdateUI(block.messageId)
                 block.messageId = block.messageId.substring(progressPrefix.length)
                 await this.writeResultBlock(block)
                 break

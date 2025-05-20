@@ -410,10 +410,11 @@ export class AgenticChatController implements ChatHandlers {
                 // depends on it
                 session.conversationId = uuid()
             }
-
+            const chatResultStream = this.#getChatResultStream(params.partialResultToken)
             token.onCancellationRequested(async () => {
                 this.#log('cancellation requested')
                 await this.#showUndoAllIfRequired(chatResultStream, session)
+                await chatResultStream.updateOngoingProgressResult('Canceled')
                 await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
                     type: 'directive',
                     messageId: 'stopped' + uuid(),
@@ -430,8 +431,6 @@ export class AgenticChatController implements ChatHandlers {
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
             })
             session.setConversationType('AgenticChat')
-
-            const chatResultStream = this.#getChatResultStream(params.partialResultToken)
 
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
@@ -654,7 +653,8 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
                 shouldDisplayMessage = false
-                await chatResultStream.setProgressResultBlockStatusToError()
+                // set the in progress tool use UI status to Error
+                await chatResultStream.updateOngoingProgressResult('Error')
                 continue
             }
 
@@ -756,6 +756,8 @@ export class AgenticChatController implements ChatHandlers {
                         'Your toolUse input is incomplete, try again. If the error happens consistently, break this task down into multiple tool uses with smaller input. Do not apologize.'
                     shouldDisplayMessage = false
                 }
+                // set the in progress tool use UI status to Error
+                await chatResultStream.updateOngoingProgressResult('Error')
             }
             if (result.success && this.#toolUseLatencies.length > 0) {
                 // Clear latencies for the next LLM call
@@ -2292,13 +2294,6 @@ export class AgenticChatController implements ChatHandlers {
             contextList,
             abortController.signal
         )
-        const result = await processResponsePromise
-        const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
-        for (const tooluse of pendingToolUses) {
-            if (tooluse.name === 'fsWrite') {
-                return { success: false, error: `${responseTimeoutPartialMsg} ${responseTimeoutMs}ms` }
-            }
-        }
         try {
             return await Promise.race([processResponsePromise, timeoutPromise])
         } catch (err) {
