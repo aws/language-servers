@@ -20,7 +20,7 @@ export class DependencyWatcher {
         try {
             const watcher = fs.watch(this.path, { recursive: false }, async (eventType, fileName) => {
                 if (!fileName) return
-                if (eventType === 'rename') {
+                if (eventType === 'rename' || eventType === 'change') {
                     this.eventQueue.add(fileName)
                     if (this.processingTimeout) {
                         clearTimeout(this.processingTimeout)

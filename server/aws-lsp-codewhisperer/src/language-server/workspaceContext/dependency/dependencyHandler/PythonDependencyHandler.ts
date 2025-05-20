@@ -138,7 +138,6 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                         this.DEPENDENCY_WATCHER_EVENT_BATCH_INTERVAL
                     )
                     this.dependencyWatchers.set(sitePackagesPath, watcher)
-                    this.logging.log(`Started watching Python site-packages: ${sitePackagesPath}`)
                 } catch (error) {
                     this.logging.warn(`Error setting up watcher for ${sitePackagesPath}: ${error}`)
                 }
