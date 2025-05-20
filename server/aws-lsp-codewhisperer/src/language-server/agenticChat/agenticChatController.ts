@@ -40,6 +40,9 @@ import {
     InlineChatParams,
     ConversationClickParams,
     ListConversationsParams,
+    ListMcpServersParams,
+    McpServerClickParams,
+    McpServerClickResult,
     TabBarActionParams,
     CreatePromptParams,
     FileClickParams,
@@ -120,10 +123,14 @@ import {
     responseTimeoutMs,
     responseTimeoutPartialMsg,
 } from './constants'
-import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
+import { URI } from 'vscode-uri'
+import { McpManager } from './tools/mcp/mcpManager'
+import { McpTool } from './tools/mcp/mcpTool'
+import { processMcpToolUseMessage } from './tools/mcp/mcpUtils'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
+import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -132,6 +139,8 @@ type ChatHandlers = Omit<
     | 'sendContextCommands'
     | 'onListConversations'
     | 'onConversationClick'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
     | 'onTabBarAction'
     | 'getSerializedChat'
     | 'chatOptionsUpdate'
@@ -155,6 +164,7 @@ export class AgenticChatController implements ChatHandlers {
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
     #toolUseStartTimes: Record<string, number> = {}
     #toolUseLatencies: Array<{ toolName: string; toolUseId: string; latency: number }> = []
+    #mcpEventHandler: McpEventHandler
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -189,6 +199,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.workspace,
             this.#features.lsp
         )
+        this.#mcpEventHandler = new McpEventHandler(features)
     }
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
@@ -362,6 +373,14 @@ export class AgenticChatController implements ChatHandlers {
 
     async onConversationClick(params: ConversationClickParams) {
         return this.#tabBarController.onConversationClick(params)
+    }
+
+    async onListMcpServers(params: ListMcpServersParams) {
+        return this.#mcpEventHandler.onListMcpServers(params)
+    }
+
+    async onMcpServerClick(params: McpServerClickParams) {
+        return this.#mcpEventHandler.onMcpServerClick(params)
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {
@@ -985,13 +1004,35 @@ export class AgenticChatController implements ChatHandlers {
                     case 'codeSearch':
                         // no need to write tool message for code search.
                         break
+                    // — DEFAULT ⇒ MCP tools
                     default:
-                        this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
-                        await chatResultStream.writeResultBlock({
-                            type: 'tool',
-                            body: `${executeToolMessage(toolUse)}`,
-                            messageId: toolUse.toolUseId,
-                        })
+                        // toolUse.name is in format <server>_<tool>
+                        const [serverName, ...toolParts] = toolUse.name.split('_')
+                        const toolName = toolParts.join('_')
+                        const def = McpManager.instance.getAllTools().find(d => d.toolName === toolName)
+                        if (def) {
+                            const mcpTool = new McpTool(this.#features, def)
+                            const { requiresAcceptance, warning } = await mcpTool.requiresAcceptance(
+                                serverName,
+                                toolName
+                            )
+                            if (requiresAcceptance) {
+                                const confirmation = this.#processToolConfirmation(toolUse, requiresAcceptance, warning)
+                                cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmation)
+                                await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
+                            }
+
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                body: `${executeToolMessage(toolUse)}`,
+                                messageId: toolUse.toolUseId,
+                                header: {
+                                    icon: 'tools',
+                                    body: def.toolName || toolUse.name,
+                                },
+                            })
+                            break
+                        }
                         break
                 }
 
@@ -1070,13 +1111,26 @@ export class AgenticChatController implements ChatHandlers {
                         )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
+                    // — DEFAULT ⇒ MCP tools
                     default:
-                        this.#features.logging.warn(`Processing unrecognized tool: ${toolUse.name}`)
-                        await chatResultStream.writeResultBlock({
-                            type: 'tool',
-                            body: toolResultMessage(toolUse, result),
-                            messageId: toolUse.toolUseId,
-                        })
+                        const def = McpManager.instance
+                            .getAllTools()
+                            .find(d => `${d.serverName}_${d.toolName}` === toolUse.name)
+                        if (def) {
+                            const message = toolResultMessage(toolUse, result)
+                            const messageBody = processMcpToolUseMessage(message)
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId,
+                                body: messageBody,
+                            })
+                        } else {
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId,
+                                body: toolResultMessage(toolUse, result),
+                            })
+                        }
                         break
                 }
                 this.#updateUndoAllState(toolUse, session)
@@ -1579,7 +1633,6 @@ export class AgenticChatController implements ChatHandlers {
 
             case 'fsRead':
             case 'listDirectory':
-            default:
                 buttons = [
                     {
                         id: 'allow-tools',
@@ -1604,6 +1657,25 @@ export class AgenticChatController implements ChatHandlers {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
                     body = `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
                 }
+                break
+            // — DEFAULT ⇒ MCP tools
+            default:
+                buttons = [
+                    {
+                        id: 'allow-tools',
+                        text: 'Allow',
+                        icon: 'ok',
+                        status: 'clear',
+                    },
+                ]
+                header = {
+                    icon: 'tools',
+                    iconForegroundStatus: 'warning',
+                    body: `#### MCP tool: ${toolUse.name}`,
+                    buttons,
+                }
+                const argsJson = JSON.stringify(toolUse.input, null, 2)
+                body = '```json\n' + argsJson + '\n```'
                 break
         }
 

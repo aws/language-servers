@@ -39,6 +39,7 @@ export const QAgenticChatServer =
                                 },
                             ],
                         },
+                        mcpServers: true,
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },
@@ -133,6 +134,14 @@ export const QAgenticChatServer =
 
         chat.onConversationClick(params => {
             return chatController.onConversationClick(params)
+        })
+
+        chat.onListMcpServers(params => {
+            return chatController.onListMcpServers(params)
+        })
+
+        chat.onMcpServerClick(params => {
+            return chatController.onMcpServerClick(params)
         })
 
         chat.onCreatePrompt((params) => {
