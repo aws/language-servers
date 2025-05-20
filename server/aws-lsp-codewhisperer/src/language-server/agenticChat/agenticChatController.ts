@@ -765,12 +765,6 @@ export class AgenticChatController implements ChatHandlers {
                         shouldDisplayMessage: shouldDisplayMessage,
                         timestamp: new Date(),
                     })
-
-                    // Async process: Trimming history asynchronously if the size exceeds the max
-                    // This process will take several seconds
-                    this.#chatHistoryDb.trimHistoryToMaxSize().catch(err => {
-                        this.#features.logging.error(`Error trimming history: ${err}`)
-                    })
                 }
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')

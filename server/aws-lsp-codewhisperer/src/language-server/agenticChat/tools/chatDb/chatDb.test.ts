@@ -7,7 +7,7 @@ import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatDatabase } from './chatDb'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { Message } from './util'
+import { Message, Tab } from './util'
 import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
 import * as fs from 'fs'
 
