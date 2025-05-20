@@ -8,12 +8,15 @@ import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import {
     FileSystemAdapter,
     Tab,
+    TabWithContext,
     TabCollection,
     initializeHistoryPriorityQueue,
     getOldestMessageTimestamp,
+    DbReference,
 } from './util'
+import { PriorityQueue } from 'typescript-collections'
 
-// Maximum history file size across all workspace, 200MB
+// Maximum history file size across all workspaces, 200MB
 export const maxHistorySizeInBytes = 200 * 1024 * 1024
 // 75% of the max size, 150MB
 export const maxAfterTrimHistorySizeInBytes = 150 * 1024 * 1024
@@ -24,7 +27,7 @@ export const maxAfterTrimHistorySizeInBytes = 150 * 1024 * 1024
 // Batch deletion iteration count when trimming history before re-calculating total history size
 export const messageBatchDeleteIterationBeforeRecalculateDBSize = 200
 // Batch deletion message size when trimming history for a specific tab before re-checking the oldest message among all workspace history
-export const messageBatchDeleteSizeForSingleTab = 10
+export const messagePairBatchDeleteSizeForSingleTab = 5
 // In each iteration, we calculate the total history size and try to delete [messageBatchDeleteSizeForSingleTab * messageBatchDeleteIterationBeforeRecalculateDBSize] messages
 export const maxTrimHistoryLoopIteration = 100
 
@@ -47,7 +50,7 @@ export class ChatHistoryMaintainer {
 
     /**
      * If the sum of all history file size exceeds the limit, start trimming the oldest conversation
-     * across all the workspace until the folder size is below maxAfterTrimHistorySizeInBytes.
+     * across all the workspaces until the folder size is below maxAfterTrimHistorySizeInBytes.
      */
     async trimHistoryToMaxSize() {
         // Get the size of all history DB files
@@ -68,6 +71,57 @@ export class ChatHistoryMaintainer {
         await this.trimHistoryForAllWorkspaces()
         const trimEnd = performance.now()
         this.#features.logging.info(`Trimming history took ${trimEnd - trimStart} ms`)
+    }
+
+    /**
+     * Trims chat history across all workspaces to reduce storage size.
+     *
+     * This method:
+     * 1. Loads all database files from the history directory
+     * 2. Creates a priority queue of tabs sorted by oldest message date
+     * 3. Iteratively removes oldest messages in batches until total size is below target
+     * 4. Saves changes to databases and closes connections when complete
+     *
+     * Uses batch deletion to minimize file size recalculations and prioritizes
+     * removing the oldest messages first across all workspaces.
+     */
+    private async trimHistoryForAllWorkspaces() {
+        // Load all databases
+        const allDbFiles = (await this.listDatabaseFiles()).map(file => file.name)
+        // DB name to {collection, db} Map
+        const allDbsMap = await this.loadAllDbFiles(allDbFiles)
+
+        this.#features.logging.info(`Loaded ${allDbsMap.size} databases in ${this.#dbDirectory}`)
+        if (allDbsMap.size < allDbFiles.length) {
+            this.#features.logging.warn(
+                `Found ${allDbFiles.length - allDbsMap.size} bad DB files, will skip them when calculating history size`
+            )
+        }
+
+        const tabQueue = initializeHistoryPriorityQueue()
+
+        // Add tabs to the queue(with ordering, the tab contains the oldest message first)
+        for (const [dbName, dbRef] of allDbsMap.entries()) {
+            const tabCollection = dbRef.collection
+            if (!tabCollection) continue
+
+            const tabs = tabCollection.find()
+            for (const tab of tabs) {
+                // Use the first message under the first conversation to get the oldestMessageDate, if no timestamp under the message, use 0.
+                const oldestMessageDate = getOldestMessageTimestamp(tab)
+                tabQueue.add({
+                    tab: tab,
+                    collection: tabCollection,
+                    dbName: dbName,
+                    oldestMessageDate: oldestMessageDate,
+                })
+            }
+        }
+
+        // Keep trimming until we're under the target size
+        await this.runHistoryTrimmingLoop(tabQueue, allDbsMap)
+
+        this.closeAllDbs(allDbsMap)
     }
 
     /**
@@ -125,39 +179,20 @@ export class ChatHistoryMaintainer {
         }
     }
 
-    private async trimHistoryForAllWorkspaces() {
-        // Load all databases
-        const allDbFiles = (await this.listDatabaseFiles()).map(file => file.name)
-        // DB name to {collection, db} Map
-        const allDbsMap = await this.loadAllDbFiles(allDbFiles)
-        this.#features.logging.info(`Loaded ${allDbsMap.size} databases in ${this.#dbDirectory}`)
-        if (allDbsMap.size < allDbFiles.length) {
-            this.#features.logging.warn(
-                `Found ${allDbFiles.length - allDbsMap.size} bad DB files, will skip them when calculating history size`
-            )
-        }
-
-        const tabQueue = initializeHistoryPriorityQueue()
-
-        // Add tabs to the queue
-        for (const [dbName, dbRef] of allDbsMap.entries()) {
-            const tabCollection = dbRef.collection
-            if (!tabCollection) continue
-
-            const tabs = tabCollection.find()
-            for (const tab of tabs) {
-                // Use the first message under the first conversation to get the oldestMessageDate, if no timestamp under the message, use 0.
-                const oldestMessageDate = getOldestMessageTimestamp(tab)
-                tabQueue.add({
-                    tab: tab,
-                    collection: tabCollection,
-                    dbName: dbName,
-                    oldestMessageDate: oldestMessageDate,
-                })
-            }
-        }
-
-        // Keep trimming until we're under the target size
+    /**
+     * Executes the main trimming loop that iteratively removes oldest messages until
+     * the total database size is below the target threshold.
+     *
+     * The loop continues until one of these conditions is met:
+     * 1. The total size is reduced below the target threshold
+     * 2. Maximum iteration count is reached (to prevent infinite loops)
+     *
+     * Each iteration performs a batch of deletions to minimize size recalculations.
+     *
+     * @param tabQueue Priority queue of tabs sorted by oldest message date
+     * @param allDbsMap Map of database names to their collection and DB references
+     */
+    private async runHistoryTrimmingLoop(tabQueue: PriorityQueue<TabWithContext>, allDbsMap: Map<string, DbReference>) {
         let iterationCount = 0
         while (!tabQueue.isEmpty()) {
             // Check current total size
@@ -177,53 +212,73 @@ export class ChatHistoryMaintainer {
             }
 
             // Do a batch deletion so that we don't re-calculate the size for every deletion,
-            // messages should be deleted in pairs(prompt, answer)
-            let updatedDbs = new Set<string>()
-            for (let i = 0; i < messageBatchDeleteIterationBeforeRecalculateDBSize / 2; i++) {
-                const queueItem = tabQueue.dequeue()
-                const tab = queueItem?.tab
-                const collection = queueItem?.collection
-                const dbName = queueItem?.dbName
-                if (!tab || !collection || !dbName) break
+            const updatedDbs = this.batchDeleteMessagePairs(tabQueue)
 
-                updatedDbs.add(dbName)
-                if (!tab.conversations) {
-                    collection.remove(tab)
-                    continue
-                }
+            await this.saveUpdatedDbs(allDbsMap, updatedDbs)
+        }
+    }
 
-                // Remove messages under a tab
-                let pairsRemoved = 0
-                while (
-                    pairsRemoved < messageBatchDeleteSizeForSingleTab / 2 &&
-                    this.removeOldestMessagePairFromTab(tab)
-                ) {
-                    pairsRemoved++
-                }
+    /**
+     * Performs batch deletion of message pairs from tabs in the priority queue.
+     *
+     * Processes the tabs from the top of the queue, removing the oldest message pairs
+     * from each tab up to a configured limit. Tabs with remaining messages are re-added
+     * to the queue with updated timestamps, while empty tabs are removed completely.
+     *
+     * @param tabQueue Priority queue of tabs sorted by oldest message date
+     * @returns Set of database names that were modified and need to be saved
+     */
+    private batchDeleteMessagePairs(tabQueue: PriorityQueue<TabWithContext>): Set<string> {
+        let updatedDbs = new Set<string>()
+        for (let i = 0; i < messageBatchDeleteIterationBeforeRecalculateDBSize / 2; i++) {
+            const queueItem = tabQueue.dequeue()
+            const tab = queueItem?.tab
+            const collection = queueItem?.collection
+            const dbName = queueItem?.dbName
+            if (!tab || !collection || !dbName) break
 
-                if (!tab.conversations || tab.conversations.length === 0) {
-                    // If the tab has no conversations left, remove it
-                    collection.remove(tab)
-                } else {
-                    collection.update(tab)
-                    // Re-add the tab to the queue with updated oldest date
-                    const newOldestDate = getOldestMessageTimestamp(tab)
-                    tabQueue.enqueue({ tab: tab, collection, dbName: dbName, oldestMessageDate: newOldestDate })
+            // Start deleting old messages
+            updatedDbs.add(dbName)
+
+            if (!tab.conversations) {
+                collection.remove(tab)
+                continue
+            }
+
+            // Remove messages under a tab, until reaching the batchDeleteSize or the Tab is empty
+            for (let pairsRemoved = 0; pairsRemoved < messagePairBatchDeleteSizeForSingleTab; pairsRemoved++) {
+                if (!this.removeOldestMessagePairFromTab(tab)) {
+                    break
                 }
             }
 
-            // Save the updated database if it's not the current one, the current db should have autosave enabled
-            for (const [dbName, dbRef] of allDbsMap.entries()) {
-                if (updatedDbs.has(dbName)) {
-                    this.#features.logging.debug(`Removed old messages from ${dbName}, saving changes`)
-                    await new Promise<void>(resolve => {
-                        dbRef.db.saveDatabase(() => resolve())
-                    })
-                }
+            if (!tab.conversations || tab.conversations.length === 0) {
+                // If the tab has no conversations left, remove it
+                collection.remove(tab)
+            } else {
+                collection.update(tab)
+                // Re-add the tab to the queue with updated oldest date
+                const newOldestDate = getOldestMessageTimestamp(tab)
+                tabQueue.enqueue({ tab: tab, collection, dbName: dbName, oldestMessageDate: newOldestDate })
             }
         }
+        return updatedDbs
+    }
 
-        // Close the databases except the current workspace DB
+    // Save the updated database if it's not the current one, the current db should have autosave enabled
+    private async saveUpdatedDbs(allDbsMap: Map<string, DbReference>, updatedDbs: Set<string>) {
+        for (const [dbName, dbRef] of allDbsMap.entries()) {
+            if (updatedDbs.has(dbName)) {
+                this.#features.logging.debug(`Removed old messages from ${dbName}, saving changes`)
+                await new Promise<void>(resolve => {
+                    dbRef.db.saveDatabase(() => resolve())
+                })
+            }
+        }
+    }
+
+    // Close the databases except the current workspace DB
+    private closeAllDbs(allDbsMap: Map<string, DbReference>) {
         for (const [dbName, dbRef] of allDbsMap.entries()) {
             if (dbName !== this.#dbName) {
                 dbRef.db.close()
@@ -232,7 +287,7 @@ export class ChatHistoryMaintainer {
     }
 
     private async loadAllDbFiles(allDbFiles: string[]) {
-        const allDbsMap = new Map<string, { collection: Collection<Tab>; db: Loki }>()
+        const allDbsMap = new Map<string, DbReference>()
         for (const dbFile of allDbFiles) {
             try {
                 if (dbFile === this.#dbName) {
