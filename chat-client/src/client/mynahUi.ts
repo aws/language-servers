@@ -94,7 +94,7 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
     }
 }
 
-export const handleChatPrompt = async (
+export const handleChatPrompt = (
     mynahUi: MynahUI,
     tabId: string,
     prompt: ChatPrompt,
@@ -104,24 +104,7 @@ export const handleChatPrompt = async (
     agenticMode?: boolean
 ) => {
     let userPrompt = prompt.escapedPrompt
-
-    const tabStore = mynahUi.getTabData(tabId)?.getStore()
-    const isLoading = tabStore?.loadingChat === true
-    if (isLoading) {
-        messager.onStopChatResponse(tabId)
-        mynahUi.addChatItem(tabId, {
-            type: ChatItemType.DIRECTIVE,
-            messageId: `stopped-${Date.now()}`,
-        })
-        mynahUi.updateStore(tabId, {
-            loadingChat: false,
-            cancelButtonWhenLoading: true,
-            promptInputDisabledState: false,
-        })
-
-        await new Promise(resolve => setTimeout(resolve, 50))
-    }
-
+    messager.onStopChatResponse(tabId)
     if (prompt.command) {
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
