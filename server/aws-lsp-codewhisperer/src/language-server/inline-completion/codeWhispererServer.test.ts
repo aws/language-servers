@@ -623,6 +623,38 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
+        it('throws ResponseError with expected message if connection is expired', async () => {
+            service.generateSuggestions.returns(Promise.reject(new Error(INVALID_TOKEN)))
+
+            const promise = async () =>
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+            // Throws expected error
+            assert.rejects(promise, ResponseError, 'E_AMAZON_Q_CONNECTION_EXPIRED')
+        })
+
+        it('throws ResponseError if error is AmazonQError', async () => {
+            service.generateSuggestions.returns(Promise.reject(new AmazonQError('test', '500')))
+
+            const promise = async () =>
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+            // Throws expected error
+            assert.rejects(promise, ResponseError)
+        })
+
         describe('Supplemental Context', () => {
             it('should send supplemental context when using token authentication', async () => {
                 const test_service = sinon.createStubInstance(
