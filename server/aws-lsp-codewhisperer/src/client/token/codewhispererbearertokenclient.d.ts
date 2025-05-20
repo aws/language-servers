@@ -246,6 +246,7 @@ declare namespace CodeWhispererBearerTokenClient {
   export type AdditionalContentEntryInnerContextString = string;
   export type AdditionalContentEntryNameString = string;
   export type AdditionalContentList = AdditionalContentEntry[];
+  export type AgenticChatEventStatus = "SUCCEEDED"|"CANCELLED"|"FAILED"|string;
   export interface AppStudioState {
     /**
      * The namespace of the context. Examples: 'ui.Button', 'ui.Table.DataSource', 'ui.Table.RowActions.Button', 'logic.invokeAWS', 'logic.JavaScript'
@@ -323,6 +324,7 @@ declare namespace CodeWhispererBearerTokenClient {
     responseLength?: Integer;
     numberOfCodeBlocks?: Integer;
     hasProjectLevelContext?: Boolean;
+    result?: AgenticChatEventStatus;
   }
   export type ChatHistory = ChatMessage[];
   export interface ChatInteractWithMessageEvent {
