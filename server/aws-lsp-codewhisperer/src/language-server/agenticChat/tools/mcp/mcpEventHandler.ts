@@ -8,6 +8,7 @@ import {
     McpServerClickParams,
 } from '@aws/language-server-runtimes/protocol'
 import { getGlobalMcpConfigPath } from './mcpUtils'
+import { MCPServerConfig } from './mcpTypes'
 
 interface PermissionOption {
     label: string
@@ -188,10 +189,50 @@ export class McpEventHandler {
                     title: 'Command',
                 },
                 {
+                    type: 'list',
+                    id: 'args',
+                    title: 'Arguments - optional',
+                    mandatory: false,
+                    items: [
+                        {
+                            id: 'arg_key',
+                            type: 'textinput',
+                        },
+                    ],
+                    value: [
+                        {
+                            persistent: true,
+                            value: {
+                                arg_key: '',
+                            },
+                        },
+                    ],
+                },
+                {
+                    type: 'list',
+                    id: 'env_variables',
+                    title: 'Environment variables - optional',
+                    mandatory: false,
+                    items: [
+                        {
+                            id: 'env_var_name',
+                            title: 'Name',
+                            type: 'textinput',
+                        },
+                        {
+                            id: 'env_var_value',
+                            title: 'Value',
+                            type: 'textinput',
+                        },
+                    ],
+                    value: [],
+                },
+                {
                     type: 'numericinput',
                     id: 'timeout',
                     title: 'Timeout',
                     description: 'Seconds',
+                    value: '60', // Default value
                 },
             ],
         }
@@ -205,10 +246,46 @@ export class McpEventHandler {
             return this.#getDefaultMcpResponse(params.id)
         }
 
-        const config = {
-            name: params.optionsValues.name,
+        // Process args to string[]
+        let args: string[] = []
+        const argsValue = params.optionsValues.args
+
+        // Handle the case where argsValue might be a direct array or another type
+        try {
+            // Try to safely access and process the value
+            const argsArray = Array.isArray(argsValue) ? argsValue : []
+            args = argsArray
+                .map((item: any) => {
+                    return typeof item === 'object' && item !== null && 'arg_key' in item ? String(item.arg_key) : ''
+                })
+                .filter(Boolean)
+        } catch (e) {
+            this.#features.logging.warn(`Failed to process args: ${e}`)
+        }
+
+        // Process env_variables to Record<string, string>
+        let env: Record<string, string> = {}
+        const envValue = params.optionsValues.env_variables
+
+        // Handle the case where envValue might be a direct array or another type
+        try {
+            // Try to safely access and process the value
+            const envArray = Array.isArray(envValue) ? envValue : []
+            env = envArray.reduce((acc: Record<string, string>, item: any) => {
+                if (item && typeof item === 'object' && 'env_var_name' in item && 'env_var_value' in item) {
+                    acc[String(item.env_var_name)] = String(item.env_var_value)
+                }
+                return acc
+            }, {})
+        } catch (e) {
+            this.#features.logging.warn(`Failed to process env variables: ${e}`)
+        }
+
+        const serverName = params.optionsValues.name
+        const config: MCPServerConfig = {
             command: params.optionsValues.command,
-            transport: params.optionsValues.transport,
+            args: args,
+            env: env,
             timeout: parseInt(params.optionsValues.timeout),
             disabled: false,
         }
@@ -218,7 +295,7 @@ export class McpEventHandler {
             configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
         }
         // TODO: According to workspace specific scope and persona and pass configPath to addServer
-        await McpManager.instance.addServer(config.name, config, configPath)
+        await McpManager.instance.addServer(serverName, config, configPath)
 
         return this.#getDefaultMcpResponse(params.id)
     }
