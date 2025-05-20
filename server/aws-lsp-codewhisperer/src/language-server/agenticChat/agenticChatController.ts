@@ -599,7 +599,8 @@ export class AgenticChatController implements ChatHandlers {
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
             // Phase 3: Request Execution
-
+            // Note: these logs are very noisy, but contain information redacted on the backend.
+            this.#debug(`generateAssistantResponse Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
             const response = await session.generateAssistantResponse(currentRequestInput)
 
             if (response.$metadata.requestId) {
@@ -779,8 +780,6 @@ export class AgenticChatController implements ChatHandlers {
      */
     truncateRequest(request: GenerateAssistantResponseCommandInput): number {
         let remainingCharacterBudget = generateAssistantResponseInputLimit
-        // Note: these logs are very noisy, but contain information redacted on the backend.
-        this.#debug(`generateAssistantResponse Request: ${JSON.stringify(request, undefined, 2)}`)
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
             return remainingCharacterBudget
         }
