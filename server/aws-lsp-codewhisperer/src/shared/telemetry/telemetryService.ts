@@ -229,6 +229,7 @@ export class TelemetryService {
             acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
         const perceivedLatencyMilliseconds =
             session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
+        const streakLength = session.getAndUpdateStreakLength(session.getAggregatedUserTriggerDecision() || 'Empty')
 
         const event: UserTriggerDecisionEvent = {
             sessionId: session.codewhispererSessionId || '',
@@ -250,6 +251,8 @@ export class TelemetryService {
             numberOfRecommendations: session.suggestions.length,
             perceivedLatencyMilliseconds: perceivedLatencyMilliseconds,
             acceptedCharacterCount: acceptedCharacterCount,
+            addedCharacterCount: acceptedCharacterCount,
+            streakLength: streakLength,
         }
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
@@ -372,6 +375,8 @@ export class TelemetryService {
                 timestamp: params.timestamp,
                 acceptedCharacterCount: params.acceptedCharacterCount,
                 unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+                addedCharacterCount: params.acceptedCharacterCount,
+                unmodifiedAddedCharacterCount: params.unmodifiedAcceptedCharacterCount,
             },
         })
     }
@@ -412,6 +417,7 @@ export class TelemetryService {
             acceptedCharacterCount: params.acceptedCharacterCount,
             totalCharacterCount: params.totalCharacterCount,
             timestamp: new Date(Date.now()),
+            addedCharacterCount: params.acceptedCharacterCount,
             userWrittenCodeCharacterCount: params.userWrittenCodeCharacterCount,
             userWrittenCodeLineCount: params.userWrittenCodeLineCount,
         }

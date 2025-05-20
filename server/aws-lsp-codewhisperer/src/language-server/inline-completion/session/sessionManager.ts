@@ -69,6 +69,7 @@ export class CodeWhispererSession {
     previousTriggerDecisionTime?: number
     reportedUserDecision: boolean = false
     customizationArn?: string
+    streakLength?: number = 0
     includeImportsWithSuggestions?: boolean
     codewhispererSuggestionImportCount: number = 0
 
@@ -235,6 +236,19 @@ export class CodeWhispererSession {
             }
         }
         return isEmpty ? 'Empty' : 'Discard'
+    }
+
+    getAndUpdateStreakLength(suggestionState: UserTriggerDecision): number {
+        if (suggestionState === 'Reject' || suggestionState === 'Discard') {
+            const currentStreakLength = this.streakLength ?? -1
+            // reset streakLength to 0 after the streak ends.
+            this.streakLength = 0
+            return currentStreakLength === 0 ? -1 : currentStreakLength
+        } else if (suggestionState === 'Accept') {
+            // increment streakLength everytime a suggestion is accepted.
+            this.streakLength = (this.streakLength ?? 0) + 1
+        }
+        return -1
     }
 }
 

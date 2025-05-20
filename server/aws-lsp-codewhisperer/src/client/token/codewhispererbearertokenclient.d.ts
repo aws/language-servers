@@ -1904,6 +1904,7 @@ declare namespace CodeWhispererBearerTokenClient {
     removedIdeDiagnostics?: IdeDiagnosticList;
     addedCharacterCount?: PrimitiveInteger;
     deletedCharacterCount?: PrimitiveInteger;
+    streakLength?: PrimitiveInteger
   }
   export interface WorkspaceContext {
     toggle: OptInFeatureToggle;
