@@ -235,7 +235,20 @@ export class McpEventHandler {
                     id: params.id,
                 }
             }
+        } else if (params.id === 'refresh-mcp-list') {
+            try {
+                await McpManager.instance.reinitializeMcpServers()
+                return {
+                    id: params.id,
+                }
+            } catch (err) {
+                this.features.logging.error(`Failed to reinitialize MCP servers: ${err}`)
+                return {
+                    id: params.id,
+                }
+            }
         }
+
         return {
             id: params.id,
             header: {
