@@ -121,7 +121,7 @@ import {
     responseTimeoutPartialMsg,
 } from './constants'
 import { URI } from 'vscode-uri'
-import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
+import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
@@ -1261,6 +1261,7 @@ export class AgenticChatController implements ChatHandlers {
         return (
             CancellationError.isUserCancelled(err) ||
             err instanceof ToolApprovalException ||
+            isRequestAbortedError(err) ||
             (token?.isCancellationRequested ?? false)
         )
     }
