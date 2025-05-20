@@ -8,11 +8,13 @@ import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspRea
 import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
 import { McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
+import { GrepSearch, GrepSearchParams } from './grepSearch'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
     const fsWriteTool = new FsWrite({ workspace, lsp, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
+    const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         // TODO: fill in logic for handling invalid tool invocations
@@ -31,6 +33,11 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     agent.addTool(listDirectoryTool.getSpec(), async (input: ListDirectoryParams, token?: CancellationToken) => {
         await listDirectoryTool.validate(input)
         return await listDirectoryTool.invoke(input, token)
+    })
+
+    agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
+        await grepSearchTool.validate(input)
+        return await grepSearchTool.invoke(input, token)
     })
 
     return () => {}
