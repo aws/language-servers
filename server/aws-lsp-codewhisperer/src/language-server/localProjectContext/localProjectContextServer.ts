@@ -4,12 +4,11 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { getWorkspaceFolders } from '../../shared/initializeUtils'
 import { URI } from 'vscode-uri'
 
 export const LocalProjectContextServer =
     (): Server =>
-    ({ credentialsProvider, telemetry, logging, lsp }) => {
+    ({ credentialsProvider, telemetry, logging, lsp, workspace }) => {
         let localProjectContextController: LocalProjectContextController
         let amazonQServiceManager: AmazonQTokenServiceManager
         let telemetryService: TelemetryService
@@ -17,7 +16,7 @@ export const LocalProjectContextServer =
         let localProjectContextEnabled: boolean = false
 
         lsp.addInitializer((params: InitializeParams) => {
-            const workspaceFolders = getWorkspaceFolders(logging, params)
+            const workspaceFolders = workspace.getAllWorkspaceFolders() || params.workspaceFolders
             localProjectContextController = new LocalProjectContextController(
                 params.clientInfo?.name ?? 'unknown',
                 workspaceFolders,
@@ -65,7 +64,7 @@ export const LocalProjectContextServer =
                 telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
                 await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
-                logging.log('Local context server has been initialized')
+                logging.info('Local context server has been initialized')
             } catch (error) {
                 logging.error(`Failed to initialize local context server: ${error}`)
             }

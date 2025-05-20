@@ -6,6 +6,7 @@ import {
     MetricEvent,
     Position,
     InitializeParams,
+    ResponseError,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -52,6 +53,8 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
+import { INVALID_TOKEN } from '../../shared/constants'
+import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 
 const updateConfiguration = async (
     features: TestFeatures,

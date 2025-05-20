@@ -112,7 +112,7 @@ export function isPathApproved(filePath: string, approvedPaths?: Set<string>): b
  */
 export async function requiresPathAcceptance(
     path: string,
-    lsp: Features['lsp'],
+    workspace: Features['workspace'],
     logging: Features['logging'],
     approvedPaths?: Set<string>
 ): Promise<CommandValidation> {
@@ -122,7 +122,7 @@ export async function requiresPathAcceptance(
             return { requiresAcceptance: false }
         }
 
-        const workspaceFolders = getWorkspaceFolderPaths(lsp)
+        const workspaceFolders = getWorkspaceFolderPaths(workspace)
         if (!workspaceFolders || workspaceFolders.length === 0) {
             if (logging) {
                 logging.debug('No workspace folders found when checking file acceptance')

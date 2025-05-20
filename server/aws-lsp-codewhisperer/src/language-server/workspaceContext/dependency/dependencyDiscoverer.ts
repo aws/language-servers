@@ -12,6 +12,8 @@ export class DependencyDiscoverer {
     private workspaceFolders: WorkspaceFolder[]
     public dependencyHandlerRegistry: LanguageDependencyHandler<BaseDependencyInfo>[] = []
     private initializedWorkspaceFolder = new Map<WorkspaceFolder, boolean>()
+    // Create a SharedArrayBuffer with 4 bytes (for a 32-bit unsigned integer) for thread-safe counter
+    protected dependencyUploadedSizeSum = new Uint32Array(new SharedArrayBuffer(4))
 
     constructor(
         workspace: Workspace,
@@ -21,6 +23,7 @@ export class DependencyDiscoverer {
     ) {
         this.workspaceFolders = workspaceFolders
         this.logging = logging
+        this.dependencyUploadedSizeSum[0] = 0
 
         let jstsHandlerCreated = false
         supportedWorkspaceContextLanguages.forEach(language => {
@@ -29,7 +32,8 @@ export class DependencyDiscoverer {
                 workspace,
                 logging,
                 workspaceFolders,
-                artifactManager
+                artifactManager,
+                this.dependencyUploadedSizeSum
             )
             if (handler) {
                 // Share handler for javascript and typescript
@@ -130,6 +134,13 @@ export class DependencyDiscoverer {
         this.logging.log(`Dependency search completed successfully`)
     }
 
+    async reSyncDependenciesToS3(folders: WorkspaceFolder[]) {
+        Atomics.store(this.dependencyUploadedSizeSum, 0, 0)
+        for (const dependencyHandler of this.dependencyHandlerRegistry) {
+            await dependencyHandler.zipDependencyMap(folders)
+        }
+    }
+
     async handleDependencyUpdateFromLSP(language: string, paths: string[], workspaceRoot?: WorkspaceFolder) {
         for (const dependencyHandler of this.dependencyHandlerRegistry) {
             if (dependencyHandler.language != language) {
@@ -144,6 +155,7 @@ export class DependencyDiscoverer {
         this.dependencyHandlerRegistry.forEach(dependencyHandler => {
             dependencyHandler.dispose()
         })
+        Atomics.store(this.dependencyUploadedSizeSum, 0, 0)
     }
 
     public disposeWorkspaceFolder(workspaceFolder: WorkspaceFolder) {
