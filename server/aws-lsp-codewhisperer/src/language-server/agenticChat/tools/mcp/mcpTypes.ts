@@ -1,16 +1,16 @@
 /*!
- * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
- * SPDX-License-Identifier: Apache-2.0
+ * Copyright Amazon.com, Inc. or its affiliates.
+ * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
 export type McpServerStatus = 'INITIALIZING' | 'ENABLED' | 'FAILED' | 'DISABLED'
+export type McpPermissionType = 'alwaysAllow' | 'ask' | 'deny'
 
 export interface McpServerRuntimeState {
     status: McpServerStatus
     toolsCount: number
     lastError?: string
 }
-
 export interface McpToolDefinition {
     serverName: string
     toolName: string
@@ -24,18 +24,62 @@ export interface MCPServerConfig {
     env?: Record<string, string>
     initializationTimeout?: number
     timeout?: number
-    disabled?: boolean
-    autoApprove?: boolean
-    toolOverrides?: Record<string, { autoApprove?: boolean; disabled?: boolean }>
+    __configPath__?: string
+}
+export interface MCPServerPermission {
+    enabled: boolean
+    toolPerms: Record<string, McpPermissionType>
     __configPath__?: string
 }
 
-export interface MCPServerPermissionUpdate {
-    disabled?: boolean
-    autoApprove?: boolean
-    toolOverrides?: Record<string, { autoApprove?: boolean; disabled?: boolean }>
+export interface PersonaConfig {
+    mcpServers: string[] // list of enabled servers, wildcard "*" allowed
+    toolPerms?: Record<string, Record<string, McpPermissionType>> // server → tool → perm, wildcard "*" allowed
 }
 
+export class PersonaModel {
+    constructor(private cfg: PersonaConfig) {}
+
+    static fromYaml(doc: any): PersonaModel {
+        const cfg: PersonaConfig = {
+            mcpServers: Array.isArray(doc?.['mcpServers']) ? doc['mcpServers'] : [],
+            toolPerms: typeof doc?.['toolPerms'] === 'object' ? doc['toolPerms'] : {},
+        }
+        return new PersonaModel(cfg)
+    }
+
+    toYaml(): PersonaConfig {
+        return this.cfg
+    }
+
+    private hasWildcard(): boolean {
+        return this.cfg['mcpServers'].includes('*')
+    }
+
+    addServer(name: string): void {
+        if (!this.hasWildcard() && !this.cfg['mcpServers'].includes(name)) {
+            this.cfg['mcpServers'].push(name)
+        }
+    }
+
+    removeServer(name: string): void {
+        const idx = this.cfg['mcpServers'].indexOf(name)
+        if (idx >= 0) this.cfg['mcpServers'].splice(idx, 1)
+        if (this.cfg['toolPerms']) delete this.cfg['toolPerms'][name]
+    }
+
+    replaceToolPerms(server: string, toolPerms: Record<string, McpPermissionType>): void {
+        this.cfg['toolPerms'] ||= {}
+        this.cfg['toolPerms'][server] = { ...toolPerms }
+    }
+
+    /** Ensure a “* : ask” entry exists. */
+    ensureWildcardAsk(server: string): void {
+        this.cfg['toolPerms'] ||= {}
+        const s = (this.cfg['toolPerms'][server] ||= {})
+        if (Object.keys(s).length === 0) s['*'] = 'ask'
+    }
+}
 export interface ListToolsResponse {
     tools: {
         name?: string
