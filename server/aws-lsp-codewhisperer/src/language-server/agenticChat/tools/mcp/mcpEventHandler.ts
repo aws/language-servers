@@ -39,7 +39,7 @@ export class McpEventHandler {
             } else {
                 activeItems.push({
                     ...item,
-                    description: `${toolsCount} tools - ${config.command}`,
+                    description: `${toolsCount}`,
                 })
             }
         })
@@ -200,6 +200,7 @@ export class McpEventHandler {
             }
             try {
                 const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
+
                 if (!serverConfig) {
                     throw new Error(`Server '${serverName}' not found`)
                 }
