@@ -98,7 +98,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             return AmazonQTokenServiceManager.instance
         }
 
-        throw new AmazonQServiceAlreadyInitializedError()
+        return AmazonQTokenServiceManager.instance
     }
 
     public static getInstance(): AmazonQTokenServiceManager {
