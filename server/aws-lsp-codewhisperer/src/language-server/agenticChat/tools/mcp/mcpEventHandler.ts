@@ -7,8 +7,9 @@ import {
     ListMcpServersParams,
     McpServerClickParams,
 } from '@aws/language-server-runtimes/protocol'
-import { getGlobalMcpConfigPath } from './mcpUtils'
-import { MCPServerConfig } from './mcpTypes'
+
+import { getGlobalMcpConfigPath, getGlobalPersonaConfigPath, getWorkspacePersonaConfigPaths } from './mcpUtils'
+import { MCPServerConfig, MCPServerPermission } from './mcpTypes'
 
 interface PermissionOption {
     label: string
@@ -26,22 +27,23 @@ export class McpEventHandler {
      * Handles the list MCP servers event
      */
     async onListMcpServers(params: ListMcpServersParams) {
-        const mcpManagerServerConfigs = McpManager.instance.getAllServerConfigs()
+        const mcpManager = McpManager.instance
+        const mcpManagerServerConfigs = mcpManager.getAllServerConfigs()
 
         // Transform server configs into DetailedListItem objects
         const activeItems: DetailedListItem[] = []
         const disabledItems: DetailedListItem[] = []
 
         Array.from(mcpManagerServerConfigs.entries()).forEach(([serverName, config]) => {
-            const toolsWithStates = McpManager.instance.getAllToolsWithStates(serverName)
-            const toolsCount = toolsWithStates.length
+            const toolsWithPermissions = mcpManager.getAllToolsWithPermissions(serverName)
+            const toolsCount = toolsWithPermissions.length
 
             const item: DetailedListItem = {
                 title: serverName,
                 description: `Command: ${config.command}`,
             }
 
-            if (config.disabled) {
+            if (mcpManager.isServerDisabled(serverName)) {
                 disabledItems.push(item)
             } else {
                 activeItems.push({
@@ -88,6 +90,7 @@ export class McpEventHandler {
     /**
      * Handles MCP server click events
      */
+
     async onMcpServerClick(params: McpServerClickParams) {
         this.#features.logging.log(`[VSCode Server] onMcpServerClick event with params: ${JSON.stringify(params)}`)
 
@@ -287,15 +290,19 @@ export class McpEventHandler {
             args,
             env,
             timeout: parseInt(params.optionsValues.timeout),
-            disabled: false,
         }
 
+        // TODO: handle ws/global selection
         let configPath = ''
         if (params.optionsValues.scope === 'global') {
             configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
         }
+        let personaPath = ''
+        if (params.optionsValues.scope === 'global') {
+            personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        }
         // TODO: According to workspace specific scope and persona and pass configPath to addServer
-        await McpManager.instance.addServer(serverName, config, configPath)
+        await McpManager.instance.addServer(serverName, config, configPath, personaPath)
 
         return this.#getDefaultMcpResponse(params.id)
     }
@@ -309,8 +316,8 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
-        const toolsWithStates = McpManager.instance.getAllToolsWithStates(serverName)
-        const filterOptions = this.#buildServerFilterOptions(serverName, toolsWithStates)
+        const toolsWithPermissions = McpManager.instance.getAllToolsWithPermissions(serverName)
+        const filterOptions = this.#buildServerFilterOptions(serverName, toolsWithPermissions)
 
         return {
             id: params.id,
@@ -337,9 +344,6 @@ export class McpEventHandler {
     }
 
     /**
-     * Builds filter options for server configuration
-     */
-    /**
      * Handles disabling an MCP server
      */
     async #handleDisableMcpServer(params: McpServerClickParams) {
@@ -348,8 +352,17 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
+        // TODO: handle ws/global selection
+        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
+        const perm: MCPServerPermission = {
+            enabled: false,
+            toolPerms: {},
+            __configPath__: personaPath,
+        }
+
         try {
-            await McpManager.instance.updateServerPermission(serverName, { disabled: true })
+            await McpManager.instance.updateServerPermission(serverName, perm)
         } catch (error) {
             this.#features.logging.error(`Failed to disable MCP server: ${error}`)
         }
@@ -375,7 +388,10 @@ export class McpEventHandler {
         return { id: params.id }
     }
 
-    #buildServerFilterOptions(serverName: string, toolsWithStates: any[]) {
+    /**
+     * Builds filter options for server configuration
+     */
+    #buildServerFilterOptions(serverName: string, toolsWithPermissions: any[]) {
         const filterOptions: FilterOption[] = [
             {
                 type: 'radiogroup',
@@ -394,13 +410,10 @@ export class McpEventHandler {
             },
         ]
 
-        // Get server config to check existing permissions
-        const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
-
         // Add tool select options
-        toolsWithStates.forEach(item => {
+        toolsWithPermissions.forEach(item => {
             const toolName = item.tool.toolName
-            const currentPermission = this.#getCurrentPermission(serverConfig, toolName)
+            const currentPermission = this.#getCurrentPermission(item.permission)
             const permissionOptions = this.#buildPermissionOptions(currentPermission)
 
             filterOptions.push({
@@ -418,12 +431,10 @@ export class McpEventHandler {
     /**
      * Gets the current permission setting for a tool
      */
-    #getCurrentPermission(serverConfig: any, toolName: string): string {
-        const toolOverrides = serverConfig?.toolOverrides?.[toolName]
-
-        if (toolOverrides?.autoApprove === true) {
+    #getCurrentPermission(permission: string): string {
+        if (permission === 'alwaysAllow') {
             return 'Always run'
-        } else if (toolOverrides?.disabled === true) {
+        } else if (permission === 'deny') {
             return 'Disable'
         } else {
             return 'Ask to run'
@@ -436,24 +447,24 @@ export class McpEventHandler {
     #buildPermissionOptions(currentPermission: string) {
         const permissionOptions: PermissionOption[] = []
 
-        if (currentPermission !== 'Always run') {
+        if (currentPermission !== 'alwaysAllow') {
             permissionOptions.push({
                 label: 'Always run',
-                value: 'always',
+                value: 'alwaysAllow',
             })
         }
 
-        if (currentPermission !== 'Ask to run') {
+        if (currentPermission !== 'ask') {
             permissionOptions.push({
                 label: 'Ask to run',
                 value: 'ask',
             })
         }
 
-        if (currentPermission !== 'Disable') {
+        if (currentPermission !== 'deny') {
             permissionOptions.push({
                 label: 'Disable',
-                value: 'disable',
+                value: 'deny',
             })
         }
 
@@ -477,10 +488,9 @@ export class McpEventHandler {
                 throw new Error(`Server '${serverName}' not found`)
             }
 
-            const toolOverrides = this.#processPermissionUpdates(updatedPermissionConfig)
+            const MCPServerPermission = this.#processPermissionUpdates(updatedPermissionConfig)
 
-            // Update the permissions directly in the config file
-            await McpManager.instance.updateServerPermission(serverName, { toolOverrides })
+            await McpManager.instance.updateServerPermission(serverName, MCPServerPermission)
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to update MCP permissions: ${error}`)
@@ -509,27 +519,31 @@ export class McpEventHandler {
      * Processes permission updates from the UI
      */
     #processPermissionUpdates(updatedPermissionConfig: any) {
-        const toolOverrides: Record<string, { autoApprove?: boolean; disabled?: boolean }> = {}
+        // TODO: handle ws/global selection
+        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
+        const perm: MCPServerPermission = {
+            enabled: true,
+            toolPerms: {},
+            __configPath__: personaPath,
+        }
 
         // Process each tool permission setting
-        Object.entries(updatedPermissionConfig).forEach(([key, value]) => {
-            // Skip the scope setting
-            if (key === 'scope') return
-
-            // Only process entries with actual values
-            if (value) {
-                const permValue = value as string
-
-                if (permValue === 'always') {
-                    toolOverrides[key] = { autoApprove: true, disabled: false }
-                } else if (permValue === 'ask') {
-                    toolOverrides[key] = { autoApprove: false, disabled: false }
-                } else if (permValue === 'disable') {
-                    toolOverrides[key] = { disabled: true }
-                }
+        for (const [key, val] of Object.entries(updatedPermissionConfig)) {
+            if (key === 'scope') continue
+            switch (val) {
+                case 'alwaysAllow':
+                    perm.toolPerms[key] = 'alwaysAllow'
+                    break
+                case 'deny':
+                    perm.toolPerms[key] = 'deny'
+                    break
+                case 'ask':
+                default:
+                    perm.toolPerms[key] = 'ask'
             }
-        })
+        }
 
-        return toolOverrides
+        return perm
     }
 }

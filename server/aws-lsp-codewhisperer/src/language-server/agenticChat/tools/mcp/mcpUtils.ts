@@ -5,7 +5,9 @@
 
 import { Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
-import { MCPServerConfig } from './mcpTypes'
+import { MCPServerConfig, PersonaConfig, MCPServerPermission, McpPermissionType } from './mcpTypes'
+import * as yaml from 'yaml'
+import path = require('path')
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
@@ -83,22 +85,11 @@ export async function loadMcpServerConfigs(
                 command: (entry as any).command,
                 args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
                 env: typeof (entry as any).env === 'object' && (entry as any).env !== null ? (entry as any).env : {},
-                disabled: !!(entry as any).disabled,
-                autoApprove: Boolean((entry as any).autoApprove),
-                toolOverrides: (() => {
-                    const o = (entry as any).toolOverrides
-                    if (o && typeof o === 'object' && !Array.isArray(o)) return o
-                    if (o != null) {
-                        logging.warn(`Invalid toolOverrides on '${name}', ignoring.`)
-                    }
-                    return {}
-                })(),
                 initializationTimeout:
                     typeof (entry as any).initializationTimeout === 'number'
                         ? (entry as any).initializationTimeout
                         : undefined,
-                timeout:
-                    typeof (entry as any).executionTimeout === 'number' ? (entry as any).executionTimeout : undefined,
+                timeout: typeof (entry as any).timeout === 'number' ? (entry as any).timeout : undefined,
                 __configPath__: fsPath,
             }
 
@@ -126,6 +117,119 @@ export async function loadMcpServerConfigs(
     return servers
 }
 
+/**
+ * Load, validate, and parse persona configurations from YAML files.
+ * - If both global and workspace files are missing, create a default global.
+ * - Load global first (if exists), then workspace files—workspace overrides.
+ * - Only servers in `mcpServers` are enabled.
+ */
+export async function loadPersonaPermissions(
+    workspace: Workspace,
+    logging: Logger,
+    personaPaths: string[]
+): Promise<Map<string, MCPServerPermission>> {
+    const globalPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
+
+    // normalize paths
+    const normalized = Array.from(
+        new Set(
+            personaPaths.map(raw => {
+                try {
+                    const uri = URI.parse(raw)
+                    return uri.scheme === 'file' ? path.normalize(uri.fsPath) : path.normalize(raw)
+                } catch {
+                    return path.normalize(raw)
+                }
+            })
+        )
+    )
+
+    const wsFiles = (
+        await Promise.all(
+            normalized.map(async p => ((await workspace.fs.exists(p).catch(() => false)) ? p : undefined))
+        )
+    )
+        .filter((p): p is string => Boolean(p))
+        .filter(p => p !== globalPath)
+
+    const globalExists = await workspace.fs.exists(globalPath).catch(() => false)
+
+    // global first, then workspace
+    const files = [...(globalExists ? [globalPath] : []), ...wsFiles]
+
+    const result = new Map<string, MCPServerPermission>()
+
+    // if none found, write default global persona and use it
+    if (files.length === 0) {
+        await workspace.fs.mkdir(path.dirname(globalPath), { recursive: true })
+        await workspace.fs
+            .writeFile(globalPath, 'mcpServers:\n  - "*"\n')
+            .then(() => logging.info(`Created default persona file at ${globalPath}`))
+            .catch(e => {
+                logging.error(`Failed to create default persona file: ${e.message}`)
+            })
+        files.push(globalPath)
+        logging.info(`Created default persona file at ${globalPath}`)
+    }
+
+    // merge configs: later files override earlier ones
+    let wsHasStar = false
+    const wsEnabled = new Set<string>()
+
+    for (const file of files) {
+        const isWorkspace = wsFiles.includes(file)
+        logging.info(`Reading persona file ${file}`)
+        let cfg: PersonaConfig
+        try {
+            const raw = (await workspace.fs.readFile(file)).toString().trim()
+            cfg = raw ? (yaml.parse(raw) as PersonaConfig) : { mcpServers: [], toolPerms: {} }
+        } catch (err: any) {
+            logging.warn(`Invalid Persona config in ${file}: ${err.message}`)
+            continue
+        }
+
+        // enable servers listed under mcpServers
+        const enabled = new Set(cfg['mcpServers'] ?? [])
+        if (wsFiles.includes(file)) {
+            if (enabled.has('*')) wsHasStar = true
+            enabled.forEach(s => wsEnabled.add(s))
+        }
+        for (const name of enabled) {
+            result.set(name, { enabled: true, toolPerms: {}, __configPath__: file })
+        }
+
+        // apply toolPerms only to enabled servers
+        for (const [name, perms] of Object.entries(cfg['toolPerms'] ?? {})) {
+            if (enabled.has(name)) {
+                const rec = result.get(name)!
+                rec.toolPerms = perms as Record<string, McpPermissionType>
+            } else if (isWorkspace && result.has(name)) {
+                // server dropped from workspace mcpServers → remove it entirely
+                result.delete(name)
+            }
+        }
+    }
+
+    // workspace overrides global: global has '*' but workspace does not
+    if (wsFiles.length > 0 && !wsHasStar) {
+        // remove the global-level wildcard
+        result.delete('*')
+        // drop servers that were enabled only by the global '*'
+        for (const [srv] of result) {
+            if (srv !== '*' && !wsEnabled.has(srv)) result.delete(srv)
+        }
+    }
+    const summary = [...result.entries()]
+        .map(([srv, perm]) => {
+            const tools = Object.keys(perm.toolPerms).length > 0 ? JSON.stringify(perm.toolPerms) : '{}'
+            return `${srv} => enabled=${perm.enabled}, toolPerms=${tools}`
+        })
+        .join('; ')
+    logging.info(`Persona permission merge-result: ${summary || '(empty map)'}`)
+
+    return result
+}
+
 // todo: pending final UX
 export function processMcpToolUseMessage(message: string) {
     const allLines = message.split(/\r?\n/)
@@ -149,6 +253,16 @@ export function processMcpToolUseMessage(message: string) {
     ].join('\n')
 
     return collapsed
+}
+
+/** Given an array of workspace diretory, return each workspace persona config location */
+export function getWorkspacePersonaConfigPaths(wsUris: string[]): string[] {
+    return wsUris.map(uri => `${uri}/.amazonq/personas/default.yaml`)
+}
+
+/** Given a user’s home directory, return the global persona config location */
+export function getGlobalPersonaConfigPath(home: string): string {
+    return `${home}/.aws/amazonq/personas/default.yaml`
 }
 
 /** Given an array of workspace diretory, return each workspace mcp config location */
