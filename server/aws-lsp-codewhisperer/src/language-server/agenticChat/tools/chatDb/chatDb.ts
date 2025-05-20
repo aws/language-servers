@@ -24,8 +24,6 @@ import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
-// Maximum number of characters to keep in history
-const MaxConversationHistoryCharacters = 600_000
 // Maximum number of messages to keep in history
 const MaxConversationHistoryMessages = 250
 
@@ -109,8 +107,9 @@ export class ChatDatabase {
      * Generates an identifier for the open workspace folder(s).
      */
     getWorkspaceIdentifier() {
-        let clientParams = this.#features.lsp.getClientInitializeParams()
-        let workspaceFolderPaths = clientParams?.workspaceFolders?.map(({ uri }) => new URL(uri).pathname)
+        let workspaceFolderPaths = this.#features.workspace
+            .getAllWorkspaceFolders()
+            ?.map(({ uri }) => new URL(uri).pathname)
         // Case 1: Multi-root workspace (unsaved)
         if (workspaceFolderPaths && workspaceFolderPaths.length > 1) {
             // Create hash from all folder paths combined
@@ -397,7 +396,12 @@ export class ChatDatabase {
      * 5. The toolUse and toolResult relationship is valid
      * 6. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndValidateHistory(tabId: string, newUserMessage: ChatMessage, conversationId: string): boolean {
+    fixAndValidateHistory(
+        tabId: string,
+        newUserMessage: ChatMessage,
+        conversationId: string,
+        remainingCharacterBudget: number
+    ): boolean {
         if (!this.#initialized) {
             return true
         }
@@ -429,8 +433,8 @@ export class ChatDatabase {
         // Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
         const isValid = this.validateNewMessageToolResults(allMessages, newUserMessage)
 
-        //  Make sure max characters ≤ MaxConversationHistoryCharacters - newUserMessageCharacterCount
-        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage)
+        //  Make sure max characters ≤ remaining Character Budget
+        allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
 
         const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
 
@@ -499,14 +503,11 @@ export class ChatDatabase {
         }
     }
 
-    private trimMessagesToMaxLength(messages: Message[], newUserMessage: ChatMessage): Message[] {
+    private trimMessagesToMaxLength(messages: Message[], remainingCharacterBudget: number): Message[] {
         let totalCharacters = this.calculateHistoryCharacterCount(messages)
         this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
-        const currentUserInputCharacterCount = this.calculateCurrentMessageCharacterCount(
-            chatMessageToMessage(newUserMessage)
-        )
-        this.#features.logging.debug(`Current user message characters: ${currentUserInputCharacterCount}`)
-        const maxHistoryCharacterSize = Math.max(0, MaxConversationHistoryCharacters - currentUserInputCharacterCount)
+        this.#features.logging.debug(`Current remaining character budget: ${remainingCharacterBudget}`)
+        const maxHistoryCharacterSize = Math.max(0, remainingCharacterBudget)
         while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
             // Find the next valid user message to start from
             const indexToTrim = this.findIndexToTrim(messages)
