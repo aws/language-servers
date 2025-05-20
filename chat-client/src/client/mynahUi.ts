@@ -1126,6 +1126,12 @@ ${params.message}`,
                     const actions = []
                     if (group.groupName === 'Active') {
                         actions.push({
+                            id: 'tools-count',
+                            icon: toMynahIcon('tools'),
+                            text: `${item.description}`,
+                            disabled: true,
+                        })
+                        actions.push({
                             id: 'open-mcp-server',
                             icon: toMynahIcon('right-open'),
                         })
@@ -1152,7 +1158,6 @@ ${params.message}`,
                     return {
                         id: 'mcp-server-click',
                         title: item.title,
-                        description: item.description,
                         icon: toMynahIcon(icon),
                         iconForegroundStatus: iconForegroundStatus,
                         groupActions: false,
