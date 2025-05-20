@@ -34,7 +34,8 @@ export const WorkspaceContextServer = (): Server => features => {
     lsp.addInitializer((params: InitializeParams) => {
         workspaceIdentifier = params.initializationOptions?.aws?.contextConfiguration?.workspaceIdentifier || ''
         if (!workspaceIdentifier) {
-            logging.warn(`No workspaceIdentifier set!`)
+            logging.warn(`No workspaceIdentifier set. Treating this workspace as a temporary session.`)
+            workspaceIdentifier = crypto.randomUUID()
         }
 
         const folders = workspace.getAllWorkspaceFolders()
