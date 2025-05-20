@@ -377,12 +377,6 @@ export class AgenticChatController implements ChatHandlers {
     async onListMcpServers(params: ListMcpServersParams) {
         return this.#mcpEventHandler.onListMcpServers(params)
     }
-    /**
-     * async onMcpServerClick(params: McpServerClickParams): Promise<McpServerClickResult> {
-        const result = await this.#mcpEventHandler.onMcpServerClick(params)
-        return result as McpServerClickResult
-}
-     */
 
     async onMcpServerClick(params: McpServerClickParams) {
         return this.#mcpEventHandler.onMcpServerClick(params)
