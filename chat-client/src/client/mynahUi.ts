@@ -1324,11 +1324,7 @@ ${params.message}`,
                 },
                 true
             )
-        } else if (params.id === 'mcp-disable-server') {
-            messager.onListMcpServers()
-        } else if (params.id === 'mcp-delete-server') {
-          essager.onListMcpServers()
-        } else if (params.id === 'refresh-mcp-list') {
+        } else if (['mcp-disable-server', 'mcp-delete-server', 'refresh-mcp-list'].includes(params.id)) {
             messager.onListMcpServers()
         }
     }

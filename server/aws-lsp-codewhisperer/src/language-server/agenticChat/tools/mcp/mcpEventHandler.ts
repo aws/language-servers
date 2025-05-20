@@ -237,53 +237,32 @@ export class McpEventHandler {
                     id: params.id,
                 }
             }
-        } else if (params.id === 'mcp-disable-server') {
+        } else if (
+            params.id === 'mcp-disable-server' ||
+            params.id === 'mcp-delete-server' ||
+            params.id === 'refresh-mcp-list'
+        ) {
             const serverName = params.title
-            if (!serverName) {
-                return {
-                    id: params.id,
-                }
-            }
+
             try {
-                await mcpManager.updateServerPermission(serverName, { disabled: true })
-                return {
-                    id: params.id,
+                if (params.id === 'mcp-disable-server' && serverName) {
+                    await mcpManager.updateServerPermission(serverName, { disabled: true })
+                } else if (params.id === 'mcp-delete-server' && serverName) {
+                    await mcpManager.removeServer(serverName)
+                } else if (params.id === 'refresh-mcp-list') {
+                    await McpManager.instance.reinitializeMcpServers()
                 }
+
+                return { id: params.id }
             } catch (error) {
-                this.features.logging.error(`Failed to disable MCP server: ${error}`)
-                return {
-                    id: params.id,
-                }
-            }
-        } else if (params.id === 'mcp-delete-server') {
-            const serverName = params.title
-            if (!serverName) {
-                return {
-                    id: params.id,
-                }
-            }
-            try {
-                await mcpManager.removeServer(serverName)
-                return {
-                    id: params.id,
-                }
-            } catch (error) {
-                this.features.logging.error(`Failed to delete MCP server: ${error}`)
-                return {
-                    id: params.id,
-                }
-            }
-        } else if (params.id === 'refresh-mcp-list') {
-            try {
-                await McpManager.instance.reinitializeMcpServers()
-                return {
-                    id: params.id,
-                }
-            } catch (err) {
-                this.features.logging.error(`Failed to reinitialize MCP servers: ${err}`)
-                return {
-                    id: params.id,
-                }
+                const action =
+                    params.id === 'mcp-disable-server'
+                        ? 'disable'
+                        : params.id === 'mcp-delete-server'
+                          ? 'delete'
+                          : 'reinitialize'
+                this.features.logging.error(`Failed to ${action} MCP server: ${error}`)
+                return { id: params.id }
             }
         }
 
