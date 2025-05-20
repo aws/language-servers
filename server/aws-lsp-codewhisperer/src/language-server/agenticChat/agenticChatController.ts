@@ -654,6 +654,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
                 shouldDisplayMessage = false
+                await chatResultStream.setProgressResultBlockStatusToError()
                 continue
             }
 
@@ -2291,6 +2292,13 @@ export class AgenticChatController implements ChatHandlers {
             contextList,
             abortController.signal
         )
+        const result = await processResponsePromise
+        const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
+        for (const tooluse of pendingToolUses) {
+            if (tooluse.name === 'fsWrite') {
+                return { success: false, error: `${responseTimeoutPartialMsg} ${responseTimeoutMs}ms` }
+            }
+        }
         try {
             return await Promise.race([processResponsePromise, timeoutPromise])
         } catch (err) {
