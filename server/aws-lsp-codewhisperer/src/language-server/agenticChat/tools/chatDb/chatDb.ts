@@ -50,7 +50,6 @@ export class ChatDatabase {
      */
     #historyIdMapping: Map<string, string> = new Map()
     #dbDirectory: string
-    #dbName: string
     #features: Features
     #initialized: boolean = false
     #loadTimeMs?: number
@@ -66,8 +65,8 @@ export class ChatDatabase {
             '.aws/amazonq/history'
         )
         const workspaceId = this.getWorkspaceIdentifier()
-        this.#dbName = `chat-history-${workspaceId}.json`
-        const dbPath = path.join(this.#dbDirectory, this.#dbName)
+        const dbName = `chat-history-${workspaceId}.json`
+        const dbPath = path.join(this.#dbDirectory, dbName)
 
         this.#features.logging.log(`Initializing database at ${dbPath}`)
 
@@ -81,7 +80,7 @@ export class ChatDatabase {
 
         const startTime = Date.now()
 
-        this.#db = new Loki(this.#dbName, {
+        this.#db = new Loki(dbName, {
             adapter: new FileSystemAdapter(features.workspace, this.#dbDirectory),
             autosave: true,
             autoload: true,
@@ -90,7 +89,7 @@ export class ChatDatabase {
             persistenceMethod: 'fs',
         })
 
-        this.#historyMaintainer = new ChatHistoryMaintainer(features, this.#dbDirectory, this.#dbName, this.#db)
+        this.#historyMaintainer = new ChatHistoryMaintainer(features, this.#dbDirectory, dbName, this.#db)
         // Async process: Trimming history asynchronously if the size exceeds the max
         // This process will take several seconds
         this.#historyMaintainer.trimHistoryToMaxSize().catch(err => {
