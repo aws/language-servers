@@ -91,6 +91,7 @@ export class McpEventHandler {
             'save-mcp': () => this.#handleSaveMcp(params),
             'open-mcp-server': () => this.#handleOpenMcpServer(params),
             'mcp-permission-change': () => this.#handleMcpPermissionChange(params),
+            'refresh-mcp-list': () => this.#handleRefreshMCPList(params),
         }
 
         // Execute the appropriate handler or return default response
@@ -369,6 +370,23 @@ export class McpEventHandler {
         } catch (error) {
             this.#features.logging.error(`Failed to update MCP permissions: ${error}`)
             return { id: params.id }
+        }
+    }
+
+    /**
+     * Handled refresh MCP list events
+     */
+    async #handleRefreshMCPList(params: McpServerClickParams) {
+        try {
+            await McpManager.instance.reinitializeMcpServers()
+            return {
+                id: params.id,
+            }
+        } catch (err) {
+            this.#features.logging.error(`Failed to reinitialize MCP servers: ${err}`)
+            return {
+                id: params.id,
+            }
         }
     }
 
