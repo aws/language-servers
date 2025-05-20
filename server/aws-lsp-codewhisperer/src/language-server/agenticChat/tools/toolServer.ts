@@ -9,12 +9,14 @@ import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
 import { McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FuzzySearch, FuzzySearchParams } from './fuzzySearch'
+import { GrepSearch, GrepSearchParams } from './grepSearch'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
     const fsWriteTool = new FsWrite({ workspace, lsp, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
     const fuzzySearchTool = new FuzzySearch({ workspace, lsp, logging })
+    const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         await fsReadTool.validate(input)
@@ -34,6 +36,11 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     agent.addTool(fuzzySearchTool.getSpec(), async (input: FuzzySearchParams, token?: CancellationToken) => {
         await fuzzySearchTool.validate(input)
         return await fuzzySearchTool.invoke(input, token)
+    })
+
+    agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
+        await grepSearchTool.validate(input)
+        return await grepSearchTool.invoke(input, token)
     })
 
     return () => {}
