@@ -9,6 +9,11 @@ import {
 } from '@aws/language-server-runtimes/protocol'
 import { getGlobalMcpConfigPath } from './mcpUtils'
 
+interface PermissionOption {
+    label: string
+    value: string
+}
+
 export class McpEventHandler {
     #features: Features
 
@@ -92,6 +97,8 @@ export class McpEventHandler {
             'open-mcp-server': () => this.#handleOpenMcpServer(params),
             'mcp-permission-change': () => this.#handleMcpPermissionChange(params),
             'refresh-mcp-list': () => this.#handleRefreshMCPList(params),
+            'mcp-disable-server': () => this.#handleDisableMcpServer(params),
+            'mcp-delete-server': () => this.#handleDeleteMcpServer(params),
         }
 
         // Execute the appropriate handler or return default response
@@ -255,6 +262,42 @@ export class McpEventHandler {
     /**
      * Builds filter options for server configuration
      */
+    /**
+     * Handles disabling an MCP server
+     */
+    async #handleDisableMcpServer(params: McpServerClickParams) {
+        const serverName = params.title
+        if (!serverName) {
+            return { id: params.id }
+        }
+
+        try {
+            await McpManager.instance.updateServerPermission(serverName, { disabled: true })
+        } catch (error) {
+            this.#features.logging.error(`Failed to disable MCP server: ${error}`)
+        }
+
+        return { id: params.id }
+    }
+
+    /**
+     * Handles deleting an MCP server
+     */
+    async #handleDeleteMcpServer(params: McpServerClickParams) {
+        const serverName = params.title
+        if (!serverName) {
+            return { id: params.id }
+        }
+
+        try {
+            await McpManager.instance.removeServer(serverName)
+        } catch (error) {
+            this.#features.logging.error(`Failed to delete MCP server: ${error}`)
+        }
+
+        return { id: params.id }
+    }
+
     #buildServerFilterOptions(serverName: string, toolsWithStates: any[]) {
         const filterOptions: FilterOption[] = [
             {
@@ -304,7 +347,7 @@ export class McpEventHandler {
         if (toolOverrides?.autoApprove === true) {
             return 'Always run'
         } else if (toolOverrides?.disabled === true) {
-            return 'Deny'
+            return 'Disable'
         } else {
             return 'Ask to run'
         }
@@ -314,11 +357,6 @@ export class McpEventHandler {
      * Builds permission options excluding the current one
      */
     #buildPermissionOptions(currentPermission: string) {
-        interface PermissionOption {
-            label: string
-            value: string
-        }
-
         const permissionOptions: PermissionOption[] = []
 
         if (currentPermission !== 'Always run') {
@@ -335,10 +373,10 @@ export class McpEventHandler {
             })
         }
 
-        if (currentPermission !== 'Deny') {
+        if (currentPermission !== 'Disable') {
             permissionOptions.push({
-                label: 'Deny',
-                value: 'deny',
+                label: 'Disable',
+                value: 'disable',
             })
         }
 
@@ -409,7 +447,7 @@ export class McpEventHandler {
                     toolOverrides[key] = { autoApprove: true, disabled: false }
                 } else if (permValue === 'ask') {
                     toolOverrides[key] = { autoApprove: false, disabled: false }
-                } else if (permValue === 'deny') {
+                } else if (permValue === 'disable') {
                     toolOverrides[key] = { disabled: true }
                 }
             }
