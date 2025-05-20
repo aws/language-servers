@@ -1762,8 +1762,8 @@ export class AgenticChatController implements ChatHandlers {
             const filePath = match.filePath
             if (!filePath) continue
 
-            fileDetails[filePath] = {
-                description: `${match.matches.length} matches`,
+            fileDetails[`${filePath} (${match.matches.length} ${match.matches.length <= 1 ? 'result' : 'results'})`] = {
+                description: filePath,
                 lineRanges: [{ first: -1, second: -1 }],
             }
         }
@@ -1773,10 +1773,9 @@ export class AgenticChatController implements ChatHandlers {
 
         // Create the context list for display
         const query = (toolUse.input as any)?.query || 'search term'
-        const matchCount = matches.length
 
         const contextList: FileList = {
-            rootFolderTitle: `Searched for "${query}", ${output.matchCount} found`,
+            rootFolderTitle: `Grepped for "${query}", ${output.matchCount}  ${output.matchCount <= 1 ? 'result' : 'results'} found`,
             filePaths: sortedFilePaths,
             details: fileDetails,
         }
@@ -1806,7 +1805,7 @@ export class AgenticChatController implements ChatHandlers {
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = content
 
         for (const toolResult of toolResults) {
-            this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
+            this.#debug(`ToolResult: ${JSON.stringify(toolResult)} `)
             updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
                 {
                     ...toolResult,
@@ -1936,20 +1935,22 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         if (authFollowType) {
-            this.#log(`Q auth error: ${getErrorMessage(err)}`)
+            this.#log(`Q auth error: ${getErrorMessage(err)} `)
 
             return createAuthFollowUpResult(authFollowType)
         }
 
         if (customerFacingErrorCodes.includes(err.code)) {
-            this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
+            this.#features.logging.error(`${loggingUtils.formatErr(err)} `)
             if (err.code === 'InputTooLong') {
                 // Clear the chat history in the database for this tab
                 this.#chatHistoryDb.clearTab(tabId)
             }
 
             const errorBody =
-                err.code === 'QModelResponse' && requestID ? `${err.message}\n\nRequest ID: ${requestID}` : err.message
+                err.code === 'QModelResponse' && requestID
+                    ? `${err.message} \n\nRequest ID: ${requestID} `
+                    : err.message
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
                 body: errorBody,
@@ -1957,10 +1958,10 @@ export class AgenticChatController implements ChatHandlers {
                 buttons: [],
             })
         }
-        this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)}`)
+        this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)} `)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: requestID ? `${genericErrorMsg}\n\nRequest ID: ${requestID}` : genericErrorMsg,
+            body: requestID ? `${genericErrorMsg} \n\nRequest ID: ${requestID} ` : genericErrorMsg,
             messageId: errorMessageId,
             buttons: [],
         })
@@ -1996,10 +1997,10 @@ export class AgenticChatController implements ChatHandlers {
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
-                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
+                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)} `)
                 return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
             }
-            this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
+            this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'} `)
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
                 err instanceof Error ? err.message : 'Unknown request error'
@@ -2045,7 +2046,7 @@ export class AgenticChatController implements ChatHandlers {
             if (!params.code) missingParams.push('code')
 
             this.#log(
-                `Q Chat server failed to insert code. Missing required parameters for insert code: ${missingParams.join(', ')}`
+                `Q Chat server failed to insert code.Missing required parameters for insert code: ${missingParams.join(', ')} `
             )
 
             return
@@ -2112,7 +2113,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#telemetryController.enqueueCodeDiffEntry({ ...params, code: textWithIndent })
         } else {
             this.#log(
-                `Q Chat server failed to insert code: ${applyResult.failureReason ?? 'No failure reason provided'}`
+                `Q Chat server failed to insert code: ${applyResult.failureReason ?? 'No failure reason provided'} `
             )
         }
     }
@@ -2277,9 +2278,9 @@ export class AgenticChatController implements ChatHandlers {
                 return path.join(getUserPromptsDirectory(), relativePath)
             }
 
-            this.#features.logging.error(`File not found: ${relativePath}`)
+            this.#features.logging.error(`File not found: ${relativePath} `)
         } catch (e: any) {
-            this.#features.logging.error(`Error resolving absolute path: ${e.message}`)
+            this.#features.logging.error(`Error resolving absolute path: ${e.message} `)
         }
 
         return undefined
