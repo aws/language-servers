@@ -40,7 +40,7 @@ export class McpEventHandler {
             } else {
                 activeItems.push({
                     ...item,
-                    description: `${toolsCount} tools - ${config.command}`,
+                    description: `${toolsCount}`,
                 })
             }
         })
@@ -268,12 +268,25 @@ export class McpEventHandler {
                     id: params.id,
                 }
             } catch (error) {
-                this.features.logging.error(`Failed to disable MCP server: ${error}`)
+                this.features.logging.error(`Failed to delete MCP server: ${error}`)
+                return {
+                    id: params.id,
+                }
+            }
+        } else if (params.id === 'refresh-mcp-list') {
+            try {
+                await McpManager.instance.reinitializeMcpServers()
+                return {
+                    id: params.id,
+                }
+            } catch (err) {
+                this.features.logging.error(`Failed to reinitialize MCP servers: ${err}`)
                 return {
                     id: params.id,
                 }
             }
         }
+
         return {
             id: params.id,
             header: {

@@ -12,7 +12,8 @@ export class DependencyHandlerFactory {
         workspace: Workspace,
         logging: Logging,
         workspaceFolders: WorkspaceFolder[],
-        artifactManager: ArtifactManager
+        artifactManager: ArtifactManager,
+        dependencyUploadedSizeSum: Uint32Array<SharedArrayBuffer>
     ): LanguageDependencyHandler<BaseDependencyInfo> | null {
         switch (language.toLowerCase()) {
             case 'python':
@@ -22,7 +23,8 @@ export class DependencyHandlerFactory {
                     logging,
                     workspaceFolders,
                     artifactManager,
-                    'site-packages'
+                    'site-packages',
+                    dependencyUploadedSizeSum
                 )
             case 'javascript':
             case 'typescript':
@@ -32,7 +34,8 @@ export class DependencyHandlerFactory {
                     logging,
                     workspaceFolders,
                     artifactManager,
-                    'node_modules'
+                    'node_modules',
+                    dependencyUploadedSizeSum
                 )
             case 'java':
                 return new JavaDependencyHandler(
@@ -41,7 +44,8 @@ export class DependencyHandlerFactory {
                     logging,
                     workspaceFolders,
                     artifactManager,
-                    'dependencies'
+                    'dependencies',
+                    dependencyUploadedSizeSum
                 )
             default:
                 return null

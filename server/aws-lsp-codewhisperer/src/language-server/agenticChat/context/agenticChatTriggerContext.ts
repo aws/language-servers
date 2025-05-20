@@ -109,9 +109,8 @@ export class AgenticChatTriggerContext {
         additionalContent?: AdditionalContentEntryAddition[]
     ): Promise<GenerateAssistantResponseCommandInput> {
         const { prompt } = params
-        const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#lsp).slice(0, maxWorkspaceFolders)
+        const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
         const defaultEditorState = { workspaceFolders }
-
         const hasWorkspace = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
 
         // prompt.prompt is what user typed in the input, should be sent to backend
