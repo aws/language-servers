@@ -1320,6 +1320,8 @@ ${params.message}`,
                 },
                 true
             )
+        } else if (params.id === 'refresh-mcp-list') {
+            messager.onListMcpServers()
         }
     }
 
