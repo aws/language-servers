@@ -119,8 +119,8 @@ export const handleChatPrompt = async (
             promptInputDisabledState: false,
         })
 
-        // Add a slight delay to make sure the stop message would render before the new prompt
-        await new Promise(resolve => setTimeout(resolve, 50))
+        // Add a longer delay to ensure the stop message fully renders before the new prompt
+        await new Promise(resolve => setTimeout(resolve, 500))
     }
 
     if (prompt.command) {
