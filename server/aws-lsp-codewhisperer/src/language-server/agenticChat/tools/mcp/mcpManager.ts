@@ -396,7 +396,7 @@ export class McpManager {
     /**
      * Close all clients, clear state, and reset singleton.
      */
-    public async close(): Promise<void> {
+    public async close(keepInstance: boolean = false): Promise<void> {
         this.features.logging.info('MCP: closing all clients')
         for (const [name, client] of this.clients.entries()) {
             try {
@@ -410,7 +410,9 @@ export class McpManager {
         this.mcpTools = []
         this.mcpServers.clear()
         this.mcpServerStates.clear()
-        McpManager.#instance = undefined
+        if (!keepInstance) {
+            McpManager.#instance = undefined
+        }
     }
 
     /**
@@ -420,8 +422,9 @@ export class McpManager {
         this.features.logging.info('Reinitializing MCP servers')
 
         try {
-            await this.close()
-            await McpManager.init(this.configPaths, this.features)
+            // close clients, clear state, but don't reset singleton
+            await this.close(true)
+            await this.discoverAllServers()
 
             const reinitializedServerCount = McpManager.#instance?.mcpServers.size
             this.features.logging.info(
