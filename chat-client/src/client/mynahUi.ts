@@ -1131,13 +1131,13 @@ ${params.message}`,
                         })
                     } else if (group.groupName === 'Disabled') {
                         actions.push({
-                            id: 'enable-mcp-server',
+                            id: 'mcp-enable-server',
                             icon: toMynahIcon('ok-circled'),
                             text: 'Enable',
                             description: 'Enable',
                         })
                         actions.push({
-                            id: 'delete-mcp-server',
+                            id: 'mcp-delete-server',
                             icon: toMynahIcon('trash'),
                             text: 'Delete',
                             description: 'Delete',
@@ -1221,12 +1221,12 @@ ${params.message}`,
                                   ? {
                                         items: [
                                             {
-                                                id: 'mcp-disable-tool',
+                                                id: 'mcp-disable-server',
                                                 text: `Disable ${params.header?.title}`,
                                                 icon: toMynahIcon('block'),
                                             },
                                             {
-                                                id: 'mcp-delete-tool',
+                                                id: 'mcp-delete-server',
                                                 confirmation: {
                                                     cancelButtonText: 'Cancel',
                                                     confirmButtonText: 'Delete',
@@ -1280,8 +1280,12 @@ ${params.message}`,
                             action: ChatItemButton,
                             filterValues?: Record<string, any>,
                             isValid?: boolean
-                        ) => {},
-                        onTitleActionClick: (action: ChatItemButton) => {},
+                        ) => {
+                            messager.onMcpServerClick(action.id)
+                        },
+                        onTitleActionClick: (action: ChatItemButton) => {
+                            messager.onMcpServerClick(action.id, detailedList.header?.title)
+                        },
                         onKeyPress: (e: KeyboardEvent) => {
                             if (e.key === 'Escape') {
                                 mcpServerSheet.close()
@@ -1301,6 +1305,10 @@ ${params.message}`,
                 },
                 true
             )
+        } else if (params.id === 'mcp-disable-server') {
+            messager.onListMcpServers()
+        } else if (params.id === 'mcp-delete-server') {
+            messager.onListMcpServers()
         }
     }
 

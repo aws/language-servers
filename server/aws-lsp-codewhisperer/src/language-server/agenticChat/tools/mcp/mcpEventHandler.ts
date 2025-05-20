@@ -19,14 +19,15 @@ export class McpEventHandler {
      * Handles the list MCP servers event
      */
     async onListMcpServers(params: ListMcpServersParams) {
-        const mcpManagerServerConfigs = McpManager.instance.getAllServerConfigs()
+        const mcpManager = McpManager.instance
+        const mcpManagerServerConfigs = mcpManager.getAllServerConfigs()
 
         // Transform server configs into DetailedListItem objects
         const activeItems: DetailedListItem[] = []
         const disabledItems: DetailedListItem[] = []
 
         Array.from(mcpManagerServerConfigs.entries()).forEach(([serverName, config]) => {
-            const toolsWithStates = McpManager.instance.getAllToolsWithStates(serverName)
+            const toolsWithStates = mcpManager.getAllToolsWithStates(serverName)
             const toolsCount = toolsWithStates.length
 
             const item: DetailedListItem = {
@@ -82,11 +83,12 @@ export class McpEventHandler {
      * Handles MCP server click events
      */
     async onMcpServerClick(params: McpServerClickParams) {
-        this.features.logging.log(`[VSCode Server] onMcpServerClick event with params: ${JSON.stringify(params)}`)
+        this.features.logging.log(`onMcpServerClick event with params: ${JSON.stringify(params)}`)
+        const mcpManager = McpManager.instance
 
         if (params.id === 'open-mcp-server') {
             const serverName = params.title
-            const toolsWithStates = McpManager.instance.getAllToolsWithStates(serverName)
+            const toolsWithStates = mcpManager.getAllToolsWithStates(serverName)
             if (!serverName) {
                 return {
                     id: params.id,
@@ -111,7 +113,7 @@ export class McpEventHandler {
             })
 
             // Get server config to check existing permissions
-            const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
+            const serverConfig = mcpManager.getAllServerConfigs().get(serverName)
 
             // Define permission options interface for easy reference
             interface PermissionOption {
@@ -130,7 +132,7 @@ export class McpEventHandler {
                 if (toolOverrides?.autoApprove === true) {
                     currentPermission = 'Always run'
                 } else if (toolOverrides?.disabled === true) {
-                    currentPermission = 'Deny'
+                    currentPermission = 'Disable'
                 } else {
                     currentPermission = 'Ask to run'
                 }
@@ -152,10 +154,10 @@ export class McpEventHandler {
                     })
                 }
 
-                if (currentPermission !== 'Deny') {
+                if (currentPermission !== 'Disable') {
                     permissionOptions.push({
-                        label: 'Deny',
-                        value: 'deny',
+                        label: 'Disable',
+                        value: 'disable',
                     })
                 }
 
@@ -199,7 +201,7 @@ export class McpEventHandler {
                 }
             }
             try {
-                const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
+                const serverConfig = mcpManager.getAllServerConfigs().get(serverName)
                 if (!serverConfig) {
                     throw new Error(`Server '${serverName}' not found`)
                 }
@@ -218,19 +220,55 @@ export class McpEventHandler {
                             toolOverrides[key] = { autoApprove: true, disabled: false }
                         } else if (permValue === 'ask') {
                             toolOverrides[key] = { autoApprove: false, disabled: false }
-                        } else if (permValue === 'deny') {
+                        } else if (permValue === 'disable') {
                             toolOverrides[key] = { disabled: true }
                         }
                     }
                 })
 
                 // Update the permissions directly in the config file
-                await McpManager.instance.updateServerPermission(serverName, { toolOverrides })
+                await mcpManager.updateServerPermission(serverName, { toolOverrides: toolOverrides })
                 return {
                     id: params.id,
                 }
             } catch (error) {
                 this.features.logging.error(`Failed to update MCP permissions: ${error}`)
+                return {
+                    id: params.id,
+                }
+            }
+        } else if (params.id === 'mcp-disable-server') {
+            const serverName = params.title
+            if (!serverName) {
+                return {
+                    id: params.id,
+                }
+            }
+            try {
+                await mcpManager.updateServerPermission(serverName, { disabled: true })
+                return {
+                    id: params.id,
+                }
+            } catch (error) {
+                this.features.logging.error(`Failed to disable MCP server: ${error}`)
+                return {
+                    id: params.id,
+                }
+            }
+        } else if (params.id === 'mcp-delete-server') {
+            const serverName = params.title
+            if (!serverName) {
+                return {
+                    id: params.id,
+                }
+            }
+            try {
+                await mcpManager.removeServer(serverName)
+                return {
+                    id: params.id,
+                }
+            } catch (error) {
+                this.features.logging.error(`Failed to disable MCP server: ${error}`)
                 return {
                     id: params.id,
                 }
