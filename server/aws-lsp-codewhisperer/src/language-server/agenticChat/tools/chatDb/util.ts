@@ -82,6 +82,23 @@ export type Message = {
 }
 
 /**
+ * Represents a tab with its database collection reference, database name, and timestamp information
+ * for use in history trimming operations.
+ */
+export type TabWithContext = {
+    tab: Tab
+    collection: Collection<Tab> // The reference of chat DB collection
+    dbName: string // The chat DB name
+    oldestMessageDate: Date // The timestamp of the oldest message in the tab
+}
+
+/**
+ * Represents a chat DB reference, including the tab collection reference and the DB reference
+ * for use in history trimming operations.
+ */
+export type DbReference = { collection: Collection<Tab>; db: Loki }
+
+/**
  * Converts Message to codewhisperer-streaming ChatMessage
  */
 export function messageToStreamingMessage(msg: Message): StreamingMessage {
@@ -327,9 +344,9 @@ export function initializeHistoryPriorityQueue() {
     // Create a comparator function for dates (oldest first)
     // The PriorityQueue implementation uses maxHeap: greater value fist.
     // So we need to return bTimestamp - aTimestamp if a is older than b.
-    function dateComparator(
-        a: { tab: Tab; collection: Collection<Tab>; oldestMessageDate: Date },
-        b: { tab: Tab; collection: Collection<Tab>; oldestMessageDate: Date }
+    function tabDateComparator(
+        a: { tab: Tab; oldestMessageDate: Date },
+        b: { tab: Tab; oldestMessageDate: Date }
     ): number {
         if (a.oldestMessageDate.getTime() === 0 && b.oldestMessageDate.getTime() === 0) {
             // Legacy message data without timestamp, use the updatedAt timestamp of the tab to compare
@@ -348,12 +365,7 @@ export function initializeHistoryPriorityQueue() {
     }
 
     // Create a priority queue with tabs and the collection it belongs to, and sorted by oldest message date
-    return new PriorityQueue<{
-        tab: Tab
-        collection: Collection<Tab>
-        dbName: string
-        oldestMessageDate: Date
-    }>(dateComparator)
+    return new PriorityQueue<TabWithContext>(tabDateComparator)
 }
 
 /**
