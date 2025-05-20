@@ -2,7 +2,7 @@
 // https://github.com/aws/aws-toolkit-vscode/blob/9d8ddbd85f4533e539a58e76f7c46883d8e50a79/packages/core/src/codewhisperer/util/supplementalContext/supplementalContextUtil.ts
 
 import { fetchSupplementalContextForSrc } from './crossFileContextUtil'
-import { isTestFile } from './codeParsingUtil'
+import { isTestFile } from './testIntentDetection'
 import { CodeWhispererSupplementalContext } from '../models/model'
 import {
     CancellationToken,

@@ -10,7 +10,7 @@ import {
     supplementalContextMaxTotalLength,
     supplementalContextTimeoutInMs,
 } from '../models/constants'
-import { isTestFile } from './codeParsingUtil'
+import { isTestFile } from './testIntentDetection'
 import { fileSystemUtils } from '@aws/lsp-core'
 import {
     CodeWhispererSupplementalContext,

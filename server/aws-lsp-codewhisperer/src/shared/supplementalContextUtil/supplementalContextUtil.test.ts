@@ -4,7 +4,7 @@ import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CancellationToken, Logging, Position, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { fetchSupplementalContext, CancellationError } from './supplementalContextUtil'
 import * as crossFileContextUtil from './crossFileContextUtil'
-import * as codeParsingUtil from './codeParsingUtil'
+import * as codeParsingUtil from './testIntentDetection'
 import { CodeWhispererSupplementalContext } from '../models/model'
 
 describe('fetchSupplementalContext', function () {
