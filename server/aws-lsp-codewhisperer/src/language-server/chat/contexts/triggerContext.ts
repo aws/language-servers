@@ -68,29 +68,29 @@ export class QChatTriggerContext {
                         userInputMessageContext:
                             triggerContext.cursorState && triggerContext.relativeFilePath
                                 ? {
-                                    editorState: {
-                                        cursorState: triggerContext.cursorState,
-                                        document: {
-                                            text: triggerContext.text,
-                                            programmingLanguage: triggerContext.programmingLanguage,
-                                            relativeFilePath: triggerContext.relativeFilePath,
-                                        },
-                                        ...(triggerContext.useRelevantDocuments && {
-                                            useRelevantDocuments: triggerContext.useRelevantDocuments,
-                                            relevantDocuments: triggerContext.relevantDocuments,
-                                        }),
-                                    },
-                                    tools,
-                                }
+                                      editorState: {
+                                          cursorState: triggerContext.cursorState,
+                                          document: {
+                                              text: triggerContext.text,
+                                              programmingLanguage: triggerContext.programmingLanguage,
+                                              relativeFilePath: triggerContext.relativeFilePath,
+                                          },
+                                          ...(triggerContext.useRelevantDocuments && {
+                                              useRelevantDocuments: triggerContext.useRelevantDocuments,
+                                              relevantDocuments: triggerContext.relevantDocuments,
+                                          }),
+                                      },
+                                      tools,
+                                  }
                                 : {
-                                    tools,
-                                    ...(triggerContext.useRelevantDocuments && {
-                                        editorState: {
-                                            useRelevantDocuments: triggerContext.useRelevantDocuments,
-                                            relevantDocuments: triggerContext.relevantDocuments,
-                                        },
-                                    }),
-                                },
+                                      tools,
+                                      ...(triggerContext.useRelevantDocuments && {
+                                          editorState: {
+                                              useRelevantDocuments: triggerContext.useRelevantDocuments,
+                                              relevantDocuments: triggerContext.relevantDocuments,
+                                          },
+                                      }),
+                                  },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',
                     },
@@ -115,11 +115,11 @@ export class QChatTriggerContext {
 
         return textDocument
             ? this.#documentContextExtractor.extractDocumentContext(
-                textDocument,
-                // we want to include a default position if a text document is found so users can still ask questions about the opened file
-                // the range will be expanded up to the max characters downstream
-                cursorState?.[0] ?? QChatTriggerContext.DEFAULT_CURSOR_STATE
-            )
+                  textDocument,
+                  // we want to include a default position if a text document is found so users can still ask questions about the opened file
+                  // the range will be expanded up to the max characters downstream
+                  cursorState?.[0] ?? QChatTriggerContext.DEFAULT_CURSOR_STATE
+              )
             : undefined
     }
 
