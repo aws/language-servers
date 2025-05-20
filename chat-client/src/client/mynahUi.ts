@@ -1203,79 +1203,189 @@ ${params.message}`,
         })
     }
 
-    const mcpServerClick = (params: McpServerClickResult) => {
-        if (params.id === 'add-new-mcp') {
-            const paramsWithHeader = params as McpServerClickResult & {
-                header?: { title?: string; description?: string }
-                filterOptions?: Array<{
-                    type: 'textarea' | 'textinput' | 'select' | 'numericinput' | 'radiogroup'
-                    id: string
-                    title: string
-                    description?: string
-                    icon?: string
-                    options?: Array<{ label: string; value: string }>
-                }>
-                filterActions: Button[]
-            }
+    // Type definitions for MCP server parameters
+    type McpFilterOption = {
+        type: 'textarea' | 'textinput' | 'select' | 'numericinput' | 'radiogroup'
+        id: string
+        title: string
+        description?: string
+        icon?: string
+        options?: Array<{ label: string; value: string }>
+    }
 
-            // Create a default DetailedList structure with the data from params
-            const detailedList: any = {
-                selectable: false,
-                textDirection: 'row',
-                header: {
-                    title: paramsWithHeader.header?.title || 'Add MCP Server',
-                    description: paramsWithHeader.header?.description || '',
-                },
-                filterOptions: paramsWithHeader.filterOptions?.map(filter => ({
-                    ...filter,
-                    icon: filter.icon ? toMynahIcon(filter.icon) : undefined,
+    type McpListItem = {
+        title: string
+        description?: string
+        groupActions?: any
+    }
+
+    type McpListGroup = {
+        groupName?: string
+        children?: McpListItem[]
+    }
+
+    type McpServerParams = McpServerClickResult & {
+        header?: {
+            title?: string
+            description?: string
+            status?: any
+            actions?: Button[]
+        }
+        filterOptions?: McpFilterOption[]
+        filterActions?: Button[]
+        list?: McpListGroup[]
+    }
+
+    /**
+     * Processes filter options by converting icons to Mynah icons
+     */
+    const processFilterOptions = (filterOptions?: McpFilterOption[]) => {
+        return filterOptions?.map(filter => ({
+            ...filter,
+            icon: filter.icon ? toMynahIcon(filter.icon) : undefined,
+        }))
+    }
+
+    /**
+     * Processes filter actions by converting icons to Mynah icons
+     */
+    const processFilterActions = (filterActions?: Button[]) => {
+        return filterActions?.map(action => ({
+            ...action,
+            icon: action.icon ? toMynahIcon(action.icon) : undefined,
+        }))
+    }
+
+    /**
+     * Processes a list group for the detailed list UI
+     */
+    const processListGroup = (group: McpListGroup, isServerView = false) => {
+        const children = group.children?.map(item => {
+            if (isServerView) {
+                return {
+                    id: item.title,
+                    title: item.title,
+                    description: item.description,
+                    icon: toMynahIcon('tools'),
+                    groupActions: item.groupActions,
+                }
+            }
+            return {
+                title: item.title,
+                description: item.description,
+            }
+        })
+
+        return {
+            groupName: group.groupName,
+            children,
+        }
+    }
+
+    /**
+     * Creates a detailed list configuration for adding a new MCP server
+     */
+    const createAddMcpServerDetailedList = (params: McpServerParams) => {
+        const detailedList = {
+            selectable: false,
+            textDirection: 'row',
+            header: {
+                title: params.header?.title || 'Add MCP Server',
+                description: params.header?.description || '',
+            },
+            filterOptions: processFilterOptions(params.filterOptions),
+            filterActions: params.filterActions,
+        } as any
+
+        // Process list if present
+        if (params.list && params.list.length > 0) {
+            detailedList.list = params.list.map(group => processListGroup(group))
+        }
+
+        return detailedList
+    }
+
+    /**
+     * Creates a detailed list configuration for viewing an MCP server
+     */
+    const createViewMcpServerDetailedList = (params: McpServerParams) => {
+        const detailedList = {
+            selectable: false,
+            textDirection: 'row',
+            list: params.list?.map(group => processListGroup(group, true)),
+            filterOptions: processFilterOptions(params.filterOptions),
+        } as any
+
+        // Process header if present
+        if (params.header) {
+            detailedList.header = {
+                title: params.header.title,
+                description: params.header.description,
+                status: params.header.status,
+                actions: params.header.actions?.map(action => ({
+                    ...action,
+                    icon: action.icon ? toMynahIcon(action.icon) : undefined,
+                    ...(action.id === 'mcp-details-menu'
+                        ? {
+                              items: [
+                                  {
+                                      id: 'mcp-disable-tool',
+                                      text: `Disable ${params.header?.title}`,
+                                      icon: toMynahIcon('block'),
+                                  },
+                                  {
+                                      id: 'mcp-delete-tool',
+                                      confirmation: {
+                                          cancelButtonText: 'Cancel',
+                                          confirmButtonText: 'Delete',
+                                          title: 'Delete Filesystem MCP server',
+                                          description:
+                                              'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
+                                      },
+                                      text: `Delete ${params.header?.title}`,
+                                      icon: toMynahIcon('trash'),
+                                  },
+                              ],
+                          }
+                        : {}),
                 })),
-                filterActions: paramsWithHeader.filterActions,
             }
+        }
 
-            const paramsWithList = params as McpServerClickResult & {
-                list?: Array<{ groupName: string; children?: Array<{ title: string; description?: string }> }>
-            }
-            if (paramsWithList.list && paramsWithList.list.length > 0) {
-                // We need to convert the list structure to match the expected DetailedList format
-                detailedList.list = []
+        // Add filter actions if present
+        if (params.filterActions && params.filterActions.length > 0) {
+            detailedList.filterActions = processFilterActions(params.filterActions)
+        }
 
-                // Process each group
-                paramsWithList.list.forEach(group => {
-                    const convertedGroup: any = {
-                        groupName: group.groupName,
-                        children: [],
-                    }
+        return detailedList
+    }
 
-                    // Process each child item in the group
-                    if (group.children) {
-                        group.children.forEach(item => {
-                            convertedGroup.children.push({
-                                title: item.title,
-                                description: item.description,
-                            })
-                        })
-                    }
+    /**
+     * Handles MCP server click events
+     */
+    const mcpServerClick = (params: McpServerClickResult) => {
+        const typedParams = params as McpServerParams
 
-                    detailedList.list!.push(convertedGroup)
-                })
-            }
+        if (params.id === 'add-new-mcp') {
+            const detailedList = createAddMcpServerDetailedList(typedParams)
 
             const events = {
+                onBackClick: () => {
+                    messager.onListMcpServers()
+                },
                 onFilterActionClick: (
-                    params: McpServerClickResult,
+                    actionParams: McpServerClickResult,
                     filterValues?: Record<string, string>,
                     isValid?: boolean
                 ) => {
-                    // TODO: WIP
-                    if (params.id === 'cancel-mcp') {
+                    if (actionParams.id === 'cancel-mcp') {
                         mynahUi.notify({
                             content: `Cancelled config`,
                             type: NotificationType.INFO,
                         })
-                    } else if (params.id === 'save-mcp') {
+                    } else if (actionParams.id === 'save-mcp') {
                         mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
-                        messager.onMcpServerClick(params.id, 'Save', filterValues)
+                        messager.onMcpServerClick(actionParams.id, 'Save', filterValues)
                         setTimeout(() => {
                             mynahUi.toggleSplashLoader(false)
                         }, 3000)
@@ -1283,74 +1393,10 @@ ${params.message}`,
                 },
             }
 
-            const data = {
-                detailedList,
-                events,
-            }
-            mynahUi.openDetailedList(data, true)
+            mynahUi.openDetailedList({ detailedList, events }, true)
         } else if (params.id === 'open-mcp-server') {
-            // Create a detailed list for the MCP server configuration
-            const detailedList: any = {
-                selectable: false,
-                textDirection: 'row',
-                header: params.header
-                    ? {
-                          title: params.header.title,
-                          description: params.header.description,
-                          status: params.header.status,
-                          actions: params.header.actions?.map(action => ({
-                              ...action,
-                              icon: action.icon ? toMynahIcon(action.icon) : undefined,
-                              ...(action.id === 'mcp-details-menu'
-                                  ? {
-                                        items: [
-                                            {
-                                                id: 'mcp-disable-tool',
-                                                text: `Disable ${params.header?.title}`,
-                                                icon: toMynahIcon('block'),
-                                            },
-                                            {
-                                                id: 'mcp-delete-tool',
-                                                confirmation: {
-                                                    cancelButtonText: 'Cancel',
-                                                    confirmButtonText: 'Delete',
-                                                    title: 'Delete Filesystem MCP server',
-                                                    description:
-                                                        'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
-                                                },
-                                                text: `Delete ${params.header?.title}`,
-                                                icon: toMynahIcon('trash'),
-                                            },
-                                        ],
-                                    }
-                                  : {}),
-                          })),
-                      }
-                    : undefined,
-                filterOptions: params.filterOptions?.map(filter => ({
-                    ...filter,
-                    icon: filter.icon ? toMynahIcon(filter.icon) : undefined,
-                })),
-                list: params.list?.map(group => ({
-                    groupName: group.groupName,
-                    children: group.children?.map(item => ({
-                        id: item.title,
-                        title: item.title,
-                        description: item.description,
-                        icon: toMynahIcon('tools'),
-                        groupActions: item.groupActions,
-                    })),
-                })),
-            }
-            // Add filter actions if present
-            if (params.filterActions && params.filterActions.length > 0) {
-                detailedList.filterActions = params.filterActions.map(action => ({
-                    ...action,
-                    icon: action.icon ? toMynahIcon(action.icon) : undefined,
-                }))
-            }
+            const detailedList = createViewMcpServerDetailedList(typedParams)
 
-            // Open the detailed list UI
             const mcpServerSheet = mynahUi.openDetailedList(
                 {
                     detailedList: detailedList,
@@ -1359,13 +1405,8 @@ ${params.message}`,
                             // Handle filter value changes for tool permissions
                             messager.onMcpServerClick('mcp-permission-change', detailedList.header?.title, filterValues)
                         },
-
-                        onFilterActionClick: (
-                            action: ChatItemButton,
-                            filterValues?: Record<string, any>,
-                            isValid?: boolean
-                        ) => {},
-                        onTitleActionClick: (action: ChatItemButton) => {},
+                        onFilterActionClick: () => {},
+                        onTitleActionClick: () => {},
                         onKeyPress: (e: KeyboardEvent) => {
                             if (e.key === 'Escape') {
                                 mcpServerSheet.close()
