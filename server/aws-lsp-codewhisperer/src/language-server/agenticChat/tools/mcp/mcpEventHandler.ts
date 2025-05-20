@@ -284,8 +284,8 @@ export class McpEventHandler {
         const serverName = params.optionsValues.name
         const config: MCPServerConfig = {
             command: params.optionsValues.command,
-            args: args,
-            env: env,
+            args,
+            env,
             timeout: parseInt(params.optionsValues.timeout),
             disabled: false,
         }
