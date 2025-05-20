@@ -29,7 +29,6 @@ import {
     InlineChatResultParams,
     PromptInputOptionChangeParams,
     TextDocument,
-    FilterOption,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -43,8 +42,7 @@ import {
     ListConversationsParams,
     ListMcpServersParams,
     McpServerClickParams,
-    DetailedListItem,
-    DetailedListGroup,
+    McpServerClickResult,
     TabBarActionParams,
     CreatePromptParams,
     FileClickParams,
