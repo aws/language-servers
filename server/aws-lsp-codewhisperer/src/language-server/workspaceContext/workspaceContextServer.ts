@@ -141,10 +141,12 @@ export const WorkspaceContextServer = (): Server => features => {
 
             const result = await amazonQServiceManager.getCodewhispererService().listFeatureEvaluations({ userContext })
             logging.log(`${JSON.stringify(result)}`)
-            abTestingEnabled =
-                result.featureEvaluations?.some(
-                    feature => feature.feature === 'ServiceSideWorkspaceContext' && feature.variation === 'TREATMENT'
-                ) ?? false
+            // abTestingEnabled =
+            //     result.featureEvaluations?.some(
+            //         feature => feature.feature === 'ServiceSideWorkspaceContext' && feature.variation === 'TREATMENT'
+            //     ) ?? false
+            logging.info('[DEBUG]: Hardcoding abTestingEnabled to true')
+            abTestingEnabled = true
             logging.info(`A/B testing enabled: ${abTestingEnabled}`)
             abTestingEvaluated = true
         } catch (error: any) {

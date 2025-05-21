@@ -82,11 +82,11 @@ declare class CodeWhispererBearerTokenClient extends Service {
    */
   getCodeAnalysis(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetCodeAnalysisResponse) => void): Request<CodeWhispererBearerTokenClient.Types.GetCodeAnalysisResponse, AWSError>;
   /**
-   * 
+   *
    */
   getCodeFixJob(params: CodeWhispererBearerTokenClient.Types.GetCodeFixJobRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetCodeFixJobResponse) => void): Request<CodeWhispererBearerTokenClient.Types.GetCodeFixJobResponse, AWSError>;
   /**
-   * 
+   *
    */
   getCodeFixJob(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetCodeFixJobResponse) => void): Request<CodeWhispererBearerTokenClient.Types.GetCodeFixJobResponse, AWSError>;
   /**
@@ -130,11 +130,11 @@ declare class CodeWhispererBearerTokenClient extends Service {
    */
   listAvailableCustomizations(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse) => void): Request<CodeWhispererBearerTokenClient.Types.ListAvailableCustomizationsResponse, AWSError>;
   /**
-   * 
+   *
    */
   listAvailableProfiles(params: CodeWhispererBearerTokenClient.Types.ListAvailableProfilesRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListAvailableProfilesResponse) => void): Request<CodeWhispererBearerTokenClient.Types.ListAvailableProfilesResponse, AWSError>;
   /**
-   * 
+   *
    */
   listAvailableProfiles(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.ListAvailableProfilesResponse) => void): Request<CodeWhispererBearerTokenClient.Types.ListAvailableProfilesResponse, AWSError>;
   /**
@@ -186,11 +186,11 @@ declare class CodeWhispererBearerTokenClient extends Service {
    */
   startCodeAnalysis(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StartCodeAnalysisResponse) => void): Request<CodeWhispererBearerTokenClient.Types.StartCodeAnalysisResponse, AWSError>;
   /**
-   * 
+   *
    */
   startCodeFixJob(params: CodeWhispererBearerTokenClient.Types.StartCodeFixJobRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StartCodeFixJobResponse) => void): Request<CodeWhispererBearerTokenClient.Types.StartCodeFixJobResponse, AWSError>;
   /**
-   * 
+   *
    */
   startCodeFixJob(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.StartCodeFixJobResponse) => void): Request<CodeWhispererBearerTokenClient.Types.StartCodeFixJobResponse, AWSError>;
   /**
@@ -463,6 +463,10 @@ declare namespace CodeWhispererBearerTokenClient {
      * Unique identifier for the chat conversation stream
      */
     conversationId?: ConversationId;
+    /**
+     * Unique identifier for remote workspace
+     */
+    workspaceId?: UUID;
     /**
      * Holds the history of chat messages.
      */
