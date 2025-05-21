@@ -10,6 +10,7 @@ import * as fs from 'fs'
 import { pathUtils } from '@aws/lsp-core'
 
 type Metadata = {
+    lang: string
     extensions: string[]
     testAffixes: string[]
     packageMarker?: RegExp
@@ -20,24 +21,28 @@ type Metadata = {
 
 const LANGUAGE_CONFIG: Record<string, Metadata> = {
     java: {
+        lang: 'java',
         extensions: ['.java'],
         testAffixes: ['Test', 'Tests'],
         packageMarker: /^package\s+([a-zA-Z0-9_.]+);/,
         packageSeparator: '.',
     },
     python: {
+        lang: 'python',
         extensions: ['.py'],
         testAffixes: ['test_', '_test'],
         importPatterns: [/^import\s+([a-zA-Z0-9_.]+)/, /^from\s+([a-zA-Z0-9_.]+)/],
         packageSeparator: '.',
     },
     javascript: {
+        lang: 'javascript',
         extensions: ['.js'],
         testAffixes: ['.test', '.spec'],
         importPatterns: [/^import.*from\s+[\'"](.+)[\'"]/],
         packageSeparator: '/',
     },
     typescript: {
+        lang: 'typescript',
         extensions: ['.ts'],
         testAffixes: ['.test', '.spec'],
         importPatterns: [/^import.*from\s+[\'"](.+)[\'"]/],
@@ -152,7 +157,61 @@ class FocalFileResolver {
 
     // TODO: implementation
     extractImportedPaths(testFilePath: string, config: Metadata, projectRoot: string): string[] {
-        return []
+        const content = fs.readFileSync(testFilePath)
+        const lines = content.toString().split(os.EOL)
+        const result: string[] = []
+        let buffer = ''
+        let insideImportBlock = false
+        try {
+            for (const l of lines) {
+                const line = l.trim()
+
+                if (config.lang === 'java') {
+                    const match = config.packageMarker?.exec(line)
+                    if (match) {
+                        // TODO: 0 or 1 ?
+                        const pkg = match[1].replace(new RegExp(config.packageSeparator, 'g'), path.sep)
+                        result.push(pkg)
+                        continue
+                    }
+                }
+
+                if (config.lang === 'python' && config.importPatterns) {
+                    for (const pattern of config.importPatterns) {
+                        const match = pattern.exec(line)
+                        if (match) {
+                            const imp = match[1].replace(new RegExp(config.packageSeparator, 'g'), path.sep)
+                            result.push(imp)
+                            continue
+                        }
+                    }
+                }
+
+                if (line.startsWith('import') || insideImportBlock) {
+                    buffer += ' ' + line
+                    insideImportBlock = true
+
+                    if ((line.includes(';') || line.includes('from')) && config.importPatterns) {
+                        for (const pattern of config.importPatterns) {
+                            const match = pattern.exec(buffer.trim())
+                            if (match) {
+                                const imp = match[1]
+                                const absPath = this.resolveImportToAbsPath(testFilePath, imp, projectRoot, config)
+                                if (absPath) {
+                                    result.push(absPath)
+                                }
+                            }
+                        }
+                        buffer = ''
+                        insideImportBlock = false
+                    }
+                }
+            }
+        } catch (e) {
+            console.log(`error reading import paths: ${e}`)
+        }
+
+        return result
     }
 
     // TODO: implementation
@@ -163,6 +222,15 @@ class FocalFileResolver {
     // TODO: implementation
     extractExportedSymbolsFromFile(candidateAbsPath: string): string[] {
         return []
+    }
+
+    resolveImportToAbsPath(
+        testFilePath: string,
+        importPath: string,
+        projectRoot: string,
+        config: Metadata
+    ): string | undefined {
+        return ''
     }
 
     // TODO: implementation: return all files under project root
