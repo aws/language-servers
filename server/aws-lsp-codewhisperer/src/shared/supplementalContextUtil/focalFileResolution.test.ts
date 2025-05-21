@@ -100,7 +100,36 @@ public class TestClass {}
             })
         })
 
-        describe('python', function () {})
+        describe('python', function () {
+            it('case1', function () {
+                const p = path.join(tmpDir, 'test_py_class.py')
+                fs.writeFileSync(
+                    p,
+                    `
+import pytest
+import sys
+import os
+from py_class import PyClass
+from util import {
+    foo,
+    bar,
+    baz
+}
+
+def test_py_class():
+    assert True
+`
+                )
+
+                const actual = sut.extractImportedPaths(p, 'python', tmpDir)
+                assert.strictEqual(actual.length, 5)
+                assert.ok(actual.includes('py_class'))
+                assert.ok(actual.includes('pytest'))
+                assert.ok(actual.includes('sys'))
+                assert.ok(actual.includes('os'))
+                assert.ok(actual.includes('util'))
+            })
+        })
 
         describe('ts', function () {})
 
