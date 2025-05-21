@@ -78,6 +78,7 @@ describe('focalFileResolver', function () {
     })
 
     describe('extractImportedPaths', function () {
+        // TODO: seems not working as expected ?
         describe('java', function () {
             it('case1', function () {
                 const p = path.join(tmpDir, 'FooTest.java')
@@ -100,6 +101,7 @@ public class TestClass {}
             })
         })
 
+        // TODO: seems not working as expected ?
         describe('python', function () {
             it('case1', function () {
                 const p = path.join(tmpDir, 'test_py_class.py')
@@ -131,7 +133,30 @@ def test_py_class():
             })
         })
 
-        describe('ts', function () {})
+        describe('ts', function () {
+            it('case1', function () {
+                const p = path.join(tmpDir, 'src', 'test', 'foo.test.ts')
+                fs.mkdirSync(path.join(tmpDir, 'src', 'test'), { recursive: true })
+                fs.writeFileSync(
+                    p,
+                    `
+import { foo } from '../foo';
+import baz from '../baz';
+import * as util from '../utils/util';
+
+test('foo', () => {
+    expect(foo()).toBe('foo');
+});
+`
+                )
+
+                const actual = sut.extractImportedPaths(p, 'typescript', tmpDir)
+                assert.strictEqual(actual.length, 3)
+                assert.ok(actual.includes(path.join(tmpDir, 'src', 'foo')))
+                assert.ok(actual.includes(path.join(tmpDir, 'src', 'baz')))
+                assert.ok(actual.includes(path.join(tmpDir, 'src', 'utils', 'util')))
+            })
+        })
 
         describe('js', function () {})
     })
