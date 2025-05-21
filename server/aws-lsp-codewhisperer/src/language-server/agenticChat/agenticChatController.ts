@@ -609,9 +609,7 @@ export class AgenticChatController implements ChatHandlers {
 
             // Phase 3: Request Execution
             // Note: these logs are very noisy, but contain information redacted on the backend.
-            this.#features.logging.info(
-                `generateAssistantResponse Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
-            )
+            this.#debug(`generateAssistantResponse Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
             const response = await session.generateAssistantResponse(currentRequestInput)
 
             if (response.$metadata.requestId) {
