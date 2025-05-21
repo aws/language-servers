@@ -69,7 +69,7 @@ export class TestIntentDetector {
                 '\\s*void\\s+\\w+\\s*\\([^)]*\\)' +
                 '(?:\\s*throws\\s+\\w+(?:,\\s*\\w+)*)?' +
                 '\\s*\\{',
-            'm'
+            'gm'
         )
 
         return this.curlyBracesSyntaxUtil(signaturePattern, content)
@@ -77,7 +77,7 @@ export class TestIntentDetector {
 
     // @VisibleForTesting
     jsTsTestIntent(content: string): boolean {
-        const signaturePattern = new RegExp(/(it|test)\s*\(\s*["\'].*?["\']\s*,\s*(async\s+)?\(\s*\)\s*=>\s*\{/, 'm')
+        const signaturePattern = new RegExp(/(it|test)\s*\(\s*["\'].*?["\']\s*,\s*(async\s+)?\(\s*\)\s*=>\s*\{/, 'gm')
 
         return this.curlyBracesSyntaxUtil(signaturePattern, content)
     }

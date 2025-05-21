@@ -141,9 +141,51 @@ public void
         })
     })
 
-    describe('javaTestIntent', function () {})
+    describe('javaTestIntent', function () {
+        describe('should return true if content is in the middle of a test case', function () {
+            const testCases = [
+                `
+import org.junit.jupiter.api.Test;
+
+public class ExampleTest {
+	@Test
+	public void testSomething() {`,
+            ]
+
+            for (let i = 0; i < testCases.length; i++) {
+                const testCase = testCases[i]
+                it(`case ${i}`, function () {
+                    const actual = sut.javaTestIntent(testCase)
+                    assert.strictEqual(actual, true)
+                })
+            }
+        })
+
+        describe('should return false if content is not in the middle of a test case', function () {
+            const testCases = [
+                `import org.junit.jupiter.api.Test;`,
+                `
+public class ExampleTest {
+    @Test
+    public void testSomething() {
+        assertThat(1).isEqualTo(1);
+    }
+}`,
+            ]
+
+            for (let i = 0; i < testCases.length; i++) {
+                const testCase = testCases[i]
+                it(`case ${i}`, function () {
+                    const actual = sut.javaTestIntent(testCase)
+                    assert.strictEqual(actual, false)
+                })
+            }
+        })
+    })
 
     describe('jsTsTestIntent', function () {})
 
     describe('pyTestIntent', function () {})
+
+    describe('detectUnitTestIntent', function () {})
 })
