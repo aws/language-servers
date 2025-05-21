@@ -5,6 +5,7 @@ import {
     Server,
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
+import * as crypto from 'crypto'
 import { cleanUrl, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
 import { ArtifactManager, FileMetadata, SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES } from './artifactManager'
 import { WorkspaceFolderManager } from './workspaceFolderManager'
