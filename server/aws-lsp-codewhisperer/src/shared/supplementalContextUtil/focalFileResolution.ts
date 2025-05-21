@@ -53,7 +53,7 @@ const LANGUAGE_CONFIG: Record<string, Metadata> = {
     },
 }
 
-class FocalFileResolver {
+export class FocalFileResolver {
     constructor() {}
 
     inferSourceFile(testFilePath: string, projectRoot: string, language: string): string | undefined {
@@ -136,6 +136,7 @@ class FocalFileResolver {
         return undefined
     }
 
+    // @VisibleForTesting
     inferFocalFilename(testFilePath: string, language: string): string | undefined {
         const config = LANGUAGE_CONFIG[language]
         const filename = path.basename(testFilePath)
@@ -155,6 +156,7 @@ class FocalFileResolver {
         return inferredSrcFilename
     }
 
+    // @VisibleForTesting
     extractImportedPaths(testFilePath: string, config: Metadata, projectRoot: string): string[] {
         const content = fs.readFileSync(testFilePath)
         const lines = content.toString().split(os.EOL)
@@ -214,7 +216,7 @@ class FocalFileResolver {
         return result
     }
 
-    // TODO: implementation
+    // @VisibleForTesting
     extractImportedSymbols(candidateAbsPath: string): string[] {
         // TODO: original science source code use set
         const result: string[] = []
@@ -263,6 +265,7 @@ class FocalFileResolver {
         return result
     }
 
+    // @VisibleForTesting
     extractExportedSymbolsFromFile(candidateAbsPath: string): string[] {
         const result: string[] = []
         try {
@@ -313,6 +316,7 @@ class FocalFileResolver {
         return result
     }
 
+    // @VisibleForTesting
     resolveImportToAbsPath(
         testFilePath: string,
         importPath: string,
