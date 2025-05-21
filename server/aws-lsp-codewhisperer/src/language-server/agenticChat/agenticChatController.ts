@@ -427,11 +427,12 @@ export class AgenticChatController implements ChatHandlers {
                     session.pairProgrammingMode,
                     session.getConversationType()
                 )
-                await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
 
                 session.abortRequest()
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
+
+                await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
             })
             session.setConversationType('AgenticChat')
 
