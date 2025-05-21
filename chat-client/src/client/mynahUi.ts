@@ -1145,7 +1145,20 @@ ${params.message}`,
                         actions.push({
                             id: 'tools-count',
                             icon: toMynahIcon('tools'),
-                            text: `${item.description}`,
+                            text: (() => {
+                                const serverInfoGroup = item.children?.find(
+                                    child => child.groupName === 'serverInformation'
+                                )
+                                if (serverInfoGroup) {
+                                    const toolCountChild = serverInfoGroup.children?.find(
+                                        child => child.title === 'toolcount'
+                                    )
+                                    if (toolCountChild) {
+                                        return toolCountChild.description
+                                    }
+                                }
+                                return '0'
+                            })(),
                             disabled: true,
                         })
                         actions.push({
@@ -1267,7 +1280,7 @@ ${params.message}`,
         return filterOptions?.map(filter => ({
             ...filter,
             icon: filter.icon ? toMynahIcon(filter.icon) : undefined,
-            mandatory: filter.mandatory ?? true,
+            mandatory: filter.mandatory ?? false,
             value: filter.value ?? undefined,
             items: filter.items ?? undefined,
         }))
@@ -1412,7 +1425,8 @@ ${params.message}`,
                         messager.onMcpServerClick(actionParams.id, 'Save configuration', filterValues)
                         setTimeout(() => {
                             mynahUi.toggleSplashLoader(false)
-                        }, 3000)
+                        }, 10000)
+                        messager.onMcpServerClick('open-mcp-server', filterValues?.['name'])
                     }
                 },
             }
@@ -1452,7 +1466,9 @@ ${params.message}`,
                 },
                 true
             )
-        } else if (['mcp-disable-server', 'mcp-delete-server', 'refresh-mcp-list'].includes(params.id)) {
+        } else if (
+            ['mcp-disable-server', 'mcp-delete-server', 'refresh-mcp-list', 'mcp-enable-server'].includes(params.id)
+        ) {
             messager.onListMcpServers()
         }
     }
