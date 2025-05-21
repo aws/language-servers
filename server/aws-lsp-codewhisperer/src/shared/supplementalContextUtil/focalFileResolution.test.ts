@@ -209,6 +209,13 @@ export { alpha, beta };`
             const actual = sut.resolveImportToAbsPath(p, '../helper', tmpDir, 'typescript')
             assert.strictEqual(actual, path.join(tmpDir, 'src', 'helper'))
         })
+
+        it('alias', function () {
+            fs.mkdirSync(path.join(tmpDir, 'src', 'test'), { recursive: true })
+            const p = path.join(tmpDir, 'src', 'test', 'foo.test.ts')
+            const actual = sut.resolveImportToAbsPath('foo.test.ts', '@src/utils', tmpDir, 'typescript')
+            assert.strictEqual(actual, path.join(tmpDir, 'src', 'utils'))
+        })
     })
 
     describe('resolvePackageToPath', function () {

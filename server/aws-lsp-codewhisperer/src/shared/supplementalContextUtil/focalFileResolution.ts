@@ -332,9 +332,9 @@ export class FocalFileResolver {
         if (moduleAlias) {
             for (const [alias, relPath] of Object.entries(moduleAlias)) {
                 if (importPath.startsWith(alias)) {
-                    const rest = importPath.substring(alias.length)
-                    const resolved = relPath + rest
-                    return resolved
+                    // TODO: python: import_path.replace(alias, real_path, 1), seems 1 is needed to ensure only replacement only happen once
+                    const realPath = importPath.replace(alias, relPath)
+                    return path.join(projectRoot, realPath)
                 }
             }
         }
