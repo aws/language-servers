@@ -37,10 +37,26 @@ export class McpEventHandler {
         Array.from(mcpManagerServerConfigs.entries()).forEach(([serverName, config]) => {
             const toolsWithPermissions = mcpManager.getAllToolsWithPermissions(serverName)
             const toolsCount = toolsWithPermissions.length
+            const serverState = McpManager.instance.getServerState(serverName)
 
             const item: DetailedListItem = {
                 title: serverName,
                 description: `Command: ${config.command}`,
+                children: [
+                    {
+                        groupName: 'serverInformation',
+                        children: [
+                            {
+                                title: 'status',
+                                description: serverState?.status || 'Unknown',
+                            },
+                            {
+                                title: 'toolcount',
+                                description: `${toolsCount}`,
+                            },
+                        ],
+                    },
+                ],
             }
 
             if (mcpManager.isServerDisabled(serverName)) {
@@ -101,6 +117,7 @@ export class McpEventHandler {
             'open-mcp-server': () => this.#handleOpenMcpServer(params),
             'mcp-permission-change': () => this.#handleMcpPermissionChange(params),
             'refresh-mcp-list': () => this.#handleRefreshMCPList(params),
+            'mcp-enable-server': () => this.#handleEnableMcpServer(params),
             'mcp-disable-server': () => this.#handleDisableMcpServer(params),
             'mcp-delete-server': () => this.#handleDeleteMcpServer(params),
         }
@@ -174,11 +191,13 @@ export class McpEventHandler {
                     type: 'textinput',
                     id: 'name',
                     title: 'Name',
+                    mandatory: true,
                 },
                 {
                     type: 'select',
                     id: 'transport',
                     title: 'Transport',
+                    mandatory: true,
                     options: [
                         {
                             label: 'stdio',
@@ -190,6 +209,7 @@ export class McpEventHandler {
                     type: 'textinput',
                     id: 'command',
                     title: 'Command',
+                    mandatory: true,
                 },
                 {
                     type: 'list',
@@ -236,6 +256,7 @@ export class McpEventHandler {
                     title: 'Timeout',
                     description: 'Seconds',
                     value: '60', // Default value
+                    mandatory: false,
                 },
             ],
         }
@@ -341,6 +362,35 @@ export class McpEventHandler {
             filterActions: [],
             filterOptions,
         }
+    }
+
+    /**
+     * Handles enabling an MCP server
+     */
+    async #handleEnableMcpServer(params: McpServerClickParams) {
+        const serverName = params.title
+        if (!serverName) {
+            return { id: params.id }
+        }
+
+        // TODO: handle ws/global selection
+        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
+        const perm: MCPServerPermission = {
+            enabled: true,
+            toolPerms: {},
+            __configPath__: personaPath,
+        }
+
+        try {
+            await McpManager.instance.updateServerPermission(serverName, perm)
+            await this.#handleRefreshMCPList({
+                id: params.id,
+            })
+        } catch (error) {
+            this.#features.logging.error(`Failed to enable MCP server: ${error}`)
+        }
+        return { id: params.id }
     }
 
     /**
