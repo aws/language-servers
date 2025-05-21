@@ -91,6 +91,18 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
 
     if (promptTypeValue != null) {
         mynahUi.addChatItem(tabId, promptTypeValue === 'true' ? pairProgrammingModeOn : pairProgrammingModeOff)
+        const options = [...(mynahUi.getTabData(tabId)?.getStore()?.promptInputOptions || [])]
+        const optionIndex = options.findIndex(opt => opt.id === 'pair-programmer-mode')
+
+        if (optionIndex >= 0) {
+            options[optionIndex].value = promptTypeValue
+        } else {
+            options.push({
+                id: 'pair-programmer-mode',
+                value: promptTypeValue,
+            } as any)
+        }
+        mynahUi.updateStore(tabId, { promptInputOptions: options as any })
     }
 }
 
