@@ -179,9 +179,37 @@ import baz from '../src/sample';`
         })
     })
 
-    describe('extractExportedSymbolsFromFile', function () {})
+    describe('extractExportedSymbolsFromFile', function () {
+        it('', function () {
+            fs.mkdirSync(path.join(tmpDir, 'src', 'test'), { recursive: true })
+            const p = path.join(tmpDir, 'src', 'test', 'sample.js')
+            fs.writeFileSync(
+                p,
+                `
+export function foo() {}
+export const bar = 1;
+export default baz;
+export { alpha, beta };`
+            )
 
-    describe('resolveImportToAbsPath', function () {})
+            const actual = sut.extractExportedSymbolsFromFile(p)
+            assert.strictEqual(actual.length, 5)
+            assert.ok(actual.includes('foo'))
+            assert.ok(actual.includes('bar'))
+            assert.ok(actual.includes('baz'))
+            assert.ok(actual.includes('alpha'))
+            assert.ok(actual.includes('beta'))
+        })
+    })
+
+    describe('resolveImportToAbsPath', function () {
+        it('', function () {
+            fs.mkdirSync(path.join(tmpDir, 'src', 'test'), { recursive: true })
+            const p = path.join(tmpDir, 'src', 'test', 'foo.test.ts')
+            const actual = sut.resolveImportToAbsPath(p, '../helper', tmpDir, 'typescript')
+            assert.strictEqual(actual, path.join(tmpDir, 'src', 'helper'))
+        })
+    })
 
     describe('resolvePackageToPath', function () {
         it('dot', function () {

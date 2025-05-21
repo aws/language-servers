@@ -201,7 +201,7 @@ export class FocalFileResolver {
                             const match = pattern.exec(buffer.trim())
                             if (match) {
                                 const imp = match[1]
-                                const absPath = this.resolveImportToAbsPath(testFilePath, imp, projectRoot, config)
+                                const absPath = this.resolveImportToAbsPath(testFilePath, imp, projectRoot, lang)
                                 if (absPath) {
                                     result.push(absPath)
                                 }
@@ -293,8 +293,8 @@ export class FocalFileResolver {
                 }
 
                 const matchNamedBlock = /export\s+{([^}]+)}/g.exec(line) || []
-                for (const m of matchNamedBlock) {
-                    const parts = m
+                if (matchNamedBlock[1]) {
+                    const parts = matchNamedBlock[1]
                         .split(',')
                         .map(s => s.trim())
                         .filter(s => s.length > 0)
@@ -324,8 +324,9 @@ export class FocalFileResolver {
         testFilePath: string,
         importPath: string,
         projectRoot: string,
-        config: Metadata
+        lang: string
     ): string | undefined {
+        const config = LANGUAGE_CONFIG[lang]
         // Handle module aliases
         const moduleAlias = config.moduleAliases
         if (moduleAlias) {
