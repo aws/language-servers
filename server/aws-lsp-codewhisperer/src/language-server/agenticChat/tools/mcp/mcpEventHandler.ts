@@ -151,7 +151,7 @@ export class McpEventHandler {
     /**
      * Handles the add new MCP server action
      */
-    async #handleAddNewMcp(params: McpServerClickParams, errorTitle: string = '') {
+    async #handleAddNewMcp(params: McpServerClickParams) {
         const existingValues = params.optionsValues || {}
         let argsValue = [
             {

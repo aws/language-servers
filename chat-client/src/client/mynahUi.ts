@@ -1332,7 +1332,7 @@ ${params.message}`,
             header: {
                 title: params.header?.title || 'Add MCP Server',
                 description: params.header?.description || '',
-                status: params.header?.status ?? {},
+                status: params.header?.status || {},
             },
             filterOptions: processFilterOptions(params.filterOptions),
             filterActions: params.filterActions,
