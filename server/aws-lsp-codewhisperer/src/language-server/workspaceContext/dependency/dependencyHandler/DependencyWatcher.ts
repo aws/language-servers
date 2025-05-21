@@ -32,6 +32,9 @@ export class DependencyWatcher {
                     }, this.interval)
                 }
             })
+            watcher.on('error', error => {
+                this.logging.warn(`watcher error for ${this.path}: ${error}`)
+            })
             return watcher
         } catch (error) {
             this.logging.warn(`Error setting up watcher for ${this.path}: ${error}`)

@@ -177,8 +177,8 @@ export class ArtifactManager {
             })
 
             for (const relativePath of files) {
-                const fullPath = resolveSymlink(path.join(filePath, relativePath))
                 try {
+                    const fullPath = resolveSymlink(path.join(filePath, relativePath))
                     const fileMetadata = await this.createFileMetadata(
                         fullPath,
                         path.join(filePathInZipOverride !== undefined ? filePathInZipOverride : '', relativePath),
@@ -187,7 +187,7 @@ export class ArtifactManager {
                     )
                     fileMetadataList.push(fileMetadata)
                 } catch (error) {
-                    this.logging.warn(`Error processing file ${fullPath}: ${error}`)
+                    this.logging.warn(`Error processing file ${relativePath}: ${error}`)
                 }
             }
         } else {

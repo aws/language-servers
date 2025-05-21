@@ -59,21 +59,10 @@ export const isDirectory = (path: string): boolean => {
 
 export const resolveSymlink = (dependencyPath: string): string => {
     let truePath: string = dependencyPath
-    let symlinkTarget: string | null = null
-    try {
-        if (fs.lstatSync(dependencyPath).isSymbolicLink()) {
-            symlinkTarget = fs.readlinkSync(dependencyPath)
-
-            // If the symlink target is relative, resolve it relative to the symlink's directory
-            if (!path.isAbsolute(symlinkTarget)) {
-                symlinkTarget = path.resolve(path.dirname(dependencyPath), symlinkTarget)
-            }
-
-            // Get the real path (resolves all symlinks in the path)
-            truePath = fs.realpathSync(dependencyPath)
-        }
-    } catch (error) {}
-
+    if (fs.lstatSync(dependencyPath).isSymbolicLink()) {
+        // Get the real path (resolves all symlinks in the path)
+        truePath = fs.realpathSync(dependencyPath)
+    }
     return truePath
 }
 
