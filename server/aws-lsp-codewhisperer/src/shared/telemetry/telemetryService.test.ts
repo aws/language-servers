@@ -102,7 +102,7 @@ describe('TelemetryService', () => {
         firstCompletionDisplayLatency: 100,
         timeToFirstRecommendation: 200,
         getAggregatedUserTriggerDecision: () => 'Accept',
-        updateAndGetStreakLength() {
+        getAndUpdateStreakLength() {
             return -1
         },
         startPosition: {
