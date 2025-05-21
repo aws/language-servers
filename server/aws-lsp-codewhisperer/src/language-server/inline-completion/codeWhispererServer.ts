@@ -55,6 +55,7 @@ import { getRelativePath } from '../workspaceContext/util'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
+export const FILE_URI_CHARS_LIMIT = 1024
 export const CONTEXT_CHARACTERS_LIMIT = 10240
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
@@ -63,6 +64,7 @@ const getFileContext = (params: {
     position: Position
     inferredLanguageId: CodewhispererLanguage
 }): {
+    fileUri: string
     filename: string
     programmingLanguage: {
         languageName: CodewhispererLanguage
@@ -89,6 +91,7 @@ const getFileContext = (params: {
     // }
 
     return {
+        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
         filename: relativeFileName,
         programmingLanguage: {
             languageName: getRuntimeLanguage(params.inferredLanguageId),

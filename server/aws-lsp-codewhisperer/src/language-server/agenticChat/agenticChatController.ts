@@ -121,7 +121,7 @@ import {
     responseTimeoutPartialMsg,
 } from './constants'
 import { URI } from 'vscode-uri'
-import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
+import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
@@ -427,11 +427,12 @@ export class AgenticChatController implements ChatHandlers {
                     session.pairProgrammingMode,
                     session.getConversationType()
                 )
-                await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
 
                 session.abortRequest()
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
+
+                await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
             })
             session.setConversationType('AgenticChat')
 
@@ -1261,6 +1262,7 @@ export class AgenticChatController implements ChatHandlers {
         return (
             CancellationError.isUserCancelled(err) ||
             err instanceof ToolApprovalException ||
+            isRequestAbortedError(err) ||
             (token?.isCancellationRequested ?? false)
         )
     }

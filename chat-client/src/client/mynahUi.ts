@@ -94,7 +94,7 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
     }
 }
 
-export const handleChatPrompt = async (
+export const handleChatPrompt = (
     mynahUi: MynahUI,
     tabId: string,
     prompt: ChatPrompt,
@@ -104,25 +104,7 @@ export const handleChatPrompt = async (
     agenticMode?: boolean
 ) => {
     let userPrompt = prompt.escapedPrompt
-
-    const tabStore = mynahUi.getTabData(tabId)?.getStore()
-    const isLoading = tabStore?.loadingChat === true
-    if (isLoading) {
-        messager.onStopChatResponse(tabId)
-        mynahUi.addChatItem(tabId, {
-            type: ChatItemType.DIRECTIVE,
-            messageId: `stopped-${Date.now()}`,
-        })
-        mynahUi.updateStore(tabId, {
-            loadingChat: false,
-            cancelButtonWhenLoading: true,
-            promptInputDisabledState: false,
-        })
-
-        // Add a slight delay to make sure the stop message would render before the new prompt
-        await new Promise(resolve => setTimeout(resolve, 50))
-    }
-
+    messager.onStopChatResponse(tabId)
     if (prompt.command) {
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -923,6 +905,8 @@ export const createMynahUi = (
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
+        // Adding this conditional check to show the stop message in the center.
+        const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
         // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
         const shouldMute = message.header?.status?.text !== undefined
@@ -935,6 +919,7 @@ export const createMynahUi = (
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
+            contentHorizontalAlignment,
             wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'
