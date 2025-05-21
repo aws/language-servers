@@ -35,10 +35,26 @@ export class McpEventHandler {
         Array.from(mcpManagerServerConfigs.entries()).forEach(([serverName, config]) => {
             const toolsWithStates = McpManager.instance.getAllToolsWithStates(serverName)
             const toolsCount = toolsWithStates.length
+            const serverState = McpManager.instance.getServerState(serverName)
 
             const item: DetailedListItem = {
                 title: serverName,
                 description: `Command: ${config.command}`,
+                children: [
+                    {
+                        groupName: 'serverInformation',
+                        children: [
+                            {
+                                title: 'status',
+                                description: serverState?.status || 'Unknown',
+                            },
+                            {
+                                title: 'toolcount',
+                                description: `${toolsCount}`,
+                            },
+                        ],
+                    },
+                ],
             }
 
             if (config.disabled) {
@@ -46,7 +62,6 @@ export class McpEventHandler {
             } else {
                 activeItems.push({
                     ...item,
-                    description: `${toolsCount}`,
                 })
             }
         })
@@ -98,6 +113,7 @@ export class McpEventHandler {
             'open-mcp-server': () => this.#handleOpenMcpServer(params),
             'mcp-permission-change': () => this.#handleMcpPermissionChange(params),
             'refresh-mcp-list': () => this.#handleRefreshMCPList(params),
+            'mcp-enable-server': () => this.#handleEnableMcpServer(params),
             'mcp-disable-server': () => this.#handleDisableMcpServer(params),
             'mcp-delete-server': () => this.#handleDeleteMcpServer(params),
         }
@@ -334,6 +350,25 @@ export class McpEventHandler {
             filterActions: [],
             filterOptions,
         }
+    }
+
+    /**
+     * Handles enabling an MCP server
+     */
+    async #handleEnableMcpServer(params: McpServerClickParams) {
+        const serverName = params.title
+        if (!serverName) {
+            return { id: params.id }
+        }
+        try {
+            await McpManager.instance.updateServerPermission(serverName, { disabled: false })
+            await this.#handleRefreshMCPList({
+                id: params.id,
+            })
+        } catch (error) {
+            this.#features.logging.error(`Failed to enable MCP server: ${error}`)
+        }
+        return { id: params.id }
     }
 
     /**
