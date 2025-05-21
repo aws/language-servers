@@ -183,9 +183,84 @@ public class ExampleTest {
         })
     })
 
-    describe('jsTsTestIntent', function () {})
+    describe('jsTsTestIntent', function () {
+        describe('should return true if content is in the middle of a test case', function () {
+            const testCases = [
+                `
+describe('feature', () => {
+  it('should work', () => {`,
+                `describe('feature', () => {
+  test('runs correctly', async () => {`,
+            ]
 
-    describe('pyTestIntent', function () {})
+            for (let i = 0; i < testCases.length; i++) {
+                const testCase = testCases[i]
+                it(`case ${i}`, function () {
+                    const actual = sut.jsTsTestIntent(testCase)
+                    assert.strictEqual(actual, true)
+                })
+            }
+        })
+
+        describe('should return false if content is not in the middle of a test case', function () {
+            const testCases = [
+                `describe('math', () => {
+  it('adds correctly', () => {
+    expect(1 + 2).toBe(3);
+  });
+});`,
+                `describe('some module', () => {
+  beforeEach(() => {
+    // setup code`,
+            ]
+
+            for (let i = 0; i < testCases.length; i++) {
+                const testCase = testCases[i]
+                it(`case ${i}`, function () {
+                    const actual = sut.jsTsTestIntent(testCase)
+                    assert.strictEqual(actual, false)
+                })
+            }
+        })
+    })
+
+    describe('pyTestIntent', function () {
+        describe('should return true if content is in the middle of a test case', function () {
+            const testCases = [
+                `import unittest
+
+class TestExample(unittest.TestCase):
+	def test_addition(self):
+`,
+            ]
+
+            for (let i = 0; i < testCases.length; i++) {
+                const testCase = testCases[i]
+                it(`case ${i}`, function () {
+                    const actual = sut.pyTestIntent(testCase)
+                    assert.strictEqual(actual, true)
+                })
+            }
+        })
+
+        describe('should return false if content is not in the middle of a test case', function () {
+            const testCases = [
+                `import unittest
+
+def helper():
+    return 42
+`,
+            ]
+
+            for (let i = 0; i < testCases.length; i++) {
+                const testCase = testCases[i]
+                it(`case ${i}`, function () {
+                    const actual = sut.pyTestIntent(testCase)
+                    assert.strictEqual(actual, false)
+                })
+            }
+        })
+    })
 
     describe('detectUnitTestIntent', function () {})
 })
