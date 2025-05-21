@@ -6,18 +6,21 @@
 import type { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import type {
+import {
     MCPServerConfig,
     McpToolDefinition,
     ListToolsResponse,
     McpServerRuntimeState,
     McpServerStatus,
-    MCPServerPermissionUpdate,
+    McpPermissionType,
+    PersonaModel,
+    MCPServerPermission,
 } from './mcpTypes'
-import { loadMcpServerConfigs } from './mcpUtils'
+import { loadMcpServerConfigs, loadPersonaPermissions } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
+import * as yaml from 'yaml'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -31,17 +34,21 @@ export class McpManager {
     private mcpTools: McpToolDefinition[]
     private mcpServers: Map<string, MCPServerConfig>
     private mcpServerStates: Map<string, McpServerRuntimeState>
+    private mcpServerPermissions: Map<string, MCPServerPermission>
     public readonly events: EventEmitter
     private static readonly configMutex = new Mutex()
+    private static readonly personaMutex = new Mutex()
 
     private constructor(
         private configPaths: string[],
+        private personaPaths: string[],
         private features: Pick<Features, 'logging' | 'workspace' | 'lsp'>
     ) {
         this.mcpTools = []
         this.clients = new Map<string, Client>()
         this.mcpServers = new Map<string, MCPServerConfig>()
         this.mcpServerStates = new Map<string, McpServerRuntimeState>()
+        this.mcpServerPermissions = new Map<string, MCPServerPermission>()
         this.events = new EventEmitter()
         this.features.logging.info(`MCP manager: initialized with ${configPaths.length} configs`)
     }
@@ -51,10 +58,11 @@ export class McpManager {
      */
     public static async init(
         configPaths: string[],
+        personaPaths: string[],
         features: Pick<Features, 'logging' | 'workspace' | 'lsp'>
     ): Promise<McpManager> {
         if (!McpManager.#instance) {
-            const mgr = new McpManager(configPaths, features)
+            const mgr = new McpManager(configPaths, personaPaths, features)
             McpManager.#instance = mgr
             await mgr.discoverAllServers()
             features.logging.info(`MCP: discovered ${mgr.mcpTools.length} tools across all servers`)
@@ -87,11 +95,18 @@ export class McpManager {
      * Load configurations and initialize each enabled server.
      */
     private async discoverAllServers(): Promise<void> {
+        const permissionMap = await loadPersonaPermissions(
+            this.features.workspace,
+            this.features.logging,
+            this.personaPaths
+        )
+        this.mcpServerPermissions = permissionMap
+
         this.mcpServers = await loadMcpServerConfigs(this.features.workspace, this.features.logging, this.configPaths)
 
         for (const [name, cfg] of this.mcpServers.entries()) {
-            if (cfg.disabled) {
-                this.features.logging.info(`MCP: server '${name}' is disabled, skipping`)
+            if (this.isServerDisabled(name)) {
+                this.features.logging.info(`MCP: server '${name}' is disabled by persona settings, skipping`)
                 this.setState(name, 'DISABLED', 0)
                 this.emitToolsChanged(name)
                 continue
@@ -189,20 +204,19 @@ export class McpManager {
     }
 
     /**
-     * Return all tools and their enabled & approval flags. (this will be replaced with the state enum later)
+     * Return all tools and their permissions
      * If serverFilter is given, only tools from that server are returned.
      */
-    public getAllToolsWithStates(serverFilter?: string): {
+    public getAllToolsWithPermissions(serverFilter?: string): {
         tool: McpToolDefinition
-        disabled: boolean
-        requiresApproval: boolean
+        permission: McpPermissionType
     }[] {
         return this.mcpTools
             .filter(t => !serverFilter || t.serverName === serverFilter)
             .map(toolDef => ({
                 tool: toolDef,
-                disabled: this.isToolDisabled(toolDef.serverName, toolDef.toolName),
                 requiresApproval: this.requiresApproval(toolDef.serverName, toolDef.toolName),
+                permission: this.getToolPerm(toolDef.serverName, toolDef.toolName),
             }))
     }
 
@@ -210,18 +224,34 @@ export class McpManager {
      * Return a list of all enabled tools.
      */
     public getEnabledTools(): McpToolDefinition[] {
-        return this.mcpTools.filter(t => {
-            const cfg = this.mcpServers.get(t.serverName)
-            return cfg && !cfg.disabled && !this.isToolDisabled(t.serverName, t.toolName)
-        })
+        return this.mcpTools.filter(
+            t => !this.isServerDisabled(t.serverName) && !this.isToolDisabled(t.serverName, t.toolName)
+        )
     }
 
     /**
      * Returns true if the given tool on the given server is currently disabled.
      */
     public isToolDisabled(server: string, tool: string): boolean {
-        const cfg = this.mcpServers.get(server)
-        return !!cfg?.toolOverrides?.[tool]?.disabled
+        return this.getToolPerm(server, tool) === 'deny'
+    }
+
+    /**
+     * Returns true if the given server is currently disabled.
+     */
+    public isServerDisabled(name: string): boolean {
+        const explicit = this.mcpServerPermissions.get(name)?.enabled
+        const star = this.mcpServerPermissions.get('*')?.enabled
+        return !(explicit ?? star ?? false)
+    }
+
+    /**
+     * Returns tool permission type for a given tool.
+     */
+    public getToolPerm(server: string, tool: string): McpPermissionType {
+        const srv = this.mcpServerPermissions.get(server)
+        const star = this.mcpServerPermissions.get('*')
+        return srv?.toolPerms[tool] ?? srv?.toolPerms['*'] ?? star?.toolPerms[tool] ?? star?.toolPerms['*'] ?? 'ask'
     }
 
     /**
@@ -252,9 +282,11 @@ export class McpManager {
 
         const cfg = this.mcpServers.get(server)
         if (!cfg) throw new Error(`MCP: server '${server}' is not configured`)
-        if (cfg.disabled) throw new Error(`MCP: server '${server}' is disabled`)
+        if (this.isServerDisabled(server)) throw new Error(`MCP: server '${server}' is disabled`)
 
-        const available = this.mcpTools.filter(t => t.serverName === server).map(t => t.toolName)
+        const available = this.getEnabledTools()
+            .filter(t => t.serverName === server)
+            .map(t => t.toolName)
         if (!available.includes(tool)) {
             throw new Error(`MCP: tool '${tool}' not found on '${server}'. Available: ${available.join(', ')}`)
         }
@@ -298,9 +330,18 @@ export class McpManager {
     /**
      * Add a new server: persist config, register in memory, and initialize.
      */
-    public async addServer(serverName: string, cfg: MCPServerConfig, configPath: string): Promise<void> {
+    public async addServer(
+        serverName: string,
+        cfg: MCPServerConfig,
+        configPath: string,
+        personaPath: string
+    ): Promise<void> {
         if (this.mcpServers.has(serverName)) {
             throw new Error(`MCP: server '${serverName}' already exists`)
+        }
+
+        if (!configPath || !personaPath) {
+            throw new Error(`Both MCP config file path and Persona config file path are required`)
         }
 
         await this.mutateConfigFile(configPath, json => {
@@ -309,16 +350,24 @@ export class McpManager {
                 args: cfg.args,
                 env: cfg.env,
                 initializationTimeout: cfg.initializationTimeout,
-                disabled: cfg.disabled,
-                autoApprove: cfg.autoApprove,
-                toolOverrides: cfg.toolOverrides,
+                timeout: cfg.timeout,
             }
         })
 
         const newCfg: MCPServerConfig = { ...cfg, __configPath__: configPath }
         this.mcpServers.set(serverName, newCfg)
 
-        if (cfg.disabled) {
+        await this.mutatePersonaFile(personaPath, p => p.addServer(serverName))
+        this.personaPaths = [...new Set([...this.personaPaths, personaPath])]
+
+        const permissionMap = await loadPersonaPermissions(
+            this.features.workspace,
+            this.features.logging,
+            this.personaPaths
+        )
+        this.mcpServerPermissions = permissionMap
+
+        if (this.isServerDisabled(serverName)) {
             this.setState(serverName, 'DISABLED', 0)
             this.emitToolsChanged(serverName)
         } else {
@@ -331,6 +380,7 @@ export class McpManager {
      */
     public async removeServer(serverName: string): Promise<void> {
         const cfg = this.mcpServers.get(serverName)
+        const permission = this.mcpServerPermissions.get(serverName)
         if (!cfg || !cfg.__configPath__) {
             throw new Error(`MCP: server '${serverName}' not found`)
         }
@@ -343,10 +393,20 @@ export class McpManager {
         this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
         this.mcpServers.delete(serverName)
         this.mcpServerStates.delete(serverName)
-        this.emitToolsChanged(serverName)
+        this.mcpServerPermissions.delete(serverName)
         await this.mutateConfigFile(cfg.__configPath__, json => {
             delete json.mcpServers[serverName]
         })
+
+        if (permission && permission.__configPath__) {
+            await this.mutatePersonaFile(permission.__configPath__, p => p.removeServer(serverName))
+        }
+        this.mcpServerPermissions = await loadPersonaPermissions(
+            this.features.workspace,
+            this.features.logging,
+            this.personaPaths
+        )
+        this.emitToolsChanged(serverName)
     }
 
     /**
@@ -366,14 +426,12 @@ export class McpManager {
             json.mcpServers[serverName] = {
                 ...json.mcpServers[serverName],
                 ...configUpdates,
-                toolOverrides: configUpdates.toolOverrides ?? oldCfg.toolOverrides ?? {},
             }
         })
 
         const newCfg: MCPServerConfig = {
             ...oldCfg,
             ...configUpdates,
-            toolOverrides: configUpdates.toolOverrides ?? oldCfg.toolOverrides ?? {},
             __configPath__: oldCfg.__configPath__,
         }
 
@@ -385,7 +443,7 @@ export class McpManager {
         this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
         this.mcpServers.set(serverName, newCfg)
 
-        if (newCfg.disabled) {
+        if (this.isServerDisabled(serverName)) {
             this.setState(serverName, 'DISABLED', 0)
             this.emitToolsChanged(serverName)
         } else {
@@ -437,77 +495,66 @@ export class McpManager {
     }
 
     /**
-     * Check if a tool requires approval.
-     */
-    public requiresApproval(server: string, tool: string): boolean {
-        const cfg = this.mcpServers.get(server)
-        if (!cfg) {
-            return true
-        }
-
-        // 1) server default (true = auto-approved)
-        const serverAuto = cfg.autoApprove ?? true
-
-        // 2) per-tool override, if any
-        const toolAuto = cfg.toolOverrides?.[tool]?.autoApprove
-
-        // 3) pick override if defined, else fall back to server
-        const finalAuto = toolAuto !== undefined ? toolAuto : serverAuto
-
-        return !finalAuto
-    }
-
-    /**
      * Update permission for given server: if only tool permission changes, does not teardown and re-init.
      */
-    public async updateServerPermission(serverName: string, perm: MCPServerPermissionUpdate): Promise<void> {
-        const oldCfg = this.mcpServers.get(serverName)
-        if (!oldCfg || !oldCfg.__configPath__) {
-            throw new Error(`MCP: server '${serverName}' not found`)
+    public async updateServerPermission(serverName: string, perm: MCPServerPermission): Promise<void> {
+        const personaPath = perm.__configPath__
+        if (!personaPath) {
+            throw new Error(`Missing personaPath for '${serverName}'`)
         }
+        await this.mutatePersonaFile(personaPath, p => {
+            if (perm.enabled === undefined) {
+                throw new Error('Server disabled state must be explicitly set')
+            }
 
-        await this.mutateConfigFile(oldCfg.__configPath__, json => {
-            json.mcpServers ||= {}
-            json.mcpServers[serverName] = {
-                ...json.mcpServers[serverName],
-                ...perm,
+            // disable whole server
+            if (!perm.enabled) {
+                p.removeServer(serverName) // removes from list clears tool perms
+                return
+            }
+
+            // server must be enabled from here on
+            p.addServer(serverName)
+
+            // handle permission updates
+            if (perm.toolPerms) {
+                const existing = p.toYaml().toolPerms?.[serverName] ?? {}
+                const merged = { ...existing, ...perm.toolPerms }
+                p.replaceToolPerms(serverName, merged)
+            } else {
+                p.ensureWildcardAsk(serverName)
             }
         })
 
-        const newCfg: MCPServerConfig = {
-            ...oldCfg,
-            ...perm,
-            __configPath__: oldCfg.__configPath__,
-        }
-        this.mcpServers.set(serverName, newCfg)
+        const permissionMap = await loadPersonaPermissions(
+            this.features.workspace,
+            this.features.logging,
+            this.personaPaths
+        )
+        this.mcpServerPermissions = permissionMap
 
-        const oldDisabled = !!oldCfg.disabled // undefined -> false
-        const newDisabled = perm.disabled ?? oldDisabled // no value -> old value
-
-        if (perm.disabled !== undefined && newDisabled !== oldDisabled) {
-            // Server level ENABLED → DISABLED
-            if (newDisabled) {
-                const client = this.clients.get(serverName)
-                if (client) {
-                    await client.close()
-                    this.clients.delete(serverName)
-                }
-                this.setState(serverName, 'DISABLED', 0)
-            } else {
-                // Server level DISABLED → ENABLED
-                await this.initOneServer(serverName, newCfg)
-                return
+        // enable/disable server
+        if (this.isServerDisabled(serverName)) {
+            const client = this.clients.get(serverName)
+            if (client) {
+                await client.close()
+                this.clients.delete(serverName)
             }
+            this.setState(serverName, 'DISABLED', 0)
         } else {
-            const count = this.mcpTools.filter(t => t.serverName === serverName).length
-            this.setState(serverName, newDisabled ? 'DISABLED' : 'ENABLED', count)
+            if (!this.clients.has(serverName)) {
+                await this.initOneServer(serverName, this.mcpServers.get(serverName)!)
+            } else {
+                const n = this.mcpTools.filter(t => t.serverName === serverName).length
+                this.setState(serverName, 'ENABLED', n)
+            }
         }
-
+        this.features.logging.info(`Permissions updated for '${serverName}' in ${personaPath}`)
         this.emitToolsChanged(serverName)
     }
 
     /**
-     * Read, mutate, and write the JSON config at the given path.
+     * Read, mutate, and write the MCP JSON config at the given path.
      * @private
      */
     private async mutateConfigFile(configPath: string, mutator: (json: any) => void): Promise<void> {
@@ -523,6 +570,37 @@ export class McpManager {
                 this.features.logging.error(`MCP: failed to update config at ${configPath}: ${e.message}`)
                 throw e
             })
+    }
+
+    /**
+     * Read, mutate, and write the Persona YAML config at the given path.
+     * @private
+     */
+    private async mutatePersonaFile(personaPath: string, mutator: (p: PersonaModel) => void): Promise<void> {
+        await McpManager.personaMutex
+            .runExclusive(async () => {
+                this.features.logging.info(`Updating persona file: ${personaPath}`)
+                let raw = ''
+                try {
+                    raw = (await this.features.workspace.fs.readFile(personaPath)).toString()
+                } catch {}
+
+                const model = PersonaModel.fromYaml(raw ? yaml.parse(raw) : {})
+                mutator(model)
+                await this.features.workspace.fs.writeFile(personaPath, yaml.stringify(model.toYaml()))
+                this.features.logging.debug(`Persona file write complete: ${personaPath}`)
+            })
+            .catch((e: any) => {
+                this.features.logging.error(`MCP: failed to update persona file at ${personaPath}: ${e.message}`)
+                throw e
+            })
+    }
+
+    /**
+     * Check if a tool requires approval.
+     */
+    public requiresApproval(server: string, tool: string): boolean {
+        return this.getToolPerm(server, tool) === 'ask'
     }
 
     /**
@@ -542,7 +620,10 @@ export class McpManager {
      * @private
      */
     private emitToolsChanged(server: string) {
-        const enabled = this.getEnabledTools().filter(t => t.serverName === server)
+        const enabled = this.getEnabledTools()
+            .filter(t => t.serverName === server)
+            .map(t => ({ ...t }))
+        this.features.logging.debug(`ToolsChanged | server=${server} | toolCount=${enabled.length}`)
         this.events.emit(AGENT_TOOLS_CHANGED, server, enabled)
     }
 }
