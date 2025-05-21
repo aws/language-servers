@@ -139,16 +139,16 @@ export class FocalFileResolver {
     // @VisibleForTesting
     inferFocalFilename(testFilePath: string, language: string): string | undefined {
         const config = LANGUAGE_CONFIG[language]
-        const filename = path.basename(testFilePath)
         const ext = path.extname(testFilePath)
+        const filenameWithoutExt = path.basename(testFilePath, ext)
 
         let inferredSrcFilename: string | undefined
         for (const affix of config['testAffixes']) {
-            if (filename.endsWith(affix)) {
-                inferredSrcFilename = filename.substring(0, filename.length - affix.length) + ext
+            if (filenameWithoutExt.endsWith(affix)) {
+                inferredSrcFilename = filenameWithoutExt.substring(0, filenameWithoutExt.length - affix.length) + ext
                 break
-            } else if (filename.endsWith(affix)) {
-                inferredSrcFilename = filename.substring(affix.length) + ext
+            } else if (filenameWithoutExt.startsWith(affix)) {
+                inferredSrcFilename = filenameWithoutExt.substring(affix.length) + ext
                 break
             }
         }
