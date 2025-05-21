@@ -131,12 +131,18 @@ export class McpEventHandler {
     /**
      * Handles the add new MCP server action
      */
-    async #handleAddNewMcp(params: McpServerClickParams) {
+    async #handleAddNewMcp(params: McpServerClickParams, errorTitle: string = '') {
         return {
             id: params.id,
             header: {
                 title: 'Add MCP Server',
-                status: {},
+                status: errorTitle
+                    ? {
+                          title: errorTitle,
+                          icon: 'cancel-circle',
+                          status: 'error',
+                      }
+                    : {},
                 actions: [],
             },
             list: [],
@@ -244,6 +250,15 @@ export class McpEventHandler {
     async #handleSaveMcp(params: McpServerClickParams) {
         if (!params.optionsValues) {
             return this.#getDefaultMcpResponse(params.id)
+        }
+
+        const requiredFields = ['name', 'command', 'timeout']
+        const missingFields = requiredFields.filter(
+            field => !params.optionsValues?.[field] || params.optionsValues[field].trim() === ''
+        )
+        if (missingFields.length > 0) {
+            const formattedFields = missingFields.map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
+            return this.#handleAddNewMcp(params, `Required Fields: ${formattedFields}`)
         }
 
         // Process args to string[]

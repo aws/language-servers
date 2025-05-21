@@ -1319,6 +1319,7 @@ ${params.message}`,
             header: {
                 title: params.header?.title || 'Add MCP Server',
                 description: params.header?.description || '',
+                status: params.header?.status ?? {},
             },
             filterOptions: processFilterOptions(params.filterOptions),
             filterActions: params.filterActions,
@@ -1393,7 +1394,7 @@ ${params.message}`,
     const mcpServerClick = (params: McpServerClickResult) => {
         const typedParams = params as McpServerParams
 
-        if (params.id === 'add-new-mcp') {
+        if (params.id === 'add-new-mcp' || (params.id === 'save-mcp' && params.header?.status)) {
             const detailedList = createAddMcpServerDetailedList(typedParams)
 
             const events = {
