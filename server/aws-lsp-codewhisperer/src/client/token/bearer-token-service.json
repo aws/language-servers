@@ -1506,6 +1506,10 @@
                     "shape": "ConversationId",
                     "documentation": "<p>Unique identifier for the chat conversation stream</p>"
                 },
+                "workspaceId": {
+                    "shape": "UUID",
+                    "documentation": "<p>Unique identifier for remote workspace</p>"
+                },
                 "history": {
                     "shape": "ChatHistory",
                     "documentation": "<p>Holds the history of chat messages.</p>"
