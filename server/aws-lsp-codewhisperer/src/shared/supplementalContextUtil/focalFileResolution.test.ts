@@ -4,13 +4,22 @@
  */
 
 import * as assert from 'assert'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
 import { FocalFileResolver } from './focalFileResolution'
 
 describe('focalFileResolver', function () {
     let sut: FocalFileResolver
+    let tmpDir: string
 
     beforeEach(() => {
         sut = new FocalFileResolver()
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'focalFileResolutionTest-'))
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
     })
 
     describe('inferFocalFilename', function () {
@@ -65,6 +74,70 @@ describe('focalFileResolver', function () {
                     assert.strictEqual(result, 'foo.ts')
                 })
             }
+        })
+    })
+
+    describe('extractImportedPaths', function () {
+        describe('java', function () {
+            it('case1', function () {
+                const p = path.join(tmpDir, 'FooTest.java')
+                fs.writeFileSync(
+                    p,
+                    `
+package com.amazon.q.service;
+
+import com.amazon.q.foo.FooClass;
+import com.amazon.q.bar.BarClass;
+import com.amazon.q.baz1.baz2.BazClass;
+
+public class TestClass {}
+`
+                )
+
+                const actual = sut.extractImportedPaths(p, 'java', tmpDir)
+                assert.strictEqual(actual.length, 1)
+                assert.strictEqual(actual[0], 'com/amazon/q/service')
+            })
+        })
+
+        describe('python', function () {})
+
+        describe('ts', function () {})
+
+        describe('js', function () {})
+    })
+
+    describe('extractImportedSymbols', function () {
+        it('case1', function () {
+            const p = path.join(tmpDir, 'foo.js')
+            fs.writeFileSync(
+                p,
+                `
+import { foo, bar } from '../src/sample';
+import baz from '../src/sample';`
+            )
+
+            const actual = sut.extractImportedSymbols(p)
+            assert.strictEqual(actual.length, 3)
+            assert.ok(actual.includes('foo'))
+            assert.ok(actual.includes('bar'))
+            assert.ok(actual.includes('baz'))
+        })
+    })
+
+    describe('extractExportedSymbolsFromFile', function () {})
+
+    describe('resolveImportToAbsPath', function () {})
+
+    describe('resolvePackageToPath', function () {
+        it('dot', function () {
+            const actual = sut.resolvePackageToPath('com.amazon.q.service', '.')
+            assert.strictEqual(actual, path.join('com', 'amazon', 'q', 'service'))
+        })
+
+        it('slash', function () {
+            const actual = sut.resolvePackageToPath('com/amazon/q/service', '/')
+            assert.strictEqual(actual, path.join('com', 'amazon', 'q', 'service'))
         })
     })
 })

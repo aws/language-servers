@@ -65,6 +65,9 @@ export class FocalFileResolver {
         }
 
         const config = LANGUAGE_CONFIG[language]
+        if (!config) {
+            return undefined
+        }
 
         // find candidate focal files based on naming conventions
         const candidates: { fullPath: string; relativePath: string }[] = []
@@ -92,7 +95,7 @@ export class FocalFileResolver {
         }
 
         // filter based on the imported path and symbols
-        const importedFiles = this.extractImportedPaths(testFilePath, config, projectRoot)
+        const importedFiles = this.extractImportedPaths(testFilePath, language, projectRoot)
         const filteredCandidate = []
         for (const candidate of candidates) {
             for (const importedFileAbsPath of importedFiles) {
@@ -157,7 +160,8 @@ export class FocalFileResolver {
     }
 
     // @VisibleForTesting
-    extractImportedPaths(testFilePath: string, config: Metadata, projectRoot: string): string[] {
+    extractImportedPaths(testFilePath: string, lang: string, projectRoot: string): string[] {
+        const config = LANGUAGE_CONFIG[lang]
         const content = fs.readFileSync(testFilePath)
         const lines = content.toString().split(os.EOL)
         // TODO: original science source code use set
@@ -171,8 +175,7 @@ export class FocalFileResolver {
                 if (config.lang === 'java') {
                     const match = config.packageMarker?.exec(line)
                     if (match) {
-                        // TODO: 0 or 1 ?
-                        const pkg = match[1].replace(new RegExp(config.packageSeparator, 'g'), path.sep)
+                        const pkg = this.resolvePackageToPath(match[1], config.packageSeparator)
                         result.push(pkg)
                         continue
                     }
@@ -182,7 +185,7 @@ export class FocalFileResolver {
                     for (const pattern of config.importPatterns) {
                         const match = pattern.exec(line)
                         if (match) {
-                            const imp = match[1].replace(new RegExp(config.packageSeparator, 'g'), path.sep)
+                            const imp = this.resolvePackageToPath(match[1], config.packageSeparator)
                             result.push(imp)
                             continue
                         }
@@ -352,6 +355,15 @@ export class FocalFileResolver {
         }
 
         return undefined
+    }
+
+    /**
+     * @VisibleForTesting
+     * @param pkg e.g. "com.amazon.q.service"
+     * @param pkgSeparator e.g. "."
+     */
+    resolvePackageToPath(pkg: string, pkgSeparator: string): string {
+        return pkg.replace(new RegExp(`\\` + pkgSeparator, 'g'), path.sep)
     }
 
     // TODO: implementation: return all files under project root
