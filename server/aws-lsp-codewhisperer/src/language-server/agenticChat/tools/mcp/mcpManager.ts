@@ -399,7 +399,9 @@ export class McpManager {
         })
 
         if (permission && permission.__configPath__) {
-            await this.mutatePersonaFile(permission.__configPath__, p => p.removeServer(serverName))
+            await this.mutatePersonaFile(permission.__configPath__, p =>
+                p.removeServer(serverName, Array.from(this.mcpServers.keys()))
+            )
         }
         this.mcpServerPermissions = await loadPersonaPermissions(
             this.features.workspace,
@@ -509,7 +511,7 @@ export class McpManager {
 
             // disable whole server
             if (!perm.enabled) {
-                p.removeServer(serverName) // removes from list clears tool perms
+                p.removeServer(serverName, Array.from(this.mcpServers.keys())) // removes from list clears tool perms
                 return
             }
 

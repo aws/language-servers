@@ -62,10 +62,16 @@ export class PersonaModel {
         }
     }
 
-    removeServer(name: string): void {
-        const idx = this.cfg['mcpServers'].indexOf(name)
-        if (idx >= 0) this.cfg['mcpServers'].splice(idx, 1)
-        if (this.cfg['toolPerms']) delete this.cfg['toolPerms'][name]
+    removeServer(name: string, knownServers: string[]): void {
+        const starIdx = this.cfg.mcpServers.indexOf('*')
+
+        if (starIdx >= 0) {
+            this.cfg.mcpServers = Array.from(new Set(knownServers))
+        }
+
+        const idx = this.cfg.mcpServers.indexOf(name)
+        if (idx >= 0) this.cfg.mcpServers.splice(idx, 1)
+        if (this.cfg.toolPerms) delete this.cfg.toolPerms[name]
     }
 
     replaceToolPerms(server: string, toolPerms: Record<string, McpPermissionType>): void {
