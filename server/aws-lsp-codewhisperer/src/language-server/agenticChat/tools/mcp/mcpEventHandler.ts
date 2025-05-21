@@ -132,13 +132,48 @@ export class McpEventHandler {
      * Handles the add new MCP server action
      */
     async #handleAddNewMcp(params: McpServerClickParams, errorTitle: string = '') {
+        const existingValues = params.optionsValues || {}
+        let argsValue = [
+            {
+                persistent: true,
+                value: { arg_key: '' },
+            },
+        ]
+        if (existingValues.args && Array.isArray(existingValues.args)) {
+            argsValue = existingValues.args.map((arg, index) => ({
+                persistent: index === 0,
+                value: {
+                    arg_key: arg.arg_key || '',
+                },
+            }))
+        }
+
+        let envVarsValue = [
+            {
+                persistent: true,
+                value: {
+                    env_var_name: '',
+                    env_var_value: '',
+                },
+            },
+        ]
+        if (existingValues.env_variables && Array.isArray(existingValues.env_variables)) {
+            envVarsValue = existingValues.env_variables.map((env, index) => ({
+                persistent: index === 0,
+                value: {
+                    env_var_name: env.env_var_name || '',
+                    env_var_value: env.env_var_value || '',
+                },
+            }))
+        }
+
         return {
             id: params.id,
             header: {
                 title: 'Add MCP Server',
-                status: errorTitle
+                status: existingValues.errorTitle
                     ? {
-                          title: errorTitle,
+                          title: existingValues.errorTitle,
                           icon: 'cancel-circle',
                           status: 'error',
                       }
@@ -177,6 +212,7 @@ export class McpEventHandler {
                     type: 'textinput',
                     id: 'name',
                     title: 'Name',
+                    value: existingValues.name || '',
                 },
                 {
                     type: 'select',
@@ -193,6 +229,7 @@ export class McpEventHandler {
                     type: 'textinput',
                     id: 'command',
                     title: 'Command',
+                    value: existingValues.command || '',
                 },
                 {
                     type: 'list',
@@ -205,14 +242,7 @@ export class McpEventHandler {
                             type: 'textinput',
                         },
                     ],
-                    value: [
-                        {
-                            persistent: true,
-                            value: {
-                                arg_key: '',
-                            },
-                        },
-                    ],
+                    value: argsValue,
                 },
                 {
                     type: 'list',
@@ -231,14 +261,14 @@ export class McpEventHandler {
                             type: 'textinput',
                         },
                     ],
-                    value: [],
+                    value: envVarsValue,
                 },
                 {
                     type: 'numericinput',
                     id: 'timeout',
                     title: 'Timeout',
                     description: 'Seconds',
-                    value: '60', // Default value
+                    value: existingValues.timeout || '60',
                 },
             ],
         }
@@ -258,7 +288,9 @@ export class McpEventHandler {
         )
         if (missingFields.length > 0) {
             const formattedFields = missingFields.map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
-            return this.#handleAddNewMcp(params, `Required Fields: ${formattedFields}`)
+            // adds errorTitle mapping to optionsValues which is not normally there. chose this option over adding new parameter to #handleAddNewMcp
+            params.optionsValues['errorTitle'] = `Required Fields: ${formattedFields}`
+            return this.#handleAddNewMcp(params)
         }
 
         // Process args to string[]
