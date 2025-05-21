@@ -8,7 +8,7 @@ import { TextDocument } from '@aws/language-server-runtimes/server-interface'
 const testFileNameRegex: Record<string, RegExp[]> = {
     python: [/^test_.*\.py$/, /.*_test\.py$/],
     java: [/^test.*\.java$/, /.*Test\.java$/],
-    typescript: [/.*\.(test|spec)\.js$/],
+    typescript: [/.*\.(test|spec)\.ts$/],
     javascript: [/.*\.(test|spec)\.js$/],
 }
 
@@ -45,6 +45,7 @@ export class TestIntentDetector {
         }
     }
 
+    // @VisibleForTesting
     isTestFile(filePath: string, fileContent: string, language: string): boolean {
         if (!testFileNameRegex[language]) {
             throw new Error('lang not supported by utg completion')
@@ -59,6 +60,7 @@ export class TestIntentDetector {
         return testKeywordsRegex[language].some(regex => regex.test(fileContent))
     }
 
+    // @VisibleForTesting
     javaTestIntent(content: string): boolean {
         const signaturePattern = new RegExp(
             '@Test(?:\\s*@\\w+(?:\\(.*?\\))?\\s*)*' +
@@ -73,12 +75,14 @@ export class TestIntentDetector {
         return this.curlyBracesSyntaxUtil(signaturePattern, content)
     }
 
+    // @VisibleForTesting
     jsTsTestIntent(content: string): boolean {
         const signaturePattern = new RegExp(/(it|test)\s*\(\s*["\'].*?["\']\s*,\s*(async\s+)?\(\s*\)\s*=>\s*\{/, 'm')
 
         return this.curlyBracesSyntaxUtil(signaturePattern, content)
     }
 
+    // @VisibleForTesting
     pyTestIntent(content: string): boolean {
         const pattern = new RegExp(
             'def\\s+test_\\w+\\s*\\(.*\\):',
