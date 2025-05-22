@@ -12,7 +12,7 @@
         "webpack": "webpack"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.82",
+        "@aws/language-server-runtimes": "^0.2.85",
         "@aws/lsp-antlr4": "*",
         "antlr4-c3": "^3.4.1",
         "antlr4ng": "^3.0.4"
