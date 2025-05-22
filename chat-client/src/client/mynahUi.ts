@@ -1134,9 +1134,23 @@ ${params.message}`,
                     let icon = 'ok-circled'
                     let iconForegroundStatus = 'success'
 
-                    if (group.groupName === 'Disabled') {
-                        icon = 'block'
+                    // Extract status from serverInformation if available
+                    const serverInfoGroup = item.children?.find(child => child.groupName === 'serverInformation')
+                    const statusChild = serverInfoGroup?.children?.find(child => child.title === 'status')
+                    const status = statusChild?.description || 'DISABLED'
+
+                    if (status === 'ENABLED') {
+                        icon = 'ok-circled'
+                        iconForegroundStatus = 'success'
+                    } else if (status === 'FAILED') {
+                        icon = 'cancel-circle'
                         iconForegroundStatus = 'error'
+                    } else if (status === 'INITIALIZING') {
+                        icon = 'progress'
+                        iconForegroundStatus = 'info'
+                    } else if (group.groupName === 'Disabled') {
+                        icon = 'block'
+                        iconForegroundStatus = 'info'
                     }
 
                     // Create actions based on group name

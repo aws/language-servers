@@ -1,5 +1,5 @@
 import { Features } from '../../../types'
-import { McpManager } from './mcpManager'
+import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import {
     DetailedListGroup,
     DetailedListItem,
@@ -48,7 +48,7 @@ export class McpEventHandler {
                         children: [
                             {
                                 title: 'status',
-                                description: serverState?.status || 'Unknown',
+                                description: serverState?.status || 'DISABLED',
                             },
                             {
                                 title: 'toolcount',
