@@ -1,10 +1,10 @@
 import { CredentialsProvider, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { CreateUploadUrlResponse } from '../../client/token/codewhispererbearertokenclient'
-import got from 'got'
 import { URI } from 'vscode-uri'
 import * as fs from 'fs'
 import * as crypto from 'crypto'
 import * as path from 'path'
+import axios from 'axios'
 
 export const findWorkspaceRootFolder = (
     fileUri: string,
@@ -47,10 +47,7 @@ export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlR
             'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
         })
     }
-    await got.put(resp.uploadUrl, {
-        body: content,
-        headers: headersObj,
-    })
+    await axios.put(resp.uploadUrl, { body: content, headers: headersObj })
 }
 
 export const isDirectory = (path: string): boolean => {
