@@ -1422,6 +1422,8 @@ ${params.message}`,
         const typedParams = params as McpServerParams
 
         if (params.id === 'add-new-mcp') {
+            //turning off splash loader in case of being on when new server is added
+            mynahUi.toggleSplashLoader(false)
             const detailedList = createAddMcpServerDetailedList(typedParams)
 
             const events = {
@@ -1438,15 +1440,14 @@ ${params.message}`,
                     } else if (actionParams.id === 'save-mcp') {
                         mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
                         messager.onMcpServerClick(actionParams.id, 'Save configuration', filterValues)
-                        setTimeout(() => {
-                            mynahUi.toggleSplashLoader(false)
-                        }, 10000)
                     }
                 },
             }
 
             mynahUi.openDetailedList({ detailedList, events }, true)
         } else if (params.id === 'open-mcp-server') {
+            //turning off splash loader in case of being on when new server is added
+            mynahUi.toggleSplashLoader(false)
             const detailedList = createViewMcpServerDetailedList(typedParams)
 
             const mcpServerSheet = mynahUi.openDetailedList(

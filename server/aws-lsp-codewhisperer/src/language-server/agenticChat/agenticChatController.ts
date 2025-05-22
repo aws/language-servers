@@ -960,14 +960,23 @@ export class AgenticChatController implements ChatHandlers {
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
                         const tool = new Tool(this.#features)
 
+                        // For MCP tools, get the permission from McpManager
+                        const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
+                        // If permission is 'alwaysAllow', we don't need to ask for acceptance
+                        const builtInPermission = permission !== 'alwaysAllow'
+
                         // Get the approved paths from the session
                         const approvedPaths = session.approvedPaths
 
                         // Pass the approved paths to the tool's requiresAcceptance method
-                        const { requiresAcceptance, warning, commandCategory } = await tool.requiresAcceptance(
-                            toolUse.input as any,
-                            approvedPaths
-                        )
+                        const {
+                            requiresAcceptance: toolRequiresAcceptance,
+                            warning,
+                            commandCategory,
+                        } = await tool.requiresAcceptance(toolUse.input as any, approvedPaths)
+
+                        // Honor built-in permission if available, otherwise use tool's requiresAcceptance
+                        const requiresAcceptance = builtInPermission || toolRequiresAcceptance
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -975,7 +984,9 @@ export class AgenticChatController implements ChatHandlers {
                                 toolUse,
                                 requiresAcceptance,
                                 warning,
-                                commandCategory
+                                commandCategory,
+                                undefined,
+                                builtInPermission
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
@@ -1549,7 +1560,8 @@ export class AgenticChatController implements ChatHandlers {
         requiresAcceptance: Boolean,
         warning?: string,
         commandCategory?: CommandCategory,
-        toolType?: string
+        toolType?: string,
+        builtInPermission?: boolean
     ): ChatResult {
         let buttons: Button[] = []
         let header: {
@@ -1624,11 +1636,15 @@ export class AgenticChatController implements ChatHandlers {
                 header = {
                     icon: 'warning',
                     iconForegroundStatus: 'warning',
-                    body: '#### Allow file modification outside of your workspace',
+                    body: builtInPermission
+                        ? '#### Allow file modification'
+                        : '#### Allow file modification outside of your workspace',
                     buttons,
                 }
                 const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
-                body = `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
+                body = builtInPermission
+                    ? `I need permission to modify files.\n\`${writeFilePath}\``
+                    : `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
                 break
 
             case 'fsRead':
@@ -1644,7 +1660,9 @@ export class AgenticChatController implements ChatHandlers {
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'tools',
-                    body: '#### Allow read-only tools outside your workspace',
+                    body: builtInPermission
+                        ? '#### Allow read-only tools'
+                        : '#### Allow read-only tools outside your workspace',
                     buttons,
                 }
                 // ⚠️ Warning: This accesses files outside the workspace
@@ -1652,10 +1670,14 @@ export class AgenticChatController implements ChatHandlers {
                     const paths = (toolUse.input as unknown as FsReadParams).paths
                     const formattedPaths: string[] = []
                     paths.forEach(element => formattedPaths.push(`\`${element}\``))
-                    body = `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
+                    body = builtInPermission
+                        ? `I need permission to read files.\n${formattedPaths.join('\n')}`
+                        : `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
                 } else {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
-                    body = `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
+                    body = builtInPermission
+                        ? `I need permission to list directories.\n\`${readFilePath}\``
+                        : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
                 }
                 break
             // — DEFAULT ⇒ MCP tools
