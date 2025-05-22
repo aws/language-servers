@@ -237,6 +237,7 @@ export class LocalProjectContextController {
                     merged.push(addition)
                 }
             }
+            this.workspaceFolders = merged
             if (this._vecLib && this._isIndexingEnabled) {
                 void this.buildIndex()
             }
