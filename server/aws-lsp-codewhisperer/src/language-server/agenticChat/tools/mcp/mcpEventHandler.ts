@@ -152,11 +152,52 @@ export class McpEventHandler {
      * Handles the add new MCP server action
      */
     async #handleAddNewMcp(params: McpServerClickParams) {
+        const existingValues = params.optionsValues || {}
+        let argsValue = [
+            {
+                persistent: true,
+                value: { arg_key: '' },
+            },
+        ]
+        if (existingValues.args && Array.isArray(existingValues.args)) {
+            argsValue = existingValues.args.map((arg, index) => ({
+                persistent: index === 0,
+                value: {
+                    arg_key: arg.arg_key || '',
+                },
+            }))
+        }
+
+        let envVarsValue = [
+            {
+                persistent: true,
+                value: {
+                    env_var_name: '',
+                    env_var_value: '',
+                },
+            },
+        ]
+        if (existingValues.env_variables && Array.isArray(existingValues.env_variables)) {
+            envVarsValue = existingValues.env_variables.map((env, index) => ({
+                persistent: index === 0,
+                value: {
+                    env_var_name: env.env_var_name || '',
+                    env_var_value: env.env_var_value || '',
+                },
+            }))
+        }
+
         return {
             id: params.id,
             header: {
                 title: 'Add MCP Server',
-                status: {},
+                status: existingValues.errorTitle
+                    ? {
+                          title: existingValues.errorTitle,
+                          icon: 'cancel-circle',
+                          status: 'error',
+                      }
+                    : {},
                 actions: [],
             },
             list: [],
@@ -186,11 +227,13 @@ export class McpEventHandler {
                             value: 'workspace',
                         },
                     ],
+                    value: existingValues.scope || 'global',
                 },
                 {
                     type: 'textinput',
                     id: 'name',
                     title: 'Name',
+                    value: existingValues.name || '',
                     mandatory: true,
                 },
                 {
@@ -209,6 +252,7 @@ export class McpEventHandler {
                     type: 'textinput',
                     id: 'command',
                     title: 'Command',
+                    value: existingValues.command || '',
                     mandatory: true,
                 },
                 {
@@ -222,14 +266,7 @@ export class McpEventHandler {
                             type: 'textinput',
                         },
                     ],
-                    value: [
-                        {
-                            persistent: true,
-                            value: {
-                                arg_key: '',
-                            },
-                        },
-                    ],
+                    value: argsValue,
                 },
                 {
                     type: 'list',
@@ -248,14 +285,14 @@ export class McpEventHandler {
                             type: 'textinput',
                         },
                     ],
-                    value: [],
+                    value: envVarsValue,
                 },
                 {
                     type: 'numericinput',
                     id: 'timeout',
                     title: 'Timeout',
                     description: 'Seconds',
-                    value: '60', // Default value
+                    value: existingValues.timeout || '60', // Default value
                     mandatory: false,
                 },
             ],
@@ -268,6 +305,19 @@ export class McpEventHandler {
     async #handleSaveMcp(params: McpServerClickParams) {
         if (!params.optionsValues) {
             return this.#getDefaultMcpResponse(params.id)
+        }
+
+        const requiredFields = ['name', 'command', 'timeout']
+        const missingFields = requiredFields.filter(
+            field => !params.optionsValues?.[field] || params.optionsValues[field].trim() === ''
+        )
+        if (missingFields.length > 0) {
+            const formattedFields = missingFields.map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
+            // adds errorTitle mapping to optionsValues which is not normally there. chose this option over adding new parameter to #handleAddNewMcp
+            params.optionsValues['errorTitle'] = `Required Fields: ${formattedFields}`
+            // goes back to add-new-mcp page but will now show an error card
+            params.id = 'add-new-mcp'
+            return this.#handleAddNewMcp(params)
         }
 
         // Process args to string[]
@@ -325,7 +375,7 @@ export class McpEventHandler {
         // TODO: According to workspace specific scope and persona and pass configPath to addServer
         await McpManager.instance.addServer(serverName, config, configPath, personaPath)
 
-        return this.#getDefaultMcpResponse(params.id)
+        return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
     }
 
     /**

@@ -1346,6 +1346,7 @@ ${params.message}`,
             header: {
                 title: params.header?.title || 'Add MCP Server',
                 description: params.header?.description || '',
+                status: params.header?.status || {},
             },
             filterOptions: processFilterOptions(params.filterOptions),
             filterActions: params.filterActions,
@@ -1440,7 +1441,6 @@ ${params.message}`,
                         setTimeout(() => {
                             mynahUi.toggleSplashLoader(false)
                         }, 10000)
-                        messager.onMcpServerClick('open-mcp-server', filterValues?.['name'])
                     }
                 },
             }
