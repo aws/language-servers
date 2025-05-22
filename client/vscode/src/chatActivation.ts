@@ -347,6 +347,8 @@ export function registerChat(
         if (document) {
             await document.save()
         }
+
+        return null
     })
 
     languageClient.onRequest(ShowSaveFileDialogRequestType.method, async (params: ShowSaveFileDialogParams) => {
