@@ -44,6 +44,7 @@ export class CodePercentageTracker {
                             {
                                 percentage: event.codewhispererPercentage,
                                 successCount: event.successCount,
+                                credentialStartUrl: event.credentialStartUrl,
                             }
                         )
                 )

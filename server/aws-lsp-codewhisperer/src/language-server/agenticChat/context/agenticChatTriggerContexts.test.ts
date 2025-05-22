@@ -14,6 +14,7 @@ import { ChatTriggerType, CursorState } from '@amzn/codewhisperer-streaming'
 import { URI } from 'vscode-uri'
 import { InitializeParams } from '@aws/language-server-runtimes/protocol'
 import { TestFolder } from '@aws/lsp-core/out/test/testFolder'
+import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
 
 describe('AgenticChatTriggerContext', () => {
     let testFeatures: TestFeatures
@@ -28,12 +29,11 @@ describe('AgenticChatTriggerContext', () => {
         hasCodeSnippet: false,
         totalEditorCharacters: 0,
     }
+    let mockWorkspaceFolderManager: any
 
     beforeEach(() => {
         testFeatures = new TestFeatures()
-        testFeatures.setClientParams({
-            workspaceFolders: mockWorkspaceFolders,
-        } as InitializeParams)
+        testFeatures.workspace.getAllWorkspaceFolders = sinon.stub().returns(mockWorkspaceFolders) as any
         sinon.stub(DocumentContextExtractor.prototype, 'extractDocumentContext').resolves(mockDocumentContext)
     })
 
@@ -152,7 +152,6 @@ describe('AgenticChatTriggerContext', () => {
 
     it('does not include modelId in chat params when not provided', async () => {
         const triggerContext = new AgenticChatTriggerContext(testFeatures)
-
         const chatParams = await triggerContext.getChatParamsFromTrigger(
             { tabId: 'tab', prompt: {} },
             {},
@@ -160,6 +159,40 @@ describe('AgenticChatTriggerContext', () => {
         )
 
         assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, undefined)
+    })
+
+    it('includes remote workspaceId if it exists and is connected', async () => {
+        mockWorkspaceFolderManager = {
+            getWorkspaceState: sinon.stub(),
+        }
+        sinon.stub(WorkspaceFolderManager, 'getInstance').returns(mockWorkspaceFolderManager)
+        mockWorkspaceFolderManager.getWorkspaceState.returns({
+            webSocketClient: { isConnected: true },
+            workspaceId: 'test-workspace-123',
+        })
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
+        const chatParams = await triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            {},
+            ChatTriggerType.MANUAL
+        )
+        const chatParamsWithMore = await triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            { cursorState: {} as CursorState, relativeFilePath: '' },
+            ChatTriggerType.MANUAL
+        )
+
+        assert.deepStrictEqual(
+            chatParams.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                ?.workspaceFolders,
+            mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
+        )
+        assert.deepStrictEqual(
+            chatParamsWithMore.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                ?.workspaceFolders,
+            mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
+        )
+        assert.deepStrictEqual(chatParamsWithMore.conversationState?.workspaceId, 'test-workspace-123')
     })
 
     describe('getTextDocument', function () {

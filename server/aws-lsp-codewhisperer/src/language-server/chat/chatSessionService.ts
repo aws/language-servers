@@ -11,7 +11,7 @@ import {
     SendMessageCommandOutput,
 } from '../../shared/streamingClientService'
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
-import { AgenticChatError, isInputTooLongError, wrapErrorWithCode } from '../agenticChat/errors'
+import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapErrorWithCode } from '../agenticChat/errors'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
@@ -27,7 +27,9 @@ export class ChatSessionService {
     public contextListSent: boolean = false
     public modelId: string | undefined
     #abortController?: AbortController
+    #currentPromptId?: string
     #conversationId?: string
+    #conversationType: string = 'AgenticChat'
     #deferredToolExecution: Record<string, DeferredHandler> = {}
     #toolUseLookup: Map<
         string,
@@ -37,6 +39,14 @@ export class ChatSessionService {
     // Map to store approved paths to avoid repeated validation
     #approvedPaths: Set<string> = new Set<string>()
     #serviceManager?: AmazonQBaseServiceManager
+
+    public getConversationType(): string {
+        return this.#conversationType
+    }
+
+    public setConversationType(value: string) {
+        this.#conversationType = value
+    }
 
     public get conversationId(): string | undefined {
         return this.#conversationId
@@ -142,11 +152,19 @@ export class ChatSessionService {
             try {
                 return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {
+                if (isRequestAbortedError(e)) {
+                    const requestId =
+                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
+                    throw new AgenticChatError(
+                        'Request aborted',
+                        'RequestAborted',
+                        e instanceof Error ? e : undefined,
+                        requestId
+                    )
+                }
                 if (isInputTooLongError(e)) {
-                    let requestId
-                    if (e instanceof CodeWhispererStreamingServiceException) {
-                        requestId = e.$metadata?.requestId
-                    }
+                    const requestId =
+                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
                     throw new AgenticChatError(
                         'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.',
                         'InputTooLong',
@@ -172,6 +190,23 @@ export class ChatSessionService {
 
     public dispose(): void {
         this.#abortController?.abort()
+    }
+
+    /**
+     * Sets the current prompt ID
+     * @param promptId The unique ID of the current prompt
+     */
+    public setCurrentPromptId(promptId: string): void {
+        this.#currentPromptId = promptId
+    }
+
+    /**
+     * Checks if the given prompt ID matches the current one
+     * @param promptId The prompt ID to check
+     * @returns True if the given prompt ID matches the current one
+     */
+    public isCurrentPrompt(promptId: string): boolean {
+        return this.#currentPromptId === promptId
     }
 
     public abortRequest(): void {

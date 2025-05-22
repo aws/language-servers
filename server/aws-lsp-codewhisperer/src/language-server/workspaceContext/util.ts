@@ -1,10 +1,10 @@
 import { CredentialsProvider, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { CreateUploadUrlResponse } from '../../client/token/codewhispererbearertokenclient'
-import got from 'got'
 import { URI } from 'vscode-uri'
 import * as fs from 'fs'
 import * as crypto from 'crypto'
 import * as path from 'path'
+import axios from 'axios'
 
 export const findWorkspaceRootFolder = (
     fileUri: string,
@@ -47,14 +47,20 @@ export const uploadArtifactToS3 = async (content: Buffer, resp: CreateUploadUrlR
             'x-amz-server-side-encryption-context': Buffer.from(encryptionContext, 'utf8').toString('base64'),
         })
     }
-    await got.put(resp.uploadUrl, {
-        body: content,
-        headers: headersObj,
-    })
+    await axios.put(resp.uploadUrl, { body: content, headers: headersObj })
 }
 
 export const isDirectory = (path: string): boolean => {
     return fs.statSync(URI.parse(path).path).isDirectory()
+}
+
+export const resolveSymlink = (dependencyPath: string): string => {
+    let truePath: string = dependencyPath
+    if (fs.lstatSync(dependencyPath).isSymbolicLink()) {
+        // Get the real path (resolves all symlinks in the path)
+        truePath = fs.realpathSync(dependencyPath)
+    }
+    return truePath
 }
 
 export const isEmptyDirectory = (path: string): boolean => {

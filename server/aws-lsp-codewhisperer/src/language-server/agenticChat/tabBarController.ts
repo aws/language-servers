@@ -19,6 +19,7 @@ import { URI, Utils } from 'vscode-uri'
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { ChatHistoryActionType } from '../../shared/telemetry/types'
+import { CancellationError } from '@aws/lsp-core'
 
 /**
  * Controller for managing chat history and export functionality.
@@ -189,14 +190,17 @@ export class TabBarController {
                 return { ...params, success: false }
             }
 
-            const format = await this.onExportTab(openTabID)
+            const exportTabResponse = await this.onExportTab(openTabID)
 
             this.#telemetryService.emitChatHistoryAction({
                 action: ChatHistoryActionType.Export,
                 languageServerVersion: this.#features.runtime.serverInfo.version,
-                filenameExt: format,
-                result: 'Succeeded',
+                filenameExt: exportTabResponse.format,
+                result: exportTabResponse.result,
             })
+            if (exportTabResponse.result !== 'Succeeded') {
+                return { ...params, success: false }
+            }
         } else {
             this.#features.logging.error(`Unsupported action: ${params.action}`)
             return { ...params, success: false }
@@ -207,15 +211,17 @@ export class TabBarController {
 
     async onTabBarAction(params: TabBarActionParams) {
         if (params.action === 'export' && params.tabId) {
-            const format = await this.onExportTab(params.tabId)
+            const exportTabResponse = await this.onExportTab(params.tabId)
 
             this.#telemetryService.emitExportTab({
-                filenameExt: format,
+                filenameExt: exportTabResponse.format,
                 languageServerVersion: this.#features.runtime.serverInfo.version,
-                result: 'Succeeded',
+                result: exportTabResponse.result,
             })
 
-            return { ...params, success: true }
+            const actionResult = exportTabResponse.result === 'Succeeded'
+
+            return { ...params, success: actionResult }
         }
 
         this.#features.logging.error(`Unsupported action ${params.action}`)
@@ -224,32 +230,54 @@ export class TabBarController {
 
     async onExportTab(tabId: string) {
         const defaultFileName = `q-dev-chat-${new Date().toISOString().split('T')[0]}.md`
+        try {
+            let defaultUri
+            let workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
+            if (workspaceFolders && workspaceFolders.length > 0) {
+                const workspaceUri = URI.parse(workspaceFolders[0].uri)
+                defaultUri = Utils.joinPath(workspaceUri, defaultFileName)
+            } else {
+                defaultUri = URI.file(defaultFileName)
+            }
 
-        let defaultUri
-        const clientParams = this.#features.lsp.getClientInitializeParams()
-        let workspaceFolders = clientParams?.workspaceFolders
-        if (workspaceFolders && workspaceFolders.length > 0) {
-            const workspaceUri = URI.parse(workspaceFolders[0].uri)
-            defaultUri = Utils.joinPath(workspaceUri, defaultFileName)
-        } else {
-            defaultUri = URI.file(defaultFileName)
+            const { targetUri } = await this.#features.lsp.window.showSaveFileDialog({
+                supportedFormats: ['markdown', 'html'],
+                defaultUri: defaultUri.toString(),
+            })
+
+            if (targetUri === null || targetUri === '') {
+                // If user cancelled the show save file dialog, targetUri will be empty.
+                throw new CancellationError('user')
+            }
+
+            const targetPath = URI.parse(targetUri)
+            const format = targetPath.fsPath.endsWith('.md') ? 'markdown' : 'html'
+            const { content } = await this.#features.chat.getSerializedChat({
+                tabId,
+                format,
+            })
+
+            await this.#features.workspace.fs.writeFile(targetPath.fsPath, content)
+
+            return {
+                format: format,
+                result: 'Succeeded' as const,
+            }
+        } catch (error: any) {
+            if (error instanceof CancellationError) {
+                this.#features.logging.debug('Export cancelled by user')
+                return {
+                    format: '',
+                    result: 'Cancelled' as const,
+                }
+            }
+
+            this.#features.logging.error(`Unable to export tab "${tabId}": ${error.message || error}`)
+            return {
+                format: '',
+                result: 'Failed' as const,
+            }
         }
-
-        const { targetUri } = await this.#features.lsp.window.showSaveFileDialog({
-            supportedFormats: ['markdown', 'html'],
-            defaultUri: defaultUri.toString(),
-        })
-
-        const targetPath = URI.parse(targetUri)
-        const format = targetPath.fsPath.endsWith('.md') ? 'markdown' : 'html'
-        const { content } = await this.#features.chat.getSerializedChat({
-            tabId,
-            format,
-        })
-
-        await this.#features.workspace.fs.writeFile(targetPath.fsPath, content)
-
-        return format
     }
 
     /**

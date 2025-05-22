@@ -33,6 +33,7 @@ import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
+import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -55,6 +56,9 @@ export const workspaceChunkMaxSize = 40_960
 
 // limit for the length of additionalContent
 export const additionalContextMaxLength = 100
+
+// maximum number of workspace folders allowed by the API
+export const maxWorkspaceFolders = 100
 
 export class AgenticChatTriggerContext {
     private static readonly DEFAULT_CURSOR_STATE: CursorState = { position: { line: 0, character: 0 } }
@@ -107,8 +111,8 @@ export class AgenticChatTriggerContext {
         modelId?: string
     ): Promise<GenerateAssistantResponseCommandInput> {
         const { prompt } = params
-        const defaultEditorState = { workspaceFolders: workspaceUtils.getWorkspaceFolderPaths(this.#lsp) }
-
+        const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
+        const defaultEditorState = { workspaceFolders }
         const hasWorkspace = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
 
         // prompt.prompt is what user typed in the input, should be sent to backend
@@ -124,6 +128,16 @@ export class AgenticChatTriggerContext {
         if (hasWorkspace) {
             promptContent = promptContent?.replace(/\*\*@workspace\*\*/, '')
         }
+
+        // Append remote workspaceId if it exists
+        // Only append workspaceId to GenerateCompletions when WebSocket client is connected
+        const remoteWsFolderManager = WorkspaceFolderManager.getInstance()
+        const workspaceId =
+            (remoteWsFolderManager &&
+                remoteWsFolderManager.getWorkspaceState().webSocketClient?.isConnected &&
+                remoteWsFolderManager.getWorkspaceState().workspaceId) ||
+            undefined
+        this.#logging.info(`remote workspaceId: ${workspaceId}`)
 
         // Get workspace documents if @workspace is used
         let relevantDocuments = hasWorkspace
@@ -174,6 +188,7 @@ export class AgenticChatTriggerContext {
 
         const data: GenerateAssistantResponseCommandInput = {
             conversationState: {
+                workspaceId: workspaceId,
                 chatTriggerType: chatTriggerType,
                 currentMessage: {
                     userInputMessage: {

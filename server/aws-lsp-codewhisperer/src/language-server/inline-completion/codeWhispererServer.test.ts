@@ -6,6 +6,7 @@ import {
     MetricEvent,
     Position,
     InitializeParams,
+    ResponseError,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -52,6 +53,8 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
+import { INVALID_TOKEN } from '../../shared/constants'
+import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -167,6 +170,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
@@ -199,6 +203,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: firstTwoLines,
@@ -255,6 +260,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri,
                     filename: URI.parse(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
@@ -309,6 +315,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: extraContext + '\n',
@@ -352,6 +359,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE_WITH_EXTENSION.uri,
                     filename: URI.parse(SOME_FILE_WITH_EXTENSION.uri).path.substring(1),
                     programmingLanguage: { languageName: 'cpp' },
                     leftFileContent: '',
@@ -439,6 +447,7 @@ describe('CodeWhisperer Server', () => {
             const rightContext = lines.slice(cutOffLine).join('\n')
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: MY_FILE.uri,
                     filename: URI.parse(MY_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: leftContext,
@@ -476,6 +485,7 @@ describe('CodeWhisperer Server', () => {
             const modifiedRightContext = lines.slice(cutOffLine).join('\n')
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: MY_WINDOWS_FILE.uri,
                     filename: URI.parse(MY_WINDOWS_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: modifiedLeftContext,
@@ -620,6 +630,38 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
+        it('throws ResponseError with expected message if connection is expired', async () => {
+            service.generateSuggestions.returns(Promise.reject(new Error(INVALID_TOKEN)))
+
+            const promise = async () =>
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+            // Throws expected error
+            assert.rejects(promise, ResponseError, 'E_AMAZON_Q_CONNECTION_EXPIRED')
+        })
+
+        it('throws ResponseError if error is AmazonQError', async () => {
+            service.generateSuggestions.returns(Promise.reject(new AmazonQError('test', '500')))
+
+            const promise = async () =>
+                await features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: { line: 0, character: 0 },
+                        context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    },
+                    CancellationToken.None
+                )
+            // Throws expected error
+            assert.rejects(promise, ResponseError)
+        })
+
         describe('Supplemental Context', () => {
             it('should send supplemental context when using token authentication', async () => {
                 const test_service = sinon.createStubInstance(
@@ -669,6 +711,7 @@ describe('CodeWhisperer Server', () => {
 
                 const expectedGenerateSuggestionsRequest = {
                     fileContext: {
+                        fileUri: 'file:///TargetFile.java',
                         filename: 'TargetFile.java',
                         programmingLanguage: { languageName: 'java' },
                         leftFileContent: '',
@@ -1158,6 +1201,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: SPECIAL_CHARACTER_HELLO_WORLD.substring(0, 1),
@@ -1192,6 +1236,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: LEFT_FILE_CONTEXT,
@@ -1392,6 +1437,13 @@ describe('CodeWhisperer Server', () => {
         })
 
         it('should emit Success ServiceInvocation telemetry on successful response', async () => {
+            await updateConfiguration(
+                features,
+                Promise.resolve({
+                    includeImportsWithSuggestions: true,
+                })
+            )
+
             await features.doInlineCompletionWithReferences(
                 {
                     textDocument: { uri: SOME_FILE.uri },
@@ -1421,6 +1473,8 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Succeeded',
+                    codewhispererImportRecommendationEnabled: true,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1469,6 +1523,8 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Succeeded',
+                    codewhispererImportRecommendationEnabled: false,
                 },
             }
             sinon.assert.calledOnceWithExactly(features.telemetry.emitMetric, expectedServiceInvocationMetric)
@@ -1508,6 +1564,9 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Failed',
+                    codewhispererImportRecommendationEnabled: undefined,
+                    traceId: 'notSet',
                 },
                 errorData: {
                     reason: 'TestError',
@@ -1550,6 +1609,9 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Failed',
+                    codewhispererImportRecommendationEnabled: undefined,
+                    traceId: 'notSet',
                 },
                 errorData: {
                     reason: 'UnknownError',
@@ -1604,6 +1666,9 @@ describe('CodeWhisperer Server', () => {
                     codewhispererSupplementalContextLatency: undefined,
                     codewhispererSupplementalContextLength: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Failed',
+                    codewhispererImportRecommendationEnabled: undefined,
+                    traceId: 'notSet',
                 },
                 errorData: {
                     reason: 'TestAWSError',
@@ -1637,6 +1702,8 @@ describe('CodeWhisperer Server', () => {
                     codewhispererLanguage: 'csharp',
                     credentialStartUrl: undefined,
                     codewhispererCustomizationArn: undefined,
+                    result: 'Succeeded',
+                    passive: true,
                 },
             }
             sinon.assert.calledWithExactly(features.telemetry.emitMetric, expectedPerceivedLatencyMetric)
@@ -1745,6 +1812,9 @@ describe('CodeWhisperer Server', () => {
                     startPosition: { line: 0, character: 0 },
                     endPosition: { line: 0, character: 14 },
                     customizationArn: undefined,
+                    completionType: 'Line',
+                    triggerType: 'OnDemand',
+                    credentialStartUrl: undefined,
                 })
             })
 
@@ -1775,16 +1845,24 @@ describe('CodeWhisperer Server', () => {
 
                 await clock.tickAsync(5 * 60 * 1000 + 30)
 
-                sinon.assert.calledOnceWithExactly(telemetryServiceSpy, {
-                    sessionId: 'cwspr-session-id',
-                    requestId: 'cwspr-request-id',
-                    languageId: 'csharp',
-                    customizationArn: undefined,
-                    timestamp: new Date(startTime.getTime() + 5 * 60 * 1000),
-                    acceptedCharacterCount: 14,
-                    modificationPercentage: 0.9285714285714286,
-                    unmodifiedAcceptedCharacterCount: 1,
-                })
+                sinon.assert.calledOnceWithExactly(
+                    telemetryServiceSpy,
+                    {
+                        sessionId: 'cwspr-session-id',
+                        requestId: 'cwspr-request-id',
+                        languageId: 'csharp',
+                        customizationArn: undefined,
+                        timestamp: new Date(startTime.getTime() + 5 * 60 * 1000),
+                        acceptedCharacterCount: 14,
+                        modificationPercentage: 0.9285714285714286,
+                        unmodifiedAcceptedCharacterCount: 1,
+                    },
+                    {
+                        completionType: 'Line',
+                        triggerType: 'OnDemand',
+                        credentialStartUrl: undefined,
+                    }
+                )
             })
         })
     })

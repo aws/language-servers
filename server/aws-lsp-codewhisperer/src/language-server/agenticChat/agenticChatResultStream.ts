@@ -44,6 +44,8 @@ interface FileDetailsWithPath extends FileDetails {
 
 type OperationType = 'read' | 'write' | 'listDir'
 
+export const progressPrefix = 'progress_'
+
 interface FileOperation {
     type: OperationType
     filePaths: FileDetailsWithPath[]
@@ -199,6 +201,49 @@ export class AgenticChatResultStream {
      */
     async removeResultBlock(messageId: string) {
         this.#state.chatResultBlocks = this.#state.chatResultBlocks.filter(block => block.messageId !== messageId)
+    }
+
+    /**
+     * Removes a specific messageId and renders the result on UI
+     * @param messageId
+     */
+    async removeResultBlockAndUpdateUI(messageId: string) {
+        if (this.hasMessage(messageId)) {
+            const blockId = this.getMessageBlockId(messageId)
+            if (blockId !== undefined) {
+                await this.overwriteResultBlock({ body: '', messageId: messageId }, blockId)
+            }
+            await this.removeResultBlock(messageId)
+        }
+    }
+
+    async updateOngoingProgressResult(errorMessage: string) {
+        for (const block of this.#state.chatResultBlocks) {
+            if (block.messageId?.startsWith(progressPrefix) && block.header?.status?.icon === 'progress') {
+                await this.removeResultBlockAndUpdateUI(block.messageId)
+                block.header.status = {
+                    status: 'error',
+                    icon: 'error',
+                    text: errorMessage,
+                }
+                block.messageId = block.messageId.substring(progressPrefix.length)
+                await this.writeResultBlock(block)
+                break
+            }
+        }
+    }
+
+    hasMessage(messageId: string): boolean {
+        return this.#state.chatResultBlocks.some(block => block.messageId === messageId)
+    }
+
+    getMessageBlockId(messageId: string): number | undefined {
+        for (const [i, block] of this.#state.chatResultBlocks.entries()) {
+            if (block.messageId === messageId) {
+                return i
+            }
+        }
+        return undefined
     }
 
     getResultStreamWriter(): ResultStreamWriter {

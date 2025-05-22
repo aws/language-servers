@@ -3,6 +3,7 @@
  * Will be deleted or merged.
  */
 
+import * as crypto from 'crypto'
 import * as path from 'path'
 import * as chokidar from 'chokidar'
 import {
@@ -56,11 +57,13 @@ import {
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
 import { AgenticChatResultStream } from './agenticChatResultStream'
+import { AgenticChatError } from './errors'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
     const mockConversationId = 'mock-conversation-id'
     const mockMessageId = 'mock-message-id'
+    const mockPromptId = 'mock-prompt-id'
 
     const mockChatResponseList: ChatResponseStream[] = [
         {
@@ -340,6 +343,28 @@ describe('AgenticChatController', () => {
             chatController.onTabAdd({ tabId: mockTabId })
         })
 
+        describe('Prompt ID', () => {
+            let setCurrentPromptIdStub: sinon.SinonStub
+
+            beforeEach(() => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                setCurrentPromptIdStub = sinon.stub(session, 'setCurrentPromptId')
+            })
+
+            it('sets prompt ID at the beginning of onChatPrompt', async () => {
+                await chatController.onChatPrompt(
+                    { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                    mockCancellationToken
+                )
+
+                sinon.assert.calledOnce(setCurrentPromptIdStub)
+                // Verify the prompt ID is a UUID string
+                const promptId = setCurrentPromptIdStub.firstCall.args[0]
+                assert.strictEqual(typeof promptId, 'string')
+                assert.ok(promptId.length > 0)
+            })
+        })
+
         it('read all the response streams and return compiled results', async () => {
             const chatResultPromise = chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello' } },
@@ -400,6 +425,35 @@ describe('AgenticChatController', () => {
             // Verify that the history was passed to the request
             const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(requestInput.conversationState?.history, mockHistory)
+        })
+
+        it('skips adding user message to history when token is cancelled', async () => {
+            // Create a cancellation token that is already cancelled
+            const cancelledToken = {
+                isCancellationRequested: true,
+                onCancellationRequested: () => ({ dispose: () => null }),
+            }
+
+            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
+
+            // Execute with cancelled token
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, cancelledToken)
+
+            sinon.assert.notCalled(addMessageSpy)
+        })
+
+        it('skips adding user message to history when prompt ID is no longer current', async () => {
+            // Setup session with a different current prompt ID
+            const session = chatSessionManagementService.getSession(mockTabId).data!
+            const isCurrentPromptStub = sinon.stub(session, 'isCurrentPrompt').returns(false)
+
+            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
+
+            // Execute with non-current prompt ID
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.called(isCurrentPromptStub)
+            sinon.assert.notCalled(addMessageSpy)
         })
 
         it('handles tool use responses and makes multiple requests', async () => {
@@ -1247,6 +1301,248 @@ describe('AgenticChatController', () => {
             })
         })
     })
+    describe('truncateRequest', () => {
+        it('should truncate user input message if exceeds limit', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(590_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        {
+                                            relativeFilePath: '',
+                                            text: 'a'.repeat(490_000),
+                                        },
+                                    ],
+                                    document: {
+                                        relativeFilePath: '',
+                                        text: 'a'.repeat(490_000),
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    history: [
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(490_000),
+                            },
+                        },
+                    ],
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 500_000)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.document?.text?.length || 0,
+                0
+            )
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length || 0,
+                0
+            )
+            assert.strictEqual(request.conversationState?.history?.length || 0, 1)
+            assert.strictEqual(result, 0)
+        })
+
+        it('should not modify user input message if within limit', () => {
+            const message = 'hello world'
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: message,
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            chatController.truncateRequest(request)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content, message)
+        })
+
+        it('should truncate relevant documents if combined length exceeds remaining budget', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        {
+                                            relativeFilePath: 'a',
+                                            text: 'a'.repeat(100),
+                                        },
+                                        {
+                                            relativeFilePath: 'b',
+                                            text: 'a'.repeat(200),
+                                        },
+                                        {
+                                            relativeFilePath: 'c',
+                                            text: 'a'.repeat(100_000),
+                                        },
+                                    ],
+                                    document: {
+                                        relativeFilePath: '',
+                                        text: 'a'.repeat(490_000),
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    history: [
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(490_000),
+                            },
+                        },
+                    ],
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.document?.text?.length || 0,
+                0
+            )
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length || 0,
+                2
+            )
+            assert.strictEqual(request.conversationState?.history?.length || 0, 1)
+            assert.strictEqual(result, 99700)
+        })
+        it('should truncate current editor if combined length exceeds remaining budget', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        {
+                                            relativeFilePath: '',
+                                            text: 'a'.repeat(1000),
+                                        },
+                                        {
+                                            relativeFilePath: '',
+                                            text: 'a'.repeat(1000),
+                                        },
+                                    ],
+                                    document: {
+                                        relativeFilePath: '',
+                                        text: 'a'.repeat(100_000),
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    history: [
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(100),
+                            },
+                        },
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(100),
+                            },
+                        },
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(100_000),
+                            },
+                        },
+                    ],
+                    chatTriggerType: undefined,
+                },
+            }
+            chatController.truncateRequest(request)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.document?.text?.length || 0,
+                0
+            )
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length || 0,
+                2
+            )
+            assert.strictEqual(request.conversationState?.history?.length || 0, 3)
+        })
+        it('should return remaining budget for history', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(100_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        {
+                                            relativeFilePath: '',
+                                            text: 'a'.repeat(1000),
+                                        },
+                                        {
+                                            relativeFilePath: '',
+                                            text: 'a'.repeat(1000),
+                                        },
+                                    ],
+                                    document: {
+                                        relativeFilePath: '',
+                                        text: 'a'.repeat(100_000),
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    history: [
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(100),
+                            },
+                        },
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(100),
+                            },
+                        },
+                        {
+                            userInputMessage: {
+                                content: 'a'.repeat(100_000),
+                            },
+                        },
+                    ],
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 100_000)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.document?.text?.length || 0,
+                100_000
+            )
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length || 2,
+                2
+            )
+            assert.strictEqual(request.conversationState?.history?.length || 0, 3)
+            assert.strictEqual(result, 298000)
+        })
+    })
 
     describe('onCreatePrompt', () => {
         it('should create prompt file with given name', async () => {
@@ -1929,10 +2225,12 @@ ${' '.repeat(8)}}
         const cancellationError = new CancellationError('user')
         const rejectionError = new ToolApprovalException()
         const tokenSource = new CancellationTokenSource()
+        const requestAbortedError = new AgenticChatError('Request aborted', 'RequestAborted')
 
         assert.ok(!chatController.isUserAction(nonUserAction))
         assert.ok(chatController.isUserAction(cancellationError))
         assert.ok(chatController.isUserAction(rejectionError))
+        assert.ok(chatController.isUserAction(requestAbortedError))
 
         assert.ok(!chatController.isUserAction(nonUserAction, tokenSource.token))
 

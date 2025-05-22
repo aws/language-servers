@@ -829,6 +829,10 @@
             "max": 20,
             "min": 0
         },
+        "AgenticChatEventStatus": {
+            "type": "string",
+            "enum": ["SUCCEEDED", "CANCELLED", "FAILED"]
+        },
         "AppStudioState": {
             "type": "structure",
             "required": ["namespace", "propertyName", "propertyContext"],
@@ -1010,6 +1014,9 @@
                 },
                 "hasProjectLevelContext": {
                     "shape": "Boolean"
+                },
+                "result": {
+                    "shape": "AgenticChatEventStatus"
                 }
             }
         },
@@ -1498,6 +1505,10 @@
                 "conversationId": {
                     "shape": "ConversationId",
                     "documentation": "<p>Unique identifier for the chat conversation stream</p>"
+                },
+                "workspaceId": {
+                    "shape": "UUID",
+                    "documentation": "<p>Unique identifier for remote workspace</p>"
                 },
                 "history": {
                     "shape": "ChatHistory",
@@ -2216,10 +2227,19 @@
                 "filename": {
                     "shape": "FileContextFilenameString"
                 },
+                "fileUri": {
+                    "shape": "FileContextFileUriString"
+                },
                 "programmingLanguage": {
                     "shape": "ProgrammingLanguage"
                 }
             }
+        },
+        "FileContextFileUriString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1,
+            "sensitive": true
         },
         "FileContextFilenameString": {
             "type": "string",

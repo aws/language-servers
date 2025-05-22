@@ -49,12 +49,13 @@ import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceMa
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { hasConnectionExpired } from '../../shared/utils'
 import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
-// import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
+import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import path = require('path')
 import { getRelativePath } from '../workspaceContext/util'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
+export const FILE_URI_CHARS_LIMIT = 1024
 export const CONTEXT_CHARACTERS_LIMIT = 10240
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
@@ -63,6 +64,7 @@ const getFileContext = (params: {
     position: Position
     inferredLanguageId: CodewhispererLanguage
 }): {
+    fileUri: string
     filename: string
     programmingLanguage: {
         languageName: CodewhispererLanguage
@@ -89,6 +91,7 @@ const getFileContext = (params: {
     // }
 
     return {
+        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
         filename: relativeFileName,
         programmingLanguage: {
             languageName: getRuntimeLanguage(params.inferredLanguageId),
@@ -118,6 +121,8 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
         codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
         codewhispererCustomizationArn: session.customizationArn,
+        result: 'Succeeded',
+        codewhispererImportRecommendationEnabled: session.includeImportsWithSuggestions,
     }
     telemetry.emitMetric({
         name: 'codewhisperer_serviceInvocation',
@@ -147,6 +152,9 @@ const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhisper
         codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
         codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
         codewhispererCustomizationArn: session.customizationArn,
+        codewhispererImportRecommendationEnabled: session.includeImportsWithSuggestions,
+        result: 'Failed',
+        traceId: 'notSet',
     }
 
     telemetry.emitMetric({
@@ -172,6 +180,8 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
         codewhispererLanguage: session.language,
         credentialStartUrl: session.credentialStartUrl,
         codewhispererCustomizationArn: session.customizationArn,
+        result: 'Succeeded',
+        passive: true,
     }
 
     telemetry.emitMetric({
@@ -255,6 +265,9 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
     requestId: string
     languageId: CodewhispererLanguage
     customizationArn?: string
+    completionType: string
+    triggerType: string
+    credentialStartUrl?: string | undefined
 }
 
 export const CodewhispererServerFactory =
@@ -336,8 +349,10 @@ export const CodewhispererServerFactory =
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
                     const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
-                    // const workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
-                    // const workspaceId = WorkspaceFolderManager.getInstance()?.getWorkspaceId(workspaceFolder)
+                    const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
+                    const workspaceId = workspaceState?.webSocketClient?.isConnected()
+                        ? workspaceState.workspaceId
+                        : undefined
                     // TODO: Can we get this derived from a keyboard event in the future?
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
@@ -440,7 +455,7 @@ export const CodewhispererServerFactory =
                                     .slice(0, CONTEXT_CHARACTERS_LIMIT)
                                     .replaceAll('\r\n', '\n'),
                             },
-                            // workspaceId: workspaceId,
+                            ...(workspaceId ? { workspaceId: workspaceId } : {}),
                         })
                         .then(async suggestionResponse => {
                             return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
@@ -461,6 +476,8 @@ export const CodewhispererServerFactory =
             codePercentageTracker.countInvocation(session.language)
 
             userWrittenCodeTracker?.recordUsageCount(session.language)
+            session.includeImportsWithSuggestions =
+                amazonQServiceManager.getConfiguration().includeImportsWithSuggestions
 
             if (isNewSession) {
                 // Populate the session with information from codewhisperer response
@@ -546,6 +563,12 @@ export const CodewhispererServerFactory =
                 if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
             })
 
+            session.codewhispererSuggestionImportCount =
+                session.codewhispererSuggestionImportCount +
+                suggestionsWithRightContext.reduce((total, suggestion) => {
+                    return total + (suggestion.mostRelevantMissingImports?.length || 0)
+                }, 0)
+
             // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
             // close session and return empty results
             if (suggestionsWithRightContext.length === 0 && !suggestionResponse.responseContext.nextToken) {
@@ -576,6 +599,22 @@ export const CodewhispererServerFactory =
 
             sessionManager.closeSession(session)
 
+            let translatedError = error
+
+            if (hasConnectionExpired(error)) {
+                translatedError = new AmazonQServiceConnectionExpiredError(getErrorMessage(error))
+            }
+
+            if (translatedError instanceof AmazonQError) {
+                throw new ResponseError(
+                    LSPErrorCodes.RequestFailed,
+                    translatedError.message || 'Error processing suggestion requests',
+                    {
+                        awsErrorCode: translatedError.code,
+                    }
+                )
+            }
+
             return EMPTY_RESULT
         }
 
@@ -593,6 +632,9 @@ export const CodewhispererServerFactory =
                 startPosition: session.startPosition,
                 endPosition: endPosition,
                 customizationArn: session.customizationArn,
+                completionType: getCompletionType(acceptedSuggestion),
+                triggerType: session.triggerType,
+                credentialStartUrl: session.credentialStartUrl,
             })
         }
 
@@ -686,16 +728,23 @@ export const CodewhispererServerFactory =
                 workspace,
                 logging,
                 async (entry: AcceptedInlineSuggestionEntry, percentage, unmodifiedAcceptedCharacterCount) => {
-                    await telemetryService.emitUserModificationEvent({
-                        sessionId: entry.sessionId,
-                        requestId: entry.requestId,
-                        languageId: entry.languageId,
-                        customizationArn: entry.customizationArn,
-                        timestamp: new Date(),
-                        acceptedCharacterCount: entry.originalString.length,
-                        modificationPercentage: percentage,
-                        unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
-                    })
+                    await telemetryService.emitUserModificationEvent(
+                        {
+                            sessionId: entry.sessionId,
+                            requestId: entry.requestId,
+                            languageId: entry.languageId,
+                            customizationArn: entry.customizationArn,
+                            timestamp: new Date(),
+                            acceptedCharacterCount: entry.originalString.length,
+                            modificationPercentage: percentage,
+                            unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
+                        },
+                        {
+                            completionType: entry.completionType,
+                            triggerType: entry.triggerType,
+                            credentialStartUrl: entry.credentialStartUrl,
+                        }
+                    )
                 }
             )
 

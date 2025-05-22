@@ -98,6 +98,7 @@ export class QChatTriggerContext {
                 customizationArn,
             },
             profileArn,
+            source: 'IDE',
         }
 
         return data

@@ -11,7 +11,6 @@ export class WebSocketClient {
     private reconnectAttempts: number = 0
     private readonly maxReconnectAttempts: number = 5
     private messageQueue: string[] = []
-    private readonly messageThrottleDelay: number = 100
 
     constructor(url: string, logging: Logging, credentialsProvider: CredentialsProvider) {
         this.url = url
@@ -104,7 +103,11 @@ export class WebSocketClient {
         while (this.messageQueue.length > 0) {
             const message = this.messageQueue.shift()
             if (message) {
-                this.send(message).catch(error => this.logging.error(`Error sending message: ${error}`))
+                try {
+                    this.send(message)
+                } catch (error) {
+                    this.logging.error(`Error sending message: ${error}`)
+                }
             }
         }
     }
@@ -141,23 +144,10 @@ export class WebSocketClient {
         }
     }
 
-    // https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API/Writing_WebSocket_client_applications#sending_data_to_the_server
-    // TODO, the approach of delaying websocket messages should be investigated and validated
-    // The current approach could be susceptible to race conditions that might result in out of order events
-    // Consider this scenario
-    // wsClient.send("message1"); // needs throttling, will wait 100ms
-    // wsClient.send("message2"); // runs immediately without waiting
-
-    // What actually happens:
-    // - Both calls start executing simultaneously
-    // - Both check timeSinceLastMessage at nearly the same time
-    // - Both might determine they need to wait
-    // - They could end up sending in unpredictable order
-    // It might be better to keep an active queue in the client and expose enqueueMessage instead of send
-    public async send(message: string): Promise<void> {
+    public send(message: string): void {
         if (this.ws?.readyState === WebSocket.OPEN) {
-            await new Promise(resolve => setTimeout(resolve, this.messageThrottleDelay))
             this.ws.send(message)
+            this.logging.debug('Message sent successfully to the remote workspace')
         } else {
             this.queueMessage(message)
         }

@@ -23,8 +23,8 @@
     "dependencies": {
         "@aws-sdk/client-sso-oidc": "^3.616.0",
         "@aws-sdk/token-providers": "^3.744.0",
-        "@aws/language-server-runtimes": "^0.2.80",
-        "@aws/lsp-core": "^0.0.8",
+        "@aws/language-server-runtimes": "^0.2.86",
+        "@aws/lsp-core": "^0.0.9",
         "@smithy/node-http-handler": "^3.2.5",
         "@smithy/shared-ini-file-loader": "^4.0.1",
         "https-proxy-agent": "^7.0.5",

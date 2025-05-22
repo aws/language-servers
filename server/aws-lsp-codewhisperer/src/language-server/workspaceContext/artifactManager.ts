@@ -4,7 +4,7 @@ import path = require('path')
 import { URI } from 'vscode-uri'
 import JSZip = require('jszip')
 import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
-import { isDirectory, isEmptyDirectory } from './util'
+import { resolveSymlink, isDirectory, isEmptyDirectory } from './util'
 import glob = require('fast-glob')
 import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
 
@@ -47,8 +47,22 @@ const IGNORE_PATTERNS = [
     '**/target/**', // Maven/Gradle builds
 ]
 
-const MAX_UNCOMPRESSED_SRC_SIZE_MB = 250 // 250 MB limit per language per workspace folder
-const MAX_UNCOMPRESSED_SRC_SIZE_BYTES = MAX_UNCOMPRESSED_SRC_SIZE_MB * 1024 * 1024 // Convert to bytes
+const IGNORE_DEPENDENCY_PATTERNS = [
+    // Package management and git
+    '**/.git/**',
+    // Build outputs
+    '**/dist/**',
+    // Logs and temporary files
+    '**/logs/**',
+]
+
+interface FileSizeDetails {
+    includedFileCount: number
+    includedSize: number
+    skippedFileCount: number
+    skippedSize: number
+}
+const MAX_UNCOMPRESSED_SRC_SIZE_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -81,6 +95,12 @@ export class ArtifactManager {
 
     async addNewDirectories(newDirectories: URI[]): Promise<FileMetadata[]> {
         let zipFileMetadata: FileMetadata[] = []
+        const fileSizeDetails: FileSizeDetails = {
+            includedFileCount: 0,
+            includedSize: 0,
+            skippedFileCount: 0,
+            skippedSize: 0,
+        }
 
         for (const directory of newDirectories) {
             const workspaceFolder = this.workspaceFolders.find(ws => directory.path.startsWith(URI.parse(ws.uri).path))
@@ -95,7 +115,12 @@ export class ArtifactManager {
                 const relativePath = path.relative(workspacePath, directory.path)
 
                 const filesByLanguage = await this.processDirectory(workspaceFolder, directory.path, relativePath)
-                zipFileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage, relativePath)
+                zipFileMetadata = await this.processFilesByLanguage(
+                    workspaceFolder,
+                    fileSizeDetails,
+                    filesByLanguage,
+                    relativePath
+                )
             } catch (error) {
                 this.logging.warn(`Error processing new directory ${directory.path}: ${error}`)
             }
@@ -145,15 +170,15 @@ export class ArtifactManager {
             const files = await glob(['**/*'], {
                 cwd: filePath,
                 dot: false,
-                ignore: IGNORE_PATTERNS,
-                followSymbolicLinks: false,
+                ignore: IGNORE_DEPENDENCY_PATTERNS,
+                followSymbolicLinks: true,
                 absolute: false,
                 onlyFiles: true,
             })
 
             for (const relativePath of files) {
-                const fullPath = path.join(filePath, relativePath)
                 try {
+                    const fullPath = resolveSymlink(path.join(filePath, relativePath))
                     const fileMetadata = await this.createFileMetadata(
                         fullPath,
                         path.join(filePathInZipOverride !== undefined ? filePathInZipOverride : '', relativePath),
@@ -162,7 +187,7 @@ export class ArtifactManager {
                     )
                     fileMetadataList.push(fileMetadata)
                 } catch (error) {
-                    this.logging.warn(`Error processing file ${fullPath}: ${error}`)
+                    this.logging.warn(`Error processing file ${relativePath}: ${error}`)
                 }
             }
         } else {
@@ -286,9 +311,12 @@ export class ArtifactManager {
         return filesMetadata
     }
 
-    cleanup(preserveDependencies: boolean = false) {
+    cleanup(preserveDependencies: boolean = false, workspaceFolders?: WorkspaceFolder[]) {
         try {
-            this.workspaceFolders.forEach(workspaceToRemove => {
+            if (workspaceFolders === undefined) {
+                workspaceFolders = this.workspaceFolders
+            }
+            workspaceFolders.forEach(workspaceToRemove => {
                 const workspaceDirPath = path.join(this.tempDirPath, workspaceToRemove.name)
 
                 if (preserveDependencies) {
@@ -430,16 +458,16 @@ export class ArtifactManager {
 
     private async createZipForLanguage(
         workspaceFolder: WorkspaceFolder,
+        fileSizeDetails: FileSizeDetails,
         language: CodewhispererLanguage,
         files: FileMetadata[],
         subDirectory: string = ''
-    ): Promise<FileMetadata> {
+    ): Promise<FileMetadata | undefined> {
         const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
         this.createFolderIfNotExist(zipDirectoryPath)
 
         const zipPath = path.join(zipDirectoryPath, `${language}.zip`)
 
-        let currentSize = 0
         let skippedSize = 0
         let skippedFiles = 0
         const filesToInclude: FileMetadata[] = []
@@ -447,25 +475,32 @@ export class ArtifactManager {
         // Don't add files to the zip if the total size of uncompressed source code would go over the limit
         // Currently there is no ordering on the files. If the first file added to the zip is equal to the limit, only it will be added and no other files will be added
         for (const file of files) {
-            if (currentSize + file.contentLength <= MAX_UNCOMPRESSED_SRC_SIZE_BYTES) {
+            if (fileSizeDetails.includedSize + file.contentLength <= MAX_UNCOMPRESSED_SRC_SIZE_BYTES) {
                 filesToInclude.push(file)
-                currentSize += file.contentLength
+                fileSizeDetails.includedSize += file.contentLength
+                fileSizeDetails.includedFileCount += 1
             } else {
                 skippedSize += file.contentLength
                 skippedFiles += 1
+                fileSizeDetails.skippedSize += file.contentLength
+                fileSizeDetails.skippedFileCount += 1
             }
         }
-
-        const zipBuffer = await this.createZipBuffer(filesToInclude)
-        await fs.promises.writeFile(zipPath, zipBuffer)
-
-        const stats = fs.statSync(zipPath)
 
         if (skippedFiles > 0) {
             this.log(
                 `Skipped ${skippedFiles} ${language} files of total size ${skippedSize} bytes due to exceeding the maximum zip size`
             )
         }
+
+        if (filesToInclude.length === 0) {
+            return undefined
+        }
+
+        const zipBuffer = await this.createZipBuffer(filesToInclude)
+        await fs.promises.writeFile(zipPath, zipBuffer)
+
+        const stats = fs.statSync(zipPath)
 
         return {
             filePath: zipPath,
@@ -569,18 +604,35 @@ export class ArtifactManager {
     private async processWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<FileMetadata[]> {
         const startTime = performance.now()
         let zipFileMetadata: FileMetadata[] = []
+        const fileSizeDetails: FileSizeDetails = {
+            includedFileCount: 0,
+            includedSize: 0,
+            skippedFileCount: 0,
+            skippedSize: 0,
+        }
 
         for (const workspaceFolder of workspaceFolders) {
             const workspacePath = URI.parse(workspaceFolder.uri).path
 
             try {
                 const filesByLanguage = await this.processDirectory(workspaceFolder, workspacePath)
-                const fileMetadata = await this.processFilesByLanguage(workspaceFolder, filesByLanguage)
+                const fileMetadata = await this.processFilesByLanguage(
+                    workspaceFolder,
+                    fileSizeDetails,
+                    filesByLanguage
+                )
                 zipFileMetadata.push(...fileMetadata)
             } catch (error) {
                 this.logging.warn(`Error processing workspace folder ${workspacePath}: ${error}`)
             }
         }
+        if (fileSizeDetails.skippedFileCount > 0) {
+            this.logging.warn(
+                `Skipped ${fileSizeDetails.skippedFileCount} files (total size: ` +
+                    `${fileSizeDetails.skippedSize} bytes) due to exceeding the maximum artifact size`
+            )
+        }
+
         const totalTime = performance.now() - startTime
         this.log(`Creating workspace source code artifacts took: ${totalTime.toFixed(2)}ms`)
 
@@ -589,22 +641,31 @@ export class ArtifactManager {
 
     private async processFilesByLanguage(
         workspaceFolder: WorkspaceFolder,
+        fileSizeDetails: FileSizeDetails,
         filesByLanguage: Map<CodewhispererLanguage, FileMetadata[]>,
         relativePath?: string
     ): Promise<FileMetadata[]> {
         const zipFileMetadata: FileMetadata[] = []
         await this.updateWorkspaceFiles(workspaceFolder, filesByLanguage)
-
         for (const [language, files] of filesByLanguage.entries()) {
-            // Genrate java .classpath and .project files
+            // Generate java .classpath and .project files
             const processedFiles =
                 language === 'java' ? await this.processJavaProjectConfig(workspaceFolder, files) : files
 
-            const zipMetadata = await this.createZipForLanguage(workspaceFolder, language, processedFiles, relativePath)
-            this.log(
-                `Created zip for language ${language} out of ${processedFiles.length} files in ${workspaceFolder.name}`
+            const zipMetadata = await this.createZipForLanguage(
+                workspaceFolder,
+                fileSizeDetails,
+                language,
+                processedFiles,
+                relativePath
             )
-            zipFileMetadata.push(zipMetadata)
+
+            if (zipMetadata) {
+                this.log(
+                    `Created zip for language ${language} out of ${processedFiles.length} files in ${workspaceFolder.name}`
+                )
+                zipFileMetadata.push(zipMetadata)
+            }
         }
         return zipFileMetadata
     }
