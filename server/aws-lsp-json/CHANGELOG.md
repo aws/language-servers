@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.9](https://github.com/aws/language-servers/compare/lsp-json/v0.1.8...lsp-json/v0.1.9) (2025-05-22)
+
+
+### Bug Fixes
+
+* **amazonq:** Use common utility to determine workspaceFolders and fix tests ([#1353](https://github.com/aws/language-servers/issues/1353)) ([483f532](https://github.com/aws/language-servers/commit/483f532b940d3ff2e914c0824f7501c3fe6a6235))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.8 to ^0.0.9
+
 ## [0.1.8](https://github.com/aws/language-servers/compare/lsp-json/v0.1.7...lsp-json/v0.1.8) (2025-05-14)
 
 
