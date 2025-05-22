@@ -257,20 +257,20 @@ export function processMcpToolUseMessage(message: string) {
 
 /** Given an array of workspace diretory, return each workspace persona config location */
 export function getWorkspacePersonaConfigPaths(wsUris: string[]): string[] {
-    return wsUris.map(uri => `${uri}/.amazonq/personas/default.yaml`)
+    return wsUris.map(uri => path.join(uri, '.amazonq', 'personas', 'default.yaml'))
 }
 
-/** Given a user’s home directory, return the global persona config location */
+/** Given a user's home directory, return the global persona config location */
 export function getGlobalPersonaConfigPath(home: string): string {
-    return `${home}/.aws/amazonq/personas/default.yaml`
+    return path.join(home, '.aws', 'amazonq', 'personas', 'default.yaml')
 }
 
 /** Given an array of workspace diretory, return each workspace mcp config location */
 export function getWorkspaceMcpConfigPaths(wsUris: string[]): string[] {
-    return wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
+    return wsUris.map(uri => path.join(uri, '.amazonq', 'mcp.json'))
 }
 
-/** Given a user’s home directory, return the global mcp config location */
+/** Given a user's home directory, return the global mcp config location */
 export function getGlobalMcpConfigPath(homeDir: string): string {
-    return `${homeDir}/.aws/amazonq/mcp.json`
+    return path.join(homeDir, '.aws', 'amazonq', 'mcp.json')
 }
