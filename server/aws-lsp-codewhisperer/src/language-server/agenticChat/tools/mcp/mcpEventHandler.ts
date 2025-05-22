@@ -183,7 +183,7 @@ export class McpEventHandler {
     /**
      * Handles the add new MCP server action
      */
-    async #handleAddNewMcp(params: McpServerClickParams) {
+    async #handleAddNewMcp(params: McpServerClickParams, error?: string) {
         const existingValues = params.optionsValues || {}
         let argsValue = [
             {
@@ -223,9 +223,9 @@ export class McpEventHandler {
             id: params.id,
             header: {
                 title: 'Add MCP Server',
-                status: existingValues.errorTitle
+                status: error
                     ? {
-                          title: existingValues.errorTitle,
+                          title: error,
                           icon: 'cancel-circle',
                           status: 'error',
                       }
@@ -241,7 +241,7 @@ export class McpEventHandler {
                 {
                     id: 'save-mcp',
                     text: 'Save',
-                    status: 'primary',
+                    status: error ? 'error' : 'primary',
                 },
             ],
             filterOptions: [
@@ -330,6 +330,36 @@ export class McpEventHandler {
             ],
         }
     }
+    /**
+     * Validates the MCP server form values
+     */
+    #validateMcpServerForm(values: Record<string, string>): { isValid: boolean; errors: string[] } {
+        const errors: string[] = []
+
+        if (!values.name || values.name.trim() === '') {
+            errors.push('Server name cannot be empty')
+        } else {
+            if (!/^[a-zA-Z0-9-]+$/.test(values.name)) {
+                errors.push('Server name can only contain alphanumeric characters and hyphens')
+            }
+        }
+
+        if (!values.command || values.command.trim() === '') {
+            errors.push('Command is required for stdio transport')
+        }
+
+        if (values.timeout && values.timeout.trim() !== '') {
+            const timeoutNum = Number(values.timeout.trim())
+            if (timeoutNum <= 0) {
+                errors.push('Timeout must be a positive number')
+            }
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors,
+        }
+    }
 
     /**
      * Handles saving a new MCP server configuration
@@ -338,18 +368,15 @@ export class McpEventHandler {
         if (!params.optionsValues) {
             return this.#getDefaultMcpResponse(params.id)
         }
-
-        const requiredFields = ['name', 'command', 'timeout']
-        const missingFields = requiredFields.filter(
-            field => !params.optionsValues?.[field] || params.optionsValues[field].trim() === ''
-        )
-        if (missingFields.length > 0) {
-            const formattedFields = missingFields.map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
-            // adds errorTitle mapping to optionsValues which is not normally there. chose this option over adding new parameter to #handleAddNewMcp
-            params.optionsValues['errorTitle'] = `Required Fields: ${formattedFields}`
-            // goes back to add-new-mcp page but will now show an error card
+        // Validate form values - this should already be validated client-side
+        // but we validate again as a safety measure
+        const validation = this.#validateMcpServerForm(params.optionsValues)
+        let error: string
+        if (!validation.isValid) {
+            this.#features.logging.error(`Invalid MCP server form: ${validation.errors.join(', ')}`)
+            error = validation.errors[0]
             params.id = 'add-new-mcp'
-            return this.#handleAddNewMcp(params)
+            return this.#handleAddNewMcp(params, error)
         }
 
         // Process args to string[]
