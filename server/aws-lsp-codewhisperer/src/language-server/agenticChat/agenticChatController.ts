@@ -961,22 +961,21 @@ export class AgenticChatController implements ChatHandlers {
                         const tool = new Tool(this.#features)
 
                         // For MCP tools, get the permission from McpManager
-                        const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
+                        // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
                         // If permission is 'alwaysAllow', we don't need to ask for acceptance
-                        const builtInPermission = permission !== 'alwaysAllow'
+                        // const builtInPermission = permission !== 'alwaysAllow'
 
                         // Get the approved paths from the session
                         const approvedPaths = session.approvedPaths
 
                         // Pass the approved paths to the tool's requiresAcceptance method
-                        const {
-                            requiresAcceptance: toolRequiresAcceptance,
-                            warning,
-                            commandCategory,
-                        } = await tool.requiresAcceptance(toolUse.input as any, approvedPaths)
+                        const { requiresAcceptance, warning, commandCategory } = await tool.requiresAcceptance(
+                            toolUse.input as any,
+                            approvedPaths
+                        )
 
                         // Honor built-in permission if available, otherwise use tool's requiresAcceptance
-                        const requiresAcceptance = builtInPermission || toolRequiresAcceptance
+                        // const requiresAcceptance = builtInPermission || toolRequiresAcceptance
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -984,9 +983,7 @@ export class AgenticChatController implements ChatHandlers {
                                 toolUse,
                                 requiresAcceptance,
                                 warning,
-                                commandCategory,
-                                undefined,
-                                builtInPermission
+                                commandCategory
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'

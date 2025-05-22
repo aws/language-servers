@@ -45,25 +45,25 @@ export class McpEventHandler {
             }))
 
         // Add built-in tools as a server in the active items
-        activeItems.push({
-            title: 'Built-in',
-            description: `${builtInTools.length} tools`,
-            children: [
-                {
-                    groupName: 'serverInformation',
-                    children: [
-                        {
-                            title: 'status',
-                            description: 'ENABLED',
-                        },
-                        {
-                            title: 'toolcount',
-                            description: `${builtInTools.length}`,
-                        },
-                    ],
-                },
-            ],
-        })
+        // activeItems.push({
+        //     title: 'Built-in',
+        //     description: `${builtInTools.length} tools`,
+        //     children: [
+        //         {
+        //             groupName: 'serverInformation',
+        //             children: [
+        //                 {
+        //                     title: 'status',
+        //                     description: 'ENABLED',
+        //                 },
+        //                 {
+        //                     title: 'toolcount',
+        //                     description: `${builtInTools.length}`,
+        //                 },
+        //             ],
+        //         },
+        //     ],
+        // })
 
         Array.from(mcpManagerServerConfigs.entries()).forEach(([serverName, config]) => {
             const toolsWithPermissions = mcpManager.getAllToolsWithPermissions(serverName)
