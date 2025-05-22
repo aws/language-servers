@@ -37,8 +37,9 @@ export class McpEventHandler {
 
         // Get built-in tools programmatically
         const allTools = this.#features.agent.getTools({ format: 'bedrock' })
+        const mcpToolNames = new Set(mcpManager.getAllTools().map(tool => tool.toolName))
         const builtInTools = allTools
-            .filter(tool => !tool.toolSpecification.name.includes('_')) // Filter out MCP tools which have format serverName_toolName
+            .filter(tool => !mcpToolNames.has(tool.toolSpecification.name))
             .map(tool => ({
                 name: tool.toolSpecification.name,
                 description: tool.toolSpecification.description || `${tool.toolSpecification.name} tool`,
@@ -423,8 +424,9 @@ export class McpEventHandler {
         if (serverName === 'Built-in') {
             // Handle Built-in server specially
             const allTools = this.#features.agent.getTools({ format: 'bedrock' })
+            const mcpToolNames = new Set(McpManager.instance.getAllTools().map(tool => tool.toolName))
             const builtInTools = allTools
-                .filter(tool => !tool.toolSpecification.name.includes('_')) // Filter out MCP tools which have format serverName_toolName
+                .filter(tool => !mcpToolNames.has(tool.toolSpecification.name))
                 .map(tool => {
                     // Set default permission based on tool name
                     const permission = 'alwaysAllow'
@@ -743,8 +745,6 @@ export class McpEventHandler {
                     perm.toolPerms[key] = 'deny'
                     break
                 case 'ask':
-                    perm.toolPerms[key] = 'ask'
-                    break
                 default:
                     perm.toolPerms[key] = 'ask'
             }
