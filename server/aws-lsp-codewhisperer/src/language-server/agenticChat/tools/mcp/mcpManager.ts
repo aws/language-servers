@@ -107,7 +107,7 @@ export class McpManager {
         for (const [name, cfg] of this.mcpServers.entries()) {
             if (this.isServerDisabled(name)) {
                 this.features.logging.info(`MCP: server '${name}' is disabled by persona settings, skipping`)
-                this.setState(name, 'DISABLED', 0)
+                this.setState(name, McpServerStatus.DISABLED, 0)
                 this.emitToolsChanged(name)
                 continue
             }
@@ -121,7 +121,7 @@ export class McpManager {
      */
     private async initOneServer(serverName: string, cfg: MCPServerConfig): Promise<void> {
         const DEFAULT_SERVER_INIT_TIMEOUT_MS = 60_000
-        this.setState(serverName, 'INITIALIZING', 0)
+        this.setState(serverName, McpServerStatus.INITIALIZING, 0)
 
         try {
             this.features.logging.debug(`MCP: initializing server [${serverName}]`)
@@ -181,7 +181,7 @@ export class McpManager {
                 })
             }
 
-            this.setState(serverName, 'ENABLED', resp.tools.length)
+            this.setState(serverName, McpServerStatus.ENABLED, resp.tools.length)
             this.emitToolsChanged(serverName)
         } catch (e: any) {
             const client = this.clients.get(serverName)
@@ -190,7 +190,7 @@ export class McpManager {
                 this.clients.delete(serverName)
             }
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
-            this.setState(serverName, 'FAILED', 0, e.message)
+            this.setState(serverName, McpServerStatus.FAILED, 0, e.message)
             this.emitToolsChanged(serverName)
             this.features.logging.warn(`MCP: server [${serverName}] init failed: ${e.message}`)
         }
@@ -233,7 +233,7 @@ export class McpManager {
      * Returns true if the given tool on the given server is currently disabled.
      */
     public isToolDisabled(server: string, tool: string): boolean {
-        return this.getToolPerm(server, tool) === 'deny'
+        return this.getToolPerm(server, tool) === McpPermissionType.deny
     }
 
     /**
@@ -251,7 +251,13 @@ export class McpManager {
     public getToolPerm(server: string, tool: string): McpPermissionType {
         const srv = this.mcpServerPermissions.get(server)
         const star = this.mcpServerPermissions.get('*')
-        return srv?.toolPerms[tool] ?? srv?.toolPerms['*'] ?? star?.toolPerms[tool] ?? star?.toolPerms['*'] ?? 'ask'
+        return (
+            srv?.toolPerms[tool] ??
+            srv?.toolPerms['*'] ??
+            star?.toolPerms[tool] ??
+            star?.toolPerms['*'] ??
+            McpPermissionType.ask
+        )
     }
 
     /**
@@ -368,7 +374,7 @@ export class McpManager {
         this.mcpServerPermissions = permissionMap
 
         if (this.isServerDisabled(serverName)) {
-            this.setState(serverName, 'DISABLED', 0)
+            this.setState(serverName, McpServerStatus.DISABLED, 0)
             this.emitToolsChanged(serverName)
         } else {
             await this.initOneServer(serverName, newCfg)
@@ -446,7 +452,7 @@ export class McpManager {
         this.mcpServers.set(serverName, newCfg)
 
         if (this.isServerDisabled(serverName)) {
-            this.setState(serverName, 'DISABLED', 0)
+            this.setState(serverName, McpServerStatus.DISABLED, 0)
             this.emitToolsChanged(serverName)
         } else {
             await this.initOneServer(serverName, newCfg)
@@ -542,13 +548,13 @@ export class McpManager {
                 await client.close()
                 this.clients.delete(serverName)
             }
-            this.setState(serverName, 'DISABLED', 0)
+            this.setState(serverName, McpServerStatus.DISABLED, 0)
         } else {
             if (!this.clients.has(serverName)) {
                 await this.initOneServer(serverName, this.mcpServers.get(serverName)!)
             } else {
                 const n = this.mcpTools.filter(t => t.serverName === serverName).length
-                this.setState(serverName, 'ENABLED', n)
+                this.setState(serverName, McpServerStatus.ENABLED, n)
             }
         }
         this.features.logging.info(`Permissions updated for '${serverName}' in ${personaPath}`)
@@ -602,7 +608,7 @@ export class McpManager {
      * Check if a tool requires approval.
      */
     public requiresApproval(server: string, tool: string): boolean {
-        return this.getToolPerm(server, tool) === 'ask'
+        return this.getToolPerm(server, tool) === McpPermissionType.ask
     }
 
     /**

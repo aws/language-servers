@@ -8,8 +8,8 @@ import {
     McpServerClickParams,
 } from '@aws/language-server-runtimes/protocol'
 
-import { getGlobalMcpConfigPath, getGlobalPersonaConfigPath } from './mcpUtils'
-import { MCPServerConfig, MCPServerPermission } from './mcpTypes'
+import { getGlobalMcpConfigPath, getGlobalPersonaConfigPath, getWorkspacePersonaConfigPaths } from './mcpUtils'
+import { McpPermissionType, MCPServerConfig, MCPServerPermission } from './mcpTypes'
 
 interface PermissionOption {
     label: string
@@ -396,14 +396,9 @@ export class McpEventHandler {
         }
 
         // TODO: handle ws/global selection
-        let configPath = ''
-        if (params.optionsValues.scope === 'global') {
-            configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
-        }
-        let personaPath = ''
-        if (params.optionsValues.scope === 'global') {
-            personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
-        }
+        const configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        const personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
         // TODO: According to workspace specific scope and persona and pass configPath to addServer
         await McpManager.instance.addServer(serverName, config, configPath, personaPath)
 
@@ -603,9 +598,9 @@ export class McpEventHandler {
      * Gets the current permission setting for a tool
      */
     #getCurrentPermission(permission: string): string {
-        if (permission === 'alwaysAllow') {
+        if (permission === McpPermissionType.alwaysAllow) {
             return 'Always run'
-        } else if (permission === 'deny') {
+        } else if (permission === McpPermissionType.deny) {
             return 'Disable'
         } else {
             return 'Ask to run'
@@ -618,25 +613,16 @@ export class McpEventHandler {
     #buildPermissionOptions(currentPermission: string) {
         const permissionOptions: PermissionOption[] = []
 
-        if (currentPermission !== 'alwaysAllow') {
-            permissionOptions.push({
-                label: 'Always run',
-                value: 'alwaysAllow',
-            })
+        if (currentPermission !== McpPermissionType.alwaysAllow) {
+            permissionOptions.push({ label: 'Always run', value: McpPermissionType.alwaysAllow })
         }
 
-        if (currentPermission !== 'ask') {
-            permissionOptions.push({
-                label: 'Ask to run',
-                value: 'ask',
-            })
+        if (currentPermission !== McpPermissionType.ask) {
+            permissionOptions.push({ label: 'Ask to run', value: McpPermissionType.ask })
         }
 
-        if (currentPermission !== 'deny') {
-            permissionOptions.push({
-                label: 'Disable',
-                value: 'deny',
-            })
+        if (currentPermission !== McpPermissionType.deny) {
+            permissionOptions.push({ label: 'Disable', value: McpPermissionType.deny })
         }
 
         return permissionOptions
@@ -685,9 +671,9 @@ export class McpEventHandler {
                 }
             }
 
-            const MCPServerPermission = this.#processPermissionUpdates(serverName, updatedPermissionConfig)
+            const mcpServerPermission = this.#processPermissionUpdates(updatedPermissionConfig)
 
-            await McpManager.instance.updateServerPermission(serverName, MCPServerPermission)
+            await McpManager.instance.updateServerPermission(serverName, mcpServerPermission)
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to update MCP permissions: ${error}`)
@@ -715,7 +701,7 @@ export class McpEventHandler {
     /**
      * Processes permission updates from the UI
      */
-    #processPermissionUpdates(serverName: string, updatedPermissionConfig: any) {
+    #processPermissionUpdates(updatedPermissionConfig: any) {
         // TODO: handle ws/global selection
         let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
 
@@ -738,15 +724,15 @@ export class McpEventHandler {
             // }
 
             switch (val) {
-                case 'alwaysAllow':
-                    perm.toolPerms[key] = 'alwaysAllow'
+                case McpPermissionType.alwaysAllow:
+                    perm.toolPerms[key] = McpPermissionType.alwaysAllow
                     break
-                case 'deny':
-                    perm.toolPerms[key] = 'deny'
+                case McpPermissionType.deny:
+                    perm.toolPerms[key] = McpPermissionType.deny
                     break
-                case 'ask':
+                case McpPermissionType.ask:
                 default:
-                    perm.toolPerms[key] = 'ask'
+                    perm.toolPerms[key] = McpPermissionType.ask
             }
         }
 

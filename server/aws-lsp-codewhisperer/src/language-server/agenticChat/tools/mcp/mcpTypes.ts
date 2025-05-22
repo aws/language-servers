@@ -3,9 +3,18 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-export type McpServerStatus = 'INITIALIZING' | 'ENABLED' | 'FAILED' | 'DISABLED'
-export type McpPermissionType = 'alwaysAllow' | 'ask' | 'deny'
+export enum McpServerStatus {
+    INITIALIZING = 'INITIALIZING',
+    ENABLED = 'ENABLED',
+    FAILED = 'FAILED',
+    DISABLED = 'DISABLED',
+}
 
+export enum McpPermissionType {
+    alwaysAllow = 'alwaysAllow',
+    ask = 'ask',
+    deny = 'deny',
+}
 export interface McpServerRuntimeState {
     status: McpServerStatus
     toolsCount: number
@@ -83,7 +92,7 @@ export class PersonaModel {
     ensureWildcardAsk(server: string): void {
         this.cfg['toolPerms'] ||= {}
         const s = (this.cfg['toolPerms'][server] ||= {})
-        if (Object.keys(s).length === 0) s['*'] = 'ask'
+        if (Object.keys(s).length === 0) s['*'] = McpPermissionType.ask
     }
 }
 export interface ListToolsResponse {
