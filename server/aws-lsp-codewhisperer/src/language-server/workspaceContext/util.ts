@@ -54,6 +54,15 @@ export const isDirectory = (path: string): boolean => {
     return fs.statSync(URI.parse(path).path).isDirectory()
 }
 
+export const resolveSymlink = (dependencyPath: string): string => {
+    let truePath: string = dependencyPath
+    if (fs.lstatSync(dependencyPath).isSymbolicLink()) {
+        // Get the real path (resolves all symlinks in the path)
+        truePath = fs.realpathSync(dependencyPath)
+    }
+    return truePath
+}
+
 export const isEmptyDirectory = (path: string): boolean => {
     return fs.readdirSync(URI.parse(path).path).length === 0
 }
