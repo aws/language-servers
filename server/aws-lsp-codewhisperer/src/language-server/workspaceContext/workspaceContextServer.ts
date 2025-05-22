@@ -31,8 +31,20 @@ export const WorkspaceContextServer = (): Server => features => {
     let abTestingEvaluated = false
     let abTestingEnabled = false
     let amazonQServiceManager: AmazonQTokenServiceManager
+    let allowedExtension: string[] = ['AmazonQ-For-VSCode', 'Amazon Q For JetBrains']
+    let isSupportedExtension = false
 
     lsp.addInitializer((params: InitializeParams) => {
+        let clientExtension = params.initializationOptions?.aws?.clientInfo?.extension.name || ''
+        if (!allowedExtension.includes(clientExtension)) {
+            logging.warn(`Client extension ${clientExtension} is not in the allowed extensions list`)
+            return {
+                capabilities: {},
+            }
+        } else {
+            isSupportedExtension = true
+        }
+
         workspaceIdentifier = params.initializationOptions?.aws?.contextConfiguration?.workspaceIdentifier || ''
         if (!workspaceIdentifier) {
             logging.warn(`No workspaceIdentifier set. Treating this workspace as a temporary session.`)
@@ -167,6 +179,9 @@ export const WorkspaceContextServer = (): Server => features => {
     }
 
     lsp.onInitialized(async params => {
+        if (!isSupportedExtension) {
+            return {}
+        }
         amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
         artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
