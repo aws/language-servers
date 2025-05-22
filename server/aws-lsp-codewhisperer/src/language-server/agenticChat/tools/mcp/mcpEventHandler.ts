@@ -227,6 +227,7 @@ export class McpEventHandler {
                             value: 'workspace',
                         },
                     ],
+                    value: existingValues.scope || 'global',
                 },
                 {
                     type: 'textinput',
@@ -314,6 +315,8 @@ export class McpEventHandler {
             const formattedFields = missingFields.map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
             // adds errorTitle mapping to optionsValues which is not normally there. chose this option over adding new parameter to #handleAddNewMcp
             params.optionsValues['errorTitle'] = `Required Fields: ${formattedFields}`
+            // goes back to add-new-mcp page but will now show an error card
+            params.id = 'add-new-mcp'
             return this.#handleAddNewMcp(params)
         }
 
@@ -372,7 +375,7 @@ export class McpEventHandler {
         // TODO: According to workspace specific scope and persona and pass configPath to addServer
         await McpManager.instance.addServer(serverName, config, configPath, personaPath)
 
-        return this.#getDefaultMcpResponse(params.id)
+        return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
     }
 
     /**

@@ -1407,7 +1407,7 @@ ${params.message}`,
     const mcpServerClick = (params: McpServerClickResult) => {
         const typedParams = params as McpServerParams
 
-        if (params.id === 'add-new-mcp' || (params.id === 'save-mcp' && params.header?.status)) {
+        if (params.id === 'add-new-mcp') {
             const detailedList = createAddMcpServerDetailedList(typedParams)
 
             const events = {
@@ -1427,7 +1427,6 @@ ${params.message}`,
                         setTimeout(() => {
                             mynahUi.toggleSplashLoader(false)
                         }, 10000)
-                        messager.onMcpServerClick('open-mcp-server', filterValues?.['name'])
                     }
                 },
             }
