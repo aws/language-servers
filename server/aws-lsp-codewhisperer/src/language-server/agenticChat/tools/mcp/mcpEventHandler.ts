@@ -339,8 +339,17 @@ export class McpEventHandler {
         if (!values.name || values.name.trim() === '') {
             errors.push('Server name cannot be empty')
         } else {
+<<<<<<< HEAD
             if (!/^[a-zA-Z0-9-]+$/.test(values.name)) {
                 errors.push('Server name can only contain alphanumeric characters and hyphens')
+=======
+            if (values.name.length < 1 || values.name.length > 32) {
+                errors.push('Server name must be between 1 and 32 characters')
+            }
+
+            if (!/^[a-zA-Z0-9-]+$/.test(values.name)) {
+                errors.push('Server name can only contain alphanumeric characters, underscores and hyphens')
+>>>>>>> 575d8258 (fix: remove the check condition for underscore)
             }
         }
 
