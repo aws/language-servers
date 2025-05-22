@@ -562,9 +562,13 @@ export class McpManager {
     private async mutateConfigFile(configPath: string, mutator: (json: any) => void): Promise<void> {
         return McpManager.configMutex
             .runExclusive(async () => {
-                const raw = await this.features.workspace.fs.readFile(configPath)
-                const json = JSON.parse(raw.toString())
-                json.mcpServers = json.mcpServers || {}
+                const exists = await this.features.workspace.fs.exists(configPath)
+                let json = { mcpServers: {} }
+                if (exists) {
+                    const raw = await this.features.workspace.fs.readFile(configPath)
+                    const existingServersJson = JSON.parse(raw.toString())
+                    json.mcpServers = existingServersJson.mcpServers
+                }
                 mutator(json)
                 await this.features.workspace.fs.writeFile(configPath, JSON.stringify(json, null, 2))
             })
