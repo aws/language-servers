@@ -567,7 +567,7 @@ export class McpManager {
                 if (exists) {
                     const raw = await this.features.workspace.fs.readFile(configPath)
                     const existingServersJson = JSON.parse(raw.toString())
-                    json.mcpServers = existingServersJson.mcpServers
+                    json.mcpServers = existingServersJson.mcpServers || {}
                 }
                 mutator(json)
                 await this.features.workspace.fs.writeFile(configPath, JSON.stringify(json, null, 2))
