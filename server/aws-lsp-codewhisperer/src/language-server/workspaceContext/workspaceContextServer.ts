@@ -86,7 +86,7 @@ export const WorkspaceContextServer = (): Server => features => {
             if (params.section === Q_CONTEXT_CONFIGURATION_SECTION) {
                 // Only append workspaceId to GenerateCompletions when WebSocket client is connected
                 if (
-                    !workspaceFolderManager.getWorkspaceState().webSocketClient?.isConnected ||
+                    !workspaceFolderManager.getWorkspaceState().webSocketClient?.isConnected() ||
                     !workspaceFolderManager.getWorkspaceState().workspaceId
                 ) {
                     return {
