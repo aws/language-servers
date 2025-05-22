@@ -583,10 +583,7 @@ export class McpEventHandler {
             const toolName = item.tool.toolName
             const currentPermission = this.#getCurrentPermission(item.permission)
             // For Built-in server, use a special function that doesn't include the 'Disable' option
-            const permissionOptions =
-                serverName === 'Built-in'
-                    ? this.#buildBuiltInPermissionOptions(item.permission)
-                    : this.#buildPermissionOptions(item.permission)
+            const permissionOptions = this.#buildPermissionOptions(item.permission)
 
             filterOptions.push({
                 type: 'select',
@@ -646,25 +643,25 @@ export class McpEventHandler {
     /**
      * Builds permission options for Built-in tools (no 'Disable' option)
      */
-    #buildBuiltInPermissionOptions(currentPermission: string) {
-        const permissionOptions: PermissionOption[] = []
+    // #buildBuiltInPermissionOptions(currentPermission: string) {
+    //     const permissionOptions: PermissionOption[] = []
 
-        if (currentPermission !== 'alwaysAllow') {
-            permissionOptions.push({
-                label: 'Always run',
-                value: 'alwaysAllow',
-            })
-        }
+    //     if (currentPermission !== 'alwaysAllow') {
+    //         permissionOptions.push({
+    //             label: 'Always run',
+    //             value: 'alwaysAllow',
+    //         })
+    //     }
 
-        if (currentPermission !== 'ask') {
-            permissionOptions.push({
-                label: 'Ask to run',
-                value: 'ask',
-            })
-        }
+    //     if (currentPermission !== 'ask') {
+    //         permissionOptions.push({
+    //             label: 'Ask to run',
+    //             value: 'ask',
+    //         })
+    //     }
 
-        return permissionOptions
-    }
+    //     return permissionOptions
+    // }
 
     /**
      * Handles MCP permission change events
@@ -730,13 +727,13 @@ export class McpEventHandler {
         for (const [key, val] of Object.entries(updatedPermissionConfig)) {
             if (key === 'scope') continue
 
-            // Get the default permission for this tool from McpManager
-            let defaultPermission = McpManager.instance.getToolPerm(serverName, key)
+            // // Get the default permission for this tool from McpManager
+            // let defaultPermission = McpManager.instance.getToolPerm(serverName, key)
 
-            // If no default permission is found, use 'alwaysAllow' for Built-in and 'ask' for MCP servers
-            if (!defaultPermission) {
-                defaultPermission = serverName === 'Built-in' ? 'alwaysAllow' : 'ask'
-            }
+            // // If no default permission is found, use 'alwaysAllow' for Built-in and 'ask' for MCP servers
+            // if (!defaultPermission) {
+            //     defaultPermission = serverName === 'Built-in' ? 'alwaysAllow' : 'ask'
+            // }
 
             switch (val) {
                 case 'alwaysAllow':
@@ -749,7 +746,7 @@ export class McpEventHandler {
                     perm.toolPerms[key] = 'ask'
                     break
                 default:
-                    perm.toolPerms[key] = defaultPermission
+                    perm.toolPerms[key] = 'ask'
             }
         }
 
