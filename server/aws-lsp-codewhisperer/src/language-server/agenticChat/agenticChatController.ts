@@ -1022,15 +1022,42 @@ export class AgenticChatController implements ChatHandlers {
                                 await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
                             }
 
-                            await chatResultStream.writeResultBlock({
+                            // We'll execute the tool later and update the card with results
+                            // Format the tool input as JSON string
+                            const toolInput = JSON.stringify(toolUse.input, null, 2)
+
+                            // Store the blockId so we can update this card later
+                            const runningCardBlockId = await chatResultStream.writeResultBlock({
                                 type: 'tool',
-                                body: `${executeToolMessage(toolUse)}`,
                                 messageId: toolUse.toolUseId,
-                                header: {
-                                    icon: 'tools',
-                                    body: def.toolName || toolUse.name,
+                                summary: {
+                                    content: {
+                                        header: {
+                                            icon: 'tools',
+                                            body: `${serverName}_${toolName}`,
+                                        },
+                                    },
+                                    collapsedContent: [
+                                        {
+                                            header: {
+                                                body: 'Parameters',
+                                            },
+                                            body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                                        },
+                                    ],
                                 },
                             })
+
+                            // Store the blockId in the session for later use
+                            if (toolUse.toolUseId) {
+                                // Use a type assertion to add the runningCardBlockId property
+                                const toolUseWithBlockId = {
+                                    ...toolUse,
+                                    runningCardBlockId,
+                                } as typeof toolUse & { runningCardBlockId: number }
+
+                                session.toolUseLookup.set(toolUse.toolUseId, toolUseWithBlockId)
+                            }
                             break
                         }
                         break
@@ -1117,13 +1144,84 @@ export class AgenticChatController implements ChatHandlers {
                             .getAllTools()
                             .find(d => `${d.serverName}_${d.toolName}` === toolUse.name)
                         if (def) {
-                            const message = toolResultMessage(toolUse, result)
-                            const messageBody = processMcpToolUseMessage(message)
-                            await chatResultStream.writeResultBlock({
-                                type: 'tool',
-                                messageId: toolUse.toolUseId,
-                                body: messageBody,
-                            })
+                            // Format the tool result as JSON string
+                            const toolInput = JSON.stringify(toolUse.input, null, 2)
+                            const toolResultContent =
+                                typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+
+                            // Extract server name and tool name
+                            const [serverName, ...toolParts] = toolUse.name.split('_')
+                            const toolName = toolParts.join('_')
+                            // Get the stored blockId for this tool use
+                            const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+                            // Use a type assertion to access the runningCardBlockId property
+                            const runningCardBlockId = (cachedToolUse as any)?.runningCardBlockId
+
+                            if (runningCardBlockId !== undefined) {
+                                // Update the existing card with the results using overwriteResultBlock
+                                await chatResultStream.overwriteResultBlock(
+                                    {
+                                        type: 'tool',
+                                        messageId: toolUse.toolUseId,
+                                        summary: {
+                                            content: {
+                                                header: {
+                                                    icon: 'tools',
+                                                    body: `${serverName}_${toolName}`,
+                                                    fileList: undefined,
+                                                },
+                                            },
+                                            collapsedContent: [
+                                                {
+                                                    header: {
+                                                        body: 'Parameters',
+                                                    },
+                                                    body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                                                },
+                                                {
+                                                    header: {
+                                                        body: 'Results',
+                                                    },
+                                                    body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
+                                                },
+                                            ],
+                                        },
+                                    },
+                                    runningCardBlockId
+                                )
+                            } else {
+                                // Fallback to writeResultBlock if blockId is not available
+                                this.#log(
+                                    `Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`
+                                )
+                                await chatResultStream.writeResultBlock({
+                                    type: 'tool',
+                                    messageId: toolUse.toolUseId,
+                                    summary: {
+                                        content: {
+                                            header: {
+                                                icon: 'tools',
+                                                body: `${serverName}-${toolName}`,
+                                                fileList: undefined,
+                                            },
+                                        },
+                                        collapsedContent: [
+                                            {
+                                                header: {
+                                                    body: 'Parameters',
+                                                },
+                                                body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                                            },
+                                            {
+                                                header: {
+                                                    body: 'Results',
+                                                },
+                                                body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
+                                            },
+                                        ],
+                                    },
+                                })
+                            }
                         } else {
                             await chatResultStream.writeResultBlock({
                                 type: 'tool',
@@ -1495,7 +1593,6 @@ export class AgenticChatController implements ChatHandlers {
                 break
 
             default:
-                // Generic handler for other tool types
                 header = {
                     body: toolUse.name || 'Tool',
                     status: {
@@ -1565,7 +1662,7 @@ export class AgenticChatController implements ChatHandlers {
                 text?: string
             }
         }
-        let body: string
+        let body: string | undefined
 
         switch (toolType || toolUse.name) {
             case 'executeBash':
@@ -1671,11 +1768,10 @@ export class AgenticChatController implements ChatHandlers {
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'warning',
-                    body: `#### MCP tool: ${toolUse.name}`,
+                    body: `#### ${toolUse.name}`,
                     buttons,
                 }
-                const argsJson = JSON.stringify(toolUse.input, null, 2)
-                body = '```json\n' + argsJson + '\n```'
+                body = ' '
                 break
         }
 

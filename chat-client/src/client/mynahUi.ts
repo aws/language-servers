@@ -633,7 +633,7 @@ export const createMynahUi = (
 
     // addChatResponse handler to support Agentic chat UX changes for handling responses streaming.
     const agenticAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
-        const { type, ...chatResultWithoutType } = chatResult
+        const { type, summary, ...chatResultWithoutTypeSummary } = chatResult
         let header = toMynahHeader(chatResult.header)
         const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
@@ -677,7 +677,7 @@ export const createMynahUi = (
                 cancelButtonWhenLoading: true,
             })
             const chatItem = {
-                ...chatResult,
+                ...chatResultWithoutTypeSummary,
                 body: chatResult.body,
                 type: ChatItemType.ANSWER_STREAM,
                 header: header,
@@ -708,7 +708,7 @@ export const createMynahUi = (
         if (chatResult.body === '' && isValidAuthFollowUp) {
             mynahUi.addChatItem(tabId, {
                 type: ChatItemType.SYSTEM_PROMPT,
-                ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
+                ...chatResultWithoutTypeSummary,
                 header: header,
                 buttons: buttons,
             })
@@ -726,7 +726,7 @@ export const createMynahUi = (
             : {}
 
         const chatItem = {
-            ...chatResult,
+            ...chatResultWithoutTypeSummary,
             body: chatResult.body,
             type: ChatItemType.ANSWER_STREAM,
             header: header,
@@ -759,7 +759,7 @@ export const createMynahUi = (
 
     // addChatResponse handler to support extensions that haven't migrated to agentic chat yet
     const legacyAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
-        const { type, ...chatResultWithoutType } = chatResult
+        const { type, summary, ...chatResultWithoutTypeSummary } = chatResult
         let header = undefined
 
         if (chatResult.contextList !== undefined) {
@@ -813,7 +813,7 @@ export const createMynahUi = (
             // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
             mynahUi.addChatItem(tabId, {
                 type: ChatItemType.SYSTEM_PROMPT,
-                ...chatResultWithoutType,
+                ...chatResultWithoutTypeSummary,
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -900,6 +900,49 @@ export const createMynahUi = (
 
         let processedHeader = header
         if (message.type === 'tool') {
+            // Handle MCP tool summary with accordion view
+            if (message.summary) {
+                // Create a properly typed summary object
+                return {
+                    type: ChatItemType.ANSWER,
+                    messageId: message.messageId,
+                    body: ' ',
+                    header: undefined,
+                    buttons: undefined,
+                    // Use type assertion to work around type incompatibilities
+                    // This is safe because the UI will handle the rendering correctly
+                    summary: {
+                        isCollapsed: true,
+                        content: message.summary.content
+                            ? {
+                                  padding: false,
+                                  wrapCodes: true,
+                                  body: message.summary.content.body,
+                                  header: message.summary.content.header
+                                      ? {
+                                            icon: message.summary.content.header.icon as any,
+                                            body: message.summary.content.header.body,
+                                        }
+                                      : undefined,
+                              }
+                            : undefined,
+                        collapsedContent:
+                            message.summary.collapsedContent?.map(item => ({
+                                body: item.body,
+                                header: item.header
+                                    ? {
+                                          body: item.header.body,
+                                      }
+                                    : undefined,
+                                fullWidth: true,
+                                padding: false,
+                                muted: true,
+                                wrapCodes: item.header?.body === 'Parameters' ? true : false,
+                                codeBlockActions: { copy: null, 'insert-to-cursor': null },
+                            })) || [],
+                    },
+                }
+            }
             processedHeader = { ...header }
             if (header?.buttons) {
                 processedHeader.buttons = header.buttons.map(button => ({
