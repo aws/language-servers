@@ -275,7 +275,6 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
-        let discardInflightSessionOnNewInvocation = false
 
         const sessionManager = SessionManager.getInstance()
 
@@ -301,7 +300,7 @@ export const CodewhispererServerFactory =
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
-                discardInflightSessionOnNewInvocation = true
+                currentSession.discardInflightSessionOnNewInvocation = true
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
@@ -321,8 +320,7 @@ export const CodewhispererServerFactory =
                                 suggestionResponse,
                                 currentSession,
                                 false,
-                                params.context.selectedCompletionInfo?.range,
-                                discardInflightSessionOnNewInvocation
+                                params.context.selectedCompletionInfo?.range
                             )
                         })
                         .catch(error => {
@@ -458,13 +456,7 @@ export const CodewhispererServerFactory =
                             ...(workspaceId ? { workspaceId: workspaceId } : {}),
                         })
                         .then(async suggestionResponse => {
-                            return processSuggestionResponse(
-                                suggestionResponse,
-                                newSession,
-                                true,
-                                selectionRange,
-                                discardInflightSessionOnNewInvocation
-                            )
+                            return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
                         })
                         .catch(err => {
                             return handleSuggestionsErrors(err, newSession)
@@ -477,8 +469,7 @@ export const CodewhispererServerFactory =
             suggestionResponse: GenerateSuggestionsResponse,
             session: CodeWhispererSession,
             isNewSession: boolean,
-            selectionRange?: Range,
-            discardInflightSessionOnNewInvocation = false
+            selectionRange?: Range
         ): Promise<InlineCompletionListWithReferences> => {
             codePercentageTracker.countInvocation(session.language)
 
@@ -500,7 +491,8 @@ export const CodewhispererServerFactory =
             emitServiceInvocationTelemetry(telemetry, session, suggestionResponse.responseContext.requestId)
 
             // Discard previous inflight API response due to new trigger
-            if (discardInflightSessionOnNewInvocation) {
+            if (session.discardInflightSessionOnNewInvocation) {
+                session.discardInflightSessionOnNewInvocation = false
                 sessionManager.discardSession(session)
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
