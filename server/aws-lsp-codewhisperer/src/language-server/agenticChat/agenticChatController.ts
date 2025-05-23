@@ -2200,6 +2200,9 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController.activeTabId = params.tabId
 
         this.#chatSessionManagementService.createSession(params.tabId)
+
+        const modelId = this.#chatHistoryDb.getModelId()
+        this.#features.chat.chatOptionsUpdate({ modelId: modelId })
     }
 
     onTabChange(params: TabChangeParams) {
@@ -2590,6 +2593,8 @@ export class AgenticChatController implements ChatHandlers {
         session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
         session.modelId =
             params.optionsValues['model-selection'] === 'auto' ? undefined : params.optionsValues['model-selection']
+
+        this.#chatHistoryDb.setModelId(session.modelId)
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {

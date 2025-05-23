@@ -32,7 +32,7 @@
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.37",
-        "@aws/language-server-runtimes": "^0.2.86",
+        "@aws/language-server-runtimes": "^0.2.87",
         "@aws/lsp-core": "^0.0.9",
         "@modelcontextprotocol/sdk": "^1.9.0",
         "@smithy/node-http-handler": "^2.5.0",

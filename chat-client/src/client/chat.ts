@@ -93,7 +93,7 @@ import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
 import { Region } from './texts/modelSelection'
 
-const getDefaultTabConfig = (agenticMode?: Boolean) => {
+const getDefaultTabConfig = (agenticMode?: boolean) => {
     return {
         tabTitle: 'Chat',
         promptInputInfo:
@@ -192,7 +192,18 @@ export const createChat = (
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
             case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
-                tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                if (message.params.modelId !== undefined) {
+                    Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
+                        const options = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+                        mynahUi.updateStore(tabId, {
+                            promptInputOptions: options?.map(option =>
+                                option.id === 'model-selection' ? { ...option, value: message.params.modelId } : option
+                            ),
+                        })
+                    })
+                } else {
+                    tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                }
                 break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
