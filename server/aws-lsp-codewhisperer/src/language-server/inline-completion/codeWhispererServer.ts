@@ -303,6 +303,12 @@ export const CodewhispererServerFactory =
                 // If session was requesting at cancellation time, close it
                 // User Trigger Decision will be reported at the time of processing API response in the callback below.
                 sessionManager.discardSession(currentSession)
+                await emitUserTriggerDecisionTelemetry(
+                    telemetry,
+                    telemetryService,
+                    currentSession,
+                    timeSinceLastUserModification
+                )
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
