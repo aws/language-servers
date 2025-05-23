@@ -57,6 +57,7 @@ export const withAdapter = (
         onChatPromptProgressActionButtonClicked: addDefaultRouting('onChatPromptProgressActionButtonClicked'),
         onTabbedContentTabChange: addDefaultRouting('onTabbedContentTabChange'),
         onPromptInputOptionChange: addDefaultRouting('onPromptInputOptionChange'),
+        onPromptInputButtonClick: addDefaultRouting('onPromptInputButtonClick'),
         onMessageDismiss: addDefaultRouting('onMessageDismiss'),
 
         /**

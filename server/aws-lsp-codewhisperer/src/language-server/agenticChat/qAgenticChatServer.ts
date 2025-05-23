@@ -6,7 +6,7 @@
 import { InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
-import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
+import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION, MANAGE_QUICK_ACTION } from '../chat/quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
@@ -35,7 +35,7 @@ export const QAgenticChatServer =
                         quickActions: {
                             quickActionsCommandGroups: [
                                 {
-                                    commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION],
+                                    commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION, MANAGE_QUICK_ACTION],
                                 },
                             ],
                         },
@@ -150,6 +150,10 @@ export const QAgenticChatServer =
         chat.onPromptInputOptionChange(params => {
             return chatController.onPromptInputOptionChange(params)
         })
+
+        // ;(chat as any).onPromptInputButtonClick((params: any) => {
+        //     chatController.setPaidTierMode(params.tabId, 'paidtier')
+        // })
 
         chat.onButtonClick(params => {
             return chatController.onButtonClick(params)

@@ -36,6 +36,7 @@ export interface ChatEventHandler
         | 'onResetStore'
         | 'onReady'
         | 'onPromptInputOptionChange'
+        | 'onPromptInputButtonClick'
         | 'onMessageDismiss'
     > {}
 
