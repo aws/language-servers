@@ -170,11 +170,14 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
     })
 }
 
+
 const emitUserTriggerDecisionTelemetry = async (
     telemetry: Telemetry,
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
-    timeSinceLastUserModification?: number
+    timeSinceLastUserModification?: number,
+    addedCharacterCount?: number,
+    deletedCharacterCount?: number,
 ) => {
     // Prevent reporting user decision if it was already sent
     if (session.reportedUserDecision) {
@@ -186,7 +189,7 @@ const emitUserTriggerDecisionTelemetry = async (
         return
     }
 
-    await emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification)
+    await emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification, addedCharacterCount, deletedCharacterCount)
 
     session.reportedUserDecision = true
 }
@@ -194,9 +197,11 @@ const emitUserTriggerDecisionTelemetry = async (
 const emitAggregatedUserTriggerDecisionTelemetry = (
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
-    timeSinceLastUserModification?: number
+    timeSinceLastUserModification?: number,
+    addedCharacterCount?: number,
+    deletedCharacterCount?: number,
 ) => {
-    return telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification)
+    return telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification, addedCharacterCount, deletedCharacterCount)
 }
 
 const mergeSuggestionsWithRightContext = (
@@ -620,6 +625,8 @@ export const CodewhispererServerFactory =
                 firstCompletionDisplayLatency,
                 totalSessionDisplayTime,
                 typeaheadLength,
+                addedCharacterCount,
+                deletedCharacterCount,
             } = params
 
             const session = sessionManager.getSessionById(sessionId)
@@ -659,7 +666,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            await emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
+            await emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification, addedCharacterCount, deletedCharacterCount)
         }
 
         const updateConfiguration = (updatedConfig: AmazonQWorkspaceConfig) => {
