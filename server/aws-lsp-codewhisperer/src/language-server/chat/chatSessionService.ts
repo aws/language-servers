@@ -175,7 +175,7 @@ export class ChatSessionService {
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
                     request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
-                    (error.cause as any)?.$metadata?.httpStatusCode === 429 &&
+                    (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
                     error.message ===
                         'Encountered unexpectedly high load when processing the request, please try again.'
                 ) {
