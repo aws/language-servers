@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.41](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.40...lsp-codewhisperer/v0.0.41) (2025-05-23)
+
+
+### Bug Fixes
+
+* ensure local index server updates with workspaceChangeEvent and bump runtimes ([#1424](https://github.com/aws/language-servers/issues/1424)) ([9babbb6](https://github.com/aws/language-servers/commit/9babbb643daa2893454dbc977d3802822b2c0aa6))
+* fix uncaught exception in workspaceFolderManager ([#1428](https://github.com/aws/language-servers/issues/1428)) ([1b15457](https://github.com/aws/language-servers/commit/1b154570c9cf1eb1d56141095adea4459426b774))
+
 ## [0.0.40](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.39...lsp-codewhisperer/v0.0.40) (2025-05-22)
 
 
