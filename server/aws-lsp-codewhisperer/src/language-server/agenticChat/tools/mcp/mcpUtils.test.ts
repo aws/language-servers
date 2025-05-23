@@ -12,6 +12,8 @@ import {
     loadPersonaPermissions,
     getWorkspacePersonaConfigPaths,
     getGlobalPersonaConfigPath,
+    createNamespacedToolName,
+    MAX_TOOL_NAME_LENGTH,
 } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { pathToFileURL } from 'url'
@@ -152,5 +154,76 @@ describe('persona path helpers', () => {
 
     it('getGlobalPersonaConfigPath()', () => {
         expect(getGlobalPersonaConfigPath('/home/me')).to.equal('/home/me/.aws/amazonq/personas/default.yaml')
+    })
+})
+
+describe('createNamespacedToolName', () => {
+    let tools: Set<string>
+    beforeEach(() => {
+        tools = new Set<string>()
+    })
+    it('basic case', () => {
+        const result = createNamespacedToolName('server', 'tool', tools)
+        expect(result).to.equal('server___tool')
+        expect(tools.has('server___tool')).to.be.true
+    })
+    it('duplicate mcpName', () => {
+        tools.add('server___tool')
+        const result = createNamespacedToolName('server', 'tool', tools)
+        expect(result).to.equal('server1___tool')
+    })
+    //server name too long
+    it('truncates long server names', () => {
+        const longName = 'very_long_server_name_that_exceeds_the_maximum_allowed_length_for_tool_names'
+        const result = createNamespacedToolName(longName, 'tool', tools)
+        expect(result.length).to.be.lessThanOrEqual(MAX_TOOL_NAME_LENGTH)
+        expect(result.endsWith('___tool')).to.be.true
+    })
+    // tool name too long
+    it('truncates long tool names', () => {
+        const longTool = 'extremely_long_tool_name_that_definitely_exceeds_length_limits'
+        const result = createNamespacedToolName('srv', longTool, tools)
+        expect(result.length).to.be.lessThanOrEqual(MAX_TOOL_NAME_LENGTH)
+        expect(result.startsWith('srv___')).to.be.true
+    })
+    it('handles individual valid length but combined exceed length', () => {
+        const serverName = 'some_moderately_long_server_name'
+        const toolName = 'also_a_pretty_long_tool_name_here'
+        const result = createNamespacedToolName(serverName, toolName, tools)
+        expect(result.length).to.be.lessThanOrEqual(MAX_TOOL_NAME_LENGTH)
+    })
+    it('deals with collisions after truncation', () => {
+        const server1 = 'a'.repeat(70)
+        const server2 = 'a'.repeat(65) + 'bbbb'
+        const r1 = createNamespacedToolName(server1, 'test', tools)
+        const r2 = createNamespacedToolName(server2, 'test', tools)
+        expect(r1).to.not.equal(r2)
+    })
+    // edge cases
+    it('empty names', () => {
+        expect(createNamespacedToolName('', 'tool', tools)).to.equal('___tool')
+        expect(createNamespacedToolName('server', '', tools)).to.equal('server___')
+    })
+    it('single chars', () => {
+        const result = createNamespacedToolName('a', 'b', tools)
+        expect(result).to.equal('a___b')
+    })
+    it('multiple calls maintain uniqueness', () => {
+        const results = []
+        results.push(createNamespacedToolName('srv', 'tool', tools))
+        results.push(createNamespacedToolName('srv', 'tool', tools))
+        results.push(createNamespacedToolName('other', 'tool', tools))
+        const unique = new Set(results)
+        // should be 3 unique names
+        expect(unique.size).to.equal(3)
+    })
+    it('handles extreme case with many duplicates', () => {
+        // Pre-populate with conflicts
+        for (let i = 1; i <= 5; i++) {
+            tools.add(`test${i}___tool`)
+        }
+        const result = createNamespacedToolName('test', 'tool', tools)
+        expect(result).to.equal('test6___tool')
+        expect(tools.has(result)).to.be.true
     })
 })
