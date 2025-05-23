@@ -275,6 +275,7 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
+        let discardInflightSessionOnNewInvocation = false
 
         const sessionManager = SessionManager.getInstance()
 
@@ -300,15 +301,7 @@ export const CodewhispererServerFactory =
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
-                // If session was requesting at cancellation time, close it
-                // User Trigger Decision will be reported at the time of processing API response in the callback below.
-                sessionManager.discardSession(currentSession)
-                await emitUserTriggerDecisionTelemetry(
-                    telemetry,
-                    telemetryService,
-                    currentSession,
-                    timeSinceLastUserModification
-                )
+                discardInflightSessionOnNewInvocation = true
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
@@ -328,7 +321,8 @@ export const CodewhispererServerFactory =
                                 suggestionResponse,
                                 currentSession,
                                 false,
-                                params.context.selectedCompletionInfo?.range
+                                params.context.selectedCompletionInfo?.range,
+                                discardInflightSessionOnNewInvocation
                             )
                         })
                         .catch(error => {
@@ -464,7 +458,13 @@ export const CodewhispererServerFactory =
                             ...(workspaceId ? { workspaceId: workspaceId } : {}),
                         })
                         .then(async suggestionResponse => {
-                            return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
+                            return processSuggestionResponse(
+                                suggestionResponse,
+                                newSession,
+                                true,
+                                selectionRange,
+                                discardInflightSessionOnNewInvocation
+                            )
                         })
                         .catch(err => {
                             return handleSuggestionsErrors(err, newSession)
@@ -477,7 +477,8 @@ export const CodewhispererServerFactory =
             suggestionResponse: GenerateSuggestionsResponse,
             session: CodeWhispererSession,
             isNewSession: boolean,
-            selectionRange?: Range
+            selectionRange?: Range,
+            discardInflightSessionOnNewInvocation = false
         ): Promise<InlineCompletionListWithReferences> => {
             codePercentageTracker.countInvocation(session.language)
 
@@ -498,7 +499,17 @@ export const CodewhispererServerFactory =
             // Emit service invocation telemetry for every request sent to backend
             emitServiceInvocationTelemetry(telemetry, session, suggestionResponse.responseContext.requestId)
 
-            // Exit early and discard API response
+            // Discard previous inflight API response due to new trigger
+            if (discardInflightSessionOnNewInvocation) {
+                sessionManager.discardSession(session)
+                await emitUserTriggerDecisionTelemetry(
+                    telemetry,
+                    telemetryService,
+                    session,
+                    timeSinceLastUserModification
+                )
+            }
+
             // session was closed by user already made decisions consequent completion request before new paginated API response was received
             if (session.state === 'CLOSED' || session.state === 'DISCARD') {
                 return EMPTY_RESULT
