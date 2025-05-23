@@ -8,8 +8,8 @@ import {
     McpServerClickParams,
 } from '@aws/language-server-runtimes/protocol'
 
-import { getGlobalMcpConfigPath, getGlobalPersonaConfigPath } from './mcpUtils'
-import { MCPServerConfig, MCPServerPermission, McpServerRuntimeState } from './mcpTypes'
+import { getGlobalMcpConfigPath, getGlobalPersonaConfigPath, getWorkspacePersonaConfigPaths } from './mcpUtils'
+import { McpPermissionType, MCPServerConfig, MCPServerPermission, McpServerRuntimeState } from './mcpTypes'
 
 interface PermissionOption {
     label: string
@@ -265,7 +265,8 @@ export class McpEventHandler {
         return this.#handleAddNewMcp(params)
     }
 
-    async #handleAddNewMcp(params: McpServerClickParams) {
+ 
+    async #handleAddNewMcp(params: McpServerClickParams, error?: string) {
         const existingValues = params.optionsValues || {}
         let argsValue = [
             {
@@ -305,9 +306,9 @@ export class McpEventHandler {
             id: params.id,
             header: {
                 title: 'Add MCP Server',
-                status: existingValues.errorTitle
+                status: error
                     ? {
-                          title: existingValues.errorTitle,
+                          title: error,
                           icon: 'cancel-circle',
                           status: 'error',
                       }
@@ -323,7 +324,7 @@ export class McpEventHandler {
                 {
                     id: 'save-mcp',
                     text: 'Save',
-                    status: 'primary',
+                    status: error ? 'error' : 'primary',
                 },
             ],
             filterOptions: [
@@ -412,6 +413,36 @@ export class McpEventHandler {
             ],
         }
     }
+    /**
+     * Validates the MCP server form values
+     */
+    #validateMcpServerForm(values: Record<string, string>): { isValid: boolean; errors: string[] } {
+        const errors: string[] = []
+
+        if (!values.name || values.name.trim() === '') {
+            errors.push('Server name cannot be empty')
+        } else {
+            if (!/^[a-zA-Z0-9-]+$/.test(values.name)) {
+                errors.push('Server name can only contain alphanumeric characters and hyphens')
+            }
+        }
+
+        if (!values.command || values.command.trim() === '') {
+            errors.push('Command is required for stdio transport')
+        }
+
+        if (values.timeout && values.timeout.trim() !== '') {
+            const timeoutNum = Number(values.timeout.trim())
+            if (timeoutNum <= 0) {
+                errors.push('Timeout must be a positive number')
+            }
+        }
+
+        return {
+            isValid: errors.length === 0,
+            errors,
+        }
+    }
 
     /**
      * Handles saving a new MCP server configuration
@@ -420,18 +451,15 @@ export class McpEventHandler {
         if (!params.optionsValues) {
             return this.#getDefaultMcpResponse(params.id)
         }
-
-        const requiredFields = ['name', 'command', 'timeout']
-        const missingFields = requiredFields.filter(
-            field => !params.optionsValues?.[field] || params.optionsValues[field].trim() === ''
-        )
-        if (missingFields.length > 0) {
-            const formattedFields = missingFields.map(f => f.charAt(0).toUpperCase() + f.slice(1)).join(', ')
-            // adds errorTitle mapping to optionsValues which is not normally there. chose this option over adding new parameter to #handleAddNewMcp
-            params.optionsValues['errorTitle'] = `Required Fields: ${formattedFields}`
-            // goes back to add-new-mcp page but will now show an error card
+        // Validate form values - this should already be validated client-side
+        // but we validate again as a safety measure
+        const validation = this.#validateMcpServerForm(params.optionsValues)
+        let error: string
+        if (!validation.isValid) {
+            this.#features.logging.error(`Invalid MCP server form: ${validation.errors.join(', ')}`)
+            error = validation.errors[0]
             params.id = 'add-new-mcp'
-            return this.#handleAddNewMcp(params)
+            return this.#handleAddNewMcp(params, error)
         }
 
         // Process args to string[]
@@ -478,14 +506,9 @@ export class McpEventHandler {
         }
 
         // TODO: handle ws/global selection
-        let configPath = ''
-        if (params.optionsValues.scope === 'global') {
-            configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
-        }
-        let personaPath = ''
-        if (params.optionsValues.scope === 'global') {
-            personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
-        }
+        const configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        const personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
         // Check if server already exists and update or add accordingly
         const existingConfigs = McpManager.instance.getAllServerConfigs()
         if (existingConfigs.has(serverName)) {
@@ -690,9 +713,9 @@ export class McpEventHandler {
      * Gets the current permission setting for a tool
      */
     #getCurrentPermission(permission: string): string {
-        if (permission === 'alwaysAllow') {
+        if (permission === McpPermissionType.alwaysAllow) {
             return 'Always run'
-        } else if (permission === 'deny') {
+        } else if (permission === McpPermissionType.deny) {
             return 'Disable'
         } else {
             return 'Ask to run'
@@ -705,25 +728,16 @@ export class McpEventHandler {
     #buildPermissionOptions(currentPermission: string) {
         const permissionOptions: PermissionOption[] = []
 
-        if (currentPermission !== 'alwaysAllow') {
-            permissionOptions.push({
-                label: 'Always run',
-                value: 'alwaysAllow',
-            })
+        if (currentPermission !== McpPermissionType.alwaysAllow) {
+            permissionOptions.push({ label: 'Always run', value: McpPermissionType.alwaysAllow })
         }
 
-        if (currentPermission !== 'ask') {
-            permissionOptions.push({
-                label: 'Ask to run',
-                value: 'ask',
-            })
+        if (currentPermission !== McpPermissionType.ask) {
+            permissionOptions.push({ label: 'Ask to run', value: McpPermissionType.ask })
         }
 
-        if (currentPermission !== 'deny') {
-            permissionOptions.push({
-                label: 'Disable',
-                value: 'deny',
-            })
+        if (currentPermission !== McpPermissionType.deny) {
+            permissionOptions.push({ label: 'Disable', value: McpPermissionType.deny })
         }
 
         return permissionOptions
@@ -772,9 +786,9 @@ export class McpEventHandler {
                 }
             }
 
-            const MCPServerPermission = this.#processPermissionUpdates(serverName, updatedPermissionConfig)
+            const mcpServerPermission = this.#processPermissionUpdates(updatedPermissionConfig)
 
-            await McpManager.instance.updateServerPermission(serverName, MCPServerPermission)
+            await McpManager.instance.updateServerPermission(serverName, mcpServerPermission)
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to update MCP permissions: ${error}`)
@@ -802,7 +816,7 @@ export class McpEventHandler {
     /**
      * Processes permission updates from the UI
      */
-    #processPermissionUpdates(serverName: string, updatedPermissionConfig: any) {
+    #processPermissionUpdates(updatedPermissionConfig: any) {
         // TODO: handle ws/global selection
         let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
 
@@ -825,15 +839,15 @@ export class McpEventHandler {
             // }
 
             switch (val) {
-                case 'alwaysAllow':
-                    perm.toolPerms[key] = 'alwaysAllow'
+                case McpPermissionType.alwaysAllow:
+                    perm.toolPerms[key] = McpPermissionType.alwaysAllow
                     break
-                case 'deny':
-                    perm.toolPerms[key] = 'deny'
+                case McpPermissionType.deny:
+                    perm.toolPerms[key] = McpPermissionType.deny
                     break
-                case 'ask':
+                case McpPermissionType.ask:
                 default:
-                    perm.toolPerms[key] = 'ask'
+                    perm.toolPerms[key] = McpPermissionType.ask
             }
         }
 

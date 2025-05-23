@@ -97,9 +97,9 @@ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     }
 
     lsp.onInitialized(async () => {
-        // todo: move to constants
         const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
         const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
+
         const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
         const allConfigPaths = [...wsConfigPaths, globalConfigPath]
 

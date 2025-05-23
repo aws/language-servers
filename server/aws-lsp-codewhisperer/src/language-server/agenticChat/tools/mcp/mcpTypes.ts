@@ -6,6 +6,11 @@
 export type McpServerStatus = 'UNINITIALIZED' | 'INITIALIZING' | 'ENABLED' | 'FAILED' | 'DISABLED'
 export type McpPermissionType = 'alwaysAllow' | 'ask' | 'deny'
 
+export enum McpPermissionType {
+    alwaysAllow = 'alwaysAllow',
+    ask = 'ask',
+    deny = 'deny',
+}
 export interface McpServerRuntimeState {
     status: McpServerStatus
     toolsCount: number
@@ -83,7 +88,7 @@ export class PersonaModel {
     ensureWildcardAsk(server: string): void {
         this.cfg['toolPerms'] ||= {}
         const s = (this.cfg['toolPerms'][server] ||= {})
-        if (Object.keys(s).length === 0) s['*'] = 'ask'
+        if (Object.keys(s).length === 0) s['*'] = McpPermissionType.ask
     }
 }
 export interface ListToolsResponse {

@@ -7,7 +7,12 @@ import { expect } from 'chai'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
-import { loadMcpServerConfigs } from './mcpUtils'
+import {
+    loadMcpServerConfigs,
+    loadPersonaPermissions,
+    getWorkspacePersonaConfigPaths,
+    getGlobalPersonaConfigPath,
+} from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { pathToFileURL } from 'url'
 import * as sinon from 'sinon'
@@ -93,5 +98,59 @@ describe('loadMcpServerConfigs', () => {
 
         const out2 = await loadMcpServerConfigs(workspace, logger, [overridePath, globalPath])
         expect(out2.get('S')!.command).to.equal('workspaceCmd')
+    })
+})
+
+describe('loadPersonaPermissions', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+
+    beforeEach(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'personaTest-'))
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                writeFile: (p: string, d: string) => Promise.resolve(fs.writeFileSync(p, d)),
+                mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
+                getUserHomeDir: () => tmpDir,
+            },
+        }
+        logger = { warn() {}, info() {}, error() {} }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('creates a default persona and returns a wildcard-enabled map', async () => {
+        const perms = await loadPersonaPermissions(workspace, logger, [])
+
+        // Should have “*” entry with enabled=true and empty toolPerms
+        expect(perms.has('*')).to.be.true
+        const p = perms.get('*')!
+        expect(p.enabled).to.be.true
+        expect(p.toolPerms).to.deep.equal({})
+
+        // The default file should have been written under ~/.aws/amazonq/personas/default.yaml
+        const personaPath = getGlobalPersonaConfigPath(tmpDir)
+        expect(fs.existsSync(personaPath)).to.be.true
+        const content = fs.readFileSync(personaPath, 'utf-8')
+        expect(content).to.contain('mcpServers')
+    })
+})
+
+describe('persona path helpers', () => {
+    it('getWorkspacePersonaConfigPaths()', () => {
+        const uris = ['uri1', 'uri2']
+        expect(getWorkspacePersonaConfigPaths(uris)).to.deep.equal([
+            'uri1/.amazonq/personas/default.yaml',
+            'uri2/.amazonq/personas/default.yaml',
+        ])
+    })
+
+    it('getGlobalPersonaConfigPath()', () => {
+        expect(getGlobalPersonaConfigPath('/home/me')).to.equal('/home/me/.aws/amazonq/personas/default.yaml')
     })
 })

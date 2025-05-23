@@ -793,8 +793,8 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
-            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
+            // @ts-expect-error - type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutTypeSummary, header: header })
             return
         }
 
@@ -810,7 +810,7 @@ export const createMynahUi = (
             followUpOptions[0].type &&
             isValidAuthFollowUpType(followUpOptions[0].type)
         if (chatResult.body === '' && isValidAuthFollowUp) {
-            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
+            // @ts-expect-error - type for MynahUI differs from ChatResult types so we ignore it
             mynahUi.addChatItem(tabId, {
                 type: ChatItemType.SYSTEM_PROMPT,
                 ...chatResultWithoutTypeSummary,
@@ -874,19 +874,47 @@ export const createMynahUi = (
         }
     }
 
-    const updateFinalItemTypes = (tabId: string) => {
-        const store = mynahUi.getTabData(tabId)?.getStore() || {}
-        const chatItems = store.chatItems || []
-        const updatedItems = chatItems.map(item => ({
-            ...item,
-            type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
-        }))
-        mynahUi.updateStore(tabId, {
-            loadingChat: false,
-            cancelButtonWhenLoading: agenticMode,
-            chatItems: updatedItems,
-            promptInputDisabledState: false,
-        })
+    /**
+     * Creates a properly formatted chat item for MCP tool summary with accordion view
+     */
+    const createMcpToolSummaryItem = (message: ChatMessage): Partial<ChatItem> => {
+        const muted = message.summary?.content?.header?.status !== undefined
+        return {
+            type: ChatItemType.ANSWER,
+            messageId: message.messageId,
+            muted,
+            summary: {
+                content: message.summary?.content
+                    ? {
+                          padding: false,
+                          wrapCodes: true,
+                          header: message.summary.content.header
+                              ? {
+                                    icon: message.summary.content.header.icon as any,
+                                    body: message.summary.content.header.body,
+                                    buttons: message.summary.content?.header?.buttons as any,
+                                    status: message.summary.content?.header?.status as any,
+                                    fileList: undefined,
+                                }
+                              : undefined,
+                      }
+                    : undefined,
+                collapsedContent:
+                    message.summary?.collapsedContent?.map(item => ({
+                        body: item.body,
+                        header: item.header
+                            ? {
+                                  body: item.header.body,
+                              }
+                            : undefined,
+                        fullWidth: true,
+                        padding: false,
+                        muted: true,
+                        wrapCodes: item.header?.body === 'Parameters' ? true : false,
+                        codeBlockActions: { copy: null, 'insert-to-cursor': null },
+                    })) || [],
+            },
+        }
     }
 
     const prepareChatItemFromMessage = (
@@ -902,46 +930,7 @@ export const createMynahUi = (
         if (message.type === 'tool') {
             // Handle MCP tool summary with accordion view
             if (message.summary) {
-                // Create a properly typed summary object
-                return {
-                    type: ChatItemType.ANSWER,
-                    messageId: message.messageId,
-                    body: ' ',
-                    header: undefined,
-                    buttons: undefined,
-                    // Use type assertion to work around type incompatibilities
-                    // This is safe because the UI will handle the rendering correctly
-                    summary: {
-                        isCollapsed: true,
-                        content: message.summary.content
-                            ? {
-                                  padding: false,
-                                  wrapCodes: true,
-                                  body: message.summary.content.body,
-                                  header: message.summary.content.header
-                                      ? {
-                                            icon: message.summary.content.header.icon as any,
-                                            body: message.summary.content.header.body,
-                                        }
-                                      : undefined,
-                              }
-                            : undefined,
-                        collapsedContent:
-                            message.summary.collapsedContent?.map(item => ({
-                                body: item.body,
-                                header: item.header
-                                    ? {
-                                          body: item.header.body,
-                                      }
-                                    : undefined,
-                                fullWidth: true,
-                                padding: false,
-                                muted: true,
-                                wrapCodes: item.header?.body === 'Parameters' ? true : false,
-                                codeBlockActions: { copy: null, 'insert-to-cursor': null },
-                            })) || [],
-                    },
-                }
+                return createMcpToolSummaryItem(message)
             }
             processedHeader = { ...header }
             if (header?.buttons) {
@@ -1503,7 +1492,6 @@ ${params.message}`,
                     }
                 },
             }
-
             mynahUi.openDetailedList({ detailedList, events }, true)
         } else if (params.id === 'open-mcp-server') {
             //turning off splash loader in case of being on when new server is added
@@ -1531,9 +1519,7 @@ ${params.message}`,
                             // Handle action clicks (save, cancel, etc.)
                             messager.onMcpServerClick(action.id)
                         },
-                        onClose: () => {
-                            messager.onListMcpServers()
-                        },
+                        onClose: () => {},
                         onBackClick: () => {
                             messager.onListMcpServers()
                         },
