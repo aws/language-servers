@@ -65,7 +65,7 @@ describe('ChatController', () => {
     const expectedCompleteChatResult: ChatResult = {
         messageId: mockMessageId,
         body: 'Hello World!',
-        canBeVoted: true,
+        canBeVoted: false,
         codeReference: undefined,
         followUp: undefined,
         relatedContent: undefined,
@@ -74,7 +74,7 @@ describe('ChatController', () => {
     const expectedCompleteInlineChatResult: InlineChatResult = {
         messageId: mockMessageId,
         body: 'Hello World!',
-        canBeVoted: true,
+        canBeVoted: false,
         codeReference: undefined,
         followUp: undefined,
         relatedContent: undefined,

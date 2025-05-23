@@ -85,7 +85,7 @@ describe('AgenticChatController', () => {
 
     const expectedCompleteChatResult: ChatResult = {
         body: 'Hello World!',
-        canBeVoted: true,
+        canBeVoted: false,
         messageId: 'mock-message-id',
         codeReference: undefined,
         followUp: undefined,
@@ -96,7 +96,7 @@ describe('AgenticChatController', () => {
     const expectedCompleteInlineChatResult: InlineChatResult = {
         messageId: mockMessageId,
         body: 'Hello World!',
-        canBeVoted: true,
+        canBeVoted: false,
         codeReference: undefined,
         followUp: undefined,
         relatedContent: undefined,
@@ -729,7 +729,7 @@ describe('AgenticChatController', () => {
             const expectedErrorChatResult: ChatResult = {
                 messageId: mockMessageId,
                 body: 'I see the tool failed with error: Tool execution failed with an error',
-                canBeVoted: true,
+                canBeVoted: false,
                 codeReference: undefined,
                 followUp: undefined,
                 relatedContent: undefined,
