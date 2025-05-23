@@ -1475,7 +1475,6 @@ ${params.message}`,
                     }
                 },
             }
-
             mynahUi.openDetailedList({ detailedList, events }, true)
         } else if (params.id === 'open-mcp-server') {
             //turning off splash loader in case of being on when new server is added
