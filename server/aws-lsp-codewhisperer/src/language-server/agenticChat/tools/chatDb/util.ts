@@ -21,6 +21,8 @@ import {
     AssistantResponseMessage,
 } from '@amzn/codewhisperer-streaming'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { ChatItemType } from '@aws/mynah-ui'
+import { PriorityQueue } from 'typescript-collections'
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
@@ -56,6 +58,7 @@ export type Tab = {
 export type Conversation = {
     conversationId: string
     clientType: string
+    updatedAt?: Date
     messages: Message[]
 }
 
@@ -69,8 +72,26 @@ export type Message = {
     origin?: Origin
     userInputMessageContext?: UserInputMessageContext
     toolUses?: ToolUse[]
+    timestamp?: Date
     shouldDisplayMessage?: boolean
 }
+
+/**
+ * Represents a tab with its database collection reference, database name, and timestamp information
+ * for use in history trimming operations.
+ */
+export type TabWithContext = {
+    tab: Tab
+    collection: Collection<Tab> // The reference of chat DB collection
+    dbName: string // The chat DB name
+    oldestMessageDate: Date // The timestamp of the oldest message in the tab
+}
+
+/**
+ * Represents a chat DB reference, including the tab collection reference and the DB reference
+ * for use in history trimming operations.
+ */
+export type DbReference = { collection: Collection<Tab>; db: Loki }
 
 /**
  * Converts Message to codewhisperer-streaming ChatMessage
@@ -155,6 +176,14 @@ export function chatMessageToMessage(chatMessage: StreamingMessage): Message {
     }
 }
 
+export function isEmptyAssistantMessage(message: Message) {
+    return (
+        message.type === ('answer' as ChatItemType) &&
+        (!message.body || message.body.trim().length === 0) &&
+        (!message.toolUses || message.toolUses.length === 0)
+    )
+}
+
 /**
  *
  * This adapter implements the LokiPersistenceAdapter interface for file system operations using web-compatible shared fs utils.
@@ -229,7 +258,9 @@ export function updateOrCreateConversation(
 
     if (existingConversation) {
         return conversations.map(conv =>
-            conv.conversationId === conversationId ? { ...conv, messages: [...conv.messages, newMessage] } : conv
+            conv.conversationId === conversationId
+                ? { ...conv, updatedAt: new Date(), messages: [...conv.messages, newMessage] }
+                : conv
         )
     } else {
         return [
@@ -237,6 +268,7 @@ export function updateOrCreateConversation(
             {
                 conversationId,
                 clientType,
+                updatedAt: new Date(),
                 messages: [newMessage],
             },
         ]
@@ -297,6 +329,67 @@ export function groupTabsByDate(tabs: Tab[]): ConversationItemGroup[] {
             icon: 'calendar',
             items: group.tabs.map(tabToDetailedListItem),
         }))
+}
+
+/**
+ * Initialize a priority queue to store all workspace tab history, the tab contains the oldest message first.
+ * If the messages don't have a timestamp, oldest tab first.
+ */
+export function initializeHistoryPriorityQueue() {
+    // Create a comparator function for dates (oldest first)
+    // The PriorityQueue implementation uses maxHeap: greater value fist.
+    // So we need to return bTimestamp - aTimestamp if a is older than b.
+    function tabDateComparator(
+        a: { tab: Tab; oldestMessageDate: Date },
+        b: { tab: Tab; oldestMessageDate: Date }
+    ): number {
+        if (a.oldestMessageDate.getTime() === 0 && b.oldestMessageDate.getTime() === 0) {
+            // Legacy message data without timestamp, use the updatedAt timestamp of the tab to compare
+            const aUpdatedAt = a.tab.updatedAt
+            const bUpdatedAt = b.tab.updatedAt
+            // LokiJS automatically convert the indexed updatedAt into number for better performance, we have an index on Tab.updatedAt
+            if (typeof aUpdatedAt === 'number' && typeof bUpdatedAt === 'number') {
+                return bUpdatedAt - aUpdatedAt
+            }
+            // For robustness, adding Date type comparator as well
+            if (aUpdatedAt instanceof Date && bUpdatedAt instanceof Date) {
+                return bUpdatedAt.getTime() - aUpdatedAt.getTime()
+            }
+        }
+        return b.oldestMessageDate.getTime() - a.oldestMessageDate.getTime()
+    }
+
+    // Create a priority queue with tabs and the collection it belongs to, and sorted by oldest message date
+    return new PriorityQueue<TabWithContext>(tabDateComparator)
+}
+
+/**
+ * Gets the timestamp of the oldest message in a tab
+ * @param tabData The tab to check
+ * @returns The Date of the oldest message, or 0 if no messages under the tab or the message doesn't have a timestamp
+ */
+export function getOldestMessageTimestamp(tabData: Tab): Date {
+    if (!tabData.conversations) {
+        return new Date(0)
+    }
+
+    // The conversations and messages under the same tab should always be in chronological order
+    for (const conversation of tabData.conversations) {
+        // Skip empty conversations
+        if (!conversation.messages || conversation.messages.length === 0) {
+            continue
+        }
+        for (const message of conversation.messages) {
+            if (message.timestamp) {
+                return new Date(message.timestamp)
+            } else {
+                return new Date(0)
+            }
+        }
+    }
+
+    // Legacy data doesn't have a timestamp, so just treating it as 0 since they are older than any data that has a timestamp
+    return new Date(0)
 }
 
 function getTabTypeIcon(tabType: TabType): IconType {

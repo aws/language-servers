@@ -140,7 +140,7 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
+            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
             assert.strictEqual(isValid, false)
         })
 
@@ -172,7 +172,7 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
+            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
             assert.strictEqual(isValid, true)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
@@ -202,7 +202,7 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
+            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
             assert.strictEqual(isValid, true)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
@@ -237,7 +237,7 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
+            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
             assert.strictEqual(isValid, false)
         })
 
@@ -265,7 +265,7 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
+            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
             assert.strictEqual(isValid, true)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
@@ -314,7 +314,7 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
+            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
             assert.strictEqual(toolResults.length, 2, 'Should have correct number of tool results')
@@ -349,7 +349,7 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
+            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
             assert.strictEqual(isValid, false)
         })
     })
