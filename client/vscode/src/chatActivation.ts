@@ -32,6 +32,8 @@ import {
     chatOptionsUpdateType,
     buttonClickRequestType,
     chatUpdateNotificationType,
+    saveWorkspaceDocumentRequestType,
+    SaveWorkspaceDocumentParams,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -327,6 +329,26 @@ export function registerChat(
 
     languageClient.onTelemetry(e => {
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
+    })
+
+    languageClient.onRequest(saveWorkspaceDocumentRequestType.method, async (params: SaveWorkspaceDocumentParams) => {
+        const document = vscode.workspace.textDocuments.find(doc => {
+            if (!doc.isDirty) {
+                return false
+            }
+
+            if (doc.uri.toString() !== params.uri) {
+                return false
+            }
+
+            return true
+        })
+
+        if (document) {
+            await document.save()
+        }
+
+        return null
     })
 
     languageClient.onRequest(ShowSaveFileDialogRequestType.method, async (params: ShowSaveFileDialogParams) => {
