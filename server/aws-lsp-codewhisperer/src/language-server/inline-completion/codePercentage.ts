@@ -112,7 +112,7 @@ export class CodePercentageTracker {
         const languageBucket = this.getLanguageBucket(languageId)
 
         // Handle CodeWhisperer recommendations
-        if (fromCodeWhisperer) {
+        if (fromCodeWhisperer && tokens.length >= INSERT_CUTOFF_THRESHOLD) {
             languageBucket.totalTokens += tokens.length
             return
         }
