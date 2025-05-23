@@ -1,5 +1,5 @@
 import { Features } from '../../../types'
-import { McpManager } from './mcpManager'
+import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import {
     DetailedListGroup,
     DetailedListItem,
@@ -9,7 +9,7 @@ import {
 } from '@aws/language-server-runtimes/protocol'
 
 import { getGlobalMcpConfigPath, getGlobalPersonaConfigPath } from './mcpUtils'
-import { MCPServerConfig, MCPServerPermission } from './mcpTypes'
+import { MCPServerConfig, MCPServerPermission, McpServerRuntimeState } from './mcpTypes'
 
 interface PermissionOption {
     label: string
@@ -18,9 +18,33 @@ interface PermissionOption {
 
 export class McpEventHandler {
     #features: Features
+    #eventListenerRegistered: boolean
 
     constructor(features: Features) {
         this.#features = features
+        this.#eventListenerRegistered = false
+    }
+
+    /**
+     * Handles MCP server state changes and notifies the client
+     */
+    handleServerStateChange(serverName: string, state: McpServerRuntimeState) {
+        this.#features.logging.info(`MCP server state changed: ${serverName} - ${state.status}`)
+
+        // Send chat options update with notification
+        try {
+            this.#features.logging.info(`Sending chatOptionsUpdate with notification for server: ${serverName}`)
+            this.#features.chat.sendChatUpdate({
+                tabId: 'mcpserver',
+                data: {
+                    placeholderText: 'mcp-server-update',
+                    messages: [],
+                },
+            })
+            this.#features.logging.info('chatOptionsUpdate sent successfully')
+        } catch (error) {
+            this.#features.logging.error(`Failed to send chatOptionsUpdate: ${error}`)
+        }
     }
 
     /**
@@ -28,6 +52,15 @@ export class McpEventHandler {
      */
     async onListMcpServers(params: ListMcpServersParams) {
         const mcpManager = McpManager.instance
+
+        // Only register the event listener once
+        if (!this.#eventListenerRegistered) {
+            mcpManager.events.on(MCP_SERVER_STATUS_CHANGED, (serverName: string, state: McpServerRuntimeState) => {
+                this.#features.logging.info(`Received MCP_SERVER_STATUS_CHANGED event: ${serverName} - ${state.status}`)
+                this.handleServerStateChange(serverName, state)
+            })
+            this.#eventListenerRegistered = true
+        }
         const mcpManagerServerConfigs = mcpManager.getAllServerConfigs()
 
         // Transform server configs into DetailedListItem objects
@@ -152,6 +185,7 @@ export class McpEventHandler {
             'mcp-enable-server': () => this.#handleEnableMcpServer(params),
             'mcp-disable-server': () => this.#handleDisableMcpServer(params),
             'mcp-delete-server': () => this.#handleDeleteMcpServer(params),
+            'mcp-fix-server': () => this.#handleFixMcpServer(params),
         }
 
         // Execute the appropriate handler or return default response
@@ -181,8 +215,56 @@ export class McpEventHandler {
     }
 
     /**
-     * Handles the add new MCP server action
+     * Handles fixing an existing MCP server configuration
      */
+    async #handleFixMcpServer(params: McpServerClickParams) {
+        const serverName = params.title
+        if (!serverName) {
+            return this.#getDefaultMcpResponse(params.id)
+        }
+
+        // Get the existing config for this server
+        const config = McpManager.instance.getAllServerConfigs().get(serverName)
+        if (!config) {
+            return this.#getDefaultMcpResponse(params.id)
+        }
+
+        // Get server state to check for errors
+        const serverState = McpManager.instance.getServerState(serverName)
+
+        // Pre-fill the values from the existing config
+        const existingValues = {
+            name: serverName,
+            command: config.command,
+            args: config.args?.map(arg => ({
+                arg_key: arg,
+            })) || [{ arg_key: '' }],
+            env_variables:
+                Object.entries(config.env || {}).length > 0
+                    ? Object.entries(config.env || {}).map(([name, value]) => ({
+                          env_var_name: name,
+                          env_var_value: value,
+                      }))
+                    : [{ env_var_name: '', env_var_value: '' }],
+            timeout: config.timeout?.toString() || '60',
+            errorTitle: serverState?.lastError ? `Server error: ${serverState.lastError}` : undefined,
+        }
+
+        // Modify the original params object to match the expected type
+        params.id = 'add-new-mcp'
+        params.optionsValues = {
+            ...params.optionsValues,
+            name: existingValues.name,
+            command: existingValues.command,
+            timeout: existingValues.timeout,
+            args: JSON.stringify(existingValues.args),
+            env_variables: JSON.stringify(existingValues.env_variables),
+            errorTitle: existingValues.errorTitle || '',
+        }
+
+        return this.#handleAddNewMcp(params)
+    }
+
     async #handleAddNewMcp(params: McpServerClickParams) {
         const existingValues = params.optionsValues || {}
         let argsValue = [

@@ -104,6 +104,11 @@ export class McpManager {
 
         this.mcpServers = await loadMcpServerConfigs(this.features.workspace, this.features.logging, this.configPaths)
 
+        // Set all servers to UNINITIALIZED state initially
+        for (const name of this.mcpServers.keys()) {
+            this.setState(name, 'UNINITIALIZED', 0)
+        }
+
         for (const [name, cfg] of this.mcpServers.entries()) {
             if (this.isServerDisabled(name)) {
                 this.features.logging.info(`MCP: server '${name}' is disabled by persona settings, skipping`)

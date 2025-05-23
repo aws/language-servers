@@ -3,7 +3,7 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-export type McpServerStatus = 'INITIALIZING' | 'ENABLED' | 'FAILED' | 'DISABLED'
+export type McpServerStatus = 'UNINITIALIZED' | 'INITIALIZING' | 'ENABLED' | 'FAILED' | 'DISABLED'
 export type McpPermissionType = 'alwaysAllow' | 'ask' | 'deny'
 
 export interface McpServerRuntimeState {

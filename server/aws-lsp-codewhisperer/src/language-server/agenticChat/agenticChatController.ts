@@ -125,12 +125,19 @@ import {
 } from './constants'
 import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
 import { URI } from 'vscode-uri'
-import { McpManager } from './tools/mcp/mcpManager'
+import { MCP_SERVER_STATUS_CHANGED, McpManager } from './tools/mcp/mcpManager'
 import { McpTool } from './tools/mcp/mcpTool'
-import { processMcpToolUseMessage } from './tools/mcp/mcpUtils'
+import {
+    getGlobalMcpConfigPath,
+    getGlobalPersonaConfigPath,
+    getWorkspaceMcpConfigPaths,
+    getWorkspacePersonaConfigPaths,
+    processMcpToolUseMessage,
+} from './tools/mcp/mcpUtils'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
+import { McpServerRuntimeState } from './tools/mcp/mcpTypes'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
