@@ -147,6 +147,8 @@ export class McpEventHandler {
             'add-new-mcp': () => this.#handleAddNewMcp(params),
             'save-mcp': () => this.#handleSaveMcp(params),
             'open-mcp-server': () => this.#handleOpenMcpServer(params),
+            'edit-mcp': () => this.#handleEditMcpServer(params),
+
             'mcp-permission-change': () => this.#handleMcpPermissionChange(params),
             'refresh-mcp-list': () => this.#handleRefreshMCPList(params),
             'mcp-enable-server': () => this.#handleEnableMcpServer(params),
@@ -426,8 +428,13 @@ export class McpEventHandler {
         const configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
         const personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
 
-        // TODO: According to workspace specific scope and persona and pass configPath to addServer
-        await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+        if (McpManager.instance.getAllServerConfigs().has(serverName)) {
+            // update server
+            await McpManager.instance.updateServer(serverName, config)
+        } else {
+            // create server
+            await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+        }
 
         return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
     }
@@ -442,7 +449,6 @@ export class McpEventHandler {
         }
 
         let filterOptions: FilterOption[] = []
-
         if (serverName === 'Built-in') {
             // Handle Built-in server specially
             const allTools = this.#features.agent.getTools({ format: 'bedrock' })
@@ -487,7 +493,7 @@ export class McpEventHandler {
                     status: {},
                     actions: [
                         {
-                            id: 'edit-setup',
+                            id: 'edit-mcp',
                             icon: 'pencil',
                             text: 'Edit setup',
                         },
@@ -577,6 +583,56 @@ export class McpEventHandler {
         }
 
         return { id: params.id }
+    }
+
+    /**
+     * Handles edit MCP configuration
+     */
+    async #handleEditMcpServer(params: McpServerClickParams) {
+        const serverName = params.title
+        if (!serverName) {
+            return { id: params.id }
+        }
+
+        const config = McpManager.instance.getAllServerConfigs().get(serverName)
+        if (!config) {
+            return {
+                id: params.id,
+                header: {
+                    title: 'Edit MCP Server',
+                    status: {
+                        title: `Server "${serverName}" not found`,
+                        icon: 'cancel-circle',
+                        status: 'error',
+                    },
+                },
+                list: [],
+            }
+        }
+
+        const existingValues: Record<string, any> = {
+            name: serverName,
+            transport: 'stdio',
+            command: config.command,
+            args: (config.args ?? []).map(a => ({ arg_key: a })),
+            env_variables: Object.entries(config.env ?? {}).map(([k, v]) => ({
+                env_var_name: k,
+                env_var_value: v,
+            })),
+            timeout: (config.timeout ?? 60).toString(),
+        }
+
+        const view = await this.#handleAddNewMcp({
+            ...params,
+            id: 'add-new-mcp',
+            optionsValues: existingValues,
+        })
+
+        view.id = params.id
+        if (view.header) {
+            view.header.title = 'Edit MCP Server'
+        }
+        return view
     }
 
     /**

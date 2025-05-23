@@ -1452,9 +1452,7 @@ ${params.message}`,
      */
     const mcpServerClick = (params: McpServerClickResult) => {
         const typedParams = params as McpServerParams
-
-        if (params.id === 'add-new-mcp') {
-            //turning off splash loader in case of being on when new server is added
+        if (params.id === 'add-new-mcp' || params.id === 'edit-mcp') {
             mynahUi.toggleSplashLoader(false)
             const detailedList = createAddMcpServerDetailedList(typedParams)
 
@@ -1469,7 +1467,11 @@ ${params.message}`,
                 ) => {
                     if (actionParams.id === 'cancel-mcp') {
                         messager.onListMcpServers()
-                    } else if (actionParams.id === 'save-mcp') {
+                        return
+                    }
+
+                    // new and update will share the same save-mcp
+                    if (actionParams.id === 'save-mcp') {
                         mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
                         messager.onMcpServerClick(actionParams.id, 'Save configuration', filterValues)
                     }
