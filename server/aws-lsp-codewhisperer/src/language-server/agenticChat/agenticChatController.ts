@@ -208,6 +208,7 @@ export class AgenticChatController implements ChatHandlers {
         if (
             params.buttonId === 'run-shell-command' ||
             params.buttonId === 'reject-shell-command' ||
+            params.buttonId === 'reject-mcp-tool' ||
             params.buttonId === 'allow-tools'
         ) {
             if (!session.data) {
@@ -226,7 +227,7 @@ export class AgenticChatController implements ChatHandlers {
                     failureReason: `could not find deferred tool execution for message: ${messageId} `,
                 }
             }
-            params.buttonId === 'reject-shell-command'
+            params.buttonId === 'reject-shell-command' || params.buttonId === 'reject-mcp-tool'
                 ? (() => {
                       handler.reject(new ToolApprovalException('Command was rejected.', true))
                       this.#stoppedToolUses.add(messageId)
@@ -1030,39 +1031,13 @@ export class AgenticChatController implements ChatHandlers {
                                 await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
                             }
 
-                            // We'll execute the tool later and update the card with results
-                            // Format the tool input as JSON string
-                            const toolInput = JSON.stringify(toolUse.input, null, 2)
-
-                            // Store the blockId so we can update this card later
-                            const runningCardBlockId = await chatResultStream.writeResultBlock({
-                                type: 'tool',
-                                messageId: toolUse.toolUseId,
-                                summary: {
-                                    content: {
-                                        header: {
-                                            icon: 'tools',
-                                            body: `${serverName}_${toolName}`,
-                                        },
-                                    },
-                                    collapsedContent: [
-                                        {
-                                            header: {
-                                                body: 'Parameters',
-                                            },
-                                            body: `\`\`\`json\n${toolInput}\n\`\`\``,
-                                        },
-                                    ],
-                                },
-                            })
-
                             // Store the blockId in the session for later use
                             if (toolUse.toolUseId) {
                                 // Use a type assertion to add the runningCardBlockId property
                                 const toolUseWithBlockId = {
                                     ...toolUse,
-                                    runningCardBlockId,
-                                } as typeof toolUse & { runningCardBlockId: number }
+                                    cachedButtonBlockId,
+                                } as typeof toolUse & { cachedButtonBlockId: number }
 
                                 session.toolUseLookup.set(toolUse.toolUseId, toolUseWithBlockId)
                             }
@@ -1148,95 +1123,7 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
-                        const def = McpManager.instance
-                            .getAllTools()
-                            .find(d => `${d.serverName}_${d.toolName}` === toolUse.name)
-                        if (def) {
-                            // Format the tool result as JSON string
-                            const toolInput = JSON.stringify(toolUse.input, null, 2)
-                            const toolResultContent =
-                                typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-
-                            // Extract server name and tool name
-                            const [serverName, ...toolParts] = toolUse.name.split('_')
-                            const toolName = toolParts.join('_')
-                            // Get the stored blockId for this tool use
-                            const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
-                            // Use a type assertion to access the runningCardBlockId property
-                            const runningCardBlockId = (cachedToolUse as any)?.runningCardBlockId
-
-                            if (runningCardBlockId !== undefined) {
-                                // Update the existing card with the results using overwriteResultBlock
-                                await chatResultStream.overwriteResultBlock(
-                                    {
-                                        type: 'tool',
-                                        messageId: toolUse.toolUseId,
-                                        summary: {
-                                            content: {
-                                                header: {
-                                                    icon: 'tools',
-                                                    body: `${serverName}_${toolName}`,
-                                                    fileList: undefined,
-                                                },
-                                            },
-                                            collapsedContent: [
-                                                {
-                                                    header: {
-                                                        body: 'Parameters',
-                                                    },
-                                                    body: `\`\`\`json\n${toolInput}\n\`\`\``,
-                                                },
-                                                {
-                                                    header: {
-                                                        body: 'Results',
-                                                    },
-                                                    body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
-                                                },
-                                            ],
-                                        },
-                                    },
-                                    runningCardBlockId
-                                )
-                            } else {
-                                // Fallback to writeResultBlock if blockId is not available
-                                this.#log(
-                                    `Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`
-                                )
-                                await chatResultStream.writeResultBlock({
-                                    type: 'tool',
-                                    messageId: toolUse.toolUseId,
-                                    summary: {
-                                        content: {
-                                            header: {
-                                                icon: 'tools',
-                                                body: `${serverName}-${toolName}`,
-                                                fileList: undefined,
-                                            },
-                                        },
-                                        collapsedContent: [
-                                            {
-                                                header: {
-                                                    body: 'Parameters',
-                                                },
-                                                body: `\`\`\`json\n${toolInput}\n\`\`\``,
-                                            },
-                                            {
-                                                header: {
-                                                    body: 'Results',
-                                                },
-                                                body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
-                                            },
-                                        ],
-                                    },
-                                })
-                            }
-                        } else {
-                            await chatResultStream.writeResultBlock({
-                                type: 'tool',
-                                messageId: toolUse.toolUseId,
-                                body: toolResultMessage(toolUse, result),
-                            })
-                        }
+                        await this.#handleMcpToolResult(toolUse, result, session, chatResultStream)
                         break
                 }
                 this.#updateUndoAllState(toolUse, session)
@@ -1268,26 +1155,24 @@ export class AgenticChatController implements ChatHandlers {
             } catch (err) {
                 await this.#showUndoAllIfRequired(chatResultStream, session)
                 if (this.isUserAction(err, token)) {
-                    if (toolUse.name === 'executeBash') {
-                        if (err instanceof ToolApprovalException) {
-                            if (cachedButtonBlockId) {
-                                await chatResultStream.overwriteResultBlock(
-                                    this.#getUpdateToolConfirmResult(toolUse, false),
-                                    cachedButtonBlockId
-                                )
-                                if (err.shouldShowMessage) {
-                                    await chatResultStream.writeResultBlock({
-                                        type: 'answer',
-                                        messageId: `reject-message-${toolUse.toolUseId}`,
-                                        body: err.message || 'Command was rejected.',
-                                    })
-                                }
-                            } else {
-                                this.#features.logging.warn('Failed to update tool block: no blockId is available.')
-                            }
+                    // Handle ToolApprovalException for any tool
+                    if (err instanceof ToolApprovalException && cachedButtonBlockId) {
+                        await chatResultStream.overwriteResultBlock(
+                            this.#getUpdateToolConfirmResult(toolUse, false),
+                            cachedButtonBlockId
+                        )
+                        if (err.shouldShowMessage) {
+                            await chatResultStream.writeResultBlock({
+                                type: 'answer',
+                                messageId: `reject-message-${toolUse.toolUseId}`,
+                                body: err.message || 'Command was rejected.',
+                            })
                         }
-                        throw err
+                    } else if (err instanceof ToolApprovalException) {
+                        this.#features.logging.warn('Failed to update tool block: no blockId is available.')
                     }
+
+                    // Handle CancellationError
                     if (err instanceof CancellationError) {
                         results.push({
                             toolUseId: toolUse.toolUseId,
@@ -1296,7 +1181,13 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         continue
                     }
+
+                    // Rethrow error for executeBash or any named tool
+                    if (toolUse.name === 'executeBash' || toolUse.name) {
+                        throw err
+                    }
                 }
+
                 // display fs write failure status in the UX of that file card
                 if (toolUse.name === 'fsWrite' && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
@@ -1564,19 +1455,8 @@ export class AgenticChatController implements ChatHandlers {
 
         switch (toolName) {
             case 'fsWrite':
-                header = {
-                    body: undefined,
-                    status: {
-                        status: 'success',
-                        icon: 'ok',
-                        text: 'Allowed',
-                    },
-                }
-                break
-
             case 'fsRead':
             case 'listDirectory':
-                // Common handling for read operations
                 header = {
                     body: undefined,
                     status: {
@@ -1597,20 +1477,38 @@ export class AgenticChatController implements ChatHandlers {
                         text: isAccept ? 'Allowed' : 'Rejected',
                     },
                 }
-                body = isAccept ? `File search allowed: \`${searchPath}\`` : `File search rejected: \`${searchPath}\``
+                body = `File search ${isAccept ? 'allowed' : 'rejected'}: \`${searchPath}\``
                 break
 
             default:
-                header = {
-                    body: toolUse.name || 'Tool',
-                    status: {
-                        status: isAccept ? 'success' : 'error',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Allowed' : 'Rejected',
+                // Default tool (not MCP)
+                return {
+                    type: 'tool',
+                    messageId: toolUse.toolUseId!,
+                    summary: {
+                        content: {
+                            header: {
+                                icon: 'tools',
+                                body: `${toolUse.name}`,
+                                status: {
+                                    status: isAccept ? 'success' : 'error',
+                                    icon: isAccept ? 'ok' : 'cancel',
+                                    text: isAccept ? 'Completed' : 'Rejected',
+                                },
+                                fileList: undefined,
+                            },
+                        },
+                        collapsedContent: [
+                            {
+                                header: {
+                                    body: 'Parameters',
+                                    status: undefined,
+                                },
+                                body: `\`\`\`json\n${JSON.stringify(toolUse.input, null, 2)}\n\`\`\``,
+                            },
+                        ],
                     },
                 }
-                body = isAccept ? `Tool execution allowed: ${toolUse.name}` : `Tool execution rejected: ${toolUse.name}`
-                break
         }
 
         return {
@@ -1657,6 +1555,7 @@ export class AgenticChatController implements ChatHandlers {
         toolType?: string,
         builtInPermission?: boolean
     ): ChatResult {
+        const toolName = toolType || toolUse.name
         let buttons: Button[] = []
         let header: {
             body: string
@@ -1673,15 +1572,13 @@ export class AgenticChatController implements ChatHandlers {
         }
         let body: string | undefined
 
-        switch (toolType || toolUse.name) {
-            case 'executeBash':
+        // Configure tool-specific UI elements
+        switch (toolName) {
+            case 'executeBash': {
+                const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 buttons = requiresAcceptance
                     ? [
-                          {
-                              id: 'run-shell-command',
-                              text: 'Run',
-                              icon: 'play',
-                          },
+                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
                           {
                               id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,
@@ -1690,21 +1587,25 @@ export class AgenticChatController implements ChatHandlers {
                           },
                       ]
                     : []
+
+                const statusIcon =
+                    commandCategory === CommandCategory.Destructive
+                        ? 'warning'
+                        : commandCategory === CommandCategory.Mutate
+                          ? 'info'
+                          : 'none'
+                const statusType =
+                    commandCategory === CommandCategory.Destructive
+                        ? 'warning'
+                        : commandCategory === CommandCategory.Mutate
+                          ? 'info'
+                          : undefined
+
                 header = {
                     status: requiresAcceptance
                         ? {
-                              icon:
-                                  commandCategory === CommandCategory.Destructive
-                                      ? 'warning'
-                                      : commandCategory === CommandCategory.Mutate
-                                        ? 'info'
-                                        : 'none',
-                              status:
-                                  commandCategory === CommandCategory.Destructive
-                                      ? 'warning'
-                                      : commandCategory === CommandCategory.Mutate
-                                        ? 'info'
-                                        : undefined,
+                              icon: statusIcon,
+                              status: statusType,
                               position: 'left',
                               description: this.#getCommandCategoryDescription(
                                   commandCategory ?? CommandCategory.ReadOnly
@@ -1714,19 +1615,13 @@ export class AgenticChatController implements ChatHandlers {
                     body: 'shell',
                     buttons,
                 }
-                const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 body = '```shell\n' + commandString
                 break
+            }
 
-            case 'fsWrite':
-                buttons = [
-                    {
-                        id: 'allow-tools', // Reusing the same ID for simplicity, could be changed to 'allow-write-tools'
-                        text: 'Allow',
-                        icon: 'ok',
-                        status: 'clear',
-                    },
-                ]
+            case 'fsWrite': {
+                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
+                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
                     iconForegroundStatus: 'warning',
@@ -1735,22 +1630,15 @@ export class AgenticChatController implements ChatHandlers {
                         : '#### Allow file modification outside of your workspace',
                     buttons,
                 }
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
                 body = builtInPermission
                     ? `I need permission to modify files.\n\`${writeFilePath}\``
                     : `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
                 break
+            }
 
             case 'fsRead':
-            case 'listDirectory':
-                buttons = [
-                    {
-                        id: 'allow-tools',
-                        text: 'Allow',
-                        icon: 'ok',
-                        status: 'clear',
-                    },
-                ]
+            case 'listDirectory': {
+                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'tools',
@@ -1759,8 +1647,8 @@ export class AgenticChatController implements ChatHandlers {
                         : '#### Allow read-only tools outside your workspace',
                     buttons,
                 }
-                // ⚠️ Warning: This accesses files outside the workspace
-                if (toolUse.name === 'fsRead') {
+
+                if (toolName === 'fsRead') {
                     const paths = (toolUse.input as unknown as FsReadParams).paths
                     const formattedPaths: string[] = []
                     paths.forEach(element => formattedPaths.push(`\`${element}\``))
@@ -1774,31 +1662,61 @@ export class AgenticChatController implements ChatHandlers {
                         : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
                 }
                 break
-            // — DEFAULT ⇒ MCP tools
-            default:
-                buttons = [
-                    {
-                        id: 'allow-tools',
-                        text: 'Allow',
-                        icon: 'ok',
-                        status: 'clear',
-                    },
-                ]
+            }
+
+            default: {
+                // — DEFAULT ⇒ MCP tools
+                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'warning',
-                    body: `#### ${toolUse.name}`,
+                    body: `#### ${toolName}`,
                     buttons,
                 }
                 body = ' '
                 break
+            }
         }
 
-        return {
-            type: 'tool',
-            messageId: this.#getMessageIdForToolUse(toolType, toolUse),
-            header,
-            body: warning ? (toolType === 'executeBash' ? '' : '\n\n') + body : body,
+        // Determine if this is a built-in tool or MCP tool
+        const isStandardTool =
+            toolName !== undefined && ['executeBash', 'fsWrite', 'fsRead', 'listDirectory'].includes(toolName)
+
+        if (isStandardTool) {
+            return {
+                type: 'tool',
+                messageId: this.#getMessageIdForToolUse(toolType, toolUse),
+                header,
+                body: warning ? (toolName === 'executeBash' ? '' : '\n\n') + body : body,
+            }
+        } else {
+            return {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                summary: {
+                    content: {
+                        header: {
+                            icon: 'tools',
+                            body: `${toolName}`,
+                            buttons: [
+                                { id: 'allow-tools', text: 'Run', icon: 'play' },
+                                {
+                                    id: 'reject-mcp-tool',
+                                    text: 'Reject',
+                                    icon: 'cancel',
+                                    status: 'dimmed-clear' as Status,
+                                },
+                            ],
+                        },
+                    },
+                    collapsedContent: [
+                        {
+                            header: { body: 'Parameters' },
+                            body: `\`\`\`json\n${JSON.stringify(toolUse.input, null, 2)}\n\`\`\``,
+                        },
+                    ],
+                },
+            }
         }
     }
 
@@ -2813,6 +2731,83 @@ export class AgenticChatController implements ChatHandlers {
             reject = (e: Error) => rej(e)
         })
         return { promise, resolve, reject }
+    }
+
+    /**
+     * Handles the result of an MCP tool execution
+     * @param toolUse The tool use object
+     * @param result The result from running the tool
+     * @param session The chat session
+     * @param chatResultStream The chat result stream for writing/updating blocks
+     */
+    async #handleMcpToolResult(
+        toolUse: ToolUse,
+        result: any,
+        session: ChatSessionService,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        // Early return if name or toolUseId is undefined
+        if (!toolUse.name || !toolUse.toolUseId) {
+            this.#log(`Cannot handle MCP tool result: missing name or toolUseId`)
+            return
+        }
+
+        const def = McpManager.instance.getAllTools().find(d => `${d.serverName}_${d.toolName}` === toolUse.name)
+        if (def) {
+            // Format the tool result and input as JSON strings
+            const toolInput = JSON.stringify(toolUse.input, null, 2)
+            const toolResultContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+
+            const [serverName, ...toolParts] = toolUse.name.split('_')
+            const toolName = toolParts.join('_')
+
+            const toolResultCard: ChatMessage = {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                summary: {
+                    content: {
+                        header: {
+                            icon: 'tools',
+                            body: `${serverName}_${toolName}`,
+                            fileList: undefined,
+                        },
+                    },
+                    collapsedContent: [
+                        {
+                            header: {
+                                body: 'Parameters',
+                            },
+                            body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                        },
+                        {
+                            header: {
+                                body: 'Results',
+                            },
+                            body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
+                        },
+                    ],
+                },
+            }
+
+            // Get the stored blockId for this tool use
+            const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+            const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+
+            if (cachedButtonBlockId !== undefined) {
+                // Update the existing card with the results
+                await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
+            } else {
+                // Fallback to creating a new card
+                this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
+                await chatResultStream.writeResultBlock(toolResultCard)
+            }
+        } else {
+            await chatResultStream.writeResultBlock({
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                body: toolResultMessage(toolUse, result),
+            })
+        }
     }
 
     #log(...messages: string[]) {
