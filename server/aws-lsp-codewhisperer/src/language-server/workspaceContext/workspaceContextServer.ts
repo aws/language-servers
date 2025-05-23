@@ -5,6 +5,7 @@ import {
     Server,
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
+import * as crypto from 'crypto'
 import { cleanUrl, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
 import { ArtifactManager, FileMetadata, SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES } from './artifactManager'
 import { WorkspaceFolderManager } from './workspaceFolderManager'
@@ -30,11 +31,24 @@ export const WorkspaceContextServer = (): Server => features => {
     let abTestingEvaluated = false
     let abTestingEnabled = false
     let amazonQServiceManager: AmazonQTokenServiceManager
+    let allowedExtension: string[] = ['AmazonQ-For-VSCode', 'Amazon Q For JetBrains']
+    let isSupportedExtension = false
 
     lsp.addInitializer((params: InitializeParams) => {
+        let clientExtension = params.initializationOptions?.aws?.clientInfo?.extension.name || ''
+        if (!allowedExtension.includes(clientExtension)) {
+            logging.warn(`Server context is currently not supported in ${clientExtension}`)
+            return {
+                capabilities: {},
+            }
+        } else {
+            isSupportedExtension = true
+        }
+
         workspaceIdentifier = params.initializationOptions?.aws?.contextConfiguration?.workspaceIdentifier || ''
         if (!workspaceIdentifier) {
-            logging.warn(`No workspaceIdentifier set!`)
+            logging.warn(`No workspaceIdentifier set. Treating this workspace as a temporary session.`)
+            workspaceIdentifier = crypto.randomUUID()
         }
 
         const folders = workspace.getAllWorkspaceFolders()
@@ -84,7 +98,7 @@ export const WorkspaceContextServer = (): Server => features => {
             if (params.section === Q_CONTEXT_CONFIGURATION_SECTION) {
                 // Only append workspaceId to GenerateCompletions when WebSocket client is connected
                 if (
-                    !workspaceFolderManager.getWorkspaceState().webSocketClient?.isConnected ||
+                    !workspaceFolderManager.getWorkspaceState().webSocketClient?.isConnected() ||
                     !workspaceFolderManager.getWorkspaceState().workspaceId
                 ) {
                     return {
@@ -165,6 +179,9 @@ export const WorkspaceContextServer = (): Server => features => {
     }
 
     lsp.onInitialized(async params => {
+        if (!isSupportedExtension) {
+            return {}
+        }
         amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
 
         artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)

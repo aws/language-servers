@@ -123,7 +123,7 @@ import {
     responseTimeoutMs,
     responseTimeoutPartialMsg,
 } from './constants'
-import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } from './errors'
+import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { URI } from 'vscode-uri'
 import { McpManager } from './tools/mcp/mcpManager'
 import { McpTool } from './tools/mcp/mcpTool'
@@ -447,11 +447,12 @@ export class AgenticChatController implements ChatHandlers {
                     session.pairProgrammingMode,
                     session.getConversationType()
                 )
-                await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
 
                 session.abortRequest()
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
+
+                await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
             })
             session.setConversationType('AgenticChat')
 
@@ -1312,6 +1313,7 @@ export class AgenticChatController implements ChatHandlers {
         return (
             CancellationError.isUserCancelled(err) ||
             err instanceof ToolApprovalException ||
+            isRequestAbortedError(err) ||
             (token?.isCancellationRequested ?? false)
         )
     }
@@ -1909,7 +1911,7 @@ export class AgenticChatController implements ChatHandlers {
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = content
 
         for (const toolResult of toolResults) {
-            this.#debug(`ToolResult: ${JSON.stringify(toolResult)} `)
+            this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
             updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
                 {
                     ...toolResult,
@@ -2044,13 +2046,13 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         if (authFollowType) {
-            this.#log(`Q auth error: ${getErrorMessage(err)} `)
+            this.#log(`Q auth error: ${getErrorMessage(err)}`)
 
             return createAuthFollowUpResult(authFollowType)
         }
 
         if (customerFacingErrorCodes.includes(err.code)) {
-            this.#features.logging.error(`${loggingUtils.formatErr(err)} `)
+            this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             if (err.code === 'InputTooLong') {
                 // Clear the chat history in the database for this tab
                 this.#chatHistoryDb.clearTab(tabId)
@@ -2067,10 +2069,10 @@ export class AgenticChatController implements ChatHandlers {
                 buttons: [],
             })
         }
-        this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)} `)
+        this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: requestID ? `${genericErrorMsg} \n\nRequest ID: ${requestID} ` : genericErrorMsg,
+            body: requestID ? `${genericErrorMsg} \n\nRequest ID: ${requestID}` : genericErrorMsg,
             messageId: errorMessageId,
             buttons: [],
         })
@@ -2106,10 +2108,10 @@ export class AgenticChatController implements ChatHandlers {
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
-                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)} `)
+                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
                 return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
             }
-            this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'} `)
+            this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
                 err instanceof Error ? err.message : 'Unknown request error'
@@ -2155,7 +2157,7 @@ export class AgenticChatController implements ChatHandlers {
             if (!params.code) missingParams.push('code')
 
             this.#log(
-                `Q Chat server failed to insert code.Missing required parameters for insert code: ${missingParams.join(', ')} `
+                `Q Chat server failed to insert code.Missing required parameters for insert code: ${missingParams.join(', ')}`
             )
 
             return
@@ -2222,7 +2224,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#telemetryController.enqueueCodeDiffEntry({ ...params, code: textWithIndent })
         } else {
             this.#log(
-                `Q Chat server failed to insert code: ${applyResult.failureReason ?? 'No failure reason provided'} `
+                `Q Chat server failed to insert code: ${applyResult.failureReason ?? 'No failure reason provided'}`
             )
         }
     }
@@ -2387,9 +2389,9 @@ export class AgenticChatController implements ChatHandlers {
                 return path.join(getUserPromptsDirectory(), relativePath)
             }
 
-            this.#features.logging.error(`File not found: ${relativePath} `)
+            this.#features.logging.error(`File not found: ${relativePath}`)
         } catch (e: any) {
-            this.#features.logging.error(`Error resolving absolute path: ${e.message} `)
+            this.#features.logging.error(`Error resolving absolute path: ${e.message}`)
         }
 
         return undefined

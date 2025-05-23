@@ -49,12 +49,13 @@ import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceMa
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { hasConnectionExpired } from '../../shared/utils'
 import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
-// import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
+import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import path = require('path')
 import { getRelativePath } from '../workspaceContext/util'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
+export const FILE_URI_CHARS_LIMIT = 1024
 export const CONTEXT_CHARACTERS_LIMIT = 10240
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
@@ -63,6 +64,7 @@ const getFileContext = (params: {
     position: Position
     inferredLanguageId: CodewhispererLanguage
 }): {
+    fileUri: string
     filename: string
     programmingLanguage: {
         languageName: CodewhispererLanguage
@@ -89,6 +91,7 @@ const getFileContext = (params: {
     // }
 
     return {
+        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
         filename: relativeFileName,
         programmingLanguage: {
             languageName: getRuntimeLanguage(params.inferredLanguageId),
@@ -346,8 +349,10 @@ export const CodewhispererServerFactory =
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
                     const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
-                    // const workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
-                    // const workspaceId = WorkspaceFolderManager.getInstance()?.getWorkspaceId(workspaceFolder)
+                    const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
+                    const workspaceId = workspaceState?.webSocketClient?.isConnected()
+                        ? workspaceState.workspaceId
+                        : undefined
                     // TODO: Can we get this derived from a keyboard event in the future?
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
@@ -450,7 +455,7 @@ export const CodewhispererServerFactory =
                                     .slice(0, CONTEXT_CHARACTERS_LIMIT)
                                     .replaceAll('\r\n', '\n'),
                             },
-                            // workspaceId: workspaceId,
+                            ...(workspaceId ? { workspaceId: workspaceId } : {}),
                         })
                         .then(async suggestionResponse => {
                             return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)

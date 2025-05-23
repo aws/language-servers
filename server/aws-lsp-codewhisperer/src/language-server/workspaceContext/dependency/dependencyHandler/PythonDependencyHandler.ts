@@ -3,7 +3,8 @@ import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import * as path from 'path'
 import * as fs from 'fs'
 import { FileMetadata } from '../../artifactManager'
-import { isDirectory } from '../../util'
+import { resolveSymlink, isDirectory } from '../../util'
+import { DependencyWatcher } from './DependencyWatcher'
 
 export interface PythonDependencyInfo extends BaseDependencyInfo {
     vscCodeSettingsJsonPath: string
@@ -113,26 +114,30 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
 
                 this.logging.log(`Setting up Python dependency watcher for ${sitePackagesPath}`)
                 try {
-                    const watcher = fs.watch(sitePackagesPath, { recursive: false }, async (eventType, fileName) => {
-                        if (!fileName) return
-                        // Handle event types
-                        if (eventType === 'rename') {
-                            const updatedDependencyMap: Map<string, Dependency> = new Map<string, Dependency>()
+                    const callBackDependencyUpdate = async (events: string[]) => {
+                        const updatedDependencyMap: Map<string, Dependency> = new Map<string, Dependency>()
+                        for (const fileName of events) {
                             if (this.isMetadataDirectory(fileName)) {
                                 this.handleMetadataChange(sitePackagesPath, fileName, updatedDependencyMap)
                             } else {
                                 this.handlePackageChange(sitePackagesPath, fileName, updatedDependencyMap)
                             }
-                            let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
-                                pythonDependencyInfo.workspaceFolder,
-                                updatedDependencyMap,
-                                true
-                            )
-                            this.emitDependencyChange(pythonDependencyInfo.workspaceFolder, zips)
                         }
-                    })
+                        let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                            pythonDependencyInfo.workspaceFolder,
+                            updatedDependencyMap,
+                            true
+                        )
+                        this.emitDependencyChange(pythonDependencyInfo.workspaceFolder, zips)
+                    } // end of callback function
+
+                    const watcher = new DependencyWatcher(
+                        sitePackagesPath,
+                        callBackDependencyUpdate,
+                        this.logging,
+                        this.DEPENDENCY_WATCHER_EVENT_BATCH_INTERVAL
+                    )
                     this.dependencyWatchers.set(sitePackagesPath, watcher)
-                    this.logging.log(`Started watching Python site-packages: ${sitePackagesPath}`)
                 } catch (error) {
                     this.logging.warn(`Error setting up watcher for ${sitePackagesPath}: ${error}`)
                 }
@@ -155,8 +160,11 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
 
             for (const item of sitePackagesContent) {
                 const itemPath = path.join(sitePackagesPath, item)
-
-                this.transformPathToDependency(item, itemPath, dependencyMap)
+                try {
+                    this.transformPathToDependency(item, itemPath, dependencyMap)
+                } catch (error) {
+                    this.logging.warn(`Error processing item ${item} in ${sitePackagesPath}: ${error}`)
+                }
             }
         }
         return dependencyMap
@@ -172,21 +180,27 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
             return
         }
 
-        // Add to dependency map if not already present
-        if (!dependencyMap.has(dependencyName)) {
-            let dependencySize: number = 0
-            if (isDirectory(dependencyPath)) {
-                dependencySize = this.getDirectorySize(dependencyPath)
-            } else {
-                dependencySize = fs.statSync(dependencyPath).size
+        try {
+            // Add to dependency map if not already present
+            if (!dependencyMap.has(dependencyName)) {
+                let dependencySize: number = 0
+                let truePath: string = resolveSymlink(dependencyPath)
+
+                if (isDirectory(truePath)) {
+                    dependencySize = this.getDirectorySize(truePath)
+                } else {
+                    dependencySize = fs.statSync(truePath).size
+                }
+                dependencyMap.set(dependencyName, {
+                    name: dependencyName,
+                    version: 'unknown',
+                    path: truePath,
+                    size: dependencySize,
+                    zipped: false,
+                })
             }
-            dependencyMap.set(dependencyName, {
-                name: dependencyName,
-                version: 'unknown',
-                path: dependencyPath,
-                size: dependencySize,
-                zipped: false,
-            })
+        } catch (error) {
+            this.logging.warn(`Error processing dependency ${dependencyName}: ${error}`)
         }
     }
 
@@ -204,7 +218,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
         const dependencyName = metadataDir.split('-')[0]
 
         // Check if we have this package in our dependency map
-        const dependencyPath = path.join(sitePackagesPath, dependencyName)
+        const dependencyPath = resolveSymlink(path.join(sitePackagesPath, dependencyName))
         if (fs.existsSync(dependencyPath)) {
             // Mark the package as updated
             const updatedDependency = {
@@ -224,7 +238,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
         fileName: string,
         updatedDependencyMap: Map<string, Dependency>
     ): void {
-        const dependencyPath = path.join(sitePackagesPath, fileName)
+        const dependencyPath = resolveSymlink(path.join(sitePackagesPath, fileName))
         if (fs.existsSync(dependencyPath)) {
             const updatedDependency = {
                 name: fileName,
@@ -261,7 +275,7 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                 pythonDependencyInfo.sitePackagesPaths.forEach((sitePackagesPath: string) => {
                     if (this.dependencyWatchers.has(sitePackagesPath)) {
                         this.logging.log(`Disposing dependency watcher for ${sitePackagesPath}`)
-                        this.dependencyWatchers.get(sitePackagesPath)?.close()
+                        this.dependencyWatchers.get(sitePackagesPath)?.dispose()
                         this.dependencyWatchers.delete(sitePackagesPath)
                     }
                 })
