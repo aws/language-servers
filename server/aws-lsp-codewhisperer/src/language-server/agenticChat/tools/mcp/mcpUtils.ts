@@ -274,3 +274,97 @@ export function getWorkspaceMcpConfigPaths(wsUris: string[]): string[] {
 export function getGlobalMcpConfigPath(homeDir: string): string {
     return path.join(homeDir, '.aws', 'amazonq', 'mcp.json')
 }
+
+export const MAX_TOOL_NAME_LENGTH = 64
+/**
+Create a namespaced tool name from server and tool names.
+Handles truncation and conflicts.
+ */
+const allNamespacedTools = new Set<string>()
+
+export function createNamespacedToolName(serverName: string, toolName: string, mcpNameSet: Set<string>): string {
+    const sep = '___'
+    // Case 1: Try the simple approach first
+    const fullName = `${serverName}${sep}${toolName}`
+    if (fullName.length <= MAX_TOOL_NAME_LENGTH && !mcpNameSet.has(fullName)) {
+        mcpNameSet.add(fullName)
+        return fullName
+    }
+    // Case 2: Server name is way too long
+    if (serverName.length > MAX_TOOL_NAME_LENGTH) {
+        const spaceForServer = MAX_TOOL_NAME_LENGTH - sep.length - Math.min(toolName.length, 10)
+        let serverPart = serverName.substring(0, Math.max(4, spaceForServer))
+        let result = `${serverPart}${sep}${toolName}`
+        // Still too long? Trim more aggressively
+        if (result.length > MAX_TOOL_NAME_LENGTH) {
+            const overage = result.length - MAX_TOOL_NAME_LENGTH
+            serverPart = serverPart.substring(0, serverPart.length - overage)
+            result = `${serverPart}${sep}${toolName}`
+        }
+        // Handle name collisions
+        let attempt = 1
+        let baseServerPart = serverPart
+        while (allNamespacedTools.has(result)) {
+            serverPart = `${baseServerPart}${attempt++}`
+            result = `${serverPart}${sep}${toolName}`
+            // Check length again after adding counter
+            if (result.length > MAX_TOOL_NAME_LENGTH) {
+                const overage = result.length - MAX_TOOL_NAME_LENGTH
+                serverPart = serverPart.substring(0, serverPart.length - overage)
+                result = `${serverPart}${sep}${toolName}`
+            }
+        }
+        allNamespacedTools.add(result)
+        return result
+    }
+    // Case 3: Tool name is the problem
+    if (toolName.length >= MAX_TOOL_NAME_LENGTH) {
+        const spaceForTool = MAX_TOOL_NAME_LENGTH - sep.length - Math.min(4, serverName.length)
+        let toolPart = toolName.substring(0, spaceForTool)
+        let result = `${serverName}${sep}${toolPart}`
+        if (result.length > MAX_TOOL_NAME_LENGTH) {
+            const overage = result.length - MAX_TOOL_NAME_LENGTH
+            toolPart = toolPart.substring(0, toolPart.length - overage)
+            result = `${serverName}${sep}${toolPart}`
+        }
+        // Deal with conflicts by trimming tool name further
+        while (allNamespacedTools.has(result)) {
+            const serverPrefix = serverName.substring(0, Math.min(serverName.length, result.length + 1))
+            toolPart = toolPart.substring(1)
+            result = `${serverPrefix}${sep}${toolPart}`
+            if (result.length > MAX_TOOL_NAME_LENGTH) {
+                const overage = result.length - MAX_TOOL_NAME_LENGTH
+                toolPart = toolPart.substring(0, toolPart.length - overage)
+                result = `${serverPrefix}${sep}${toolPart}`
+            }
+        }
+        allNamespacedTools.add(result)
+        return result
+    }
+    // Case 4: Both names are reasonable but together they're too long
+    if (toolName.length < MAX_TOOL_NAME_LENGTH && serverName.length < MAX_TOOL_NAME_LENGTH) {
+        const spaceForServer = MAX_TOOL_NAME_LENGTH - sep.length - toolName.length
+        let serverPart = serverName.substring(0, Math.max(1, spaceForServer))
+        let result = `${serverPart}${sep}${toolName}`
+        if (result.length > MAX_TOOL_NAME_LENGTH) {
+            const overage = result.length - MAX_TOOL_NAME_LENGTH
+            serverPart = serverPart.substring(0, serverPart.length - overage)
+            result = `${serverPart}${sep}${toolName}`
+        }
+        // Add numbers to handle duplicates
+        let num = 1
+        let baseServerPart = serverPart
+        while (allNamespacedTools.has(result)) {
+            serverPart = `${baseServerPart}${num++}`
+            if ((serverPart + sep + toolName).length > MAX_TOOL_NAME_LENGTH) {
+                baseServerPart = baseServerPart.substring(0, baseServerPart.length - String(num).length)
+                serverPart = `${baseServerPart}${num}`
+            }
+            result = `${serverPart}${sep}${toolName}`
+        }
+        allNamespacedTools.add(result)
+        return result
+    }
+    // Shouldn't really get here, but just in case
+    return `${serverName}${sep}${toolName}`
+}

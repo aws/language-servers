@@ -14,7 +14,9 @@ import {
     getGlobalPersonaConfigPath,
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
+    createNamespacedToolName,
 } from './mcp/mcpUtils'
+import { all } from 'deepmerge'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -76,119 +78,7 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     const registered: Record<string, string[]> = {}
 
-    const MAX_TOOL_NAME_LENGTH = 64
-
     const allNamespacedTools = new Set<string>()
-
-    function createNamespacedToolName(serverName: string, toolName: string): string {
-        const separator = '___'
-
-        //case 1: both serverName and toolName are within limit
-        const fullName = `${serverName}${separator}${toolName}`
-        if (fullName.length <= MAX_TOOL_NAME_LENGTH) {
-            //if it is unique, return it
-            if (!allNamespacedTools.has(fullName)) {
-                allNamespacedTools.add(fullName)
-                return fullName
-            }
-        }
-
-        //case2: serverName is too long
-        if (serverName.length > MAX_TOOL_NAME_LENGTH) {
-            const maxServerLength = MAX_TOOL_NAME_LENGTH - separator.length - Math.min(toolName.length, 10)
-            let truncatedServerName = serverName.substring(0, Math.max(4, maxServerLength))
-            let namespacedName = `${truncatedServerName}${separator}${toolName}`
-
-            if (namespacedName.length > MAX_TOOL_NAME_LENGTH) {
-                const excess = namespacedName.length - MAX_TOOL_NAME_LENGTH
-                truncatedServerName = truncatedServerName.substring(0, truncatedServerName.length - excess)
-                namespacedName = `${truncatedServerName}${separator}${toolName}`
-            }
-
-            //ensure uniqueness
-            let uniqueIndex = 1
-            let baseTruncatedServerName = truncatedServerName
-            while (allNamespacedTools.has(namespacedName)) {
-                truncatedServerName = `${baseTruncatedServerName}${uniqueIndex++}`
-                namespacedName = `${truncatedServerName}${separator}${toolName}`
-
-                //length check
-                if (namespacedName.length > MAX_TOOL_NAME_LENGTH) {
-                    const excess = namespacedName.length - MAX_TOOL_NAME_LENGTH
-                    truncatedServerName = truncatedServerName.substring(0, truncatedServerName.length - excess)
-                    namespacedName = `${truncatedServerName}${separator}${toolName}`
-                }
-            }
-
-            allNamespacedTools.add(namespacedName)
-            return namespacedName
-        }
-
-        //case 3: toolName is too long
-        if (toolName.length >= MAX_TOOL_NAME_LENGTH) {
-            const maxToolLength = MAX_TOOL_NAME_LENGTH - separator.length - Math.min(4, serverName.length)
-            let truncatedToolName = toolName.substring(0, maxToolLength)
-            let namespacedName = `${serverName}${separator}${truncatedToolName}`
-
-            if (namespacedName.length > MAX_TOOL_NAME_LENGTH) {
-                const excess = namespacedName.length - MAX_TOOL_NAME_LENGTH
-                truncatedToolName = truncatedToolName.substring(0, truncatedToolName.length - excess)
-                namespacedName = `${serverName}${separator}${truncatedToolName}`
-            }
-
-            //ensure uniqueness
-            while (allNamespacedTools.has(namespacedName)) {
-                const serverPrefix = serverName.substring(0, Math.min(serverName.length, namespacedName.length + 1))
-                truncatedToolName = truncatedToolName.substring(1)
-                namespacedName = `${serverPrefix}${separator}${truncatedToolName}`
-
-                if (namespacedName.length > MAX_TOOL_NAME_LENGTH) {
-                    const excess = namespacedName.length - MAX_TOOL_NAME_LENGTH
-                    truncatedToolName = truncatedToolName.substring(0, truncatedToolName.length - excess)
-                    namespacedName = `${serverPrefix}${separator}${truncatedToolName}`
-                }
-            }
-
-            allNamespacedTools.add(namespacedName)
-            return namespacedName
-        }
-
-        //case 4: both are within the limit but combined exceeds the limit
-        if (toolName.length < MAX_TOOL_NAME_LENGTH && serverName.length < MAX_TOOL_NAME_LENGTH) {
-            const maxServerLength = MAX_TOOL_NAME_LENGTH - separator.length - toolName.length
-            let truncatedServerName = serverName.substring(0, Math.max(1, maxServerLength))
-            let namespacedName = `${truncatedServerName}${separator}${toolName}`
-
-            if (namespacedName.length > MAX_TOOL_NAME_LENGTH) {
-                const excess = namespacedName.length - MAX_TOOL_NAME_LENGTH
-                truncatedServerName = truncatedServerName.substring(0, truncatedServerName.length - excess)
-                namespacedName = `${truncatedServerName}${separator}${toolName}`
-            }
-
-            //ensure uniqueness
-            let uniqueIndex = 1
-            let baseTruncatedServerName = truncatedServerName
-            while (allNamespacedTools.has(namespacedName)) {
-                truncatedServerName = `${baseTruncatedServerName}${uniqueIndex++}`
-
-                if ((truncatedServerName + separator + toolName).length > MAX_TOOL_NAME_LENGTH) {
-                    baseTruncatedServerName = baseTruncatedServerName.substring(
-                        0,
-                        baseTruncatedServerName.length - String(uniqueIndex).length
-                    )
-                    truncatedServerName = `${baseTruncatedServerName}${uniqueIndex}`
-                }
-                namespacedName = `${truncatedServerName}${separator}${toolName}`
-            }
-
-            allNamespacedTools.add(namespacedName)
-            return namespacedName
-        }
-
-        //this shoudl never happen, only needed for typescript
-        const defaultName = `${serverName}${separator}${toolName}`
-        return defaultName
-    }
 
     function registerServerTools(server: string, defs: McpToolDefinition[]) {
         // 1) remove old tools
@@ -199,7 +89,7 @@ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 
         // 2) add new enabled tools
         for (const def of defs) {
-            const namespaced = createNamespacedToolName(def.serverName, def.toolName)
+            const namespaced = createNamespacedToolName(def.serverName, def.toolName, allNamespacedTools)
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
             agent.addTool({ name: namespaced, description: def.description, inputSchema: def.inputSchema }, input =>
