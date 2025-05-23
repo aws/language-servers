@@ -37,7 +37,7 @@ export const WorkspaceContextServer = (): Server => features => {
     lsp.addInitializer((params: InitializeParams) => {
         let clientExtension = params.initializationOptions?.aws?.clientInfo?.extension.name || ''
         if (!allowedExtension.includes(clientExtension)) {
-            logging.warn(`Client extension ${clientExtension} is not in the allowed extensions list`)
+            logging.warn(`Server context is currently not supported in ${clientExtension}`)
             return {
                 capabilities: {},
             }
