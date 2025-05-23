@@ -1503,9 +1503,7 @@ ${params.message}`,
                             // Handle action clicks (save, cancel, etc.)
                             messager.onMcpServerClick(action.id)
                         },
-                        onClose: () => {
-                            messager.onListMcpServers()
-                        },
+                        onClose: () => {},
                         onBackClick: () => {
                             messager.onListMcpServers()
                         },
