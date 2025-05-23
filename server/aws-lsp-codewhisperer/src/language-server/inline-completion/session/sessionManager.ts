@@ -46,6 +46,7 @@ export class CodeWhispererSession {
         character: 0,
     }
     suggestions: CachedSuggestion[] = []
+    suggestionsAfterRightContextMerge: InlineCompletionItemWithReferences[] = []
     suggestionsStates = new Map<string, UserDecision>()
     acceptedSuggestionId?: string = undefined
     responseContext?: ResponseContext
