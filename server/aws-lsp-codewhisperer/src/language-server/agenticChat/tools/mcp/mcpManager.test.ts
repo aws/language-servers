@@ -695,3 +695,51 @@ describe('reinitializeMcpServers()', () => {
         expect(mgr.getAllServerConfigs().has('srvB')).to.be.true
     })
 })
+
+describe('handleError()', () => {
+    let mgr: McpManager
+    let loadStub: sinon.SinonStub
+    let errorSpy: sinon.SinonSpy
+    let statusEvents: Array<{ server: string; state: any }>
+    let toolsEvents: Array<{ server: string; tools: any[] }>
+
+    beforeEach(async () => {
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+        stubPersonaAllow()
+        mgr = await McpManager.init([], [], features)
+        errorSpy = sinon.spy(fakeLogging, 'error')
+
+        // Capture emitted events
+        statusEvents = []
+        toolsEvents = []
+        mgr.events.on(MCP_SERVER_STATUS_CHANGED, (srv, st) => {
+            statusEvents.push({ server: srv, state: st })
+        })
+        mgr.events.on(AGENT_TOOLS_CHANGED, (srv, tools) => {
+            toolsEvents.push({ server: srv, tools })
+        })
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('logs error and emits FAILED state + toolsChanged', () => {
+        ;(mgr as any).handleError('srvX', new Error('boom!'))
+
+        expect(errorSpy.calledOnce).to.be.true
+        expect(errorSpy.firstCall.args[0]).to.match(/MCP ERROR \[srvX\]: boom!/)
+
+        expect(statusEvents).to.have.length(1)
+        expect(statusEvents[0].server).to.equal('srvX')
+        expect(statusEvents[0].state.status).to.equal(McpServerStatus.FAILED)
+        expect(statusEvents[0].state.lastError).to.equal('boom!')
+
+        expect(toolsEvents).to.have.length(1)
+        expect(toolsEvents[0].server).to.equal('srvX')
+        expect(toolsEvents[0].tools).to.be.an('array').that.is.empty
+    })
+})
