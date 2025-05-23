@@ -486,8 +486,13 @@ export class McpEventHandler {
         if (params.optionsValues.scope === 'global') {
             personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
         }
-        // TODO: According to workspace specific scope and persona and pass configPath to addServer
-        await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+        // Check if server already exists and update or add accordingly
+        const existingConfigs = McpManager.instance.getAllServerConfigs()
+        if (existingConfigs.has(serverName)) {
+            await McpManager.instance.updateServer(serverName, config)
+        } else {
+            await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+        }
 
         return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
     }
