@@ -32,6 +32,7 @@
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.86",
+        "@aws/mynah-ui": "^4.35.0-beta.6",
         "@smithy/types": "4.2.0",
         "typescript": "^5.8.2"
     },

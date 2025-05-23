@@ -8,26 +8,24 @@ export enum BedrockModel {
 }
 
 const baseModelOptions: { value: string; label: string }[] = [
-    { label: 'Automatic', value: 'auto' },
     { label: 'Claude Sonnet 3.7', value: BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0 },
     { label: 'Claude Sonnet 3.5', value: BedrockModel.CLAUDE_3_5_SONNET_20241022_V2_0 },
 ]
 
-export const baseModelSelection: ChatItemFormItem = {
+// Create a function to get the current model selection to ensure it's always fresh
+export const getBaseModelSelection = (): ChatItemFormItem => ({
     type: 'select',
     id: 'model-selection',
     options: baseModelOptions,
-    value: 'auto',
-}
+    placeholder: 'Auto',
+    border: false,
+    autoWidth: true,
+})
+
+// For backward compatibility
+export const baseModelSelection = getBaseModelSelection()
 
 export const modelSelectionForRegion: Record<Region, ChatItemFormItem> = {
-    'us-east-1': {
-        ...baseModelSelection,
-        options: [
-            ...baseModelOptions.slice(0, 1),
-            // Additional models can go here
-            ...baseModelOptions.slice(1),
-        ],
-    },
+    'us-east-1': baseModelSelection,
     'eu-central-1': baseModelSelection,
 }
