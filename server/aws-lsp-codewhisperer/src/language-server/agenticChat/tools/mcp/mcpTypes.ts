@@ -3,9 +3,13 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-export type McpServerStatus = 'UNINITIALIZED' | 'INITIALIZING' | 'ENABLED' | 'FAILED' | 'DISABLED'
-export type McpPermissionType = 'alwaysAllow' | 'ask' | 'deny'
-
+export enum McpServerStatus {
+    INITIALIZING = 'INITIALIZING',
+    ENABLED = 'ENABLED',
+    FAILED = 'FAILED',
+    DISABLED = 'DISABLED',
+    UNINITIALIZED = 'UNINITIALIZED',
+}
 export enum McpPermissionType {
     alwaysAllow = 'alwaysAllow',
     ask = 'ask',

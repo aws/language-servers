@@ -106,7 +106,7 @@ export class McpManager {
 
         // Set all servers to UNINITIALIZED state initially
         for (const name of this.mcpServers.keys()) {
-            this.setState(name, 'UNINITIALIZED', 0)
+            this.setState(name, McpServerStatus.UNINITIALIZED, 0)
         }
 
         for (const [name, cfg] of this.mcpServers.entries()) {

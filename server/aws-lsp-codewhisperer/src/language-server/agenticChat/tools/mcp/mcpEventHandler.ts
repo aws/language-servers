@@ -267,7 +267,6 @@ export class McpEventHandler {
         return this.#handleAddNewMcp(params)
     }
 
- 
     async #handleAddNewMcp(params: McpServerClickParams, error?: string) {
         const existingValues = params.optionsValues || {}
         let argsValue = [
