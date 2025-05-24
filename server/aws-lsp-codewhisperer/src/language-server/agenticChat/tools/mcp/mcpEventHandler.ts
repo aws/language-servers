@@ -187,7 +187,7 @@ export class McpEventHandler {
             'mcp-enable-server': () => this.#handleEnableMcpServer(params),
             'mcp-disable-server': () => this.#handleDisableMcpServer(params),
             'mcp-delete-server': () => this.#handleDeleteMcpServer(params),
-            'mcp-fix-server': () => this.#handleFixMcpServer(params),
+            'mcp-fix-server': () => this.#handleEditMcpServer(params),
         }
 
         // Execute the appropriate handler or return default response
@@ -214,57 +214,6 @@ export class McpEventHandler {
             },
             list: [],
         }
-    }
-
-    /**
-     * Handles fixing an existing MCP server configuration
-     */
-    async #handleFixMcpServer(params: McpServerClickParams) {
-        const serverName = params.title
-        if (!serverName) {
-            return this.#getDefaultMcpResponse(params.id)
-        }
-
-        // Get the existing config for this server
-        const config = McpManager.instance.getAllServerConfigs().get(serverName)
-        if (!config) {
-            return this.#getDefaultMcpResponse(params.id)
-        }
-
-        // Get server state to check for errors
-        const serverState = McpManager.instance.getServerState(serverName)
-
-        // Pre-fill the values from the existing config
-        const existingValues = {
-            name: serverName,
-            command: config.command,
-            args: config.args?.map(arg => ({
-                arg_key: arg,
-            })) || [{ arg_key: '' }],
-            env_variables:
-                Object.entries(config.env || {}).length > 0
-                    ? Object.entries(config.env || {}).map(([name, value]) => ({
-                          env_var_name: name,
-                          env_var_value: value,
-                      }))
-                    : [{ env_var_name: '', env_var_value: '' }],
-            timeout: config.timeout?.toString() || '60',
-            errorTitle: serverState?.lastError ? `Server error: ${serverState.lastError}` : undefined,
-        }
-
-        // Modify the original params object to match the expected type
-        params.id = 'add-new-mcp'
-        params.optionsValues = {
-            ...params.optionsValues,
-            name: existingValues.name,
-            command: existingValues.command,
-            timeout: existingValues.timeout,
-            args: JSON.stringify(existingValues.args),
-            env_variables: JSON.stringify(existingValues.env_variables),
-            errorTitle: existingValues.errorTitle || '',
-        }
-
-        return this.#handleAddNewMcp(params)
     }
 
     async #handleAddNewMcp(params: McpServerClickParams, error?: string) {
