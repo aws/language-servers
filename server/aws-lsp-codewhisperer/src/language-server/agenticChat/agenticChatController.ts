@@ -2706,13 +2706,22 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getTools(session: ChatSessionService) {
-        const tools = this.#features.agent.getTools({ format: 'bedrock' })
+        const allTools = this.#features.agent.getTools({ format: 'bedrock' })
 
-        // it's disabled so filter out the write tools
-        if (!session.pairProgrammingMode) {
-            return tools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
-        }
-        return tools
+        // Read Only Tools = All Tools - Restricted Tools (MCP + Write Tools)
+        // TODO: mcp tool spec name will be server___tool.
+        // TODO: Will also need to handle rare edge cases of long server name + long tool name > 64 char
+        const mcpToolSpecNames = new Set(
+            McpManager.instance.getAllTools().map(tool => `${tool.serverName}_${tool.toolName}`)
+        )
+        const writeToolNames = new Set(['fsWrite', 'executeBash'])
+        const restrictedToolNames = new Set([...mcpToolSpecNames, ...writeToolNames])
+
+        const readOnlyTools = allTools.filter(tool => {
+            const toolName = tool.toolSpecification.name
+            return !restrictedToolNames.has(toolName)
+        })
+        return session.pairProgrammingMode ? allTools : readOnlyTools
     }
 
     async restorePreviousChats() {
