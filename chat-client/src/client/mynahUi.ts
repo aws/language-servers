@@ -1469,7 +1469,7 @@ ${params.message}`,
      */
     const mcpServerClick = (params: McpServerClickResult) => {
         const typedParams = params as McpServerParams
-        if (params.id === 'add-new-mcp' || params.id === 'edit-mcp') {
+        if (params.id === 'add-new-mcp' || params.id === 'edit-mcp' || params.id === 'mcp-fix-server') {
             mynahUi.toggleSplashLoader(false)
             const detailedList = createAddMcpServerDetailedList(typedParams)
 
