@@ -1130,7 +1130,10 @@ ${params.message}`,
         }
     }
 
+    let isMcpServersListActive = false
+
     const listMcpServers = (params: ListMcpServersResult) => {
+        isMcpServersListActive = true
         // Convert the ListMcpServersResult to the format expected by mynahUi.openDetailedList
         const detailedList: any = {
             selectable: false,
@@ -1163,8 +1166,8 @@ ${params.message}`,
                 groupName: group.groupName,
                 children: group.children?.map(item => {
                     // Determine icon based on group name and status
-                    let icon = 'ok-circled'
-                    let iconForegroundStatus = 'success'
+                    let icon
+                    let iconForegroundStatus
 
                     // Extract status from serverInformation if available
                     const serverInfoGroup = item.children?.find(child => child.groupName === 'serverInformation')
@@ -1188,29 +1191,43 @@ ${params.message}`,
                     // Create actions based on group name
                     const actions = []
                     if (group.groupName === 'Active') {
-                        actions.push({
-                            id: 'tools-count',
-                            icon: toMynahIcon('tools'),
-                            text: (() => {
-                                const serverInfoGroup = item.children?.find(
-                                    child => child.groupName === 'serverInformation'
-                                )
-                                if (serverInfoGroup) {
-                                    const toolCountChild = serverInfoGroup.children?.find(
-                                        child => child.title === 'toolcount'
+                        if (status !== 'FAILED') {
+                            actions.push({
+                                id: 'tools-count',
+                                icon: toMynahIcon('tools'),
+                                text: (() => {
+                                    const serverInfoGroup = item.children?.find(
+                                        child => child.groupName === 'serverInformation'
                                     )
-                                    if (toolCountChild) {
-                                        return toolCountChild.description
+                                    if (serverInfoGroup) {
+                                        const toolCountChild = serverInfoGroup.children?.find(
+                                            child => child.title === 'toolcount'
+                                        )
+                                        if (toolCountChild) {
+                                            return toolCountChild.description
+                                        }
                                     }
-                                }
-                                return '0'
-                            })(),
-                            disabled: true,
-                        })
-                        actions.push({
-                            id: 'open-mcp-server',
-                            icon: toMynahIcon('right-open'),
-                        })
+                                    return '0'
+                                })(),
+                                disabled: true,
+                            })
+                            actions.push({
+                                id: 'open-mcp-server',
+                                icon: toMynahIcon('right-open'),
+                            })
+                        } else {
+                            actions.push({
+                                id: 'mcp-fix-server',
+                                icon: toMynahIcon('pencil'),
+                                text: 'Fix Configuration',
+                                description: 'Fix Configuration',
+                            })
+                            actions.push({
+                                id: 'open-mcp-server',
+                                icon: toMynahIcon('right-open'),
+                                disabled: true,
+                            })
+                        }
                     } else if (group.groupName === 'Disabled') {
                         actions.push({
                             id: 'mcp-enable-server',
@@ -1274,7 +1291,7 @@ ${params.message}`,
                     messager.onMcpServerClick(action.id, item?.title)
                 },
                 onClose: () => {
-                    // No need to store reference
+                    isMcpServersListActive = false
                 },
                 onTitleActionClick: button => {
                     messager.onMcpServerClick(button.id)
@@ -1512,10 +1529,14 @@ ${params.message}`,
                 },
                 true
             )
-        } else if (
-            ['mcp-disable-server', 'mcp-delete-server', 'refresh-mcp-list', 'mcp-enable-server'].includes(params.id)
-        ) {
+        } else if (['mcp-disable-server', 'mcp-delete-server', 'mcp-enable-server'].includes(params.id)) {
             messager.onListMcpServers()
+        } else if (params.id === 'refresh-mcp-list') {
+            messager.onListMcpServers({ 'refresh-mcp-list': 'refresh-mcp-list' })
+        } else if (params.id === 'update-mcp-list') {
+            if (isMcpServersListActive) {
+                messager.onListMcpServers()
+            }
         }
     }
 

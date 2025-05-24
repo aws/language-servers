@@ -167,9 +167,16 @@ export const createChat = (
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
-            case CHAT_UPDATE_NOTIFICATION_METHOD:
-                mynahApi.updateChat(message.params as ChatUpdateParams)
-                break
+            case CHAT_UPDATE_NOTIFICATION_METHOD: {
+                const messageParams = message.params as ChatUpdateParams
+                if (messageParams?.tabId === 'mcpserver') {
+                    mynahApi.mcpServerClick({ id: 'update-mcp-list' })
+                    break
+                } else {
+                    mynahApi.updateChat(message.params as ChatUpdateParams)
+                    break
+                }
+            }
             case OPEN_TAB_REQUEST_METHOD:
                 mynahApi.openTab(message.requestId, message.params as OpenTabParams)
                 break
