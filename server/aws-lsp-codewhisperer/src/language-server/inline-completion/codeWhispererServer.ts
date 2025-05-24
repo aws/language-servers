@@ -101,10 +101,10 @@ const getFileContext = (params: {
     }
 }
 
-const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession, requestId: string) => {
     const duration = new Date().getTime() - session.startTime
     const data: CodeWhispererServiceInvocationEvent = {
-        codewhispererRequestId: session.responseContext?.requestId,
+        codewhispererRequestId: requestId,
         codewhispererSessionId: session.responseContext?.codewhispererSessionId,
         codewhispererLastSuggestionIndex: session.suggestions.length - 1,
         codewhispererCompletionType:
@@ -300,9 +300,7 @@ export const CodewhispererServerFactory =
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
-                // If session was requesting at cancellation time, close it
-                // User Trigger Decision will be reported at the time of processing API response in the callback below.
-                sessionManager.discardSession(currentSession)
+                currentSession.discardInflightSessionOnNewInvocation = true
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
@@ -490,21 +488,22 @@ export const CodewhispererServerFactory =
             }
 
             // Emit service invocation telemetry for every request sent to backend
-            emitServiceInvocationTelemetry(telemetry, session)
+            emitServiceInvocationTelemetry(telemetry, session, suggestionResponse.responseContext.requestId)
 
-            // Exit early and discard API response
-            // session was closed by consequent completion request before API response was received
-            // and session never become ACTIVE.
-            // Emit Discard trigger decision here, because we will have session and requist IDs only at this point.
-            if (session.state === 'CLOSED' || session.state === 'DISCARD') {
-                // Force Discard user decision on every received suggestion
-                session.suggestions.forEach(s => session.setSuggestionState(s.itemId, 'Discard'))
+            // Discard previous inflight API response due to new trigger
+            if (session.discardInflightSessionOnNewInvocation) {
+                session.discardInflightSessionOnNewInvocation = false
+                sessionManager.discardSession(session)
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
                     session,
                     timeSinceLastUserModification
                 )
+            }
+
+            // session was closed by user already made decisions consequent completion request before new paginated API response was received
+            if (session.state === 'CLOSED' || session.state === 'DISCARD') {
                 return EMPTY_RESULT
             }
 
@@ -563,6 +562,9 @@ export const CodewhispererServerFactory =
                 if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
             })
 
+            // TODO: need dedupe after right context merging but I don't see one
+            session.suggestionsAfterRightContextMerge.push(...suggestionsWithRightContext)
+
             session.codewhispererSuggestionImportCount =
                 session.codewhispererSuggestionImportCount +
                 suggestionsWithRightContext.reduce((total, suggestion) => {
@@ -571,7 +573,10 @@ export const CodewhispererServerFactory =
 
             // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
             // close session and return empty results
-            if (suggestionsWithRightContext.length === 0 && !suggestionResponse.responseContext.nextToken) {
+            if (
+                session.suggestionsAfterRightContextMerge.length === 0 &&
+                !suggestionResponse.responseContext.nextToken
+            ) {
                 sessionManager.closeSession(session)
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
