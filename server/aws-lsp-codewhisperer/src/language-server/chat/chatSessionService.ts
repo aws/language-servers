@@ -25,6 +25,7 @@ export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
+    public modelId: string | undefined
     #abortController?: AbortController
     #currentPromptId?: string
     #conversationId?: string
@@ -171,7 +172,16 @@ export class ChatSessionService {
                         requestId
                     )
                 }
-                throw wrapErrorWithCode(e, 'QModelResponse')
+                let error = wrapErrorWithCode(e, 'QModelResponse')
+                if (
+                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
+                    (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
+                    error.message ===
+                        'Encountered unexpectedly high load when processing the request, please try again.'
+                ) {
+                    error.message = ` The model you've selected is temporarily unavailable. Please select Auto or a different model and try again.`
+                }
+                throw error
             }
         } else {
             // error

@@ -54,6 +54,7 @@ import {
     toMynahFileList,
     toMynahHeader,
     toMynahIcon,
+    toMynahSummary,
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
@@ -87,11 +88,40 @@ const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
 }
 
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
-    const promptTypeValue = optionsValues['pair-programmer-mode']
+    const previousPairProgrammerValue = getTabPairProgrammingMode(mynahUi, tabId)
+    const currentPairProgrammerValue = optionsValues['pair-programmer-mode'] === 'true'
 
-    if (promptTypeValue != null) {
-        mynahUi.addChatItem(tabId, promptTypeValue === 'true' ? pairProgrammingModeOn : pairProgrammingModeOff)
+    if (currentPairProgrammerValue !== previousPairProgrammerValue) {
+        mynahUi.addChatItem(tabId, currentPairProgrammerValue ? pairProgrammingModeOn : pairProgrammingModeOff)
     }
+
+    const promptInputOptions = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+    mynahUi.updateStore(tabId, {
+        promptInputOptions: promptInputOptions?.map(option => {
+            option.value = optionsValues[option.id]
+
+            // If this is a model selection option, update all tabs with the same value and save to localStorage
+            if (option.id === 'model-selection') {
+                // Update all other tabs with the same model selection
+                Object.keys(mynahUi.getAllTabs()).forEach(otherTabId => {
+                    if (otherTabId !== tabId) {
+                        const otherTabOptions = mynahUi.getTabData(otherTabId).getStore()?.promptInputOptions
+                        if (otherTabOptions) {
+                            const modelOption = otherTabOptions.find(opt => opt.id === 'model-selection')
+                            if (modelOption) {
+                                modelOption.value = optionsValues[option.id]
+                                mynahUi.updateStore(otherTabId, {
+                                    promptInputOptions: otherTabOptions,
+                                })
+                            }
+                        }
+                    }
+                })
+            }
+
+            return option
+        }),
+    })
 }
 
 export const handleChatPrompt = (
@@ -605,6 +635,7 @@ export const createMynahUi = (
         let header = toMynahHeader(chatResult.header)
         const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
+        const summary = toMynahSummary(chatResult.summary)
 
         if (chatResult.contextList !== undefined) {
             header = contextListToHeader(chatResult.contextList)
@@ -652,6 +683,7 @@ export const createMynahUi = (
                 buttons: buttons,
                 fileList,
                 codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
+                summary,
             }
 
             if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {
@@ -679,6 +711,7 @@ export const createMynahUi = (
                 ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
                 header: header,
                 buttons: buttons,
+                summary,
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -700,6 +733,7 @@ export const createMynahUi = (
             header: header,
             buttons: buttons,
             codeBlockActions: isPairProgrammingMode ? { 'insert-to-cursor': null } : undefined,
+            summary,
         }
 
         if (!chatItems.find(ci => ci.messageId === chatResult.messageId)) {

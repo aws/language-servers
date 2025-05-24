@@ -10,6 +10,8 @@ import {
     groupTabsByDate,
     Message,
     messageToStreamingMessage,
+    Settings,
+    SettingsCollection,
     Tab,
     TabCollection,
     TabType,
@@ -145,6 +147,7 @@ export class ChatDatabase {
                 indices: ['updatedAt', 'isOpen'],
             })
         }
+        this.#db.addCollection(SettingsCollection)
         this.#initialized = true
         this.#loadTimeMs = Date.now() - startTime
     }
@@ -656,5 +659,37 @@ export class ChatDatabase {
             }
         }
         return true
+    }
+
+    getSettings(): Settings | undefined {
+        if (this.#initialized) {
+            const settingsCollection = this.#db.getCollection<Settings>(SettingsCollection)
+            const settings = settingsCollection.findOne({})
+            return settings || undefined
+        }
+        return undefined
+    }
+
+    updateSettings(settings: Settings): void {
+        if (this.#initialized) {
+            const settingsCollection = this.#db.getCollection<Settings>(SettingsCollection)
+            const existingSettings = settingsCollection.findOne({})
+            if (existingSettings) {
+                this.#features.logging.log('Updating existing settings')
+                settingsCollection.update({ ...existingSettings, ...settings })
+            } else {
+                this.#features.logging.log('Creating new settings')
+                settingsCollection.insert(settings)
+            }
+        }
+    }
+
+    getModelId(): string | undefined {
+        const settings = this.getSettings()
+        return settings?.modelId
+    }
+
+    setModelId(modelId: string | undefined): void {
+        this.updateSettings({ modelId })
     }
 }

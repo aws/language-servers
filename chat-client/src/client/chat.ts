@@ -91,8 +91,9 @@ import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
+import { Region } from './texts/modelSelection'
 
-const getDefaultTabConfig = (agenticMode?: Boolean) => {
+const getDefaultTabConfig = (agenticMode?: boolean) => {
     return {
         tabTitle: 'Chat',
         promptInputInfo:
@@ -105,6 +106,8 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     disclaimerAcknowledged?: boolean
     pairProgrammingAcknowledged?: boolean
     agenticMode?: boolean
+    modelSelectionEnabled?: boolean
+    region?: Region
 }
 
 export const createChat = (
@@ -189,7 +192,18 @@ export const createChat = (
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
             case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
-                tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                if (message.params.modelId !== undefined) {
+                    Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
+                        const options = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+                        mynahUi.updateStore(tabId, {
+                            promptInputOptions: options?.map(option =>
+                                option.id === 'model-selection' ? { ...option, value: message.params.modelId } : option
+                            ),
+                        })
+                    })
+                } else {
+                    tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                }
                 break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
@@ -397,6 +411,14 @@ export const createChat = (
 
     if (config?.agenticMode) {
         tabFactory.enableAgenticMode()
+    }
+
+    if (config?.modelSelectionEnabled) {
+        tabFactory.enableModelSelection()
+    }
+
+    if (config?.region) {
+        tabFactory.setRegion(config.region)
     }
 
     const [mynahUi, api] = createMynahUi(

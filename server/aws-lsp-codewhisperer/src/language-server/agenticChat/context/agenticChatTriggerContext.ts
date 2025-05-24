@@ -107,7 +107,8 @@ export class AgenticChatTriggerContext {
         profileArn?: string,
         history: ChatMessage[] = [],
         tools: BedrockTools = [],
-        additionalContent?: AdditionalContentEntryAddition[]
+        additionalContent?: AdditionalContentEntryAddition[],
+        modelId?: string
     ): Promise<GenerateAssistantResponseCommandInput> {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
@@ -220,6 +221,7 @@ export class AgenticChatTriggerContext {
                                   },
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',
+                        modelId,
                     },
                 },
                 customizationArn,

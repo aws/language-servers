@@ -25,6 +25,7 @@ import { Workspace } from '@aws/language-server-runtimes/server-interface'
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
 export const TabCollection = 'tabs'
+export const SettingsCollection = 'settings'
 
 export const historyPath = path.join('.aws', 'amazonq', 'history')
 
@@ -51,6 +52,10 @@ export type Tab = {
     tabType: TabType
     title: string
     conversations: Conversation[]
+}
+
+export type Settings = {
+    modelId: string | undefined
 }
 
 export type Conversation = {
