@@ -458,12 +458,11 @@ export class ExecuteBash {
                 },
             }
 
-            this.childProcess = new ChildProcess(
-                this.logging,
-                shellName,
-                [shellFlag, params.command],
-                childProcessOptions
-            )
+            const shellArgs = IS_WINDOWS_PLATFORM
+                ? [shellFlag, ...split(params.command)] // Windows: split for proper arg handling
+                : [shellFlag, params.command]
+
+            this.childProcess = new ChildProcess(this.logging, shellName, shellArgs, childProcessOptions)
 
             // Set up cancellation listener
             if (cancellationToken) {
