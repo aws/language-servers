@@ -13,6 +13,7 @@ import {
     isValidAuthFollowUpType,
 } from '@aws/chat-client-ui-types'
 import {
+    Button,
     ButtonClickParams,
     ChatMessage,
     ChatResult,
@@ -26,6 +27,8 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    ListMcpServersResult,
+    McpServerClickResult,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
@@ -40,10 +43,14 @@ import {
     MynahUIProps,
     QuickActionCommand,
     ChatItemButton,
+    TextBasedFormItem,
+    DetailedListItem,
+    SingularFormItem,
+    ListItemEntry,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
-import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
+import { ExportTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
@@ -68,6 +75,8 @@ export interface InboundChatApi {
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
+    listMcpServers(params: ListMcpServersResult): void
+    mcpServerClick(params: McpServerClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
     createTabId(openTab?: boolean): string | undefined
 }
@@ -444,6 +453,11 @@ export const createMynahUi = (
             return false
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
+            if (buttonId === McpServerTabButtonId) {
+                messager.onListMcpServers()
+                return
+            }
+
             if (buttonId === ChatHistory.TabBarButtonId) {
                 messager.onListConversations(undefined, true)
                 return
@@ -601,7 +615,7 @@ export const createMynahUi = (
 
     // addChatResponse handler to support Agentic chat UX changes for handling responses streaming.
     const agenticAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
-        const { type, ...chatResultWithoutType } = chatResult
+        const { type, summary, ...chatResultWithoutTypeSummary } = chatResult
         let header = toMynahHeader(chatResult.header)
         const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
@@ -645,7 +659,7 @@ export const createMynahUi = (
                 cancelButtonWhenLoading: true,
             })
             const chatItem = {
-                ...chatResult,
+                ...chatResultWithoutTypeSummary,
                 body: chatResult.body,
                 type: ChatItemType.ANSWER_STREAM,
                 header: header,
@@ -676,7 +690,7 @@ export const createMynahUi = (
         if (chatResult.body === '' && isValidAuthFollowUp) {
             mynahUi.addChatItem(tabId, {
                 type: ChatItemType.SYSTEM_PROMPT,
-                ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
+                ...chatResultWithoutTypeSummary,
                 header: header,
                 buttons: buttons,
             })
@@ -694,7 +708,7 @@ export const createMynahUi = (
             : {}
 
         const chatItem = {
-            ...chatResult,
+            ...chatResultWithoutTypeSummary,
             body: chatResult.body,
             type: ChatItemType.ANSWER_STREAM,
             header: header,
@@ -727,7 +741,7 @@ export const createMynahUi = (
 
     // addChatResponse handler to support extensions that haven't migrated to agentic chat yet
     const legacyAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
-        const { type, ...chatResultWithoutType } = chatResult
+        const { type, summary, ...chatResultWithoutTypeSummary } = chatResult
         let header = undefined
 
         if (chatResult.contextList !== undefined) {
@@ -761,8 +775,8 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
-            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
+            // @ts-expect-error - type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutTypeSummary, header: header })
             return
         }
 
@@ -778,10 +792,10 @@ export const createMynahUi = (
             followUpOptions[0].type &&
             isValidAuthFollowUpType(followUpOptions[0].type)
         if (chatResult.body === '' && isValidAuthFollowUp) {
-            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
+            // @ts-expect-error - type for MynahUI differs from ChatResult types so we ignore it
             mynahUi.addChatItem(tabId, {
                 type: ChatItemType.SYSTEM_PROMPT,
-                ...chatResultWithoutType,
+                ...chatResultWithoutTypeSummary,
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -842,19 +856,47 @@ export const createMynahUi = (
         }
     }
 
-    const updateFinalItemTypes = (tabId: string) => {
-        const store = mynahUi.getTabData(tabId)?.getStore() || {}
-        const chatItems = store.chatItems || []
-        const updatedItems = chatItems.map(item => ({
-            ...item,
-            type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
-        }))
-        mynahUi.updateStore(tabId, {
-            loadingChat: false,
-            cancelButtonWhenLoading: agenticMode,
-            chatItems: updatedItems,
-            promptInputDisabledState: false,
-        })
+    /**
+     * Creates a properly formatted chat item for MCP tool summary with accordion view
+     */
+    const createMcpToolSummaryItem = (message: ChatMessage): Partial<ChatItem> => {
+        const muted = message.summary?.content?.header?.status !== undefined
+        return {
+            type: ChatItemType.ANSWER,
+            messageId: message.messageId,
+            muted,
+            summary: {
+                content: message.summary?.content
+                    ? {
+                          padding: false,
+                          wrapCodes: true,
+                          header: message.summary.content.header
+                              ? {
+                                    icon: message.summary.content.header.icon as any,
+                                    body: message.summary.content.header.body,
+                                    buttons: message.summary.content?.header?.buttons as any,
+                                    status: message.summary.content?.header?.status as any,
+                                    fileList: undefined,
+                                }
+                              : undefined,
+                      }
+                    : undefined,
+                collapsedContent:
+                    message.summary?.collapsedContent?.map(item => ({
+                        body: item.body,
+                        header: item.header
+                            ? {
+                                  body: item.header.body,
+                              }
+                            : undefined,
+                        fullWidth: true,
+                        padding: false,
+                        muted: true,
+                        wrapCodes: item.header?.body === 'Parameters' ? true : false,
+                        codeBlockActions: { copy: null, 'insert-to-cursor': null },
+                    })) || [],
+            },
+        }
     }
 
     const prepareChatItemFromMessage = (
@@ -868,6 +910,10 @@ export const createMynahUi = (
 
         let processedHeader = header
         if (message.type === 'tool') {
+            // Handle MCP tool summary with accordion view
+            if (message.summary) {
+                return createMcpToolSummaryItem(message)
+            }
             processedHeader = { ...header }
             if (header?.buttons) {
                 processedHeader.buttons = header.buttons.map(button => ({
@@ -1069,6 +1115,396 @@ ${params.message}`,
         }
     }
 
+    const listMcpServers = (params: ListMcpServersResult) => {
+        // Convert the ListMcpServersResult to the format expected by mynahUi.openDetailedList
+        const detailedList: any = {
+            selectable: false,
+            textDirection: 'row',
+            header: params.header
+                ? {
+                      title: params.header.title,
+                      description: params.header.description,
+                      actions: [
+                          {
+                              id: 'add-new-mcp',
+                              icon: toMynahIcon('plus'),
+                              status: 'clear',
+                              description: 'Add new MCP',
+                          },
+                          {
+                              id: 'refresh-mcp-list',
+                              icon: toMynahIcon('refresh'),
+                              status: 'clear',
+                              description: 'Refresh MCP servers',
+                          },
+                      ],
+                  }
+                : undefined,
+            filterOptions: params.filterOptions?.map(filter => ({
+                ...filter,
+                icon: toMynahIcon(filter.icon),
+            })),
+            list: params.list.map(group => ({
+                groupName: group.groupName,
+                children: group.children?.map(item => {
+                    // Determine icon based on group name and status
+                    let icon = 'ok-circled'
+                    let iconForegroundStatus = 'success'
+
+                    // Extract status from serverInformation if available
+                    const serverInfoGroup = item.children?.find(child => child.groupName === 'serverInformation')
+                    const statusChild = serverInfoGroup?.children?.find(child => child.title === 'status')
+                    const status = statusChild?.description || 'DISABLED'
+
+                    if (status === 'ENABLED') {
+                        icon = 'ok-circled'
+                        iconForegroundStatus = 'success'
+                    } else if (status === 'FAILED') {
+                        icon = 'cancel-circle'
+                        iconForegroundStatus = 'error'
+                    } else if (status === 'INITIALIZING') {
+                        icon = 'progress'
+                        iconForegroundStatus = 'info'
+                    } else if (group.groupName === 'Disabled') {
+                        icon = 'block'
+                        iconForegroundStatus = 'info'
+                    }
+
+                    // Create actions based on group name
+                    const actions = []
+                    if (group.groupName === 'Active') {
+                        actions.push({
+                            id: 'tools-count',
+                            icon: toMynahIcon('tools'),
+                            text: (() => {
+                                const serverInfoGroup = item.children?.find(
+                                    child => child.groupName === 'serverInformation'
+                                )
+                                if (serverInfoGroup) {
+                                    const toolCountChild = serverInfoGroup.children?.find(
+                                        child => child.title === 'toolcount'
+                                    )
+                                    if (toolCountChild) {
+                                        return toolCountChild.description
+                                    }
+                                }
+                                return '0'
+                            })(),
+                            disabled: true,
+                        })
+                        actions.push({
+                            id: 'open-mcp-server',
+                            icon: toMynahIcon('right-open'),
+                        })
+                    } else if (group.groupName === 'Disabled') {
+                        actions.push({
+                            id: 'mcp-enable-server',
+                            icon: toMynahIcon('ok-circled'),
+                            text: 'Enable',
+                            description: 'Enable',
+                        })
+                        actions.push({
+                            id: 'mcp-delete-server',
+                            icon: toMynahIcon('trash'),
+                            text: 'Delete',
+                            description: 'Delete',
+                        })
+                        actions.push({
+                            id: 'open-mcp-server',
+                            icon: toMynahIcon('right-open'),
+                            disabled: true,
+                        })
+                    }
+
+                    return {
+                        id: 'mcp-server-click',
+                        title: item.title,
+                        icon: toMynahIcon(icon),
+                        iconForegroundStatus: iconForegroundStatus,
+                        groupActions: false,
+                        actions: actions,
+                    }
+                }),
+            })),
+        }
+
+        if (detailedList.filterOptions && detailedList.filterOptions.length > 0) {
+            // eslint-disable-next-line no-extra-semi
+            ;(detailedList.filterOptions[0] as TextBasedFormItem).autoFocus = true
+        }
+
+        const mcpSheet = mynahUi.openDetailedList({
+            detailedList: detailedList,
+            events: {
+                onFilterValueChange: (filterValues: Record<string, any>) => {
+                    messager.onListMcpServers(filterValues)
+                },
+                onKeyPress: (e: KeyboardEvent) => {
+                    if (e.key === 'Escape') {
+                        mcpSheet.close()
+                    }
+                },
+                onItemSelect: (item: DetailedListItem) => {
+                    if (!item.id) {
+                        throw new Error('MCP server id is not defined')
+                    }
+                    messager.onMcpServerClick(item.id)
+                },
+                onItemClick: (item: DetailedListItem) => {
+                    if (item.id) {
+                        messager.onMcpServerClick(item.id)
+                    }
+                },
+                onActionClick: (action: ChatItemButton, item?: DetailedListItem) => {
+                    messager.onMcpServerClick(action.id, item?.title)
+                },
+                onClose: () => {
+                    // No need to store reference
+                },
+                onTitleActionClick: button => {
+                    messager.onMcpServerClick(button.id)
+                },
+            },
+        })
+    }
+
+    // Type definitions for MCP server parameters
+    type McpFilterOption = {
+        type: 'textarea' | 'textinput' | 'select' | 'numericinput' | 'radiogroup' | 'list'
+        id: string
+        title: string
+        description?: string
+        icon?: string
+        options?: Array<{ label: string; value: string }>
+        mandatory?: boolean
+        value?: ListItemEntry[]
+        items?: SingularFormItem[]
+    }
+
+    type McpListItem = {
+        title: string
+        description?: string
+        groupActions?: any
+    }
+
+    type McpListGroup = {
+        groupName?: string
+        children?: McpListItem[]
+    }
+
+    type McpServerParams = McpServerClickResult & {
+        header?: {
+            title?: string
+            description?: string
+            status?: any
+            actions?: Button[]
+        }
+        filterOptions?: McpFilterOption[]
+        filterActions?: Button[]
+        list?: McpListGroup[]
+    }
+
+    /**
+     * Processes filter options by converting icons to Mynah icons
+     */
+    const processFilterOptions = (filterOptions?: McpFilterOption[]) => {
+        return filterOptions?.map(filter => ({
+            ...filter,
+            icon: filter.icon ? toMynahIcon(filter.icon) : undefined,
+            mandatory: filter.mandatory ?? false,
+            value: filter.value ?? undefined,
+            items: filter.items ?? undefined,
+        }))
+    }
+
+    /**
+     * Processes filter actions by converting icons to Mynah icons
+     */
+    const processFilterActions = (filterActions?: Button[]) => {
+        return filterActions?.map(action => ({
+            ...action,
+            icon: action.icon ? toMynahIcon(action.icon) : undefined,
+        }))
+    }
+
+    /**
+     * Processes a list group for the detailed list UI
+     */
+    const processListGroup = (group: McpListGroup, isServerView = false) => {
+        const children = group.children?.map(item => {
+            if (isServerView) {
+                return {
+                    id: item.title,
+                    title: item.title,
+                    description: item.description,
+                    icon: toMynahIcon('tools'),
+                    groupActions: item.groupActions,
+                }
+            }
+            return {
+                title: item.title,
+                description: item.description,
+            }
+        })
+
+        return {
+            groupName: group.groupName,
+            children,
+        }
+    }
+
+    /**
+     * Creates a detailed list configuration for adding a new MCP server
+     */
+    const createAddMcpServerDetailedList = (params: McpServerParams) => {
+        const detailedList = {
+            selectable: false,
+            textDirection: 'row',
+            header: {
+                title: params.header?.title || 'Add MCP Server',
+                description: params.header?.description || '',
+                status: params.header?.status || {},
+            },
+            filterOptions: processFilterOptions(params.filterOptions),
+            filterActions: params.filterActions,
+        } as any
+
+        // Process list if present
+        if (params.list && params.list.length > 0) {
+            detailedList.list = params.list.map(group => processListGroup(group))
+        }
+
+        return detailedList
+    }
+
+    /**
+     * Creates a detailed list configuration for viewing an MCP server
+     */
+    const createViewMcpServerDetailedList = (params: McpServerParams) => {
+        const detailedList = {
+            selectable: false,
+            textDirection: 'row',
+            list: params.list?.map(group => processListGroup(group, true)),
+            filterOptions: processFilterOptions(params.filterOptions),
+        } as any
+
+        // Process header if present
+        if (params.header) {
+            detailedList.header = {
+                title: params.header.title,
+                description: params.header.description,
+                status: params.header.status,
+                actions: params.header.actions?.map(action => ({
+                    ...action,
+                    icon: action.icon ? toMynahIcon(action.icon) : undefined,
+                    ...(action.id === 'mcp-details-menu'
+                        ? {
+                              items: [
+                                  {
+                                      id: 'mcp-disable-server',
+                                      text: `Disable ${params.header?.title}`,
+                                      icon: toMynahIcon('block'),
+                                  },
+                                  {
+                                      id: 'mcp-delete-server',
+                                      confirmation: {
+                                          cancelButtonText: 'Cancel',
+                                          confirmButtonText: 'Delete',
+                                          title: 'Delete Filesystem MCP server',
+                                          description:
+                                              'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
+                                      },
+                                      text: `Delete ${params.header?.title}`,
+                                      icon: toMynahIcon('trash'),
+                                  },
+                              ],
+                          }
+                        : {}),
+                })),
+            }
+        }
+
+        // Add filter actions if present
+        if (params.filterActions && params.filterActions.length > 0) {
+            detailedList.filterActions = processFilterActions(params.filterActions)
+        }
+
+        return detailedList
+    }
+
+    /**
+     * Handles MCP server click events
+     */
+    const mcpServerClick = (params: McpServerClickResult) => {
+        const typedParams = params as McpServerParams
+
+        if (params.id === 'add-new-mcp') {
+            //turning off splash loader in case of being on when new server is added
+            mynahUi.toggleSplashLoader(false)
+            const detailedList = createAddMcpServerDetailedList(typedParams)
+
+            const events = {
+                onBackClick: () => {
+                    messager.onListMcpServers()
+                },
+                onFilterActionClick: (
+                    actionParams: McpServerClickResult,
+                    filterValues?: Record<string, string>,
+                    isValid?: boolean
+                ) => {
+                    if (actionParams.id === 'cancel-mcp') {
+                        messager.onListMcpServers()
+                    } else if (actionParams.id === 'save-mcp') {
+                        mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
+                        messager.onMcpServerClick(actionParams.id, 'Save configuration', filterValues)
+                    }
+                },
+            }
+
+            mynahUi.openDetailedList({ detailedList, events }, true)
+        } else if (params.id === 'open-mcp-server') {
+            //turning off splash loader in case of being on when new server is added
+            mynahUi.toggleSplashLoader(false)
+            const detailedList = createViewMcpServerDetailedList(typedParams)
+
+            const mcpServerSheet = mynahUi.openDetailedList(
+                {
+                    detailedList: detailedList,
+                    events: {
+                        onFilterValueChange: (filterValues: Record<string, string>) => {
+                            // Handle filter value changes for tool permissions
+                            messager.onMcpServerClick('mcp-permission-change', detailedList.header?.title, filterValues)
+                        },
+                        onFilterActionClick: () => {},
+                        onTitleActionClick: (action: ChatItemButton) => {
+                            messager.onMcpServerClick(action.id, detailedList.header?.title)
+                        },
+                        onKeyPress: (e: KeyboardEvent) => {
+                            if (e.key === 'Escape') {
+                                mcpServerSheet.close()
+                            }
+                        },
+                        onActionClick: (action: ChatItemButton) => {
+                            // Handle action clicks (save, cancel, etc.)
+                            messager.onMcpServerClick(action.id)
+                        },
+                        onClose: () => {
+                            messager.onListMcpServers()
+                        },
+                        onBackClick: () => {
+                            messager.onListMcpServers()
+                        },
+                    },
+                },
+                true
+            )
+        } else if (
+            ['mcp-disable-server', 'mcp-delete-server', 'refresh-mcp-list', 'mcp-enable-server'].includes(params.id)
+        ) {
+            messager.onListMcpServers()
+        }
+    }
+
     const getSerializedChat = (requestId: string, params: GetSerializedChatParams) => {
         const supportedFormats = ['markdown', 'html']
 
@@ -1110,6 +1546,8 @@ ${params.message}`,
         sendContextCommands: sendContextCommands,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
+        listMcpServers: listMcpServers,
+        mcpServerClick: mcpServerClick,
         getSerializedChat: getSerializedChat,
         createTabId: createTabId,
     }

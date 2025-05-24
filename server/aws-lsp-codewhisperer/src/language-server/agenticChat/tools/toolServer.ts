@@ -5,9 +5,16 @@ import { ListDirectory, ListDirectoryParams } from './listDirectory'
 import { ExecuteBash, ExecuteBashParams } from './executeBash'
 import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
-import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
-import { McpManager } from './mcp/mcpManager'
+import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
+import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
+import { McpToolDefinition } from './mcp/mcpTypes'
+import {
+    getGlobalMcpConfigPath,
+    getGlobalPersonaConfigPath,
+    getWorkspaceMcpConfigPaths,
+    getWorkspacePersonaConfigPaths,
+} from './mcp/mcpUtils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -28,6 +35,10 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         return await fsWriteTool.invoke(input)
     })
 
+    agent.addTool(listDirectoryTool.getSpec(), async (input: ListDirectoryParams, token?: CancellationToken) => {
+        await listDirectoryTool.validate(input)
+        return await listDirectoryTool.invoke(input, token)
+    })
     agent.addTool(listDirectoryTool.getSpec(), async (input: ListDirectoryParams, token?: CancellationToken) => {
         await listDirectoryTool.validate(input)
         return await listDirectoryTool.invoke(input, token)
@@ -63,27 +74,53 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 }
 
 export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
-    lsp.onInitialized(async () => {
-        // todo: move to constants
-        var workspaceFolders = workspace.getAllWorkspaceFolders()
-        const wsUris = workspaceFolders?.map(f => f.uri) ?? []
-        const wsConfigPaths = wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
-        const globalConfigPath = `${workspace.fs.getUserHomeDir()}/.aws/amazonq/mcp.json`
-        const allPaths = [...wsConfigPaths, globalConfigPath]
+    const registered: Record<string, string[]> = {}
 
-        const mgr = await McpManager.init(allPaths, { logging, workspace, lsp })
+    function registerServerTools(server: string, defs: McpToolDefinition[]) {
+        // 1) remove old tools
+        for (const name of registered[server] ?? []) {
+            agent.removeTool(name)
+        }
+        registered[server] = []
 
-        for (const def of mgr.getAllTools()) {
-            const baseSpec = def
+        // 2) add new enabled tools
+        for (const def of defs) {
             const namespaced = `${def.serverName}_${def.toolName}`
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
-            agent.addTool(
-                { name: namespaced, description: baseSpec.description, inputSchema: baseSpec.inputSchema },
-                (input: any) => tool.invoke(input)
+            agent.addTool({ name: namespaced, description: def.description, inputSchema: def.inputSchema }, input =>
+                tool.invoke(input)
             )
+            registered[server].push(namespaced)
             logging.info(`MCP: registered tool ${namespaced}`)
         }
+    }
+
+    lsp.onInitialized(async () => {
+        const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
+        const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
+
+        const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
+        const allConfigPaths = [...wsConfigPaths, globalConfigPath]
+
+        const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
+        const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
+        const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
+
+        const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, { logging, workspace, lsp })
+
+        const byServer: Record<string, McpToolDefinition[]> = {}
+        // only register enabled tools
+        for (const d of mgr.getEnabledTools()) {
+            ;(byServer[d.serverName] ||= []).push(d)
+        }
+        for (const [server, defs] of Object.entries(byServer)) {
+            registerServerTools(server, defs)
+        }
+
+        mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
+            registerServerTools(server, defs)
+        })
     })
 
     return async () => {
