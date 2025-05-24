@@ -127,6 +127,7 @@ import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } fr
 import { URI } from 'vscode-uri'
 import { McpManager } from './tools/mcp/mcpManager'
 import { McpTool } from './tools/mcp/mcpTool'
+import { processMcpToolUseMessage } from './tools/mcp/mcpUtils'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
