@@ -134,7 +134,7 @@ export class AgenticChatTriggerContext {
         const remoteWsFolderManager = WorkspaceFolderManager.getInstance()
         const workspaceId =
             (remoteWsFolderManager &&
-                remoteWsFolderManager.getWorkspaceState().webSocketClient?.isConnected &&
+                remoteWsFolderManager.getWorkspaceState().webSocketClient?.isConnected() &&
                 remoteWsFolderManager.getWorkspaceState().workspaceId) ||
             undefined
         this.#logging.info(`remote workspaceId: ${workspaceId}`)

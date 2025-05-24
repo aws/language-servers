@@ -167,7 +167,7 @@ describe('AgenticChatTriggerContext', () => {
         }
         sinon.stub(WorkspaceFolderManager, 'getInstance').returns(mockWorkspaceFolderManager)
         mockWorkspaceFolderManager.getWorkspaceState.returns({
-            webSocketClient: { isConnected: true },
+            webSocketClient: { isConnected: () => true },
             workspaceId: 'test-workspace-123',
         })
         const triggerContext = new AgenticChatTriggerContext(testFeatures)
