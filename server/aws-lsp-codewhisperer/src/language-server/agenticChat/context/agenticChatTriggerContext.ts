@@ -236,11 +236,18 @@ export class AgenticChatTriggerContext {
         input: Pick<ChatParams | InlineChatParams, 'cursorState' | 'textDocument'>
     ): Promise<DocumentContext | undefined> {
         const { textDocument: textDocumentIdentifier, cursorState } = input
-
-        if (textDocumentIdentifier?.uri === undefined) {
+        const docUri = textDocumentIdentifier?.uri
+        if (docUri === undefined) {
             return
         }
-        const textDocument = await this.getTextDocument(textDocumentIdentifier.uri)
+
+        let textDocument = await this.getTextDocument(docUri)
+        if (!textDocument) {
+            const fileContent = await this.getFileContent(docUri)
+            if (fileContent) {
+                textDocument = TextDocument.create(docUri, '', 0, fileContent)
+            }
+        }
 
         return textDocument
             ? this.#documentContextExtractor.extractDocumentContext(
@@ -252,23 +259,18 @@ export class AgenticChatTriggerContext {
             : undefined
     }
 
-    /**
-     * Fetch the current textDocument such that:
-     * 1. If the document is synced with LSP, return the synced textDocument
-     * 2. If the document is not synced with LSP, read the file from the file system
-     * 3. If the file cannot be read, return undefined
-     * @param uri
-     * @returns
-     */
     async getTextDocument(uri: string) {
         // Note: version is unused, and languageId can be determined from file extension.
         const syncedTextDocument = await this.#workspace.getTextDocument(uri)
         if (syncedTextDocument) {
             return syncedTextDocument
         }
+    }
+
+    async getFileContent(uri: string) {
         try {
             const content = await this.#workspace.fs.readFile(URI.parse(uri).fsPath)
-            return TextDocument.create(uri, '', 0, content)
+            return content
         } catch {
             return
         }

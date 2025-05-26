@@ -28,7 +28,7 @@ import {
     FileDetails,
     InlineChatResultParams,
     PromptInputOptionChangeParams,
-    TextDocument,
+    Range,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -107,7 +107,14 @@ import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
-import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
+// TODO: move all from toolShared to some common utils
+import {
+    ExplanatoryParams,
+    getDocumentFromWorkspace,
+    getFullContentRange,
+    readContent,
+    ToolApprovalException,
+} from './tools/toolShared'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { loggingUtils } from '@aws/lsp-core'
@@ -264,11 +271,60 @@ export class AgenticChatController implements ChatHandlers {
         const toolUse = session?.toolUseLookup.get(toolUseId)
 
         const input = toolUse?.input as unknown as FsWriteParams
-        if (toolUse?.fileChange?.before) {
-            await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
+        if (toolUse?.fileChange?.before?.unsaved) {
+            await this.#undoToUnsavedFile(
+                input.path,
+                toolUse.fileChange.before.unsaved,
+                toolUse.fileChange.before.saved
+            )
+        } else if (toolUse?.fileChange?.before?.saved) {
+            await this.#undoToSavedFile(input.path, toolUse.fileChange.before.saved)
         } else {
             await this.#features.workspace.fs.rm(input.path)
         }
+    }
+
+    async #undoToUnsavedFile(path: string, beforeUnsaved: string, beforeSaved: string | undefined) {
+        // first, save or remove from FS
+        if (beforeSaved) {
+            await this.#features.workspace.fs.writeFile(path, beforeSaved)
+        } else {
+            await this.#features.workspace.fs.rm(path)
+        }
+
+        // second, apply change to workspace but do not save
+        const document = await getDocumentFromWorkspace(path, this.#features.workspace)
+        const content = document?.getText() ?? (await readContent(path, this.#features.workspace))
+        const range = getFullContentRange(content)
+        await this.#replaceEditWorkspace(path, beforeUnsaved, range)
+    }
+
+    async #undoToSavedFile(path: string, before: string) {
+        // if document is open in the workspace - apply edit in ws and save to file,
+        // otherwise just save/remove from FS
+        const document = await getDocumentFromWorkspace(path, this.#features.workspace)
+        if (document) {
+            const range = getFullContentRange(document.getText())
+            await this.#replaceEditWorkspace(path, before, range)
+            this.#features.lsp.workspace.saveWorkspaceDocument({ uri: document.uri })
+        } else {
+            if (before) {
+                await this.#features.workspace.fs.writeFile(path, before)
+            } else {
+                await this.#features.workspace.fs.rm(path)
+            }
+        }
+    }
+
+    async #replaceEditWorkspace(path: string, newText: string, range: Range): Promise<boolean> {
+        const uri = URI.file(path).toString()
+        const workspaceEdit: ApplyWorkspaceEditParams = {
+            edit: {
+                documentChanges: [TextDocumentEdit.create({ uri, version: 0 }, [TextEdit.replace(range, newText)])],
+            },
+        }
+        const result = await this.#features.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
+        return result.applied
     }
 
     #updateUndoButtonAfterClick(tabId: string, toolUseId: string, session: ChatSessionService | undefined) {
@@ -998,10 +1054,19 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (toolUse.name === 'fsWrite') {
                     const input = toolUse.input as unknown as FsWriteParams
-                    const document = await this.#triggerContext.getTextDocument(input.path)
+                    const beforeDoc = await this.#triggerContext.getTextDocument(URI.file(input.path).toString())
+                    const beforeDocText = beforeDoc?.getText()
+                    const beforeFile = await this.#triggerContext.getFileContent(input.path)
+                    const isFileSaved = beforeDocText === undefined || beforeDocText === beforeFile // TODO: do more efficient
+                    this.#features.logging.info(`fsWrite before saved: ${beforeDoc}`) // TODO: remove?
                     session.toolUseLookup.set(toolUse.toolUseId, {
                         ...toolUse,
-                        fileChange: { before: document?.getText() },
+                        fileChange: {
+                            before: {
+                                saved: beforeFile,
+                                unsaved: isFileSaved ? undefined : beforeDocText,
+                            },
+                        },
                     })
                 }
 
@@ -1053,14 +1118,14 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     case 'fsWrite':
                         const input = toolUse.input as unknown as FsWriteParams
-                        const doc = await this.#triggerContext.getTextDocument(input.path)
-                        const chatResult = await this.#getFsWriteChatResult(toolUse, doc, session)
+                        const fileContent = await this.#triggerContext.getFileContent(input.path)
+                        const chatResult = await this.#getFsWriteChatResult(toolUse, fileContent, session)
                         const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
                         if (cachedToolUse) {
                             session.toolUseLookup.set(toolUse.toolUseId, {
                                 ...cachedToolUse,
                                 chatResult,
-                                fileChange: { ...cachedToolUse.fileChange, after: doc?.getText() },
+                                fileChange: { ...cachedToolUse.fileChange, after: fileContent },
                             })
                         }
                         this.#telemetryController.emitInteractWithAgenticChat(
@@ -1619,14 +1684,15 @@ export class AgenticChatController implements ChatHandlers {
 
     async #getFsWriteChatResult(
         toolUse: ToolUse,
-        doc: TextDocument | undefined,
+        fileContent: string | undefined,
         session: ChatSessionService
     ): Promise<ChatMessage> {
         const input = toolUse.input as unknown as FsWriteParams
-        const oldContent = session.toolUseLookup.get(toolUse.toolUseId!)?.fileChange?.before ?? ''
+        const before = session.toolUseLookup.get(toolUse.toolUseId!)?.fileChange?.before
+        const oldContent = before?.unsaved ?? before?.saved ?? ''
         // Get just the filename instead of the full path
         const fileName = path.basename(input.path)
-        const diffChanges = diffLines(oldContent, doc?.getText() ?? '')
+        const diffChanges = diffLines(oldContent, fileContent ?? '')
         const changes = diffChanges.reduce(
             (acc, { count = 0, added, removed }) => {
                 if (added) {
@@ -2064,7 +2130,7 @@ export class AgenticChatController implements ChatHandlers {
             start: { line: cursorPosition.line, character: 0 },
             end: cursorPosition,
         }
-        const documentContent = await this.#features.workspace.getTextDocument(params.textDocument.uri)
+        let documentContent = await this.#features.workspace.getTextDocument(params.textDocument.uri)
         // linePrefix is the raw text that is between the start of the line and the current cursor position
         let linePrefix = documentContent?.getText(indentRange)
         // calculatedIndent is the indent we calculate inside this function and apply to the text to be inserted
@@ -2140,7 +2206,7 @@ export class AgenticChatController implements ChatHandlers {
             const input = toolUse.input as unknown as FsWriteParams
             this.#features.lsp.workspace.openFileDiff({
                 originalFileUri: input.path,
-                originalFileContent: toolUse.fileChange?.before,
+                originalFileContent: toolUse.fileChange?.before?.unsaved ?? toolUse.fileChange?.before?.saved,
                 isDeleted: false,
                 fileContent: toolUse.fileChange?.after,
             })

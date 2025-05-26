@@ -14,6 +14,7 @@ import {
     requiresPathAcceptance,
     getDocumentFromWorkspace,
     readContentFromFs,
+    getFullContentRange,
 } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
@@ -301,17 +302,6 @@ export class FsWrite {
                 required: ['command', 'path'],
             },
         } as const
-    }
-}
-
-const getFullContentRange = (content: string): Range => {
-    const lines = content.split('\n')
-    const lastLine = lines.length - 1
-    const lastCharacter = lines[lastLine].length
-
-    return {
-        start: { line: 0, character: 0 },
-        end: { line: lastLine, character: lastCharacter },
     }
 }
 

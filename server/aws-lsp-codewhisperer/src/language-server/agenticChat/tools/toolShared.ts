@@ -1,4 +1,4 @@
-import { TextDocument, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { TextDocument, Workspace, Range } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { workspaceUtils } from '@aws/lsp-core'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
@@ -68,6 +68,17 @@ export async function readContentFromWorkspace(path: string, workspace: Workspac
 export async function readContentFromFs(path: string, workspace: Workspace): Promise<string> {
     const sanitizedPath = sanitize(path)
     return await workspace.fs.readFile(sanitizedPath)
+}
+
+export function getFullContentRange(content: string): Range {
+    const lines = content.split('\n')
+    const lastLine = lines.length - 1
+    const lastCharacter = lines[lastLine].length
+
+    return {
+        start: { line: 0, character: 0 },
+        end: { line: lastLine, character: lastCharacter },
+    }
 }
 
 export class ToolApprovalException extends Error {

@@ -15,7 +15,13 @@ import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapError
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
-type FileChange = { before?: string; after?: string }
+type FileChange = {
+    before?: {
+        saved?: string
+        unsaved?: string
+    }
+    after?: string
+}
 
 type DeferredHandler = {
     resolve: () => void
