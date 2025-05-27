@@ -877,7 +877,7 @@ export const createMynahUi = (
     /**
      * Creates a properly formatted chat item for MCP tool summary with accordion view
      */
-    const createMcpToolSummaryItem = (message: ChatMessage): Partial<ChatItem> => {
+    const createMcpToolSummaryItem = (message: ChatMessage, isPartialResult?: boolean): Partial<ChatItem> => {
         const muted = message.summary?.content?.header?.status !== undefined
         return {
             type: ChatItemType.ANSWER,
@@ -893,7 +893,9 @@ export const createMynahUi = (
                                     icon: message.summary.content.header.icon as any,
                                     body: message.summary.content.header.body,
                                     buttons: message.summary.content?.header?.buttons as any,
-                                    status: message.summary.content?.header?.status as any,
+                                    status: isPartialResult
+                                        ? (message.summary.content?.header?.status as any)
+                                        : undefined,
                                     fileList: undefined,
                                 }
                               : undefined,
@@ -930,7 +932,7 @@ export const createMynahUi = (
         if (message.type === 'tool') {
             // Handle MCP tool summary with accordion view
             if (message.summary) {
-                return createMcpToolSummaryItem(message)
+                return createMcpToolSummaryItem(message, isPartialResult)
             }
             processedHeader = { ...header }
             if (header?.buttons) {
