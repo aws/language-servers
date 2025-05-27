@@ -6,8 +6,10 @@
 import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs'
-
-import { pathUtils } from '@aws/lsp-core'
+import { fdir } from 'fdir'
+import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { URI } from 'vscode-uri'
+import * as ignore from 'ignore'
 
 type Metadata = {
     lang: string
@@ -54,14 +56,21 @@ const LANGUAGE_CONFIG: Record<string, Metadata> = {
 }
 
 export class FocalFileResolver {
+    filter = ignore().add(['node_modules', '.git', '.aws', '.vscode', '.idea', '.gitignore', '.gitmodules'])
+
     constructor() {}
 
-    inferSourceFile(testFilePath: string, projectRoot: string, language: string): string | undefined {
-        const inferredSrcFilename = this.inferFocalFilename(testFilePath, language)
-
-        if (!inferredSrcFilename) {
-            console.log(`not able to infer source file name`)
-            return
+    /**
+     *
+     * @param testFilePath absolute path
+     * @param projectRoot absolute path
+     * @param language
+     * @returns
+     */
+    async inferSourceFile(testFilePath: string, workspace: Workspace, language: string): Promise<string | undefined> {
+        const wsFolders = workspace.getAllWorkspaceFolders()
+        if (wsFolders.length === 0) {
+            return undefined
         }
 
         const config = LANGUAGE_CONFIG[language]
@@ -69,9 +78,19 @@ export class FocalFileResolver {
             return undefined
         }
 
-        // find candidate focal files based on naming conventions
+        // TODO: is this correct way to get "Project Root" or should we pass all ws folders?
+        const projectRoot = path.resolve(URI.parse(wsFolders[0].uri).fsPath)
+
+        const inferredSrcFilename = this.inferFocalFilename(testFilePath, language)
+
+        if (!inferredSrcFilename) {
+            console.log(`not able to infer source file name`)
+            return
+        }
+
+        // Find candidate focal files based on naming conventions
         const candidates: { fullPath: string; relativePath: string }[] = []
-        const files = this.walk(projectRoot)
+        const files = await this.walk(projectRoot, language)
 
         for (const file of files) {
             const ext = path.extname(file)
@@ -81,7 +100,7 @@ export class FocalFileResolver {
                 // TODO: not correct, fix fullPath & relativePath once walk is implemented
                 candidates.push({
                     fullPath: file,
-                    relativePath: file,
+                    relativePath: path.relative(projectRoot, file),
                 })
             }
         }
@@ -94,7 +113,7 @@ export class FocalFileResolver {
             return candidates[0].fullPath
         }
 
-        // filter based on the imported path and symbols
+        // Filter based on the imported path and symbols
         const importedFiles = this.extractImportedPaths(testFilePath, language, projectRoot)
         const filteredCandidate = []
         for (const candidate of candidates) {
@@ -114,14 +133,14 @@ export class FocalFileResolver {
                 case 'javascript':
                 case 'typescript':
                     const importedSymbols = this.extractImportedSymbols(testFilePath)
-                    let bestMatch = undefined
+                    let bestMatch: { fullPath: string; relativePath: string } | undefined = undefined
                     let bestOverlap = 0
 
                     for (const candidate of filteredCandidate) {
                         const exportedSymbols = this.extractExportedSymbolsFromFile(candidate.fullPath)
-                        const overlap = exportedSymbols.length // TODO: intersection of imported & exported
-                        if (overlap > bestOverlap) {
-                            bestOverlap = overlap
+                        const myOverlap = this.getOverlap(exportedSymbols, importedSymbols)
+                        if (myOverlap.size > bestOverlap) {
+                            bestOverlap = myOverlap.size
                             bestMatch = candidate
                         }
                     }
@@ -160,12 +179,12 @@ export class FocalFileResolver {
     }
 
     // @VisibleForTesting
-    extractImportedPaths(testFilePath: string, lang: string, projectRoot: string): string[] {
+    extractImportedPaths(testFilePath: string, lang: string, projectRoot: string): Set<string> {
         const config = LANGUAGE_CONFIG[lang]
         const content = fs.readFileSync(testFilePath)
         const lines = content.toString().split(os.EOL)
-        // TODO: original science source code use set
-        const result: string[] = []
+
+        const result: Set<string> = new Set()
         let buffer = ''
         let insideImportBlock = false
         try {
@@ -176,7 +195,7 @@ export class FocalFileResolver {
                     const match = config.packageMarker?.exec(line)
                     if (match) {
                         const pkg = this.resolvePackageToPath(match[1], config.packageSeparator)
-                        result.push(pkg)
+                        result.add(pkg)
                         continue
                     }
                 }
@@ -186,7 +205,7 @@ export class FocalFileResolver {
                         const match = pattern.exec(line)
                         if (match) {
                             const imp = this.resolvePackageToPath(match[1], config.packageSeparator)
-                            result.push(imp)
+                            result.add(imp)
                             continue
                         }
                     }
@@ -203,7 +222,7 @@ export class FocalFileResolver {
                                 const imp = match[1]
                                 const absPath = this.resolveImportToAbsPath(testFilePath, imp, projectRoot, lang)
                                 if (absPath) {
-                                    result.push(absPath)
+                                    result.add(absPath)
                                 }
                             }
                         }
@@ -220,9 +239,8 @@ export class FocalFileResolver {
     }
 
     // @VisibleForTesting
-    extractImportedSymbols(candidateAbsPath: string): string[] {
-        // TODO: original science source code use set
-        const result: string[] = []
+    extractImportedSymbols(candidateAbsPath: string): Set<string> {
+        const result: Set<string> = new Set()
         try {
             const content = fs.readFileSync(candidateAbsPath)
             const lines = content.toString().split(os.EOL)
@@ -247,14 +265,14 @@ export class FocalFileResolver {
                                     .filter(s => s.length > 0)
 
                                 for (const p of parts) {
-                                    result.push(p)
+                                    result.add(p)
                                 }
                             }
                         }
 
                         const defaultMatch = buffer.match(/import\s+([a-zA-Z_$][\w$]*)\s*(,|\s+from)/)
                         if (defaultMatch) {
-                            result.push(defaultMatch[1])
+                            result.add(defaultMatch[1])
                         }
 
                         buffer = ''
@@ -269,8 +287,8 @@ export class FocalFileResolver {
     }
 
     // @VisibleForTesting
-    extractExportedSymbolsFromFile(candidateAbsPath: string): string[] {
-        const result: string[] = []
+    extractExportedSymbolsFromFile(candidateAbsPath: string): Set<string> {
+        const result: Set<string> = new Set()
         try {
             const content = fs.readFileSync(candidateAbsPath)
             const lines = content.toString().split(os.EOL)
@@ -279,17 +297,17 @@ export class FocalFileResolver {
 
                 const matchFunc = /export\s+function\s+([a-zA-Z_$][\w$]*)/.exec(line)
                 if (matchFunc) {
-                    result.push(matchFunc[1])
+                    result.add(matchFunc[1])
                 }
 
                 const matchClass = /export\s+class\s+([a-zA-Z_$][\w$]*)/.exec(line)
                 if (matchClass) {
-                    result.push(matchClass[1])
+                    result.add(matchClass[1])
                 }
 
                 const matchConst = /export\s+const\s+([a-zA-Z_$][\w$]*)/.exec(line)
                 if (matchConst) {
-                    result.push(matchConst[1])
+                    result.add(matchConst[1])
                 }
 
                 const matchNamedBlock = /export\s+{([^}]+)}/g.exec(line) || []
@@ -299,17 +317,19 @@ export class FocalFileResolver {
                         .map(s => s.trim())
                         .filter(s => s.length > 0)
 
-                    result.push(...parts)
+                    for (const p of parts) {
+                        result.add(p)
+                    }
                 }
 
                 const matchDefault = /export\s+default\s+([a-zA-Z_$][\w$]*)/.exec(line)
                 if (matchDefault) {
-                    result.push(matchDefault[1])
+                    result.add(matchDefault[1])
                 }
 
                 const matchDefaultFunc = /export\s+default\s+function\s+([a-zA-Z_$][\w$]*)/.exec(line)
                 if (matchDefaultFunc) {
-                    result.push(matchDefaultFunc[1])
+                    result.add(matchDefaultFunc[1])
                 }
             }
         } catch (e) {
@@ -367,8 +387,47 @@ export class FocalFileResolver {
         return pkg.replace(new RegExp(`\\` + pkgSeparator, 'g'), path.sep)
     }
 
-    // TODO: implementation: return all files under project root
-    walk(projectRoot: string): string[] {
-        return []
+    // TODO: Duplicate to what [localProjectContextController.ts] has implemented, should pull this to a util
+    /**
+     * @VisibleForTesting
+     * @param projectRoot absolute path
+     * @param lang java | python | typescript | javascript
+     * @returns absolute path of files under project root
+     */
+    async walk(projectRoot: string, lang: string): Promise<string[]> {
+        const config = LANGUAGE_CONFIG[lang]
+        const exts = config.extensions
+
+        try {
+            const crawler = new fdir()
+                .withFullPaths()
+                .exclude((dirName: string, dirPath: string) => {
+                    const relativePath = path.relative(projectRoot, dirPath)
+                    return dirName.startsWith('.') || relativePath.startsWith('..') || this.filter.ignores(relativePath)
+                })
+                .filter((filePath: string) => {
+                    const myExt = path.extname(filePath)
+                    return exts.includes(myExt)
+                })
+                .crawl(projectRoot)
+
+            const files = await crawler.withPromise()
+
+            return files
+        } catch (error) {
+            console.error(`Error walking directory ${projectRoot}:`, error)
+            return []
+        }
+    }
+
+    private getOverlap(s1: Set<string>, s2: Set<string>): Set<string> {
+        const overlap = new Set<string>()
+        for (const e of s1) {
+            if (s2.has(e)) {
+                overlap.add(e)
+            }
+        }
+
+        return overlap
     }
 }

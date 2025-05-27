@@ -11,15 +11,15 @@ import { FocalFileResolver } from './focalFileResolution'
 
 describe('focalFileResolver', function () {
     let sut: FocalFileResolver
-    let tmpDir: string
+    let tmpProjectRoot: string
 
     beforeEach(() => {
         sut = new FocalFileResolver()
-        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'focalFileResolutionTest-'))
+        tmpProjectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'focalFileResolutionTest-'))
     })
 
     afterEach(() => {
-        fs.rmSync(tmpDir, { recursive: true, force: true })
+        fs.rmSync(tmpProjectRoot, { recursive: true, force: true })
     })
 
     describe('inferFocalFilename', function () {
@@ -81,7 +81,7 @@ describe('focalFileResolver', function () {
         // TODO: seems not working as expected ?
         describe('java', function () {
             it('case1', function () {
-                const p = path.join(tmpDir, 'FooTest.java')
+                const p = path.join(tmpProjectRoot, 'FooTest.java')
                 fs.writeFileSync(
                     p,
                     `
@@ -95,16 +95,16 @@ public class TestClass {}
 `
                 )
 
-                const actual = sut.extractImportedPaths(p, 'java', tmpDir)
-                assert.strictEqual(actual.length, 1)
-                assert.strictEqual(actual[0], 'com/amazon/q/service')
+                const actual = sut.extractImportedPaths(p, 'java', tmpProjectRoot)
+                assert.strictEqual(actual.size, 1)
+                assert.ok(actual.has('com/amazon/q/service'))
             })
         })
 
         // TODO: seems not working as expected ?
         describe('python', function () {
             it('case1', function () {
-                const p = path.join(tmpDir, 'test_py_class.py')
+                const p = path.join(tmpProjectRoot, 'test_py_class.py')
                 fs.writeFileSync(
                     p,
                     `
@@ -123,20 +123,20 @@ def test_py_class():
 `
                 )
 
-                const actual = sut.extractImportedPaths(p, 'python', tmpDir)
-                assert.strictEqual(actual.length, 5)
-                assert.ok(actual.includes('py_class'))
-                assert.ok(actual.includes('pytest'))
-                assert.ok(actual.includes('sys'))
-                assert.ok(actual.includes('os'))
-                assert.ok(actual.includes('util'))
+                const actual = sut.extractImportedPaths(p, 'python', tmpProjectRoot)
+                assert.strictEqual(actual.size, 5)
+                assert.ok(actual.has('py_class'))
+                assert.ok(actual.has('pytest'))
+                assert.ok(actual.has('sys'))
+                assert.ok(actual.has('os'))
+                assert.ok(actual.has('util'))
             })
         })
 
         describe('ts', function () {
             it('case1', function () {
-                const p = path.join(tmpDir, 'src', 'test', 'foo.test.ts')
-                fs.mkdirSync(path.join(tmpDir, 'src', 'test'), { recursive: true })
+                const p = path.join(tmpProjectRoot, 'src', 'test', 'foo.test.ts')
+                fs.mkdirSync(path.join(tmpProjectRoot, 'src', 'test'), { recursive: true })
                 fs.writeFileSync(
                     p,
                     `
@@ -150,11 +150,11 @@ test('foo', () => {
 `
                 )
 
-                const actual = sut.extractImportedPaths(p, 'typescript', tmpDir)
-                assert.strictEqual(actual.length, 3)
-                assert.ok(actual.includes(path.join(tmpDir, 'src', 'foo')))
-                assert.ok(actual.includes(path.join(tmpDir, 'src', 'baz')))
-                assert.ok(actual.includes(path.join(tmpDir, 'src', 'utils', 'util')))
+                const actual = sut.extractImportedPaths(p, 'typescript', tmpProjectRoot)
+                assert.strictEqual(actual.size, 3)
+                assert.ok(actual.has(path.join(tmpProjectRoot, 'src', 'foo')))
+                assert.ok(actual.has(path.join(tmpProjectRoot, 'src', 'baz')))
+                assert.ok(actual.has(path.join(tmpProjectRoot, 'src', 'utils', 'util')))
             })
         })
 
@@ -163,7 +163,7 @@ test('foo', () => {
 
     describe('extractImportedSymbols', function () {
         it('case1', function () {
-            const p = path.join(tmpDir, 'foo.js')
+            const p = path.join(tmpProjectRoot, 'foo.js')
             fs.writeFileSync(
                 p,
                 `
@@ -172,17 +172,17 @@ import baz from '../src/sample';`
             )
 
             const actual = sut.extractImportedSymbols(p)
-            assert.strictEqual(actual.length, 3)
-            assert.ok(actual.includes('foo'))
-            assert.ok(actual.includes('bar'))
-            assert.ok(actual.includes('baz'))
+            assert.strictEqual(actual.size, 3)
+            assert.ok(actual.has('foo'))
+            assert.ok(actual.has('bar'))
+            assert.ok(actual.has('baz'))
         })
     })
 
     describe('extractExportedSymbolsFromFile', function () {
         it('', function () {
-            fs.mkdirSync(path.join(tmpDir, 'src', 'test'), { recursive: true })
-            const p = path.join(tmpDir, 'src', 'test', 'sample.js')
+            fs.mkdirSync(path.join(tmpProjectRoot, 'src', 'test'), { recursive: true })
+            const p = path.join(tmpProjectRoot, 'src', 'test', 'sample.js')
             fs.writeFileSync(
                 p,
                 `
@@ -193,28 +193,28 @@ export { alpha, beta };`
             )
 
             const actual = sut.extractExportedSymbolsFromFile(p)
-            assert.strictEqual(actual.length, 5)
-            assert.ok(actual.includes('foo'))
-            assert.ok(actual.includes('bar'))
-            assert.ok(actual.includes('baz'))
-            assert.ok(actual.includes('alpha'))
-            assert.ok(actual.includes('beta'))
+            assert.strictEqual(actual.size, 5)
+            assert.ok(actual.has('foo'))
+            assert.ok(actual.has('bar'))
+            assert.ok(actual.has('baz'))
+            assert.ok(actual.has('alpha'))
+            assert.ok(actual.has('beta'))
         })
     })
 
     describe('resolveImportToAbsPath', function () {
         it('', function () {
-            fs.mkdirSync(path.join(tmpDir, 'src', 'test'), { recursive: true })
-            const p = path.join(tmpDir, 'src', 'test', 'foo.test.ts')
-            const actual = sut.resolveImportToAbsPath(p, '../helper', tmpDir, 'typescript')
-            assert.strictEqual(actual, path.join(tmpDir, 'src', 'helper'))
+            fs.mkdirSync(path.join(tmpProjectRoot, 'src', 'test'), { recursive: true })
+            const p = path.join(tmpProjectRoot, 'src', 'test', 'foo.test.ts')
+            const actual = sut.resolveImportToAbsPath(p, '../helper', tmpProjectRoot, 'typescript')
+            assert.strictEqual(actual, path.join(tmpProjectRoot, 'src', 'helper'))
         })
 
         it('alias', function () {
-            fs.mkdirSync(path.join(tmpDir, 'src', 'test'), { recursive: true })
-            const p = path.join(tmpDir, 'src', 'test', 'foo.test.ts')
-            const actual = sut.resolveImportToAbsPath('foo.test.ts', '@src/utils', tmpDir, 'typescript')
-            assert.strictEqual(actual, path.join(tmpDir, 'src', 'utils'))
+            fs.mkdirSync(path.join(tmpProjectRoot, 'src', 'test'), { recursive: true })
+            const p = path.join(tmpProjectRoot, 'src', 'test', 'foo.test.ts')
+            const actual = sut.resolveImportToAbsPath('foo.test.ts', '@src/utils', tmpProjectRoot, 'typescript')
+            assert.strictEqual(actual, path.join(tmpProjectRoot, 'src', 'utils'))
         })
     })
 
@@ -227,6 +227,66 @@ export { alpha, beta };`
         it('slash', function () {
             const actual = sut.resolvePackageToPath('com/amazon/q/service', '/')
             assert.strictEqual(actual, path.join('com', 'amazon', 'q', 'service'))
+        })
+    })
+
+    describe('walk should exclude hidden files and only include files with correct extensions', function () {
+        /**
+         * - root/
+         *   - src/
+         *     - foo.ts
+         *     - bar.ts
+         *     - ui/
+         *       - frontend.vue
+         *       - ui.html
+         *       - theme.css
+         *     - test/
+         *       - foo.test.ts
+         *       - bar.test.ts
+         *   - .github/
+         *     - workflows/
+         *       - foo.yml
+         *     - pull_request_template.md
+         *   - .idea
+         *     - aws.xml
+         *   - package.json
+         *   - package-lock.json
+         *   - webpack.config
+         */
+        it('case 1', async function () {
+            fs.mkdirSync(path.join(tmpProjectRoot, 'src'), { recursive: true })
+            fs.writeFileSync(path.join(tmpProjectRoot, 'src', 'foo.ts'), 'class Foo')
+            fs.writeFileSync(path.join(tmpProjectRoot, 'src', 'bar.ts'), 'class Bar')
+
+            fs.mkdirSync(path.join(tmpProjectRoot, 'src', 'ui'), { recursive: true })
+            fs.writeFileSync(path.join(tmpProjectRoot, 'src', 'ui', 'frontend.vue'), '')
+            fs.writeFileSync(path.join(tmpProjectRoot, 'src', 'ui', 'ui.html'), '')
+            fs.writeFileSync(path.join(tmpProjectRoot, 'src', 'ui', 'theme.css'), '')
+
+            fs.mkdirSync(path.join(tmpProjectRoot, 'src', 'test'), { recursive: true })
+            fs.writeFileSync(path.join(tmpProjectRoot, 'src', 'test', 'foo.test.ts'), 'class FooTest')
+            fs.writeFileSync(path.join(tmpProjectRoot, 'src', 'test', 'bar.test.ts'), 'class BarTest')
+
+            fs.mkdirSync(path.join(tmpProjectRoot, '.github'), { recursive: true })
+            fs.mkdirSync(path.join(tmpProjectRoot, '.github', 'workflows'), { recursive: true })
+            fs.writeFileSync(path.join(tmpProjectRoot, '.github', 'workflows', 'foo.yml'), '')
+            fs.writeFileSync(path.join(tmpProjectRoot, '.github', 'pull_request_template.md'), '')
+
+            fs.mkdirSync(path.join(tmpProjectRoot, '.idea'), { recursive: true })
+            fs.writeFileSync(path.join(tmpProjectRoot, '.idea', 'aws.xml'), '')
+
+            fs.writeFileSync(path.join(tmpProjectRoot, 'package.json'), '')
+            fs.writeFileSync(path.join(tmpProjectRoot, 'package-lock.json'), '')
+            fs.writeFileSync(path.join(tmpProjectRoot, 'webpack.config'), '')
+
+            const files = await sut.walk(tmpProjectRoot, 'typescript')
+            const basenames = files.map(it => path.basename(it))
+
+            assert.ok(files.length === 4)
+            assert.ok(basenames.includes('foo.ts'))
+            assert.ok(basenames.includes('bar.ts'))
+            assert.ok(basenames.includes('foo.test.ts'))
+            assert.ok(basenames.includes('bar.test.ts'))
         })
     })
 })
