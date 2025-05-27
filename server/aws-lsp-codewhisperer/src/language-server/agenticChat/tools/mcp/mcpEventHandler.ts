@@ -284,11 +284,11 @@ export class McpEventHandler {
                     title: 'Scope',
                     options: [
                         {
-                            label: `Global - Used globally. Edit config`,
+                            label: `Global - Used globally.`,
                             value: 'global',
                         },
                         {
-                            label: `This workspace - Only used in this workspace. Edit config`,
+                            label: `This workspace - Only used in this workspace.`,
                             value: 'workspace',
                         },
                     ],
