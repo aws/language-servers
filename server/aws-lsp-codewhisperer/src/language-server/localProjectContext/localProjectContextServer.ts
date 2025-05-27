@@ -132,6 +132,7 @@ export const LocalProjectContextServer =
                     maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
                     maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
                     enableIndexing: localProjectContextEnabled,
+                    indexCacheDirPath: updatedConfig.projectContext?.localIndexing?.indexCacheDirPath,
                 })
             } catch (error) {
                 logging.error(`Error handling configuration change: ${error}`)
