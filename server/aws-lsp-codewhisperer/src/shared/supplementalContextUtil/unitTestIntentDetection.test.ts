@@ -89,7 +89,7 @@ describe('TestIntentDetector', function () {
                     content: ``,
                 },
                 {
-                    filepath: 'test_foo_class.py',
+                    filepath: 'foo_class_test.py',
                     language: 'python',
                     content: ``,
                 },
@@ -104,7 +104,17 @@ describe('TestIntentDetector', function () {
                     content: ``,
                 },
                 {
+                    filepath: 'aTypeScriptClass.spec.ts',
+                    language: 'typescript',
+                    content: ``,
+                },
+                {
                     filepath: 'someJavascriptUtil.test.js',
+                    language: 'javascript',
+                    content: '',
+                },
+                {
+                    filepath: 'someJavascriptUtil.spec.js',
                     language: 'javascript',
                     content: '',
                 },
@@ -130,7 +140,23 @@ public void
                     `,
                 },
                 {
-                    filepath: 'test_foo_class.py',
+                    filepath: 'FooTests.java',
+                    language: 'java',
+                    content: `
+@Test
+public void
+                    `,
+                },
+                {
+                    filepath: 'TestFoo.java',
+                    language: 'java',
+                    content: `
+@Test
+public void
+                    `,
+                },
+                {
+                    filepath: 'foo_class_test.py',
                     language: 'python',
                     content: `import unittest`,
                 },
@@ -145,7 +171,17 @@ public void
                     content: `describe(`,
                 },
                 {
+                    filepath: 'aTypeScriptClass.spec.ts',
+                    language: 'typescript',
+                    content: `describe(`,
+                },
+                {
                     filepath: 'someJavascriptUtil.test.js',
+                    language: 'javascript',
+                    content: 'it(function (',
+                },
+                {
+                    filepath: 'someJavascriptUtil.spec.js',
                     language: 'javascript',
                     content: 'it(function (',
                 },
