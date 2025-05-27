@@ -7,7 +7,7 @@ import { TextDocument } from '@aws/language-server-runtimes/server-interface'
 
 const testFileNameRegex: Record<string, RegExp[]> = {
     python: [/^test_.*\.py$/, /.*_test\.py$/],
-    java: [/^test.*\.java$/, /.*Test\.java$/],
+    java: [/^Tests?.*\.java$/, /.*Tests?\.java$/],
     typescript: [/.*\.(test|spec)\.ts$/],
     javascript: [/.*\.(test|spec)\.js$/],
 }

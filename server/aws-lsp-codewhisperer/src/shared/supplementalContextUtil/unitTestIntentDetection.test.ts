@@ -74,6 +74,21 @@ describe('TestIntentDetector', function () {
                     content: ``,
                 },
                 {
+                    filepath: 'FooTests.java',
+                    language: 'java',
+                    content: ``,
+                },
+                {
+                    filepath: 'TestFoo.java',
+                    language: 'java',
+                    content: ``,
+                },
+                {
+                    filepath: 'TestsFoo.java',
+                    language: 'java',
+                    content: ``,
+                },
+                {
                     filepath: 'test_foo_class.py',
                     language: 'python',
                     content: ``,
