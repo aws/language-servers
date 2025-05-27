@@ -14,6 +14,7 @@ import {
     getGlobalPersonaConfigPath,
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
+    createNamespacedToolName,
 } from './mcp/mcpUtils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
@@ -76,6 +77,8 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     const registered: Record<string, string[]> = {}
 
+    const allNamespacedTools = new Set<string>()
+
     function registerServerTools(server: string, defs: McpToolDefinition[]) {
         // 1) remove old tools
         for (const name of registered[server] ?? []) {
@@ -85,21 +88,20 @@ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 
         // 2) add new enabled tools
         for (const def of defs) {
-            const namespaced = `${def.serverName}_${def.toolName}`
+            const namespaced = createNamespacedToolName(def.serverName, def.toolName, allNamespacedTools)
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
             agent.addTool({ name: namespaced, description: def.description, inputSchema: def.inputSchema }, input =>
                 tool.invoke(input)
             )
             registered[server].push(namespaced)
-            logging.info(`MCP: registered tool ${namespaced}`)
+            logging.info(`MCP: registered tool ${namespaced} (original: ${def.serverName}___${def.toolName})`)
         }
     }
 
     lsp.onInitialized(async () => {
         const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
         const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
-
         const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
         const allConfigPaths = [...wsConfigPaths, globalConfigPath]
 
