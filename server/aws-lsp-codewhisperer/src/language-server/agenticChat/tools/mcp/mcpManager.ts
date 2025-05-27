@@ -569,7 +569,6 @@ export class McpManager {
                     await this.initOneServer(serverName, this.mcpServers.get(serverName)!)
                 } else {
                     const n = this.mcpTools.filter(t => t.serverName === serverName).length
-                    this.setState(serverName, McpServerStatus.ENABLED, n)
                 }
             }
             this.features.logging.info(`Permissions updated for '${serverName}' in ${personaPath}`)
