@@ -41,19 +41,32 @@ export async function fetchSupplementalContext(
             | undefined
 
         if (isUtg) {
-            // TODO:
-            await waitUntil(async function () {}, {
-                timeout: supplementalContextTimeoutInMs,
-                interval: 5,
-                truthy: false,
-            })
-            const focalFile = await utgFocalFileResolver.inferFocalFile(document, workspace)
-
-            if (focalFile) {
-                const srcContent = fs.readFileSync(focalFile, 'utf-8')
-                return
-            }
-            return undefined
+            return await waitUntil(
+                async function () {
+                    const focalFile = await utgFocalFileResolver.inferFocalFile(document, workspace)
+                    if (focalFile) {
+                        const srcContent = fs.readFileSync(focalFile, 'utf-8')
+                        return {
+                            isUtg: true,
+                            isProcessTimeout: false,
+                            supplementalContextItems: [
+                                {
+                                    content: srcContent,
+                                    filePath: focalFile,
+                                },
+                            ],
+                            contentsLength: srcContent.length,
+                            latency: performance.now() - timesBeforeFetching,
+                            strategy: 'NEW_UTG',
+                        }
+                    }
+                },
+                {
+                    timeout: supplementalContextTimeoutInMs,
+                    interval: 5,
+                    truthy: false,
+                }
+            )
         } else {
             supplementalContextValue = await fetchSupplementalContextForSrc(
                 document,
