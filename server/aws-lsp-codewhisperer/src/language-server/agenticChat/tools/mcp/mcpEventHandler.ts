@@ -8,7 +8,12 @@ import {
     McpServerClickParams,
 } from '@aws/language-server-runtimes/protocol'
 
-import { getGlobalMcpConfigPath, getGlobalPersonaConfigPath, getWorkspacePersonaConfigPaths } from './mcpUtils'
+import {
+    getGlobalMcpConfigPath,
+    getGlobalPersonaConfigPath,
+    getWorkspaceMcpConfigPaths,
+    getWorkspacePersonaConfigPaths,
+} from './mcpUtils'
 import { McpPermissionType, MCPServerConfig, MCPServerPermission, McpServerRuntimeState } from './mcpTypes'
 
 interface PermissionOption {
@@ -252,6 +257,16 @@ export class McpEventHandler {
             }))
         }
 
+        if (existingValues.name) {
+            const serverName = existingValues.name
+            const serverState = McpManager.instance.getAllServerConfigs().get(serverName)
+            if (serverState?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())) {
+                existingValues.scope = 'global'
+            } else {
+                existingValues.scope = 'workspace'
+            }
+        }
+
         return {
             id: params.id,
             header: {
@@ -455,9 +470,23 @@ export class McpEventHandler {
             timeout: parseInt(params.optionsValues.timeout),
         }
 
-        // TODO: handle ws/global selection
-        const configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
-        const personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        let configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
+        if (params.optionsValues['scope'] !== 'global') {
+            // Get workspace folders and convert to paths
+            const workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
+            // Extract paths from workspace folders - uri is already a string
+            const workspacePaths = workspaceFolders.map(folder => folder.uri)
+
+            // Get the first path from the result or fall back to configPath
+            const workspaceMcpPaths = getWorkspaceMcpConfigPaths(workspacePaths)
+            configPath =
+                Array.isArray(workspaceMcpPaths) && workspaceMcpPaths.length > 0 ? workspaceMcpPaths[0] : configPath
+
+            // Get the appropriate persona path using our helper method
+            personaPath = await this.#getPersonaPath()
+        }
 
         if (McpManager.instance.getAllServerConfigs().has(serverName)) {
             // update server
@@ -551,8 +580,8 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
-        // TODO: handle ws/global selection
-        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        // Get the appropriate persona path
+        const personaPath = await this.#getPersonaPath()
 
         const perm: MCPServerPermission = {
             enabled: true,
@@ -580,8 +609,8 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
-        // TODO: handle ws/global selection
-        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        // Get the appropriate persona path
+        const personaPath = await this.#getPersonaPath()
 
         const perm: MCPServerPermission = {
             enabled: false,
@@ -670,24 +699,7 @@ export class McpEventHandler {
      * Builds filter options for server configuration
      */
     #buildServerFilterOptions(serverName: string, toolsWithPermissions: any[]) {
-        const filterOptions: FilterOption[] = [
-            {
-                type: 'radiogroup',
-                id: 'scope',
-                title: 'Scope',
-                options: [
-                    {
-                        label: `Global - Used globally. Edit config`,
-                        value: 'global',
-                    },
-                    {
-                        label: `This workspace - Only used in this workspace. Edit config`,
-                        value: 'workspace',
-                    },
-                ],
-                placeholder: 'global',
-            },
-        ]
+        const filterOptions: FilterOption[] = []
 
         // Add tool select options
         toolsWithPermissions.forEach(item => {
@@ -785,7 +797,7 @@ export class McpEventHandler {
                 }
             }
 
-            const mcpServerPermission = this.#processPermissionUpdates(updatedPermissionConfig)
+            const mcpServerPermission = await this.#processPermissionUpdates(updatedPermissionConfig)
 
             await McpManager.instance.updateServerPermission(serverName, mcpServerPermission)
             return { id: params.id }
@@ -813,11 +825,42 @@ export class McpEventHandler {
     }
 
     /**
+     * Gets the appropriate persona path, checking workspace path first if it exists
+     * @returns The persona path to use (workspace if exists, otherwise global)
+     */
+    async #getPersonaPath(): Promise<string> {
+        // Get the global path as fallback
+        const globalPersonaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
+        // Get workspace folders and check for workspace persona path
+        const workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            const workspacePaths = workspaceFolders.map(folder => folder.uri)
+            const workspacePersonaPaths = getWorkspacePersonaConfigPaths(workspacePaths)
+
+            if (Array.isArray(workspacePersonaPaths) && workspacePersonaPaths.length > 0) {
+                try {
+                    // Check if the workspace persona path exists
+                    const fileExists = await this.#features.workspace.fs.exists(workspacePersonaPaths[0])
+                    if (fileExists) {
+                        return workspacePersonaPaths[0]
+                    }
+                } catch (e) {
+                    this.#features.logging.warn(`Failed to check if workspace persona path exists: ${e}`)
+                }
+            }
+        }
+
+        // Return global path if workspace path doesn't exist or there was an error
+        return globalPersonaPath
+    }
+
+    /**
      * Processes permission updates from the UI
      */
-    #processPermissionUpdates(updatedPermissionConfig: any) {
-        // TODO: handle ws/global selection
-        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+    async #processPermissionUpdates(updatedPermissionConfig: any) {
+        // Get the appropriate persona path
+        const personaPath = await this.#getPersonaPath()
 
         const perm: MCPServerPermission = {
             enabled: true,
