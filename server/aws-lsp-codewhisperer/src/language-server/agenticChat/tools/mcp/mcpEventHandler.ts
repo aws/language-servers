@@ -8,7 +8,7 @@ import {
     McpServerClickParams,
 } from '@aws/language-server-runtimes/protocol'
 
-import { getGlobalMcpConfigPath, getGlobalPersonaConfigPath, getWorkspacePersonaConfigPaths } from './mcpUtils'
+import { getGlobalMcpConfigPath, getGlobalPersonaConfigPath } from './mcpUtils'
 import { McpPermissionType, MCPServerConfig, MCPServerPermission, McpServerRuntimeState } from './mcpTypes'
 
 interface PermissionOption {
@@ -303,6 +303,15 @@ export class McpEventHandler {
             }))
         }
 
+        if (existingValues.name) {
+            const serverName = existingValues.name
+            const serverState = McpManager.instance.getAllServerConfigs().get(serverName)
+            if (serverState?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())) {
+                existingValues.scope = 'global'
+            } else {
+                existingValues.scope = 'workspace'
+            }
+        }
         return {
             id: params.id,
             header: {
@@ -506,9 +515,14 @@ export class McpEventHandler {
             timeout: parseInt(params.optionsValues.timeout),
         }
 
-        // TODO: handle ws/global selection
-        const configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
-        const personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        let configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
+        if (params.optionsValues['scope'] !== 'global') {
+            const mcpManager = McpManager.instance
+            configPath = mcpManager.getWorkspaceConfigPath() ?? configPath
+            personaPath = mcpManager.getWorkspacePersonaPath() ?? configPath
+        }
 
         if (McpManager.instance.getAllServerConfigs().has(serverName)) {
             // update server
@@ -721,6 +735,11 @@ export class McpEventHandler {
      * Builds filter options for server configuration
      */
     #buildServerFilterOptions(serverName: string, toolsWithPermissions: any[]) {
+        // Get server config and determine if it's global
+        const serverState = McpManager.instance.getAllServerConfigs().get(serverName)
+        const isGlobal =
+            serverState?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
         const filterOptions: FilterOption[] = [
             {
                 type: 'radiogroup',
@@ -736,7 +755,7 @@ export class McpEventHandler {
                         value: 'workspace',
                     },
                 ],
-                placeholder: 'global',
+                placeholder: isGlobal ? 'global' : 'workspace',
             },
         ]
 
@@ -869,6 +888,11 @@ export class McpEventHandler {
     #processPermissionUpdates(updatedPermissionConfig: any) {
         // TODO: handle ws/global selection
         let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        if (updatedPermissionConfig['scope'] !== 'global') {
+            personaPath =
+                McpManager.instance.getWorkspacePersonaPath() ??
+                getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        }
 
         const perm: MCPServerPermission = {
             enabled: true,

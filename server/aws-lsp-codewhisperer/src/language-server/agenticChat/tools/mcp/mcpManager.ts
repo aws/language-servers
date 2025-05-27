@@ -16,7 +16,12 @@ import {
     PersonaModel,
     MCPServerPermission,
 } from './mcpTypes'
-import { loadMcpServerConfigs, loadPersonaPermissions } from './mcpUtils'
+import {
+    getGlobalMcpConfigPath,
+    getGlobalPersonaConfigPath,
+    loadMcpServerConfigs,
+    loadPersonaPermissions,
+} from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
@@ -569,11 +574,11 @@ export class McpManager {
                     await this.initOneServer(serverName, this.mcpServers.get(serverName)!)
                 } else {
                     const n = this.mcpTools.filter(t => t.serverName === serverName).length
-                    this.setState(serverName, McpServerStatus.ENABLED, n)
+                    // this.setState(serverName, McpServerStatus.ENABLED, n)
                 }
             }
             this.features.logging.info(`Permissions updated for '${serverName}' in ${personaPath}`)
-            this.emitToolsChanged(serverName)
+            // this.emitToolsChanged(serverName)
         } catch (err) {
             this.handleError(serverName, err)
             return
@@ -671,5 +676,23 @@ export class McpManager {
             this.setState(server, McpServerStatus.FAILED, 0, msg)
             this.emitToolsChanged(server)
         }
+    }
+
+    /**
+     * Gets the first workspace config path from the initialized instance
+     */
+    public getWorkspaceConfigPath(): string | undefined {
+        const globalPath = getGlobalMcpConfigPath(this.features.workspace.fs.getUserHomeDir())
+        const workspacePaths = this.configPaths.filter(path => path !== globalPath)
+        return workspacePaths.length > 0 ? workspacePaths[0] : undefined
+    }
+
+    /**
+     * Gets the first workspace persona path from the initialized instance
+     */
+    public getWorkspacePersonaPath(): string | undefined {
+        const globalPath = getGlobalPersonaConfigPath(this.features.workspace.fs.getUserHomeDir())
+        const workspacePaths = this.personaPaths.filter(path => path !== globalPath)
+        return workspacePaths.length > 0 ? workspacePaths[0] : undefined
     }
 }
