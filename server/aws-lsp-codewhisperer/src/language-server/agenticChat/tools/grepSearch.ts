@@ -168,7 +168,7 @@ export class GrepSearch {
             // Add search pattern and path
             args.push(params.query, path)
 
-            this.logging.info(`Executing ripgrep with args: ${args.join(' ')}`)
+            this.logging.debug(`Executing ripgrep with args: ${args.join(' ')}`)
 
             const options: ChildProcessOptions = {
                 collect: true,
