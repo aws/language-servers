@@ -559,25 +559,67 @@ export class ExecuteBash {
         return [str, false]
     }
 
-    private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        const { command, args } = IS_WINDOWS_PLATFORM
-            ? { command: 'where', args: [cmd] }
-            : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
-        const cp = new processUtils.ChildProcess(logger, command, args, {
-            collect: true,
-            waitForStreams: true,
-        })
-        const result = await cp.run()
+    private static async whichCommand(logger: Logging, cmd: string): Promise<void> {
+        if (IS_WINDOWS_PLATFORM) {
+            await this.resolveWindowsCommand(logger, cmd)
+        } else {
+            await this.resolveUnixCommand(logger, cmd)
+        }
+    }
 
-        if (result.exitCode !== 0) {
-            throw new Error(`Command '${cmd}' not found on PATH.`)
+    private static async resolveWindowsCommand(logger: Logging, cmd: string): Promise<void> {
+        // 1. Check for external command or alias
+        try {
+            const whereProc = new processUtils.ChildProcess(logger, 'where', [cmd], {
+                collect: true,
+                waitForStreams: true,
+            })
+            const result = await whereProc.run()
+            const output = result.stdout.trim()
+
+            if (result.exitCode === 0 && output) {
+                return
+            }
+        } catch (err) {
+            logger.debug(`'where ${cmd}' failed: ${(err as Error).message}`)
         }
 
-        const output = result.stdout.trim()
-        if (!output) {
-            throw new Error(`Command '${cmd}' found but '${command} ${args.join(' ')}' returned empty output.`)
+        // 2. Check for built-in command
+        try {
+            const helpProc = new processUtils.ChildProcess(logger, 'cmd.exe', ['/c', 'help', cmd], {
+                collect: true,
+                waitForStreams: true,
+            })
+            const result = await helpProc.run()
+            const output = result.stdout.trim()
+
+            if (output && !output.includes('This command is not supported by the help utility')) {
+                return
+            }
+        } catch (err) {
+            logger.debug(`'help ${cmd}' failed: ${(err as Error).message}`)
         }
-        return output
+
+        throw new Error(`Command '${cmd}' not found as executable or Windows built-in command`)
+    }
+
+    private static async resolveUnixCommand(logger: Logging, cmd: string): Promise<void> {
+        try {
+            const proc = new processUtils.ChildProcess(logger, 'sh', ['-c', `command -v ${cmd}`], {
+                collect: true,
+                waitForStreams: true,
+            })
+            const result = await proc.run()
+            const output = result.stdout.trim()
+
+            if (result.exitCode === 0 && output) {
+                return
+            }
+        } catch (err) {
+            logger.debug(`'command -v ${cmd}' failed: ${(err as Error).message}`)
+        }
+
+        throw new Error(`Command '${cmd}' not found as executable or shell built-in`)
     }
 
     public async queueDescription(command: string, updates: WritableStream) {
