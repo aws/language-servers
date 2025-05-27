@@ -85,7 +85,7 @@ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 
         // 2) add new enabled tools
         for (const def of defs) {
-            const namespaced = `${def.serverName}_${def.toolName}`
+            const namespaced = `${def.serverName}___${def.toolName}`
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
             agent.addTool({ name: namespaced, description: def.description, inputSchema: def.inputSchema }, input =>

@@ -127,7 +127,6 @@ import { AgenticChatError, customerFacingErrorCodes, unactionableErrorCodes } fr
 import { URI } from 'vscode-uri'
 import { McpManager } from './tools/mcp/mcpManager'
 import { McpTool } from './tools/mcp/mcpTool'
-import { processMcpToolUseMessage } from './tools/mcp/mcpUtils'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
@@ -1015,9 +1014,9 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
-                        // toolUse.name is in format <server>_<tool>
-                        const [serverName, ...toolParts] = toolUse.name.split('_')
-                        const toolName = toolParts.join('_')
+                        // toolUse.name is in format <server>___<tool>
+                        const [serverName, ...toolParts] = toolUse.name.split('___')
+                        const toolName = toolParts.join('___')
                         const def = McpManager.instance.getAllTools().find(d => d.toolName === toolName)
                         if (def) {
                             const mcpTool = new McpTool(this.#features, def)
@@ -2712,7 +2711,7 @@ export class AgenticChatController implements ChatHandlers {
         // TODO: mcp tool spec name will be server___tool.
         // TODO: Will also need to handle rare edge cases of long server name + long tool name > 64 char
         const mcpToolSpecNames = new Set(
-            McpManager.instance.getAllTools().map(tool => `${tool.serverName}_${tool.toolName}`)
+            McpManager.instance.getAllTools().map(tool => `${tool.serverName}___${tool.toolName}`)
         )
         const writeToolNames = new Set(['fsWrite', 'executeBash'])
         const restrictedToolNames = new Set([...mcpToolSpecNames, ...writeToolNames])
@@ -2761,14 +2760,14 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
 
-        const def = McpManager.instance.getAllTools().find(d => `${d.serverName}_${d.toolName}` === toolUse.name)
+        const def = McpManager.instance.getAllTools().find(d => `${d.serverName}___${d.toolName}` === toolUse.name)
         if (def) {
             // Format the tool result and input as JSON strings
             const toolInput = JSON.stringify(toolUse.input, null, 2)
             const toolResultContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
 
-            const [serverName, ...toolParts] = toolUse.name.split('_')
-            const toolName = toolParts.join('_')
+            const [serverName, ...toolParts] = toolUse.name.split('___')
+            const toolName = toolParts.join('___')
 
             const toolResultCard: ChatMessage = {
                 type: 'tool',
@@ -2777,7 +2776,7 @@ export class AgenticChatController implements ChatHandlers {
                     content: {
                         header: {
                             icon: 'tools',
-                            body: `${serverName}_${toolName}`,
+                            body: `${serverName}___${toolName}`,
                             fileList: undefined,
                         },
                     },
