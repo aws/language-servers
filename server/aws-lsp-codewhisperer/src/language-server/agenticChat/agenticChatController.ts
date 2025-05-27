@@ -1699,7 +1699,7 @@ export class AgenticChatController implements ChatHandlers {
                             icon: 'tools',
                             body: `${toolName}`,
                             buttons: [
-                                { id: 'allow-tools', text: 'Run', icon: 'play' },
+                                { id: 'allow-tools', text: 'Run', icon: 'play', status: 'clear' },
                                 {
                                     id: 'reject-mcp-tool',
                                     text: 'Reject',
