@@ -7,7 +7,7 @@ import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs'
 import { fdir } from 'fdir'
-import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { TextDocument, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
 import * as ignore from 'ignore'
 
@@ -59,6 +59,13 @@ export class FocalFileResolver {
     filter = ignore().add(['node_modules', '.git', '.aws', '.vscode', '.idea', '.gitignore', '.gitmodules'])
 
     constructor() {}
+
+    // TODO: make [inferFocalFile] & [inferSourceFile] overload
+    async inferFocalFile(doc: TextDocument, workspace: Workspace): Promise<string | undefined> {
+        const lang = doc.languageId
+        const p = URI.parse(doc.uri).fsPath
+        return this.inferSourceFile(p, workspace, lang)
+    }
 
     /**
      *
