@@ -274,3 +274,16 @@ export function getWorkspaceMcpConfigPaths(wsUris: string[]): string[] {
 export function getGlobalMcpConfigPath(homeDir: string): string {
     return path.join(homeDir, '.aws', 'amazonq', 'mcp.json')
 }
+
+/** Returns true if env object is undefined, null, contains only empty keys or values */
+export function isEmptyEnv(env: Record<string, string>): boolean {
+    if (!env || typeof env !== 'object') {
+        return true
+    }
+    for (const [key, value] of Object.entries(env)) {
+        if (key.trim() !== '' && value.trim() !== '') {
+            return false
+        }
+    }
+    return true
+}

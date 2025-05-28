@@ -403,6 +403,29 @@ export class McpEventHandler {
             }
         }
 
+        // Environment variables must have both name and value, or neither
+        if (Array.isArray(values.env_variables)) {
+            const envVars = values.env_variables as Array<{ env_var_name: string; env_var_value: string }>
+            const hasEmptyNameWithValue = envVars.some(
+                env =>
+                    (!env.env_var_name || env.env_var_name.trim() === '') &&
+                    env.env_var_value &&
+                    env.env_var_value.trim() !== ''
+            )
+            const hasNameWithEmptyValue = envVars.some(
+                env =>
+                    env.env_var_name &&
+                    env.env_var_name.trim() !== '' &&
+                    (!env.env_var_value || env.env_var_value.trim() === '')
+            )
+            if (hasEmptyNameWithValue) {
+                errors.push('Environment variable name cannot be empty when value is provided')
+            }
+            if (hasNameWithEmptyValue) {
+                errors.push('Environment variable value cannot be empty when name is provided')
+            }
+        }
+
         return {
             isValid: errors.length === 0,
             errors,
