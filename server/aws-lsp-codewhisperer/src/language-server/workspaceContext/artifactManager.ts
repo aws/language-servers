@@ -4,7 +4,7 @@ import path = require('path')
 import { URI } from 'vscode-uri'
 import JSZip = require('jszip')
 import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
-import { isDirectory, isEmptyDirectory } from './util'
+import { resolveSymlink, isDirectory, isEmptyDirectory } from './util'
 import glob = require('fast-glob')
 import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
 
@@ -45,6 +45,15 @@ const IGNORE_PATTERNS = [
     '**/bin/**',
     // Framework specific
     '**/target/**', // Maven/Gradle builds
+]
+
+const IGNORE_DEPENDENCY_PATTERNS = [
+    // Package management and git
+    '**/.git/**',
+    // Build outputs
+    '**/dist/**',
+    // Logs and temporary files
+    '**/logs/**',
 ]
 
 interface FileSizeDetails {
@@ -161,15 +170,15 @@ export class ArtifactManager {
             const files = await glob(['**/*'], {
                 cwd: filePath,
                 dot: false,
-                ignore: IGNORE_PATTERNS,
-                followSymbolicLinks: false,
+                ignore: IGNORE_DEPENDENCY_PATTERNS,
+                followSymbolicLinks: true,
                 absolute: false,
                 onlyFiles: true,
             })
 
             for (const relativePath of files) {
-                const fullPath = path.join(filePath, relativePath)
                 try {
+                    const fullPath = resolveSymlink(path.join(filePath, relativePath))
                     const fileMetadata = await this.createFileMetadata(
                         fullPath,
                         path.join(filePathInZipOverride !== undefined ? filePathInZipOverride : '', relativePath),
@@ -178,7 +187,7 @@ export class ArtifactManager {
                     )
                     fileMetadataList.push(fileMetadata)
                 } catch (error) {
-                    this.logging.warn(`Error processing file ${fullPath}: ${error}`)
+                    this.logging.warn(`Error processing file ${relativePath}: ${error}`)
                 }
             }
         } else {

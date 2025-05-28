@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.11](https://github.com/aws/language-servers/compare/chat-client/v0.1.10...chat-client/v0.1.11) (2025-05-22)
+
+
+### Bug Fixes
+
+* Revert stop text align ([#1397](https://github.com/aws/language-servers/issues/1397)) ([439e859](https://github.com/aws/language-servers/commit/439e8597b5ce8ad052ab571a1a156044f8862206))
+* Stop text align ([#1321](https://github.com/aws/language-servers/issues/1321)) ([0f522a1](https://github.com/aws/language-servers/commit/0f522a17004174d29955bf70c304ad9ca39df623))
+
 ## [0.1.10](https://github.com/aws/language-servers/compare/chat-client/v0.1.9...chat-client/v0.1.10) (2025-05-14)
 
 

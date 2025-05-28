@@ -4,6 +4,8 @@ import { ArtifactManager, FileMetadata } from '../../artifactManager'
 import path = require('path')
 import { EventEmitter } from 'events'
 import { CodewhispererLanguage } from '../../../../shared/languageDetection'
+import { isDirectory } from '../../util'
+import { DependencyWatcher } from './DependencyWatcher'
 
 export interface Dependency {
     name: string
@@ -28,12 +30,13 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     protected dependencyMap = new Map<WorkspaceFolder, Map<string, Dependency>>()
     protected dependencyUploadedSizeMap = new Map<WorkspaceFolder, number>()
     protected dependencyUploadedSizeSum: Uint32Array<SharedArrayBuffer>
-    protected dependencyWatchers: Map<string, fs.FSWatcher> = new Map<string, fs.FSWatcher>()
+    protected dependencyWatchers: Map<string, DependencyWatcher> = new Map<string, DependencyWatcher>()
     protected artifactManager: ArtifactManager
     protected dependenciesFolderName: string
     protected eventEmitter: EventEmitter
     protected readonly MAX_SINGLE_DEPENDENCY_SIZE: number = 500 * 1024 * 1024 // 500 MB
     protected readonly MAX_WORKSPACE_DEPENDENCY_SIZE: number = 8 * 1024 * 1024 * 1024 // 8 GB
+    protected readonly DEPENDENCY_WATCHER_EVENT_BATCH_INTERVAL: number = 1000
 
     constructor(
         language: CodewhispererLanguage,
@@ -316,7 +319,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     dispose(): void {
         this.dependencyMap.clear()
         this.dependencyUploadedSizeMap.clear()
-        this.dependencyWatchers.forEach(watcher => watcher.close())
+        this.dependencyWatchers.forEach(watcher => watcher.dispose())
         this.dependencyWatchers.clear()
     }
 
@@ -339,6 +342,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
     // For synchronous version if needed:
     protected getDirectorySize(directoryPath: string): number {
+        if (!isDirectory(directoryPath)) {
+            return fs.statSync(directoryPath).size
+        }
         let totalSize = 0
         try {
             const files = fs.readdirSync(directoryPath)
@@ -346,12 +352,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             for (const file of files) {
                 const filePath = path.join(directoryPath, file)
                 const stats = fs.statSync(filePath)
-
-                if (stats.isDirectory()) {
-                    totalSize += this.getDirectorySize(filePath)
-                } else {
-                    totalSize += stats.size
-                }
+                totalSize += this.getDirectorySize(filePath)
             }
 
             return totalSize

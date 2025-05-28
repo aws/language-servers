@@ -2,11 +2,9 @@ import { strict as assert } from 'assert'
 import * as mockfs from 'mock-fs'
 import * as sinon from 'sinon'
 import { ExecuteBash } from './executeBash'
-import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { URI } from 'vscode-uri'
-import { InitializeParams } from '@aws/language-server-runtimes/protocol'
 
 describe('ExecuteBash Tool', () => {
     let features: TestFeatures

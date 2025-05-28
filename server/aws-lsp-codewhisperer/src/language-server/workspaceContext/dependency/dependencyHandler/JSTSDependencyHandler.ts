@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { FileMetadata } from '../../artifactManager'
+import { DependencyWatcher } from './DependencyWatcher'
 
 interface JSTSDependencyInfo extends BaseDependencyInfo {
     packageJsonPath: string
@@ -181,18 +182,22 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
             }
             this.logging.log(`Setting up Javascript/Typescript dependency watcher for ${packageJsonPath}`)
             try {
-                const watcher = fs.watch(packageJsonPath, async eventType => {
-                    if (eventType === 'change') {
-                        this.logging.log(`Change detected in ${packageJsonPath}`)
-                        const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
-                        let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
-                            jstsDependencyInfo.workspaceFolder,
-                            updatedDependencyMap,
-                            true
-                        )
-                        this.emitDependencyChange(jstsDependencyInfo.workspaceFolder, zips)
-                    }
-                })
+                const callBackDependencyUpdate = async (events: string[]) => {
+                    this.logging.log(`Change detected in ${packageJsonPath}`)
+                    const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
+                    let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                        jstsDependencyInfo.workspaceFolder,
+                        updatedDependencyMap,
+                        true
+                    )
+                    this.emitDependencyChange(jstsDependencyInfo.workspaceFolder, zips)
+                }
+                const watcher = new DependencyWatcher(
+                    packageJsonPath,
+                    callBackDependencyUpdate,
+                    this.logging,
+                    this.DEPENDENCY_WATCHER_EVENT_BATCH_INTERVAL
+                )
                 this.dependencyWatchers.set(packageJsonPath, watcher)
             } catch (error) {
                 this.logging.warn(`Error setting up watcher for ${packageJsonPath}: ${error}`)
@@ -214,7 +219,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 const packageJsonPath = jstsDependencyInfo.packageJsonPath
                 if (this.dependencyWatchers.has(packageJsonPath)) {
                     this.logging.log(`Disposing dependency watcher for ${packageJsonPath}`)
-                    this.dependencyWatchers.get(packageJsonPath)?.close()
+                    this.dependencyWatchers.get(packageJsonPath)?.dispose()
                     this.dependencyWatchers.delete(packageJsonPath)
                 }
             }

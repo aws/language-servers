@@ -39,7 +39,6 @@ export class WorkspaceFolderManager {
     private workspaceState: WorkspaceState
     private remoteWorkspaceIdPromise: Promise<string>
     private remoteWorkspaceIdResolver!: (id: string) => void
-    private remoteWorkspaceIdRejecter!: (reason: Error) => void
     private workspaceFolders: WorkspaceFolder[]
     private credentialsProvider: CredentialsProvider
     private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 40 seconds
@@ -111,9 +110,8 @@ export class WorkspaceFolderManager {
             })
         })
 
-        this.remoteWorkspaceIdPromise = new Promise<string>((resolve, reject) => {
+        this.remoteWorkspaceIdPromise = new Promise<string>(resolve => {
             this.remoteWorkspaceIdResolver = resolve
-            this.remoteWorkspaceIdRejecter = reject
         })
         this.workspaceState = {
             remoteWorkspaceState: 'CREATION_PENDING',
@@ -471,31 +469,28 @@ export class WorkspaceFolderManager {
         if (this.workspaceState.workspaceId) {
             return this.workspaceState.workspaceId
         }
-
-        // Otherwise, wait for the promise to resolve or catch the rejection and retry
-        try {
-            return await this.remoteWorkspaceIdPromise
-        } catch (error) {
-            this.logging.log(`Waiting for a new remote workspaceId`)
-            return this.waitForRemoteWorkspaceId()
+        // Otherwise, wait for the promise to resolve
+        let waitedWorkspaceId = undefined
+        while (!waitedWorkspaceId) {
+            waitedWorkspaceId = await this.remoteWorkspaceIdPromise
         }
+        return waitedWorkspaceId
     }
 
     private resetRemoteWorkspaceId() {
         this.workspaceState.workspaceId = undefined
 
-        // Store the old rejecter
-        const oldRejecter = this.remoteWorkspaceIdRejecter
+        // Store the old resolver
+        const oldResolver = this.remoteWorkspaceIdResolver
 
         // Create new promise first
-        this.remoteWorkspaceIdPromise = new Promise<string>((resolve, reject) => {
+        this.remoteWorkspaceIdPromise = new Promise<string>(resolve => {
             this.remoteWorkspaceIdResolver = resolve
-            this.remoteWorkspaceIdRejecter = reject
         })
 
-        // Then reject the old promise if it exists
-        if (oldRejecter) {
-            oldRejecter(new Error('Remote workspaceId reset requested'))
+        // Reset the old promise
+        if (oldResolver) {
+            oldResolver('')
         }
     }
 
