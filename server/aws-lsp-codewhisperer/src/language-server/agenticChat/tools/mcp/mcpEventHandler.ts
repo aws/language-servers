@@ -72,37 +72,8 @@ export class McpEventHandler {
         }
         const mcpManagerServerConfigs = mcpManager.getAllServerConfigs()
 
-        // Validate each server configuration and collect all validation errors
-        const validationErrors: { serverName: string; errors: string[] }[] = []
-
-        for (const [serverName, config] of mcpManagerServerConfigs.entries()) {
-            // Create a values object that matches the expected format for validateMcpServerForm
-            const values = {
-                name: serverName,
-                command: config.command,
-                timeout: config.timeout?.toString() || '',
-            }
-
-            const validation = this.#validateMcpServerForm(values)
-            if (!validation.isValid) {
-                this.#features.logging.debug(
-                    `MCP server validation error for ${serverName}: ${validation.errors.join(', ')}`
-                )
-                validationErrors.push({ serverName, errors: validation.errors })
-            }
-        }
-        let combinedErrors = undefined
-        // Return validation errors if any were found
-        if (validationErrors.length > 0) {
-            // Combine all error messages
-            combinedErrors = validationErrors
-                .map(error => {
-                    return error.serverName
-                        ? `Server name: ${error.serverName} Error: ${error.errors.join('')}`
-                        : `Error: ${error.errors.join('')}`
-                })
-                .join('\n\n')
-        }
+        // Validate server configurations and get any error messages
+        const combinedErrors = this.#validateMcpServerConfigs(mcpManagerServerConfigs)
 
         // Transform server configs into DetailedListItem objects
         const activeItems: DetailedListItem[] = []
@@ -417,10 +388,54 @@ export class McpEventHandler {
         }
     }
     /**
+     * Validates all MCP server configurations and returns combined error messages
+     * @param serverConfigs Map of server configurations to validate
+     * @returns Combined error messages or undefined if no errors
+     */
+    #validateMcpServerConfigs(serverConfigs: Map<string, MCPServerConfig>): string | undefined {
+        // Validate each server configuration and collect all validation errors
+        const validationErrors: { serverName: string; errors: string[] }[] = []
+
+        for (const [serverName, config] of serverConfigs.entries()) {
+            // Create a values object that matches the expected format for validateMcpServerForm
+            const values = {
+                name: serverName,
+                command: config.command,
+                timeout: config.timeout?.toString() || '',
+                env: config.env,
+                args: config.args,
+            }
+
+            const validation = this.#validateMcpServerForm(values, false)
+            if (!validation.isValid) {
+                this.#features.logging.debug(
+                    `MCP server validation error for ${serverName}: ${validation.errors.join(', ')}`
+                )
+                validationErrors.push({ serverName, errors: validation.errors })
+            }
+        }
+
+        // Return validation errors if any were found
+        if (validationErrors.length > 0) {
+            // Combine all error messages
+            return validationErrors
+                .map(error => {
+                    return error.serverName
+                        ? `Server name: ${error.serverName} Error: ${error.errors.join('')}`
+                        : `Error: ${error.errors.join('')}`
+                })
+                .join('\n\n')
+        }
+
+        return undefined
+    }
+
+    /**
      * Validates the MCP server form values
      */
     #validateMcpServerForm(
-        values: Record<string, string>,
+        values: Record<string, any>,
+        checkExistingServerName: boolean,
         originalServerName?: string
     ): { isValid: boolean; errors: string[] } {
         const errors: string[] = []
@@ -431,11 +446,12 @@ export class McpEventHandler {
             if (!/^[a-zA-Z0-9_-]+$/.test(values.name)) {
                 errors.push('Server name can only contain alphanumeric characters and hyphens')
             }
+            if (checkExistingServerName) {
+                const existingServers = McpManager.instance.getAllServerConfigs()
 
-            const existingServers = McpManager.instance.getAllServerConfigs()
-
-            if (existingServers.has(values.name) && values.name !== originalServerName) {
-                errors.push(`Server name "${values.name}" already exists`)
+                if (existingServers.has(values.name) && values.name !== originalServerName) {
+                    errors.push(`Server name "${values.name}" already exists`)
+                }
             }
         }
 
@@ -493,6 +509,7 @@ export class McpEventHandler {
         // Validate form values
         const validation = this.#validateMcpServerForm(
             params.optionsValues,
+            true,
             isEditMode ? originalServerName : undefined
         )
         if (!validation.isValid) {
