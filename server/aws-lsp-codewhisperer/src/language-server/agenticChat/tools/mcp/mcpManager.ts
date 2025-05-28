@@ -16,7 +16,7 @@ import {
     PersonaModel,
     MCPServerPermission,
 } from './mcpTypes'
-import { loadMcpServerConfigs, loadPersonaPermissions } from './mcpUtils'
+import { isEmptyEnv, loadMcpServerConfigs, loadPersonaPermissions } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
@@ -356,13 +356,18 @@ export class McpManager {
             }
 
             await this.mutateConfigFile(configPath, json => {
-                json.mcpServers[serverName] = {
+                const serverConfig: MCPServerConfig = {
                     command: cfg.command,
-                    args: cfg.args,
-                    env: cfg.env,
                     initializationTimeout: cfg.initializationTimeout,
                     timeout: cfg.timeout,
                 }
+                if (cfg.args && cfg.args.length > 0) {
+                    serverConfig.args = cfg.args
+                }
+                if (cfg.env && !isEmptyEnv(cfg.env)) {
+                    serverConfig.env = cfg.env
+                }
+                json.mcpServers[serverName] = serverConfig
             })
 
             const newCfg: MCPServerConfig = { ...cfg, __configPath__: configPath }
