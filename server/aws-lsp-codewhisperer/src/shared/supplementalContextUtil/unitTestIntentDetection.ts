@@ -25,24 +25,7 @@ export class TestIntentDetector {
     detectUnitTestIntent(doc: TextDocument): boolean {
         const lang = doc.languageId
         const isTestFile = this.isTestFile(doc.uri, doc.getText(), lang)
-        if (!isTestFile) {
-            return false
-        }
-
-        switch (lang) {
-            case 'python':
-                return this.pyTestIntent(doc.getText())
-
-            case 'java':
-                return this.javaTestIntent(doc.getText())
-
-            case 'typescript':
-            case 'javascript':
-                return this.jsTsTestIntent(doc.getText())
-
-            default:
-                return false
-        }
+        return isTestFile
     }
 
     // @VisibleForTesting
@@ -60,6 +43,7 @@ export class TestIntentDetector {
         return testKeywordsRegex[language].some(regex => regex.test(fileContent))
     }
 
+    // The following methods are not used for now as we found they're too strict for test intent detection, could remove once we confirm we no longer need them
     // @VisibleForTesting
     javaTestIntent(content: string): boolean {
         const signaturePattern = new RegExp(
