@@ -58,6 +58,7 @@ import {
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
+import { getModelSelectionChatItem } from './texts/modelSelection'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -82,10 +83,16 @@ const ContextPrompt = {
     PromptNameFieldId: 'prompt-name',
 } as const
 
-const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
+const getTabPromptInputValue = (mynahUi: MynahUI, tabId: string, optionId: string) => {
     const promptInputOptions = mynahUi.getTabData(tabId)?.getStore()?.promptInputOptions ?? []
-    return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
+    return promptInputOptions.find(item => item.id === optionId)?.value
 }
+
+const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) =>
+    getTabPromptInputValue(mynahUi, tabId, 'pair-programmer-mode') === 'true'
+
+const getTabModelSelection = (mynahUi: MynahUI, tabId: string) =>
+    getTabPromptInputValue(mynahUi, tabId, 'model-selection')
 
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const previousPairProgrammerValue = getTabPairProgrammingMode(mynahUi, tabId)
@@ -93,6 +100,13 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
 
     if (currentPairProgrammerValue !== previousPairProgrammerValue) {
         mynahUi.addChatItem(tabId, currentPairProgrammerValue ? pairProgrammingModeOn : pairProgrammingModeOff)
+    }
+
+    const previousModelSelectionValue = getTabModelSelection(mynahUi, tabId)
+    const currentModelSelectionValue = optionsValues['model-selection']
+
+    if (currentModelSelectionValue !== previousModelSelectionValue) {
+        mynahUi.addChatItem(tabId, getModelSelectionChatItem(currentModelSelectionValue))
     }
 
     const promptInputOptions = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
