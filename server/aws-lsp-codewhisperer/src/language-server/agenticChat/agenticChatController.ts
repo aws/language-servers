@@ -130,6 +130,7 @@ import { McpTool } from './tools/mcp/mcpTool'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
+import { isMCPSupported } from './tools/mcp/mcpUtils'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -2706,6 +2707,12 @@ export class AgenticChatController implements ChatHandlers {
 
     #getTools(session: ChatSessionService) {
         const allTools = this.#features.agent.getTools({ format: 'bedrock' })
+        if (!isMCPSupported(this.#features.lsp.getClientInitializeParams())) {
+            if (!session.pairProgrammingMode) {
+                return allTools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
+            }
+            return allTools
+        }
 
         // Read Only Tools = All Tools - Restricted Tools (MCP + Write Tools)
         // TODO: mcp tool spec name will be server___tool.
