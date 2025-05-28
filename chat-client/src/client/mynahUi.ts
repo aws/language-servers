@@ -1204,17 +1204,18 @@ ${params.message}`,
                                         child => child.title === 'toolcount'
                                     )
                                     if (toolCountChild) {
-                                        return toolCountChild.description
+                                        return toolCountChild.description ?? '0'
                                     }
                                 }
                                 return '0'
                             }
 
+                            const toolCount = getToolCount()
                             actions.push({
                                 id: 'tools-count',
                                 icon: toMynahIcon('tools'),
-                                description: getToolCount() + ` available tools`,
-                                text: getToolCount(),
+                                description: `${toolCount} available tools`,
+                                text: toolCount,
                             })
                             actions.push({
                                 id: 'open-mcp-server',
