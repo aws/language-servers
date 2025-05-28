@@ -24,10 +24,12 @@ interface PermissionOption {
 export class McpEventHandler {
     #features: Features
     #eventListenerRegistered: boolean
+    #currentEditingServerName: string | undefined
 
     constructor(features: Features) {
         this.#features = features
         this.#eventListenerRegistered = false
+        this.#currentEditingServerName = undefined
     }
 
     /**
@@ -381,14 +383,23 @@ export class McpEventHandler {
     /**
      * Validates the MCP server form values
      */
-    #validateMcpServerForm(values: Record<string, string>): { isValid: boolean; errors: string[] } {
+    #validateMcpServerForm(
+        values: Record<string, string>,
+        originalServerName?: string
+    ): { isValid: boolean; errors: string[] } {
         const errors: string[] = []
 
         if (!values.name || values.name.trim() === '') {
             errors.push('Server name cannot be empty')
         } else {
-            if (!/^[a-zA-Z0-9-]+$/.test(values.name)) {
+            if (!/^[a-zA-Z0-9_-]+$/.test(values.name)) {
                 errors.push('Server name can only contain alphanumeric characters and hyphens')
+            }
+
+            const existingServers = McpManager.instance.getAllServerConfigs()
+
+            if (existingServers.has(values.name) && values.name !== originalServerName) {
+                errors.push(`Server name "${values.name}" already exists`)
             }
         }
 
@@ -439,15 +450,25 @@ export class McpEventHandler {
         if (!params.optionsValues) {
             return this.#getDefaultMcpResponse(params.id)
         }
-        // Validate form values - this should already be validated client-side
-        // but we validate again as a safety measure
-        const validation = this.#validateMcpServerForm(params.optionsValues)
-        let error: string
+
+        const serverName = params.optionsValues.name
+        const originalServerName = this.#currentEditingServerName
+        const isEditMode = !!(originalServerName && McpManager.instance.getAllServerConfigs().has(originalServerName))
+        // Validate form values
+        const validation = this.#validateMcpServerForm(
+            params.optionsValues,
+            isEditMode ? originalServerName : undefined
+        )
         if (!validation.isValid) {
-            this.#features.logging.error(`Invalid MCP server form: ${validation.errors.join(', ')}`)
-            error = validation.errors[0]
-            params.id = 'add-new-mcp'
-            return this.#handleAddNewMcp(params, error)
+            const error = validation.errors[0]
+            if (isEditMode) {
+                params.id = 'edit-mcp'
+                params.title = originalServerName!
+                return this.#handleEditMcpServer(params, error)
+            } else {
+                params.id = 'add-new-mcp'
+                return this.#handleAddNewMcp(params, error)
+            }
         }
 
         // Process args to string[]
@@ -471,9 +492,7 @@ export class McpEventHandler {
         let env: Record<string, string> = {}
         const envValue = params.optionsValues.env_variables
 
-        // Handle the case where envValue might be a direct array or another type
         try {
-            // Try to safely access and process the value
             const envArray = Array.isArray(envValue) ? envValue : []
             env = envArray.reduce((acc: Record<string, string>, item: any) => {
                 if (item && typeof item === 'object' && 'env_var_name' in item && 'env_var_value' in item) {
@@ -485,7 +504,6 @@ export class McpEventHandler {
             this.#features.logging.warn(`Failed to process env variables: ${e}`)
         }
 
-        const serverName = params.optionsValues.name
         const config: MCPServerConfig = {
             command: params.optionsValues.command,
             args,
@@ -511,13 +529,19 @@ export class McpEventHandler {
             personaPath = await this.#getPersonaPath()
         }
 
-        if (McpManager.instance.getAllServerConfigs().has(serverName)) {
-            // update server
-            await McpManager.instance.updateServer(serverName, config)
+        if (isEditMode && originalServerName) {
+            if (serverName !== originalServerName) {
+                await McpManager.instance.removeServer(originalServerName)
+                await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+            } else {
+                await McpManager.instance.updateServer(serverName, config)
+            }
         } else {
-            // create server
+            // Create new server
             await McpManager.instance.addServer(serverName, config, configPath, personaPath)
         }
+
+        this.#currentEditingServerName = undefined
 
         return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
     }
@@ -671,11 +695,12 @@ export class McpEventHandler {
     /**
      * Handles edit MCP configuration
      */
-    async #handleEditMcpServer(params: McpServerClickParams) {
+    async #handleEditMcpServer(params: McpServerClickParams, error?: string) {
         const serverName = params.title
         if (!serverName) {
             return { id: params.id }
         }
+        this.#currentEditingServerName = serverName
 
         const config = McpManager.instance.getAllServerConfigs().get(serverName)
         if (!config) {
@@ -694,22 +719,28 @@ export class McpEventHandler {
         }
 
         const existingValues: Record<string, any> = {
-            name: serverName,
+            name: params.optionsValues?.name || serverName,
             transport: 'stdio',
-            command: config.command,
-            args: (config.args ?? []).map(a => ({ arg_key: a })),
-            env_variables: Object.entries(config.env ?? {}).map(([k, v]) => ({
-                env_var_name: k,
-                env_var_value: v,
-            })),
-            timeout: (config.timeout ?? 60).toString(),
+            command: params.optionsValues?.command || config.command,
+            args: params.optionsValues?.args || (config.args ?? []).map(a => ({ arg_key: a })),
+            env_variables:
+                params.optionsValues?.env_variables ||
+                Object.entries(config.env ?? {}).map(([k, v]) => ({
+                    env_var_name: k,
+                    env_var_value: v,
+                })),
+            timeout: params.optionsValues?.timeout || (config.timeout ?? 60).toString(),
+            scope: params.optionsValues?.scope,
         }
 
-        const view = await this.#handleAddNewMcp({
-            ...params,
-            id: 'add-new-mcp',
-            optionsValues: existingValues,
-        })
+        const view = await this.#handleAddNewMcp(
+            {
+                ...params,
+                id: 'add-new-mcp',
+                optionsValues: existingValues,
+            },
+            error
+        )
 
         view.id = params.id
         if (view.header) {
