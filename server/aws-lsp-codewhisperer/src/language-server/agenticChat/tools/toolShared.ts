@@ -1,8 +1,11 @@
+import { TextDocument, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { workspaceUtils } from '@aws/lsp-core'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 import * as path from 'path'
 import { CommandCategory } from './executeBash'
+import { URI } from 'vscode-uri'
+import { sanitize } from '@aws/lsp-core/out/util/path'
 
 interface Output<Kind, Content> {
     kind: Kind
@@ -28,6 +31,43 @@ export async function validatePath(path: string, exists: (p: string) => Promise<
     if (!pathExists) {
         throw new Error(`Path "${path}" does not exist or cannot be accessed.`)
     }
+}
+
+export async function fileExists(path: string, workspace: Workspace): Promise<boolean> {
+    return (await !!getDocumentFromWorkspace(path, workspace)) || (await fileExistsInFs(path, workspace))
+}
+
+export async function getDocumentFromWorkspace(path: string, workspace: Workspace): Promise<TextDocument | undefined> {
+    if (!path || path.trim().length === 0) {
+        throw new Error('Path cannot be empty.')
+    }
+
+    const uriString = URI.file(path).toString()
+    return await workspace.getTextDocument(uriString)
+}
+
+export async function fileExistsInFs(path: string, workspace: Workspace): Promise<boolean> {
+    if (!path || path.trim().length === 0) {
+        throw new Error('Path cannot be empty.')
+    }
+
+    const sanitizedPath = sanitize(path)
+    return await workspace.fs.exists(sanitizedPath)
+}
+
+export async function readContent(path: string, workspace: Workspace): Promise<string> {
+    return (await readContentFromWorkspace(path, workspace)) ?? (await readContentFromFs(path, workspace))
+}
+
+export async function readContentFromWorkspace(path: string, workspace: Workspace): Promise<string | undefined> {
+    const uriString = URI.file(path).toString()
+    const wsDoc = await workspace.getTextDocument(uriString)
+    return wsDoc?.getText()
+}
+
+export async function readContentFromFs(path: string, workspace: Workspace): Promise<string> {
+    const sanitizedPath = sanitize(path)
+    return await workspace.fs.readFile(sanitizedPath)
 }
 
 export class ToolApprovalException extends Error {

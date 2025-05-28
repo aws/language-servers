@@ -1,6 +1,14 @@
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath } from './toolShared'
+import {
+    CommandValidation,
+    fileExists,
+    InvokeOutput,
+    readContentFromFs,
+    readContentFromWorkspace,
+    requiresPathAcceptance,
+} from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { URI } from 'vscode-uri'
 
 export interface FsReadParams {
     paths: string[]
@@ -27,7 +35,9 @@ export class FsRead {
 
     public async validate(params: FsReadParams): Promise<void> {
         for (const path of params.paths) {
-            await validatePath(path, this.workspace.fs.exists)
+            if (!(await fileExists(path, this.workspace))) {
+                throw new Error(`Path "${path}" does not exist or cannot be accessed.`)
+            }
         }
     }
 
@@ -45,9 +55,8 @@ export class FsRead {
     public async invoke(params: FsReadParams): Promise<InvokeOutput> {
         const fileResult: FileReadResult[] = []
         for (const path of params.paths) {
-            const sanitizedPath = sanitize(path)
-            const content = await this.readFile(sanitizedPath)
-            this.logging.info(`Read file: ${sanitizedPath}, size: ${content.length}`)
+            const content = await this.readFile(path)
+            this.logging.info(`Read file: ${path}, size: ${content.length}`)
             fileResult.push({ path, content, truncated: false })
         }
 
@@ -55,8 +64,14 @@ export class FsRead {
     }
 
     private async readFile(filePath: string): Promise<string> {
-        this.logging.info(`Reading file: ${filePath}`)
-        return await this.workspace.fs.readFile(filePath)
+        let content = await readContentFromWorkspace(filePath, this.workspace)
+        if (content) {
+            this.logging.info(`Read file from workspace: ${filePath}`)
+            return content
+        }
+        content = await readContentFromFs(filePath, this.workspace)
+        this.logging.info(`Read file: ${filePath}`)
+        return content
     }
 
     private createOutput(fileResult: FileReadResult[]): InvokeOutput {
