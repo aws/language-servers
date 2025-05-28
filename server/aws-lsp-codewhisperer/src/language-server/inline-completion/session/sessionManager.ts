@@ -45,7 +45,9 @@ export class CodeWhispererSession {
         line: 0,
         character: 0,
     }
+    discardInflightSessionOnNewInvocation: Boolean = false
     suggestions: CachedSuggestion[] = []
+    suggestionsAfterRightContextMerge: InlineCompletionItemWithReferences[] = []
     suggestionsStates = new Map<string, UserDecision>()
     acceptedSuggestionId?: string = undefined
     responseContext?: ResponseContext
