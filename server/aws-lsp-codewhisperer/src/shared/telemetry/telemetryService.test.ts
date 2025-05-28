@@ -102,9 +102,6 @@ describe('TelemetryService', () => {
         firstCompletionDisplayLatency: 100,
         timeToFirstRecommendation: 200,
         getAggregatedUserTriggerDecision: () => 'Accept',
-        updateAndGetStreakLength() {
-            return -1
-        },
         startPosition: {
             line: 12,
             character: 23,
@@ -275,9 +272,9 @@ describe('TelemetryService', () => {
                     generatedLine: 3,
                     numberOfRecommendations: 1,
                     perceivedLatencyMilliseconds: undefined,
-                    acceptedCharacterCount: 17,
-                    addedCharacterCount: 17,
-                    streakLength: -1,
+                    addedCharacterCount: undefined,
+                    deletedCharacterCount: undefined,
+                    streakLength: undefined,
                 },
             },
             optOutPreference: 'OPTIN',

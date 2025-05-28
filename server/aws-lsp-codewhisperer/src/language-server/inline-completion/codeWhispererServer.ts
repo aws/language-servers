@@ -170,7 +170,6 @@ const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispe
     })
 }
 
-
 const emitUserTriggerDecisionTelemetry = async (
     telemetry: Telemetry,
     telemetryService: TelemetryService,
@@ -178,6 +177,7 @@ const emitUserTriggerDecisionTelemetry = async (
     timeSinceLastUserModification?: number,
     addedCharacterCount?: number,
     deletedCharacterCount?: number,
+    streakLength?: number
 ) => {
     // Prevent reporting user decision if it was already sent
     if (session.reportedUserDecision) {
@@ -189,7 +189,14 @@ const emitUserTriggerDecisionTelemetry = async (
         return
     }
 
-    await emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification, addedCharacterCount, deletedCharacterCount)
+    await emitAggregatedUserTriggerDecisionTelemetry(
+        telemetryService,
+        session,
+        timeSinceLastUserModification,
+        addedCharacterCount,
+        deletedCharacterCount,
+        streakLength
+    )
 
     session.reportedUserDecision = true
 }
@@ -200,8 +207,15 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
     timeSinceLastUserModification?: number,
     addedCharacterCount?: number,
     deletedCharacterCount?: number,
+    streakLength?: number
 ) => {
-    return telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification, addedCharacterCount, deletedCharacterCount)
+    return telemetryService.emitUserTriggerDecision(
+        session,
+        timeSinceLastUserModification,
+        addedCharacterCount,
+        deletedCharacterCount,
+        streakLength
+    )
 }
 
 const mergeSuggestionsWithRightContext = (
@@ -400,11 +414,15 @@ export const CodewhispererServerFactory =
                     if (currentSession && currentSession.state === 'ACTIVE') {
                         // Emit user trigger decision at session close time for active session
                         sessionManager.discardSession(currentSession)
+                        const streakLength = sessionManager.getAndUpdateStreakLength(false)
                         await emitUserTriggerDecisionTelemetry(
                             telemetry,
                             telemetryService,
                             currentSession,
-                            timeSinceLastUserModification
+                            timeSinceLastUserModification,
+                            0,
+                            0,
+                            streakLength
                         )
                     }
                     const newSession = sessionManager.createSession({
@@ -472,11 +490,15 @@ export const CodewhispererServerFactory =
                             if (newSession.state === 'CLOSED' || newSession.state === 'DISCARD') {
                                 // Force Discard user decision on every received suggestion
                                 newSession.suggestions.forEach(s => newSession.setSuggestionState(s.itemId, 'Discard'))
+                                const streakLength = sessionManager.getAndUpdateStreakLength(false)
                                 await emitUserTriggerDecisionTelemetry(
                                     telemetry,
                                     telemetryService,
                                     newSession,
-                                    timeSinceLastUserModification
+                                    timeSinceLastUserModification,
+                                    0,
+                                    0,
+                                    streakLength
                                 )
                                 return EMPTY_RESULT
                             }
@@ -541,11 +563,15 @@ export const CodewhispererServerFactory =
                                     // If after all server-side filtering no suggestions can be displayed, close session and return empty results
                                     if (suggestionsWithRightContext.length === 0) {
                                         sessionManager.closeSession(newSession)
+                                        const streakLength = sessionManager.getAndUpdateStreakLength(false)
                                         await emitUserTriggerDecisionTelemetry(
                                             telemetry,
                                             telemetryService,
                                             newSession,
-                                            timeSinceLastUserModification
+                                            timeSinceLastUserModification,
+                                            0,
+                                            0,
+                                            streakLength
                                         )
 
                                         return EMPTY_RESULT
@@ -644,6 +670,7 @@ export const CodewhispererServerFactory =
             const acceptedItemId = Object.keys(params.completionSessionResult).find(
                 k => params.completionSessionResult[k].accepted
             )
+            const isAccepted = acceptedItemId ? true : false
             const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
             if (acceptedSuggestion !== undefined && acceptedSuggestion.insertText) {
                 if (acceptedSuggestion) {
@@ -666,7 +693,16 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            await emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification, addedCharacterCount, deletedCharacterCount)
+            const streakLength = sessionManager.getAndUpdateStreakLength(isAccepted)
+            await emitUserTriggerDecisionTelemetry(
+                telemetry,
+                telemetryService,
+                session,
+                timeSinceLastUserModification,
+                addedCharacterCount,
+                deletedCharacterCount,
+                streakLength
+            )
         }
 
         const updateConfiguration = (updatedConfig: AmazonQWorkspaceConfig) => {

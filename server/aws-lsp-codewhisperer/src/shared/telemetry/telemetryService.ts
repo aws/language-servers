@@ -173,7 +173,13 @@ export class TelemetryService {
         return this.cwInteractionTypeMap[interactionType] || 'UNKNOWN'
     }
 
-    public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number, addedCharacterCount?: number, deletedCharacterCount?: number) {
+    public emitUserTriggerDecision(
+        session: CodeWhispererSession,
+        timeSinceLastUserModification?: number,
+        addedCharacterCount?: number,
+        deletedCharacterCount?: number,
+        streakLength?: number
+    ) {
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {
                 codewhispererSessionId: session.codewhispererSessionId || '',
@@ -229,7 +235,6 @@ export class TelemetryService {
             acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
         const perceivedLatencyMilliseconds =
             session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
-        const streakLength = session.getAndUpdateStreakLength(session.getAggregatedUserTriggerDecision() || 'Empty')
 
         const event: UserTriggerDecisionEvent = {
             sessionId: session.codewhispererSessionId || '',

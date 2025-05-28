@@ -496,48 +496,6 @@ describe('CodeWhispererSession', function () {
             assert.equal(session.getAggregatedUserTriggerDecision(), 'Discard')
         })
     })
-
-    describe('getAndUpdateStreakLength()', function () {
-        it('should return 0 if user rejects suggestion A', function () {
-            const session = new CodeWhispererSession(data)
-
-            assert.equal(session.getAndUpdateStreakLength('Reject'), -1)
-            assert.equal(session.streakLength, 0)
-        })
-
-        it('should return -1 for A and 1 for B if user accepts suggestion A and rejects B', function () {
-            const session = new CodeWhispererSession(data)
-
-            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
-            assert.equal(session.streakLength, 1)
-            assert.equal(session.getAndUpdateStreakLength('Reject'), 1)
-            assert.equal(session.streakLength, 0)
-        })
-
-        it('should return -1 for A, -1 for B, and 2 for C if user accepts A, accepts B, and rejects C', function () {
-            const session = new CodeWhispererSession(data)
-
-            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
-            assert.equal(session.streakLength, 1)
-            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
-            assert.equal(session.streakLength, 2)
-            assert.equal(session.getAndUpdateStreakLength('Reject'), 2)
-            assert.equal(session.streakLength, 0)
-        })
-
-        it('should return -1 for A, -1 for B, and 1 for C if user accepts A, make an edit, accepts B, and rejects C', function () {
-            const session = new CodeWhispererSession(data)
-
-            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
-            assert.equal(session.streakLength, 1)
-            assert.equal(session.getAndUpdateStreakLength('Discard'), 1)
-            assert.equal(session.streakLength, 0)
-            assert.equal(session.getAndUpdateStreakLength('Accept'), -1)
-            assert.equal(session.streakLength, 1)
-            assert.equal(session.getAndUpdateStreakLength('Reject'), 1)
-            assert.equal(session.streakLength, 0)
-        })
-    })
 })
 
 describe('SessionManager', function () {
@@ -731,6 +689,48 @@ describe('SessionManager', function () {
             assert.equal(session.getSuggestionState('id2'), 'Empty')
             assert.equal(session.getSuggestionState('id3'), 'Filter')
             assert.equal(session.getSuggestionState('id4'), 'Discard')
+        })
+    })
+
+    describe('getAndUpdateStreakLength()', function () {
+        it('should return 0 if user rejects suggestion A', function () {
+            const manager = SessionManager.getInstance()
+
+            assert.equal(manager.getAndUpdateStreakLength(false), -1)
+            assert.equal(manager.streakLength, 0)
+        })
+
+        it('should return -1 for A and 1 for B if user accepts suggestion A and rejects B', function () {
+            const manager = SessionManager.getInstance()
+
+            assert.equal(manager.getAndUpdateStreakLength(true), -1)
+            assert.equal(manager.streakLength, 1)
+            assert.equal(manager.getAndUpdateStreakLength(false), 1)
+            assert.equal(manager.streakLength, 0)
+        })
+
+        it('should return -1 for A, -1 for B, and 2 for C if user accepts A, accepts B, and rejects C', function () {
+            const manager = SessionManager.getInstance()
+
+            assert.equal(manager.getAndUpdateStreakLength(true), -1)
+            assert.equal(manager.streakLength, 1)
+            assert.equal(manager.getAndUpdateStreakLength(true), -1)
+            assert.equal(manager.streakLength, 2)
+            assert.equal(manager.getAndUpdateStreakLength(false), 2)
+            assert.equal(manager.streakLength, 0)
+        })
+
+        it('should return -1 for A, -1 for B, and 1 for C if user accepts A, make an edit, accepts B, and rejects C', function () {
+            const manager = SessionManager.getInstance()
+
+            assert.equal(manager.getAndUpdateStreakLength(true), -1)
+            assert.equal(manager.streakLength, 1)
+            assert.equal(manager.getAndUpdateStreakLength(false), 1)
+            assert.equal(manager.streakLength, 0)
+            assert.equal(manager.getAndUpdateStreakLength(true), -1)
+            assert.equal(manager.streakLength, 1)
+            assert.equal(manager.getAndUpdateStreakLength(false), 1)
+            assert.equal(manager.streakLength, 0)
         })
     })
 })
