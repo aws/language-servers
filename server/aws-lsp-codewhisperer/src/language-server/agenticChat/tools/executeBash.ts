@@ -649,10 +649,7 @@ export class ExecuteBash {
                 '- When you need to perform file operations (use dedicated file tools instead).\n' +
                 '- When you need to search through files (use dedicated search tools instead).\n\n' +
                 '## Notes\n' +
-                '- Commands are categorized as ReadOnly, Mutate, or Destructive based on their potential impact.\n' +
-                '- Commands that operate outside the workspace require explicit user approval.\n' +
-                '- Output is limited to prevent overwhelming responses.\n' +
-                '- Command execution can be cancelled by the user.',
+                '- Output is limited to prevent overwhelming responses.\n',
             inputSchema: {
                 type: 'object',
                 properties: {
