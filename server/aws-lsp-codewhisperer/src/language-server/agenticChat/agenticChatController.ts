@@ -1167,6 +1167,36 @@ export class AgenticChatController implements ChatHandlers {
                     } else {
                         await chatResultStream.writeResultBlock(errorResult)
                     }
+                } else if (toolUse.name === 'executeBash' && toolUse.toolUseId) {
+                    const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
+                    const command = (toolUse.input as unknown as ExecuteBashParams).command
+                    const completedErrorResult = {
+                        type: 'tool',
+                        messageId: toolUse.toolUseId,
+                        body: `\`\`\`shell\n${command}\n\`\`\``,
+                        header: {
+                            body: 'shell',
+                            status: {
+                                status: 'success',
+                                icon: 'ok',
+                                text: 'Completed',
+                            },
+                            buttons: [],
+                        },
+                    } as ChatResult
+
+                    if (existingCard) {
+                        await chatResultStream.overwriteResultBlock(completedErrorResult, existingCard)
+                    } else {
+                        this.#features.chat.sendChatUpdate({
+                            tabId,
+                            state: { inProgress: false },
+                            data: {
+                                messages: [completedErrorResult],
+                            },
+                        })
+                    }
+                    this.#stoppedToolUses.add(toolUse.toolUseId)
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
