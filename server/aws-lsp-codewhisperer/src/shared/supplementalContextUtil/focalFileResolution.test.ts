@@ -97,7 +97,7 @@ public class TestClass {}
 
                 const actual = sut.extractImportedPaths(p, 'java', tmpProjectRoot)
                 assert.strictEqual(actual.size, 1)
-                assert.ok(actual.has('com/amazon/q/service'))
+                assert.ok(actual.has(path.join('com', 'amazon', 'q', 'service')))
             })
         })
 
