@@ -5,7 +5,9 @@ import {
     DetailedListItem,
     FilterOption,
     ListMcpServersParams,
+    ListMcpServersResult,
     McpServerClickParams,
+    Status,
 } from '@aws/language-server-runtimes/protocol'
 
 import {
@@ -69,6 +71,9 @@ export class McpEventHandler {
             this.#eventListenerRegistered = true
         }
         const mcpManagerServerConfigs = mcpManager.getAllServerConfigs()
+
+        // Validate server configurations and get any error messages
+        const combinedErrors = this.#validateMcpServerConfigs(mcpManagerServerConfigs)
 
         // Transform server configs into DetailedListItem objects
         const activeItems: DetailedListItem[] = []
@@ -165,14 +170,16 @@ export class McpEventHandler {
         }
 
         // Return the result in the expected format
-        return {
-            header: {
-                title: 'MCP Servers',
-                description:
-                    "Q automatically uses any MCP servers that have been added, so you don't have to add them as context.",
-            },
-            list: groups,
+        const header = {
+            title: 'MCP Servers',
+            description:
+                "Q automatically uses any MCP servers that have been added, so you don't have to add them as context.",
+            status: combinedErrors
+                ? { title: combinedErrors, icon: 'cancel-circle', status: 'error' as Status }
+                : undefined,
         }
+
+        return { header, list: groups }
     }
 
     /**
@@ -277,7 +284,7 @@ export class McpEventHandler {
                     ? {
                           title: error,
                           icon: 'cancel-circle',
-                          status: 'error',
+                          status: 'error' as Status,
                       }
                     : {},
                 actions: [],
@@ -291,7 +298,7 @@ export class McpEventHandler {
                 {
                     id: 'save-mcp',
                     text: 'Save',
-                    status: error ? 'error' : 'primary',
+                    status: error ? ('error' as Status) : 'primary',
                 },
             ],
             filterOptions: [
@@ -381,10 +388,54 @@ export class McpEventHandler {
         }
     }
     /**
+     * Validates all MCP server configurations and returns combined error messages
+     * @param serverConfigs Map of server configurations to validate
+     * @returns Combined error messages or undefined if no errors
+     */
+    #validateMcpServerConfigs(serverConfigs: Map<string, MCPServerConfig>): string | undefined {
+        // Validate each server configuration and collect all validation errors
+        const validationErrors: { serverName: string; errors: string[] }[] = []
+
+        for (const [serverName, config] of serverConfigs.entries()) {
+            // Create a values object that matches the expected format for validateMcpServerForm
+            const values = {
+                name: serverName,
+                command: config.command,
+                timeout: config.timeout?.toString() || '',
+                env: config.env,
+                args: config.args,
+            }
+
+            const validation = this.#validateMcpServerForm(values, false)
+            if (!validation.isValid) {
+                this.#features.logging.debug(
+                    `MCP server validation error for ${serverName}: ${validation.errors.join(', ')}`
+                )
+                validationErrors.push({ serverName, errors: validation.errors })
+            }
+        }
+
+        // Return validation errors if any were found
+        if (validationErrors.length > 0) {
+            // Combine all error messages
+            return validationErrors
+                .map(error => {
+                    return error.serverName
+                        ? `Server name: ${error.serverName} Error: ${error.errors.join('')}`
+                        : `Error: ${error.errors.join('')}`
+                })
+                .join('\n\n')
+        }
+
+        return undefined
+    }
+
+    /**
      * Validates the MCP server form values
      */
     #validateMcpServerForm(
-        values: Record<string, string>,
+        values: Record<string, any>,
+        checkExistingServerName: boolean,
         originalServerName?: string
     ): { isValid: boolean; errors: string[] } {
         const errors: string[] = []
@@ -395,11 +446,12 @@ export class McpEventHandler {
             if (!/^[a-zA-Z0-9_-]+$/.test(values.name)) {
                 errors.push('Server name can only contain alphanumeric characters and hyphens')
             }
+            if (checkExistingServerName) {
+                const existingServers = McpManager.instance.getAllServerConfigs()
 
-            const existingServers = McpManager.instance.getAllServerConfigs()
-
-            if (existingServers.has(values.name) && values.name !== originalServerName) {
-                errors.push(`Server name "${values.name}" already exists`)
+                if (existingServers.has(values.name) && values.name !== originalServerName) {
+                    errors.push(`Server name "${values.name}" already exists`)
+                }
             }
         }
 
@@ -457,6 +509,7 @@ export class McpEventHandler {
         // Validate form values
         const validation = this.#validateMcpServerForm(
             params.optionsValues,
+            true,
             isEditMode ? originalServerName : undefined
         )
         if (!validation.isValid) {
@@ -711,7 +764,7 @@ export class McpEventHandler {
                     status: {
                         title: `Server "${serverName}" not found`,
                         icon: 'cancel-circle',
-                        status: 'error',
+                        status: 'error' as Status,
                     },
                 },
                 list: [],

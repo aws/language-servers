@@ -1144,6 +1144,7 @@ ${params.message}`,
                 ? {
                       title: params.header.title,
                       description: params.header.description,
+                      status: params.header.status,
                       actions: [
                           {
                               id: 'add-new-mcp',
