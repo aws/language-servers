@@ -1001,7 +1001,7 @@ export const createMynahUi = (
 
         const answer: ChatItem = {
             type: ChatItemType.ANSWER,
-            body: `**${params.title}**
+            body: `**${params.title}** 
 ${params.message}`,
         }
 

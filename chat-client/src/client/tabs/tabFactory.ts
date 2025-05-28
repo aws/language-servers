@@ -64,8 +64,8 @@ export class TabFactory {
                       ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
-                          body: `Hi, I'm Amazon Q. I can answer your software development questions.
-                        Ask me to explain, debug, or optimize your code.
+                          body: `Hi, I'm Amazon Q. I can answer your software development questions. 
+                        Ask me to explain, debug, or optimize your code. 
                         You can enter \`/\` to see a list of quick actions.`,
                       },
                       ...(!this.agenticMode

@@ -15,6 +15,7 @@ import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from './features/history'
 import { pairProgrammingModeOn, pairProgrammingModeOff } from './texts/pairProgramming'
+import { BedrockModel } from './texts/modelSelection'
 
 describe('MynahUI', () => {
     let messager: Messager
@@ -423,14 +424,14 @@ describe('MynahUI', () => {
 
             const newValues = {
                 'pair-programmer-mode': 'true',
-                'model-selection': 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+                'model-selection': BedrockModel.CLAUDE_3_5_SONNET_20241022_V2_0,
             }
 
             handlePromptInputChange(mynahUi, tabId, newValues)
 
             const expectedOptions = [
                 { id: 'pair-programmer-mode', value: 'true' },
-                { id: 'model-selection', value: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0' },
+                { id: 'model-selection', value: BedrockModel.CLAUDE_3_5_SONNET_20241022_V2_0 },
             ]
 
             sinon.assert.calledWith(updateStoreSpy, tabId, {

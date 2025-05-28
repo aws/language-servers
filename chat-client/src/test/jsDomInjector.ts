@@ -14,6 +14,7 @@ export function injectJSDOM() {
     global.Element = dom.window.Element
     global.HTMLElement = dom.window.HTMLElement
     global.CustomEvent = dom.window.CustomEvent
+    global.MutationObserver = dom.window.MutationObserver
 
     // jsdom doesn't have support for innerText: https://github.com/jsdom/jsdom/issues/1245 which mynah ui uses
     Object.defineProperty(global.Element.prototype, 'innerText', {
