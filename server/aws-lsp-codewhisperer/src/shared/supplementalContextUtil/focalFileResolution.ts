@@ -101,7 +101,7 @@ export class FocalFileResolver {
 
         for (const file of files) {
             const ext = path.extname(file)
-            const base = path.basename(file, ext)
+            const base = path.basename(file)
 
             if (base === inferredSrcFilename) {
                 // TODO: not correct, fix fullPath & relativePath once walk is implemented
