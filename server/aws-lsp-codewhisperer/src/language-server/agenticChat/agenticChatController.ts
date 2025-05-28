@@ -135,7 +135,7 @@ import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
-import { PaidTierMode } from '../paidTier/paidTier'
+import { paidTierLearnMoreUrl, PaidTierMode } from '../paidTier/paidTier'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -276,6 +276,17 @@ export class AgenticChatController implements ChatHandlers {
         } else if (params.buttonId === 'stop-shell-command') {
             this.#stoppedToolUses.add(params.messageId)
             await this.#renderStoppedShellCommand(params.tabId, params.messageId)
+            return { success: true }
+        } else if (params.buttonId === 'paidtier-upgrade-q-learnmore') {
+            this.#features.lsp.window
+                .showDocument({
+                    external: true, // Client is expected to open the URL in a web browser.
+                    uri: paidTierLearnMoreUrl,
+                })
+                .catch(e => {
+                    this.#log(`showDocument failed: ${(e as Error).message}`)
+                })
+
             return { success: true }
         } else if (params.buttonId === 'paidtier-upgrade-q') {
             this.setPaidTierMode(params.tabId, 'upgrade-start')
@@ -2520,7 +2531,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
-     * User invoked "Manage Subscription" or "Upgrade Q".
+     * Handles when a builder-id (not IdC) user invoked "Manage Subscription" or "Upgrade Q".
      *
      * - Navigates to the "Manage Subscription" page for PAID-TIER user.
      * - Starts the "Upgrade Q" flow for a FREE-TIER user:
@@ -2555,7 +2566,7 @@ export class AgenticChatController implements ChatHandlers {
                     const uri =
                         o.status === 'ACTIVE'
                             ? // Paid-tier user: navigate them to the "Manage Subscriptions" AWS console page.
-                              'https://us-east-1.console.aws.amazon.com/amazonq/developer/home?region=us-east-1#/subscriptions?tab=users'
+                              paidTierLearnMoreUrl
                             : // Free-tier user: navigate them to "Upgrade Q" flow in AWS console.
                               o.encodedVerificationUrl
                     if (o.status === 'ACTIVE') {
