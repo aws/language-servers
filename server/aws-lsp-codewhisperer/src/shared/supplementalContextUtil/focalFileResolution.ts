@@ -104,7 +104,6 @@ export class FocalFileResolver {
             const base = path.basename(file)
 
             if (base === inferredSrcFilename) {
-                // TODO: not correct, fix fullPath & relativePath once walk is implemented
                 candidates.push({
                     fullPath: file,
                     relativePath: path.relative(projectRoot, file),
@@ -120,7 +119,7 @@ export class FocalFileResolver {
             return candidates[0].fullPath
         }
 
-        // Filter based on the imported path and symbols
+        // If there are multiple matches of source files, filter based on the imported path and symbols
         const importedFiles = this.extractImportedPaths(testFilePath, language, projectRoot)
         const filteredCandidate = []
         for (const candidate of candidates) {
