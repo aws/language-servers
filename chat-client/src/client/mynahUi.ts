@@ -113,26 +113,6 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
     mynahUi.updateStore(tabId, {
         promptInputOptions: promptInputOptions?.map(option => {
             option.value = optionsValues[option.id]
-
-            // If this is a model selection option, update all tabs with the same value and save to localStorage
-            if (option.id === 'model-selection') {
-                // Update all other tabs with the same model selection
-                Object.keys(mynahUi.getAllTabs()).forEach(otherTabId => {
-                    if (otherTabId !== tabId) {
-                        const otherTabOptions = mynahUi.getTabData(otherTabId).getStore()?.promptInputOptions
-                        if (otherTabOptions) {
-                            const modelOption = otherTabOptions.find(opt => opt.id === 'model-selection')
-                            if (modelOption) {
-                                modelOption.value = optionsValues[option.id]
-                                mynahUi.updateStore(otherTabId, {
-                                    promptInputOptions: otherTabOptions,
-                                })
-                            }
-                        }
-                    }
-                })
-            }
-
             return option
         }),
     })
