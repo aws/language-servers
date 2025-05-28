@@ -4,12 +4,12 @@
  * DO NOT EDIT BY HAND.
  */
 
-import {Request} from 'aws-sdk/lib/request';
-import {Response} from 'aws-sdk/lib/response';
-import {AWSError} from 'aws-sdk/lib/error';
-import {Service} from 'aws-sdk/lib/service';
-import {ServiceConfigurationOptions} from 'aws-sdk/lib/service';
-import {ConfigBase as Config} from 'aws-sdk/lib/config-base';
+import { Request } from 'aws-sdk/lib/request';
+import { Response } from 'aws-sdk/lib/response';
+import { AWSError } from 'aws-sdk/lib/error';
+import { Service } from 'aws-sdk/lib/service';
+import { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
+import { ConfigBase as Config } from 'aws-sdk/lib/config-base';
 interface Blob {}
 declare class CodeWhispererSigV4Client extends Service {
   /**
@@ -131,11 +131,11 @@ declare class CodeWhispererSigV4Client extends Service {
   updateProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateProfileResponse, AWSError>;
 }
 declare namespace CodeWhispererSigV4Client {
-  export type ArtifactMap = {[key: string]: UploadId};
-  export type ArtifactType = "SourceCode"|"BuiltJars"|string;
+  export type ArtifactMap = { [key: string]: UploadId };
+  export type ArtifactType = "SourceCode" | "BuiltJars" | string;
   export type Base64EncodedPaginationToken = string;
-  export type CodeScanFindingsSchema = "codescan/findings/1.0"|string;
-  export type CodeScanStatus = "Completed"|"Pending"|"Failed"|string;
+  export type CodeScanFindingsSchema = "codescan/findings/1.0" | string;
+  export type CodeScanStatus = "Completed" | "Pending" | "Failed" | string;
   export interface CreateCodeScanRequest {
     artifacts: ArtifactMap;
     programmingLanguage: ProgrammingLanguage;
@@ -178,8 +178,10 @@ declare namespace CodeWhispererSigV4Client {
     leftFileContent: FileContextLeftFileContentString;
     rightFileContent: FileContextRightFileContentString;
     filename: FileContextFilenameString;
+    fileUri?: FileContextFileUriString;
     programmingLanguage: ProgrammingLanguage;
   }
+  export type FileContextFileUriString = string;
   export type FileContextFilenameString = string;
   export type FileContextLeftFileContentString = string;
   export type FileContextRightFileContentString = string;
@@ -290,7 +292,7 @@ declare namespace CodeWhispererSigV4Client {
   }
   export type RecommendationContentString = string;
   export type RecommendationsList = Recommendation[];
-  export type RecommendationsWithReferencesPreference = "BLOCK"|"ALLOW"|string;
+  export type RecommendationsWithReferencesPreference = "BLOCK" | "ALLOW" | string;
   export interface Reference {
     licenseName?: ReferenceLicenseNameString;
     repository?: ReferenceRepositoryString;
@@ -353,7 +355,7 @@ declare namespace CodeWhispererSigV4Client {
   /**
    * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.
    */
-  export type apiVersion = "2022-06-15"|"latest"|string;
+  export type apiVersion = "2022-06-15" | "latest" | string;
   export interface ClientApiVersions {
     /**
      * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.
@@ -368,4 +370,3 @@ declare namespace CodeWhispererSigV4Client {
 }
 export = CodeWhispererSigV4Client;
 
-    

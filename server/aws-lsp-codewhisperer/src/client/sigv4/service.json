@@ -612,10 +612,18 @@
                 "filename": {
                     "shape": "FileContextFilenameString"
                 },
+                "fileUri": {
+                    "shape": "FileContextFileUriString"
+                },
                 "programmingLanguage": {
                     "shape": "ProgrammingLanguage"
                 }
             }
+        },
+        "FileContextFileUriString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1
         },
         "FileContextFilenameString": {
             "type": "string",

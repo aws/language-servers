@@ -33,6 +33,7 @@ import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
+import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -127,6 +128,16 @@ export class AgenticChatTriggerContext {
             promptContent = promptContent?.replace(/\*\*@workspace\*\*/, '')
         }
 
+        // Append remote workspaceId if it exists
+        // Only append workspaceId to GenerateCompletions when WebSocket client is connected
+        const remoteWsFolderManager = WorkspaceFolderManager.getInstance()
+        const workspaceId =
+            (remoteWsFolderManager &&
+                remoteWsFolderManager.getWorkspaceState().webSocketClient?.isConnected() &&
+                remoteWsFolderManager.getWorkspaceState().workspaceId) ||
+            undefined
+        this.#logging.info(`remote workspaceId: ${workspaceId}`)
+
         // Get workspace documents if @workspace is used
         let relevantDocuments = hasWorkspace
             ? await this.#getRelevantDocuments(promptContent ?? '', chatResultStream)
@@ -176,6 +187,7 @@ export class AgenticChatTriggerContext {
 
         const data: GenerateAssistantResponseCommandInput = {
             conversationState: {
+                workspaceId: workspaceId,
                 chatTriggerType: chatTriggerType,
                 currentMessage: {
                     userInputMessage: {

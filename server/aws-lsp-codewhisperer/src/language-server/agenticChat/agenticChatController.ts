@@ -92,7 +92,7 @@ import {
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
 import { AgenticChatResultStream, progressPrefix, ResultStreamWriter } from './agenticChatResultStream'
-import { executeToolMessage, toolErrorMessage, toolResultMessage } from './textFormatting'
+import { executeToolMessage, toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
     AgenticChatTriggerContext,
@@ -108,8 +108,8 @@ import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
-import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
+import { FuzzySearch, FuzzySearchParams } from './tools/fuzzySearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
@@ -926,8 +926,8 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                    case 'fileSearch':
                     case 'grepSearch':
+                    case 'fuzzySearch':
                     case 'fsWrite':
                     case 'executeBash': {
                         const toolMap = {
@@ -936,7 +936,7 @@ export class AgenticChatController implements ChatHandlers {
                             fsWrite: { Tool: FsWrite },
                             executeBash: { Tool: ExecuteBash },
                             grepSearch: { Tool: GrepSearch },
-                            fileSearch: { Tool: FileSearch },
+                            fuzzySearch: { Tool: FuzzySearch },
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
@@ -1034,13 +1034,13 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                    case 'fileSearch':
+                    case 'fuzzySearch':
                         const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                         if (initialListDirResult) {
                             await chatResultStream.writeResultBlock(initialListDirResult)
                         }
                         break
-                    // no need to write tool result for listDir,fsRead,fileSearch into chat stream
+                    // no need to write tool result for listDir,fsRead,fuzzySearch into chat stream
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
@@ -1429,8 +1429,8 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 break
 
-            case 'fileSearch':
-                const searchPath = (toolUse.input as unknown as FileSearchParams).path
+            case 'fuzzySearch':
+                const searchPath = (toolUse.input as unknown as FuzzySearchParams).path
                 header = {
                     body: 'File Search',
                     status: {
@@ -1669,7 +1669,7 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name === 'fsRead') {
             currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
         } else {
-            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
+            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FuzzySearchParams)?.path)
         }
 
         if (!currentPaths) return
@@ -1698,7 +1698,7 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === 'fileSearch'
+                    : toolUse.name === 'fuzzySearch'
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
@@ -1806,7 +1806,7 @@ export class AgenticChatController implements ChatHandlers {
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = content
 
         for (const toolResult of toolResults) {
-            this.#debug(`ToolResult: ${JSON.stringify(toolResult)} `)
+            this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
             updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
                 {
                     ...toolResult,
@@ -1941,13 +1941,13 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         if (authFollowType) {
-            this.#log(`Q auth error: ${getErrorMessage(err)} `)
+            this.#log(`Q auth error: ${getErrorMessage(err)}`)
 
             return createAuthFollowUpResult(authFollowType)
         }
 
         if (customerFacingErrorCodes.includes(err.code)) {
-            this.#features.logging.error(`${loggingUtils.formatErr(err)} `)
+            this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             if (err.code === 'InputTooLong') {
                 // Clear the chat history in the database for this tab
                 this.#chatHistoryDb.clearTab(tabId)
@@ -1964,10 +1964,10 @@ export class AgenticChatController implements ChatHandlers {
                 buttons: [],
             })
         }
-        this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)} `)
+        this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: requestID ? `${genericErrorMsg} \n\nRequest ID: ${requestID} ` : genericErrorMsg,
+            body: requestID ? `${genericErrorMsg} \n\nRequest ID: ${requestID}` : genericErrorMsg,
             messageId: errorMessageId,
             buttons: [],
         })
@@ -2003,10 +2003,10 @@ export class AgenticChatController implements ChatHandlers {
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
-                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)} `)
+                this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
                 return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
             }
-            this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'} `)
+            this.#log(`Q api request error ${err instanceof Error ? JSON.stringify(err) : 'unknown'}`)
             return new ResponseError<ChatResult>(
                 LSPErrorCodes.RequestFailed,
                 err instanceof Error ? err.message : 'Unknown request error'
@@ -2052,7 +2052,7 @@ export class AgenticChatController implements ChatHandlers {
             if (!params.code) missingParams.push('code')
 
             this.#log(
-                `Q Chat server failed to insert code.Missing required parameters for insert code: ${missingParams.join(', ')} `
+                `Q Chat server failed to insert code.Missing required parameters for insert code: ${missingParams.join(', ')}`
             )
 
             return
@@ -2119,7 +2119,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#telemetryController.enqueueCodeDiffEntry({ ...params, code: textWithIndent })
         } else {
             this.#log(
-                `Q Chat server failed to insert code: ${applyResult.failureReason ?? 'No failure reason provided'} `
+                `Q Chat server failed to insert code: ${applyResult.failureReason ?? 'No failure reason provided'}`
             )
         }
     }
@@ -2284,9 +2284,9 @@ export class AgenticChatController implements ChatHandlers {
                 return path.join(getUserPromptsDirectory(), relativePath)
             }
 
-            this.#features.logging.error(`File not found: ${relativePath} `)
+            this.#features.logging.error(`File not found: ${relativePath}`)
         } catch (e: any) {
-            this.#features.logging.error(`Error resolving absolute path: ${e.message} `)
+            this.#features.logging.error(`Error resolving absolute path: ${e.message}`)
         }
 
         return undefined

@@ -170,6 +170,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
@@ -202,6 +203,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: firstTwoLines,
@@ -258,6 +260,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri,
                     filename: URI.parse(SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: '',
@@ -312,6 +315,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: extraContext + '\n',
@@ -355,6 +359,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE_WITH_EXTENSION.uri,
                     filename: URI.parse(SOME_FILE_WITH_EXTENSION.uri).path.substring(1),
                     programmingLanguage: { languageName: 'cpp' },
                     leftFileContent: '',
@@ -442,6 +447,7 @@ describe('CodeWhisperer Server', () => {
             const rightContext = lines.slice(cutOffLine).join('\n')
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: MY_FILE.uri,
                     filename: URI.parse(MY_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: leftContext,
@@ -479,6 +485,7 @@ describe('CodeWhisperer Server', () => {
             const modifiedRightContext = lines.slice(cutOffLine).join('\n')
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: MY_WINDOWS_FILE.uri,
                     filename: URI.parse(MY_WINDOWS_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: modifiedLeftContext,
@@ -704,6 +711,7 @@ describe('CodeWhisperer Server', () => {
 
                 const expectedGenerateSuggestionsRequest = {
                     fileContext: {
+                        fileUri: 'file:///TargetFile.java',
                         filename: 'TargetFile.java',
                         programmingLanguage: { languageName: 'java' },
                         leftFileContent: '',
@@ -1193,6 +1201,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: SPECIAL_CHARACTER_HELLO_WORLD.substring(0, 1),
@@ -1227,6 +1236,7 @@ describe('CodeWhisperer Server', () => {
 
             const expectedGenerateSuggestionsRequest = {
                 fileContext: {
+                    fileUri: SOME_FILE.uri,
                     filename: URI.parse(SOME_FILE.uri).path.substring(1),
                     programmingLanguage: { languageName: 'csharp' },
                     leftFileContent: LEFT_FILE_CONTEXT,
