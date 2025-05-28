@@ -3,15 +3,27 @@ import { ChatItem, ChatItemButton, ChatItemFormItem, ChatItemType, TextBasedForm
 export const plansAndPricingTitle = 'Plans &amp; Pricing'
 
 export const upgradeQButton: ChatItemButton = {
-    flash: 'once',
-    fillState: 'hover',
-    position: 'inside',
     id: 'paidtier-upgrade-q',
+    flash: 'once',
+    fillState: 'always',
+    position: 'inside',
+    icon: 'external',
     // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/q.svg
     // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/rocket.svg
     // icon: MynahIcons.Q,
     description: 'Upgrade to Amazon Q Pro',
     text: 'Upgrade Q',
+    status: 'primary',
+    disabled: false,
+}
+
+export const learnMoreButton: ChatItemButton = {
+    id: 'paidtier-upgrade-q-learnmore',
+    fillState: 'hover',
+    // position: 'inside',
+    icon: 'external',
+    description: 'Learn about Amazon Q Pro',
+    text: 'Learn more',
     status: 'info',
     disabled: false,
 }
@@ -46,7 +58,7 @@ export const freeTierLimitSticky: Partial<ChatItem> = {
     messageId: 'freetier-limit-banner',
     title: 'FREE TIER LIMIT REACHED',
     body: "You've reached your invocation limit for this month. Upgrade to Amazon Q Pro. [Learn More...](https://aws.amazon.com/q/pricing/)",
-    buttons: [upgradeQButton],
+    buttons: [upgradeQButton, learnMoreButton],
     canBeDismissed: false,
 }
 
@@ -81,7 +93,7 @@ export const upgradeSuccessSticky: Partial<ChatItem> = {
 export const paidTierInfoCard: ChatItem = {
     type: ChatItemType.ANSWER,
     title: 'UPGRADE TO AMAZON Q PRO',
-    buttons: [upgradeQButton],
+    buttons: [upgradeQButton, learnMoreButton],
     header: {
         icon: 'q',
         iconStatus: 'primary',
