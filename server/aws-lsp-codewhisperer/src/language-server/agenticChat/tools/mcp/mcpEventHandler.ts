@@ -5,7 +5,9 @@ import {
     DetailedListItem,
     FilterOption,
     ListMcpServersParams,
+    ListMcpServersResult,
     McpServerClickParams,
+    Status,
 } from '@aws/language-server-runtimes/protocol'
 
 import {
@@ -69,6 +71,38 @@ export class McpEventHandler {
             this.#eventListenerRegistered = true
         }
         const mcpManagerServerConfigs = mcpManager.getAllServerConfigs()
+
+        // Validate each server configuration and collect all validation errors
+        const validationErrors: { serverName: string; errors: string[] }[] = []
+
+        for (const [serverName, config] of mcpManagerServerConfigs.entries()) {
+            // Create a values object that matches the expected format for validateMcpServerForm
+            const values = {
+                name: serverName,
+                command: config.command,
+                timeout: config.timeout?.toString() || '',
+            }
+
+            const validation = this.#validateMcpServerForm(values)
+            if (!validation.isValid) {
+                this.#features.logging.debug(
+                    `MCP server validation error for ${serverName}: ${validation.errors.join(', ')}`
+                )
+                validationErrors.push({ serverName, errors: validation.errors })
+            }
+        }
+        let combinedErrors = undefined
+        // Return validation errors if any were found
+        if (validationErrors.length > 0) {
+            // Combine all error messages
+            combinedErrors = validationErrors
+                .map(error => {
+                    return error.serverName
+                        ? `Server name: ${error.serverName} Error: ${error.errors.join('')}`
+                        : `Error: ${error.errors.join('')}`
+                })
+                .join('\n\n')
+        }
 
         // Transform server configs into DetailedListItem objects
         const activeItems: DetailedListItem[] = []
@@ -165,14 +199,16 @@ export class McpEventHandler {
         }
 
         // Return the result in the expected format
-        return {
-            header: {
-                title: 'MCP Servers',
-                description:
-                    "Q automatically uses any MCP servers that have been added, so you don't have to add them as context.",
-            },
-            list: groups,
+        const header = {
+            title: 'MCP Servers',
+            description:
+                "Q automatically uses any MCP servers that have been added, so you don't have to add them as context.",
+            status: combinedErrors
+                ? { title: combinedErrors, icon: 'cancel-circle', status: 'error' as Status }
+                : undefined,
         }
+
+        return { header, list: groups }
     }
 
     /**
@@ -277,7 +313,7 @@ export class McpEventHandler {
                     ? {
                           title: error,
                           icon: 'cancel-circle',
-                          status: 'error',
+                          status: 'error' as Status,
                       }
                     : {},
                 actions: [],
@@ -291,7 +327,7 @@ export class McpEventHandler {
                 {
                     id: 'save-mcp',
                     text: 'Save',
-                    status: error ? 'error' : 'primary',
+                    status: error ? ('error' as Status) : 'primary',
                 },
             ],
             filterOptions: [
@@ -711,7 +747,7 @@ export class McpEventHandler {
                     status: {
                         title: `Server "${serverName}" not found`,
                         icon: 'cancel-circle',
-                        status: 'error',
+                        status: 'error' as Status,
                     },
                 },
                 list: [],
