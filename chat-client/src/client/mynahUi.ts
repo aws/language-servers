@@ -1194,24 +1194,26 @@ ${params.message}`,
                     const actions = []
                     if (group.groupName === 'Active') {
                         if (status !== 'FAILED') {
+                            const getToolCount = () => {
+                                const serverInfoGroup = item.children?.find(
+                                    child => child.groupName === 'serverInformation'
+                                )
+                                if (serverInfoGroup) {
+                                    const toolCountChild = serverInfoGroup.children?.find(
+                                        child => child.title === 'toolcount'
+                                    )
+                                    if (toolCountChild) {
+                                        return toolCountChild.description
+                                    }
+                                }
+                                return '0'
+                            }
+
                             actions.push({
                                 id: 'tools-count',
                                 icon: toMynahIcon('tools'),
-                                text: (() => {
-                                    const serverInfoGroup = item.children?.find(
-                                        child => child.groupName === 'serverInformation'
-                                    )
-                                    if (serverInfoGroup) {
-                                        const toolCountChild = serverInfoGroup.children?.find(
-                                            child => child.title === 'toolcount'
-                                        )
-                                        if (toolCountChild) {
-                                            return toolCountChild.description
-                                        }
-                                    }
-                                    return '0'
-                                })(),
-                                disabled: true,
+                                description: getToolCount() + ` available tools`,
+                                text: getToolCount(),
                             })
                             actions.push({
                                 id: 'open-mcp-server',
