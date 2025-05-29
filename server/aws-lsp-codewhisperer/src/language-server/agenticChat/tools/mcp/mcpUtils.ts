@@ -51,7 +51,6 @@ export async function loadMcpServerConfigs(
         if (!exists) {
             const errorMsg = `MCP config not found at ${fsPath}, skipping.`
             logging.warn(errorMsg)
-            configErrors.set(`${fsPath}`, errorMsg)
             continue
         }
 
@@ -88,13 +87,11 @@ export async function loadMcpServerConfigs(
             if (!entry || typeof (entry as any).command !== 'string') {
                 const errorMsg = `MCP server '${name}' in ${fsPath} missing required 'command', skipping.`
                 logging.warn(errorMsg)
-                configErrors.set(name, errorMsg)
                 continue
             }
             if ((entry as any).timeout !== undefined && typeof (entry as any).timeout !== 'number') {
                 const errorMsg = `Invalid timeout value on '${name}', ignoring.`
                 logging.warn(errorMsg)
-                configErrors.set(`${name}_timeout`, errorMsg)
             }
             const cfg: MCPServerConfig = {
                 command: (entry as any).command,
