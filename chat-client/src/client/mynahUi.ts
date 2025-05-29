@@ -432,7 +432,7 @@ export const createMynahUi = (
                         {
                             id: ContextPrompt.SubmitButtonId,
                             text: 'Create',
-                            status: 'main',
+                            status: 'primary',
                             waitMandatoryFormItems: true,
                         },
                     ],
