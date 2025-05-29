@@ -275,6 +275,7 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
+        let isFollowup = false
 
         const sessionManager = SessionManager.getInstance()
 
@@ -301,6 +302,20 @@ export const CodewhispererServerFactory =
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
                 currentSession.discardInflightSessionOnNewInvocation = true
+            }
+
+            const isFollowup = false
+            if (isFollowup) {
+                return {
+                    sessionId: 'fake',
+                    items: [
+                        {
+                            itemId: 'foo',
+                            insertText: 'class Foo',
+                        },
+                    ],
+                    partialResultToken: undefined,
+                }
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
@@ -675,6 +690,7 @@ export const CodewhispererServerFactory =
                     codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
+                    isFollowup = true
                 }
             }
 

@@ -42,6 +42,7 @@ export interface ResponseContext {
 export interface GenerateSuggestionsResponse {
     suggestions: Suggestion[]
     responseContext: ResponseContext
+    isFollowup: boolean
 }
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
@@ -144,7 +145,8 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
         return {
             suggestions: response.recommendations as Suggestion[],
-            responseContext,
+            responseContext: responseContext,
+            isFollowup: false,
         }
     }
 }
@@ -213,8 +215,41 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return {
             suggestions: response.completions as Suggestion[],
             responseContext,
+            isFollowup: false,
         }
     }
+
+    private async prefetchSuggestions(
+        request: GenerateSuggestionsRequest,
+        suggestion: Suggestion
+    ): Promise<GenerateSuggestionsResponse> {
+        const nextSessionRequest: GenerateSuggestionsRequest = {
+            ...request,
+            fileContext: {
+                ...request.fileContext,
+                leftFileContent: request.fileContext + suggestion.content,
+            },
+            nextToken: undefined,
+        }
+
+        const response = await this.client.generateCompletions(this.withProfileArn(nextSessionRequest)).promise()
+        const responseContext = {
+            requestId: response?.$response?.requestId,
+            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
+            nextToken: response.nextToken,
+        }
+
+        for (const recommendation of response?.completions ?? []) {
+            Object.assign(recommendation, { itemId: this.generateItemId() })
+        }
+
+        return {
+            suggestions: response.completions as Suggestion[],
+            responseContext,
+            isFollowup: true,
+        }
+    }
+
     public async codeModernizerCreateUploadUrl(
         request: CodeWhispererTokenClient.CreateUploadUrlRequest
     ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {
