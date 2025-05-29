@@ -36,6 +36,7 @@ export class McpManager {
     private mcpTools: McpToolDefinition[]
     private mcpServers: Map<string, MCPServerConfig>
     private mcpServerStates: Map<string, McpServerRuntimeState>
+    private configLoadErrors: Map<string, string>
     private mcpServerPermissions: Map<string, MCPServerPermission>
     public readonly events: EventEmitter
     private static readonly configMutex = new Mutex()
@@ -50,6 +51,7 @@ export class McpManager {
         this.clients = new Map<string, Client>()
         this.mcpServers = new Map<string, MCPServerConfig>()
         this.mcpServerStates = new Map<string, McpServerRuntimeState>()
+        this.configLoadErrors = new Map<string, string>()
         this.mcpServerPermissions = new Map<string, MCPServerPermission>()
         this.events = new EventEmitter()
         this.features.logging.info(`MCP manager: initialized with ${configPaths.length} configs`)
@@ -104,7 +106,19 @@ export class McpManager {
         )
         this.mcpServerPermissions = permissionMap
 
-        this.mcpServers = await loadMcpServerConfigs(this.features.workspace, this.features.logging, this.configPaths)
+        const { servers, errors } = await loadMcpServerConfigs(
+            this.features.workspace,
+            this.features.logging,
+            this.configPaths
+        )
+        this.mcpServers = servers
+        // Reset the configuration errors after every refresh.
+        this.configLoadErrors.clear()
+
+        // Store any config load errors
+        errors.forEach((errorMsg, key) => {
+            this.configLoadErrors.set(key, errorMsg)
+        })
 
         // Set all servers to UNINITIALIZED state initially
         for (const name of this.mcpServers.keys()) {
@@ -694,6 +708,24 @@ export class McpManager {
         if (server) {
             this.setState(server, McpServerStatus.FAILED, 0, msg)
             this.emitToolsChanged(server)
+
+            // Store the error in the configLoadErrors map
+            if (server !== undefined) {
+                this.configLoadErrors.set(server, msg)
+            }
         }
+    }
+
+    /**
+     * Returns any errors that occurred during loading of MCP configuration files
+     */
+    public getConfigLoadErrors(): string | undefined {
+        if (this.configLoadErrors.size === 0) {
+            return undefined
+        }
+
+        return Array.from(this.configLoadErrors.entries())
+            .map(([server, error]) => `File: ${server}, Error: ${error}`)
+            .join('\n\n')
     }
 }

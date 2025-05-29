@@ -61,6 +61,9 @@ export class McpEventHandler {
     async onListMcpServers(params: ListMcpServersParams) {
         const mcpManager = McpManager.instance
 
+        // Check for errors in loading MCP config files
+        const configLoadErrors = mcpManager.getConfigLoadErrors()
+
         // Only register the event listener once
         if (!this.#eventListenerRegistered) {
             mcpManager.events.on(MCP_SERVER_STATUS_CHANGED, (serverName: string, state: McpServerRuntimeState) => {
@@ -72,11 +75,17 @@ export class McpEventHandler {
         const mcpManagerServerConfigs = mcpManager.getAllServerConfigs()
 
         // Validate server configurations and get any error messages
-        const combinedErrors = this.#validateMcpServerConfigs(mcpManagerServerConfigs)
+        let combinedErrors = this.#validateMcpServerConfigs(mcpManagerServerConfigs)
+
+        // Add config load errors if any
+        if (configLoadErrors) {
+            combinedErrors = combinedErrors ? `${configLoadErrors}\n\n${combinedErrors}` : configLoadErrors
+        }
 
         // Parse validation errors to identify which servers have errors
         const serversWithErrors = new Set<string>()
         if (combinedErrors) {
+            this.#features.logging.error(`MCP configuration and validation errors: ${combinedErrors}`)
             const validationErrors = this.#getValidationErrors(mcpManagerServerConfigs)
             validationErrors.forEach(error => {
                 if (error.serverName) {

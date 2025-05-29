@@ -39,7 +39,7 @@ describe('McpTool', () => {
         } catch {
             // ignore if it wasn't initialized
         }
-        sinon.stub(require('./mcpUtils'), 'loadMcpServerConfigs').resolves(new Map())
+        sinon.stub(require('./mcpUtils'), 'loadMcpServerConfigs').resolves({ servers: new Map(), errors: new Map() })
         sinon
             .stub(require('./mcpUtils'), 'loadPersonaPermissions')
             .resolves(new Map([['*', { enabled: true, toolPerms: {}, __configPath__: '' }]]))
