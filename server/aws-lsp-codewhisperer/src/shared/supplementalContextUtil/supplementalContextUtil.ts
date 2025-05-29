@@ -41,7 +41,7 @@ export async function fetchSupplementalContext(
             | undefined
 
         if (isUtg) {
-            return await waitUntil(
+            supplementalContextValue = await waitUntil(
                 async function () {
                     const focalFile = await utgFocalFileResolver.inferFocalFile(document, workspace)
                     if (focalFile) {
