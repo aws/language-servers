@@ -19,7 +19,6 @@ const modelOptions = Object.entries(modelRecord).map(([value, { label }]) => ({
     label,
 }))
 
-// Create a function to get the current model selection to ensure it's always fresh
 export const modelSelection: ChatItemFormItem = {
     type: 'select',
     id: 'model-selection',
