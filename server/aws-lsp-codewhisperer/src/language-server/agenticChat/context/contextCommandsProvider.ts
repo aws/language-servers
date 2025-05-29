@@ -24,20 +24,30 @@ export class ContextCommandsProvider implements Disposable {
         private readonly lsp: Lsp
     ) {
         this.registerPromptFileWatcher()
+
+        void (async () => {
+            const controller = await LocalProjectContextController.getInstance()
+            controller.onContextItemsUpdated = contextItems => {
+                this.processContextCommandUpdate(contextItems)
+            }
+        })()
+
+        /*
         this.lsp.workspace.onDidCreateFiles(async event => {
             const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
-            await this.updateContextCommandsOnFileChange(filePaths, true)
+            //await this.updateContextCommandsOnFileChange(filePaths, true)
         })
         this.lsp.workspace.onDidDeleteFiles(async event => {
             const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
-            await this.updateContextCommandsOnFileChange(filePaths, false)
+          //  await this.updateContextCommandsOnFileChange(filePaths, false)
         })
         this.lsp.workspace.onDidRenameFiles(async event => {
             const oldFiles = event.files.map(file => URI.parse(file.oldUri).fsPath)
-            await this.updateContextCommandsOnFileChange(oldFiles, false)
+           // await this.updateContextCommandsOnFileChange(oldFiles, false)
             const newFiles = event.files.map(file => URI.parse(file.newUri).fsPath)
-            await this.updateContextCommandsOnFileChange(newFiles, true)
+            //await this.updateContextCommandsOnFileChange(newFiles, true)
         })
+        */
     }
 
     async updateContextCommandsOnFileChange(filePaths: string[], isAdd: boolean) {
