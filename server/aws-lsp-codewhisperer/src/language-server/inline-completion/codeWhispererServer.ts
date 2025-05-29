@@ -304,7 +304,6 @@ export const CodewhispererServerFactory =
                 currentSession.discardInflightSessionOnNewInvocation = true
             }
 
-            const isFollowup = false
             if (isFollowup) {
                 return {
                     sessionId: 'fake',
@@ -690,8 +689,11 @@ export const CodewhispererServerFactory =
                     codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
+                    // TODO: Should call real service?
                     isFollowup = true
                 }
+            } else {
+                isFollowup = false
             }
 
             session.setClientResultData(

@@ -151,6 +151,7 @@ describe('Telemetry', () => {
                 return Promise.resolve({
                     suggestions,
                     responseContext,
+                    isFollowup: false,
                 })
             })
         }
@@ -1287,6 +1288,7 @@ describe('Telemetry', () => {
                             ...EXPECTED_RESPONSE_CONTEXT,
                             codewhispererSessionId: `cwspr-session-id-${i}`,
                         },
+                        isFollowup: false,
                     })
                 })
 
