@@ -34,7 +34,7 @@ export class McpManager {
     private mcpTools: McpToolDefinition[]
     private mcpServers: Map<string, MCPServerConfig>
     private mcpServerStates: Map<string, McpServerRuntimeState>
-    private configLoadErrors: Map<string, string> = new Map<string, string>()
+    private configLoadErrors: Map<string, string>
     private mcpServerPermissions: Map<string, MCPServerPermission>
     public readonly events: EventEmitter
     private static readonly configMutex = new Mutex()
@@ -49,6 +49,7 @@ export class McpManager {
         this.clients = new Map<string, Client>()
         this.mcpServers = new Map<string, MCPServerConfig>()
         this.mcpServerStates = new Map<string, McpServerRuntimeState>()
+        this.configLoadErrors = new Map<string, string>()
         this.mcpServerPermissions = new Map<string, MCPServerPermission>()
         this.events = new EventEmitter()
         this.features.logging.info(`MCP manager: initialized with ${configPaths.length} configs`)

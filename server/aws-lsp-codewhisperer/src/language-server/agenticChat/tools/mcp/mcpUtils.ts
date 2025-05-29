@@ -46,7 +46,6 @@ export async function loadMcpServerConfigs(
         } catch (e: any) {
             const errorMsg = `Could not stat MCP config at ${fsPath}: ${e.message}`
             logging.warn(errorMsg)
-            configErrors.set(`${fsPath}`, errorMsg)
             continue
         }
         if (!exists) {
