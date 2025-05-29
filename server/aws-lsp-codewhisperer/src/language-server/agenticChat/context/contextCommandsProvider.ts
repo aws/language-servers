@@ -195,7 +195,7 @@ export class ContextCommandsProvider implements Disposable {
                 codeCmds.push({
                     ...baseItem,
                     command: item.symbol.name,
-                    description: `${item.symbol.kind}, ${path.join(wsFolderName, item.relativePath)}, L${item.symbol.range.start.line}-${item.symbol.range.end.line}`,
+                    description: `${item.symbol.kind}, ${path.join(wsFolderName, item.relativePath)}, L${item.symbol.range.start.line + 1}-${item.symbol.range.end.line + 1}`,
                     label: 'code',
                     icon: 'code-block',
                 })
