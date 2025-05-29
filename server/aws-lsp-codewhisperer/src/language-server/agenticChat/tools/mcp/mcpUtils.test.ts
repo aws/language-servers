@@ -12,7 +12,7 @@ import {
     loadPersonaPermissions,
     getWorkspacePersonaConfigPaths,
     getGlobalPersonaConfigPath,
-    isMCPSupported,
+    enabledMCP,
 } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { pathToFileURL } from 'url'
@@ -156,59 +156,38 @@ describe('persona path helpers', () => {
     })
 })
 
-describe('isMCPSupported', () => {
-    it('should return false when extension name is not in allowed list', () => {
+describe('enabledMCP', () => {
+    it('should return true when client passes in mcp = true', () => {
         const params = {
             initializationOptions: {
                 aws: {
-                    clientInfo: {
-                        extension: {
-                            name: 'UnsupportedExtension',
-                            version: '2.0.0',
+                    awsClientCapabilities: {
+                        q: {
+                            mcp: true,
                         },
                     },
                 },
             },
         }
 
-        expect(isMCPSupported(params as any)).to.equal(false)
+        expect(enabledMCP(params as any)).to.equal(true)
     })
-
-    it('should return true for AmazonQ-For-VSCode with version > 1.69.0', () => {
+    it('should return false when client passes in mcp = false', () => {
         const params = {
             initializationOptions: {
                 aws: {
-                    clientInfo: {
-                        extension: {
-                            name: 'AmazonQ-For-VSCode',
-                            version: '1.71.0',
+                    awsClientCapabilities: {
+                        q: {
+                            mcp: false,
                         },
                     },
                 },
             },
         }
 
-        expect(isMCPSupported(params as any)).to.equal(true)
+        expect(enabledMCP(params as any)).to.equal(false)
     })
-
-    it('should return false for AmazonQ-For-VSCode with version <= 1.69.0', () => {
-        const params = {
-            initializationOptions: {
-                aws: {
-                    clientInfo: {
-                        extension: {
-                            name: 'AmazonQ-For-VSCode',
-                            version: '1.69.0',
-                        },
-                    },
-                },
-            },
-        }
-
-        expect(isMCPSupported(params as any)).to.equal(false)
-    })
-
-    it('should return true for test plugin version regardless of version number', () => {
+    it('should return false when client does not pass in mcp', () => {
         const params = {
             initializationOptions: {
                 aws: {
@@ -222,20 +201,6 @@ describe('isMCPSupported', () => {
             },
         }
 
-        expect(isMCPSupported(params as any)).to.equal(true)
-    })
-
-    it('should handle undefined params', () => {
-        expect(isMCPSupported(undefined)).to.equal(false)
-    })
-
-    it('should handle missing clientInfo', () => {
-        const params = {
-            initializationOptions: {
-                aws: {},
-            },
-        }
-
-        expect(isMCPSupported(params as any)).to.equal(false)
+        expect(enabledMCP(params as any)).to.equal(false)
     })
 })

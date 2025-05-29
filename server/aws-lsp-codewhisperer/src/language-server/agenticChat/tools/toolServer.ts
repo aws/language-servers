@@ -14,7 +14,7 @@ import {
     getGlobalPersonaConfigPath,
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
-    isMCPSupported,
+    enabledMCP,
 } from './mcp/mcpUtils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
@@ -98,7 +98,7 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
     }
 
     lsp.onInitialized(async () => {
-        if (!isMCPSupported(lsp.getClientInitializeParams())) {
+        if (!enabledMCP(lsp.getClientInitializeParams())) {
             logging.warn('MCP is currently not supported')
             return
         }
