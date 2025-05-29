@@ -1425,7 +1425,7 @@ declare namespace CodeWhispererBearerTokenClient {
   }
   export type SuggestedFixCodeDiffString = string;
   export type SuggestedFixDescriptionString = string;
-  export type SuggestionState = "ACCEPT"|"REJECT"|"DISCARD"|"EMPTY"|"MERGE"|string;
+  export type SuggestionState = "ACCEPT" | "REJECT" | "DISCARD" | "EMPTY" | "MERGE" | string;
   export interface SupplementalContext {
     filePath: SupplementalContextFilePathString;
     content: SupplementalContextContentString;
