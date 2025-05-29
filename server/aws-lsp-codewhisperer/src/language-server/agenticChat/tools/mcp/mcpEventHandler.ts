@@ -5,7 +5,6 @@ import {
     DetailedListItem,
     FilterOption,
     ListMcpServersParams,
-    ListMcpServersResult,
     McpServerClickParams,
     Status,
 } from '@aws/language-server-runtimes/protocol'
@@ -75,6 +74,17 @@ export class McpEventHandler {
         // Validate server configurations and get any error messages
         const combinedErrors = this.#validateMcpServerConfigs(mcpManagerServerConfigs)
 
+        // Parse validation errors to identify which servers have errors
+        const serversWithErrors = new Set<string>()
+        if (combinedErrors) {
+            const validationErrors = this.#getValidationErrors(mcpManagerServerConfigs)
+            validationErrors.forEach(error => {
+                if (error.serverName) {
+                    serversWithErrors.add(error.serverName)
+                }
+            })
+        }
+
         // Transform server configs into DetailedListItem objects
         const activeItems: DetailedListItem[] = []
         const disabledItems: DetailedListItem[] = []
@@ -116,6 +126,9 @@ export class McpEventHandler {
             const toolsCount = toolsWithPermissions.length
             const serverState = McpManager.instance.getServerState(serverName)
 
+            // Check if this server has validation errors
+            const hasValidationErrors = serversWithErrors.has(serverName)
+
             const item: DetailedListItem = {
                 title: serverName,
                 description: `Command: ${config.command}`,
@@ -125,7 +138,7 @@ export class McpEventHandler {
                         children: [
                             {
                                 title: 'status',
-                                description: serverState?.status || 'DISABLED',
+                                description: hasValidationErrors ? 'FAILED' : serverState?.status || 'DISABLED',
                             },
                             {
                                 title: 'toolcount',
@@ -392,8 +405,12 @@ export class McpEventHandler {
      * @param serverConfigs Map of server configurations to validate
      * @returns Combined error messages or undefined if no errors
      */
-    #validateMcpServerConfigs(serverConfigs: Map<string, MCPServerConfig>): string | undefined {
-        // Validate each server configuration and collect all validation errors
+    /**
+     * Gets validation errors for all server configurations
+     * @param serverConfigs Map of server configurations to validate
+     * @returns Array of validation errors with server names
+     */
+    #getValidationErrors(serverConfigs: Map<string, MCPServerConfig>): { serverName: string; errors: string[] }[] {
         const validationErrors: { serverName: string; errors: string[] }[] = []
 
         for (const [serverName, config] of serverConfigs.entries()) {
@@ -414,6 +431,18 @@ export class McpEventHandler {
                 validationErrors.push({ serverName, errors: validation.errors })
             }
         }
+
+        return validationErrors
+    }
+
+    /**
+     * Validates all MCP server configurations and returns combined error messages
+     * @param serverConfigs Map of server configurations to validate
+     * @returns Combined error messages or undefined if no errors
+     */
+    #validateMcpServerConfigs(serverConfigs: Map<string, MCPServerConfig>): string | undefined {
+        // Get validation errors for all server configurations
+        const validationErrors = this.#getValidationErrors(serverConfigs)
 
         // Return validation errors if any were found
         if (validationErrors.length > 0) {
