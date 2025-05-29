@@ -3,11 +3,12 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { InitializeParams, Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
 import { MCPServerConfig, PersonaConfig, MCPServerPermission, McpPermissionType } from './mcpTypes'
 import * as yaml from 'yaml'
 import path = require('path')
+import * as semver from 'semver'
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
@@ -285,5 +286,26 @@ export function isEmptyEnv(env: Record<string, string>): boolean {
             return false
         }
     }
+    return true
+}
+
+export function isMCPSupported(params: InitializeParams | undefined): boolean {
+    // MCP only supported in VSCode and JetBrains
+    const allowedExtension: string[] = ['AmazonQ-For-VSCode', 'Amazon Q For JetBrains']
+    const clientExtension = params?.initializationOptions?.aws?.clientInfo?.extension.name || ''
+    if (!allowedExtension.includes(clientExtension)) {
+        return false
+    }
+
+    const extensionVersion = params?.initializationOptions?.aws?.clientInfo?.extension.version || ''
+    if (extensionVersion.includes('testPluginVersion')) {
+        return true
+    }
+    // This version check is only required for VSCode as JetBrains hasn't been used by flare for now(5/28/2025)
+    // TODO: need to check if this condition is still true before release
+    if (clientExtension === 'AmazonQ-For-VSCode' && semver.lte(extensionVersion, '1.70.0')) {
+        return false
+    }
+
     return true
 }

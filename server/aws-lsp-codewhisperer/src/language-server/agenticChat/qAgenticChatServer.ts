@@ -14,6 +14,7 @@ import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/confi
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { safeGet } from '../../shared/utils'
+import { isMCPSupported } from './tools/mcp/mcpUtils'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -39,7 +40,7 @@ export const QAgenticChatServer =
                                 },
                             ],
                         },
-                        mcpServers: true,
+                        mcpServers: isMCPSupported(params),
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },

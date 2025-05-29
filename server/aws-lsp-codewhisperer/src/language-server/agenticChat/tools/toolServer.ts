@@ -14,6 +14,7 @@ import {
     getGlobalPersonaConfigPath,
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
+    isMCPSupported,
 } from './mcp/mcpUtils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
@@ -73,7 +74,7 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     return () => {}
 }
 
-export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
+export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging, lsp, agent }) => {
     const registered: Record<string, string[]> = {}
 
     function registerServerTools(server: string, defs: McpToolDefinition[]) {
@@ -97,6 +98,11 @@ export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     }
 
     lsp.onInitialized(async () => {
+        if (!isMCPSupported(lsp.getClientInitializeParams())) {
+            logging.warn('MCP is currently not supported')
+            return
+        }
+
         const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
         const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
 
