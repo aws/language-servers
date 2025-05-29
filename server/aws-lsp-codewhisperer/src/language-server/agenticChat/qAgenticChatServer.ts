@@ -14,6 +14,7 @@ import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/confi
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { safeGet } from '../../shared/utils'
+import { QClientCapabilities } from '../configuration/qConfigurationServer'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -28,6 +29,11 @@ export const QAgenticChatServer =
         let chatSessionManagementService: ChatSessionManagementService
 
         lsp.addInitializer((params: InitializeParams) => {
+            // Check for feature flag in client capabilities
+            const qCapabilities = params.initializationOptions?.aws?.awsClientCapabilities?.q as
+                | QClientCapabilities
+                | undefined
+            const mcpEnabled = qCapabilities?.mcp || false
             return {
                 capabilities: {},
                 awsServerCapabilities: {
@@ -39,7 +45,7 @@ export const QAgenticChatServer =
                                 },
                             ],
                         },
-                        mcpServers: true,
+                        mcpServers: mcpEnabled,
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },
