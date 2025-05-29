@@ -21,6 +21,8 @@ import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
 import * as yaml from 'yaml'
+import path = require('path')
+import { URI } from 'vscode-uri'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -436,15 +438,19 @@ export class McpManager {
      */
     public async updateServer(
         serverName: string,
-        configUpdates: Partial<Omit<MCPServerConfig, '__configPath__'>>
+        configUpdates: Partial<Omit<MCPServerConfig, '__configPath__'>>,
+        configPath: string
     ): Promise<void> {
         try {
+            if (!configPath) {
+                throw new Error(`Missing configPath for '${serverName}'`)
+            }
             const oldCfg = this.mcpServers.get(serverName)
             if (!oldCfg || !oldCfg.__configPath__) {
                 throw new Error(`MCP: server '${serverName}' not found`)
             }
 
-            await this.mutateConfigFile(oldCfg.__configPath__, json => {
+            await this.mutateConfigFile(configPath, json => {
                 json.mcpServers ||= {}
                 json.mcpServers[serverName] = {
                     ...json.mcpServers[serverName],
@@ -455,7 +461,7 @@ export class McpManager {
             const newCfg: MCPServerConfig = {
                 ...oldCfg,
                 ...configUpdates,
-                __configPath__: oldCfg.__configPath__,
+                __configPath__: configPath,
             }
 
             const oldClient = this.clients.get(serverName)
@@ -589,15 +595,31 @@ export class McpManager {
     private async mutateConfigFile(configPath: string, mutator: (json: any) => void): Promise<void> {
         return McpManager.configMutex
             .runExclusive(async () => {
-                const exists = await this.features.workspace.fs.exists(configPath)
-                let json = { mcpServers: {} }
-                if (exists) {
+                let json: any = { mcpServers: {} }
+                try {
                     const raw = await this.features.workspace.fs.readFile(configPath)
-                    const existingServersJson = JSON.parse(raw.toString())
-                    json.mcpServers = existingServersJson.mcpServers || {}
+                    const existing = JSON.parse(raw.toString())
+                    json = { mcpServers: {}, ...existing }
+                } catch (err: any) {
+                    // ignore fire not exist error
+                    if (err?.code !== 'ENOENT') throw err
                 }
                 mutator(json)
-                await this.features.workspace.fs.writeFile(configPath, JSON.stringify(json, null, 2))
+
+                let fsPath: string
+                try {
+                    const uri = URI.parse(configPath)
+                    fsPath = uri.scheme === 'file' ? uri.fsPath : configPath
+                } catch {
+                    fsPath = configPath
+                }
+                fsPath = path.normalize(fsPath)
+
+                const dir = path.dirname(fsPath)
+                await this.features.workspace.fs.mkdir(dir, { recursive: true })
+
+                await this.features.workspace.fs.writeFile(fsPath, JSON.stringify(json, null, 2))
+                this.features.logging.debug(`MCP config file write complete: ${configPath}`)
             })
             .catch((e: any) => {
                 this.features.logging.error(`MCP: failed to update config at ${configPath}: ${e.message}`)

@@ -1440,7 +1440,7 @@ ${params.message}`,
                               items: [
                                   {
                                       id: 'mcp-disable-server',
-                                      text: `Disable ${params.header?.title}`,
+                                      text: `Disable MCP server`,
                                       icon: toMynahIcon('block'),
                                   },
                                   {
@@ -1452,7 +1452,7 @@ ${params.message}`,
                                           description:
                                               'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
                                       },
-                                      text: `Delete ${params.header?.title}`,
+                                      text: `Delete MCP server`,
                                       icon: toMynahIcon('trash'),
                                   },
                               ],
