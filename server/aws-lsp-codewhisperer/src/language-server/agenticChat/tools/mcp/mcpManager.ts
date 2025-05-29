@@ -145,7 +145,13 @@ export class McpManager {
                 version: '1.0.0',
             })
 
-            const connectPromise = client.connect(transport)
+            const connectPromise = client.connect(transport).catch(err => {
+                const invalidConfigError = err.code === 'ENOENT' || err.code === -32000
+                throw new AgenticChatError(
+                    `MCP: server '${serverName}' failed to connect: ${invalidConfigError ? 'Invalid configuration' : err.message}`,
+                    'MCPServerConnectionFailed'
+                )
+            })
 
             // 0 -> no timeout
             if (cfg.initializationTimeout === 0) {
