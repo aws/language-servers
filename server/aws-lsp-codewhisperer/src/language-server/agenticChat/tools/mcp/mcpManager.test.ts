@@ -269,7 +269,7 @@ describe('updateServer()', () => {
         initOneStub.resetHistory()
         mutateStub.resetHistory()
 
-        await mgr.updateServer('u1', { timeout: 999 })
+        await mgr.updateServer('u1', { timeout: 999 }, 'fakepath')
         expect(mutateStub.calledOnce).to.be.true
         expect(closeStub.calledOnce).to.be.true
         expect(initOneStub.calledOnce).to.be.true

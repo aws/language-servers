@@ -185,8 +185,7 @@ export class McpEventHandler {
         // Return the result in the expected format
         const header = {
             title: 'MCP Servers',
-            description:
-                "Q automatically uses any MCP servers that have been added, so you don't have to add them as context.",
+            description: "Add MCP servers to extend Q's capabilities.",
             status: combinedErrors
                 ? { title: combinedErrors, icon: 'cancel-circle', status: 'error' as Status }
                 : undefined,
@@ -393,8 +392,8 @@ export class McpEventHandler {
                     type: 'numericinput',
                     id: 'timeout',
                     title: 'Timeout',
-                    description: 'Seconds',
-                    value: existingValues.timeout || '60', // Default value
+                    description: 'Millisecond (0 disables timeout)',
+                    value: existingValues.timeout || 0, // Default not timeout
                     mandatory: false,
                 },
             ],
@@ -490,8 +489,8 @@ export class McpEventHandler {
 
         if (values.timeout && values.timeout.trim() !== '') {
             const timeoutNum = Number(values.timeout.trim())
-            if (timeoutNum <= 0) {
-                errors.push('Timeout must be a positive number')
+            if (timeoutNum < 0) {
+                errors.push('Timeout must be zero or a positive number')
             }
         }
 
@@ -616,7 +615,7 @@ export class McpEventHandler {
                 await McpManager.instance.removeServer(originalServerName)
                 await McpManager.instance.addServer(serverName, config, configPath, personaPath)
             } else {
-                await McpManager.instance.updateServer(serverName, config)
+                await McpManager.instance.updateServer(serverName, config, configPath)
             }
         } else {
             // Create new server
@@ -811,7 +810,7 @@ export class McpEventHandler {
                     env_var_name: k,
                     env_var_value: v,
                 })),
-            timeout: params.optionsValues?.timeout || (config.timeout ?? 60).toString(),
+            timeout: params.optionsValues?.timeout || (config.timeout ?? 0).toString(),
             scope: params.optionsValues?.scope,
         }
 

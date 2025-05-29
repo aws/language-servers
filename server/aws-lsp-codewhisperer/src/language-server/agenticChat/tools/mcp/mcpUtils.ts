@@ -231,31 +231,6 @@ export async function loadPersonaPermissions(
     return result
 }
 
-// todo: pending final UX
-export function processMcpToolUseMessage(message: string) {
-    const allLines = message.split(/\r?\n/)
-    // show only first line for long output and collaps the rest
-    const summaryLine = allLines[0].trim()
-    let detail = allLines.slice(1).join('\n').trim()
-    detail = detail.replace(/^[ \t]*```+[\w-]*[ \t]*\r?\n?/, '')
-    detail = detail.replace(/\r?\n?```+[\s`]*$/, '')
-    const isJson = detail.trim().startsWith('{') || detail.trim().startsWith('[')
-    const fence = '```' + (isJson ? 'json' : '')
-
-    const collapsed = [
-        '<details>',
-        `  <summary>▶ ${summaryLine}</summary>`,
-        '',
-        fence,
-        detail,
-        '```',
-        '',
-        '</details>',
-    ].join('\n')
-
-    return collapsed
-}
-
 /** Given an array of workspace diretory, return each workspace persona config location */
 export function getWorkspacePersonaConfigPaths(wsUris: string[]): string[] {
     return wsUris.map(uri => path.join(uri, '.amazonq', 'personas', 'default.yaml'))
