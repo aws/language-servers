@@ -1212,7 +1212,7 @@ ${params.message}`,
 
                             const toolCount = getToolCount()
                             actions.push({
-                                id: 'tools-count',
+                                id: 'open-mcp-server',
                                 icon: toMynahIcon('tools'),
                                 description: `${toolCount} available tools`,
                                 text: toolCount,

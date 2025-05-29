@@ -848,6 +848,7 @@ export class McpEventHandler {
                 type: 'select',
                 id: `${toolName}`,
                 title: toolName,
+                description: item.tool.description,
                 placeholder: currentPermission,
                 options: permissionOptions,
             })
