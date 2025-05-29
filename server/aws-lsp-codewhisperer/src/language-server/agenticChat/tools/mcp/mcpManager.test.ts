@@ -62,7 +62,7 @@ describe('init()', () => {
     })
 
     it('returns the same instance', async () => {
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({ servers: new Map(), errors: new Map() })
         stubPersonaAllow()
 
         const m1 = await McpManager.init([], [], features)
@@ -82,7 +82,7 @@ describe('getAllTools()', () => {
     })
 
     it('returns empty array when no servers', async () => {
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({ servers: new Map(), errors: new Map() })
         stubPersonaAllow()
 
         const mgr = await McpManager.init([], [], features)
@@ -120,7 +120,7 @@ describe('callTool()', () => {
     })
 
     it('throws when server is unknown', async () => {
-        loadStub.resolves(new Map())
+        loadStub.resolves({ servers: new Map(), errors: new Map() })
         const mgr = await McpManager.init([], [], features)
 
         try {
@@ -132,7 +132,7 @@ describe('callTool()', () => {
     })
 
     it('invokes underlying client.callTool', async () => {
-        loadStub.resolves(new Map([['s1', enabledCfg]]))
+        loadStub.resolves({ servers: new Map([['s1', enabledCfg]]), errors: new Map() })
         const mgr = await McpManager.init(['p.json'], [], features)
         ;(mgr as any).clients.set('s1', new Client({ name: 'x', version: 'v' }))
 
@@ -143,7 +143,7 @@ describe('callTool()', () => {
 
     it('times out and logs error', async () => {
         const timeoutCfg = { ...enabledCfg, timeout: 1 }
-        loadStub.resolves(new Map([['s1', timeoutCfg]]))
+        loadStub.resolves({ servers: new Map([['s1', timeoutCfg]]), errors: new Map() })
         const mgr = await McpManager.init(['p.json'], [], features)
 
         callToolStub.resetBehavior()
@@ -181,7 +181,7 @@ describe('addServer()', () => {
     })
 
     it('persists config and initializes', async () => {
-        loadStub.resolves(new Map())
+        loadStub.resolves({ servers: new Map(), errors: new Map() })
         const mgr = await McpManager.init([], [], features)
         const newCfg: MCPServerConfig = {
             command: 'c2',
@@ -214,7 +214,7 @@ describe('removeServer()', () => {
     })
 
     it('shuts client and cleans state', async () => {
-        loadStub.resolves(new Map())
+        loadStub.resolves({ servers: new Map(), errors: new Map() })
         const mgr = await McpManager.init([], [], features)
         const dummy = new Client({ name: 'c', version: 'v' })
         ;(mgr as any).clients.set('x', dummy)
@@ -259,7 +259,7 @@ describe('updateServer()', () => {
             timeout: 1,
             __configPath__: 'u.json',
         }
-        loadStub.resolves(new Map([['u1', oldCfg]]))
+        loadStub.resolves({ servers: new Map([['u1', oldCfg]]), errors: new Map() })
         await McpManager.init([], [], features)
         const mgr = McpManager.instance
         const fakeClient = new Client({ name: 'c', version: 'v' })
@@ -287,7 +287,7 @@ describe('requiresApproval()', () => {
     })
 
     it('returns true for unknown server', async () => {
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({ servers: new Map(), errors: new Map() })
         stubPersonaAllow()
 
         const mgr = await McpManager.init([], [], features)
@@ -302,7 +302,9 @@ describe('requiresApproval()', () => {
             timeout: 0,
             __configPath__: 'p',
         }
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map([['s', cfg]]))
+        loadStub = sinon
+            .stub(mcpUtils, 'loadMcpServerConfigs')
+            .resolves({ servers: new Map([['s', cfg]]), errors: new Map() })
         stubPersonaAllow()
         await McpManager.init(['p'], [], features)
 
@@ -340,7 +342,9 @@ describe('getAllServerConfigs()', () => {
             timeout: 0,
             __configPath__: 'cfg.json',
         }
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map([['srv', cfg]]))
+        loadStub = sinon
+            .stub(mcpUtils, 'loadMcpServerConfigs')
+            .resolves({ servers: new Map([['srv', cfg]]), errors: new Map() })
         stubPersonaAllow()
         const mgr = await McpManager.init(['cfg.json'], [], features)
         const snap = mgr.getAllServerConfigs()
@@ -374,7 +378,7 @@ describe('getServerState()', () => {
             timeout: 0,
             __configPath__: 'state.json',
         }
-        loadStub.resolves(new Map([['srv', cfg]]))
+        loadStub.resolves({ servers: new Map([['srv', cfg]]), errors: new Map() })
         const mgr = await McpManager.init(['state.json'], [], features)
         expect(mgr.getServerState('srv')).to.deep.include({
             status: 'ENABLED',
@@ -400,7 +404,7 @@ describe('getAllServerStates()', () => {
             timeout: 0,
             __configPath__: 'state.json',
         }
-        loadStub.resolves(new Map([['srv', cfg]]))
+        loadStub.resolves({ servers: new Map([['srv', cfg]]), errors: new Map() })
         const mgr = await McpManager.init(['state.json'], [], features)
         const map = mgr.getAllServerStates()
         expect(map.get('srv')).to.deep.include({
@@ -435,7 +439,7 @@ describe('getEnabledTools()', () => {
             timeout: 0,
             __configPath__: 't.json',
         }
-        loadStub.resolves(new Map([['srv', cfg]]))
+        loadStub.resolves({ servers: new Map([['srv', cfg]]), errors: new Map() })
         const mgr = await McpManager.init(['t.json'], [], features)
 
         expect(mgr.getEnabledTools()).to.have.length(1)
@@ -472,7 +476,7 @@ describe('getAllToolsWithPermissions()', () => {
         loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs')
         stubPersonaAllow()
         initOneStub = stubInitOneServer()
-        loadStub.resolves(new Map([['s1', cfg]]))
+        loadStub.resolves({ servers: new Map([['s1', cfg]]), errors: new Map() })
         mgr = await McpManager.init(['p.json'], [], features)
     })
 
@@ -507,7 +511,7 @@ describe('close()', () => {
     afterEach(() => sinon.restore())
 
     it('shuts all clients and resets singleton', async () => {
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({ servers: new Map(), errors: new Map() })
         stubPersonaAllow()
         await McpManager.init([], [], features)
         const mgr = McpManager.instance
@@ -542,7 +546,7 @@ describe('isServerDisabled()', () => {
             timeout: 0,
             __configPath__: 's.json',
         }
-        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map([['srv', cfg]]))
+        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({ servers: new Map([['srv', cfg]]), errors: new Map() })
         const permMap1 = new Map<string, MCPServerPermission>([
             ['*', { enabled: true, toolPerms: {}, __configPath__: '/p' }],
         ])
@@ -578,7 +582,7 @@ describe('listServersAndTools()', () => {
     })
 
     it('lists names grouped by server', async () => {
-        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({ servers: new Map(), errors: new Map() })
         stubPersonaAllow()
         const initStub = stubInitOneServer()
         const mgr = await McpManager.init([], [], features)
@@ -610,7 +614,7 @@ describe('updateServerPermission()', () => {
             timeout: 0,
             __configPath__: 'x.json',
         }
-        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map([['srv', cfg]]))
+        sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({ servers: new Map([['srv', cfg]]), errors: new Map() })
 
         const permEnabled = new Map<string, MCPServerPermission>([
             ['*', { enabled: true, toolPerms: {}, __configPath__: '/p' }],
@@ -679,9 +683,9 @@ describe('reinitializeMcpServers()', () => {
         const loadStub = sinon
             .stub(mcpUtils, 'loadMcpServerConfigs')
             .onFirstCall()
-            .resolves(new Map([['srvA', cfg1]]))
+            .resolves({ servers: new Map([['srvA', cfg1]]), errors: new Map() })
             .onSecondCall()
-            .resolves(new Map([['srvB', cfg2]]))
+            .resolves({ servers: new Map([['srvB', cfg2]]), errors: new Map() })
         stubPersonaAllow()
         stubInitOneServer()
 
@@ -704,7 +708,7 @@ describe('handleError()', () => {
     let toolsEvents: Array<{ server: string; tools: any[] }>
 
     beforeEach(async () => {
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves(new Map())
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({ servers: new Map(), errors: new Map() })
         stubPersonaAllow()
         mgr = await McpManager.init([], [], features)
         errorSpy = sinon.spy(fakeLogging, 'error')
@@ -741,5 +745,111 @@ describe('handleError()', () => {
         expect(toolsEvents).to.have.length(1)
         expect(toolsEvents[0].server).to.equal('srvX')
         expect(toolsEvents[0].tools).to.be.an('array').that.is.empty
+    })
+})
+
+describe('McpManager error handling', () => {
+    let loadStub: sinon.SinonStub
+
+    beforeEach(() => {
+        sinon.restore()
+        // Stub the loadPersonaPermissions to return a simple map
+        sinon
+            .stub(mcpUtils, 'loadPersonaPermissions')
+            .resolves(new Map([['*', { enabled: true, toolPerms: {}, __configPath__: '/tmp/p.yaml' }]]))
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('stores and returns config load errors', async () => {
+        // Create a mock response with errors
+        const mockErrors = new Map<string, string>([
+            ['file1.json', 'File not found error'],
+            ['serverA', 'Missing command error'],
+        ])
+
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
+            servers: new Map(),
+            errors: mockErrors,
+        })
+
+        const mgr = await McpManager.init([], [], features)
+
+        // Test that getConfigLoadErrors returns the expected error messages
+        const errors = mgr.getConfigLoadErrors()
+        expect(errors).to.not.be.undefined
+        expect(errors).to.include('File: file1.json, Error: File not found error')
+        expect(errors).to.include('File: serverA, Error: Missing command error')
+    })
+
+    it('returns undefined when no errors exist', async () => {
+        // Create a mock response with no errors
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
+            servers: new Map(),
+            errors: new Map(),
+        })
+
+        const mgr = await McpManager.init([], [], features)
+
+        // Test that getConfigLoadErrors returns undefined when no errors
+        const errors = mgr.getConfigLoadErrors()
+        expect(errors).to.be.undefined
+    })
+
+    it('stores errors from handleError method', async () => {
+        // Create a mock response with no errors initially
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
+            servers: new Map(),
+            errors: new Map(),
+        })
+
+        const mgr = await McpManager.init([], [], features)
+
+        // Access the private handleError method using type assertion
+        const handleError = (mgr as any).handleError.bind(mgr)
+
+        // Call handleError with a server name and error
+        handleError('testServer', new Error('Test error message'))
+
+        // Test that the error was stored
+        const errors = mgr.getConfigLoadErrors()
+        expect(errors).to.not.be.undefined
+        expect(errors).to.include('File: testServer, Error: Test error message')
+    })
+
+    it('clears errors when reloading configurations', async () => {
+        // First load with errors
+        loadStub = sinon
+            .stub(mcpUtils, 'loadMcpServerConfigs')
+            .onFirstCall()
+            .resolves({
+                servers: new Map(),
+                errors: new Map([['file1.json', 'Initial error']]),
+            })
+            // Second load with no errors
+            .onSecondCall()
+            .resolves({
+                servers: new Map(),
+                errors: new Map(),
+            })
+
+        const mgr = await McpManager.init([], [], features)
+
+        // Verify initial errors exist
+        let errors = mgr.getConfigLoadErrors()
+        expect(errors).to.not.be.undefined
+        expect(errors).to.include('Initial error')
+
+        // Reinitialize to clear errors
+        await mgr.reinitializeMcpServers()
+
+        // Verify errors are cleared
+        errors = mgr.getConfigLoadErrors()
+        expect(errors).to.be.undefined
     })
 })

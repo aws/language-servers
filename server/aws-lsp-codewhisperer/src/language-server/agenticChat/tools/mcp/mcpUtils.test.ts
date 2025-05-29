@@ -53,9 +53,9 @@ describe('loadMcpServerConfigs', () => {
 
         const out = await loadMcpServerConfigs(workspace, logger, [goodPath, badPath])
 
-        expect(out.size).to.equal(1)
-        expect(out.has('A')).to.be.true
-        const cfg = out.get('A') as MCPServerConfig
+        expect(out.servers.size).to.equal(1)
+        expect(out.servers.has('A')).to.be.true
+        const cfg = out.servers.get('A') as MCPServerConfig
         expect(cfg.command).to.equal('cmdA')
         expect(cfg.args).to.deep.equal(['x'])
         expect(cfg.env).to.deep.equal({ X: 'x' })
@@ -68,7 +68,7 @@ describe('loadMcpServerConfigs', () => {
         const uri = pathToFileURL(p).toString()
 
         const out = await loadMcpServerConfigs(workspace, logger, [uri])
-        expect(out.has('B')).to.be.true
+        expect(out.servers.has('B')).to.be.true
     })
 
     it('dedupes same server name across files, keeping first', async () => {
@@ -80,9 +80,9 @@ describe('loadMcpServerConfigs', () => {
         fs.writeFileSync(p2, JSON.stringify(c2))
 
         const out = await loadMcpServerConfigs(workspace, logger, [p1, p2])
-        expect(out.size).to.equal(2)
-        expect(out.get('S')!.command).to.equal('one')
-        expect(out.get('T')!.command).to.equal('three')
+        expect(out.servers.size).to.equal(2)
+        expect(out.servers.get('S')!.command).to.equal('one')
+        expect(out.servers.get('T')!.command).to.equal('three')
     })
 
     it('workspace config overrides global config of the same server', async () => {
@@ -95,10 +95,10 @@ describe('loadMcpServerConfigs', () => {
         fs.writeFileSync(overridePath, JSON.stringify({ mcpServers: { S: { command: 'workspaceCmd' } } }))
 
         const out1 = await loadMcpServerConfigs(workspace, logger, [globalPath, overridePath])
-        expect(out1.get('S')!.command).to.equal('workspaceCmd')
+        expect(out1.servers.get('S')!.command).to.equal('workspaceCmd')
 
         const out2 = await loadMcpServerConfigs(workspace, logger, [overridePath, globalPath])
-        expect(out2.get('S')!.command).to.equal('workspaceCmd')
+        expect(out2.servers.get('S')!.command).to.equal('workspaceCmd')
     })
 })
 
@@ -153,6 +153,103 @@ describe('persona path helpers', () => {
 
     it('getGlobalPersonaConfigPath()', () => {
         expect(getGlobalPersonaConfigPath('/home/me')).to.equal('/home/me/.aws/amazonq/personas/default.yaml')
+    })
+})
+
+describe('loadMcpServerConfigs error handling', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+
+    beforeEach(() => {
+        sinon.restore()
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mcpUtilsErrorTest-'))
+        // a minimal Workspace stub
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                getUserHomeDir: () => tmpDir,
+            },
+        }
+        // logger that just swallows
+        logger = { warn: () => {}, info: () => {}, error: () => {} }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('captures file not found errors', async () => {
+        const nonExistentPath = path.join(tmpDir, 'does-not-exist.json')
+
+        const result = await loadMcpServerConfigs(workspace, logger, [nonExistentPath])
+
+        expect(result.servers.size).to.equal(0)
+        expect(result.errors.size).to.equal(1)
+        expect(result.errors.get(nonExistentPath)).to.include('MCP config not found')
+    })
+
+    it('captures invalid JSON errors', async () => {
+        const invalidJsonPath = path.join(tmpDir, 'invalid.json')
+        fs.writeFileSync(invalidJsonPath, '{not valid json')
+
+        const result = await loadMcpServerConfigs(workspace, logger, [invalidJsonPath])
+
+        expect(result.servers.size).to.equal(0)
+        expect(result.errors.size).to.equal(1)
+        expect(result.errors.get(invalidJsonPath)).to.include('Invalid JSON')
+    })
+
+    it('captures missing mcpServers field errors', async () => {
+        const missingFieldPath = path.join(tmpDir, 'missing-field.json')
+        fs.writeFileSync(missingFieldPath, '{"someOtherField": {}}')
+
+        const result = await loadMcpServerConfigs(workspace, logger, [missingFieldPath])
+
+        expect(result.servers.size).to.equal(0)
+        expect(result.errors.size).to.equal(1)
+        expect(result.errors.get(missingFieldPath)).to.include("missing or invalid 'mcpServers' field")
+    })
+
+    it('captures missing command errors', async () => {
+        const missingCommandPath = path.join(tmpDir, 'missing-command.json')
+        fs.writeFileSync(missingCommandPath, '{"mcpServers": {"serverA": {"args": []}}}')
+
+        const result = await loadMcpServerConfigs(workspace, logger, [missingCommandPath])
+
+        expect(result.servers.size).to.equal(0)
+        expect(result.errors.size).to.equal(1)
+        expect(result.errors.get('serverA')).to.include("missing required 'command'")
+    })
+
+    it('captures invalid timeout errors', async () => {
+        const invalidTimeoutPath = path.join(tmpDir, 'invalid-timeout.json')
+        fs.writeFileSync(
+            invalidTimeoutPath,
+            '{"mcpServers": {"serverA": {"command": "cmd", "timeout": "not-a-number"}}}'
+        )
+
+        const result = await loadMcpServerConfigs(workspace, logger, [invalidTimeoutPath])
+
+        expect(result.servers.size).to.equal(1) // Server is still loaded despite timeout error
+        expect(result.errors.size).to.equal(1)
+        expect(result.errors.get('serverA_timeout')).to.include('Invalid timeout value')
+    })
+
+    it('loads valid servers while capturing errors for invalid ones', async () => {
+        const validPath = path.join(tmpDir, 'valid.json')
+        const invalidPath = path.join(tmpDir, 'invalid.json')
+
+        fs.writeFileSync(validPath, '{"mcpServers": {"validServer": {"command": "cmd"}}}')
+        fs.writeFileSync(invalidPath, '{not valid json')
+
+        const result = await loadMcpServerConfigs(workspace, logger, [validPath, invalidPath])
+
+        expect(result.servers.size).to.equal(1)
+        expect(result.servers.has('validServer')).to.be.true
+        expect(result.errors.size).to.equal(1)
+        expect(result.errors.get(invalidPath)).to.include('Invalid JSON')
     })
 })
 

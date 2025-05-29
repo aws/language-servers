@@ -17,14 +17,15 @@ import { QClientCapabilities } from '../../../configuration/qConfigurationServer
  * - Skips missing, unreadable, or invalid JSON files.
  * - Handle server name conflicts, prioritize workspace config over global when both define the same server.
  * - Validates required fields and logs warnings for issues.
+ * - Captures and returns any errors that occur during loading
  */
-//  todo: handle config loading errors
 export async function loadMcpServerConfigs(
     workspace: Workspace,
     logging: Logger,
     rawPaths: string[]
-): Promise<Map<string, MCPServerConfig>> {
+): Promise<{ servers: Map<string, MCPServerConfig>; errors: Map<string, string> }> {
     const servers = new Map<string, MCPServerConfig>()
+    const configErrors = new Map<string, string>()
     const uniquePaths = Array.from(new Set(rawPaths))
     const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
     for (const raw of uniquePaths) {
@@ -43,11 +44,15 @@ export async function loadMcpServerConfigs(
         try {
             exists = await workspace.fs.exists(fsPath)
         } catch (e: any) {
-            logging.warn(`Could not stat MCP config at ${fsPath}: ${e.message}`)
+            const errorMsg = `Could not stat MCP config at ${fsPath}: ${e.message}`
+            logging.warn(errorMsg)
+            configErrors.set(`${fsPath}`, errorMsg)
             continue
         }
         if (!exists) {
-            logging.warn(`MCP config not found at ${fsPath}, skipping.`)
+            const errorMsg = `MCP config not found at ${fsPath}, skipping.`
+            logging.warn(errorMsg)
+            configErrors.set(`${fsPath}`, errorMsg)
             continue
         }
 
@@ -56,7 +61,9 @@ export async function loadMcpServerConfigs(
         try {
             rawText = (await workspace.fs.readFile(fsPath)).toString()
         } catch (e: any) {
-            logging.warn(`Failed to read MCP config at ${fsPath}: ${e.message}`)
+            const errorMsg = `Failed to read MCP config at ${fsPath}: ${e.message}`
+            logging.warn(errorMsg)
+            configErrors.set(`${fsPath}`, errorMsg)
             continue
         }
 
@@ -64,23 +71,31 @@ export async function loadMcpServerConfigs(
         try {
             json = JSON.parse(rawText)
         } catch (e: any) {
-            logging.warn(`Invalid JSON in MCP config at ${fsPath}: ${e.message}`)
+            const errorMsg = `Invalid JSON in MCP config at ${fsPath}: ${e.message}`
+            logging.warn(errorMsg)
+            configErrors.set(`${fsPath}`, errorMsg)
             continue
         }
 
         if (!json.mcpServers || typeof json.mcpServers !== 'object') {
-            logging.warn(`MCP config at ${fsPath} missing or invalid 'mcpServers' field`)
+            const errorMsg = `MCP config at ${fsPath} missing or invalid 'mcpServers' field`
+            logging.warn(errorMsg)
+            configErrors.set(`${fsPath}`, errorMsg)
             continue
         }
 
         // 4) dedupe and validate
         for (const [name, entry] of Object.entries(json.mcpServers)) {
             if (!entry || typeof (entry as any).command !== 'string') {
-                logging.warn(`MCP server '${name}' in ${fsPath} missing required 'command', skipping.`)
+                const errorMsg = `MCP server '${name}' in ${fsPath} missing required 'command', skipping.`
+                logging.warn(errorMsg)
+                configErrors.set(name, errorMsg)
                 continue
             }
             if ((entry as any).timeout !== undefined && typeof (entry as any).timeout !== 'number') {
-                logging.warn(`Invalid timeout value on '${name}', ignoring.`)
+                const errorMsg = `Invalid timeout value on '${name}', ignoring.`
+                logging.warn(errorMsg)
+                configErrors.set(`${name}_timeout`, errorMsg)
             }
             const cfg: MCPServerConfig = {
                 command: (entry as any).command,
@@ -115,7 +130,7 @@ export async function loadMcpServerConfigs(
         }
     }
 
-    return servers
+    return { servers, errors: configErrors }
 }
 
 /**
