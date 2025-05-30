@@ -445,7 +445,7 @@ export const CodewhispererServerFactory =
                     }
 
                     return codeWhispererService
-                        .generateSuggestions({
+                        .generateSuggestionsAndPrefetch({
                             ...requestContext,
                             fileContext: {
                                 ...requestContext.fileContext,
@@ -655,6 +655,8 @@ export const CodewhispererServerFactory =
                 typeaheadLength,
             } = params
 
+            logging.info(`onLogInlineCompletionSessionResultHandler ${completionSessionResult}`)
+
             const session = sessionManager.getSessionById(sessionId)
 
             if (!session) {
@@ -679,6 +681,11 @@ export const CodewhispererServerFactory =
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
+            } else {
+                // TODO: move to somewhere like session.close()
+                // Clear if it's a reject
+                logging.info(`user reject suggestion, clearning prefetched suggestion`)
+                amazonQServiceManager.getCodewhispererService().clearPrefetch()
             }
 
             session.setClientResultData(
