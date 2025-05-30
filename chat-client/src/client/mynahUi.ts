@@ -57,6 +57,7 @@ import {
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
+import { getModelSelectionChatItem } from './texts/modelSelection'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -81,29 +82,39 @@ const ContextPrompt = {
     PromptNameFieldId: 'prompt-name',
 } as const
 
-const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
+const getTabPromptInputValue = (mynahUi: MynahUI, tabId: string, optionId: string) => {
     const promptInputOptions = mynahUi.getTabData(tabId)?.getStore()?.promptInputOptions ?? []
-    return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
+    return promptInputOptions.find(item => item.id === optionId)?.value
 }
 
+const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) =>
+    getTabPromptInputValue(mynahUi, tabId, 'pair-programmer-mode') === 'true'
+
+const getTabModelSelection = (mynahUi: MynahUI, tabId: string) =>
+    getTabPromptInputValue(mynahUi, tabId, 'model-selection')
+
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
-    const promptTypeValue = optionsValues['pair-programmer-mode']
+    const previousPairProgrammerValue = getTabPairProgrammingMode(mynahUi, tabId)
+    const currentPairProgrammerValue = optionsValues['pair-programmer-mode'] === 'true'
 
-    if (promptTypeValue != null) {
-        mynahUi.addChatItem(tabId, promptTypeValue === 'true' ? pairProgrammingModeOn : pairProgrammingModeOff)
-        const options = [...(mynahUi.getTabData(tabId)?.getStore()?.promptInputOptions || [])]
-        const optionIndex = options.findIndex(opt => opt.id === 'pair-programmer-mode')
-
-        if (optionIndex >= 0) {
-            options[optionIndex].value = promptTypeValue
-        } else {
-            options.push({
-                id: 'pair-programmer-mode',
-                value: promptTypeValue,
-            } as any)
-        }
-        mynahUi.updateStore(tabId, { promptInputOptions: options as any })
+    if (currentPairProgrammerValue !== previousPairProgrammerValue) {
+        mynahUi.addChatItem(tabId, currentPairProgrammerValue ? pairProgrammingModeOn : pairProgrammingModeOff)
     }
+
+    const previousModelSelectionValue = getTabModelSelection(mynahUi, tabId)
+    const currentModelSelectionValue = optionsValues['model-selection']
+
+    if (currentModelSelectionValue !== previousModelSelectionValue) {
+        mynahUi.addChatItem(tabId, getModelSelectionChatItem(currentModelSelectionValue))
+    }
+
+    const promptInputOptions = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+    mynahUi.updateStore(tabId, {
+        promptInputOptions: promptInputOptions?.map(option => {
+            option.value = optionsValues[option.id]
+            return option
+        }),
+    })
 }
 
 export const handleChatPrompt = (
