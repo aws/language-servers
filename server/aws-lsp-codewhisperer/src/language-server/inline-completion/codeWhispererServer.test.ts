@@ -125,7 +125,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -383,7 +382,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -416,7 +414,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
             // Expected result is the deleted line + new line + 4 spaces
@@ -507,7 +504,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
             const EXPECTED_RESULT = {
@@ -542,7 +538,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
             const EXPECTED_RESULT = {
@@ -593,7 +588,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: { ...EXPECTED_RESPONSE_CONTEXT, nextToken: EXPECTED_NEXT_TOKEN },
-                    isFollowup: false,
                 })
             )
 
@@ -678,7 +672,6 @@ describe('CodeWhisperer Server', () => {
                     Promise.resolve({
                         suggestions: EXPECTED_SUGGESTION,
                         responseContext: EXPECTED_RESPONSE_CONTEXT,
-                        isFollowup: false,
                     })
                 )
 
@@ -778,7 +771,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -818,7 +810,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -843,7 +834,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -970,7 +960,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -1039,7 +1028,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -1101,7 +1089,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -1130,7 +1117,6 @@ describe('CodeWhisperer Server', () => {
                     Promise.resolve({
                         suggestions: EXPECTED_SUGGESTION_WITH_REFERENCES,
                         responseContext: EXPECTED_RESPONSE_CONTEXT,
-                        isFollowup: false,
                     })
                 )
                 features.lsp.workspace.getConfiguration.returns(
@@ -1177,7 +1163,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -1430,7 +1415,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
             // Initialize the features, but don't start server yet
@@ -1507,7 +1491,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTIONS,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -1905,7 +1888,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -2087,7 +2069,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: [],
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 
@@ -2157,7 +2138,6 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 

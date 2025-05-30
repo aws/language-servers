@@ -50,7 +50,6 @@ class HelloWorld
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
-                    isFollowup: false,
                 })
             )
 

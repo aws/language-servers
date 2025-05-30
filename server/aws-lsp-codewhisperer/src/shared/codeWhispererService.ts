@@ -42,7 +42,6 @@ export interface ResponseContext {
 export interface GenerateSuggestionsResponse {
     suggestions: Suggestion[]
     responseContext: ResponseContext
-    isFollowup: boolean
 }
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
@@ -156,7 +155,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         return {
             suggestions: response.recommendations as Suggestion[],
             responseContext: responseContext,
-            isFollowup: false,
         }
     }
 
@@ -232,7 +230,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return {
             suggestions: response.completions as Suggestion[],
             responseContext,
-            isFollowup: false,
         }
     }
 
