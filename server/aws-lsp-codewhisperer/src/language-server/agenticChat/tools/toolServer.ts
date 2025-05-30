@@ -15,6 +15,7 @@ import {
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
     createNamespacedToolName,
+    clearToolNameMapping,
     enabledMCP,
 } from './mcp/mcpUtils'
 
@@ -130,6 +131,9 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
         const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
 
         const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, { logging, workspace, lsp })
+
+        // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
+        clearToolNameMapping()
 
         const byServer: Record<string, McpToolDefinition[]> = {}
         // only register enabled tools
