@@ -194,7 +194,6 @@ describe('AgenticChatTriggerContext', () => {
         )
         assert.deepStrictEqual(chatParamsWithMore.conversationState?.workspaceId, 'test-workspace-123')
     })
-
     describe('getTextDocument', function () {
         let tempFolder: TestFolder
 
