@@ -6,7 +6,6 @@
 import { InitializeParams, Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
 import { MCPServerConfig, PersonaConfig, MCPServerPermission, McpPermissionType } from './mcpTypes'
-import * as yaml from 'yaml'
 import path = require('path')
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
 
@@ -129,6 +128,28 @@ export async function loadMcpServerConfigs(
     return { servers, errors: configErrors }
 }
 
+const DEFAULT_PERSONA_RAW = `{
+  "mcpServers": [
+    "*"
+  ],
+  "toolPerms": {
+    "builtIn": {
+      "execute_bash": "alwaysAllow",
+      "fs_read":       "alwaysAllow",
+      "fs_write":      "ask",
+      "report_issue":  "alwaysAllow",
+      "use_aws":       "alwaysAllow"
+    }
+  },
+  "context": {
+    "files": [
+      "AmazonQ.md",
+      "README.md",
+      ".amazonq/rules/**/*.md"
+    ]
+  }
+}`
+
 /**
  * Load, validate, and parse persona configurations from YAML files.
  * - If both global and workspace files are missing, create a default global.
@@ -175,7 +196,7 @@ export async function loadPersonaPermissions(
     if (files.length === 0) {
         await workspace.fs.mkdir(path.dirname(globalPath), { recursive: true })
         await workspace.fs
-            .writeFile(globalPath, 'mcpServers:\n  - "*"\n')
+            .writeFile(globalPath, DEFAULT_PERSONA_RAW)
             .then(() => logging.info(`Created default persona file at ${globalPath}`))
             .catch(e => {
                 logging.error(`Failed to create default persona file: ${e.message}`)
@@ -194,7 +215,7 @@ export async function loadPersonaPermissions(
         let cfg: PersonaConfig
         try {
             const raw = (await workspace.fs.readFile(file)).toString().trim()
-            cfg = raw ? (yaml.parse(raw) as PersonaConfig) : { mcpServers: [], toolPerms: {} }
+            cfg = raw ? (JSON.parse(raw) as PersonaConfig) : { mcpServers: [], toolPerms: {} }
         } catch (err: any) {
             logging.warn(`Invalid Persona config in ${file}: ${err.message}`)
             continue
@@ -244,12 +265,12 @@ export async function loadPersonaPermissions(
 
 /** Given an array of workspace diretory, return each workspace persona config location */
 export function getWorkspacePersonaConfigPaths(wsUris: string[]): string[] {
-    return wsUris.map(uri => path.join(uri, '.amazonq', 'personas', 'default.yaml'))
+    return wsUris.map(uri => path.join(uri, '.amazonq', 'personas', 'default.json'))
 }
 
 /** Given a user's home directory, return the global persona config location */
 export function getGlobalPersonaConfigPath(home: string): string {
-    return path.join(home, '.aws', 'amazonq', 'personas', 'default.yaml')
+    return path.join(home, '.aws', 'amazonq', 'personas', 'default.json')
 }
 
 /** Given an array of workspace diretory, return each workspace mcp config location */

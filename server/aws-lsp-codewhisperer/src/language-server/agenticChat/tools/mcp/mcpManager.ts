@@ -20,7 +20,6 @@ import { isEmptyEnv, loadMcpServerConfigs, loadPersonaPermissions } from './mcpU
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
-import * as yaml from 'yaml'
 import path = require('path')
 import { URI } from 'vscode-uri'
 
@@ -572,7 +571,7 @@ export class McpManager {
 
                 // handle permission updates
                 if (perm.toolPerms) {
-                    const existing = p.toYaml().toolPerms?.[serverName] ?? {}
+                    const existing = p.toJson().toolPerms?.[serverName] ?? {}
                     const merged = { ...existing, ...perm.toolPerms }
                     p.replaceToolPerms(serverName, merged)
                 } else {
@@ -660,9 +659,9 @@ export class McpManager {
                     raw = (await this.features.workspace.fs.readFile(personaPath)).toString()
                 } catch {}
 
-                const model = PersonaModel.fromYaml(raw ? yaml.parse(raw) : {})
+                const model = PersonaModel.fromJson(raw ? JSON.parse(raw) : {})
                 mutator(model)
-                await this.features.workspace.fs.writeFile(personaPath, yaml.stringify(model.toYaml()))
+                await this.features.workspace.fs.writeFile(personaPath, JSON.stringify(model.toJson(), null, 2))
                 this.features.logging.debug(`Persona file write complete: ${personaPath}`)
             })
             .catch((e: any) => {

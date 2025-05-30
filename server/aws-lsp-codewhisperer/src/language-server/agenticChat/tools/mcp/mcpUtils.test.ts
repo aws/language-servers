@@ -136,7 +136,7 @@ describe('loadPersonaPermissions', () => {
         expect(p.enabled).to.be.true
         expect(p.toolPerms).to.deep.equal({})
 
-        // The default file should have been written under ~/.aws/amazonq/personas/default.yaml
+        // The default file should have been written under ~/.aws/amazonq/personas/default.json
         const personaPath = getGlobalPersonaConfigPath(tmpDir)
         expect(fs.existsSync(personaPath)).to.be.true
         const content = fs.readFileSync(personaPath, 'utf-8')
@@ -148,13 +148,13 @@ describe('persona path helpers', () => {
     it('getWorkspacePersonaConfigPaths()', () => {
         const uris = ['uri1', 'uri2']
         expect(getWorkspacePersonaConfigPaths(uris)).to.deep.equal([
-            'uri1/.amazonq/personas/default.yaml',
-            'uri2/.amazonq/personas/default.yaml',
+            'uri1/.amazonq/personas/default.json',
+            'uri2/.amazonq/personas/default.json',
         ])
     })
 
     it('getGlobalPersonaConfigPath()', () => {
-        expect(getGlobalPersonaConfigPath('/home/me')).to.equal('/home/me/.aws/amazonq/personas/default.yaml')
+        expect(getGlobalPersonaConfigPath('/home/me')).to.equal('/home/me/.aws/amazonq/personas/default.json')
     })
 })
 

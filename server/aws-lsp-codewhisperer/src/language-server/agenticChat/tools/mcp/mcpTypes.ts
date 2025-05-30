@@ -49,7 +49,7 @@ export interface PersonaConfig {
 export class PersonaModel {
     constructor(private cfg: PersonaConfig) {}
 
-    static fromYaml(doc: any): PersonaModel {
+    static fromJson(doc: any): PersonaModel {
         const cfg: PersonaConfig = {
             mcpServers: Array.isArray(doc?.['mcpServers']) ? doc['mcpServers'] : [],
             toolPerms: typeof doc?.['toolPerms'] === 'object' ? doc['toolPerms'] : {},
@@ -57,7 +57,7 @@ export class PersonaModel {
         return new PersonaModel(cfg)
     }
 
-    toYaml(): PersonaConfig {
+    toJson(): PersonaConfig {
         return this.cfg
     }
 
