@@ -92,7 +92,7 @@ import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
 
-const getDefaultTabConfig = (agenticMode?: Boolean) => {
+const getDefaultTabConfig = (agenticMode?: boolean) => {
     return {
         tabTitle: 'Chat',
         promptInputInfo:
