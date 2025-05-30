@@ -254,11 +254,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
             setTimeout(async () => {
                 this.logging.info(`prefetching next session result based on suggestion: ${r.suggestions[0].content}`)
+                this.logging.info('!!!!!!!!!!!!!!!!!!!!!!!!')
+                this.logging.info(`${firstRequest.fileContext.leftFileContent + suggestion.content}`)
                 const request = {
                     ...firstRequest,
                     fileContext: {
                         ...firstRequest.fileContext,
-                        leftFileContent: firstRequest.fileContext + suggestion.content,
+                        leftFileContent: firstRequest.fileContext.leftFileContent + suggestion.content,
                     },
                     nextToken: undefined,
                 }
@@ -268,7 +270,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     response: response,
                     request: request,
                 }
-            }, 500)
+            }, 250)
         }
 
         return r
