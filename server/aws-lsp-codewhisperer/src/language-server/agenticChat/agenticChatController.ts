@@ -130,6 +130,8 @@ import { McpTool } from './tools/mcp/mcpTool'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
+import { isMCPSupported } from './tools/mcp/mcpUtils'
+import { createNamespacedToolName, getOriginalToolNames } from './tools/mcp/mcpUtils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
 
 type ChatHandlers = Omit<
@@ -1015,33 +1017,48 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
-                        // toolUse.name is in format <server>___<tool>
-                        const [serverName, ...toolParts] = toolUse.name.split('___')
-                        const toolName = toolParts.join('___')
-                        const def = McpManager.instance.getAllTools().find(d => d.toolName === toolName)
-                        if (def) {
-                            const mcpTool = new McpTool(this.#features, def)
-                            const { requiresAcceptance, warning } = await mcpTool.requiresAcceptance(
-                                serverName,
-                                toolName
-                            )
-                            if (requiresAcceptance) {
-                                const confirmation = this.#processToolConfirmation(toolUse, requiresAcceptance, warning)
-                                cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmation)
-                                await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
-                            }
+                        // Get original server and tool names from the mapping
+                        const originalNames = getOriginalToolNames(toolUse.name)
+                        if (originalNames) {
+                            const { serverName, toolName } = originalNames
+                            const def = McpManager.instance
+                                .getAllTools()
+                                .find(d => d.serverName === serverName && d.toolName === toolName)
+                            if (def) {
+                                const mcpTool = new McpTool(this.#features, def)
+                                const { requiresAcceptance, warning } = await mcpTool.requiresAcceptance(
+                                    serverName,
+                                    toolName
+                                )
+                                if (requiresAcceptance) {
+                                    const confirmation = this.#processToolConfirmation(
+                                        toolUse,
+                                        requiresAcceptance,
+                                        warning,
+                                        undefined,
+                                        toolName // Pass the original tool name here
+                                    )
+                                    cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmation)
+                                    await this.waitForToolApproval(
+                                        toolUse,
+                                        chatResultStream,
+                                        cachedButtonBlockId,
+                                        session
+                                    )
+                                }
 
-                            // Store the blockId in the session for later use
-                            if (toolUse.toolUseId) {
-                                // Use a type assertion to add the runningCardBlockId property
-                                const toolUseWithBlockId = {
-                                    ...toolUse,
-                                    cachedButtonBlockId,
-                                } as typeof toolUse & { cachedButtonBlockId: number }
+                                // Store the blockId in the session for later use
+                                if (toolUse.toolUseId) {
+                                    // Use a type assertion to add the runningCardBlockId property
+                                    const toolUseWithBlockId = {
+                                        ...toolUse,
+                                        cachedButtonBlockId,
+                                    } as typeof toolUse & { cachedButtonBlockId: number }
 
-                                session.toolUseLookup.set(toolUse.toolUseId, toolUseWithBlockId)
+                                    session.toolUseLookup.set(toolUse.toolUseId, toolUseWithBlockId)
+                                }
+                                break
                             }
-                            break
                         }
                         break
                 }
@@ -2717,8 +2734,11 @@ export class AgenticChatController implements ChatHandlers {
         // Read Only Tools = All Tools - Restricted Tools (MCP + Write Tools)
         // TODO: mcp tool spec name will be server___tool.
         // TODO: Will also need to handle rare edge cases of long server name + long tool name > 64 char
+        const allNamespacedTools = new Set<string>()
         const mcpToolSpecNames = new Set(
-            McpManager.instance.getAllTools().map(tool => `${tool.serverName}___${tool.toolName}`)
+            McpManager.instance
+                .getAllTools()
+                .map(tool => createNamespacedToolName(tool.serverName, tool.toolName, allNamespacedTools))
         )
         const writeToolNames = new Set(['fsWrite', 'executeBash'])
         const restrictedToolNames = new Set([...mcpToolSpecNames, ...writeToolNames])
@@ -2767,62 +2787,68 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
 
-        const def = McpManager.instance.getAllTools().find(d => `${d.serverName}___${d.toolName}` === toolUse.name)
-        if (def) {
-            // Format the tool result and input as JSON strings
-            const toolInput = JSON.stringify(toolUse.input, null, 2)
-            const toolResultContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+        // Get original server and tool names from the mapping
+        const originalNames = getOriginalToolNames(toolUse.name)
+        if (originalNames) {
+            const { serverName, toolName } = originalNames
+            const def = McpManager.instance
+                .getAllTools()
+                .find(d => d.serverName === serverName && d.toolName === toolName)
+            if (def) {
+                // Format the tool result and input as JSON strings
+                const toolInput = JSON.stringify(toolUse.input, null, 2)
+                const toolResultContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
 
-            const [serverName, ...toolParts] = toolUse.name.split('___')
-            const toolName = toolParts.join('___')
-
-            const toolResultCard: ChatMessage = {
-                type: 'tool',
-                messageId: toolUse.toolUseId,
-                summary: {
-                    content: {
-                        header: {
-                            icon: 'tools',
-                            body: `${serverName}___${toolName}`,
-                            fileList: undefined,
+                const toolResultCard: ChatMessage = {
+                    type: 'tool',
+                    messageId: toolUse.toolUseId,
+                    summary: {
+                        content: {
+                            header: {
+                                icon: 'tools',
+                                body: `${toolName}`,
+                                fileList: undefined,
+                            },
                         },
+                        collapsedContent: [
+                            {
+                                header: {
+                                    body: 'Parameters',
+                                },
+                                body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                            },
+                            {
+                                header: {
+                                    body: 'Results',
+                                },
+                                body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
+                            },
+                        ],
                     },
-                    collapsedContent: [
-                        {
-                            header: {
-                                body: 'Parameters',
-                            },
-                            body: `\`\`\`json\n${toolInput}\n\`\`\``,
-                        },
-                        {
-                            header: {
-                                body: 'Results',
-                            },
-                            body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
-                        },
-                    ],
-                },
-            }
+                }
 
-            // Get the stored blockId for this tool use
-            const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
-            const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+                // Get the stored blockId for this tool use
+                const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+                const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
 
-            if (cachedButtonBlockId !== undefined) {
-                // Update the existing card with the results
-                await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
-            } else {
-                // Fallback to creating a new card
-                this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
-                await chatResultStream.writeResultBlock(toolResultCard)
+                if (cachedButtonBlockId !== undefined) {
+                    // Update the existing card with the results
+                    await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
+                } else {
+                    // Fallback to creating a new card
+                    this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
+                    await chatResultStream.writeResultBlock(toolResultCard)
+                }
+                return
             }
-        } else {
-            await chatResultStream.writeResultBlock({
-                type: 'tool',
-                messageId: toolUse.toolUseId,
-                body: toolResultMessage(toolUse, result),
-            })
         }
+
+        // Fallback for tools not found in mapping
+        await chatResultStream.writeResultBlock({
+            type: 'tool',
+            messageId: toolUse.toolUseId,
+            body: toolResultMessage(toolUse, result),
+        })
     }
 
     #log(...messages: string[]) {
