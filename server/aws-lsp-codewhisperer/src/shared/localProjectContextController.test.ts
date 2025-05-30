@@ -93,14 +93,24 @@ describe('LocalProjectContextController', () => {
             sinonAssert.called(logging.error)
         })
 
-        it('should not call buildIndex if not enabled', async () => {
+        it('should call buildIndex with `default` if not enabled', async () => {
             const buildIndexSpy = spy(controller, 'buildIndex')
             await controller.init({ vectorLib: vectorLibMock, enableIndexing: false })
 
             sinonAssert.notCalled(logging.error)
             sinonAssert.called(vectorLibMock.start)
-            const vecLib = await vectorLibMock.start()
-            sinonAssert.notCalled(buildIndexSpy)
+            sinonAssert.calledOnce(buildIndexSpy)
+            sinonAssert.calledWith(buildIndexSpy, 'default')
+        })
+
+        it('should call buildIndex with `all` when enabled', async () => {
+            const buildIndexSpy = spy(controller, 'buildIndex')
+            await controller.init({ vectorLib: vectorLibMock, enableIndexing: true })
+
+            sinonAssert.notCalled(logging.error)
+            sinonAssert.called(vectorLibMock.start)
+            sinonAssert.calledOnce(buildIndexSpy)
+            sinonAssert.calledWith(buildIndexSpy, 'all')
         })
     })
 
@@ -108,7 +118,7 @@ describe('LocalProjectContextController', () => {
         it('should build Index with vectorLib', async () => {
             await controller.init({ vectorLib: vectorLibMock })
             const vecLib = await vectorLibMock.start()
-            await controller.buildIndex()
+            await controller.buildIndex('all')
             sinonAssert.called(vecLib.buildIndex)
         })
     })
