@@ -254,12 +254,12 @@ export class LocalProjectContextController {
             if (this._vecLib) {
                 if (actualRemovals.length > 0) {
                     const removedPaths = actualRemovals.map(folder => URI.parse(folder.uri).fsPath)
-                    void this.updateIndexAndContextCommand([], false, removedPaths)
+                    await this.updateIndexAndContextCommand([], false, removedPaths)
                 }
 
                 if (actualAdditions.length > 0) {
                     const addedPaths = actualAdditions.map(folder => URI.parse(folder.uri).fsPath)
-                    void this.updateIndexAndContextCommand([], true, addedPaths)
+                    await this.updateIndexAndContextCommand([], true, addedPaths)
                 }
             }
         } catch (error) {

@@ -7,6 +7,7 @@ import * as path from 'path'
 import { URI } from 'vscode-uri'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
+import { ContextCommandItem } from 'local-indexing'
 
 class LoggingMock {
     public error: SinonStub
@@ -233,8 +234,19 @@ describe('LocalProjectContextController', () => {
 
     describe('updateIndex', () => {
         beforeEach(async () => {
-            sinon.stub(controller, 'isIndexingEnabled').returns(true)
             await controller.init({ vectorLib: vectorLibMock })
+        })
+
+        it('should call updateIndex with correct parameters', async () => {
+            const vecLib = await vectorLibMock.start()
+            const filePaths = ['file1.ts', 'file2.ts']
+            const operation = 'add'
+            const workspaceFolders = ['folder1', 'folder2']
+
+            await controller.updateIndex(filePaths, operation, workspaceFolders)
+
+            sinonAssert.calledOnce(vecLib.updateIndexV2)
+            sinonAssert.calledWith(vecLib.updateIndexV2, filePaths, operation, workspaceFolders)
         })
 
         it('should do nothing when vector library is not initialized', async () => {
@@ -259,6 +271,82 @@ describe('LocalProjectContextController', () => {
             vecLib.updateIndexV2.rejects(new Error('Update failed'))
 
             await controller.updateIndex(['test.java'], 'add')
+            sinonAssert.called(logging.error)
+        })
+    })
+
+    describe('updateIndexAndContextCommand', () => {
+        it('should update index and call onContextItemsUpdated when successful', async () => {
+            const tryUpdateIndexStub = sinon.stub(controller, 'tryUpdateIndex').resolves(true)
+            const mockItems: ContextCommandItem[] = [
+                { workspaceFolder: '/test', type: 'file', relativePath: 'path', id: '1' },
+            ]
+            const getItemsStub = sinon.stub(controller, 'getContextCommandItems').resolves(mockItems)
+            const callbackSpy = sinon.spy()
+            controller.onContextItemsUpdated = callbackSpy
+
+            await controller.updateIndexAndContextCommand(['file.ts'], true)
+
+            assert.strictEqual(tryUpdateIndexStub.callCount, 1)
+            assert.deepStrictEqual(tryUpdateIndexStub.firstCall.args, [['file.ts'], true, undefined])
+            assert.strictEqual(getItemsStub.callCount, 1)
+            assert.strictEqual(callbackSpy.callCount, 1)
+            assert.deepStrictEqual(callbackSpy.firstCall.args[0], mockItems)
+        })
+
+        it('should not call onContextItemsUpdated when index update fails', async () => {
+            const tryUpdateIndexStub = sinon.stub(controller, 'tryUpdateIndex').resolves(false)
+            const getItemsStub = sinon.stub(controller, 'getContextCommandItems')
+            const callbackSpy = sinon.spy()
+            controller.onContextItemsUpdated = callbackSpy
+
+            await controller.updateIndexAndContextCommand(['file.ts'], true)
+
+            assert.strictEqual(tryUpdateIndexStub.callCount, 1)
+            assert.strictEqual(getItemsStub.callCount, 0)
+            assert.strictEqual(callbackSpy.callCount, 0)
+        })
+
+        it('should not call onContextItemsUpdated when no items are returned', async () => {
+            const tryUpdateIndexStub = sinon.stub(controller, 'tryUpdateIndex').resolves(true)
+            const getItemsStub = sinon.stub(controller, 'getContextCommandItems').resolves([])
+            const callbackSpy = sinon.spy()
+            controller.onContextItemsUpdated = callbackSpy
+
+            await controller.updateIndexAndContextCommand(['file.ts'], true)
+
+            assert.strictEqual(tryUpdateIndexStub.callCount, 1)
+            assert.strictEqual(getItemsStub.callCount, 1)
+            assert.strictEqual(callbackSpy.callCount, 0)
+        })
+    })
+
+    describe('tryUpdateIndex', () => {
+        it('should wait for sequence number to increase', async () => {
+            const updateIndexStub = sinon.stub(controller, 'updateIndex').resolves()
+            const getSeqNumStub = sinon.stub()
+            getSeqNumStub.onFirstCall().resolves(1)
+            getSeqNumStub.onSecondCall().resolves(2)
+
+            vectorLibMock.start.resolves({
+                getIndexSequenceNumber: getSeqNumStub,
+                updateIndexV2: sinon.stub().resolves(),
+            })
+            await controller.init({ vectorLib: vectorLibMock })
+
+            const result = await controller.tryUpdateIndex(['file.ts'], true)
+
+            assert.strictEqual(result, true)
+            assert.strictEqual(updateIndexStub.callCount, 1)
+            assert.deepStrictEqual(updateIndexStub.firstCall.args, [['file.ts'], 'add', undefined])
+            assert.strictEqual(getSeqNumStub.callCount, 2)
+        })
+
+        it('should handle errors and return false', async () => {
+            const updateIndexStub = sinon.stub(controller, 'updateIndex').rejects(new Error('Update failed'))
+            const result = await controller.tryUpdateIndex(['file.ts'], true)
+
+            assert.strictEqual(result, false)
             sinonAssert.called(logging.error)
         })
     })
