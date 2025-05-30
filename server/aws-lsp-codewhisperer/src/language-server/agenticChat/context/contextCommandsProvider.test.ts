@@ -2,6 +2,7 @@ import { ContextCommandsProvider } from './contextCommandsProvider'
 import * as sinon from 'sinon'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as chokidar from 'chokidar'
+import { ContextCommandItem } from 'local-indexing'
 
 describe('ContextCommandsProvider', () => {
     let provider: ContextCommandsProvider
@@ -54,6 +55,27 @@ describe('ContextCommandsProvider', () => {
             sinon.assert.match(result.length, 3) // 2 files + create button
             sinon.assert.match(result[0].command, 'test1')
             sinon.assert.match(result[1].command, 'test2')
+        })
+    })
+
+    describe('onContextItemsUpdated', () => {
+        it('should call processContextCommandUpdate when controller raises event', async () => {
+            const mockContextItems: ContextCommandItem[] = [
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file',
+                    relativePath: 'test/path',
+                    id: 'test-id',
+                },
+            ]
+
+            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+
+            const callback = (provider as any).processContextCommandUpdate.bind(provider)
+            await callback(mockContextItems)
+
+            sinon.assert.calledOnce(processUpdateSpy)
+            sinon.assert.calledWith(processUpdateSpy, mockContextItems)
         })
     })
 })
