@@ -66,6 +66,14 @@ export abstract class CodeWhispererServiceBase {
 
     inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
 
+    prefetchSuggestions:
+        | { id: string; response: GenerateSuggestionsResponse; request: GenerateSuggestionsRequest }
+        | undefined
+
+    clearPrefetch() {
+        this.prefetchSuggestions = undefined
+    }
+
     abortInflightRequests() {
         this.inflightRequests.forEach(request => {
             request.abort()
@@ -82,6 +90,8 @@ export abstract class CodeWhispererServiceBase {
     }
 
     abstract getCredentialsType(): CredentialsType
+
+    abstract generateSuggestionsAndPrefetch(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
@@ -133,6 +143,13 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         return 'iam'
     }
 
+    // TODO: same as regular GC until we want to enable prefetch with IAM client
+    override async generateSuggestionsAndPrefetch(
+        request: GenerateSuggestionsRequest
+    ): Promise<GenerateSuggestionsResponse> {
+        return await this.generateSuggestions(request)
+    }
+
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
@@ -174,7 +191,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     constructor(
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
-        logging: Logging,
+        private logging: Logging,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator
@@ -257,6 +274,46 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         }
 
         return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+    }
+
+    // Only used when it's a cold start
+    override async generateSuggestionsAndPrefetch(
+        firstRequest: GenerateSuggestionsRequest
+    ): Promise<GenerateSuggestionsResponse> {
+        // TODO: if codewhispererService has prefetched result && id matches, return the cached prefetched result directly
+        const shouldUsePrefetch =
+            this.prefetchSuggestions && firstRequest.fileContext.leftFileContent.includes(this.prefetchSuggestions.id)
+        if (shouldUsePrefetch) {
+            this.logging.info(`will use prefetch suggestion`)
+        }
+        const r =
+            (shouldUsePrefetch ? this.prefetchSuggestions?.response : undefined) ??
+            (await this.generateSuggestions(firstRequest))
+        if (r.suggestions && r.suggestions.length > 0) {
+            const suggestion = r.suggestions[0]
+
+            setTimeout(async () => {
+                this.logging.info(`prefetching next session result based on suggestion: ${r.suggestions[0].content}`)
+                this.logging.info('!!!!!!!!!!!!!!!!!!!!!!!!')
+                this.logging.info(`${firstRequest.fileContext.leftFileContent + suggestion.content}`)
+                const request = {
+                    ...firstRequest,
+                    fileContext: {
+                        ...firstRequest.fileContext,
+                        leftFileContent: firstRequest.fileContext.leftFileContent + suggestion.content,
+                    },
+                    nextToken: undefined,
+                }
+                const response = await this.generateSuggestions(request)
+                this.prefetchSuggestions = {
+                    id: r.suggestions[0].content, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
+                    response: response,
+                    request: request,
+                }
+            }, 250)
+        }
+
+        return r
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
