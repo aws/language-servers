@@ -458,7 +458,7 @@ export const CodewhispererServerFactory =
                     if (extraContext) {
                         requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
-                    return codeWhispererService.generateSuggestions({
+                    return codeWhispererService.generateSuggestionsAndPrefetch({
                         ...requestContext,
                         predictionTypes : ['EDITS'],
                         fileContext: {
@@ -680,6 +680,11 @@ export const CodewhispererServerFactory =
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
+            } else {
+                // TODO: move to somewhere like session.close()
+                // Clear if it's a reject
+                logging.info(`user reject suggestion, clearning prefetched suggestion`)
+                amazonQServiceManager.getCodewhispererService().clearPrefetch()
             }
 
             session.setClientResultData(
