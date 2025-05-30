@@ -41,10 +41,12 @@ import {
     SINGLE_LINE_FILE_CUTOFF_INDEX,
     SOME_CLOSED_FILE,
     SOME_FILE,
+    SOME_FILE_UNDER_WORKSPACE_FOLDER,
     SOME_FILE_WITH_ALT_CASED_LANGUAGE_ID,
     SOME_FILE_WITH_EXTENSION,
     SOME_SINGLE_LINE_FILE,
     SOME_UNSUPPORTED_FILE,
+    SOME_WORKSPACE_FOLDER,
     SPECIAL_CHARACTER_HELLO_WORLD,
     stubCodeWhispererService,
 } from '../../shared/testUtils'
@@ -55,6 +57,7 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
+import * as path from 'path'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -148,6 +151,7 @@ describe('CodeWhisperer Server', () => {
                 .openDocument(SOME_UNSUPPORTED_FILE)
                 .openDocument(SOME_FILE_WITH_EXTENSION)
                 .openDocument(SOME_SINGLE_LINE_FILE)
+                .openDocument(SOME_FILE_UNDER_WORKSPACE_FOLDER)
         })
 
         afterEach(() => {
@@ -243,6 +247,35 @@ describe('CodeWhisperer Server', () => {
                 service.generateSuggestions,
                 sinon.match.hasNested('fileContext.rightFileContent', sinon.match(rightContentChecker))
             )
+        })
+
+        it('should correctly get filename', async () => {
+            features.workspace.getWorkspaceFolder
+                .withArgs(SOME_FILE_UNDER_WORKSPACE_FOLDER.uri)
+                .returns(SOME_WORKSPACE_FOLDER)
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE_UNDER_WORKSPACE_FOLDER.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            // Check the completion result
+            assert.deepEqual(result, EXPECTED_RESULT)
+
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    fileUri: SOME_FILE_UNDER_WORKSPACE_FOLDER.uri,
+                    filename: path.relative(SOME_WORKSPACE_FOLDER.uri, SOME_FILE_UNDER_WORKSPACE_FOLDER.uri),
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: '',
+                    rightFileContent: HELLO_WORLD_IN_CSHARP,
+                },
+                maxResults: 5,
+            }
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
         it('should return recommendations when using a different languageId casing', async () => {
