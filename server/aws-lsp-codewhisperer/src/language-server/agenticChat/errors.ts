@@ -9,6 +9,7 @@ type AgenticChatErrorCode =
     | 'ResponseProcessingTimeout' // response didn't finish streaming in the allowed time
     | 'MCPServerInitTimeout' // mcp server failed to start within allowed time
     | 'MCPToolExecTimeout' // mcp tool call failed to complete within allowed time
+    | 'MCPServerConnectionFailed' // mcp server failed to connect
 
 export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'QModelResponse',

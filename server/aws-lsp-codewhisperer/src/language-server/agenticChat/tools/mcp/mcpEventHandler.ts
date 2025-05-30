@@ -15,7 +15,13 @@ import {
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
 } from './mcpUtils'
-import { McpPermissionType, MCPServerConfig, MCPServerPermission, McpServerRuntimeState } from './mcpTypes'
+import {
+    McpPermissionType,
+    MCPServerConfig,
+    MCPServerPermission,
+    McpServerRuntimeState,
+    McpServerStatus,
+} from './mcpTypes'
 
 interface PermissionOption {
     label: string
@@ -26,11 +32,13 @@ export class McpEventHandler {
     #features: Features
     #eventListenerRegistered: boolean
     #currentEditingServerName: string | undefined
+    #shouldDisplayListMCPServers: boolean
 
     constructor(features: Features) {
         this.#features = features
         this.#eventListenerRegistered = false
         this.#currentEditingServerName = undefined
+        this.#shouldDisplayListMCPServers = true
     }
 
     /**
@@ -39,19 +47,21 @@ export class McpEventHandler {
     handleServerStateChange(serverName: string, state: McpServerRuntimeState) {
         this.#features.logging.info(`MCP server state changed: ${serverName} - ${state.status}`)
 
-        // Send chat options update with notification
-        try {
-            this.#features.logging.info(`Sending chatOptionsUpdate with notification for server: ${serverName}`)
-            this.#features.chat.sendChatUpdate({
-                tabId: 'mcpserver',
-                data: {
-                    placeholderText: 'mcp-server-update',
-                    messages: [],
-                },
-            })
-            this.#features.logging.info('chatOptionsUpdate sent successfully')
-        } catch (error) {
-            this.#features.logging.error(`Failed to send chatOptionsUpdate: ${error}`)
+        if (this.#shouldDisplayListMCPServers) {
+            // Send chat options update with notification
+            try {
+                this.#features.logging.info(`Sending chatOptionsUpdate with notification for server: ${serverName}`)
+                this.#features.chat.sendChatUpdate({
+                    tabId: 'mcpserver',
+                    data: {
+                        placeholderText: 'mcp-server-update',
+                        messages: [],
+                    },
+                })
+                this.#features.logging.info('chatOptionsUpdate sent successfully')
+            } catch (error) {
+                this.#features.logging.error(`Failed to send chatOptionsUpdate: ${error}`)
+            }
         }
     }
 
@@ -297,6 +307,7 @@ export class McpEventHandler {
             }
         }
 
+        const serverStatusError = this.#getServerStatusError(existingValues.name) || {}
         return {
             id: params.id,
             header: {
@@ -307,7 +318,7 @@ export class McpEventHandler {
                           icon: 'cancel-circle',
                           status: 'error' as Status,
                       }
-                    : {},
+                    : serverStatusError,
                 actions: [],
             },
             list: [],
@@ -619,6 +630,9 @@ export class McpEventHandler {
             personaPath = await this.#getPersonaPath()
         }
 
+        // needs to false BEFORE changing any server state, to prevent going to list servers page after clicking save button
+        this.#shouldDisplayListMCPServers = false
+
         if (isEditMode && originalServerName) {
             if (serverName !== originalServerName) {
                 await McpManager.instance.removeServer(originalServerName)
@@ -632,8 +646,22 @@ export class McpEventHandler {
         }
 
         this.#currentEditingServerName = undefined
-
-        return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
+        // need to check server state now, as there is possibility of error during server initialization
+        const serverStatusError = this.#getServerStatusError(serverName)
+        if (serverStatusError) {
+            // error case: stays on add/edit page and show error to user
+            if (isEditMode) {
+                params.id = 'edit-mcp'
+                params.title = originalServerName!
+                return this.#handleEditMcpServer(params)
+            } else {
+                params.id = 'add-new-mcp'
+                return this.#handleAddNewMcp(params)
+            }
+        } else {
+            // success case: goes to tools permissions page
+            return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
+        }
     }
 
     /**
@@ -644,6 +672,7 @@ export class McpEventHandler {
         if (!serverName) {
             return { id: params.id }
         }
+        const serverStatusError = this.#getServerStatusError(serverName)
 
         let filterOptions: FilterOption[] = []
         if (serverName === 'Built-in') {
@@ -671,7 +700,7 @@ export class McpEventHandler {
                 id: params.id,
                 header: {
                     title: serverName,
-                    status: {},
+                    status: serverStatusError || {},
                     actions: [],
                 },
                 list: [],
@@ -687,7 +716,7 @@ export class McpEventHandler {
                 id: params.id,
                 header: {
                     title: serverName,
-                    status: {},
+                    status: serverStatusError || {},
                     actions: [
                         {
                             id: 'edit-mcp',
@@ -956,6 +985,7 @@ export class McpEventHandler {
      * Handled refresh MCP list events
      */
     async #handleRefreshMCPList(params: McpServerClickParams) {
+        this.#shouldDisplayListMCPServers = true
         try {
             await McpManager.instance.reinitializeMcpServers()
             return {
@@ -1039,5 +1069,28 @@ export class McpEventHandler {
         }
 
         return perm
+    }
+
+    /**
+     * Gets the UI status object for a specific MCP server
+     */
+    #getServerStatusError(serverName: string): { title: string; icon: string; status: Status } | undefined {
+        const serverStates = McpManager.instance.getAllServerStates()
+        const serverState = serverStates.get(serverName)
+
+        if (!serverState) {
+            return undefined
+        }
+
+        // Only return status if there's an error
+        if (serverState.lastError) {
+            return {
+                title: serverState.lastError,
+                icon: 'cancel-circle',
+                status: 'error',
+            }
+        }
+
+        return undefined
     }
 }
