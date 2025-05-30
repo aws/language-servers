@@ -281,3 +281,77 @@ export function enabledMCP(params: InitializeParams | undefined): boolean {
         | undefined
     return qCapabilities?.mcp || false
 }
+
+export const MAX_TOOL_NAME_LENGTH = 64
+
+const toolNameMapping = new Map<string, { serverName: string; toolName: string }>()
+
+export function getOriginalToolNames(namespacedName: string): { serverName: string; toolName: string } | undefined {
+    return toolNameMapping.get(namespacedName)
+}
+
+/**
+ * Create a namespaced tool name from server and tool names.
+ * Handles truncation and conflicts according to specific rules.
+ * Also stores the mapping from namespaced name back to original names.
+ */
+export function createNamespacedToolName(
+    serverName: string,
+    toolName: string,
+    allNamespacedTools: Set<string>
+): string {
+    const sep = '___'
+    // If tool name alone isn't unique or is too long, try adding server prefix
+    const fullName = `${serverName}${sep}${toolName}`
+
+    // If the full name fits and is unique, use it
+    if (fullName.length <= MAX_TOOL_NAME_LENGTH && !allNamespacedTools.has(fullName)) {
+        allNamespacedTools.add(fullName)
+        toolNameMapping.set(fullName, { serverName, toolName })
+        return fullName
+    }
+
+    // If the full name is too long, truncate the server name
+    if (fullName.length > MAX_TOOL_NAME_LENGTH) {
+        const maxServerLength = MAX_TOOL_NAME_LENGTH - sep.length - toolName.length
+        if (maxServerLength > 0) {
+            const truncatedServer = serverName.substring(0, maxServerLength)
+            const namespacedName = `${truncatedServer}${sep}${toolName}`
+
+            if (!allNamespacedTools.has(namespacedName)) {
+                allNamespacedTools.add(namespacedName)
+                toolNameMapping.set(namespacedName, { serverName, toolName })
+                return namespacedName
+            }
+        }
+    }
+
+    // If we get here, either:
+    // 1. The tool name was already taken
+    // 2. The full name was already taken
+    // 3. Server truncation result a duplicate
+    // In all cases, fall back to numeric suffix on the tool name
+
+    let duplicateNum = 1
+    while (true) {
+        const suffix = duplicateNum.toString()
+        const maxToolLength = MAX_TOOL_NAME_LENGTH - suffix.length
+
+        let candidateName: string
+        if (toolName.length <= maxToolLength) {
+            candidateName = `${toolName}${suffix}`
+        } else {
+            // Truncate tool name to make room for suffix
+            const truncatedTool = toolName.substring(0, maxToolLength)
+            candidateName = `${truncatedTool}${suffix}`
+        }
+
+        if (!allNamespacedTools.has(candidateName)) {
+            allNamespacedTools.add(candidateName)
+            toolNameMapping.set(candidateName, { serverName, toolName })
+            return candidateName
+        }
+
+        duplicateNum++
+    }
+}

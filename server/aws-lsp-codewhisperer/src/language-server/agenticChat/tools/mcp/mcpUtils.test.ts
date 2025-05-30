@@ -12,6 +12,9 @@ import {
     loadPersonaPermissions,
     getWorkspacePersonaConfigPaths,
     getGlobalPersonaConfigPath,
+    isMCPSupported,
+    createNamespacedToolName,
+    MAX_TOOL_NAME_LENGTH,
     enabledMCP,
 } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
@@ -128,7 +131,7 @@ describe('loadPersonaPermissions', () => {
     it('creates a default persona and returns a wildcard-enabled map', async () => {
         const perms = await loadPersonaPermissions(workspace, logger, [])
 
-        // Should have “*” entry with enabled=true and empty toolPerms
+        // Should have "*" entry with enabled=true and empty toolPerms
         expect(perms.has('*')).to.be.true
         const p = perms.get('*')!
         expect(p.enabled).to.be.true
@@ -299,5 +302,47 @@ describe('enabledMCP', () => {
         }
 
         expect(enabledMCP(params as any)).to.equal(false)
+    })
+})
+
+describe('createNamespacedToolName', () => {
+    let tools: Set<string>
+    beforeEach(() => {
+        tools = new Set<string>()
+    })
+
+    it('adds server prefix when tool name conflicts', () => {
+        tools.add('create_issue') // Pre-existing tool
+        const result = createNamespacedToolName('github', 'create_issue', tools)
+        expect(result).to.equal('github___create_issue')
+        expect(tools.has('github___create_issue')).to.be.true
+    })
+
+    it('truncates server name when combined length exceeds limit', () => {
+        tools.add('create_issue') // Force the function to use server prefix
+        const longServer = 'very_long_server_name_that_definitely_exceeds_maximum_length_when_combined'
+        const result = createNamespacedToolName(longServer, 'create_issue', tools)
+        expect(result.length).to.be.lessThanOrEqual(MAX_TOOL_NAME_LENGTH)
+        expect(result.endsWith('___create_issue')).to.be.true
+    })
+
+    it('uses numeric suffix when tool name is too long', () => {
+        const longTool = 'extremely_long_tool_name_that_definitely_exceeds_the_maximum_allowed_length_for_names'
+        const result = createNamespacedToolName('server', longTool, tools)
+        expect(result.length).to.be.lessThanOrEqual(MAX_TOOL_NAME_LENGTH)
+        expect(result).to.equal('extremely_long_tool_name_that_definitely_exceeds_the_maximum_al1')
+    })
+
+    it('handles multiple conflicts with numeric suffixes', () => {
+        tools.add('deploy') // First conflict
+        const result1 = createNamespacedToolName('aws', 'deploy', tools)
+        expect(result1).to.equal('aws___deploy')
+
+        const result2 = createNamespacedToolName('gcp', 'deploy', tools)
+        expect(result2).to.equal('gcp___deploy')
+
+        // If we add another with same server prefix, it should use numeric suffix
+        const result3 = createNamespacedToolName('aws', 'deploy', tools)
+        expect(result3).to.equal('deploy1')
     })
 })
