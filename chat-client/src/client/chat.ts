@@ -191,13 +191,12 @@ export const createChat = (
                 break
             case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
                 if (message.params.modelId !== undefined) {
-                    Object.keys(mynahUi.getAllTabs()).forEach(tabId => {
-                        const options = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
-                        mynahUi.updateStore(tabId, {
-                            promptInputOptions: options?.map(option =>
-                                option.id === 'model-selection' ? { ...option, value: message.params.modelId } : option
-                            ),
-                        })
+                    const tabId = message.params.tabId
+                    const options = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+                    mynahUi.updateStore(tabId, {
+                        promptInputOptions: options?.map(option =>
+                            option.id === 'model-selection' ? { ...option, value: message.params.modelId } : option
+                        ),
                     })
                 } else {
                     tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)

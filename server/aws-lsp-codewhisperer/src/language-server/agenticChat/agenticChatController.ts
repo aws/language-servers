@@ -2236,7 +2236,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatSessionManagementService.createSession(params.tabId)
 
         const modelId = this.#chatHistoryDb.getModelId()
-        this.#features.chat.chatOptionsUpdate({ modelId: modelId })
+        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
     }
 
     onTabChange(params: TabChangeParams) {
