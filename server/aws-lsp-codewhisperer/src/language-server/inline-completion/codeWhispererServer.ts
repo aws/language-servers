@@ -275,7 +275,6 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
-        let isFollowup = false
 
         const sessionManager = SessionManager.getInstance()
 
@@ -302,19 +301,6 @@ export const CodewhispererServerFactory =
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
                 currentSession.discardInflightSessionOnNewInvocation = true
-            }
-
-            if (isFollowup) {
-                return {
-                    sessionId: 'fake',
-                    items: [
-                        {
-                            itemId: 'foo',
-                            insertText: 'class Foo',
-                        },
-                    ],
-                    partialResultToken: undefined,
-                }
             }
 
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
@@ -456,7 +442,7 @@ export const CodewhispererServerFactory =
                     }
 
                     return codeWhispererService
-                        .generateSuggestions({
+                        .generateSuggestionsAndPrefetch({
                             ...requestContext,
                             fileContext: {
                                 ...requestContext.fileContext,
@@ -666,6 +652,8 @@ export const CodewhispererServerFactory =
                 typeaheadLength,
             } = params
 
+            logging.info(`onLogInlineCompletionSessionResultHandler ${completionSessionResult}`)
+
             const session = sessionManager.getSessionById(sessionId)
 
             if (!session) {
@@ -689,11 +677,12 @@ export const CodewhispererServerFactory =
                     codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
-                    // TODO: Should call real service?
-                    isFollowup = true
                 }
             } else {
-                isFollowup = false
+                // TODO: move to somewhere like session.close()
+                // Clear if it's a reject
+                logging.info(`user reject suggestion, clearning prefetched suggestion`)
+                amazonQServiceManager.getCodewhispererService().clearPrefetch()
             }
 
             session.setClientResultData(
