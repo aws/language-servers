@@ -6,6 +6,7 @@ import {
     QConfigurationServerTokenProxy,
     QLocalProjectContextServerTokenProxy,
     QNetTransformServerTokenProxy,
+    WorkspaceContextServerTokenProxy,
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
 import { BashToolsServer, FsToolsServer } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
@@ -26,6 +27,7 @@ const props = createTokenRuntimeProps(VERSION, [
     FsToolsServer,
     BashToolsServer,
     QLocalProjectContextServerTokenProxy,
+    WorkspaceContextServerTokenProxy,
     // McpToolsServer,
     // LspToolsServer,
 ])
