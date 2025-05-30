@@ -1237,7 +1237,7 @@ ${params.message}`,
                     } else if (group.groupName === 'Disabled') {
                         actions.push({
                             id: 'mcp-enable-server',
-                            icon: toMynahIcon('ok-circled'),
+                            icon: toMynahIcon('ok'),
                             text: 'Enable',
                             description: 'Enable',
                         })
@@ -1246,6 +1246,13 @@ ${params.message}`,
                             icon: toMynahIcon('trash'),
                             text: 'Delete',
                             description: 'Delete',
+                            confirmation: {
+                                cancelButtonText: 'Cancel',
+                                confirmButtonText: 'Delete',
+                                title: 'Delete Filesystem MCP server',
+                                description:
+                                    'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
+                            },
                         })
                         actions.push({
                             id: 'open-mcp-server',
@@ -1441,7 +1448,6 @@ ${params.message}`,
                                   {
                                       id: 'mcp-disable-server',
                                       text: `Disable MCP server`,
-                                      icon: toMynahIcon('block'),
                                   },
                                   {
                                       id: 'mcp-delete-server',
@@ -1453,7 +1459,6 @@ ${params.message}`,
                                               'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
                                       },
                                       text: `Delete MCP server`,
-                                      icon: toMynahIcon('trash'),
                                   },
                               ],
                           }

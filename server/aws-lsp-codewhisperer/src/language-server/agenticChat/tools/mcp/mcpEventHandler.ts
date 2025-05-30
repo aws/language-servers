@@ -253,8 +253,7 @@ export class McpEventHandler {
             header: {
                 title: 'MCP Servers',
                 status: {},
-                description:
-                    'Q automatically uses any MCP servers that have been added, so you don\'t have to add them as context. All MCPs are defaulted to "Ask before running".',
+                description: `Add MCP servers to extend Q's capabilities.`,
                 actions: [],
             },
             list: [],
