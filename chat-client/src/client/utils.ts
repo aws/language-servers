@@ -10,27 +10,10 @@ export function toMynahButtons(buttons: Button[] | undefined): ChatItemButton[] 
     return buttons?.map(button => ({ ...button, icon: toMynahIcon(button.icon) }))
 }
 
-export function toMynahSummary(summary: ChatMessage['summary']): ChatItemContent['summary'] {
-    return undefined
-}
-
-export function toMynahChatItem(chatMessage: ChatMessage | undefined): ChatItemContent | undefined {
-    if (!chatMessage) {
-        return undefined
-    }
-    return {
-        ...chatMessage,
-        header: toMynahHeader(chatMessage.header),
-        buttons: toMynahButtons(chatMessage.buttons),
-        summary: toMynahSummary(chatMessage.summary),
-    }
-}
-
 export function toMynahHeader(header: ChatMessage['header']): ChatItemContent['header'] {
     if (!header) return undefined
     return {
         ...header,
-        summary: toMynahSummary(header.summary),
         icon: toMynahIcon(header.icon),
         buttons: toMynahButtons(header.buttons),
         status: header.status ? { ...header.status, icon: toMynahIcon(header.status.icon) } : undefined,

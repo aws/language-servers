@@ -414,6 +414,13 @@ export class AgenticChatController implements ChatHandlers {
             const chatResultStream = this.#getChatResultStream(params.partialResultToken)
             token.onCancellationRequested(async () => {
                 this.#log('cancellation requested')
+
+                // Abort all operations immediately
+                session.abortRequest()
+                void this.#invalidateAllShellCommands(params.tabId, session)
+                session.rejectAllDeferredToolExecutions(new CancellationError('user'))
+
+                // Then update UI to inform the user
                 await this.#showUndoAllIfRequired(chatResultStream, session)
                 await chatResultStream.updateOngoingProgressResult('Canceled')
                 await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
@@ -421,17 +428,14 @@ export class AgenticChatController implements ChatHandlers {
                     messageId: 'stopped' + uuid(),
                     body: 'You stopped your current work, please provide additional examples or ask another question.',
                 })
+
+                // Finally, send telemetry/metrics
                 this.#telemetryController.emitInteractWithAgenticChat(
                     'StopChat',
                     params.tabId,
                     session.pairProgrammingMode,
                     session.getConversationType()
                 )
-
-                session.abortRequest()
-                void this.#invalidateAllShellCommands(params.tabId, session)
-                session.rejectAllDeferredToolExecutions(new CancellationError('user'))
-
                 await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
             })
             session.setConversationType('AgenticChat')

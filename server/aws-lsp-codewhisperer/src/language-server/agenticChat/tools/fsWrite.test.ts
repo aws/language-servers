@@ -7,6 +7,7 @@ import { InvokeOutput } from './toolShared'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { StubbedInstance } from 'ts-sinon'
+import * as os from 'os'
 
 describe('FsWrite Tool', function () {
     let tempFolder: testFolder.TestFolder
@@ -390,6 +391,127 @@ describe('FsWrite Tool', function () {
 
             const fsWrite = new FsWrite(features)
             await assert.rejects(() => fsWrite.invoke(params), /no such file or directory/)
+        })
+    })
+
+    describe('getStrReplaceContent', function () {
+        it('preserves CRLF line endings in file when oldStr uses LF', async () => {
+            const filePath = await tempFolder.write('test1.txt', 'before\r\nline 1\r\nline 2\r\nline 3\r\nafter')
+
+            const params: StrReplaceParams = {
+                command: 'strReplace',
+                path: filePath,
+                oldStr: 'line 1\nline 2\nline 3',
+                newStr: 'new line 1\nnew line 2\nnew line 3',
+            }
+
+            const fsWrite = new FsWrite(features)
+            await fsWrite.invoke(params)
+
+            const result = await features.workspace.fs.readFile(filePath)
+            assert.strictEqual(result, 'before\r\nnew line 1\r\nnew line 2\r\nnew line 3\r\nafter')
+        })
+
+        it('preserves LF line endings in file when oldStr uses CRLF', async () => {
+            const filePath = await tempFolder.write('test2.txt', 'before\nline 1\nline 2\nline 3\nafter')
+
+            const params: StrReplaceParams = {
+                command: 'strReplace',
+                path: filePath,
+                oldStr: 'line 1\r\nline 2\r\nline 3',
+                newStr: 'new line 1\r\nnew line 2\r\nnew line 3',
+            }
+
+            const fsWrite = new FsWrite(features)
+            await fsWrite.invoke(params)
+
+            const result = await features.workspace.fs.readFile(filePath)
+            assert.strictEqual(result, 'before\nnew line 1\nnew line 2\nnew line 3\nafter')
+        })
+
+        it('preserves CR line endings in file when oldStr uses LF', async () => {
+            const filePath = await tempFolder.write('test3.txt', 'before\rline 1\rline 2\rline 3\rafter')
+
+            const params: StrReplaceParams = {
+                command: 'strReplace',
+                path: filePath,
+                oldStr: 'line 1\nline 2\nline 3',
+                newStr: 'new line 1\nnew line 2\nnew line 3',
+            }
+
+            const fsWrite = new FsWrite(features)
+            await fsWrite.invoke(params)
+
+            const result = await features.workspace.fs.readFile(filePath)
+            assert.strictEqual(result, 'before\rnew line 1\rnew line 2\rnew line 3\rafter')
+        })
+
+        it('handles mixed line endings in newStr by normalizing to file line ending', async () => {
+            const filePath = await tempFolder.write('test4.txt', 'before\r\nline 1\r\nline 2\r\nafter')
+
+            const params: StrReplaceParams = {
+                command: 'strReplace',
+                path: filePath,
+                oldStr: 'line 1\nline 2',
+                newStr: 'new line 1\r\nnew line 2\nnew line 3\rend',
+            }
+
+            const fsWrite = new FsWrite(features)
+            await fsWrite.invoke(params)
+
+            const result = await features.workspace.fs.readFile(filePath)
+            assert.strictEqual(result, 'before\r\nnew line 1\r\nnew line 2\r\nnew line 3\r\nend\r\nafter')
+        })
+
+        it('handles content with no line endings', async () => {
+            const filePath = await tempFolder.write('test5.txt', 'before simple text after')
+
+            const params: StrReplaceParams = {
+                command: 'strReplace',
+                path: filePath,
+                oldStr: 'simple text',
+                newStr: 'replacement',
+            }
+
+            const fsWrite = new FsWrite(features)
+            await fsWrite.invoke(params)
+
+            const result = await features.workspace.fs.readFile(filePath)
+            assert.strictEqual(result, 'before replacement after')
+        })
+
+        it('uses OS default line ending when file has no line endings and adding new lines', async () => {
+            const filePath = await tempFolder.write('test6.txt', 'before text after')
+
+            const params: StrReplaceParams = {
+                command: 'strReplace',
+                path: filePath,
+                oldStr: 'text',
+                newStr: 'line 1\nline 2',
+            }
+
+            const fsWrite = new FsWrite(features)
+            await fsWrite.invoke(params)
+
+            const result = await features.workspace.fs.readFile(filePath)
+            assert.strictEqual(result, `before line 1${os.EOL}line 2 after`)
+        })
+
+        it('preserves line endings when only portion of line is replaced', async () => {
+            const filePath = await tempFolder.write('test8.txt', 'start\r\nprefix middle suffix\r\nend')
+
+            const params: StrReplaceParams = {
+                command: 'strReplace',
+                path: filePath,
+                oldStr: 'middle',
+                newStr: 'center',
+            }
+
+            const fsWrite = new FsWrite(features)
+            await fsWrite.invoke(params)
+
+            const result = await features.workspace.fs.readFile(filePath)
+            assert.strictEqual(result, 'start\r\nprefix center suffix\r\nend')
         })
     })
 })
