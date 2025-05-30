@@ -130,7 +130,6 @@ import { McpTool } from './tools/mcp/mcpTool'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
-import { isMCPSupported } from './tools/mcp/mcpUtils'
 import { createNamespacedToolName, getOriginalToolNames } from './tools/mcp/mcpUtils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
 
