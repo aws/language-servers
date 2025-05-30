@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.9...lsp-antlr4/v0.1.10) (2025-05-30)
+
+
+### Bug Fixes
+
+* ensure local index server updates with workspaceChangeEvent and bump runtimes ([#1424](https://github.com/aws/language-servers/issues/1424)) ([9babbb6](https://github.com/aws/language-servers/commit/9babbb643daa2893454dbc977d3802822b2c0aa6))
+
 ## [0.1.9](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.8...lsp-antlr4/v0.1.9) (2025-05-22)
 
 

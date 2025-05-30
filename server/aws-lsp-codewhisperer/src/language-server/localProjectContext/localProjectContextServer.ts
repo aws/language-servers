@@ -81,7 +81,7 @@ export const LocalProjectContextServer =
         lsp.workspace.onDidCreateFiles(async event => {
             try {
                 const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
-                await localProjectContextController.updateIndex(filePaths, 'add')
+                await localProjectContextController.updateIndexAndContextCommand(filePaths, true)
             } catch (error) {
                 logging.error(`Error handling create event: ${error}`)
             }
@@ -90,7 +90,7 @@ export const LocalProjectContextServer =
         lsp.workspace.onDidDeleteFiles(async event => {
             try {
                 const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
-                await localProjectContextController.updateIndex(filePaths, 'remove')
+                await localProjectContextController.updateIndexAndContextCommand(filePaths, false)
             } catch (error) {
                 logging.error(`Error handling delete event: ${error}`)
             }
@@ -101,8 +101,8 @@ export const LocalProjectContextServer =
                 const oldPaths = event.files.map(file => URI.parse(file.oldUri).fsPath)
                 const newPaths = event.files.map(file => URI.parse(file.newUri).fsPath)
 
-                await localProjectContextController.updateIndex(oldPaths, 'remove')
-                await localProjectContextController.updateIndex(newPaths, 'add')
+                await localProjectContextController.updateIndexAndContextCommand(oldPaths, false)
+                await localProjectContextController.updateIndexAndContextCommand(newPaths, true)
             } catch (error) {
                 logging.error(`Error handling rename event: ${error}`)
             }

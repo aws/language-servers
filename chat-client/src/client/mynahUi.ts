@@ -432,7 +432,7 @@ export const createMynahUi = (
                         {
                             id: ContextPrompt.SubmitButtonId,
                             text: 'Create',
-                            status: 'main',
+                            status: 'primary',
                             waitMandatoryFormItems: true,
                         },
                     ],
@@ -656,9 +656,9 @@ export const createMynahUi = (
                 loadingChat: true,
                 cancelButtonWhenLoading: true,
             })
-            const chatItem = {
+            const chatItem: ChatItem = {
                 ...chatResult,
-                body: chatResult.body,
+                summary: chatResult.summary as ChatItem['summary'],
                 type: ChatItemType.ANSWER_STREAM,
                 header: header,
                 buttons: buttons,
@@ -687,10 +687,10 @@ export const createMynahUi = (
             isValidAuthFollowUpType(followUpOptions[0].type)
         if (chatResult.body === '' && isValidAuthFollowUp) {
             mynahUi.addChatItem(tabId, {
-                type: ChatItemType.SYSTEM_PROMPT,
-                ...chatResultWithoutType, // type for MynahUI differs from ChatResult types so we ignore it
+                ...(chatResultWithoutType as ChatItem),
                 header: header,
                 buttons: buttons,
+                type: ChatItemType.SYSTEM_PROMPT,
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -705,9 +705,8 @@ export const createMynahUi = (
               }
             : {}
 
-        const chatItem = {
-            ...chatResult,
-            body: chatResult.body,
+        const chatItem: ChatItem = {
+            ...(chatResult as ChatItem),
             type: ChatItemType.ANSWER_STREAM,
             header: header,
             buttons: buttons,
@@ -773,8 +772,10 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
-            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutType, header: header })
+            mynahUi.updateLastChatAnswer(tabId, {
+                ...(chatResultWithoutType as ChatItem),
+                header: header,
+            })
             return
         }
 
@@ -790,10 +791,9 @@ export const createMynahUi = (
             followUpOptions[0].type &&
             isValidAuthFollowUpType(followUpOptions[0].type)
         if (chatResult.body === '' && isValidAuthFollowUp) {
-            // @ts-ignore - type for MynahUI differs from ChatResult types so we ignore it
             mynahUi.addChatItem(tabId, {
+                ...(chatResultWithoutType as ChatItem),
                 type: ChatItemType.SYSTEM_PROMPT,
-                ...chatResultWithoutType,
             })
 
             // TODO, prompt should be disabled until user is authenticated
