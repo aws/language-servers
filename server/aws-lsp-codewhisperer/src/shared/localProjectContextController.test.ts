@@ -108,7 +108,7 @@ describe('LocalProjectContextController', () => {
         it('should build Index with vectorLib', async () => {
             await controller.init({ vectorLib: vectorLibMock })
             const vecLib = await vectorLibMock.start()
-            await controller.buildIndex()
+            await controller.buildIndex('all')
             sinonAssert.called(vecLib.buildIndex)
         })
     })

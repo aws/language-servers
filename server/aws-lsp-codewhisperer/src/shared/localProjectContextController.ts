@@ -50,7 +50,7 @@ export interface LocalProjectContextInitializationOptions {
 
 export class LocalProjectContextController {
     // Event handler for context items updated
-    public onContextItemsUpdated: ((contextItems: ContextCommandItem[]) => void) | undefined
+    public onContextItemsUpdated: ((contextItems: ContextCommandItem[]) => Promise<void>) | undefined
     private static instance: LocalProjectContextController | undefined
 
     private workspaceFolders: WorkspaceFolder[]
@@ -140,11 +140,13 @@ export class LocalProjectContextController {
 
             // build index if vecLib was initialized but indexing was not enabled before
             if (this._vecLib) {
+                // if indexing is turned being on, build index with 'all' that supports vector indexing
                 if (enableIndexing && !this._isIndexingEnabled) {
-                    void this.buildIndex()
+                    void this.buildIndex('all')
                 }
+                // if indexing is turned being off, build index with 'default' that  does not support vector indexing
                 if (!enableIndexing && this._isIndexingEnabled) {
-                    void this._vecLib?.clear?.()
+                    void this.buildIndex('default')
                 }
                 this._isIndexingEnabled = enableIndexing
                 return
@@ -156,7 +158,9 @@ export class LocalProjectContextController {
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 if (enableIndexing) {
-                    void this.buildIndex()
+                    void this.buildIndex('all')
+                } else {
+                    void this.buildIndex('default')
                 }
                 LocalProjectContextController.instance = this
                 this._isIndexingEnabled = enableIndexing
@@ -189,10 +193,6 @@ export class LocalProjectContextController {
     }
 
     public async updateIndex(filePaths: string[], operation: UpdateMode, workspaceFolders?: string[]): Promise<void> {
-        if (!this.isIndexingEnabled()) {
-            return
-        }
-
         try {
             await this._vecLib?.updateIndexV2(filePaths, operation, workspaceFolders)
         } catch (error) {
@@ -201,7 +201,7 @@ export class LocalProjectContextController {
     }
 
     // public for test
-    async buildIndex(): Promise<void> {
+    async buildIndex(indexingType: string): Promise<void> {
         try {
             if (this._vecLib) {
                 if (!this.workspaceFolders.length) {
@@ -219,7 +219,7 @@ export class LocalProjectContextController {
                 )
 
                 const projectRoot = URI.parse(this.workspaceFolders.sort()[0].uri).fsPath
-                await this._vecLib?.buildIndex(sourceFiles, projectRoot, 'all')
+                await this._vecLib?.buildIndex(sourceFiles, projectRoot, indexingType)
                 this.log.info('Context index built successfully')
             }
         } catch (error) {
@@ -243,7 +243,7 @@ export class LocalProjectContextController {
 
             this.workspaceFolders.push(...actualAdditions)
             // Only update index if we have actual changes and indexing is enabled
-            if (this._vecLib && this._isIndexingEnabled) {
+            if (this._vecLib) {
                 if (actualRemovals.length > 0) {
                     const removedPaths = actualRemovals.map(folder => URI.parse(folder.uri).fsPath)
                     void this.updateIndexAndContextCommand([], false, removedPaths)
@@ -306,16 +306,16 @@ export class LocalProjectContextController {
     }
 
     public async updateIndexAndContextCommand(filePaths: string[], isAdd: boolean, workspaceFolders?: string[]) {
-        const result = await this.updateIndex2(filePaths, isAdd, workspaceFolders)
+        const result = await this.tryUpdateIndex(filePaths, isAdd, workspaceFolders)
         if (result) {
             const contextItems = await this.getContextCommandItems()
             if (this.onContextItemsUpdated && contextItems.length > 0) {
-                this.onContextItemsUpdated(contextItems)
+                await this.onContextItemsUpdated(contextItems)
             }
         }
     }
 
-    public async updateIndex2(filePaths: string[], isAdd: boolean, workspaceFolders?: string[]): Promise<boolean> {
+    public async tryUpdateIndex(filePaths: string[], isAdd: boolean, workspaceFolders?: string[]): Promise<boolean> {
         try {
             const indexSeqNum = await this._vecLib?.getIndexSequenceNumber()
             await this.updateIndex(filePaths, isAdd ? 'add' : 'remove', workspaceFolders)
@@ -332,27 +332,6 @@ export class LocalProjectContextController {
             return true
         } catch (error) {
             this.log.error(`Error in update index: ${error}`)
-            return false
-        }
-    }
-
-    public async shouldUpdateContextCommand(filePaths: string[], isAdd: boolean): Promise<boolean> {
-        try {
-            const indexSeqNum = await this._vecLib?.getIndexSequenceNumber()
-            await this.updateIndex(filePaths, isAdd ? 'add' : 'remove')
-            await waitUntil(
-                async () => {
-                    const newIndexSeqNum = await this._vecLib?.getIndexSequenceNumber()
-                    if (newIndexSeqNum && indexSeqNum && newIndexSeqNum > indexSeqNum) {
-                        return true
-                    }
-                    return false
-                },
-                { interval: 500, timeout: 5_000, truthy: true }
-            )
-            return true
-        } catch (error) {
-            this.log.error(`Error in shouldUpdateContextCommand(: ${error}`)
             return false
         }
     }

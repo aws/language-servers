@@ -1,12 +1,6 @@
 import * as path from 'path'
 import { FSWatcher, watch } from 'chokidar'
-import {
-    ContextCommand,
-    ContextCommandGroup,
-    CreateFilesParams,
-    DeleteFilesParams,
-    RenameFilesParams,
-} from '@aws/language-server-runtimes/protocol'
+import { ContextCommand, ContextCommandGroup } from '@aws/language-server-runtimes/protocol'
 import { Disposable } from 'vscode-languageclient/node'
 import { Chat, Logging, Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { getUserPromptsDirectory, promptFileExtension } from './contextUtils'
@@ -27,40 +21,10 @@ export class ContextCommandsProvider implements Disposable {
 
         void (async () => {
             const controller = await LocalProjectContextController.getInstance()
-            controller.onContextItemsUpdated = contextItems => {
-                this.processContextCommandUpdate(contextItems)
-            }
-        })()
-
-        /*
-        this.lsp.workspace.onDidCreateFiles(async event => {
-            const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
-            //await this.updateContextCommandsOnFileChange(filePaths, true)
-        })
-        this.lsp.workspace.onDidDeleteFiles(async event => {
-            const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
-          //  await this.updateContextCommandsOnFileChange(filePaths, false)
-        })
-        this.lsp.workspace.onDidRenameFiles(async event => {
-            const oldFiles = event.files.map(file => URI.parse(file.oldUri).fsPath)
-           // await this.updateContextCommandsOnFileChange(oldFiles, false)
-            const newFiles = event.files.map(file => URI.parse(file.newUri).fsPath)
-            //await this.updateContextCommandsOnFileChange(newFiles, true)
-        })
-        */
-    }
-
-    async updateContextCommandsOnFileChange(filePaths: string[], isAdd: boolean) {
-        try {
-            const localProjectContextController = await LocalProjectContextController.getInstance()
-            const shouldUpdate = await localProjectContextController.shouldUpdateContextCommand(filePaths, isAdd)
-            if (shouldUpdate) {
-                const contextItems = await localProjectContextController.getContextCommandItems()
+            controller.onContextItemsUpdated = async contextItems => {
                 await this.processContextCommandUpdate(contextItems)
             }
-        } catch (error) {
-            this.logging.error(`Error updating context commands on file change: ${error}`)
-        }
+        })()
     }
 
     registerPromptFileWatcher() {
