@@ -2818,7 +2818,7 @@ export class AgenticChatController implements ChatHandlers {
                             },
                             {
                                 header: {
-                                    body: 'Results',
+                                    body: 'Result',
                                 },
                                 body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
                             },

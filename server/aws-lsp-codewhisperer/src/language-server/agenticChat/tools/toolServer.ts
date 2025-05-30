@@ -92,8 +92,22 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             const namespaced = createNamespacedToolName(def.serverName, def.toolName, allNamespacedTools)
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
-            agent.addTool({ name: namespaced, description: def.description, inputSchema: def.inputSchema }, input =>
-                tool.invoke(input)
+            // Add explanation field to input schema
+            const inputSchemaWithExplanation = {
+                ...def.inputSchema,
+                properties: {
+                    ...def.inputSchema.properties,
+                    explanation: {
+                        type: 'string',
+                        description:
+                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
+                    },
+                },
+            }
+
+            agent.addTool(
+                { name: namespaced, description: def.description, inputSchema: inputSchemaWithExplanation },
+                input => tool.invoke(input)
             )
             registered[server].push(namespaced)
             logging.info(`MCP: registered tool ${namespaced} (original: ${def.serverName}___${def.toolName})`)
