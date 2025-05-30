@@ -14,7 +14,6 @@ import {
     getGlobalPersonaConfigPath,
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
-    isMCPSupported,
     createNamespacedToolName,
     enabledMCP,
 } from './mcp/mcpUtils'

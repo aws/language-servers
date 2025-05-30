@@ -12,7 +12,6 @@ import {
     loadPersonaPermissions,
     getWorkspacePersonaConfigPaths,
     getGlobalPersonaConfigPath,
-    isMCPSupported,
     createNamespacedToolName,
     MAX_TOOL_NAME_LENGTH,
     enabledMCP,
