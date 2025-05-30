@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-json",
-    "version": "0.1.9",
+    "version": "0.1.10",
     "description": "JSON Language Server",
     "main": "out/index.js",
     "repository": {
