@@ -105,6 +105,7 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     disclaimerAcknowledged?: boolean
     pairProgrammingAcknowledged?: boolean
     agenticMode?: boolean
+    modelSelectionEnabled?: boolean
 }
 
 export const createChat = (
@@ -189,7 +190,17 @@ export const createChat = (
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
             case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
-                tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                if (message.params.modelId !== undefined) {
+                    const tabId = message.params.tabId
+                    const options = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+                    mynahUi.updateStore(tabId, {
+                        promptInputOptions: options?.map(option =>
+                            option.id === 'model-selection' ? { ...option, value: message.params.modelId } : option
+                        ),
+                    })
+                } else {
+                    tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                }
                 break
             case CHAT_OPTIONS: {
                 const params = (message as ChatOptionsMessage).params
@@ -397,6 +408,10 @@ export const createChat = (
 
     if (config?.agenticMode) {
         tabFactory.enableAgenticMode()
+    }
+
+    if (config?.modelSelectionEnabled) {
+        tabFactory.enableModelSelection()
     }
 
     const [mynahUi, api] = createMynahUi(

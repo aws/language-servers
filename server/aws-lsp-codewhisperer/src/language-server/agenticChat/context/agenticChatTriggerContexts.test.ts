@@ -4,10 +4,10 @@
  */
 
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import assert = require('assert')
+import * as assert from 'assert'
 import * as fs from 'fs/promises'
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import sinon = require('sinon')
+import * as sinon from 'sinon'
 import { AgenticChatTriggerContext } from './agenticChatTriggerContext'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
 import { ChatTriggerType, CursorState } from '@amzn/codewhisperer-streaming'
@@ -129,6 +129,38 @@ describe('AgenticChatTriggerContext', () => {
             mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
         )
     })
+
+    it('includes modelId in chat params when provided', async () => {
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
+        const modelId = 'us.anthropic.claude-3-5-sonnet-20241022-v2:0'
+
+        const chatParams = await triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            {},
+            ChatTriggerType.MANUAL,
+            undefined,
+            undefined,
+            undefined,
+            [],
+            [],
+            undefined,
+            modelId
+        )
+
+        assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, modelId)
+    })
+
+    it('does not include modelId in chat params when not provided', async () => {
+        const triggerContext = new AgenticChatTriggerContext(testFeatures)
+        const chatParams = await triggerContext.getChatParamsFromTrigger(
+            { tabId: 'tab', prompt: {} },
+            {},
+            ChatTriggerType.MANUAL
+        )
+
+        assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, undefined)
+    })
+
     it('includes remote workspaceId if it exists and is connected', async () => {
         mockWorkspaceFolderManager = {
             getWorkspaceState: sinon.stub(),

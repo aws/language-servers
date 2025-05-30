@@ -5,6 +5,7 @@ import { SsoConnectionType } from './utils'
 import { stubInterface } from 'ts-sinon'
 import { StreamingClientServiceBase } from './streamingClientService'
 import { SessionData } from '../language-server/inline-completion/session/sessionManager'
+import { WorkspaceFolder } from '@aws/language-server-runtimes/protocol'
 
 export const HELLO_WORLD_IN_CSHARP = `class HelloWorld
 {
@@ -34,6 +35,16 @@ export const SOME_UNSUPPORTED_FILE = TextDocument.create(
     'INPUT HELLO ; OUTPUT WORLD'
 )
 export const SOME_FILE_WITH_EXTENSION = TextDocument.create('file:///missing.hpp', '', 1, HELLO_WORLD_IN_CSHARP)
+export const SOME_WORKSPACE_FOLDER: WorkspaceFolder = {
+    uri: 'file:///tmp/workspaceFolderTest',
+    name: 'workspaceFolderTest',
+}
+export const SOME_FILE_UNDER_WORKSPACE_FOLDER = TextDocument.create(
+    `${SOME_WORKSPACE_FOLDER.uri}/relativePath/test.cs`,
+    'csharp',
+    1,
+    HELLO_WORLD_IN_CSHARP
+)
 
 export const SAMPLE_FILE_OF_60_LINES_IN_JAVA = `import java.util.List;
 // we need this comment on purpose because chunk will be trimed right, adding this to avoid trimRight and make assertion easier
