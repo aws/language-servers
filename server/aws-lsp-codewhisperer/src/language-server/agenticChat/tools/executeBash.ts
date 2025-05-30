@@ -651,7 +651,23 @@ export class ExecuteBash {
         return {
             name: 'executeBash',
             description:
-                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).',
+                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).\n\n' +
+                '## Overview\n' +
+                "This tool executes commands on the user's system shell and returns the output.\n\n" +
+                '## Operating System Specific Commands\n' +
+                "- IMPORTANT: You MUST use commands specific to the user's current operating system. This tool will NOT adapt or translate commands between operating systems.\n" +
+                "  - On Windows (cmd.exe): Use Windows-specific commands like 'dir', 'type', 'mkdir' (without -p flag).\n" +
+                "  - On Unix/Linux/macOS (bash): Use Unix commands like 'ls', 'cat', 'mkdir -p'.\n" +
+                '## When to use\n' +
+                "- When you need to run system commands that aren't covered by specialized tools.\n" +
+                '- When you need to interact with installed applications or utilities.\n' +
+                '- When you need to perform operations that require shell capabilities.\n\n' +
+                '## When not to use\n' +
+                '- When specialized tools would be more appropriate for the task.\n' +
+                '- When you need to perform file operations (use dedicated file tools instead).\n' +
+                '- When you need to search through files (use dedicated search tools instead).\n\n' +
+                '## Notes\n' +
+                '- Output is limited to prevent overwhelming responses.\n',
             inputSchema: {
                 type: 'object',
                 properties: {
