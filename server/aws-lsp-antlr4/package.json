@@ -28,8 +28,8 @@
         "clean": "rm -rf node_modules"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.90",
-        "@aws/lsp-core": "^0.0.9"
+        "@aws/language-server-runtimes": "^0.2.80",
+        "@aws/lsp-core": "^0.0.8"
     },
     "peerDependencies": {
         "antlr4-c3": ">=3.4 < 4",
