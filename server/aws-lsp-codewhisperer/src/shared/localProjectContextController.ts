@@ -142,11 +142,15 @@ export class LocalProjectContextController {
             if (this._vecLib) {
                 // if indexing is turned being on, build index with 'all' that supports vector indexing
                 if (enableIndexing && !this._isIndexingEnabled) {
-                    void this.buildIndex('all')
+                    this.buildIndex('all').catch(e => {
+                        this.log.error(`Error building index with indexing enabled: ${e}`)
+                    })
                 }
                 // if indexing is turned being off, build index with 'default' that  does not support vector indexing
                 if (!enableIndexing && this._isIndexingEnabled) {
-                    void this.buildIndex('default')
+                    this.buildIndex('default').catch(e => {
+                        this.log.error(`Error building index with indexing disabled: ${e}`)
+                    })
                 }
                 this._isIndexingEnabled = enableIndexing
                 return
@@ -158,9 +162,13 @@ export class LocalProjectContextController {
             if (vecLib) {
                 this._vecLib = await vecLib.start(LIBRARY_DIR, this.clientName, this.indexCacheDirPath)
                 if (enableIndexing) {
-                    void this.buildIndex('all')
+                    this.buildIndex('all').catch(e => {
+                        this.log.error(`Error building index on init with indexing enabled: ${e}`)
+                    })
                 } else {
-                    void this.buildIndex('default')
+                    this.buildIndex('default').catch(e => {
+                        this.log.error(`Error building index on init with indexing disabled: ${e}`)
+                    })
                 }
                 LocalProjectContextController.instance = this
                 this._isIndexingEnabled = enableIndexing
@@ -242,7 +250,7 @@ export class LocalProjectContextController {
             )
 
             this.workspaceFolders.push(...actualAdditions)
-            // Only update index if we have actual changes and indexing is enabled
+            // Only update index if we have actual changes and indexing library is present
             if (this._vecLib) {
                 if (actualRemovals.length > 0) {
                     const removedPaths = actualRemovals.map(folder => URI.parse(folder.uri).fsPath)

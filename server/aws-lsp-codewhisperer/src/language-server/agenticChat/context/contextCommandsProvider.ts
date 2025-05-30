@@ -18,13 +18,20 @@ export class ContextCommandsProvider implements Disposable {
         private readonly lsp: Lsp
     ) {
         this.registerPromptFileWatcher()
+        this.registerContextCommandHandler().catch(e =>
+            this.logging.error(`Error registering context command handler: ${e}`)
+        )
+    }
 
-        void (async () => {
+    private async registerContextCommandHandler() {
+        try {
             const controller = await LocalProjectContextController.getInstance()
             controller.onContextItemsUpdated = async contextItems => {
                 await this.processContextCommandUpdate(contextItems)
             }
-        })()
+        } catch (e) {
+            this.logging.warn(`Error processing context command update: ${e}`)
+        }
     }
 
     registerPromptFileWatcher() {
