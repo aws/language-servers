@@ -312,6 +312,14 @@ export function getOriginalToolNames(namespacedName: string): { serverName: stri
 }
 
 /**
+ * Clears the tool name mapping. This should be called when starting fresh tool registration
+ * to avoid conflicts from previous registrations.
+ */
+export function clearToolNameMapping(): void {
+    toolNameMapping.clear()
+}
+
+/**
  * Create a namespaced tool name from server and tool names.
  * Handles truncation and conflicts according to specific rules.
  * Also stores the mapping from namespaced name back to original names.

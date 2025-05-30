@@ -130,7 +130,7 @@ import { McpTool } from './tools/mcp/mcpTool'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
-import { createNamespacedToolName, getOriginalToolNames } from './tools/mcp/mcpUtils'
+import { createNamespacedToolName, getOriginalToolNames, clearToolNameMapping } from './tools/mcp/mcpUtils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
 
 type ChatHandlers = Omit<
@@ -2729,6 +2729,9 @@ export class AgenticChatController implements ChatHandlers {
             }
             return allTools
         }
+
+        // Clear tool name mapping to avoid conflicts from previous registrations
+        clearToolNameMapping()
 
         // Read Only Tools = All Tools - Restricted Tools (MCP + Write Tools)
         // TODO: mcp tool spec name will be server___tool.
