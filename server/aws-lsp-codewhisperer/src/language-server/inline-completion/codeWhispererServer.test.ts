@@ -663,6 +663,72 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
 
+        it('should truncate left and right context in paginated requests', async () => {
+            // Reset the stub to handle multiple calls with different responses
+            service.generateSuggestions.reset()
+
+            // First request returns suggestions with a nextToken
+            service.generateSuggestions.onFirstCall().returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: { ...EXPECTED_RESPONSE_CONTEXT, nextToken: EXPECTED_NEXT_TOKEN },
+                })
+            )
+
+            // Second request (pagination) returns suggestions without nextToken
+            service.generateSuggestions.onSecondCall().returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                })
+            )
+
+            // Create a file with content that exceeds the context limit
+            const BIG_FILE_CONTENT = '123456789\n'.repeat(5000)
+            const BIG_FILE = TextDocument.create('file:///big_file.cs', 'csharp', 1, BIG_FILE_CONTENT)
+            const cutOffLine = 2000
+            features.openDocument(BIG_FILE)
+
+            // Make initial request
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: BIG_FILE.uri },
+                    position: { line: cutOffLine, character: 1 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            // Make paginated request with the token from the first response
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: BIG_FILE.uri },
+                    position: { line: cutOffLine, character: 1 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                    partialResultToken: EXPECTED_NEXT_TOKEN,
+                },
+                CancellationToken.None
+            )
+
+            // Verify both calls were made
+            assert.strictEqual(service.generateSuggestions.callCount, 2)
+
+            // Get the actual arguments from both calls
+            const firstCallArgs = service.generateSuggestions.firstCall.args[0]
+            const secondCallArgs = service.generateSuggestions.secondCall.args[0]
+
+            // Verify context truncation in first call
+            assert.strictEqual(firstCallArgs.fileContext.leftFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(firstCallArgs.fileContext.rightFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+
+            // Verify context truncation in second call (pagination)
+            assert.strictEqual(secondCallArgs.fileContext.leftFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+            assert.strictEqual(secondCallArgs.fileContext.rightFileContent.length, CONTEXT_CHARACTERS_LIMIT)
+
+            // Verify second call included the nextToken
+            assert.strictEqual(secondCallArgs.nextToken, EXPECTED_NEXT_TOKEN)
+        })
+
         it('throws ResponseError with expected message if connection is expired', async () => {
             service.generateSuggestions.returns(Promise.reject(new Error(INVALID_TOKEN)))
 
