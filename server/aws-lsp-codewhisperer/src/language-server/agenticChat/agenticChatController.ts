@@ -1415,7 +1415,7 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 messageId: toolUse.toolUseId,
                 type: 'tool',
-                body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n',
+                body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command,
                 header: {
                     body: 'shell',
                     ...(isAccept
