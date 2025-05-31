@@ -105,7 +105,8 @@ export class FsRead {
                 type: 'object',
                 properties: {
                     paths: {
-                        description: 'List of file paths to read in a sequence',
+                        description:
+                            'List of file paths to read in a sequence, e.g. `["/repo/file.py"]` for Unix-like system including Unix/Linux/macOS or `["d:\\repo\\file.py"]` for Windows.',
                         type: 'array',
                         items: {
                             type: 'string',
