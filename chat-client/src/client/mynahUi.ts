@@ -1402,10 +1402,47 @@ ${params.message}`,
                 title: params.header?.title || 'Add MCP Server',
                 description: params.header?.description || '',
                 status: params.header?.status || {},
+                actions: params.header?.actions?.map(action => ({
+                    ...action,
+                    icon: action.icon ? toMynahIcon(action.icon) : undefined,
+                })),
             },
             filterOptions: processFilterOptions(params.filterOptions),
             filterActions: params.filterActions,
         } as any
+
+        const isEditMode = params.header?.title === 'Edit MCP Server'
+        const hasError = params.header?.status?.status === 'error'
+
+        const serverName = (params.filterOptions?.[1] as any)?.value
+
+        if (isEditMode && hasError) {
+            detailedList.header.actions = [
+                {
+                    id: 'mcp-details-menu',
+                    icon: toMynahIcon('ellipsis'),
+                    items: [
+                        {
+                            id: 'mcp-disable-server',
+                            text: `Disable MCP server`,
+                            data: { serverName },
+                        },
+                        {
+                            id: 'mcp-delete-server',
+                            confirmation: {
+                                cancelButtonText: 'Cancel',
+                                confirmButtonText: 'Delete',
+                                title: 'Delete Filesystem MCP server',
+                                description:
+                                    'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
+                            },
+                            text: `Delete MCP server`,
+                            data: { serverName },
+                        },
+                    ],
+                },
+            ]
+        }
 
         // Process list if present
         if (params.list && params.list.length > 0) {
@@ -1498,6 +1535,10 @@ ${params.message}`,
                         mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
                         messager.onMcpServerClick(actionParams.id, 'Save configuration', filterValues)
                     }
+                },
+                onTitleActionClick: (action: ChatItemButton) => {
+                    const serverName = (action as any).data?.serverName
+                    messager.onMcpServerClick(action.id, serverName)
                 },
             }
             mynahUi.openDetailedList({ detailedList, events }, true)
