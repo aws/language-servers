@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.42](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.41...lsp-codewhisperer/v0.0.42) (2025-05-31)
+
+
+### Features
+
+* **amazonq:** send relative file path for inline completion ([#1481](https://github.com/aws/language-servers/issues/1481)) ([35e4143](https://github.com/aws/language-servers/commit/35e4143dbaaeec8f3921b8859ce5a7451f099859))
+* model selection for agentic chat ([#1294](https://github.com/aws/language-servers/issues/1294)) ([10abd04](https://github.com/aws/language-servers/commit/10abd041d340b1b6fe6adad81cc1f6bd1610826e))
+
+
+### Bug Fixes
+
+* **amazonq:** fix line endings before fswrite for windows ([#1483](https://github.com/aws/language-servers/issues/1483)) ([9e4c284](https://github.com/aws/language-servers/commit/9e4c28480f0660e10cbfce154323996ace7aea2b))
+* fix paths array issue in fsRead ([#1496](https://github.com/aws/language-servers/issues/1496)) ([4bf8624](https://github.com/aws/language-servers/commit/4bf8624f6474590cb0632c9530ca6ff624ac2358))
+* grepSearch on Windows ([#1494](https://github.com/aws/language-servers/issues/1494)) ([57fca2f](https://github.com/aws/language-servers/commit/57fca2f0423ad485570f59e6921f36addb7d43a7))
+* improve the executeBash tool spec ([#1465](https://github.com/aws/language-servers/issues/1465)) ([cab801b](https://github.com/aws/language-servers/commit/cab801b3f7ad77c1fc99d06426fd8ba481109b54))
+
 ## [0.0.41](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.40...lsp-codewhisperer/v0.0.41) (2025-05-30)
 
 
