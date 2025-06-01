@@ -803,6 +803,10 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.removeServer(serverName)
+            // Refresh the MCP list to show updated server list
+            await this.#handleRefreshMCPList({
+                id: params.id,
+            })
         } catch (error) {
             this.#features.logging.error(`Failed to delete MCP server: ${error}`)
         }
