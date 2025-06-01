@@ -19,6 +19,7 @@ import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
+    getFileContext,
     Suggestion,
     SuggestionType,
 } from '../../shared/codeWhispererService'
@@ -56,38 +57,6 @@ import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './codeEditTra
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
-
-// Both clients (token, sigv4) define their own types, this return value needs to match both of them.
-const getFileContext = (params: {
-    textDocument: TextDocument
-    position: Position
-    inferredLanguageId: CodewhispererLanguage
-}): {
-    filename: string
-    programmingLanguage: {
-        languageName: CodewhispererLanguage
-    }
-    leftFileContent: string
-    rightFileContent: string
-} => {
-    const left = params.textDocument.getText({
-        start: { line: 0, character: 0 },
-        end: params.position,
-    })
-    const right = params.textDocument.getText({
-        start: params.position,
-        end: params.textDocument.positionAt(params.textDocument.getText().length),
-    })
-
-    return {
-        filename: params.textDocument.uri,
-        programmingLanguage: {
-            languageName: params.inferredLanguageId,
-        },
-        leftFileContent: left,
-        rightFileContent: right,
-    }
-}
 
 const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
     const duration = new Date().getTime() - session.startTime
@@ -458,7 +427,8 @@ export const CodewhispererServerFactory =
                     if (extraContext) {
                         requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
-                    return codeWhispererService.generateSuggestionsAndPrefetch({
+                    
+                    return codeWhispererService.generateSuggestionsAndPrefetch(textDocument, {
                         ...requestContext,
                         predictionTypes : ['EDITS'],
                         fileContext: {
@@ -651,8 +621,8 @@ export const CodewhispererServerFactory =
                 firstCompletionDisplayLatency,
                 totalSessionDisplayTime,
                 typeaheadLength,
-                addedCharacterCount,
-                deletedCharacterCount,
+                // addedCharacterCount,
+                // deletedCharacterCount,
             } = params
 
             const session = sessionManager.getSessionById(sessionId)
@@ -704,8 +674,8 @@ export const CodewhispererServerFactory =
                 telemetryService,
                 session,
                 timeSinceLastUserModification,
-                addedCharacterCount,
-                deletedCharacterCount,
+                // addedCharacterCount,
+                // deletedCharacterCount,
                 streakLength
             )
         }

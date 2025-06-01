@@ -5,6 +5,7 @@ import {
     Workspace,
     Logging,
     SDKInitializator,
+    TextDocument,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
@@ -53,6 +54,9 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
+import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inline-completion/diffUtils'
+import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
+import { Position } from 'vscode-languageserver-textdocument'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -91,7 +95,10 @@ export abstract class CodeWhispererServiceBase {
 
     abstract getCredentialsType(): CredentialsType
 
-    abstract generateSuggestionsAndPrefetch(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
+    abstract generateSuggestionsAndPrefetch(
+        textDocument: TextDocument,
+        request: GenerateSuggestionsRequest
+    ): Promise<GenerateSuggestionsResponse>
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
@@ -145,6 +152,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
     // TODO: same as regular GC until we want to enable prefetch with IAM client
     override async generateSuggestionsAndPrefetch(
+        textDocument: TextDocument,
         request: GenerateSuggestionsRequest
     ): Promise<GenerateSuggestionsResponse> {
         return await this.generateSuggestions(request)
@@ -278,17 +286,18 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
     // Only used when it's a cold start
     override async generateSuggestionsAndPrefetch(
+        textDocument: TextDocument,
         firstRequest: GenerateSuggestionsRequest
     ): Promise<GenerateSuggestionsResponse> {
         // TODO: if codewhispererService has prefetched result && id matches, return the cached prefetched result directly
-        const shouldUsePrefetch =
-            this.prefetchSuggestions && firstRequest.fileContext.leftFileContent.includes(this.prefetchSuggestions.id)
+        const shouldUsePrefetch = this.prefetchSuggestions
         if (shouldUsePrefetch) {
             this.logging.info(`will use prefetch suggestion`)
         }
         const r =
             (shouldUsePrefetch ? this.prefetchSuggestions?.response : undefined) ??
             (await this.generateSuggestions(firstRequest))
+        // TODO: uncomment
         if (r.suggestions && r.suggestions.length > 0) {
             const suggestion = r.suggestions[0]
 
@@ -304,11 +313,53 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     },
                     nextToken: undefined,
                 }
-                const response = await this.generateSuggestions(request)
-                this.prefetchSuggestions = {
-                    id: r.suggestions[0].content, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
-                    response: response,
-                    request: request,
+
+                // TODO: should supplemental context [Edit] if presence
+                // TODO: should update transform Edit to file context
+                if (r.suggestionType && r.suggestionType === SuggestionType.EDIT) {
+                    const docText = textDocument.getText()
+                    const afterDiff = applyUnifiedDiff(docText, suggestion.content)
+                    const newCode = afterDiff.newCode
+
+                    const afterChangePosition = getEndOfEditPosition(docText, newCode)
+                    // Calculate new left context & right context
+                    // TODO: use newCode to extract leftfilecontext and rightfilecontext instead of
+                    // TODO: update editorState ?
+
+                    const { leftContent, rightContent } = splitContentAtPosition(newCode, afterChangePosition)
+
+                    request.fileContext = {
+                        ...firstRequest.fileContext,
+                        leftFileContent: leftContent.slice(-10240),
+                        rightFileContent: rightContent.slice(0, 10240),
+                    }
+
+                    // updated edit supplemental context
+                    const updatedSupcontext = firstRequest.supplementalContexts
+                    if (updatedSupcontext) {
+                        updatedSupcontext.push({
+                            content: r.suggestions[0].content,
+                            filePath: request.fileContext.filename,
+                            type: 'PreviousEditorState',
+                            metadata: {
+                                previousEditorStateMetadata: {
+                                    timeOffset: 1000,
+                                },
+                            },
+                        })
+                        request.supplementalContexts = updatedSupcontext
+                    }
+                }
+
+                try {
+                    const response = await this.generateSuggestions(request)
+                    this.prefetchSuggestions = {
+                        id: r.suggestions[0].content, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
+                        response: response,
+                        request: request,
+                    }
+                } catch (e) {
+                    console.log(e)
                 }
             }, 250)
         }
@@ -490,4 +541,64 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
         return this.client.listFeatureEvaluations(this.withProfileArn(request)).promise()
     }
+}
+
+// Both clients (token, sigv4) define their own types, this return value needs to match both of them.
+export const getFileContext = (params: {
+    textDocument: TextDocument
+    position: Position
+    inferredLanguageId: CodewhispererLanguage
+}): {
+    filename: string
+    programmingLanguage: {
+        languageName: CodewhispererLanguage
+    }
+    leftFileContent: string
+    rightFileContent: string
+} => {
+    const left = params.textDocument.getText({
+        start: { line: 0, character: 0 },
+        end: params.position,
+    })
+    const right = params.textDocument.getText({
+        start: params.position,
+        end: params.textDocument.positionAt(params.textDocument.getText().length),
+    })
+
+    return {
+        filename: params.textDocument.uri,
+        programmingLanguage: {
+            languageName: params.inferredLanguageId,
+        },
+        leftFileContent: left,
+        rightFileContent: right,
+    }
+}
+
+// TODO: not precise
+function splitContentAtPosition(
+    content: string,
+    position: Position
+): {
+    leftContent: string
+    rightContent: string
+} {
+    // Split content into lines
+    const lines = content.split('\n')
+
+    // Normalize position
+    const targetLine = Math.max(0, Math.min(position.line, lines.length - 1))
+    const targetChar = Math.max(0, Math.min(position.character, lines[targetLine].length))
+
+    // Create left content
+    const leftLines = lines.slice(0, targetLine)
+    const leftPartOfTargetLine = lines[targetLine].substring(0, targetChar)
+    const leftContent = [...leftLines, leftPartOfTargetLine].join('\n')
+
+    // Create right content
+    const rightPartOfTargetLine = lines[targetLine].substring(targetChar)
+    const rightLines = lines.slice(targetLine + 1)
+    const rightContent = [rightPartOfTargetLine, ...rightLines].join('\n')
+
+    return { leftContent, rightContent }
 }
