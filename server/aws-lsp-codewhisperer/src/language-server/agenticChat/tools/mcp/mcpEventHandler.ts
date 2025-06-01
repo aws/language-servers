@@ -347,7 +347,7 @@ export class McpEventHandler {
                             value: 'workspace',
                         },
                     ],
-                    value: existingValues.scope || 'global',
+                    value: 'global',
                 },
                 {
                     type: 'textinput',
