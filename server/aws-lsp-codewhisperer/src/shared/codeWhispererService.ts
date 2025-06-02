@@ -289,23 +289,23 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         textDocument: TextDocument,
         firstRequest: GenerateSuggestionsRequest
     ): Promise<GenerateSuggestionsResponse> {
-        // TODO: if codewhispererService has prefetched result && id matches, return the cached prefetched result directly
+        // If codewhispererService has prefetched result && id matches, return the cached prefetched result directly
         const shouldUsePrefetch = this.prefetchSuggestions
         if (shouldUsePrefetch) {
             this.logging.info(`will use prefetch suggestion`)
+        } else {
+            this.logging.info(`call start`)
         }
-        const r =
+
+        const curResponse =
             (shouldUsePrefetch ? this.prefetchSuggestions?.response : undefined) ??
             (await this.generateSuggestions(firstRequest))
-        // TODO: uncomment
-        if (r.suggestions && r.suggestions.length > 0) {
-            const suggestion = r.suggestions[0]
+
+        if (curResponse.suggestions && curResponse.suggestions.length > 0) {
+            const suggestion = curResponse.suggestions[0]
 
             setTimeout(async () => {
-                this.logging.info(`prefetching next session result based on suggestion: ${r.suggestions[0].content}`)
-                this.logging.info('!!!!!!!!!!!!!!!!!!!!!!!!')
-                this.logging.info(`${firstRequest.fileContext.leftFileContent + suggestion.content}`)
-                const request = {
+                const secondRequest = {
                     ...firstRequest,
                     fileContext: {
                         ...firstRequest.fileContext,
@@ -314,32 +314,48 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     nextToken: undefined,
                 }
 
-                // TODO: should supplemental context [Edit] if presence
-                // TODO: should update transform Edit to file context
-                if (r.suggestionType && r.suggestionType === SuggestionType.EDIT) {
+                // NEP flow requires more updates other than left/right filecontent
+                if (curResponse.suggestionType && curResponse.suggestionType === SuggestionType.EDIT) {
                     const docText = textDocument.getText()
                     const afterDiff = applyUnifiedDiff(docText, suggestion.content)
                     const newCode = afterDiff.newCode
 
                     const afterChangePosition = getEndOfEditPosition(docText, newCode)
                     // Calculate new left context & right context
-                    // TODO: use newCode to extract leftfilecontext and rightfilecontext instead of
-                    // TODO: update editorState ?
-
                     const { leftContent, rightContent } = splitContentAtPosition(newCode, afterChangePosition)
 
-                    request.fileContext = {
+                    secondRequest.fileContext = {
                         ...firstRequest.fileContext,
                         leftFileContent: leftContent.slice(-10240),
                         rightFileContent: rightContent.slice(0, 10240),
                     }
 
+                    secondRequest.supplementalContexts = firstRequest.supplementalContexts
+                        ? [...firstRequest.supplementalContexts]
+                        : []
+
+                    secondRequest.editorState = {
+                        document: {
+                            relativeFilePath: textDocument.uri,
+                            programmingLanguage: {
+                                languageName: textDocument.languageId,
+                            },
+                            text: textDocument.getText(),
+                        },
+                        cursorState: {
+                            position: {
+                                line: afterChangePosition.line,
+                                character: afterChangePosition.character,
+                            },
+                        },
+                    }
+
                     // updated edit supplemental context
-                    const updatedSupcontext = firstRequest.supplementalContexts
-                    if (updatedSupcontext) {
-                        updatedSupcontext.push({
-                            content: r.suggestions[0].content,
-                            filePath: request.fileContext.filename,
+                    if (curResponse.suggestions[0]) {
+                        // TODO: handle sup context length > 5 ?
+                        secondRequest.supplementalContexts.push({
+                            content: curResponse.suggestions[0].content,
+                            filePath: secondRequest.fileContext.filename,
                             type: 'PreviousEditorState',
                             metadata: {
                                 previousEditorStateMetadata: {
@@ -347,16 +363,24 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                                 },
                             },
                         })
-                        request.supplementalContexts = updatedSupcontext
                     }
                 }
 
                 try {
-                    const response = await this.generateSuggestions(request)
-                    this.prefetchSuggestions = {
-                        id: r.suggestions[0].content, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
-                        response: response,
-                        request: request,
+                    const secondResponse = await this.generateSuggestions(secondRequest)
+                    if (
+                        secondResponse.suggestions.length > 0 &&
+                        secondResponse.suggestions[0].content !== curResponse.suggestions[0].content
+                    ) {
+                        this.prefetchSuggestions = {
+                            id: curResponse.suggestions[0].content, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
+                            response: secondResponse,
+                            request: secondRequest,
+                        }
+                    }
+
+                    if (curResponse.suggestions[0].content === secondResponse.suggestions[0].content) {
+                        console.log('identical result, discard', curResponse.suggestions[0].content)
                     }
                 } catch (e) {
                     console.log(e)
@@ -364,7 +388,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }, 250)
         }
 
-        return r
+        return curResponse
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
