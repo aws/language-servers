@@ -55,6 +55,17 @@ export const freeTierLimitCard: ChatItem = {
     body: `You have reached the free tier limit. Upgrade to Amazon Q Pro.\n\n[Learn More...](${paidTierLearnMoreUrl})`,
 }
 
+export const freeTierLimitDirective: ChatItem = {
+    type: ChatItemType.DIRECTIVE,
+    // title: '...',
+    // header: { },
+    messageId: 'freetier-limit-directive',
+    fullWidth: true,
+    contentHorizontalAlignment: 'center',
+    canBeDismissed: false,
+    body: 'Unable to send. Monthly invocation limit met for this month.',
+}
+
 /** "Banner" (sticky card) shown above the chat prompt. */
 export const freeTierLimitSticky: Partial<ChatItem> = {
     messageId: 'freetier-limit-banner',

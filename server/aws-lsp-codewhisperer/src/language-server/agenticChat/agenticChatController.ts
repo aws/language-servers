@@ -136,7 +136,7 @@ import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
-import { paidTierLearnMoreUrl, PaidTierMode } from '../paidTier/paidTier'
+import { paidTierLearnMoreUrl, paidTierManageSubscription, PaidTierMode } from '../paidTier/paidTier'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -2502,10 +2502,10 @@ export class AgenticChatController implements ChatHandlers {
             // Note: intentionally async.
             AmazonQTokenServiceManager.getInstance()
                 .getCodewhispererService()
-                .getSubscriptionStatus()
+                .getSubscriptionStatus(true)
                 .then(o => {
                     this.#log(`setPaidTierMode: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
-                    this.setPaidTierMode(tabId, o.status === 'ACTIVE' ? 'paidtier' : 'freetier')
+                    this.setPaidTierMode(tabId, o.status !== 'none' ? 'paidtier' : 'freetier')
                 })
                 .catch(err => {
                     this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
@@ -2560,14 +2560,10 @@ export class AgenticChatController implements ChatHandlers {
                 .getSubscriptionStatus()
                 .then(o => {
                     this.#log(`onManageSubscription: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
-                    const uri =
-                        o.status === 'ACTIVE'
-                            ? // Paid-tier user: navigate them to the "Manage Subscriptions" AWS console page.
-                              paidTierLearnMoreUrl
-                            : // Free-tier user: navigate them to "Upgrade Q" flow in AWS console.
-                              o.encodedVerificationUrl
-                    if (o.status === 'ACTIVE') {
-                        // Navigate user to the browser URL..
+
+                    if (o.status !== 'none') {
+                        // Paid-tier user: navigate them to the "Manage Subscriptions" AWS console page.
+                        const uri = paidTierManageSubscription
                         this.#features.lsp.window
                             .showDocument({
                                 external: true, // Client is expected to open the URL in a web browser.
@@ -2577,6 +2573,7 @@ export class AgenticChatController implements ChatHandlers {
                                 this.#log(`onManageSubscription: showDocument failed: ${fmtError(e)}`)
                             })
                     } else {
+                        // Free-tier user: navigate them to "Upgrade Q" flow in AWS console.
                         const uri = o.encodedVerificationUrl
 
                         if (!uri) {

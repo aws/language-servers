@@ -48,6 +48,7 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
+import { getErrorId } from './utils'
 
 // Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -156,8 +157,8 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
  */
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
-    /** Debounce getSubscriptionStatus by storing the current, pending promise (if any). */
-    #getSubscriptionStatusPromise: ReturnType<typeof this.createSubscriptionToken> | undefined
+    /** Debounce createSubscriptionToken by storing the current, pending promise (if any). */
+    #createSubscriptionTokenPromise: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse> | undefined
 
     constructor(
         private credentialsProvider: CredentialsProvider,
@@ -368,34 +369,70 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     /**
+     * (debounced by default)
+     *
      * cool api you have there 🥹
      */
     async createSubscriptionToken(request: CodeWhispererTokenClient.CreateSubscriptionTokenRequest) {
-        return this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
+        // Debounce.
+        if (this.#createSubscriptionTokenPromise) {
+            // this.logging.debug('createSubscriptionTokenPromise: debounced')
+            return this.#createSubscriptionTokenPromise
+        }
+
+        this.#createSubscriptionTokenPromise = (async () => {
+            try {
+                return this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
+            } finally {
+                this.#createSubscriptionTokenPromise = undefined
+            }
+        })()
+
+        return this.#createSubscriptionTokenPromise
     }
 
     /**
      * Gets the Subscription status of the given user.
+     *
+     * @param statusOnly use this if you don't need the encodedVerificationUrl, else a ConflictException is treated as "ACTIVE"
      */
-    async getSubscriptionStatus(): ReturnType<typeof this.createSubscriptionToken> {
-        // Debounce.
-        if (this.#getSubscriptionStatusPromise) {
-            // this.logging.debug('getSubscriptionStatus: debounced')
-            return this.#getSubscriptionStatusPromise
-        }
+    async getSubscriptionStatus(
+        statusOnly?: boolean
+    ): Promise<{ status: 'active' | 'active-expiring' | 'none'; encodedVerificationUrl?: string }> {
+        // NOTE: The subscription API behaves in a non-intuitive way.
+        // https://github.com/aws/amazon-q-developer-cli-autocomplete/blob/86edd86a338b549b5192de67c9fdef240e6014b7/crates/chat-cli/src/cli/chat/mod.rs#L4079-L4102
+        //
+        // If statusOnly=true, the service only returns "ACTIVE" and "INACTIVE".
+        // If statusOnly=false, the following spec applies:
+        //
+        // 1. "ACTIVE" => 'active-expiring':
+        //    - Active but cancelled. User *has* a subscription, but set to *not auto-renew* (i.e., cancelled).
+        // 2. "INACTIVE" => 'none':
+        //    - User has no subscription at all (no Pro access).
+        // 3. ConflictException => 'active':
+        //    - User has an active subscription *with auto-renewal enabled*.
+        //
+        // Also, it is currently not possible to subscribe or re-subscribe via console, only IDE/CLI.
+        try {
+            const r = await this.createSubscriptionToken({
+                statusOnly: !!statusOnly,
+                // clientToken: this.credentialsProvider.getCredentials('bearer').token,
+            })
+            const status = r.status === 'ACTIVE' ? 'active-expiring' : 'none'
 
-        this.#getSubscriptionStatusPromise = (async () => {
-            try {
-                const resp = await this.createSubscriptionToken({
-                    // clientToken: this.credentialsProvider.getCredentials('bearer').token,
-                })
-                return resp
-            } finally {
-                this.#getSubscriptionStatusPromise = undefined
+            return {
+                status: status,
+                encodedVerificationUrl: r.encodedVerificationUrl,
             }
-        })()
+        } catch (e) {
+            if (getErrorId(e as Error) === 'ConflictException') {
+                return {
+                    status: 'active',
+                }
+            }
 
-        return this.#getSubscriptionStatusPromise
+            throw e
+        }
     }
 
     /**
@@ -409,9 +446,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 if (cancelToken?.isCancellationRequested) {
                     return false
                 }
-                const s = await this.getSubscriptionStatus()
+                const s = await this.getSubscriptionStatus(true)
                 this.logging.info(`waitUntilSubscriptionActive: ${s.status}`)
-                if (s.status === 'ACTIVE') {
+                if (s.status !== 'none') {
                     return true
                 }
             },
