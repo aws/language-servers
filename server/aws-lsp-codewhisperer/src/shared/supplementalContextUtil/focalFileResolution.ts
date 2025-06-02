@@ -202,8 +202,8 @@ export class FocalFileResolver {
                     if (match) {
                         const pkg = this.resolvePackageToPath(match[1], config.packageSeparator)
                         result.add(pkg)
-                        continue
                     }
+                    continue
                 }
 
                 if (config.lang === 'python' && config.importPatterns) {
@@ -212,9 +212,9 @@ export class FocalFileResolver {
                         if (match) {
                             const imp = this.resolvePackageToPath(match[1], config.packageSeparator)
                             result.add(imp)
-                            continue
                         }
                     }
+                    continue
                 }
 
                 if (line.startsWith('import') || insideImportBlock) {
