@@ -121,19 +121,23 @@ export const LocalProjectContextServer =
             logging.log('Updating configuration of local context server')
             try {
                 localProjectContextEnabled = updatedConfig.projectContext?.enableLocalIndexing === true
-
-                logging.log(
-                    `Setting project context indexing enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`
-                )
-                await localProjectContextController.init({
-                    enableGpuAcceleration: updatedConfig?.projectContext?.enableGpuAcceleration,
-                    indexWorkerThreads: updatedConfig?.projectContext?.indexWorkerThreads,
-                    ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
-                    maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
-                    maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
-                    enableIndexing: localProjectContextEnabled,
-                    indexCacheDirPath: updatedConfig.projectContext?.localIndexing?.indexCacheDirPath,
-                })
+                if (process.env.DISABLE_INDEXING_LIBRARY === 'true') {
+                    logging.log('Skipping local project context initialization')
+                    localProjectContextEnabled = false
+                } else {
+                    logging.log(
+                        `Setting project context indexing enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`
+                    )
+                    await localProjectContextController.init({
+                        enableGpuAcceleration: updatedConfig?.projectContext?.enableGpuAcceleration,
+                        indexWorkerThreads: updatedConfig?.projectContext?.indexWorkerThreads,
+                        ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
+                        maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
+                        maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
+                        enableIndexing: localProjectContextEnabled,
+                        indexCacheDirPath: updatedConfig.projectContext?.localIndexing?.indexCacheDirPath,
+                    })
+                }
             } catch (error) {
                 logging.error(`Error handling configuration change: ${error}`)
             }
