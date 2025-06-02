@@ -387,7 +387,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         this.#getSubscriptionStatusPromise = (async () => {
             try {
                 const resp = await this.createSubscriptionToken({
-                    accountId: '111111111111', // Special dummy account for checking Subscription status.
                     // clientToken: this.credentialsProvider.getCredentials('bearer').token,
                 })
                 return resp
