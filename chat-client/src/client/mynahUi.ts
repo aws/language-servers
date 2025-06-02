@@ -59,11 +59,11 @@ import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 import { getModelSelectionChatItem } from './texts/modelSelection'
 import {
-    paidTierInfoCard,
     freeTierLimitSticky,
     upgradeSuccessSticky,
     upgradePendingSticky,
     plansAndPricingTitle,
+    freeTierLimitDirective,
 } from './texts/paidTier'
 
 export interface InboundChatApi {
@@ -868,13 +868,12 @@ export const createMynahUi = (
         }
 
         tabId = !!tabId ? tabId : getOrCreateTabId()!
+        const store = mynahUi.getTabData(tabId).getStore() || {}
 
         // Detect if the tab is already showing the "Upgrade Q" UI.
-        const isFreeTierLimitUi =
-            mynahUi.getTabData(tabId)?.getStore()?.promptInputStickyCard?.messageId === freeTierLimitSticky.messageId
-        const isUpgradePendingUi =
-            mynahUi.getTabData(tabId)?.getStore()?.promptInputStickyCard?.messageId === upgradePendingSticky.messageId
-        const isPlansAndPricingTab = plansAndPricingTitle === mynahUi.getTabData(tabId).getStore()?.tabTitle
+        const isFreeTierLimitUi = store.promptInputStickyCard?.messageId === freeTierLimitSticky.messageId
+        const isUpgradePendingUi = store.promptInputStickyCard?.messageId === upgradePendingSticky.messageId
+        const isPlansAndPricingTab = plansAndPricingTitle === store.tabTitle
 
         if (mode === 'freetier-limit') {
             mynahUi.updateStore(tabId, {
@@ -882,9 +881,32 @@ export const createMynahUi = (
             })
 
             if (!isFreeTierLimitUi) {
-                // Avoid duplicate "limit reached" cards.
-                // REMOVED: don't want the "card", just use the "banner" only.
-                // mynahUi.addChatItem(tabId, freeTierLimitCard)
+                // TODO: how to set a warning icon on the user's failed prompt?
+                //
+                // const chatItems = store.chatItems ?? []
+                // const lastPrompt = chatItems.filter(ci => ci.type === ChatItemType.PROMPT).at(-1)
+                // for (const c of chatItems) {
+                //     c.body = 'xxx / ' + c.type
+                //     c.icon = 'warning'
+                //     c.iconStatus = 'warning'
+                //     c.status = 'warning'
+                // }
+                //
+                // if (lastPrompt && lastPrompt.messageId) {
+                //     lastPrompt.icon = 'warning'
+                //     lastPrompt.iconStatus = 'warning'
+                //     lastPrompt.status = 'warning'
+                //
+                //     // Decorate the failed prompt with a warning icon.
+                //     // mynahUi.updateChatAnswerWithMessageId(tabId, lastPrompt.messageId, lastPrompt)
+                // }
+                //
+                // mynahUi.updateStore(tabId, {
+                //     chatItems: chatItems,
+                // })
+            } else {
+                // Show directive only on 2nd chat attempt, not the initial attempt.
+                mynahUi.addChatItem(tabId, freeTierLimitDirective)
             }
         } else if (mode === 'upgrade-pending') {
             // Change the sticky banner to show a progress spinner.
@@ -895,18 +917,11 @@ export const createMynahUi = (
             mynahUi.updateStore(tabId, {
                 // Show a progress ribbon.
                 promptInputVisible: true,
-                promptInputProgress: {
-                    status: 'default',
-                    text: 'Waiting for subscription status...',
-                    value: -1, // infinite
-                    // valueText: 'Waiting 2...',
-                },
                 promptInputStickyCard: isFreeTierLimitUi ? card : null,
             })
         } else if (mode === 'paidtier') {
             mynahUi.updateStore(tabId, {
                 promptInputStickyCard: null,
-                promptInputProgress: null,
                 promptInputVisible: !isPlansAndPricingTab,
             })
             if (isFreeTierLimitUi || isUpgradePendingUi || isPlansAndPricingTab) {

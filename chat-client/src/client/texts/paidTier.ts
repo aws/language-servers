@@ -1,8 +1,8 @@
 import { ChatItem, ChatItemButton, ChatItemFormItem, ChatItemType, TextBasedFormItem } from '@aws/mynah-ui'
 
 export const plansAndPricingTitle = 'Plans &amp; Pricing'
-
 export const paidTierLearnMoreUrl = 'https://aws.amazon.com/q/pricing/'
+export const qProName = 'Q Developer Pro'
 
 export const upgradeQButton: ChatItemButton = {
     id: 'paidtier-upgrade-q',
@@ -13,8 +13,8 @@ export const upgradeQButton: ChatItemButton = {
     // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/q.svg
     // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/rocket.svg
     // icon: MynahIcons.Q,
-    description: 'Upgrade to Amazon Q Pro',
-    text: 'Upgrade Q',
+    description: `Upgrade to ${qProName}`,
+    text: `Subscribe to ${qProName}`,
     status: 'primary',
     disabled: false,
 }
@@ -24,7 +24,7 @@ export const learnMoreButton: ChatItemButton = {
     fillState: 'hover',
     // position: 'inside',
     icon: 'external',
-    description: 'Learn about Amazon Q Pro',
+    description: `Learn about ${qProName}`,
     text: 'Learn more',
     status: 'info',
     disabled: false,
@@ -36,45 +36,66 @@ export const continueUpgradeQButton: ChatItemButton = {
     flash: 'once',
     fillState: 'hover',
     position: 'inside',
-    // description: 'Link an AWS account to upgrade Amazon Q',
+    // description: `Link an AWS account to upgrade ${qProName}`,
     text: 'Continue',
     disabled: false,
 }
 
 export const freeTierLimitCard: ChatItem = {
     type: ChatItemType.ANSWER,
-    title: 'FREE TIER LIMIT REACHED',
-    header: {
-        icon: 'q',
-        iconStatus: 'primary',
-        body: 'Upgrade to Amazon Q Pro',
-    },
+    // Note: starts with a non-breaking space to workaround https://github.com/aws/mynah-ui/issues/349
+    title: '  Monthly request limit reached',
     messageId: 'freetier-limit',
-    fullWidth: true,
+    status: 'warning',
+    buttons: [],
+    icon: 'warning',
+    // iconStatus: 'success',
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: `Upgrade to ${qProName}`,
+    },
     canBeDismissed: false,
-    body: `You have reached the free tier limit. Upgrade to Amazon Q Pro.\n\n[Learn More...](${paidTierLearnMoreUrl})`,
+    fullWidth: true,
+    body: `To increase your limit, subscribe to ${qProName}. During the upgrade, you'll be asked to link your Builder ID to the AWS account that will be billed the monthly subscription fee. Learn more about [pricing &gt;](${paidTierLearnMoreUrl})`,
+}
+
+export const freeTierLimitDirective: ChatItem = {
+    type: ChatItemType.DIRECTIVE,
+    // title: '...',
+    // header: { },
+    messageId: 'freetier-limit-directive',
+    fullWidth: true,
+    contentHorizontalAlignment: 'center',
+    canBeDismissed: false,
+    body: 'Unable to send. Monthly invocation limit met for this month.',
 }
 
 /** "Banner" (sticky card) shown above the chat prompt. */
 export const freeTierLimitSticky: Partial<ChatItem> = {
     messageId: 'freetier-limit-banner',
-    title: 'FREE TIER LIMIT REACHED',
-    body: `You've reached your invocation limit for this month. Upgrade to Amazon Q Pro. [Learn More...](${paidTierLearnMoreUrl})`,
-    buttons: [upgradeQButton, learnMoreButton],
+    title: freeTierLimitCard.title,
+    body: freeTierLimitCard.body,
+    buttons: [upgradeQButton],
     canBeDismissed: false,
+    icon: 'warning',
+    // iconStatus: 'warning',
 }
 
 export const upgradePendingSticky: Partial<ChatItem> = {
     messageId: 'upgrade-pending-banner',
-    body: 'Waiting for subscription status...',
+    // Note: starts with a non-breaking space to workaround https://github.com/aws/mynah-ui/issues/349
+    body: '  Waiting for subscription status...',
     status: 'info',
     buttons: [],
     canBeDismissed: true,
+    icon: 'progress',
+    // iconStatus: 'info',
 }
 
 export const upgradeSuccessSticky: Partial<ChatItem> = {
     messageId: 'upgrade-success-banner',
-    // body: 'Successfully upgraded to Amazon Q Pro.',
+    // body: `Successfully upgraded to ${qProName}.`,
     status: 'success',
     buttons: [],
     // icon: 'q',
@@ -82,11 +103,11 @@ export const upgradeSuccessSticky: Partial<ChatItem> = {
     header: {
         icon: 'ok-circled',
         iconStatus: 'success',
-        body: 'Successfully upgraded to Amazon Q Pro.',
+        body: `Successfully upgraded to ${qProName}.`,
         // status: {
         //     status: 'success',
         //     position: 'right',
-        //     text: 'Successfully upgraded to Amazon Q Pro.',
+        //     text: `Successfully upgraded to ${qProName}.`,
         // },
     },
     canBeDismissed: true,
@@ -95,17 +116,17 @@ export const upgradeSuccessSticky: Partial<ChatItem> = {
 export const paidTierInfoCard: ChatItem = {
     type: ChatItemType.ANSWER,
     title: 'UPGRADE TO AMAZON Q PRO',
-    buttons: [upgradeQButton, learnMoreButton],
+    buttons: [upgradeQButton],
     header: {
         icon: 'q',
         iconStatus: 'primary',
-        body: 'This feature requires a subscription to Amazon Q Pro.',
+        body: `This feature requires a subscription to ${qProName}.`,
         status: {
             status: 'info',
             icon: 'q',
         },
     },
-    body: `Upgrade to Amazon Q Pro. [Learn More...](${paidTierLearnMoreUrl})`,
+    body: `Upgrade to ${qProName}. [Learn More...](${paidTierLearnMoreUrl})`,
     messageId: 'paidtier-info',
     fullWidth: true,
     canBeDismissed: true,
@@ -118,7 +139,7 @@ export const paidTierSuccessCard: ChatItem = {
     header: {
         icon: 'q',
         iconStatus: 'primary',
-        body: 'Welcome to Amazon Q Pro',
+        body: `Welcome to ${qProName}`,
         status: {
             status: 'success',
             icon: 'q',
@@ -128,7 +149,7 @@ export const paidTierSuccessCard: ChatItem = {
     messageId: 'paidtier-success',
     fullWidth: true,
     canBeDismissed: true,
-    body: `Upgraded to Amazon Q Pro\n\n[Learn More...](${paidTierLearnMoreUrl})`,
+    body: `Upgraded to ${qProName}\n\n[Learn More...](${paidTierLearnMoreUrl})`,
     snapToTop: true,
 }
 
@@ -136,19 +157,19 @@ export const paidTierPromptInput: TextBasedFormItem = {
     placeholder: '111111111111',
     type: 'textinput',
     id: 'paid-tier',
-    tooltip: 'Upgrade to Amazon Q Pro',
+    tooltip: `Upgrade to ${qProName}`,
     value: 'true',
     icon: 'magic',
 }
 
 export const paidTierStep0: ChatItem = {
     type: ChatItemType.DIRECTIVE,
-    body: 'You have upgraded to Amazon Q Pro',
+    body: `You have upgraded to ${qProName}`,
 }
 
 export const paidTierStep1: ChatItem = {
     type: ChatItemType.DIRECTIVE,
-    body: 'You have upgraded to Amazon Q Pro',
+    body: `You have upgraded to ${qProName}`,
 }
 
 /** "Upgrade Q" form with a "AWS account id" user-input textbox. */
@@ -160,7 +181,7 @@ export const paidTierUpgradeForm: ChatItem = {
     body: `
 # Connect AWS account and upgrade
 
-Provide your AWS account number to enable your Pro subscription. Upon confirming the subscription, your AWS account will begin to be charged.
+Provide your AWS account number to enable your ${qProName} subscription. Upon confirming the subscription, your AWS account will begin to be charged.
 
 [Learn More...](${paidTierLearnMoreUrl})
 `,
@@ -170,7 +191,7 @@ Provide your AWS account number to enable your Pro subscription. Upon confirming
             type: 'textinput',
             title: 'AWS account ID',
             description: '12-digit AWS account ID',
-            // tooltip: 'Link an AWS account to upgrade to Amazon Q Pro',
+            // tooltip: `Link an AWS account to upgrade to ${qProName}`,
             validationPatterns: {
                 patterns: [{ pattern: '[0-9]{12}', errorMessage: 'Must be a valid 12-digit AWS account ID' }],
             },

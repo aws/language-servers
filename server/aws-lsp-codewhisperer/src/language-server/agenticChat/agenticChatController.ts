@@ -122,7 +122,7 @@ import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
-import { loggingUtils } from '@aws/lsp-core'
+import { loggingUtils, timeoutUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
     genericErrorMsg,
@@ -137,7 +137,14 @@ import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
-import { paidTierLearnMoreUrl, PaidTierMode } from '../paidTier/paidTier'
+import {
+    freeTierLimitUserMsg,
+    onPaidTierLearnMore,
+    paidTierLearnMoreUrl,
+    paidTierManageSubscription,
+    PaidTierMode,
+    qProName,
+} from '../paidTier/paidTier'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -211,7 +218,7 @@ export class AgenticChatController implements ChatHandlers {
         switch (params.command) {
             case 'aws/chat/manageSubscription': {
                 const awsAccountId = params.arguments?.[0]
-                this.onManageSubscription('', awsAccountId)
+                return this.onManageSubscription('', awsAccountId)
             }
             default:
                 // Unknown command.
@@ -280,14 +287,7 @@ export class AgenticChatController implements ChatHandlers {
             await this.#renderStoppedShellCommand(params.tabId, params.messageId)
             return { success: true }
         } else if (params.buttonId === 'paidtier-upgrade-q-learnmore') {
-            this.#features.lsp.window
-                .showDocument({
-                    external: true, // Client is expected to open the URL in a web browser.
-                    uri: paidTierLearnMoreUrl,
-                })
-                .catch(e => {
-                    this.#log(`showDocument failed: ${(e as Error).message}`)
-                })
+            onPaidTierLearnMore(this.#features.lsp, this.#features.logging)
 
             return { success: true }
         } else if (params.buttonId === 'paidtier-upgrade-q') {
@@ -1997,7 +1997,7 @@ export class AgenticChatController implements ChatHandlers {
             this.setPaidTierMode(tabId, 'freetier-limit')
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
-                body: `AmazonQFreeTierLimitError: Free tier limit reached. Upgrade to Amazon Q Pro. ${requestID ? `\n\nRequest ID: ${requestID}` : ''}`,
+                body: `AmazonQFreeTierLimitError: Free tier limit reached. ${requestID ? `\n\nRequest ID: ${requestID}` : ''}`,
                 messageId: 'freetier-limit',
                 buttons: [],
             })
@@ -2386,7 +2386,7 @@ export class AgenticChatController implements ChatHandlers {
                     },
                 })
 
-                this.onManageSubscription(params.tabId)
+                void this.onManageSubscription(params.tabId)
 
                 return {}
             default:
@@ -2488,6 +2488,33 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
+     * Shows a "limit reached" message in the client, with action buttons.
+     */
+    showFreeTierLimitMsgOnClient(tabId?: string) {
+        const upgradeBtn = { title: `Subscribe to ${qProName}` }
+        const learnBtn = { title: 'Learn More' }
+        this.#features.lsp.window
+            .showMessageRequest({
+                type: MessageType.Warning,
+                message: freeTierLimitUserMsg,
+                actions: [upgradeBtn, learnBtn],
+            })
+            .then(r => {
+                if (r?.title === upgradeBtn.title) {
+                    return this.onManageSubscription(tabId ?? '')
+                } else if (r?.title === learnBtn.title) {
+                    onPaidTierLearnMore(this.#features.lsp, this.#features.logging)
+                }
+            })
+            .catch((e: any) => {
+                if (e instanceof timeoutUtils.AsyncTimeoutError) {
+                    return // Message is optional, does not require user action.
+                }
+                this.#log(`setPaidTierMode: showMessageRequest failed: ${(e as Error).message}`)
+            })
+    }
+
+    /**
      * Updates the "Upgrade Q" (subscription tier) state of the UI in the chat component. If `mode` is not given, the user's subscription status is checked by calling the Q service.
      *
      * `mode` behavior:
@@ -2504,14 +2531,16 @@ export class AgenticChatController implements ChatHandlers {
 
         if (this.#paidTierMode === 'freetier-limit' && mode === 'freetier') {
             // mode = 'freetier-limit' // Sticky while 'freetier'.
+        } else if (mode === 'freetier-limit' && mode !== this.#paidTierMode) {
+            this.showFreeTierLimitMsgOnClient(tabId)
         } else if (!mode) {
             // Note: intentionally async.
             AmazonQTokenServiceManager.getInstance()
                 .getCodewhispererService()
-                .getSubscriptionStatus()
+                .getSubscriptionStatus(true)
                 .then(o => {
                     this.#log(`setPaidTierMode: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
-                    this.setPaidTierMode(tabId, o.status === 'ACTIVE' ? 'paidtier' : 'freetier')
+                    this.setPaidTierMode(tabId, o.status !== 'none' ? 'paidtier' : 'freetier')
                 })
                 .catch(err => {
                     this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
@@ -2566,14 +2595,10 @@ export class AgenticChatController implements ChatHandlers {
                 .getSubscriptionStatus()
                 .then(o => {
                     this.#log(`onManageSubscription: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
-                    const uri =
-                        o.status === 'ACTIVE'
-                            ? // Paid-tier user: navigate them to the "Manage Subscriptions" AWS console page.
-                              paidTierLearnMoreUrl
-                            : // Free-tier user: navigate them to "Upgrade Q" flow in AWS console.
-                              o.encodedVerificationUrl
-                    if (o.status === 'ACTIVE') {
-                        // Navigate user to the browser URL..
+
+                    if (o.status !== 'none') {
+                        // Paid-tier user: navigate them to the "Manage Subscriptions" AWS console page.
+                        const uri = paidTierManageSubscription
                         this.#features.lsp.window
                             .showDocument({
                                 external: true, // Client is expected to open the URL in a web browser.
@@ -2583,6 +2608,7 @@ export class AgenticChatController implements ChatHandlers {
                                 this.#log(`onManageSubscription: showDocument failed: ${fmtError(e)}`)
                             })
                     } else {
+                        // Free-tier user: navigate them to "Upgrade Q" flow in AWS console.
                         const uri = o.encodedVerificationUrl
 
                         if (!uri) {
@@ -2648,14 +2674,14 @@ export class AgenticChatController implements ChatHandlers {
 
                                 this.#features.lsp.window
                                     .showMessage({
-                                        message: 'Upgraded to [Amazon Q Pro](https://aws.amazon.com/q/)',
+                                        message: `Upgraded to ${qProName}`,
                                         type: MessageType.Info,
                                     })
                                     .catch(e => {
                                         this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
                                     })
                             })
-                            .catch(e => {
+                            .catch((e: any) => {
                                 this.#log(
                                     `onManageSubscription: waitUntilSubscriptionActive failed: ${(e as Error).message}`
                                 )
