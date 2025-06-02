@@ -60,9 +60,7 @@ import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } fro
 import { getModelSelectionChatItem } from './texts/modelSelection'
 import {
     paidTierInfoCard,
-    paidTierUpgradeForm,
     freeTierLimitSticky,
-    continueUpgradeQButton,
     upgradeSuccessSticky,
     upgradePendingSticky,
     plansAndPricingTitle,
@@ -101,31 +99,6 @@ const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) =>
 
 const getTabModelSelection = (mynahUi: MynahUI, tabId: string) =>
     getTabPromptInputValue(mynahUi, tabId, 'model-selection')
-
-/** When user provides AWS account by clicking "Continue" or hitting Enter key. */
-function onLinkAwsAccountId(
-    tabId: string,
-    messageId: string,
-    messager: Messager,
-    action: { id: string; text?: string; formData?: Record<string, string> }
-) {
-    const awsAccountId = action.formData?.['awsAccountId']
-    if (!awsAccountId) {
-        return false
-        // throw new Error(`onInBodyButtonClicked: ${continueUpgradeQButton.id} button did not provide awsAccountId`)
-    }
-    // HACK: emit "followUp" to send form data "outbound".
-    const payload: FollowUpClickParams = {
-        tabId,
-        messageId,
-        followUp: {
-            pillText: awsAccountId,
-            type: 'awsAccountId',
-        },
-    }
-    messager.onFollowUpClicked(payload)
-    return true
-}
 
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const previousPairProgrammerValue = getTabPairProgrammingMode(mynahUi, tabId)
@@ -418,9 +391,7 @@ export const createMynahUi = (
             messager.onInfoLinkClick(payload)
         },
         onInBodyButtonClicked: (tabId, messageId, action, eventId) => {
-            if (action.id === continueUpgradeQButton.id) {
-                onLinkAwsAccountId(tabId, messageId, messager, { id: action.id, formData: action.formItemValues })
-            } else if (action.id === disclaimerAcknowledgeButtonId) {
+            if (action.id === disclaimerAcknowledgeButtonId) {
                 // Hide the legal disclaimer card
                 disclaimerCardActive = false
 
@@ -498,16 +469,13 @@ export const createMynahUi = (
             event: KeyboardEvent,
             formData: Record<string, string>,
             itemId: string,
-            tabId: string,
-            eventId?: string
+            _tabId: string,
+            _eventId?: string
         ) => {
             if (itemId === ContextPrompt.PromptNameFieldId && event.key === 'Enter') {
                 event.preventDefault()
                 messager.onCreatePrompt(formData[ContextPrompt.PromptNameFieldId])
                 return true
-            } else if (itemId === 'awsAccountId' && event.key === 'Enter') {
-                event.preventDefault()
-                return onLinkAwsAccountId(tabId, '', messager, { id: continueUpgradeQButton.id, formData: formData })
             }
             return false
         },
@@ -895,17 +863,7 @@ export const createMynahUi = (
      * Shows a message if the user just upgraded to paid-tier.
      */
     const onPaidTierModeChange = (tabId: string, mode: string | undefined) => {
-        if (
-            !mode ||
-            ![
-                'freetier',
-                'freetier-limit',
-                'freetier-upgrade-info',
-                'upgrade-start',
-                'upgrade-pending',
-                'paidtier',
-            ].includes(mode)
-        ) {
+        if (!mode || !['freetier', 'freetier-limit', 'upgrade-pending', 'paidtier'].includes(mode)) {
             return false // invalid mode
         }
 
@@ -928,22 +886,6 @@ export const createMynahUi = (
                 // REMOVED: don't want the "card", just use the "banner" only.
                 // mynahUi.addChatItem(tabId, freeTierLimitCard)
             }
-        } else if (mode === 'freetier-upgrade-info') {
-            mynahUi.addChatItem(tabId, paidTierInfoCard)
-        } else if (mode === 'upgrade-start') {
-            // Show the "Upgrade" form in its own tab.
-            const newTabId = createTabId() ?? tabId
-            mynahUi.updateStore(newTabId, {
-                tabTitle: plansAndPricingTitle,
-                chatItems: [], // Clear the tab.
-                promptInputDisabledState: true, // This special tab is not a "chat" tab.
-                promptInputButtons: [],
-                promptInputOptions: [],
-                promptInputPlaceholder: '',
-                promptInputVisible: false,
-            })
-            mynahUi.addChatItem(newTabId, paidTierUpgradeForm)
-            // openTab('upgrade-start', { tabId: 'upgrade-start' })
         } else if (mode === 'upgrade-pending') {
             // Change the sticky banner to show a progress spinner.
             const card: typeof freeTierLimitSticky = {

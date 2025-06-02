@@ -291,7 +291,7 @@ export class AgenticChatController implements ChatHandlers {
 
             return { success: true }
         } else if (params.buttonId === 'paidtier-upgrade-q') {
-            this.setPaidTierMode(params.tabId, 'upgrade-start')
+            await this.onManageSubscription(params.tabId)
 
             return { success: true }
         } else {
@@ -2254,17 +2254,9 @@ export class AgenticChatController implements ChatHandlers {
     async onFollowUpClicked(params: FollowUpClickParams) {
         this.#log(`onFollowUpClicked: ${JSON.stringify(params)}`)
 
-        if (params.followUp.type === 'awsAccountId') {
-            const awsAccountId = params.followUp.pillText
-            const errmsg = await this.onManageSubscription(params.tabId, awsAccountId)
-            if (errmsg) {
-                return {
-                    success: false,
-                    failureReason: errmsg,
-                }
-            }
-            return { success: true }
-        }
+        // if (params.followUp.type === '...') {
+        //     ...
+        // }
     }
 
     onInfoLinkClick() {}
@@ -2591,106 +2583,102 @@ export class AgenticChatController implements ChatHandlers {
                                 this.#log(`onManageSubscription: showDocument failed: ${fmtError(e)}`)
                             })
                     } else {
-                        this.setPaidTierMode(tabId, 'freetier-upgrade-info')
-                    }
-                })
-                .catch(err => {
-                    this.#log(`onManageSubscription: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
-                })
+                        const uri = o.encodedVerificationUrl
 
-            return
-        }
+                        if (!uri) {
+                            this.#log('onManageSubscription: missing encodedVerificationUrl in server response')
+                            this.#features.lsp.window
+                                .showMessage({
+                                    message: 'Subscription request failed. Check the account id.',
+                                    type: MessageType.Error,
+                                })
+                                .catch(e => {
+                                    this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
+                                })
+                            return 'missing encodedVerificationUrl in server response'
+                        }
 
-        try {
-            const r = await client.createSubscriptionToken({
-                accountId: awsAccountId,
-            })
+                        try {
+                            URI.parse(uri)
+                        } catch (e) {
+                            this.#log(
+                                `onManageSubscription: invalid encodedVerificationUrl: '${uri}': ${(e as Error).message}`
+                            )
+                            return 'invalid encodedVerificationUrl'
+                        }
 
-            if (!r.encodedVerificationUrl) {
-                this.#log('onManageSubscription: missing encodedVerificationUrl in server response')
-                this.#features.lsp.window
-                    .showMessage({
-                        message: 'Subscription request failed. Check the account id.',
-                        type: MessageType.Error,
-                    })
-                    .catch(e => {
-                        this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
-                    })
-                return 'missing encodedVerificationUrl in server response'
-            }
+                        this.#log(
+                            `onManageSubscription: createSubscriptionToken status: ${o.status} encodedVerificationUrl: '${uri}'`
+                        )
+                        // Set UI to "progress" mode.
+                        this.setPaidTierMode(tabId, 'upgrade-pending')
 
-            const uri = r.encodedVerificationUrl
-
-            try {
-                URI.parse(uri)
-            } catch (e) {
-                this.#log(`onManageSubscription: invalid encodedVerificationUrl: '${uri}': ${(e as Error).message}`)
-                return 'invalid encodedVerificationUrl'
-            }
-
-            this.#log(
-                `onManageSubscription: createSubscriptionToken status: ${r.status} encodedVerificationUrl: '${uri}'`
-            )
-            // Set UI to "progress" mode.
-            this.setPaidTierMode(tabId, 'upgrade-pending')
-
-            // Navigate user to the browser, where they will complete "Upgrade Q" flow.
-            await this.#features.lsp.window.showDocument({
-                external: true, // Client is expected to open the URL in a web browser.
-                uri: uri,
-            })
-
-            // Now asynchronously wait for the user to complete the "Upgrade Q" flow.
-            client
-                .waitUntilSubscriptionActive()
-                .then(r => {
-                    if (r !== true) {
-                        this.setPaidTierMode(tabId, 'freetier')
-
+                        // Navigate user to the browser, where they will complete "Upgrade Q" flow.
                         this.#features.lsp.window
-                            .showMessage({
-                                message: 'Timeout or cancellation while waiting for Amazon Q subscription',
-                                type: MessageType.Error,
+                            .showDocument({
+                                external: true, // Client is expected to open the URL in a web browser.
+                                uri: uri,
                             })
                             .catch(e => {
-                                this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
+                                this.#log(`showDocument failed: ${(e as Error).message}`)
                             })
 
-                        return
+                        // Now asynchronously wait for the user to complete the "Upgrade Q" flow.
+                        client
+                            .waitUntilSubscriptionActive()
+                            .then(r => {
+                                if (r !== true) {
+                                    this.setPaidTierMode(tabId, 'freetier')
+
+                                    this.#features.lsp.window
+                                        .showMessage({
+                                            message: 'Timeout or cancellation while waiting for Amazon Q subscription',
+                                            type: MessageType.Error,
+                                        })
+                                        .catch(e => {
+                                            this.#log(
+                                                `onManageSubscription: showMessage failed: ${(e as Error).message}`
+                                            )
+                                        })
+
+                                    return
+                                }
+
+                                this.setPaidTierMode(tabId, 'paidtier')
+
+                                this.#features.lsp.window
+                                    .showMessage({
+                                        message: 'Upgraded to [Amazon Q Pro](https://aws.amazon.com/q/)',
+                                        type: MessageType.Info,
+                                    })
+                                    .catch(e => {
+                                        this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
+                                    })
+                            })
+                            .catch(e => {
+                                this.#log(
+                                    `onManageSubscription: waitUntilSubscriptionActive failed: ${(e as Error).message}`
+                                )
+                            })
                     }
-
-                    this.setPaidTierMode(tabId, 'paidtier')
-
+                })
+                .catch(e => {
+                    this.#log(`onManageSubscription: getSubscriptionStatus failed: ${JSON.stringify(e)}`)
+                    // TOOD: for visibility, the least-bad option is showMessage, which appears as an IDE notification.
+                    // But it likely makes sense to route this to chat ERROR_MESSAGE mynahApi.showError(), so the message will appear in chat.
+                    // https://github.com/aws/language-servers/blob/1b154570c9cf1eb1d56141095adea4459426b774/chat-client/src/client/chat.ts#L176-L178
+                    // I did find a way to route that from here, yet.
                     this.#features.lsp.window
                         .showMessage({
-                            message: 'Upgraded to [Amazon Q Pro](https://aws.amazon.com/q/)',
-                            type: MessageType.Info,
+                            message: `onManageSubscription: getSubscriptionStatus failed: ${fmtError(e)}`,
+                            type: MessageType.Error,
                         })
                         .catch(e => {
                             this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
                         })
                 })
-                .catch(e => {
-                    this.#log(`onManageSubscription: waitUntilSubscriptionActive failed: ${(e as Error).message}`)
-                })
 
-            return undefined
-        } catch (e) {
-            this.#log(`onManageSubscription: createSubscriptionToken failed: ${fmtError(e)}`)
-            // TOOD: for visbility, the least-bad option is showMessage, which appears as an IDE notification.
-            // But it likely makes sense to route this to chat ERROR_MESSAGE mynahApi.showError(), so the message will appear in chat.
-            // https://github.com/aws/language-servers/blob/1b154570c9cf1eb1d56141095adea4459426b774/chat-client/src/client/chat.ts#L176-L178
-            // I could not confirm if there is a way to route to that from here, yet.
-            this.#features.lsp.window
-                .showMessage({
-                    message: `createSubscriptionToken failed: ${fmtError(e)}`,
-                    type: MessageType.Error,
-                })
-                .catch(e => {
-                    this.#log(`onManageSubscription: showMessage failed: ${(e as Error).message}`)
-                })
-
-            return 'Failed to create subscription token'
+            return
         }
     }
 
