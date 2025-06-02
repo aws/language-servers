@@ -124,10 +124,10 @@ export class FocalFileResolver {
         const filteredCandidate = []
         for (const candidate of candidates) {
             for (const importedFileAbsPath of importedFiles) {
-                const ext = path.extname(importedFileAbsPath)
-                // os.path.splittext(importedFileAbsPath)[0]
-                const p = importedFileAbsPath.substring(0, importedFileAbsPath.length - ext.length)
-                if (candidate.fullPath.startsWith(importedFileAbsPath) || candidate.fullPath.includes(p)) {
+                if (
+                    candidate.fullPath.startsWith(importedFileAbsPath) ||
+                    candidate.fullPath.includes(importedFileAbsPath)
+                ) {
                     filteredCandidate.push(candidate)
                     break
                 }

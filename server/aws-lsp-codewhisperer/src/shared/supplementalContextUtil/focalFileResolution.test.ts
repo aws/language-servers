@@ -73,7 +73,6 @@ describe('focalFileResolver', function () {
     })
 
     describe('extractImportedPaths', function () {
-        // TODO: seems not working as expected ?
         describe('java', function () {
             it('case1', function () {
                 const p = path.join(tmpProjectRoot, 'FooTest.java')
@@ -96,7 +95,6 @@ public class TestClass {}
             })
         })
 
-        // TODO: seems not working as expected ?
         describe('python', function () {
             it('case1', function () {
                 const p = path.join(tmpProjectRoot, 'test_py_class.py')
