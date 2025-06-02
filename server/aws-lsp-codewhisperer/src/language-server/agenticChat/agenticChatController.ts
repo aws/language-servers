@@ -83,6 +83,7 @@ import {
     getErrorMsg,
     getHttpStatusCode,
     getRequestID,
+    getSsoConnectionType,
     isFreeTierLimitError,
     isNullish,
 } from '../../shared/utils'
@@ -2504,6 +2505,11 @@ export class AgenticChatController implements ChatHandlers {
      * - 'paidtier': disable any "free-tier limit" UI.
      */
     setPaidTierMode(tabId?: string, mode?: PaidTierMode) {
+        const isBuilderId = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
+        if (!isBuilderId) {
+            return
+        }
+
         if (this.#paidTierMode === 'freetier-limit' && mode === 'freetier') {
             // mode = 'freetier-limit' // Sticky while 'freetier'.
         } else if (!mode) {
@@ -2518,7 +2524,6 @@ export class AgenticChatController implements ChatHandlers {
                 .catch(err => {
                     this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
                 })
-            // const isFreeTierUser = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
             // mode = isFreeTierUser ? 'freetier' : 'paidtier'
 
             return
