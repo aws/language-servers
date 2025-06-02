@@ -52,7 +52,9 @@ import { initBaseTokenServiceManager } from '../../shared/amazonQServiceManager/
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { hasConnectionExpired } from '../../shared/utils'
-import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './codeEditTracker'
+import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
+import { CursorTracker } from './tracker/cursorTracker'
+const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
@@ -277,6 +279,10 @@ export const CodewhispererServerFactory =
         let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
 
+        // Trackers for monitoring edits and cursor position
+        const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
+        const cursorTracker = CursorTracker.getInstance()
+
         lsp.addInitializer((params: InitializeParams) => {
             return {
                 capabilities: {},
@@ -297,6 +303,10 @@ export const CodewhispererServerFactory =
                 // If session was requesting at cancellation time, close it
                 // User Trigger Decision will be reported at the time of processing API response in the callback below.
                 sessionManager.discardSession(currentSession)
+            }
+
+            if (cursorTracker) {
+                cursorTracker.trackPosition(params.textDocument.uri, params.position)
             }
 
             // prettier-ignore
@@ -328,7 +338,6 @@ export const CodewhispererServerFactory =
                     }
 
 
-                    // TODO: Can we get this derived from a keyboard event in the future?
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
                     const codewhispererAutoTriggerType = triggerType(fileContext)
@@ -342,7 +351,20 @@ export const CodewhispererServerFactory =
                         os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                         previousDecision, // The last decision by the user on the previous invocation
                         triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
-                    })
+                    });
+
+                    // Call editPredictionAutoTrigger and log the result
+                    const editPredictionResult = editPredictionAutoTrigger({
+                        fileContext: fileContext,
+                        lineNum: params.position.line,
+                        char: triggerCharacter,
+                        previousDecision: previousDecision,
+                        cursorHistory: cursorTracker,
+                        recentEdits: recentEditTracker
+                    });
+
+                    logging.log('[EditPredictionAutoTrigger] Result:' + JSON.stringify(editPredictionResult));
+
 
                     if (
                         isAutomaticLspTriggerKind &&
@@ -767,19 +789,11 @@ export const CodewhispererServerFactory =
                 }
             )
 
-            // Initialize RecentEditTracker
-            recentEditTracker = new RecentEditTracker(clientParams, logging, RecentEditTrackerDefaultConfig)
-
             const periodicLoggingEnabled = process.env.LOG_EDIT_TRACKING === 'true'
             logging.log(
-                `[SERVER] RecentEditTracker initialized with config: maxFiles=${RecentEditTrackerDefaultConfig.maxFiles}, maxStorageSizeKb=${RecentEditTrackerDefaultConfig.maxStorageSizeKb}KB, periodicLogging=${periodicLoggingEnabled}`
+                `[SERVER] Initialized telemetry-dependent components: CodePercentageTracker, CodeDiffTracker, periodicLogging=${periodicLoggingEnabled}`
             )
 
-            /*
-                            Calling handleDidChangeConfiguration once to ensure we get configuration atleast once at start up
-
-                            TODO: TODO: consider refactoring such responsibilities to common service manager config/initialisation server
-                        */
             await amazonQServiceManager.handleDidChangeConfiguration()
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
         }
@@ -787,9 +801,6 @@ export const CodewhispererServerFactory =
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
         lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)
         lsp.onInitialized(onInitializedHandler)
-
-        // Initialize RecentEditTracker
-        let recentEditTracker: RecentEditTracker
 
         lsp.onDidChangeTextDocument(async p => {
             const textDocument = await workspace.getTextDocument(p.textDocument.uri)
@@ -802,9 +813,11 @@ export const CodewhispererServerFactory =
             logging.log(`Document changed: ${p.textDocument.uri}`)
 
             // Track token counts for code percentage metrics
-            p.contentChanges.forEach(change => {
-                codePercentageTracker.countTotalTokens(languageId, change.text, false)
-            })
+            if (codePercentageTracker) {
+                p.contentChanges.forEach(change => {
+                    codePercentageTracker.countTotalTokens(languageId, change.text, false)
+                })
+            }
 
             // Record last user modification time for any document
             if (lastUserModificationTime) {
@@ -851,14 +864,22 @@ export const CodewhispererServerFactory =
                 logging.log(`[SERVER] Tracking document close with RecentEditTracker: ${p.textDocument.uri}`)
                 recentEditTracker.handleDocumentClose(p.textDocument.uri)
             }
+
+            if (cursorTracker) {
+                cursorTracker.clearHistory(p.textDocument.uri)
+            }
         })
 
         logging.log('Amazon Q Inline Suggestion server has been initialised')
 
         return async () => {
-            codePercentageTracker?.dispose()
-            await codeDiffTracker?.shutdown()
-            recentEditTracker?.dispose()
+            // Dispose all trackers in reverse order of initialization
+            if (codePercentageTracker) codePercentageTracker.dispose()
+            if (codeDiffTracker) await codeDiffTracker.shutdown()
+            if (recentEditTracker) recentEditTracker.dispose()
+            if (cursorTracker) cursorTracker.dispose()
+
+            logging.log('Amazon Q Inline Suggestion server has been shut down')
         }
     }
 
