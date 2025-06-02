@@ -306,42 +306,56 @@ describe('enabledMCP', () => {
 
 describe('createNamespacedToolName', () => {
     let tools: Set<string>
+    let toolNameMapping: Map<string, { serverName: string; toolName: string }>
     beforeEach(() => {
         tools = new Set<string>()
+        toolNameMapping = new Map<string, { serverName: string; toolName: string }>()
     })
 
     it('adds server prefix when tool name conflicts', () => {
         tools.add('create_issue') // Pre-existing tool
-        const result = createNamespacedToolName('github', 'create_issue', tools)
+        const result = createNamespacedToolName('github', 'create_issue', tools, toolNameMapping)
         expect(result).to.equal('github___create_issue')
         expect(tools.has('github___create_issue')).to.be.true
+        expect(toolNameMapping.get('github___create_issue')).to.deep.equal({
+            serverName: 'github',
+            toolName: 'create_issue',
+        })
     })
 
     it('truncates server name when combined length exceeds limit', () => {
         tools.add('create_issue') // Force the function to use server prefix
         const longServer = 'very_long_server_name_that_definitely_exceeds_maximum_length_when_combined'
-        const result = createNamespacedToolName(longServer, 'create_issue', tools)
+        const result = createNamespacedToolName(longServer, 'create_issue', tools, toolNameMapping)
         expect(result.length).to.be.lessThanOrEqual(MAX_TOOL_NAME_LENGTH)
         expect(result.endsWith('___create_issue')).to.be.true
+        expect(toolNameMapping.get(result)).to.deep.equal({
+            serverName: 'very_long_server_name_that_definitely_exceeds_maximum_length_when_combined',
+            toolName: 'create_issue',
+        })
     })
 
     it('uses numeric suffix when tool name is too long', () => {
         const longTool = 'extremely_long_tool_name_that_definitely_exceeds_the_maximum_allowed_length_for_names'
-        const result = createNamespacedToolName('server', longTool, tools)
+        const result = createNamespacedToolName('server', longTool, tools, toolNameMapping)
         expect(result.length).to.be.lessThanOrEqual(MAX_TOOL_NAME_LENGTH)
         expect(result).to.equal('extremely_long_tool_name_that_definitely_exceeds_the_maximum_al1')
+        expect(toolNameMapping.get(result)).to.deep.equal({
+            serverName: 'server',
+            toolName: longTool,
+        })
     })
 
     it('handles multiple conflicts with numeric suffixes', () => {
         tools.add('deploy') // First conflict
-        const result1 = createNamespacedToolName('aws', 'deploy', tools)
+        const result1 = createNamespacedToolName('aws', 'deploy', tools, toolNameMapping)
         expect(result1).to.equal('aws___deploy')
 
-        const result2 = createNamespacedToolName('gcp', 'deploy', tools)
+        const result2 = createNamespacedToolName('gcp', 'deploy', tools, toolNameMapping)
         expect(result2).to.equal('gcp___deploy')
 
         // If we add another with same server prefix, it should use numeric suffix
-        const result3 = createNamespacedToolName('aws', 'deploy', tools)
+        const result3 = createNamespacedToolName('aws', 'deploy', tools, toolNameMapping)
         expect(result3).to.equal('deploy1')
     })
 })

@@ -40,6 +40,7 @@ export class McpManager {
     public readonly events: EventEmitter
     private static readonly configMutex = new Mutex()
     private static readonly personaMutex = new Mutex()
+    private toolNameMapping: Map<string, { serverName: string; toolName: string }>
 
     private constructor(
         private configPaths: string[],
@@ -54,6 +55,7 @@ export class McpManager {
         this.mcpServerPermissions = new Map<string, MCPServerPermission>()
         this.events = new EventEmitter()
         this.features.logging.info(`MCP manager: initialized with ${configPaths.length} configs`)
+        this.toolNameMapping = new Map<string, { serverName: string; toolName: string }>()
     }
 
     /**
@@ -732,5 +734,21 @@ export class McpManager {
         return Array.from(this.configLoadErrors.entries())
             .map(([server, error]) => `File: ${server}, Error: ${error}`)
             .join('\n\n')
+    }
+
+    public getOriginalToolNames(namespacedName: string): { serverName: string; toolName: string } | undefined {
+        return this.toolNameMapping.get(namespacedName)
+    }
+
+    public clearToolNameMapping(): void {
+        this.toolNameMapping.clear()
+    }
+
+    public getToolNameMapping(): Map<string, { serverName: string; toolName: string }> {
+        return new Map(this.toolNameMapping)
+    }
+
+    public setToolNameMapping(mapping: Map<string, { serverName: string; toolName: string }>): void {
+        this.toolNameMapping = new Map(mapping)
     }
 }
