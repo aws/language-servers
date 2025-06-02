@@ -2642,10 +2642,12 @@ export class AgenticChatController implements ChatHandlers {
      * Updates the "Upgrade Q" (subscription tier) state of the UI in the chat component. If `mode` is not given, the user's subscription status is checked by calling the Q service.
      *
      * `mode` behavior:
-     * - 'freetier': treated as 'freetier-limit' if `this.#paidTierMode='freetier-limit'`.
-     * - 'freetier-limit': also show "Free Tier limit reached" card in chat.
-     *     - This mode is "sticky" until 'paidtier' is passed to override it.
-     * - 'paidtier': disable any "free-tier limit" UI.
+     *  - 'freetier': chat-ui clears "limit reached" UI, if any.
+     *  - 'freetier-limit':
+     *      - client (IDE) shows a message.
+     *      - chat-ui shows a chat card.
+     *  - 'paidtier': disable any "free-tier limit" UI.
+     *  - 'upgrade-pending': chat-ui shows a progress spinner.
      */
     setPaidTierMode(tabId?: string, mode?: PaidTierMode) {
         const isBuilderId = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
@@ -2739,7 +2741,7 @@ export class AgenticChatController implements ChatHandlers {
                             this.#log('onManageSubscription: missing encodedVerificationUrl in server response')
                             this.#features.lsp.window
                                 .showMessage({
-                                    message: 'Subscription request failed. Check the account id.',
+                                    message: 'Subscription request failed.',
                                     type: MessageType.Error,
                                 })
                                 .catch(e => {

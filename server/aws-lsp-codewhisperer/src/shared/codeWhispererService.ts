@@ -6,6 +6,7 @@ import {
     Logging,
     SDKInitializator,
     CancellationToken,
+    CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -158,7 +159,9 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
     /** Debounce createSubscriptionToken by storing the current, pending promise (if any). */
-    #createSubscriptionTokenPromise: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse> | undefined
+    #createSubscriptionTokenPromise?: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse>
+    /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
+    #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
     constructor(
         private credentialsProvider: CredentialsProvider,
@@ -376,13 +379,21 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async createSubscriptionToken(request: CodeWhispererTokenClient.CreateSubscriptionTokenRequest) {
         // Debounce.
         if (this.#createSubscriptionTokenPromise) {
-            // this.logging.debug('createSubscriptionTokenPromise: debounced')
             return this.#createSubscriptionTokenPromise
         }
 
         this.#createSubscriptionTokenPromise = (async () => {
             try {
-                return this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
+                const r = await this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
+                if (!r.encodedVerificationUrl) {
+                    this.logging.error(`setpaidtier
+    request: ${JSON.stringify(request)}
+    response: ${JSON.stringify(r as any)}
+    requestId: ${(r as any).$response?.requestId}
+    httpStatusCode: ${(r as any).$response?.httpResponse?.statusCode}
+    headers: ${JSON.stringify((r as any).$response?.httpResponse?.headers)}`)
+                }
+                return r
             } finally {
                 this.#createSubscriptionTokenPromise = undefined
             }
@@ -441,9 +452,27 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * Returns true on success, or false on timeout/cancellation.
      */
     async waitUntilSubscriptionActive(cancelToken?: CancellationToken): Promise<boolean> {
+        // If user clicks "Upgrade" multiple times, cancel any pending waitUntil().
+        if (this.#waitUntilSubscriptionCancelSource) {
+            this.#waitUntilSubscriptionCancelSource.cancel()
+            this.#waitUntilSubscriptionCancelSource.dispose()
+        }
+
+        this.#waitUntilSubscriptionCancelSource = new CancellationTokenSource()
+
+        // Combine the external cancelToken (if provided) with our internal one.
+        const combinedToken = cancelToken
+            ? {
+                  isCancellationRequested: () =>
+                      cancelToken.isCancellationRequested ||
+                      this.#waitUntilSubscriptionCancelSource!.token.isCancellationRequested,
+              }
+            : this.#waitUntilSubscriptionCancelSource.token
+
         const r = await waitUntil(
             async () => {
-                if (cancelToken?.isCancellationRequested) {
+                if (combinedToken.isCancellationRequested) {
+                    this.logging.info('waitUntilSubscriptionActive: cancelled')
                     return false
                 }
                 const s = await this.getSubscriptionStatus(true)
@@ -457,7 +486,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 interval: 2000,
                 truthy: true,
             }
-        )
+        ).finally(() => {
+            this.#waitUntilSubscriptionCancelSource?.dispose()
+            this.#waitUntilSubscriptionCancelSource = undefined
+        })
 
         return !!r
     }
