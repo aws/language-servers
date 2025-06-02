@@ -473,10 +473,26 @@ export class McpManager {
 
             await this.mutateConfigFile(configPath, json => {
                 json.mcpServers ||= {}
-                json.mcpServers[serverName] = {
-                    ...json.mcpServers[serverName],
-                    ...configUpdates,
+                const updatedConfig = { ...(json.mcpServers[serverName] || {}) }
+                if (configUpdates.command !== undefined) updatedConfig.command = configUpdates.command
+                if (configUpdates.initializationTimeout !== undefined)
+                    updatedConfig.initializationTimeout = configUpdates.initializationTimeout
+                if (configUpdates.timeout !== undefined) updatedConfig.timeout = configUpdates.timeout
+                if (configUpdates.args !== undefined) {
+                    if (configUpdates.args.length > 0) {
+                        updatedConfig.args = configUpdates.args
+                    } else {
+                        delete updatedConfig.args
+                    }
                 }
+                if (configUpdates.env !== undefined) {
+                    if (!isEmptyEnv(configUpdates.env)) {
+                        updatedConfig.env = configUpdates.env
+                    } else {
+                        delete updatedConfig.env
+                    }
+                }
+                json.mcpServers[serverName] = updatedConfig
             })
 
             const newCfg: MCPServerConfig = {
