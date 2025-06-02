@@ -282,6 +282,7 @@ export const CodewhispererServerFactory =
         // Trackers for monitoring edits and cursor position
         const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
         const cursorTracker = CursorTracker.getInstance()
+        let editsEnabled = false
 
         lsp.addInitializer((params: InitializeParams) => {
             return {
@@ -354,7 +355,7 @@ export const CodewhispererServerFactory =
                     });
 
                     // Call editPredictionAutoTrigger and log the result
-                    const editPredictionResult = editPredictionAutoTrigger({
+                    const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
                         fileContext: fileContext,
                         lineNum: params.position.line,
                         char: triggerCharacter,
@@ -363,16 +364,21 @@ export const CodewhispererServerFactory =
                         recentEdits: recentEditTracker
                     });
 
-                    logging.log('[EditPredictionAutoTrigger] Result:' + JSON.stringify(editPredictionResult));
-
-
                     if (
                         isAutomaticLspTriggerKind &&
                         codewhispererAutoTriggerType === 'Classifier' &&
-                        !autoTriggerResult.shouldTrigger
+                        !(autoTriggerResult.shouldTrigger || editPredictionAutoTriggerResult.shouldTrigger)
                     ) {
                         return EMPTY_RESULT
                     }
+
+                    const predictionTypes = [
+                        ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
+                        ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : [])
+                    ]
+
+                     console.log('[PredictionTypes] Result:' + predictionTypes);
+
 
                     const codeWhispererService = amazonQServiceManager.getCodewhispererService()
                     // supplementalContext available only via token authentication
@@ -760,6 +766,12 @@ export const CodewhispererServerFactory =
                     'TelemetryService initialized before LSP connection was initialized.'
                 )
             )
+
+            logging.log(`Client initialization params: ${JSON.stringify(clientParams)}`)
+            editsEnabled =
+                clientParams?.initializationOptions?.aws?.awsClientCapabilities?.textDocument
+                    ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
+            console.log('[EDITS] Edits enabled: ' + editsEnabled)
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'INLINE'))
