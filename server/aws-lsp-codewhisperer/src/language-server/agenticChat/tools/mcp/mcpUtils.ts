@@ -305,12 +305,6 @@ export function enabledMCP(params: InitializeParams | undefined): boolean {
 
 export const MAX_TOOL_NAME_LENGTH = 64
 
-const toolNameMapping = new Map<string, { serverName: string; toolName: string }>()
-
-export function getOriginalToolNames(namespacedName: string): { serverName: string; toolName: string } | undefined {
-    return toolNameMapping.get(namespacedName)
-}
-
 /**
  * Create a namespaced tool name from server and tool names.
  * Handles truncation and conflicts according to specific rules.
@@ -319,7 +313,8 @@ export function getOriginalToolNames(namespacedName: string): { serverName: stri
 export function createNamespacedToolName(
     serverName: string,
     toolName: string,
-    allNamespacedTools: Set<string>
+    allNamespacedTools: Set<string>,
+    toolNameMapping: Map<string, { serverName: string; toolName: string }>
 ): string {
     const sep = '___'
     // If tool name alone isn't unique or is too long, try adding server prefix

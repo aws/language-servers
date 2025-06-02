@@ -89,7 +89,12 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
 
         // 2) add new enabled tools
         for (const def of defs) {
-            const namespaced = createNamespacedToolName(def.serverName, def.toolName, allNamespacedTools)
+            const namespaced = createNamespacedToolName(
+                def.serverName,
+                def.toolName,
+                allNamespacedTools,
+                McpManager.instance.getToolNameMapping()
+            )
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
             // Add explanation field to input schema
@@ -130,6 +135,9 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
         const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
 
         const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, { logging, workspace, lsp })
+
+        // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
+        McpManager.instance.clearToolNameMapping()
 
         const byServer: Record<string, McpToolDefinition[]> = {}
         // only register enabled tools

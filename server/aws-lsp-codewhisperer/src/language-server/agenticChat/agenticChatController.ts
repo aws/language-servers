@@ -130,8 +130,7 @@ import { McpTool } from './tools/mcp/mcpTool'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
-import { createNamespacedToolName, getOriginalToolNames } from './tools/mcp/mcpUtils'
-import { enabledMCP } from './tools/mcp/mcpUtils'
+import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -1017,7 +1016,7 @@ export class AgenticChatController implements ChatHandlers {
                     // — DEFAULT ⇒ MCP tools
                     default:
                         // Get original server and tool names from the mapping
-                        const originalNames = getOriginalToolNames(toolUse.name)
+                        const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
                         if (originalNames) {
                             const { serverName, toolName } = originalNames
                             const def = McpManager.instance
@@ -2730,6 +2729,11 @@ export class AgenticChatController implements ChatHandlers {
             return allTools
         }
 
+        // Clear tool name mapping to avoid conflicts from previous registrations
+        McpManager.instance.clearToolNameMapping()
+
+        const tempMapping = new Map<string, { serverName: string; toolName: string }>()
+
         // Read Only Tools = All Tools - Restricted Tools (MCP + Write Tools)
         // TODO: mcp tool spec name will be server___tool.
         // TODO: Will also need to handle rare edge cases of long server name + long tool name > 64 char
@@ -2737,8 +2741,10 @@ export class AgenticChatController implements ChatHandlers {
         const mcpToolSpecNames = new Set(
             McpManager.instance
                 .getAllTools()
-                .map(tool => createNamespacedToolName(tool.serverName, tool.toolName, allNamespacedTools))
+                .map(tool => createNamespacedToolName(tool.serverName, tool.toolName, allNamespacedTools, tempMapping))
         )
+
+        McpManager.instance.setToolNameMapping(tempMapping)
         const writeToolNames = new Set(['fsWrite', 'executeBash'])
         const restrictedToolNames = new Set([...mcpToolSpecNames, ...writeToolNames])
 
@@ -2787,7 +2793,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // Get original server and tool names from the mapping
-        const originalNames = getOriginalToolNames(toolUse.name)
+        const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
         if (originalNames) {
             const { serverName, toolName } = originalNames
             const def = McpManager.instance
