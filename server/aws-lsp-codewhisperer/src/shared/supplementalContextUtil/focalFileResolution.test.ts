@@ -24,12 +24,7 @@ describe('focalFileResolver', function () {
 
     describe('inferFocalFilename', function () {
         describe('java', function () {
-            const testCases = [
-                'FooTest.java',
-                'FooTests.java',
-                'TestFoo.java',
-                // 'TestsFoo.java' // TODO: current implementation this case will fail
-            ]
+            const testCases = ['FooTest.java', 'FooTests.java', 'TestFoo.java', 'TestsFoo.java']
 
             for (let i = 0; i < testCases.length; i++) {
                 const testCase = testCases[i]

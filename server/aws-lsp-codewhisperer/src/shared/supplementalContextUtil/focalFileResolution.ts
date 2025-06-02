@@ -25,7 +25,7 @@ const LANGUAGE_CONFIG: Record<string, Metadata> = {
     java: {
         lang: 'java',
         extensions: ['.java'],
-        testAffixes: ['Test', 'Tests'],
+        testAffixes: ['Tests', 'Test'],
         packageMarker: /^package\s+([a-zA-Z0-9_.]+);/,
         packageSeparator: '.',
     },
