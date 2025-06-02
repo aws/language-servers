@@ -4,6 +4,7 @@
  */
 
 import { TextDocument } from '@aws/language-server-runtimes/server-interface'
+import * as path from 'path'
 
 const testFileNameRegex: Record<string, RegExp[]> = {
     python: [/^test_.*\.py$/, /.*_test\.py$/],
@@ -34,7 +35,9 @@ export class TestIntentDetector {
             throw new Error('lang not supported by utg completion')
         }
 
-        const isTestFileByName = testFileNameRegex[language].some(regex => regex.test(filePath))
+        // Filename + file extension
+        const basename = path.basename(filePath)
+        const isTestFileByName = testFileNameRegex[language].some(regex => regex.test(basename))
         // Return early and no need to inspect further
         if (!isTestFileByName) {
             return false
