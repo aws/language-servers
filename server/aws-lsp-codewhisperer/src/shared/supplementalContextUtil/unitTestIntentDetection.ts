@@ -14,8 +14,15 @@ const testFileNameRegex: Record<string, RegExp[]> = {
 }
 
 const testKeywordsRegex: Record<string, RegExp[]> = {
-    python: [/^import unittest/m, /^from unittest/m, /^def test_/m],
-    java: [/@Test/m],
+    python: [/^import unittest/m, /^from unittest/m, /^def test_/m, /^import\s+pytest/m, /^from\s+pytest/m],
+    java: [
+        /@Test/m,
+        /import\s+org\.junit\./m,
+        /import\s+org\.testng\./m,
+        /import\s+org\.mockito\./m,
+        /^import\s+org\.assertj\./m,
+        /^import\s+org\.springframework\.test\./m,
+    ],
     typescript: [/describe\(/m, /(it|test)\(/m],
     javascript: [/describe\(/m, /(it|test)\(/m],
 }
