@@ -4,12 +4,12 @@
  * DO NOT EDIT BY HAND.
  */
 
-import { Request } from 'aws-sdk/lib/request';
-import { Response } from 'aws-sdk/lib/response';
-import { AWSError } from 'aws-sdk/lib/error';
-import { Service } from 'aws-sdk/lib/service';
-import { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
-import { ConfigBase as Config } from 'aws-sdk/lib/config-base';
+import {Request} from 'aws-sdk/lib/request';
+import {Response} from 'aws-sdk/lib/response';
+import {AWSError} from 'aws-sdk/lib/error';
+import {Service} from 'aws-sdk/lib/service';
+import {ServiceConfigurationOptions} from 'aws-sdk/lib/service';
+import {ConfigBase as Config} from 'aws-sdk/lib/config-base';
 interface Blob {}
 declare class CodeWhispererSigV4Client extends Service {
   /**
@@ -18,162 +18,283 @@ declare class CodeWhispererSigV4Client extends Service {
   constructor(options?: CodeWhispererSigV4Client.Types.ClientConfiguration)
   config: Config & CodeWhispererSigV4Client.Types.ClientConfiguration;
   /**
-   * 
+   * Internal API to authorize a CodeWhisperer resource for vended log delivery.
    */
-  createCodeScan(params: CodeWhispererSigV4Client.Types.CreateCodeScanRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateCodeScanResponse, AWSError>;
+  allowVendedLogDeliveryForResource(params: CodeWhispererSigV4Client.Types.AllowVendedLogDeliveryForResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.AllowVendedLogDeliveryForResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.AllowVendedLogDeliveryForResourceResponse, AWSError>;
+  /**
+   * Internal API to authorize a CodeWhisperer resource for vended log delivery.
+   */
+  allowVendedLogDeliveryForResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.AllowVendedLogDeliveryForResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.AllowVendedLogDeliveryForResourceResponse, AWSError>;
+  /**
+   * Add permission for an Identity Center User/Group to use the Customization.
+   */
+  associateCustomizationPermission(params: CodeWhispererSigV4Client.Types.AssociateCustomizationPermissionRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.AssociateCustomizationPermissionResponse) => void): Request<CodeWhispererSigV4Client.Types.AssociateCustomizationPermissionResponse, AWSError>;
+  /**
+   * Add permission for an Identity Center User/Group to use the Customization.
+   */
+  associateCustomizationPermission(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.AssociateCustomizationPermissionResponse) => void): Request<CodeWhispererSigV4Client.Types.AssociateCustomizationPermissionResponse, AWSError>;
   /**
    * 
    */
-  createCodeScan(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateCodeScanResponse, AWSError>;
+  createCustomization(params: CodeWhispererSigV4Client.Types.CreateCustomizationRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateCustomizationResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateCustomizationResponse, AWSError>;
   /**
    * 
    */
-  createCodeScanUploadUrl(params: CodeWhispererSigV4Client.Types.CreateUploadUrlRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateUploadUrlResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateUploadUrlResponse, AWSError>;
+  createCustomization(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateCustomizationResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateCustomizationResponse, AWSError>;
   /**
-   * 
-   */
-  createCodeScanUploadUrl(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateUploadUrlResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateUploadUrlResponse, AWSError>;
-  /**
-   * 
+   * Creates a CodeWhisperer profile which can then be associated to users/groups of an identity source
    */
   createProfile(params: CodeWhispererSigV4Client.Types.CreateProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateProfileResponse, AWSError>;
   /**
-   * 
+   * Creates a CodeWhisperer profile which can then be associated to users/groups of an identity source
    */
   createProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.CreateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.CreateProfileResponse, AWSError>;
   /**
-   * 
+   * Deletes CodeWhisperer Customization and associated resources
+   */
+  deleteCustomization(params: CodeWhispererSigV4Client.Types.DeleteCustomizationRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DeleteCustomizationResponse) => void): Request<CodeWhispererSigV4Client.Types.DeleteCustomizationResponse, AWSError>;
+  /**
+   * Deletes CodeWhisperer Customization and associated resources
+   */
+  deleteCustomization(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DeleteCustomizationResponse) => void): Request<CodeWhispererSigV4Client.Types.DeleteCustomizationResponse, AWSError>;
+  /**
+   * Deletes CodeWhisperer profile and associated resources
    */
   deleteProfile(params: CodeWhispererSigV4Client.Types.DeleteProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DeleteProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.DeleteProfileResponse, AWSError>;
   /**
-   * 
+   * Deletes CodeWhisperer profile and associated resources
    */
   deleteProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DeleteProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.DeleteProfileResponse, AWSError>;
   /**
-   * 
+   * Disassociate the permission for a Customization from an Identity Center User/Group.
+   */
+  disassociateCustomizationPermission(params: CodeWhispererSigV4Client.Types.DisassociateCustomizationPermissionRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DisassociateCustomizationPermissionResponse) => void): Request<CodeWhispererSigV4Client.Types.DisassociateCustomizationPermissionResponse, AWSError>;
+  /**
+   * Disassociate the permission for a Customization from an Identity Center User/Group.
+   */
+  disassociateCustomizationPermission(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.DisassociateCustomizationPermissionResponse) => void): Request<CodeWhispererSigV4Client.Types.DisassociateCustomizationPermissionResponse, AWSError>;
+  /**
+   * Generates recommendations based on the provided file context.
    */
   generateRecommendations(params: CodeWhispererSigV4Client.Types.GenerateRecommendationsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse, AWSError>;
   /**
-   * 
+   * Generates recommendations based on the provided file context.
    */
   generateRecommendations(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.GenerateRecommendationsResponse, AWSError>;
   /**
    * 
    */
-  getAccessToken(params: CodeWhispererSigV4Client.Types.GetAccessTokenRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetAccessTokenResponse) => void): Request<CodeWhispererSigV4Client.Types.GetAccessTokenResponse, AWSError>;
+  getCustomization(params: CodeWhispererSigV4Client.Types.GetCustomizationRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetCustomizationResponse) => void): Request<CodeWhispererSigV4Client.Types.GetCustomizationResponse, AWSError>;
   /**
    * 
    */
-  getAccessToken(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetAccessTokenResponse) => void): Request<CodeWhispererSigV4Client.Types.GetAccessTokenResponse, AWSError>;
+  getCustomization(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetCustomizationResponse) => void): Request<CodeWhispererSigV4Client.Types.GetCustomizationResponse, AWSError>;
+  /**
+   * List User(s)/Group(s) who have permissions to use a Customization.
+   */
+  listCustomizationPermissions(params: CodeWhispererSigV4Client.Types.ListCustomizationPermissionsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCustomizationPermissionsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCustomizationPermissionsResponse, AWSError>;
+  /**
+   * List User(s)/Group(s) who have permissions to use a Customization.
+   */
+  listCustomizationPermissions(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCustomizationPermissionsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCustomizationPermissionsResponse, AWSError>;
+  /**
+   * List actionable versions associated with a Customization.
+   */
+  listCustomizationVersions(params: CodeWhispererSigV4Client.Types.ListCustomizationVersionsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCustomizationVersionsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCustomizationVersionsResponse, AWSError>;
+  /**
+   * List actionable versions associated with a Customization.
+   */
+  listCustomizationVersions(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCustomizationVersionsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCustomizationVersionsResponse, AWSError>;
   /**
    * 
    */
-  getCodeScan(params: CodeWhispererSigV4Client.Types.GetCodeScanRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.GetCodeScanResponse, AWSError>;
+  listCustomizations(params: CodeWhispererSigV4Client.Types.ListCustomizationsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCustomizationsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCustomizationsResponse, AWSError>;
   /**
    * 
    */
-  getCodeScan(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.GetCodeScanResponse) => void): Request<CodeWhispererSigV4Client.Types.GetCodeScanResponse, AWSError>;
+  listCustomizations(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCustomizationsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCustomizationsResponse, AWSError>;
   /**
-   * 
-   */
-  listCodeScanFindings(params: CodeWhispererSigV4Client.Types.ListCodeScanFindingsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse, AWSError>;
-  /**
-   * 
-   */
-  listCodeScanFindings(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListCodeScanFindingsResponse, AWSError>;
-  /**
-   * 
+   * Lists one or more CodeWhisperer profiles that you have created.
    */
   listProfiles(params: CodeWhispererSigV4Client.Types.ListProfilesRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListProfilesResponse) => void): Request<CodeWhispererSigV4Client.Types.ListProfilesResponse, AWSError>;
   /**
-   * 
+   * Lists one or more CodeWhisperer profiles that you have created.
    */
   listProfiles(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListProfilesResponse) => void): Request<CodeWhispererSigV4Client.Types.ListProfilesResponse, AWSError>;
   /**
-   * 
-   */
-  listRecommendations(params: CodeWhispererSigV4Client.Types.ListRecommendationsRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListRecommendationsResponse, AWSError>;
-  /**
-   * 
-   */
-  listRecommendations(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListRecommendationsResponse) => void): Request<CodeWhispererSigV4Client.Types.ListRecommendationsResponse, AWSError>;
-  /**
-   * 
+   * List tags of an existing CodeWhisperer profile.
    */
   listTagsForResource(params: CodeWhispererSigV4Client.Types.ListTagsForResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListTagsForResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.ListTagsForResourceResponse, AWSError>;
   /**
-   * 
+   * List tags of an existing CodeWhisperer profile.
    */
   listTagsForResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.ListTagsForResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.ListTagsForResourceResponse, AWSError>;
   /**
-   * 
+   * Add tags to an existing CodeWhisperer profile.
    */
   tagResource(params: CodeWhispererSigV4Client.Types.TagResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.TagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.TagResourceResponse, AWSError>;
   /**
-   * 
+   * Add tags to an existing CodeWhisperer profile.
    */
   tagResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.TagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.TagResourceResponse, AWSError>;
   /**
-   * 
+   * Remove tags from an existing CodeWhisperer profile.
    */
   untagResource(params: CodeWhispererSigV4Client.Types.UntagResourceRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UntagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.UntagResourceResponse, AWSError>;
   /**
-   * 
+   * Remove tags from an existing CodeWhisperer profile.
    */
   untagResource(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UntagResourceResponse) => void): Request<CodeWhispererSigV4Client.Types.UntagResourceResponse, AWSError>;
   /**
    * 
    */
-  updateProfile(params: CodeWhispererSigV4Client.Types.UpdateProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateProfileResponse, AWSError>;
+  updateCustomization(params: CodeWhispererSigV4Client.Types.UpdateCustomizationRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateCustomizationResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateCustomizationResponse, AWSError>;
   /**
    * 
    */
+  updateCustomization(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateCustomizationResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateCustomizationResponse, AWSError>;
+  /**
+   * Updates an existing CodeWhisperer profile.
+   */
+  updateProfile(params: CodeWhispererSigV4Client.Types.UpdateProfileRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateProfileResponse, AWSError>;
+  /**
+   * Updates an existing CodeWhisperer profile.
+   */
   updateProfile(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.UpdateProfileResponse) => void): Request<CodeWhispererSigV4Client.Types.UpdateProfileResponse, AWSError>;
+  /**
+   * Returns grant details associated with the profile under the input account Id Output includes cmk arn, grant token, and grant id
+   */
+  vendKeyGrant(params: CodeWhispererSigV4Client.Types.VendKeyGrantRequest, callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.VendKeyGrantResponse) => void): Request<CodeWhispererSigV4Client.Types.VendKeyGrantResponse, AWSError>;
+  /**
+   * Returns grant details associated with the profile under the input account Id Output includes cmk arn, grant token, and grant id
+   */
+  vendKeyGrant(callback?: (err: AWSError, data: CodeWhispererSigV4Client.Types.VendKeyGrantResponse) => void): Request<CodeWhispererSigV4Client.Types.VendKeyGrantResponse, AWSError>;
 }
 declare namespace CodeWhispererSigV4Client {
-  export type ArtifactMap = { [key: string]: UploadId };
-  export type ArtifactType = "SourceCode" | "BuiltJars" | string;
+  export type AWSAccountId = string;
+  export type ActiveFunctionalityList = FunctionalityName[];
+  export interface AllowVendedLogDeliveryForResourceRequest {
+    resourceArnBeingAuthorized: ResourceArn;
+    deliverySourceArn: ResourceArn;
+  }
+  export interface AllowVendedLogDeliveryForResourceResponse {
+    message?: String;
+  }
+  export interface ApplicationProperties {
+    tenantId: TenantId;
+    applicationArn: ResourceArn;
+    tenantUrl: Url;
+    applicationType: FunctionalityName;
+  }
+  export type ApplicationPropertiesList = ApplicationProperties[];
+  export interface AssociateCustomizationPermissionRequest {
+    identifier: CustomizationIdentifier;
+    permission: CustomizationPermission;
+  }
+  export interface AssociateCustomizationPermissionResponse {
+  }
   export type Base64EncodedPaginationToken = string;
-  export type CodeScanFindingsSchema = "codescan/findings/1.0" | string;
-  export type CodeScanStatus = "Completed" | "Pending" | "Failed" | string;
-  export interface CreateCodeScanRequest {
-    artifacts: ArtifactMap;
-    programmingLanguage: ProgrammingLanguage;
-    clientToken?: CreateCodeScanRequestClientTokenString;
+  export type Boolean = boolean;
+  export interface ByUserAnalytics {
+    s3Uri?: S3Uri;
+    toggle: OptInFeatureToggle;
   }
-  export type CreateCodeScanRequestClientTokenString = string;
-  export interface CreateCodeScanResponse {
-    jobId: CreateCodeScanResponseJobIdString;
-    status: CodeScanStatus;
-    errorMessage?: String;
+  export type ClientId = string;
+  export interface CodeStarReference {
+    connectionArn: ResourceArn;
   }
-  export type CreateCodeScanResponseJobIdString = string;
+  export interface CreateCustomizationRequest {
+    dataReference: DataReference;
+    customizationName: CustomizationName;
+    description?: Description;
+    profileArn: ProfileArn;
+    tags?: TagList;
+    clientToken?: IdempotencyToken;
+    includeRepos?: RepositoryList;
+  }
+  export interface CreateCustomizationResponse {
+    customizationArn: CustomizationArn;
+  }
   export interface CreateProfileRequest {
-    identitySource: IdentitySource;
+    identitySource?: IdentitySource;
     profileName: ProfileName;
+    description?: ProfileDescription;
     referenceTrackerConfiguration: ReferenceTrackerConfiguration;
+    activeFunctionalities?: ActiveFunctionalityList;
     clientToken?: IdempotencyToken;
     kmsKeyArn?: ResourceArn;
     tags?: TagList;
+    resourcePolicy?: ResourcePolicy;
+    optInFeatures?: OptInFeatures;
   }
   export interface CreateProfileResponse {
-    profileArn: ResourceArn;
+    profileArn: ProfileArn;
   }
-  export interface CreateUploadUrlRequest {
-    contentMd5?: CreateUploadUrlRequestContentMd5String;
-    artifactType?: ArtifactType;
+  export type CustomizationArn = string;
+  export type CustomizationIdentifier = string;
+  export type CustomizationName = string;
+  export interface CustomizationPermission {
+    user?: IdentityCenterIdentifier;
+    group?: IdentityCenterIdentifier;
   }
-  export type CreateUploadUrlRequestContentMd5String = string;
-  export interface CreateUploadUrlResponse {
-    uploadId: UploadId;
-    uploadUrl: PreSignedUrl;
-    kmsKeyArn?: ResourceArn;
+  export type CustomizationStatus = "CREATED"|"UPDATED"|"CREATING"|"UPDATING"|"DELETING"|"ACTIVATING"|"DEACTIVATING"|"ACTIVATED"|"CREATION_FAILED"|"UPDATE_FAILED"|"DELETION_FAILED"|"ACTIVATION_FAILED"|"DEACTIVATION_FAILED"|string;
+  export interface CustomizationSummary {
+    arn: CustomizationArn;
+    version?: Version;
+    customizationName: CustomizationName;
+    description?: Description;
+    status: CustomizationStatus;
+    updatedAt: Timestamp;
+  }
+  export type CustomizationSummaryList = CustomizationSummary[];
+  export interface CustomizationVersionSummary {
+    version: Version;
+    baseVersion?: Version;
+    status: CustomizationStatus;
+    dataReference: DataReference;
+    updatedAt: Timestamp;
+    evaluationMetrics?: EvaluationMetrics;
+  }
+  export type CustomizationVersionSummaryList = CustomizationVersionSummary[];
+  export interface DashboardAnalytics {
+    toggle: OptInFeatureToggle;
+  }
+  export interface DataReference {
+    codeStarReference?: CodeStarReference;
+    s3Reference?: S3Reference;
+  }
+  export interface DeleteCustomizationRequest {
+    identifier: CustomizationIdentifier;
+    clientToken?: IdempotencyToken;
+  }
+  export interface DeleteCustomizationResponse {
   }
   export interface DeleteProfileRequest {
-    profileArn: ResourceArn;
+    profileArn: ProfileArn;
   }
   export interface DeleteProfileResponse {
   }
+  export type Description = string;
+  export interface DisassociateCustomizationPermissionRequest {
+    identifier: CustomizationIdentifier;
+    permission: CustomizationPermission;
+  }
+  export interface DisassociateCustomizationPermissionResponse {
+  }
+  export type ErrorDetails = string;
+  export interface EvaluationMetrics {
+    compositeScore: Integer;
+  }
+  export interface ExternalIdentityDetails {
+    issuerUrl?: IssuerUrl;
+    clientId?: ClientId;
+    scimEndpoint?: String;
+  }
+  export interface ExternalIdentitySource {
+    issuerUrl: IssuerUrl;
+    clientId: ClientId;
+  }
+  export type FeatureName = string;
   export interface FileContext {
     leftFileContent: FileContextLeftFileContentString;
     rightFileContent: FileContextRightFileContentString;
@@ -185,19 +306,13 @@ declare namespace CodeWhispererSigV4Client {
   export type FileContextFilenameString = string;
   export type FileContextLeftFileContentString = string;
   export type FileContextRightFileContentString = string;
-  export interface SupplementalContext {
-    filePath: SupplementalContextFilePathString;
-    content: SupplementalContextContentString;
-  }
-  export type SupplementalContextFilePathString = string;
-  export type SupplementalContextContentString = string;
-  export type SupplementalContextList = SupplementalContext[];
+  export type FunctionalityName = "COMPLETIONS"|"ANALYSIS"|"CONVERSATIONS"|"TASK_ASSIST"|"TRANSFORMATIONS"|"CHAT_CUSTOMIZATION"|"TRANSFORMATIONS_WEBAPP"|"FEATURE_DEVELOPMENT"|string;
   export interface GenerateRecommendationsRequest {
     fileContext: FileContext;
-    supplementalContexts?: SupplementalContextList;
     maxResults?: GenerateRecommendationsRequestMaxResultsInteger;
     nextToken?: GenerateRecommendationsRequestNextTokenString;
     referenceTrackerConfiguration?: ReferenceTrackerConfiguration;
+    supplementalContexts?: SupplementalContextList;
   }
   export type GenerateRecommendationsRequestMaxResultsInteger = number;
   export type GenerateRecommendationsRequestNextTokenString = string;
@@ -205,45 +320,74 @@ declare namespace CodeWhispererSigV4Client {
     recommendations?: RecommendationsList;
     nextToken?: String;
   }
-  export interface GetAccessTokenRequest {
-    identityToken: GetAccessTokenRequestIdentityTokenString;
+  export interface GetCustomizationRequest {
+    identifier: CustomizationIdentifier;
   }
-  export type GetAccessTokenRequestIdentityTokenString = string;
-  export interface GetAccessTokenResponse {
-    accessToken?: SensitiveString;
+  export interface GetCustomizationResponse {
+    arn: CustomizationArn;
+    version?: Version;
+    status: CustomizationStatus;
+    errorDetails?: ErrorDetails;
+    dataReference: DataReference;
+    customizationName: CustomizationName;
+    description?: Description;
+    profileArn: ProfileArn;
+    updatedAt: Timestamp;
+    evaluationMetrics?: EvaluationMetrics;
+    includeRepos?: RepositoryList;
   }
-  export interface GetCodeScanRequest {
-    jobId: GetCodeScanRequestJobIdString;
-  }
-  export type GetCodeScanRequestJobIdString = string;
-  export interface GetCodeScanResponse {
-    status: CodeScanStatus;
-    errorMessage?: String;
-  }
+  export type GrantId = string;
+  export type GrantToken = string;
   export type IdempotencyToken = string;
+  export type IdentityCenterIdentifier = string;
+  export type IdentityCenterPermissions = CustomizationPermission[];
   export interface IdentityDetails {
     ssoIdentityDetails?: SSOIdentityDetails;
+    externalIdentityDetails?: ExternalIdentityDetails;
   }
   export interface IdentitySource {
     ssoIdentitySource?: SSOIdentitySource;
+    externalIdentitySource?: ExternalIdentitySource;
   }
   export interface Import {
     statement?: ImportStatementString;
   }
   export type ImportStatementString = string;
   export type Imports = Import[];
-  export interface ListCodeScanFindingsRequest {
-    jobId: ListCodeScanFindingsRequestJobIdString;
-    nextToken?: PaginationToken;
-    codeScanFindingsSchema: CodeScanFindingsSchema;
+  export type Integer = number;
+  export type IssuerUrl = string;
+  export interface ListCustomizationPermissionsRequest {
+    identifier: CustomizationIdentifier;
+    maxResults?: ListCustomizationPermissionsRequestMaxResultsInteger;
+    nextToken?: Base64EncodedPaginationToken;
   }
-  export type ListCodeScanFindingsRequestJobIdString = string;
-  export interface ListCodeScanFindingsResponse {
-    nextToken?: PaginationToken;
-    codeScanFindings: String;
+  export type ListCustomizationPermissionsRequestMaxResultsInteger = number;
+  export interface ListCustomizationPermissionsResponse {
+    permissions: IdentityCenterPermissions;
+    nextToken?: Base64EncodedPaginationToken;
+  }
+  export interface ListCustomizationVersionsRequest {
+    identifier: CustomizationIdentifier;
+    maxResults?: ListCustomizationVersionsRequestMaxResultsInteger;
+    nextToken?: Base64EncodedPaginationToken;
+  }
+  export type ListCustomizationVersionsRequestMaxResultsInteger = number;
+  export interface ListCustomizationVersionsResponse {
+    versions: CustomizationVersionSummaryList;
+    nextToken?: Base64EncodedPaginationToken;
+  }
+  export interface ListCustomizationsRequest {
+    maxResults?: ListCustomizationsRequestMaxResultsInteger;
+    nextToken?: Base64EncodedPaginationToken;
+  }
+  export type ListCustomizationsRequestMaxResultsInteger = number;
+  export interface ListCustomizationsResponse {
+    customizations: CustomizationSummaryList;
+    nextToken?: Base64EncodedPaginationToken;
   }
   export interface ListProfilesRequest {
     maxResults?: ListProfilesRequestMaxResultsInteger;
+    includeManagementAccount?: Boolean;
     nextToken?: Base64EncodedPaginationToken;
   }
   export type ListProfilesRequestMaxResultsInteger = number;
@@ -251,40 +395,58 @@ declare namespace CodeWhispererSigV4Client {
     profiles: ProfileList;
     nextToken?: Base64EncodedPaginationToken;
   }
-  export interface ListRecommendationsRequest {
-    fileContext: FileContext;
-    maxResults?: ListRecommendationsRequestMaxResultsInteger;
-    supplementalContexts?: SupplementalContextList;
-    nextToken?: ListRecommendationsRequestNextTokenString;
-    referenceTrackerConfiguration?: ReferenceTrackerConfiguration;
-  }
-  export type ListRecommendationsRequestMaxResultsInteger = number;
-  export type ListRecommendationsRequestNextTokenString = string;
-  export interface ListRecommendationsResponse {
-    recommendations?: RecommendationsList;
-    nextToken?: String;
-  }
   export interface ListTagsForResourceRequest {
-    resourceName: ResourceArn;
+    resourceArn: ResourceArn;
   }
   export interface ListTagsForResourceResponse {
     tags?: TagList;
   }
-  export type PaginationToken = string;
-  export type PreSignedUrl = string;
-  export interface Profile {
-    arn: ResourceArn;
-    identityDetails: IdentityDetails;
-    profileName: ProfileName;
-    referenceTrackerConfiguration: ReferenceTrackerConfiguration;
-    kmsKeyArn?: ResourceArn;
+  export type Notifications = NotificationsFeature[];
+  export interface NotificationsFeature {
+    feature: FeatureName;
+    toggle: OptInFeatureToggle;
   }
+  export type OptInFeatureToggle = "ON"|"OFF"|string;
+  export interface OptInFeatures {
+    promptLogging?: PromptLogging;
+    byUserAnalytics?: ByUserAnalytics;
+    dashboardAnalytics?: DashboardAnalytics;
+    notifications?: Notifications;
+    workspaceContext?: WorkspaceContext;
+  }
+  export interface PreviousEditorStateMetadata {
+    timeOffset: Integer;
+  }
+  export interface Profile {
+    arn: ProfileArn;
+    identityDetails?: IdentityDetails;
+    profileName: ProfileName;
+    description?: ProfileDescription;
+    referenceTrackerConfiguration?: ReferenceTrackerConfiguration;
+    kmsKeyArn?: ResourceArn;
+    activeFunctionalities?: ActiveFunctionalityList;
+    status?: ProfileStatus;
+    errorDetails?: ErrorDetails;
+    resourcePolicy?: ResourcePolicy;
+    profileType?: ProfileType;
+    optInFeatures?: OptInFeatures;
+    permissionUpdateRequired?: Boolean;
+    applicationProperties?: ApplicationPropertiesList;
+  }
+  export type ProfileArn = string;
+  export type ProfileDescription = string;
   export type ProfileList = Profile[];
   export type ProfileName = string;
+  export type ProfileStatus = "ACTIVE"|"CREATING"|"CREATE_FAILED"|"UPDATING"|"UPDATE_FAILED"|"DELETING"|"DELETE_FAILED"|string;
+  export type ProfileType = "Q_DEVELOPER"|"CODEWHISPERER"|string;
   export interface ProgrammingLanguage {
     languageName: ProgrammingLanguageLanguageNameString;
   }
   export type ProgrammingLanguageLanguageNameString = string;
+  export interface PromptLogging {
+    s3Uri: S3Uri;
+    toggle: OptInFeatureToggle;
+  }
   export interface Recommendation {
     content: RecommendationContentString;
     references?: References;
@@ -292,11 +454,23 @@ declare namespace CodeWhispererSigV4Client {
   }
   export type RecommendationContentString = string;
   export type RecommendationsList = Recommendation[];
-  export type RecommendationsWithReferencesPreference = "BLOCK" | "ALLOW" | string;
+  export type RecommendationsWithReferencesPreference = "BLOCK"|"ALLOW"|string;
   export interface Reference {
+    /**
+     * License name
+     */
     licenseName?: ReferenceLicenseNameString;
+    /**
+     * Code Repsitory for the associated reference
+     */
     repository?: ReferenceRepositoryString;
+    /**
+     * Respository URL
+     */
     url?: ReferenceUrlString;
+    /**
+     * Span / Range for the Reference
+     */
     recommendationContentSpan?: Span;
   }
   export type ReferenceLicenseNameString = string;
@@ -306,15 +480,27 @@ declare namespace CodeWhispererSigV4Client {
   }
   export type ReferenceUrlString = string;
   export type References = Reference[];
+  export type RepositoryId = string;
+  export type RepositoryList = RepositoryId[];
   export type ResourceArn = string;
+  export interface ResourcePolicy {
+    effect: ResourcePolicyEffect;
+  }
+  export type ResourcePolicyEffect = "ALLOW"|"DENY"|string;
+  export interface S3Reference {
+    uri: S3Uri;
+  }
+  export type S3Uri = string;
   export interface SSOIdentityDetails {
     instanceArn: ResourceArn;
     oidcClientId: String;
+    ssoRegion?: SSORegion;
   }
   export interface SSOIdentitySource {
     instanceArn: ResourceArn;
+    ssoRegion?: SSORegion;
   }
-  export type SensitiveString = string;
+  export type SSORegion = string;
   export interface Span {
     start?: SpanStartInteger;
     end?: SpanEndInteger;
@@ -322,6 +508,19 @@ declare namespace CodeWhispererSigV4Client {
   export type SpanEndInteger = number;
   export type SpanStartInteger = number;
   export type String = string;
+  export interface SupplementalContext {
+    filePath: SupplementalContextFilePathString;
+    content: SupplementalContextContentString;
+    type?: SupplementalContextType;
+    metadata?: SupplementalContextMetadata;
+  }
+  export type SupplementalContextContentString = string;
+  export type SupplementalContextFilePathString = string;
+  export type SupplementalContextList = SupplementalContext[];
+  export interface SupplementalContextMetadata {
+    previousEditorStateMetadata?: PreviousEditorStateMetadata;
+  }
+  export type SupplementalContextType = "PreviousEditorState"|"WorkspaceContext"|string;
   export interface Tag {
     key: TagKey;
     value: TagValue;
@@ -330,32 +529,65 @@ declare namespace CodeWhispererSigV4Client {
   export type TagKeyList = TagKey[];
   export type TagList = Tag[];
   export interface TagResourceRequest {
-    resourceName: ResourceArn;
+    resourceArn: ResourceArn;
     tags: TagList;
   }
   export interface TagResourceResponse {
   }
   export type TagValue = string;
+  export type TenantId = string;
+  export type Timestamp = Date;
   export interface UntagResourceRequest {
-    resourceName: ResourceArn;
+    resourceArn: ResourceArn;
     tagKeys: TagKeyList;
   }
   export interface UntagResourceResponse {
   }
+  export interface UpdateCustomizationRequest {
+    identifier: CustomizationIdentifier;
+    operation: UpdateOperation;
+    clientToken?: IdempotencyToken;
+    dataReference?: DataReference;
+    version?: Version;
+    includeRepos?: RepositoryList;
+  }
+  export interface UpdateCustomizationResponse {
+  }
+  export type UpdateOperation = "ACTIVATE"|"DEACTIVATE"|"UPDATE"|string;
   export interface UpdateProfileRequest {
-    profileArn: ResourceArn;
+    profileArn: ProfileArn;
+    identitySource?: IdentitySource;
     profileName?: ProfileName;
+    description?: ProfileDescription;
     referenceTrackerConfiguration?: ReferenceTrackerConfiguration;
+    activeFunctionalities?: ActiveFunctionalityList;
     kmsKeyArn?: ResourceArn;
+    resourcePolicy?: ResourcePolicy;
+    targetProfileType?: ProfileType;
+    optInFeatures?: OptInFeatures;
   }
   export interface UpdateProfileResponse {
-    profileArn: ResourceArn;
+    profileArn: ProfileArn;
   }
-  export type UploadId = string;
+  export type Url = string;
+  export interface VendKeyGrantRequest {
+    accountId: AWSAccountId;
+    usecase: VendKeyGrantUseCase;
+  }
+  export interface VendKeyGrantResponse {
+    cmkArn?: ResourceArn;
+    grantId?: GrantToken;
+    grantToken?: GrantId;
+  }
+  export type VendKeyGrantUseCase = "TEST"|"WEAVER_BIRD"|"ELASTIC_GUMBY"|"LOCHNESS"|"BOWER_BIRD"|"ELASTIC_GUMBY_V2_JOB"|"ELASTIC_GUMBY_V2_CHAT"|string;
+  export type Version = number;
+  export interface WorkspaceContext {
+    toggle: OptInFeatureToggle;
+  }
   /**
    * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.
    */
-  export type apiVersion = "2022-06-15" | "latest" | string;
+  export type apiVersion = "2024-10-25"|"latest"|string;
   export interface ClientApiVersions {
     /**
      * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.
@@ -370,3 +602,4 @@ declare namespace CodeWhispererSigV4Client {
 }
 export = CodeWhispererSigV4Client;
 
+    
