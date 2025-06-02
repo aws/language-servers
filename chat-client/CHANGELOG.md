@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/aws/language-servers/compare/chat-client/v0.1.12...chat-client/v0.1.13) (2025-06-02)
+
+
+### Features
+
+* model selection for agentic chat ([#1294](https://github.com/aws/language-servers/issues/1294)) ([10abd04](https://github.com/aws/language-servers/commit/10abd041d340b1b6fe6adad81cc1f6bd1610826e))
+
 ## [0.1.12](https://github.com/aws/language-servers/compare/chat-client/v0.1.11...chat-client/v0.1.12) (2025-05-30)
 
 
