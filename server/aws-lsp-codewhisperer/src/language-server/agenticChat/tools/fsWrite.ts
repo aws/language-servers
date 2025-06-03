@@ -1,10 +1,5 @@
-import {
-    ApplyWorkspaceEditParams,
-    Range,
-    Position,
-    TextDocumentEdit,
-    TextEdit,
-} from '@aws/language-server-runtimes/protocol'
+import { Range, Position } from '@aws/language-server-runtimes/protocol'
+import { workspaceUtils } from '@aws/lsp-core'
 import {
     CommandValidation,
     ExplanatoryParams,
@@ -18,7 +13,6 @@ import {
 } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { URI } from 'vscode-uri'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/16aa8768834f41ae512522473a6a962bb96abe51/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
@@ -146,38 +140,12 @@ export class FsWrite {
         return requiresPathAcceptance(params.path, this.workspace, this.logging, approvedPaths)
     }
 
-    private async replaceEditWorkspace(path: string, newText: string, range: Range): Promise<boolean> {
-        const uri = URI.file(path).toString()
-
-        this.logging.info(`FsWrite: applying replace to workspace: ${uri}`)
-        const workspaceEdit: ApplyWorkspaceEditParams = {
-            edit: {
-                documentChanges: [TextDocumentEdit.create({ uri, version: 0 }, [TextEdit.replace(range, newText)])],
-            },
-        }
-        const result = await this.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
-        return result.applied
-    }
-
-    private async insertEditWorkspace(path: string, newText: string, pos: Position): Promise<boolean> {
-        const uri = URI.file(path).toString()
-
-        this.logging.info(`FsWrite: applying insert to workspace: ${uri}`)
-        const workspaceEdit: ApplyWorkspaceEditParams = {
-            edit: {
-                documentChanges: [TextDocumentEdit.create({ uri, version: 0 }, [TextEdit.insert(pos, newText)])],
-            },
-        }
-        const result = await this.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
-        return result.applied
-    }
-
     private async handleCreate(params: CreateParams): Promise<void> {
         const content = params.fileText
         const document = await getDocumentFromWorkspace(params.path, this.workspace)
         if (document) {
             const range = getFullContentRange(document.getText())
-            await this.replaceEditWorkspace(params.path, content, range)
+            await workspaceUtils.replaceEditWorkspace({ lsp: this.lsp }, content, range, document)
             this.lsp.workspace.saveWorkspaceDocument({ uri: document.uri })
         } else {
             const sanitizedPath = sanitize(params.path)
@@ -189,7 +157,7 @@ export class FsWrite {
         const document = await getDocumentFromWorkspace(params.path, this.workspace)
         if (document) {
             const range = getSelectionRange(document.getText(), params.oldStr)
-            await this.replaceEditWorkspace(params.path, params.newStr, range)
+            await workspaceUtils.replaceEditWorkspace({ lsp: this.lsp }, params.newStr, range, document)
             this.lsp.workspace.saveWorkspaceDocument({ uri: document.uri })
         } else {
             const sanitizedPath = sanitize(params.path)
@@ -204,7 +172,7 @@ export class FsWrite {
         if (document) {
             const position = getInsertPosition(params, document.getText())
             const newContent = (position.line === 0 ? params.newStr : '\n' + params.newStr) + '\n'
-            await this.insertEditWorkspace(params.path, params.newStr, position)
+            await workspaceUtils.insertEditWorkspace({ lsp: this.lsp }, newContent, position, document)
             this.lsp.workspace.saveWorkspaceDocument({ uri: document.uri })
         } else {
             const sanitizedPath = sanitize(params.path)
@@ -220,7 +188,7 @@ export class FsWrite {
             const oldContent = document.getText()
             const newContent = oldContent ? '\n' + params.newStr : params.newStr
             const position = getFullContentRange(oldContent).end
-            await this.insertEditWorkspace(params.path, newContent, position)
+            await workspaceUtils.insertEditWorkspace({ lsp: this.lsp }, newContent, position, document)
             this.lsp.workspace.saveWorkspaceDocument({ uri: document.uri })
         } else {
             const sanitizedPath = sanitize(params.path)

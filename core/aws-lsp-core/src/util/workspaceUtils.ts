@@ -1,7 +1,14 @@
 import * as path from 'path'
 import { URI } from 'vscode-uri'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
+import { CancellationToken, TextDocument } from '@aws/language-server-runtimes/server-interface'
+import {
+    ApplyWorkspaceEditParams,
+    Range,
+    TextDocumentEdit,
+    TextEdit,
+    Position,
+} from '@aws/language-server-runtimes/protocol'
 import { CancellationError } from './awsError'
 
 type ElementType<T> = T extends (infer U)[] ? U : never
@@ -238,4 +245,48 @@ export async function readDirectoryWithTreeOutput(
     result += await processDirectory(folderPath, 0, '')
 
     return result
+}
+
+export async function replaceEditWorkspace(
+    features: Pick<Features, 'lsp'> & Partial<Features>,
+    newText: string,
+    range: Range,
+    document?: TextDocument,
+    path?: string
+): Promise<boolean> {
+    if (!document && !path) {
+        throw new Error(`document or path has to be provided`)
+    }
+    const uri = document?.uri ?? URI.file(path!).toString()
+    const version = document?.version ?? 0
+
+    const workspaceEdit: ApplyWorkspaceEditParams = {
+        edit: {
+            documentChanges: [TextDocumentEdit.create({ uri, version }, [TextEdit.replace(range, newText)])],
+        },
+    }
+    const result = await features.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
+    return result.applied
+}
+
+export async function insertEditWorkspace(
+    features: Pick<Features, 'lsp'> & Partial<Features>,
+    newText: string,
+    pos: Position,
+    document?: TextDocument,
+    path?: string
+): Promise<boolean> {
+    if (!document && !path) {
+        throw new Error(`document or path has to be provided`)
+    }
+    const uri = document?.uri ?? URI.file(path!).toString()
+    const version = document?.version ? document.version + 1 : 0
+
+    const workspaceEdit: ApplyWorkspaceEditParams = {
+        edit: {
+            documentChanges: [TextDocumentEdit.create({ uri, version }, [TextEdit.insert(pos, newText)])],
+        },
+    }
+    const result = await features.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
+    return result.applied
 }

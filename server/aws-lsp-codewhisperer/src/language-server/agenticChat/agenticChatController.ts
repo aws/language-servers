@@ -107,7 +107,7 @@ import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
-// TODO: move all from toolShared to some common utils
+// TODO: move all from toolShared to common core utils
 import {
     ExplanatoryParams,
     getDocumentFromWorkspace,
@@ -272,22 +272,25 @@ export class AgenticChatController implements ChatHandlers {
 
         const input = toolUse?.input as unknown as FsWriteParams
         if (toolUse?.fileChange?.before?.unsaved) {
+            this.#log(`Reverting from unsaved document source`)
             await this.#undoToUnsavedFile(
                 input.path,
                 toolUse.fileChange.before.unsaved,
                 toolUse.fileChange.before.saved
             )
         } else if (toolUse?.fileChange?.before?.saved) {
+            this.#log(`Reverting from saved document source`)
             await this.#undoToSavedFile(input.path, toolUse.fileChange.before.saved)
         } else {
+            this.#log(`Reverting from saved document source by deleting file`)
             await this.#features.workspace.fs.rm(input.path)
         }
     }
 
     async #undoToUnsavedFile(path: string, beforeUnsaved: string, beforeSaved: string | undefined) {
-        // first, save or remove from FS
+        // first, save previous saved version to FS (or remove if it did not exist)
         if (beforeSaved) {
-            await this.#features.workspace.fs.writeFile(path, beforeSaved)
+            await this.#undoToSavedFile(path, beforeSaved)
         } else {
             await this.#features.workspace.fs.rm(path)
         }
@@ -296,7 +299,7 @@ export class AgenticChatController implements ChatHandlers {
         const document = await getDocumentFromWorkspace(path, this.#features.workspace)
         const content = document?.getText() ?? (await readContent(path, this.#features.workspace))
         const range = getFullContentRange(content)
-        await this.#replaceEditWorkspace(path, beforeUnsaved, range)
+        await workspaceUtils.replaceEditWorkspace({ lsp: this.#features.lsp }, beforeUnsaved, range, document, path)
     }
 
     async #undoToSavedFile(path: string, before: string) {
@@ -305,26 +308,11 @@ export class AgenticChatController implements ChatHandlers {
         const document = await getDocumentFromWorkspace(path, this.#features.workspace)
         if (document) {
             const range = getFullContentRange(document.getText())
-            await this.#replaceEditWorkspace(path, before, range)
+            await workspaceUtils.replaceEditWorkspace({ lsp: this.#features.lsp }, before, range, document)
             this.#features.lsp.workspace.saveWorkspaceDocument({ uri: document.uri })
         } else {
-            if (before) {
-                await this.#features.workspace.fs.writeFile(path, before)
-            } else {
-                await this.#features.workspace.fs.rm(path)
-            }
+            await this.#features.workspace.fs.writeFile(path, before)
         }
-    }
-
-    async #replaceEditWorkspace(path: string, newText: string, range: Range): Promise<boolean> {
-        const uri = URI.file(path).toString()
-        const workspaceEdit: ApplyWorkspaceEditParams = {
-            edit: {
-                documentChanges: [TextDocumentEdit.create({ uri, version: 0 }, [TextEdit.replace(range, newText)])],
-            },
-        }
-        const result = await this.#features.lsp.workspace.applyWorkspaceEdit(workspaceEdit)
-        return result.applied
     }
 
     #updateUndoButtonAfterClick(tabId: string, toolUseId: string, session: ChatSessionService | undefined) {
@@ -1057,8 +1045,10 @@ export class AgenticChatController implements ChatHandlers {
                     const beforeDoc = await this.#triggerContext.getTextDocument(URI.file(input.path).toString())
                     const beforeDocText = beforeDoc?.getText()
                     const beforeFile = await this.#triggerContext.getFileContent(input.path)
-                    const isFileSaved = beforeDocText === undefined || beforeDocText === beforeFile // TODO: do more efficient
-                    this.#features.logging.info(`fsWrite before saved: ${beforeDoc}`) // TODO: remove?
+                    const isFileSaved =
+                        beforeDocText === undefined ||
+                        beforeFile === undefined ||
+                        (beforeDocText.length === beforeFile.length && beforeDocText === beforeFile)
                     session.toolUseLookup.set(toolUse.toolUseId, {
                         ...toolUse,
                         fileChange: {
