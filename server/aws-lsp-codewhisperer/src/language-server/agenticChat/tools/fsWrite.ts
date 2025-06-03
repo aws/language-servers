@@ -226,6 +226,7 @@ export class FsWrite {
                 '- Prefer the `create` command if the complexity or number of changes would make `strReplace` unwieldy or error-prone.\n' +
                 '- The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces! Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`.\n' +
                 '- The `newStr` parameter should contain the edited lines that should replace the `oldStr`.\n' +
+                '- Do not use `strReplace` command, if you extend the existing code without replacing any existing code, use `insert` command instead!\n' +
                 '- When multiple edits to the same file are needed, combine them into a single call whenever possible. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state.',
             inputSchema: {
                 type: 'object',
@@ -274,12 +275,12 @@ export class FsWrite {
 }
 
 const getSelectionRange = (content: string, selection: string): Range => {
+    validateSingleMatch(selection, content)
+
     const index = content.indexOf(selection)
     if (index === -1) {
         throw new Error(`Selection "${selection}" not found in content`)
     }
-    validateSingleMatch(selection, content)
-
     const beforeSelection = content.substring(0, index)
     const lines = beforeSelection.split('\n')
     const startLine = lines.length - 1
