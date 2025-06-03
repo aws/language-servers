@@ -260,6 +260,7 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
+            console.log(`onInlineCompletionHandler  @cwsprServer.ts`)
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING') {

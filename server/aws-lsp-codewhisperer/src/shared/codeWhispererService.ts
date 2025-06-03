@@ -287,7 +287,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     // Only used when it's a cold start
     override async generateSuggestionsAndPrefetch(
         textDocument: TextDocument,
-        firstRequest: GenerateSuggestionsRequest
+        originalRequest: GenerateSuggestionsRequest
     ): Promise<GenerateSuggestionsResponse> {
         // If codewhispererService has prefetched result && id matches, return the cached prefetched result directly
         const shouldUsePrefetch = this.prefetchSuggestions
@@ -297,25 +297,25 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             this.logging.info(`cold start`)
         }
 
-        const curResponse =
+        const originalResponse =
             (shouldUsePrefetch ? this.prefetchSuggestions?.response : undefined) ??
-            (await this.generateSuggestions(firstRequest))
+            (await this.generateSuggestions(originalRequest))
 
-        if (curResponse.suggestions && curResponse.suggestions.length > 0) {
-            const suggestion = curResponse.suggestions[0]
+        if (originalResponse.suggestions && originalResponse.suggestions.length > 0) {
+            const suggestion = originalResponse.suggestions[0]
 
             setTimeout(async () => {
-                const secondRequest = {
-                    ...firstRequest,
+                const subsequentRequest = {
+                    ...originalRequest,
                     fileContext: {
-                        ...firstRequest.fileContext,
-                        leftFileContent: firstRequest.fileContext.leftFileContent + suggestion.content,
+                        ...originalRequest.fileContext,
+                        leftFileContent: originalRequest.fileContext.leftFileContent + suggestion.content,
                     },
                     nextToken: undefined,
                 }
 
                 // NEP flow requires more updates other than left/right filecontent
-                if (curResponse.suggestionType && curResponse.suggestionType === SuggestionType.EDIT) {
+                if (originalResponse.suggestionType && originalResponse.suggestionType === SuggestionType.EDIT) {
                     const docText = textDocument.getText()
                     const afterDiff = applyUnifiedDiff(docText, suggestion.content)
                     const newCode = afterDiff.newCode
@@ -324,17 +324,17 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     // Calculate new left context & right context
                     const { leftContent, rightContent } = splitContentAtPosition(newCode, afterChangePosition)
 
-                    secondRequest.fileContext = {
-                        ...firstRequest.fileContext,
+                    subsequentRequest.fileContext = {
+                        ...originalRequest.fileContext,
                         leftFileContent: leftContent.slice(-10240),
                         rightFileContent: rightContent.slice(0, 10240),
                     }
 
-                    secondRequest.supplementalContexts = firstRequest.supplementalContexts
-                        ? [...firstRequest.supplementalContexts]
+                    subsequentRequest.supplementalContexts = originalRequest.supplementalContexts
+                        ? [...originalRequest.supplementalContexts]
                         : []
 
-                    secondRequest.editorState = {
+                    subsequentRequest.editorState = {
                         document: {
                             relativeFilePath: textDocument.uri,
                             programmingLanguage: {
@@ -351,11 +351,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     }
 
                     // updated edit supplemental context
-                    if (curResponse.suggestions[0]) {
+                    if (originalResponse.suggestions[0]) {
                         // TODO: handle sup context length > 5 ?
-                        secondRequest.supplementalContexts.push({
-                            content: curResponse.suggestions[0].content,
-                            filePath: secondRequest.fileContext.filename,
+                        subsequentRequest.supplementalContexts.push({
+                            content: originalResponse.suggestions[0].content,
+                            filePath: subsequentRequest.fileContext.filename,
                             type: 'PreviousEditorState',
                             metadata: {
                                 previousEditorStateMetadata: {
@@ -367,32 +367,34 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 }
 
                 try {
-                    const secondResponse = await this.generateSuggestions(secondRequest)
+                    const subsequenceResponse = await this.generateSuggestions(subsequentRequest)
                     if (
-                        secondResponse.suggestions.length > 0 &&
-                        secondResponse.suggestions[0].content !== curResponse.suggestions[0].content
+                        subsequenceResponse.suggestions.length > 0 &&
+                        subsequenceResponse.suggestions[0].content !== originalResponse.suggestions[0].content
                     ) {
                         console.log(`prefetch result: `)
-                        console.log(secondResponse.suggestions[0].content)
+                        console.log(subsequenceResponse.suggestions[0].content)
                         this.prefetchSuggestions = {
-                            id: curResponse.suggestions[0].content, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
-                            response: secondResponse,
-                            request: secondRequest,
+                            id: originalResponse.suggestions[0].content, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
+                            response: subsequenceResponse,
+                            request: subsequentRequest,
                         }
+                    } else if (subsequenceResponse.suggestions.length === 0) {
+                        this.prefetchSuggestions = undefined
                     }
 
-                    if (curResponse.suggestions[0].content === secondResponse.suggestions[0].content) {
-                        console.log('identical result, discard', curResponse.suggestions[0].content)
+                    if (originalResponse.suggestions[0].content === subsequenceResponse.suggestions[0].content) {
+                        console.log('identical result, discard', originalResponse.suggestions[0].content)
                     }
                 } catch (e) {
                     console.log(e)
                 }
-            }, 250)
+            }, 50)
         }
 
         console.log(`current result: `)
-        console.log(curResponse.suggestions[0].content)
-        return curResponse
+        console.log(originalResponse.suggestions[0].content)
+        return originalResponse
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
