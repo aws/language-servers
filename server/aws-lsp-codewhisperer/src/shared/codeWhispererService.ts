@@ -305,66 +305,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             const suggestion = originalResponse.suggestions[0]
 
             setTimeout(async () => {
-                const subsequentRequest = {
-                    ...originalRequest,
-                    fileContext: {
-                        ...originalRequest.fileContext,
-                        leftFileContent: originalRequest.fileContext.leftFileContent + suggestion.content,
-                    },
-                    nextToken: undefined,
-                }
-
-                // NEP flow requires more updates other than left/right filecontent
-                if (originalResponse.suggestionType && originalResponse.suggestionType === SuggestionType.EDIT) {
-                    const docText = textDocument.getText()
-                    const afterDiff = applyUnifiedDiff(docText, suggestion.content)
-                    const newCode = afterDiff.newCode
-
-                    const afterChangePosition = getEndOfEditPosition(docText, newCode)
-                    // Calculate new left context & right context
-                    const { leftContent, rightContent } = splitContentAtPosition(newCode, afterChangePosition)
-
-                    subsequentRequest.fileContext = {
-                        ...originalRequest.fileContext,
-                        leftFileContent: leftContent.slice(-10240),
-                        rightFileContent: rightContent.slice(0, 10240),
-                    }
-
-                    subsequentRequest.supplementalContexts = originalRequest.supplementalContexts
-                        ? [...originalRequest.supplementalContexts]
-                        : []
-
-                    subsequentRequest.editorState = {
-                        document: {
-                            relativeFilePath: textDocument.uri,
-                            programmingLanguage: {
-                                languageName: textDocument.languageId,
-                            },
-                            text: leftContent + rightContent,
-                        },
-                        cursorState: {
-                            position: {
-                                line: afterChangePosition.line,
-                                character: afterChangePosition.character,
-                            },
-                        },
-                    }
-
-                    // updated edit supplemental context
-                    if (originalResponse.suggestions[0]) {
-                        // TODO: handle sup context length > 5 ?
-                        subsequentRequest.supplementalContexts.push({
-                            content: originalResponse.suggestions[0].content,
-                            filePath: subsequentRequest.fileContext.filename,
-                            type: 'PreviousEditorState',
-                            metadata: {
-                                previousEditorStateMetadata: {
-                                    timeOffset: 1000,
-                                },
-                            },
-                        })
-                    }
-                }
+                const subsequentRequest = this.generateSubsequentRequest(
+                    originalRequest,
+                    originalResponse,
+                    textDocument
+                )
 
                 try {
                     const subsequenceResponse = await this.generateSuggestions(subsequentRequest)
@@ -395,6 +340,77 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         console.log(`current result: `)
         console.log(originalResponse.suggestions[0].content)
         return originalResponse
+    }
+
+    private generateSubsequentRequest(
+        originalRequest: GenerateSuggestionsRequest,
+        originalResponse: GenerateSuggestionsResponse,
+        textDocument: TextDocument
+    ): GenerateSuggestionsRequest {
+        const suggestion = originalResponse.suggestions[0]
+
+        const subsequentRequest = {
+            ...originalRequest,
+            fileContext: {
+                ...originalRequest.fileContext,
+                leftFileContent: originalRequest.fileContext.leftFileContent + suggestion.content,
+            },
+            nextToken: undefined,
+        }
+
+        // NEP flow requires more updates other than left/right filecontent
+        if (originalResponse.suggestionType && originalResponse.suggestionType === SuggestionType.EDIT) {
+            const docText = textDocument.getText()
+            const afterDiff = applyUnifiedDiff(docText, suggestion.content)
+            const newCode = afterDiff.newCode
+
+            const afterChangePosition = getEndOfEditPosition(docText, newCode)
+            // Calculate new left context & right context
+            const { leftContent, rightContent } = splitContentAtPosition(newCode, afterChangePosition)
+
+            subsequentRequest.fileContext = {
+                ...originalRequest.fileContext,
+                leftFileContent: leftContent.slice(-10240),
+                rightFileContent: rightContent.slice(0, 10240),
+            }
+
+            subsequentRequest.supplementalContexts = originalRequest.supplementalContexts
+                ? [...originalRequest.supplementalContexts]
+                : []
+
+            subsequentRequest.editorState = {
+                document: {
+                    relativeFilePath: textDocument.uri,
+                    programmingLanguage: {
+                        languageName: textDocument.languageId,
+                    },
+                    text: leftContent + rightContent,
+                },
+                cursorState: {
+                    position: {
+                        line: afterChangePosition.line,
+                        character: afterChangePosition.character,
+                    },
+                },
+            }
+
+            // updated edit supplemental context
+            if (originalResponse.suggestions[0]) {
+                // TODO: handle sup context length > 5 ?
+                subsequentRequest.supplementalContexts.push({
+                    content: originalResponse.suggestions[0].content,
+                    filePath: subsequentRequest.fileContext.filename,
+                    type: 'PreviousEditorState',
+                    metadata: {
+                        previousEditorStateMetadata: {
+                            timeOffset: 1000,
+                        },
+                    },
+                })
+            }
+        }
+
+        return subsequentRequest
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
