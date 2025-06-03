@@ -761,8 +761,9 @@ export const CodewhispererServerFactory =
                 firstCompletionDisplayLatency,
                 totalSessionDisplayTime,
                 typeaheadLength,
-                addedCharacterCount,
-                deletedCharacterCount,
+                // These properties don't exist in LogInlineCompletionSessionResultsParams
+                // addedCharacterCount,
+                // deletedCharacterCount,
             } = params
 
             // Hardcoded isInlineEdit for now - will be replaced with actual parameter later
@@ -788,8 +789,9 @@ export const CodewhispererServerFactory =
                         firstCompletionDisplayLatency,
                         totalSessionDisplayTime,
                         typeaheadLength,
-                        addedCharacterCount,
-                        deletedCharacterCount,
+                        // These properties don't exist in LogInlineCompletionSessionResultsParams
+                        // addedCharacterCount,
+                        // deletedCharacterCount,
                     },
                     'info',
                     'onLogInlineCompletionSessionResultsHandler'
@@ -858,8 +860,8 @@ export const CodewhispererServerFactory =
                 telemetryService,
                 session,
                 timeSinceLastUserModification,
-                addedCharacterCount,
-                deletedCharacterCount,
+                0, // addedCharacterCount (not available in params)
+                0, // deletedCharacterCount (not available in params)
                 streakLength
             )
         }
