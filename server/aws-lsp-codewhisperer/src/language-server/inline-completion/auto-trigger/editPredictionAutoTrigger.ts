@@ -9,6 +9,7 @@ import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { LanguageDetectorFactory } from './languageDetector'
 import { EditPredictionConfigManager } from './editPredictionConfig'
+import { DebugLogger } from '../../../shared/debugUtils'
 
 // Debug logger function
 const DEBUG = true
@@ -32,6 +33,7 @@ export interface EditPredictionAutoTriggerParams {
     previousDecision: string
     cursorHistory: CursorTracker
     recentEdits: RecentEditTracker
+    flareRequestId?: string // Optional request UUID for tracking
 }
 
 /**
@@ -47,6 +49,7 @@ export const editPredictionAutoTrigger = ({
     previousDecision,
     cursorHistory,
     recentEdits,
+    flareRequestId,
 }: EditPredictionAutoTriggerParams): {
     shouldTrigger: boolean
 } => {
@@ -58,7 +61,24 @@ export const editPredictionAutoTrigger = ({
     const rightContextLines = fileContext.rightFileContent.split(/\r?\n/)
     const currentLineContent = leftContextLines[leftContextLines.length - 1] || ''
     const position = { line: lineNum, character: currentLineContent.length }
-    1
+
+    // Log the start of evaluation if flareRequestId is provided
+    if (flareRequestId) {
+        DebugLogger.getInstance().log(
+            flareRequestId,
+            'Starting editPredictionAutoTrigger evaluation',
+            {
+                filename: fileContext.filename,
+                lineNum,
+                char,
+                previousDecision,
+                position,
+            },
+            'debug',
+            'editPredictionAutoTrigger'
+        )
+    }
+
     // 1. Check required conditions
     // 1.1 Recent Edit Detection
     const hasRecentEdit = recentEdits?.hasRecentEditInLine(
@@ -108,7 +128,39 @@ export const editPredictionAutoTrigger = ({
     const optionalConditionsMet = isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
     const shouldTrigger = (requiredConditionsMet && optionalConditionsMet) || false
 
-    // Log debug information directly
+    // Create state object for logging
+    const state = {
+        // Required conditions
+        hasRecentEdit,
+        isNotInMiddleOfWord,
+        isPreviousDecisionNotReject,
+        hasNonEmptySuffix,
+        requiredConditionsMet,
+        // Optional conditions
+        isAfterKeyword,
+        isAfterOperatorOrDelimiter,
+        hasUserPaused,
+        isAtLineBeginning,
+        optionalConditionsMet,
+        // Code context
+        cursor: `${lineNum}:${position.character}`,
+        currentLine: `${currentLineContent.slice(0, position.character)}█${currentLineContent.slice(position.character)}${rightContextLines[0] || ''}`,
+        // Result
+        shouldTrigger,
+    }
+
+    // Log with DebugLogger if flareRequestId is provided
+    if (flareRequestId) {
+        DebugLogger.getInstance().log(
+            flareRequestId,
+            'EditPredictionAutoTrigger evaluation result',
+            state,
+            shouldTrigger ? 'info' : 'debug',
+            'editPredictionAutoTrigger'
+        )
+    }
+
+    // Legacy console logging
     if (DEBUG) {
         const logParts = [
             // Required conditions
