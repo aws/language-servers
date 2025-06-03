@@ -4,6 +4,7 @@ import * as fs from 'fs'
 import * as xml2js from 'xml2js'
 import { FileMetadata } from '../../artifactManager'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
+import { DependencyWatcher } from './DependencyWatcher'
 
 export interface JavaDependencyInfo extends BaseDependencyInfo {
     dotClasspathPath: string
@@ -89,18 +90,22 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
             }
             this.logging.log(`Setting up Java dependency watcher for ${dotClasspathPath}`)
             try {
-                const watcher = fs.watch(dotClasspathPath, async (eventType, filename) => {
-                    if (eventType === 'change') {
-                        this.logging.log(`Change detected in ${dotClasspathPath}`)
-                        const updatedDependencyMap = this.generateDependencyMap(javaDependencyInfo)
-                        let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
-                            javaDependencyInfo.workspaceFolder,
-                            updatedDependencyMap,
-                            true
-                        )
-                        this.emitDependencyChange(javaDependencyInfo.workspaceFolder, zips)
-                    }
-                })
+                const callBackDependencyUpdate = async (events: string[]) => {
+                    this.logging.log(`Change detected in ${dotClasspathPath}`)
+                    const updatedDependencyMap = this.generateDependencyMap(javaDependencyInfo)
+                    let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                        javaDependencyInfo.workspaceFolder,
+                        updatedDependencyMap,
+                        true
+                    )
+                    this.emitDependencyChange(javaDependencyInfo.workspaceFolder, zips)
+                }
+                const watcher = new DependencyWatcher(
+                    dotClasspathPath,
+                    callBackDependencyUpdate,
+                    this.logging,
+                    this.DEPENDENCY_WATCHER_EVENT_BATCH_INTERVAL
+                )
                 this.dependencyWatchers.set(dotClasspathPath, watcher)
             } catch (error) {
                 this.logging.warn(`Error setting up watcher for ${dotClasspathPath}: ${error}`)
@@ -171,7 +176,7 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                 const dotClasspathPath = javaDependencyInfo.dotClasspathPath
                 if (this.dependencyWatchers.has(dotClasspathPath)) {
                     this.logging.log(`Disposing dependency watcher for ${dotClasspathPath}`)
-                    this.dependencyWatchers.get(dotClasspathPath)?.close()
+                    this.dependencyWatchers.get(dotClasspathPath)?.dispose()
                     this.dependencyWatchers.delete(dotClasspathPath)
                 }
             }

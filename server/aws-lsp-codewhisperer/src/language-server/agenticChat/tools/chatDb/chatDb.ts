@@ -10,6 +10,8 @@ import {
     groupTabsByDate,
     Message,
     messageToStreamingMessage,
+    Settings,
+    SettingsCollection,
     Tab,
     TabCollection,
     TabType,
@@ -145,6 +147,7 @@ export class ChatDatabase {
                 indices: ['updatedAt', 'isOpen'],
             })
         }
+        this.#db.addCollection(SettingsCollection)
         this.#initialized = true
         this.#loadTimeMs = Date.now() - startTime
     }
@@ -486,7 +489,7 @@ export class ChatDatabase {
     }
 
     private handleEmptyAssistantMessage(messages: Message[]): void {
-        if (messages.length === 0) {
+        if (messages.length < 2) {
             return
         }
 
@@ -573,62 +576,6 @@ export class ChatDatabase {
         return count
     }
 
-    private calculateCurrentMessageCharacterCount(message: Message): number {
-        let count = 0
-        // Count characters of message text
-        count += message.body.length
-
-        // Count characters in tool uses
-        if (message.toolUses) {
-            try {
-                for (const toolUse of message.toolUses) {
-                    count += JSON.stringify(toolUse).length
-                }
-            } catch (e) {
-                this.#features.logging.error(`Error counting toolUses: ${String(e)}`)
-            }
-        }
-        // Count characters in tool results
-        if (message.userInputMessageContext?.toolResults) {
-            try {
-                for (const toolResul of message.userInputMessageContext.toolResults) {
-                    count += JSON.stringify(toolResul).length
-                }
-            } catch (e) {
-                this.#features.logging.error(`Error counting toolResults: ${String(e)}`)
-            }
-        }
-        // Count characters in tool spec for the current user message
-        if (message.userInputMessageContext?.tools) {
-            try {
-                for (const toolSpec of message.userInputMessageContext.tools) {
-                    count += JSON.stringify(toolSpec).length
-                }
-            } catch (e) {
-                this.#features.logging.error(`Error counting tool spec length: ${String(e)}`)
-            }
-        }
-
-        if (message.userInputMessageContext?.additionalContext) {
-            try {
-                for (const addtionalContext of message.userInputMessageContext.additionalContext) {
-                    count += JSON.stringify(addtionalContext).length
-                }
-            } catch (e) {
-                this.#features.logging.error(`Error counting addtionalContext length: ${String(e)}`)
-            }
-        }
-
-        if (message.userInputMessageContext?.editorState) {
-            try {
-                count += JSON.stringify(message.userInputMessageContext?.editorState).length
-            } catch (e) {
-                this.#features.logging.error(`Error counting editorState length: ${String(e)}`)
-            }
-        }
-        return count
-    }
-
     ensureValidMessageSequence(messages: Message[], newUserMessage: ChatMessage): void {
         if (messages.length === 0) {
             return
@@ -644,6 +591,10 @@ export class ChatDatabase {
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
             messages.pop()
             this.#features.logging.debug('Dropped trailing user message')
+        }
+
+        if (messages.length === 0) {
+            return
         }
 
         //  Make sure there are alternating user and assistant messages
@@ -662,6 +613,13 @@ export class ChatDatabase {
         if (newUserMessage?.userInputMessage?.userInputMessageContext) {
             const newUserMessageContext = newUserMessage.userInputMessage.userInputMessageContext
             const toolResults = newUserMessageContext.toolResults || []
+            if (messages.length === 0) {
+                if (toolResults && toolResults.length > 0) {
+                    this.#features.logging.warn('New message has tool results but last message has no tool uses')
+                    return false
+                }
+                return true
+            }
             const lastMsg = messages[messages.length - 1]
             const lastMsgToolUses = lastMsg?.toolUses || []
 
@@ -701,5 +659,37 @@ export class ChatDatabase {
             }
         }
         return true
+    }
+
+    getSettings(): Settings | undefined {
+        if (this.#initialized) {
+            const settingsCollection = this.#db.getCollection<Settings>(SettingsCollection)
+            const settings = settingsCollection.findOne({})
+            return settings || undefined
+        }
+        return undefined
+    }
+
+    updateSettings(settings: Settings): void {
+        if (this.#initialized) {
+            const settingsCollection = this.#db.getCollection<Settings>(SettingsCollection)
+            const existingSettings = settingsCollection.findOne({})
+            if (existingSettings) {
+                this.#features.logging.log('Updating existing settings')
+                settingsCollection.update({ ...existingSettings, ...settings })
+            } else {
+                this.#features.logging.log('Creating new settings')
+                settingsCollection.insert(settings)
+            }
+        }
+    }
+
+    getModelId(): string | undefined {
+        const settings = this.getSettings()
+        return settings?.modelId
+    }
+
+    setModelId(modelId: string | undefined): void {
+        this.updateSettings({ modelId })
     }
 }
