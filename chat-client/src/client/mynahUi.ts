@@ -1146,7 +1146,7 @@ ${params.message}`,
         isMcpServersListActive = true
         // Convert the ListMcpServersResult to the format expected by mynahUi.openDetailedList
         const detailedList: any = {
-            selectable: false,
+            selectable: true,
             textDirection: 'row',
             header: params.header
                 ? {
@@ -1298,10 +1298,11 @@ ${params.message}`,
                     }
                 },
                 onItemSelect: (item: DetailedListItem) => {
-                    if (!item.id) {
-                        throw new Error('MCP server id is not defined')
+                    // actionId: open-mcp-server if valid server or mcp-fix-server if server needs to be fixed
+                    const actionId = item.actions?.[0].id
+                    if (actionId) {
+                        messager.onMcpServerClick(actionId, item.title)
                     }
-                    messager.onMcpServerClick(item.id)
                 },
                 onItemClick: (item: DetailedListItem) => {
                     if (item.id) {
