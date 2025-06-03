@@ -881,7 +881,7 @@ export class McpEventHandler {
         toolsWithPermissions.forEach(item => {
             const toolName = item.tool.toolName
             const currentPermission = this.#getCurrentPermission(item.permission)
-            // For Built-in server, use a special function that doesn't include the 'Disable' option
+            // For Built-in server, use a special function that doesn't include the 'Deny' option
             const permissionOptions = this.#buildPermissionOptions(item.permission)
 
             filterOptions.push({
@@ -902,11 +902,11 @@ export class McpEventHandler {
      */
     #getCurrentPermission(permission: string): string {
         if (permission === McpPermissionType.alwaysAllow) {
-            return 'Always run'
+            return 'Always allow'
         } else if (permission === McpPermissionType.deny) {
-            return 'Disable'
+            return 'Deny'
         } else {
-            return 'Ask to run'
+            return 'Ask'
         }
     }
 
@@ -917,15 +917,15 @@ export class McpEventHandler {
         const permissionOptions: PermissionOption[] = []
 
         if (currentPermission !== McpPermissionType.alwaysAllow) {
-            permissionOptions.push({ label: 'Always run', value: McpPermissionType.alwaysAllow })
+            permissionOptions.push({ label: 'Always allow', value: McpPermissionType.alwaysAllow })
         }
 
         if (currentPermission !== McpPermissionType.ask) {
-            permissionOptions.push({ label: 'Ask to run', value: McpPermissionType.ask })
+            permissionOptions.push({ label: 'Ask', value: McpPermissionType.ask })
         }
 
         if (currentPermission !== McpPermissionType.deny) {
-            permissionOptions.push({ label: 'Disable', value: McpPermissionType.deny })
+            permissionOptions.push({ label: 'Deny', value: McpPermissionType.deny })
         }
 
         return permissionOptions
