@@ -9,32 +9,93 @@ import { RequestExtras } from '../client/token/codewhisperer'
 import { ApolloServer } from 'apollo-server'
 import { gql } from 'apollo-server-core'
 import { v4 as uuidv4 } from 'uuid'
+import { Position, InlineCompletionWithReferencesParams } from '@aws/language-server-runtimes/server-interface'
 
-/*
+/**
+ * Interface for EditPredictionAutoTrigger evaluation data
+ */
+export interface EditPredictionAutoTriggerData {
+    // Required conditions
+    hasRecentEdit: boolean
+    isNotInMiddleOfWord: boolean
+    isPreviousDecisionNotReject: boolean
+    hasNonEmptySuffix: boolean
+    requiredConditionsMet: boolean
 
-TODO : Create a first class object for editPredictionAutoTrigger
+    // Optional conditions
+    isAfterKeyword: boolean
+    isAfterOperatorOrDelimiter: boolean
+    hasUserPaused: boolean
+    isAtLineBeginning: boolean
+    optionalConditionsMet: boolean
 
-      {
-        "timestamp": "2025-06-03T06:01:37.016Z",
-        "message": "EditPredictionAutoTrigger evaluation result",
-        "level": "info",
-        "source": "editPredictionAutoTrigger",
-        "data": "{\"hasRecentEdit\":true,\"isNotInMiddleOfWord\":true,\"isPreviousDecisionNotReject\":true,\"hasNonEmptySuffix\":true,\"requiredConditionsMet\":true,\"isAfterKeyword\":false,\"isAfterOperatorOrDelimiter\":false,\"hasUserPaused\":true,\"isAtLineBeginning\":false,\"optionalConditionsMet\":true,\"cursor\":\"7:18\",\"currentLine\":\"    NUMBER_FOUR = █\",\"shouldTrigger\":true}"
-      },
+    // Code context
+    cursor: string
+    currentLine: string
 
-TODO : Create a first class object for Inline Completions Handler; I want content on TextDocument & Cursor Posisiton Captured
+    // Result
+    shouldTrigger: boolean
+}
 
-      {
-        "timestamp": "2025-06-03T06:01:37.014Z",
-        "message": "Starting inline completion request",
-        "level": "info",
-        "source": "onInlineCompletionHandler",
-        "data": "{\"params\":\"{\\\"textDocument\\\":{\\\"uri\\\":\\\"file:///Users/dhanak/Downloads/BugBash_5_30/SampleNEPProject/nep_test.py\\\"},\\\"position\\\":{\\\"line\\\":7,\\\"character\\\":18},\\\"context\\\":{\\\"triggerKind\\\":0,\\\"requestUuid\\\":\\\"c35c054c-7ff5-4389-a757-c99cae7b9d85\\\"}}\"}"
-      },
+/**
+ * Interface for InlineCompletionsHandler request data
+ */
+export interface InlineCompletionsHandlerData {
+    // Document information
+    textDocument: {
+        uri: string
+        languageId?: string
+    }
 
+    // Cursor position
+    position: Position
 
+    // Request context
+    context?: {
+        triggerKind: number
+        requestUuid?: string
+        selectedCompletionInfo?: {
+            range?: {
+                start: Position
+                end: Position
+            }
+        }
+    }
 
-*/
+    // Content information (optional)
+    documentContent?: {
+        leftContent: string
+        rightContent: string
+        currentLine: string
+        lineCount: number
+    }
+}
+
+/**
+ * Parse raw InlineCompletionWithReferencesParams into a structured InlineCompletionsHandlerData object
+ *
+ * @param params The raw params from the LSP request
+ * @param documentContent Optional document content information
+ * @returns Structured data object for logging
+ */
+export function parseInlineCompletionParams(
+    params: InlineCompletionWithReferencesParams,
+    documentContent?: {
+        leftContent: string
+        rightContent: string
+        currentLine: string
+        lineCount: number
+    }
+): InlineCompletionsHandlerData {
+    return {
+        textDocument: {
+            uri: params.textDocument.uri,
+        },
+        position: params.position,
+        context: params.context,
+        documentContent,
+    }
+}
 
 /**
  * Interface for request/response log entry
@@ -59,7 +120,7 @@ export interface DebugLogEntry {
     flareRequestId: string
     timestamp: string
     message: string
-    data?: Record<string, any>
+    data?: Record<string, any> | string
     level: 'debug' | 'info' | 'warn' | 'error'
     source: string
 }
@@ -211,7 +272,7 @@ export class DebugLogger {
     public log(
         flareRequestId: string | undefined,
         message: string,
-        data?: Record<string, any>,
+        data?: Record<string, any> | string | EditPredictionAutoTriggerData | InlineCompletionsHandlerData,
         level: 'debug' | 'info' | 'warn' | 'error' = 'info',
         source: string = 'unknown'
     ): void {
@@ -301,6 +362,61 @@ export class DebugLogger {
                 data: String
                 level: String!
                 source: String!
+            }
+
+            type EditPredictionAutoTriggerData {
+                hasRecentEdit: Boolean!
+                isNotInMiddleOfWord: Boolean!
+                isPreviousDecisionNotReject: Boolean!
+                hasNonEmptySuffix: Boolean!
+                requiredConditionsMet: Boolean!
+                isAfterKeyword: Boolean!
+                isAfterOperatorOrDelimiter: Boolean!
+                hasUserPaused: Boolean!
+                isAtLineBeginning: Boolean!
+                optionalConditionsMet: Boolean!
+                cursor: String!
+                currentLine: String!
+                shouldTrigger: Boolean!
+            }
+
+            type Position {
+                line: Int!
+                character: Int!
+            }
+
+            type DocumentRange {
+                start: Position!
+                end: Position!
+            }
+
+            type TextDocumentInfo {
+                uri: String!
+                languageId: String
+            }
+
+            type CompletionContext {
+                triggerKind: Int!
+                requestUuid: String
+                selectedCompletionInfo: SelectedCompletionInfo
+            }
+
+            type SelectedCompletionInfo {
+                range: DocumentRange
+            }
+
+            type DocumentContent {
+                leftContent: String
+                rightContent: String
+                currentLine: String
+                lineCount: Int
+            }
+
+            type InlineCompletionsHandlerData {
+                textDocument: TextDocumentInfo!
+                position: Position!
+                context: CompletionContext
+                documentContent: DocumentContent
             }
 
             type Query {

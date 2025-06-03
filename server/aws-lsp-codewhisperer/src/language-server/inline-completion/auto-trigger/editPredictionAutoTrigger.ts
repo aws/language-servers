@@ -9,7 +9,7 @@ import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { LanguageDetectorFactory } from './languageDetector'
 import { EditPredictionConfigManager } from './editPredictionConfig'
-import { DebugLogger } from '../../../shared/debugUtils'
+import { DebugLogger, EditPredictionAutoTriggerData } from '../../../shared/debugUtils'
 
 // Debug logger function
 const DEBUG = true
@@ -129,7 +129,7 @@ export const editPredictionAutoTrigger = ({
     const shouldTrigger = (requiredConditionsMet && optionalConditionsMet) || false
 
     // Create state object for logging
-    const state = {
+    const state: EditPredictionAutoTriggerData = {
         // Required conditions
         hasRecentEdit,
         isNotInMiddleOfWord,

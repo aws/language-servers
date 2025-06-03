@@ -29,3 +29,4 @@ app/aws-lsp-partiql-*
 
 # Workspace
 client/vscode/lsp_client.code-workspace
+package-lock.json

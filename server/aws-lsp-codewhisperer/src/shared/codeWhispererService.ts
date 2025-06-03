@@ -54,7 +54,7 @@ export interface GenerateSuggestionsResponse {
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { error } from 'console'
-import { logRequestResponseToFile } from './debugUtils'
+import { DebugLogger } from './debugUtils'
 
 // Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -196,32 +196,52 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         const requestEndTime = new Date().getTime()
                         const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
-                        logRequestResponseToFile(
-                            req,
-                            response,
-                            '',
-                            response.requestId,
-                            this.codeWhispererEndpoint,
-                            latency
-                        ).catch(err => {
-                            this.completeRequest(req)
-                        })
+                        // Generate a request UUID for tracking
+                        const flareRequestId = DebugLogger.getInstance().generateflareRequestId()
+
+                        // Use the DebugLogger's logRequestResponse method instead of the legacy function
+                        DebugLogger.getInstance()
+                            .logRequestResponse(
+                                flareRequestId,
+                                req,
+                                response,
+                                '', // No error for successful responses
+                                response.requestId,
+                                this.codeWhispererEndpoint,
+                                latency
+                            )
+                            .catch(err => {
+                                console.error('Failed to log request/response:', err)
+                            })
+                            .finally(() => {
+                                this.completeRequest(req)
+                            })
                     })
                     req.on('error', async (error, response) => {
                         const requestStartTime = req.startTime?.getTime() || 0
                         const requestEndTime = new Date().getTime()
                         const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
-                        logRequestResponseToFile(
-                            req,
-                            null,
-                            error,
-                            response.requestId,
-                            this.codeWhispererEndpoint,
-                            latency
-                        ).catch(err => {
-                            console.error('Failed to log request/response:', err)
-                        })
+                        // Generate a request UUID for tracking
+                        const flareRequestId = DebugLogger.getInstance().generateflareRequestId()
+
+                        // Use the DebugLogger's logRequestResponse method for error cases
+                        DebugLogger.getInstance()
+                            .logRequestResponse(
+                                flareRequestId,
+                                req,
+                                null,
+                                error,
+                                response.requestId,
+                                this.codeWhispererEndpoint,
+                                latency
+                            )
+                            .catch(err => {
+                                console.error('Failed to log request/response:', err)
+                            })
+                            .finally(() => {
+                                this.completeRequest(req)
+                            })
                     })
                 },
             ],

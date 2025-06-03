@@ -54,8 +54,12 @@ import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/Am
 import { hasConnectionExpired } from '../../shared/utils'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
+<<<<<<< HEAD
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 import { DebugLogger } from '../../shared/debugUtils'
+=======
+import { DebugLogger, InlineCompletionsHandlerData, parseInlineCompletionParams } from '../../shared/debugUtils'
+>>>>>>> 9711f8d6 (feat: debug viewer)
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -304,11 +308,12 @@ export const CodewhispererServerFactory =
             // Generate a unique request ID for this completion request
             const flareRequestId = DebugLogger.getInstance().generateflareRequestId()
 
-            // Log the start of the request
+            // Log the start of the request with structured data
+            const handlerData = parseInlineCompletionParams(params)
             DebugLogger.getInstance().log(
                 flareRequestId,
                 'Starting inline completion request',
-                { params: JSON.stringify(params) },
+                handlerData,
                 'info',
                 'onInlineCompletionHandler'
             )
