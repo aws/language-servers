@@ -33,15 +33,15 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         return await listDirectoryTool.invoke(input, token)
     })
 
-    agent.addTool(fuzzySearchTool.getSpec(), async (input: FuzzySearchParams, token?: CancellationToken) => {
-        await fuzzySearchTool.validate(input)
-        return await fuzzySearchTool.invoke(input, token)
-    })
+    // agent.addTool(fuzzySearchTool.getSpec(), async (input: FuzzySearchParams, token?: CancellationToken) => {
+    //     await fuzzySearchTool.validate(input)
+    //     return await fuzzySearchTool.invoke(input, token)
+    // })
 
-    agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
-        await grepSearchTool.validate(input)
-        return await grepSearchTool.invoke(input, token)
-    })
+    // agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
+    //     await grepSearchTool.validate(input)
+    //     return await grepSearchTool.invoke(input, token)
+    // })
 
     return () => {}
 }
