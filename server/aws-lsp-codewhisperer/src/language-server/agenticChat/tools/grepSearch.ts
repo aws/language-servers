@@ -101,10 +101,7 @@ export class GrepSearch {
 
     private getRipgrepLibraryPath(): string {
         if (process.platform === 'win32') {
-            // On Windows, the path must be loaded using a URL.
-            // Using the file path directly results in ERR_UNSUPPORTED_ESM_URL_SCHEME
-            // More details: https://github.com/nodejs/node/issues/31710
-            return pathToFileURL(path.join(RIPGREP_DIR, 'rg.exe')).toString()
+            return path.join(RIPGREP_DIR, 'rg.exe')
         }
 
         return path.join(RIPGREP_DIR, 'rg')
@@ -168,7 +165,7 @@ export class GrepSearch {
             // Add search pattern and path
             args.push(params.query, path)
 
-            this.logging.info(`Executing ripgrep with args: ${args.join(' ')}`)
+            this.logging.debug(`Executing ripgrep with args: ${args.join(' ')}`)
 
             const options: ChildProcessOptions = {
                 collect: true,

@@ -58,6 +58,7 @@ import {
 } from '../../shared/amazonQServiceManager/errors'
 import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
+import { AgenticChatError } from './errors'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -2257,10 +2258,12 @@ ${' '.repeat(8)}}
         const cancellationError = new CancellationError('user')
         const rejectionError = new ToolApprovalException()
         const tokenSource = new CancellationTokenSource()
+        const requestAbortedError = new AgenticChatError('Request aborted', 'RequestAborted')
 
         assert.ok(!chatController.isUserAction(nonUserAction))
         assert.ok(chatController.isUserAction(cancellationError))
         assert.ok(chatController.isUserAction(rejectionError))
+        assert.ok(chatController.isUserAction(requestAbortedError))
 
         assert.ok(!chatController.isUserAction(nonUserAction, tokenSource.token))
 

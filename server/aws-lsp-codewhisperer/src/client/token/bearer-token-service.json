@@ -1506,6 +1506,10 @@
                     "shape": "ConversationId",
                     "documentation": "<p>Unique identifier for the chat conversation stream</p>"
                 },
+                "workspaceId": {
+                    "shape": "UUID",
+                    "documentation": "<p>Unique identifier for remote workspace</p>"
+                },
                 "history": {
                     "shape": "ChatHistory",
                     "documentation": "<p>Holds the history of chat messages.</p>"
@@ -2223,10 +2227,19 @@
                 "filename": {
                     "shape": "FileContextFilenameString"
                 },
+                "fileUri": {
+                    "shape": "FileContextFileUriString"
+                },
                 "programmingLanguage": {
                     "shape": "ProgrammingLanguage"
                 }
             }
+        },
+        "FileContextFileUriString": {
+            "type": "string",
+            "max": 1024,
+            "min": 1,
+            "sensitive": true
         },
         "FileContextFilenameString": {
             "type": "string",
@@ -2816,6 +2829,13 @@
             "min": 1,
             "pattern": "[-a-zA-Z0-9._]*"
         },
+        "ModelId": {
+            "type": "string",
+            "documentation": "<p>Unique identifier for the model</p>",
+            "max": 1024,
+            "min": 1,
+            "pattern": "[a-zA-Z0-9_:.-]+"
+        },
         "Notifications": {
             "type": "list",
             "member": {
@@ -3331,6 +3351,9 @@
                 },
                 "profileArn": {
                     "shape": "ProfileArn"
+                },
+                "modelId": {
+                    "shape": "ModelId"
                 }
             }
         },

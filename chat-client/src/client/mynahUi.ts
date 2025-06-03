@@ -64,6 +64,7 @@ import {
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
+import { getModelSelectionChatItem } from './texts/modelSelection'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -90,20 +91,42 @@ const ContextPrompt = {
     PromptNameFieldId: 'prompt-name',
 } as const
 
-const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) => {
+const getTabPromptInputValue = (mynahUi: MynahUI, tabId: string, optionId: string) => {
     const promptInputOptions = mynahUi.getTabData(tabId)?.getStore()?.promptInputOptions ?? []
-    return promptInputOptions.find(item => item.id === 'pair-programmer-mode')?.value === 'true'
+    return promptInputOptions.find(item => item.id === optionId)?.value
 }
+
+const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) =>
+    getTabPromptInputValue(mynahUi, tabId, 'pair-programmer-mode') === 'true'
+
+const getTabModelSelection = (mynahUi: MynahUI, tabId: string) =>
+    getTabPromptInputValue(mynahUi, tabId, 'model-selection')
 
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
-    const promptTypeValue = optionsValues['pair-programmer-mode']
+    const previousPairProgrammerValue = getTabPairProgrammingMode(mynahUi, tabId)
+    const currentPairProgrammerValue = optionsValues['pair-programmer-mode'] === 'true'
 
-    if (promptTypeValue != null) {
-        mynahUi.addChatItem(tabId, promptTypeValue === 'true' ? pairProgrammingModeOn : pairProgrammingModeOff)
+    if (currentPairProgrammerValue !== previousPairProgrammerValue) {
+        mynahUi.addChatItem(tabId, currentPairProgrammerValue ? pairProgrammingModeOn : pairProgrammingModeOff)
     }
+
+    const previousModelSelectionValue = getTabModelSelection(mynahUi, tabId)
+    const currentModelSelectionValue = optionsValues['model-selection']
+
+    if (currentModelSelectionValue !== previousModelSelectionValue) {
+        mynahUi.addChatItem(tabId, getModelSelectionChatItem(currentModelSelectionValue))
+    }
+
+    const promptInputOptions = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+    mynahUi.updateStore(tabId, {
+        promptInputOptions: promptInputOptions?.map(option => {
+            option.value = optionsValues[option.id]
+            return option
+        }),
+    })
 }
 
-export const handleChatPrompt = async (
+export const handleChatPrompt = (
     mynahUi: MynahUI,
     tabId: string,
     prompt: ChatPrompt,
@@ -113,25 +136,7 @@ export const handleChatPrompt = async (
     agenticMode?: boolean
 ) => {
     let userPrompt = prompt.escapedPrompt
-
-    const tabStore = mynahUi.getTabData(tabId)?.getStore()
-    const isLoading = tabStore?.loadingChat === true
-    if (isLoading) {
-        messager.onStopChatResponse(tabId)
-        mynahUi.addChatItem(tabId, {
-            type: ChatItemType.DIRECTIVE,
-            messageId: `stopped-${Date.now()}`,
-        })
-        mynahUi.updateStore(tabId, {
-            loadingChat: false,
-            cancelButtonWhenLoading: true,
-            promptInputDisabledState: false,
-        })
-
-        // Add a slight delay to make sure the stop message would render before the new prompt
-        await new Promise(resolve => setTimeout(resolve, 50))
-    }
-
+    messager.onStopChatResponse(tabId)
     if (prompt.command) {
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -447,7 +452,7 @@ export const createMynahUi = (
                         {
                             id: ContextPrompt.SubmitButtonId,
                             text: 'Create',
-                            status: 'main',
+                            status: 'primary',
                             waitMandatoryFormItems: true,
                         },
                     ],
@@ -707,10 +712,10 @@ export const createMynahUi = (
             isValidAuthFollowUpType(followUpOptions[0].type)
         if (chatResult.body === '' && isValidAuthFollowUp) {
             mynahUi.addChatItem(tabId, {
-                type: ChatItemType.SYSTEM_PROMPT,
                 ...chatResultWithoutTypeSummary,
                 header: header,
                 buttons: buttons,
+                type: ChatItemType.SYSTEM_PROMPT,
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -971,6 +976,8 @@ export const createMynahUi = (
         const processedButtons: ChatItemButton[] | undefined = toMynahButtons(message.buttons)?.map(button =>
             button.id === 'undo-all-changes' ? { ...button, position: 'outside' } : button
         )
+        // Adding this conditional check to show the stop message in the center.
+        const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
         // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
         const shouldMute = message.header?.status?.text !== undefined
@@ -983,6 +990,7 @@ export const createMynahUi = (
             // file diffs in the header need space
             fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
             padding,
+            contentHorizontalAlignment,
             wrapCodes: message.type === 'tool',
             codeBlockActions:
                 message.type === 'tool'

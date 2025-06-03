@@ -17,22 +17,22 @@ import {
     createNamespacedToolName,
     enabledMCP,
 } from './mcp/mcpUtils'
+import { FuzzySearch, FuzzySearchParams } from './fuzzySearch'
+import { GrepSearch, GrepSearchParams } from './grepSearch'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
     const fsWriteTool = new FsWrite({ workspace, lsp, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
+    const fuzzySearchTool = new FuzzySearch({ workspace, lsp, logging })
+    const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
-        // TODO: fill in logic for handling invalid tool invocations
-        // TODO: implement chat streaming via queueDescription.
         await fsReadTool.validate(input)
         return await fsReadTool.invoke(input)
     })
 
     agent.addTool(fsWriteTool.getSpec(), async (input: FsWriteParams) => {
-        // TODO: fill in logic for handling invalid tool invocations
-        // TODO: implement chat streaming via queueDescription.
         await fsWriteTool.validate(input)
         return await fsWriteTool.invoke(input)
     })
@@ -41,9 +41,15 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         await listDirectoryTool.validate(input)
         return await listDirectoryTool.invoke(input, token)
     })
-    agent.addTool(listDirectoryTool.getSpec(), async (input: ListDirectoryParams, token?: CancellationToken) => {
-        await listDirectoryTool.validate(input)
-        return await listDirectoryTool.invoke(input, token)
+
+    agent.addTool(fuzzySearchTool.getSpec(), async (input: FuzzySearchParams, token?: CancellationToken) => {
+        await fuzzySearchTool.validate(input)
+        return await fuzzySearchTool.invoke(input, token)
+    })
+
+    agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
+        await grepSearchTool.validate(input)
+        return await grepSearchTool.invoke(input, token)
     })
 
     return () => {}

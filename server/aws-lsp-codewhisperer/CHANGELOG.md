@@ -1,5 +1,80 @@
 # Changelog
 
+## [0.0.41](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.40...lsp-codewhisperer/v0.0.41) (2025-05-30)
+
+
+### Features
+
+* **amazonq:** add abap as supported language [#1463](https://github.com/aws/language-servers/issues/1463) ([116ea07](https://github.com/aws/language-servers/commit/116ea07d4ae4744bb105f474d0d964c366673e7e))
+
+
+### Bug Fixes
+
+* add tests for workspace change supports ([#1484](https://github.com/aws/language-servers/issues/1484)) ([30559cb](https://github.com/aws/language-servers/commit/30559cb8a394e2f0e11b3150d7480d463014ea78))
+* **amazonq:** fix for honouring the index cache dir path value ([#1448](https://github.com/aws/language-servers/issues/1448)) ([40e15b7](https://github.com/aws/language-servers/commit/40e15b75ec514bb7019affdebdb12b923370bf27))
+* **amazonq:** fix UTDE suggestion state for pagination cases ([#1433](https://github.com/aws/language-servers/issues/1433)) ([6bf21e5](https://github.com/aws/language-servers/commit/6bf21e52fc0b7cefb7ee8c0ac820ad7825ba7de7))
+* **amazonq:** wrap sspc lsp handlers in try/catch so failures do not take down server ([#1464](https://github.com/aws/language-servers/issues/1464)) ([6a731cb](https://github.com/aws/language-servers/commit/6a731cb680d0574b4033f1fe209f788eb1fae221))
+* convert array values to comma-separated strings in telemetry metrics emitAgencticLoop_InvokeLLM ([#1458](https://github.com/aws/language-servers/issues/1458)) ([6682e21](https://github.com/aws/language-servers/commit/6682e2169f7f3815362d2d3a4bcdef809dea8c27))
+* decode UTF-16LE shell output on Windows ([#1456](https://github.com/aws/language-servers/issues/1456)) ([ae48442](https://github.com/aws/language-servers/commit/ae48442f499589560ff0bc9e3832171c98e53abb))
+* enable fuzzySearch tool ([#1328](https://github.com/aws/language-servers/issues/1328)) ([93d9c9c](https://github.com/aws/language-servers/commit/93d9c9ca704b59769eca0ce45857db6f9de88aa6))
+* enable grepSearch tool ([#1396](https://github.com/aws/language-servers/issues/1396)) ([a3a39de](https://github.com/aws/language-servers/commit/a3a39de85f822e10fe5a9e9d88165fa26739bc87))
+* ensure local index server updates with workspaceChangeEvent and bump runtimes ([#1424](https://github.com/aws/language-servers/issues/1424)) ([9babbb6](https://github.com/aws/language-servers/commit/9babbb643daa2893454dbc977d3802822b2c0aa6))
+* fix uncaught exception in workspaceFolderManager ([#1428](https://github.com/aws/language-servers/issues/1428)) ([1b15457](https://github.com/aws/language-servers/commit/1b154570c9cf1eb1d56141095adea4459426b774))
+* increase the code start and end line number by 1 ([#1470](https://github.com/aws/language-servers/issues/1470)) ([743666f](https://github.com/aws/language-servers/commit/743666fd18f262363a49a56bbd5063c24f1d4d31))
+* properly tokenize command args using shlex.split() for Windows ([#1440](https://github.com/aws/language-servers/issues/1440)) ([9355003](https://github.com/aws/language-servers/commit/9355003f5feb030a7b3984122e180368bae29d06))
+* reorder cancellation operations ([#1478](https://github.com/aws/language-servers/issues/1478)) ([0d392a7](https://github.com/aws/language-servers/commit/0d392a7996f6430d13e4d7171e320d5b0b0aaf43))
+* update executeBash UI for failures during command existence check ([#1462](https://github.com/aws/language-servers/issues/1462)) ([7165301](https://github.com/aws/language-servers/commit/7165301ac8de36c34011d9fc8b066fa2fe3aff7e))
+* use updated version of vecLib and use local context controller to raise context command updates ([#1479](https://github.com/aws/language-servers/issues/1479)) ([6d4280d](https://github.com/aws/language-servers/commit/6d4280d1eb61d3b10674a0aa137ae6fd2f5446bf))
+
+## [0.0.40](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.39...lsp-codewhisperer/v0.0.40) (2025-05-22)
+
+
+### Features
+
+* **amazonq:** add fileUri to FileContext ([#1399](https://github.com/aws/language-servers/issues/1399)) ([e5ede36](https://github.com/aws/language-servers/commit/e5ede36518557bcf969d0b7eecf1f3e6bda2f618))
+* **amazonq:** integrate server side workspace context with inline completion ([#1402](https://github.com/aws/language-servers/issues/1402)) ([cf0f6b3](https://github.com/aws/language-servers/commit/cf0f6b38f8b6bc22f134c50642fcba8281a24479))
+* bump logging level of critical messages ([#1358](https://github.com/aws/language-servers/issues/1358)) ([d0bf283](https://github.com/aws/language-servers/commit/d0bf283e9af9321baf8fc2333c702f0317ad7daa))
+* integrate server side project context into agentic chat ([#1405](https://github.com/aws/language-servers/issues/1405)) ([e4d8f61](https://github.com/aws/language-servers/commit/e4d8f6144aefdd59543f380be59ab63c6bf9e291))
+* launch one remote workspace for all workspace folders ([#1348](https://github.com/aws/language-servers/issues/1348)) ([c240997](https://github.com/aws/language-servers/commit/c24099727c708994f319d9294068f6dee2a75b26))
+* migrate inline completion telemetry to Flare ([#1336](https://github.com/aws/language-servers/issues/1336)) ([fcbdde4](https://github.com/aws/language-servers/commit/fcbdde4593cb55a728b996d3e04e90f9b6c6fa70))
+
+
+### Bug Fixes
+
+* accidental formatting [#1410](https://github.com/aws/language-servers/issues/1410) ([3774f40](https://github.com/aws/language-servers/commit/3774f405921a9ba26df4de6cc4044d1fa70f09a3))
+* add crypto import ([#1408](https://github.com/aws/language-servers/issues/1408)) ([6d5a5cf](https://github.com/aws/language-servers/commit/6d5a5cf545d882e7ce3afb93028ad2b4a4bcbb8e))
+* add grepSearch implementation ([#1359](https://github.com/aws/language-servers/issues/1359)) ([1260dce](https://github.com/aws/language-servers/commit/1260dcedb0839d7dd6ee0bb159e5f5bb3cbe5f3a))
+* add requestIds for each LLM call for amazonq_addMessage metric ([#1338](https://github.com/aws/language-servers/issues/1338)) ([4324c90](https://github.com/aws/language-servers/commit/4324c90224ad9f94b82d9e68e80f7563bdb5f2ea))
+* add robust validation logic to fixHistory ([#1340](https://github.com/aws/language-servers/issues/1340)) ([14dac87](https://github.com/aws/language-servers/commit/14dac87358c7e1fd79a5e49614fd33c46d43bf72))
+* add validation for empty chat history ([#1403](https://github.com/aws/language-servers/issues/1403)) ([83d83b0](https://github.com/aws/language-servers/commit/83d83b0a22a5c3fb7cdad18c1fa829ee54f37119))
+* adding error handling for export tab ([#1350](https://github.com/aws/language-servers/issues/1350)) ([6bdd1ac](https://github.com/aws/language-servers/commit/6bdd1acb22bb089f8a5fd257a2fe47e212650382))
+* adding new telemetry metrics and addtional fields for existing metrics ([#1341](https://github.com/aws/language-servers/issues/1341)) ([d242225](https://github.com/aws/language-servers/commit/d2422252a27c57b05609c0829b0741b29c4d9236))
+* **amazonq:** Use common utility to determine workspaceFolders and fix tests ([#1353](https://github.com/aws/language-servers/issues/1353)) ([483f532](https://github.com/aws/language-servers/commit/483f532b940d3ff2e914c0824f7501c3fe6a6235))
+* change the version to axios to ^1.8.4 ([#1421](https://github.com/aws/language-servers/issues/1421)) ([f127538](https://github.com/aws/language-servers/commit/f127538832d01ebaf0638a0512dc9f0837b8f2ff))
+* convert RTS improperly formed request error to 500 ([#1356](https://github.com/aws/language-servers/issues/1356)) ([9d74a17](https://github.com/aws/language-servers/commit/9d74a17dd850dbe59a34b75ffb563e037856485b))
+* emit telemetry event to RTS when failed or cancelled ([#1384](https://github.com/aws/language-servers/issues/1384)) ([2e542ae](https://github.com/aws/language-servers/commit/2e542aebb2da37a747ae9dbd6b1fd25e95cf6d93))
+* handle requestAborted errors silently ([#1394](https://github.com/aws/language-servers/issues/1394)) ([6b12b54](https://github.com/aws/language-servers/commit/6b12b544fbd84b9c57662754ba27aea491be9048))
+* missing handle connection expired error for inline suggestions ([#1373](https://github.com/aws/language-servers/issues/1373)) ([05c7728](https://github.com/aws/language-servers/commit/05c772821e60ba8a6b066b26ca6811d3d9c55455))
+* move generateAssistant request log statement ([#1379](https://github.com/aws/language-servers/issues/1379)) ([e258409](https://github.com/aws/language-servers/commit/e258409fb811769aa700046568c269622daf1ec9))
+* only do render on partial results for fsWrite ([#1354](https://github.com/aws/language-servers/issues/1354)) ([9931592](https://github.com/aws/language-servers/commit/993159293edc32f7dc5bd0cfb999562ffee830ed))
+* re-categorize error status code ([#1355](https://github.com/aws/language-servers/issues/1355)) ([a98a842](https://github.com/aws/language-servers/commit/a98a842fb5ac8d680e973d97058c22a49e5c3284))
+* Reduce perceived latency of fsWrite. Show fsWrite errors in the UX  ([#1351](https://github.com/aws/language-servers/issues/1351)) ([f1e873b](https://github.com/aws/language-servers/commit/f1e873b95fbd119a0303ae1f234f9f1efa1fef56))
+* remove limit on agentic loop ([#1367](https://github.com/aws/language-servers/issues/1367)) ([5943222](https://github.com/aws/language-servers/commit/59432220ba9495d3e5cdfd2d42321f412d1f2b13))
+* Render timeout error, JSON parse error, cancellation to the in progress fs.write UI ([#1382](https://github.com/aws/language-servers/issues/1382)) ([f930297](https://github.com/aws/language-servers/commit/f9302976d9e916a88daac546efb8acba45c5a66e))
+* Revert status code convertion ([#1370](https://github.com/aws/language-servers/issues/1370)) ([73e0c5b](https://github.com/aws/language-servers/commit/73e0c5b93861ed48c075588cd99e716066c2bc95))
+* Set `source` parameter chat request context to 'IDE' ([#1407](https://github.com/aws/language-servers/issues/1407)) ([c8d6edf](https://github.com/aws/language-servers/commit/c8d6edf58e824c994ffe5c10bb970665375e0eb7))
+* SSPC dependency upload and watcher fixes ([#1377](https://github.com/aws/language-servers/issues/1377)) ([a5833fe](https://github.com/aws/language-servers/commit/a5833fea3488f2e31877b5677fd532f5415b339c))
+* the new prompt wont stop the process properly ([#1404](https://github.com/aws/language-servers/issues/1404)) ([6e3ec9b](https://github.com/aws/language-servers/commit/6e3ec9b7483fee74563b735440789d4add9158e0))
+* truncate API payload ([#1368](https://github.com/aws/language-servers/issues/1368)) ([1120272](https://github.com/aws/language-servers/commit/112027253ca773e0b674c0527dd48c9ee8d9ddc4))
+* Truncate API request context first, then truncate chat history ([#1372](https://github.com/aws/language-servers/issues/1372)) ([80fdbdf](https://github.com/aws/language-servers/commit/80fdbdfc27849e136b30d7a68727b3f53b03c8af))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.8 to ^0.0.9
+
 ## [0.0.39](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.38...lsp-codewhisperer/v0.0.39) (2025-05-14)
 
 

@@ -10,6 +10,7 @@ import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
+import { modelSelection } from '../texts/modelSelection'
 
 export type DefaultTabData = MynahUIDataModel
 
@@ -22,6 +23,7 @@ export class TabFactory {
     private export: boolean = false
     private agenticMode: boolean = false
     private mcp: boolean = false
+    private modelSelectionEnabled: boolean = false
     initialTabId: string
 
     public static generateUniqueId() {
@@ -43,7 +45,9 @@ export class TabFactory {
         const tabData: MynahUIDataModel = {
             ...this.getDefaultTabData(),
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
-            promptInputOptions: this.agenticMode ? [pairProgrammingPromptInput] : [],
+            promptInputOptions: this.agenticMode
+                ? [pairProgrammingPromptInput, ...(this.modelSelectionEnabled ? [modelSelection] : [])]
+                : [],
             cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
         }
         return tabData
@@ -98,6 +102,10 @@ export class TabFactory {
 
     public enableMcp() {
         this.mcp = true
+    }
+
+    public enableModelSelection() {
+        this.modelSelectionEnabled = true
     }
 
     public getDefaultTabData(): DefaultTabData {

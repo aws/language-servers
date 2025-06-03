@@ -1,6 +1,7 @@
 import { TextDocument } from '@aws/language-server-runtimes/server-interface'
 
 export type CodewhispererLanguage =
+    | 'abap'
     | 'c'
     | 'cpp'
     | 'csharp'
@@ -34,6 +35,7 @@ export type CodewhispererLanguage =
 type RuntimeLanguage = Exclude<CodewhispererLanguage, 'jsx' | 'tsx' | 'systemVerilog'> | 'systemverilog'
 
 const runtimeLanguageSet: ReadonlySet<RuntimeLanguage> = new Set([
+    'abap',
     'c',
     'cpp',
     'csharp',
@@ -59,6 +61,7 @@ const runtimeLanguageSet: ReadonlySet<RuntimeLanguage> = new Set([
 // are integrated into the language server and clients.
 // See: https://microsoft.github.io/language-server-protocol/specifications/lsp/3.18/specification/#textDocumentItem
 const supportedFileTypes: CodewhispererLanguage[] = [
+    'abap',
     'c',
     'cpp',
     'csharp',
@@ -98,6 +101,7 @@ export const supportedWorkspaceContextLanguages: CodewhispererLanguage[] = [
 ]
 
 export const languageByExtension: { [key: string]: CodewhispererLanguage } = {
+    '.abap': 'abap',
     '.c': 'c',
     '.cpp': 'cpp',
     '.cs': 'csharp',
@@ -141,6 +145,7 @@ export const languageByExtension: { [key: string]: CodewhispererLanguage } = {
 
 // some are exact match and some like javascriptreact and shellscript are not
 export const qLanguageIdByDocumentLanguageId: { [key: string]: CodewhispererLanguage } = {
+    abap: 'abap',
     c: 'c',
     cpp: 'cpp',
     csharp: 'csharp',

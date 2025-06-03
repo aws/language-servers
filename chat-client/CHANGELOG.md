@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.12](https://github.com/aws/language-servers/compare/chat-client/v0.1.11...chat-client/v0.1.12) (2025-05-30)
+
+
+### Bug Fixes
+
+* **chat-client:** fix bug where pair programmer mode option update was not stored properly ([#1400](https://github.com/aws/language-servers/issues/1400)) ([bcdd9a2](https://github.com/aws/language-servers/commit/bcdd9a2b02a1e37aa83ac93ceef93d84a99951de))
+* remove gradient from create prompt button ([#1475](https://github.com/aws/language-servers/issues/1475)) ([2f34d43](https://github.com/aws/language-servers/commit/2f34d438b08ced84c0a17303fd22d7f750c64dfd))
+
+## [0.1.11](https://github.com/aws/language-servers/compare/chat-client/v0.1.10...chat-client/v0.1.11) (2025-05-22)
+
+
+### Bug Fixes
+
+* Revert stop text align ([#1397](https://github.com/aws/language-servers/issues/1397)) ([439e859](https://github.com/aws/language-servers/commit/439e8597b5ce8ad052ab571a1a156044f8862206))
+* Stop text align ([#1321](https://github.com/aws/language-servers/issues/1321)) ([0f522a1](https://github.com/aws/language-servers/commit/0f522a17004174d29955bf70c304ad9ca39df623))
+
 ## [0.1.10](https://github.com/aws/language-servers/compare/chat-client/v0.1.9...chat-client/v0.1.10) (2025-05-14)
 
 
