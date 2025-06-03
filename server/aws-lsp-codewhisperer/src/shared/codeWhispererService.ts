@@ -294,7 +294,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         if (shouldUsePrefetch) {
             this.logging.info(`will use prefetch suggestion`)
         } else {
-            this.logging.info(`call start`)
+            this.logging.info(`cold start`)
         }
 
         const curResponse =
@@ -340,7 +340,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                             programmingLanguage: {
                                 languageName: textDocument.languageId,
                             },
-                            text: textDocument.getText(),
+                            text: leftContent + rightContent,
                         },
                         cursorState: {
                             position: {
@@ -372,6 +372,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         secondResponse.suggestions.length > 0 &&
                         secondResponse.suggestions[0].content !== curResponse.suggestions[0].content
                     ) {
+                        console.log(`prefetch result: `)
+                        console.log(secondResponse.suggestions[0].content)
                         this.prefetchSuggestions = {
                             id: curResponse.suggestions[0].content, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
                             response: secondResponse,
@@ -388,6 +390,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }, 250)
         }
 
+        console.log(`current result: `)
+        console.log(curResponse.suggestions[0].content)
         return curResponse
     }
 
