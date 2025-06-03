@@ -54,12 +54,8 @@ import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/Am
 import { hasConnectionExpired } from '../../shared/utils'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
-<<<<<<< HEAD
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
-import { DebugLogger } from '../../shared/debugUtils'
-=======
 import { DebugLogger, InlineCompletionsHandlerData, parseInlineCompletionParams } from '../../shared/debugUtils'
->>>>>>> 9711f8d6 (feat: debug viewer)
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
