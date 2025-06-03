@@ -134,11 +134,23 @@ const DEFAULT_PERSONA_RAW = `{
   ],
   "toolPerms": {
     "builtIn": {
-      "execute_bash": "alwaysAllow",
-      "fs_read":       "alwaysAllow",
-      "fs_write":      "ask",
-      "report_issue":  "alwaysAllow",
-      "use_aws":       "alwaysAllow"
+      "execute_bash": {
+        "alwaysAllow": [
+          {
+            "preset": "readOnly"
+          }
+        ]
+      },
+      "fs_read": "alwaysAllow",
+      "fs_write": "ask",
+      "report_issue": "alwaysAllow",
+      "use_aws": {
+        "alwaysAllow": [
+          {
+            "preset": "readOnly"
+          }
+        ]
+      }
     }
   },
   "context": {
