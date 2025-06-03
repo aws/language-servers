@@ -1,5 +1,7 @@
 # Allowed patterns for git-secrets
 # This file contains patterns that are allowed exceptions to git-secrets prohibited patterns
 
+.gitallowed
+
 # Allow '.brazil' only in the constants.ts file where it's used as a directory name in exclude patterns
 server/aws-lsp-codewhisperer/src/language-server/chat/constants\.ts.*\.brazil

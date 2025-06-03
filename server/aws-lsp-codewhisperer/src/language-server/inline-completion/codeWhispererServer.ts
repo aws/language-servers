@@ -54,6 +54,7 @@ import { initBaseIAMServiceManager } from '../../shared/amazonQServiceManager/Am
 import { hasConnectionExpired } from '../../shared/utils'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
+import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -282,6 +283,7 @@ export const CodewhispererServerFactory =
         // Trackers for monitoring edits and cursor position
         const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
         const cursorTracker = CursorTracker.getInstance()
+        const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
         let editsEnabled = false
 
         lsp.addInitializer((params: InitializeParams) => {
@@ -610,12 +612,30 @@ export const CodewhispererServerFactory =
                                 } else {
 
                                     return { items: suggestionResponse.suggestions.map(suggestion => {
+                                        // Check if this suggestion is similar to a previously rejected edit
+                                        const isSimilarToRejected = rejectedEditTracker.isSimilarToRejected(
+                                            suggestion.content,
+                                            textDocument.uri
+                                        )
+                                        
+                                        if (isSimilarToRejected) {
+                                            // Mark as rejected in the session
+                                            newSession.setSuggestionState(suggestion.itemId, 'Reject')
+                                            logging.debug(`[EDIT_PREDICTION] Filtered out suggestion similar to previously rejected edit`)
+                                            // Return empty item that will be filtered out
+                                            return {
+                                                insertText: '',
+                                                isInlineEdit: true,
+                                                itemId: suggestion.itemId
+                                            }
+                                        }
+                                        
                                         return {
                                             insertText: suggestion.content,
                                             isInlineEdit: true,
                                             itemId: suggestion.itemId
                                         }
-                                    }), sessionId: newSession.id }
+                                    }).filter(item => item.insertText !== ''), sessionId: newSession.id }
 
                                 }
                         })
@@ -683,6 +703,9 @@ export const CodewhispererServerFactory =
                 deletedCharacterCount,
             } = params
 
+            // Hardcoded isInlineEdit for now - will be replaced with actual parameter later
+            const isInlineEdit = true
+
             const session = sessionManager.getSessionById(sessionId)
 
             if (!session) {
@@ -707,6 +730,31 @@ export const CodewhispererServerFactory =
                     codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
+                }
+            }
+
+            // Handle rejected edit predictions
+            if (isInlineEdit && !isAccepted) {
+                // Find all rejected suggestions in this session
+                const rejectedSuggestions = session.suggestions.filter(suggestion => {
+                    const result = completionSessionResult[suggestion.itemId]
+                    return result && result.seen && !result.accepted
+                })
+
+                // Record each rejected edit
+                for (const rejectedSuggestion of rejectedSuggestions) {
+                    if (rejectedSuggestion.content) {
+                        rejectedEditTracker.recordRejectedEdit({
+                            content: rejectedSuggestion.content,
+                            timestamp: Date.now(),
+                            documentUri: session.document.uri,
+                            position: session.startPosition,
+                        })
+
+                        logging.debug(
+                            `[EDIT_PREDICTION] Recorded rejected edit: ${rejectedSuggestion.content.substring(0, 20)}...`
+                        )
+                    }
                 }
             }
 
@@ -890,6 +938,7 @@ export const CodewhispererServerFactory =
             if (codeDiffTracker) await codeDiffTracker.shutdown()
             if (recentEditTracker) recentEditTracker.dispose()
             if (cursorTracker) cursorTracker.dispose()
+            if (rejectedEditTracker) rejectedEditTracker.dispose()
 
             logging.log('Amazon Q Inline Suggestion server has been shut down')
         }
