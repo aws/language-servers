@@ -9,7 +9,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
-import { Request } from 'aws-sdk/lib/core'
+import { Request, Response } from 'aws-sdk/lib/core'
 import { v4 as uuidv4 } from 'uuid'
 import {
     CodeWhispererSigv4ClientConfigurationOptions,
@@ -57,8 +57,10 @@ import CodeWhispererTokenClient = require('../client/token/codewhispererbearerto
 import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inline-completion/diffUtils'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { Position } from 'vscode-languageserver-textdocument'
+import { error } from 'console'
+import { DebugLogger } from './debugUtils'
 
-// Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
+// Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion
@@ -161,19 +163,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
-
-        console.log(
-            '[CWSPR-API] generateRecommendations request:',
-            JSON.stringify(request),
-            `time: ${Date.now() / 1000}s`
-        )
         const response = await this.client.generateRecommendations(request).promise()
-        console.log(
-            '[CWSPR-API] generateRecommendations response:',
-            JSON.stringify(response),
-            `time: ${Date.now() / 1000}s`
-        )
-
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
@@ -220,32 +210,62 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                             httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                             httpRequest.headers['x-amzn-codewhisperer-optout'] =
                                 `${!this.shareCodeWhispererContentWithAWS}`
-                            console.debug('CWSPR Request Headers:', JSON.stringify(httpRequest.headers, null, 2))
-                            console.debug(
-                                'CWSPR Request Body:',
-                                httpRequest.body
-                                    ? JSON.stringify(JSON.parse(httpRequest.body.toString()), null, 2)
-                                    : 'No body'
-                            )
                         } catch (error) {
                             console.error('CWSPR Error during request build:', error)
                             throw error
                         }
                     })
-                    req.on('send', () => {
-                        console.log('CWSPR Request details:', req)
-                    })
                     req.on('complete', response => {
-                        console.log('CWSPR Request completed with response:', response)
-                        this.completeRequest(req)
+                        const requestStartTime = req.startTime?.getTime() || 0
+                        const requestEndTime = new Date().getTime()
+                        const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
+
+                        // Generate a request UUID for tracking
+                        const flareRequestId = DebugLogger.getInstance().generateflareRequestId()
+
+                        // Use the DebugLogger's logRequestResponse method instead of the legacy function
+                        DebugLogger.getInstance()
+                            .logRequestResponse(
+                                flareRequestId,
+                                req,
+                                response,
+                                '', // No error for successful responses
+                                response.requestId,
+                                this.codeWhispererEndpoint,
+                                latency
+                            )
+                            .catch(err => {
+                                console.error('Failed to log request/response:', err)
+                            })
+                            .finally(() => {
+                                this.completeRequest(req)
+                            })
                     })
-                    req.on('error', (e, k) => {
-                        console.log('CWSPR Request failed with error:', e, 'and response:', k)
-                    })
-                    // Final outcome events
-                    req.on('success', (response: AWS.Response<any, AWSError>) => {
-                        console.log('RequestId:', response.requestId)
-                        console.debug('CWSPR Completed Succesfully', JSON.stringify(response.data, null, 2))
+                    req.on('error', async (error, response) => {
+                        const requestStartTime = req.startTime?.getTime() || 0
+                        const requestEndTime = new Date().getTime()
+                        const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
+
+                        // Generate a request UUID for tracking
+                        const flareRequestId = DebugLogger.getInstance().generateflareRequestId()
+
+                        // Use the DebugLogger's logRequestResponse method for error cases
+                        DebugLogger.getInstance()
+                            .logRequestResponse(
+                                flareRequestId,
+                                req,
+                                null,
+                                error,
+                                response.requestId,
+                                this.codeWhispererEndpoint,
+                                latency
+                            )
+                            .catch(err => {
+                                console.error('Failed to log request/response:', err)
+                            })
+                            .finally(() => {
+                                this.completeRequest(req)
+                            })
                     })
                 },
             ],
@@ -267,19 +287,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
-
-        console.log('[CWSPR] generateCompletions request:', JSON.stringify(request), `time: ${Date.now() / 1000}s`)
-
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
-
-        console.log('[CWSPR] generateCompletions response:', JSON.stringify(response), `time: ${Date.now() / 1000}s`)
-
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
             nextToken: response.nextToken,
         }
-
         return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
     }
 
@@ -437,39 +450,24 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         apiResponse: GenerateCompletionsResponse,
         responseContext: ResponseContext
     ): GenerateSuggestionsResponse {
-        // Return suggestions based on whether we have completions or predictions
-        // For now completions and edits are mutually exclusive
-
-        if (apiResponse.predictions && apiResponse.predictions.length > 0) {
+        if (apiResponse?.predictions && apiResponse.predictions.length > 0) {
             const suggestionType = apiResponse.predictions[0].edit ? SuggestionType.EDIT : SuggestionType.COMPLETION
-
-            var suggestions: Suggestion[]
-
-            if (suggestionType === SuggestionType.COMPLETION) {
-                suggestions = apiResponse.predictions.map(prediction => ({
-                    content: prediction.completion?.content ?? '',
-                    references: prediction.completion?.references ?? [],
-                    itemId: this.generateItemId(),
-                }))
-            } else {
-                suggestions = apiResponse.predictions.map(prediction => ({
-                    content: prediction.edit?.content ?? '',
-                    references: prediction.edit?.references ?? [],
-                    itemId: this.generateItemId(),
-                }))
-            }
+            const predictionType = suggestionType === SuggestionType.COMPLETION ? 'completion' : 'edit'
 
             return {
-                suggestions: suggestions,
-                suggestionType: suggestionType,
-                responseContext: responseContext,
+                suggestions: apiResponse.predictions.map(prediction => ({
+                    content: prediction[predictionType]?.content ?? '',
+                    references: prediction[predictionType]?.references ?? [],
+                    itemId: this.generateItemId(),
+                })),
+                suggestionType,
+                responseContext,
             }
-        } else {
-            return {
-                suggestions: apiResponse.completions as Suggestion[],
-                suggestionType: SuggestionType.COMPLETION,
-                responseContext: responseContext,
-            }
+        }
+        return {
+            suggestions: apiResponse.completions as Suggestion[],
+            suggestionType: SuggestionType.COMPLETION,
+            responseContext,
         }
     }
 

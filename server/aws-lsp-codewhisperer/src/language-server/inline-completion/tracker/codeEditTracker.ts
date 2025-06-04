@@ -10,7 +10,7 @@ import {
     Disposable,
     TextDocument,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../shared/models/model'
+import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../../shared/models/model'
 import * as diff from 'diff'
 
 // Constants for supplemental context limits
@@ -239,16 +239,15 @@ export class RecentEditTracker implements Disposable {
     private readonly activeDocuments: Set<string> = new Set()
     private storageSize: number = 0
     private stateLogIntervalId?: NodeJS.Timeout
+    private static _instance?: RecentEditTracker
 
     /**
      * Creates a new instance of RecentEditTracker
      *
-     * @param extensionContext - The initialization parameters
      * @param log - Logging interface
      * @param config - Optional configuration overrides
      */
     constructor(
-        private readonly extensionContext: InitializeParams,
         private readonly log: Logging,
         readonly config: Readonly<RecentEditTrackerConfig> = RecentEditTrackerDefaultConfig
     ) {
@@ -258,6 +257,20 @@ export class RecentEditTracker implements Disposable {
 
         // Start periodic state logging if environment variable is set
         this.startPeriodicStateLogging()
+    }
+
+    /**
+     * Gets the singleton instance of RecentEditTracker
+     *
+     * @param log - Logging interface
+     * @param config - Optional configuration overrides
+     * @returns The singleton instance of RecentEditTracker
+     */
+    public static getInstance(log: Logging, config?: Readonly<RecentEditTrackerConfig>): RecentEditTracker {
+        if (!RecentEditTracker._instance) {
+            RecentEditTracker._instance = new RecentEditTracker(log, config)
+        }
+        return RecentEditTracker._instance
     }
 
     /**
@@ -479,9 +492,25 @@ export class RecentEditTracker implements Disposable {
     /**
      * Generates supplemental context based on recent edits
      *
+     * @param activeDocument Optional active document to generate context for
      * @returns Promise resolving to supplemental context for code predictions
      */
-    public async generateEditBasedContext(activeDocument: TextDocument): Promise<CodeWhispererSupplementalContext> {
+    public async generateEditBasedContext(activeDocument?: TextDocument): Promise<CodeWhispererSupplementalContext> {
+        if (!activeDocument) {
+            const doc = await this.getActiveDocument()
+            if (!doc) {
+                this.log.debug(`[EDIT_TRACKER] No active document found for generating context`)
+                return {
+                    isUtg: false,
+                    isProcessTimeout: false,
+                    supplementalContextItems: [],
+                    contentsLength: 0,
+                    latency: 0,
+                    strategy: 'recentEdits',
+                }
+            }
+            return this.generatePredictionSupplementalContext(doc)
+        }
         return this.generatePredictionSupplementalContext(activeDocument)
     }
 
@@ -492,13 +521,17 @@ export class RecentEditTracker implements Disposable {
      * @returns CodeWhispererSupplementalContext containing diffs between snapshots and current content
      */
     private async generatePredictionSupplementalContext(
-        activeDocument: TextDocument
+        activeDocument: TextDocument | TextDocumentItem
     ): Promise<CodeWhispererSupplementalContext> {
+        this.log.debug(`[EDIT_TRACKER] Generating prediction supplemental context for ${activeDocument.uri}`)
+
         const filePath = activeDocument.uri
-        const currentContent = activeDocument.getText()
+        // Handle both TextDocument and TextDocumentItem
+        const currentContent = 'getText' in activeDocument ? activeDocument.getText() : activeDocument.text
         const snapshots = this.getFileSnapshots(filePath)
 
         if (snapshots.length === 0) {
+            this.log.debug(`[EDIT_TRACKER] No snapshots found for ${filePath}`)
             return {
                 isUtg: false,
                 isProcessTimeout: false,
@@ -508,6 +541,8 @@ export class RecentEditTracker implements Disposable {
                 strategy: 'recentEdits',
             }
         }
+
+        this.log.debug(`[EDIT_TRACKER] Found ${snapshots.length} snapshots for ${filePath}`)
 
         // Create array from snapshots with the format expected by CodeWhisperer
         const snapshotContents: FileSnapshotContent[] = snapshots.map(snapshot => ({
@@ -530,8 +565,8 @@ export class RecentEditTracker implements Disposable {
         const contentsLength = contextItems.supplementalContextItems.reduce((sum, item) => sum + item.content.length, 0)
 
         this.log.debug(
-            `Generated ${contextItems.supplementalContextItems.length} supplemental contexts
-            from recent edits with total size ${contentsLength} bytes in ${latency}ms`
+            `[EDIT_TRACKER] Generated ${contextItems.supplementalContextItems.length} supplemental contexts ` +
+                `from recent edits with total size ${contentsLength} bytes in ${latency}ms`
         )
 
         return {
@@ -685,6 +720,51 @@ export class RecentEditTracker implements Disposable {
             this.activeDocuments.delete(uri)
             this.log.debug(`Document untracked: ${uri}`)
         }
+    }
+
+    public hasRecentEditInLine(
+        documentUri: string,
+        lineNum: number,
+        timeThresholdMs: number = 20000,
+        lineRange: number = 5
+    ): boolean {
+        // Check if we have snapshots for this document
+        const snapshots = this.snapshots.get(documentUri)
+        if (!snapshots || snapshots.length === 0) {
+            return false
+        }
+
+        // Get recent snapshots within time threshold
+        const now = Date.now()
+        const cutoffTime = now - timeThresholdMs
+        const recentSnapshots = snapshots.filter(snapshot => snapshot.timestamp >= cutoffTime)
+        if (recentSnapshots.length === 0) {
+            return false
+        }
+
+        // Get oldest recent snapshot and current content
+        const oldestRecentSnapshot = recentSnapshots.sort((a, b) => a.timestamp - b.timestamp)[0]
+        const currentContent = this.getShadowCopy(documentUri)
+        if (!currentContent) {
+            return false
+        }
+
+        // Split content into lines
+        const currentLines = currentContent.split(/\r?\n/)
+        const snapshotLines = oldestRecentSnapshot.content.split(/\r?\n/)
+
+        const startLine = Math.max(0, lineNum - lineRange)
+        const endLine = Math.min(Math.max(currentLines.length, snapshotLines.length), lineNum + lineRange + 1)
+
+        // Checks each line in the range around the target line (startLine to endLine)
+        // Returns true if any line in the range has changed between snapshot and current content
+        return Array.from({ length: endLine - startLine }, (_, i) => i + startLine).some(i => {
+            const inSnapshot = i < snapshotLines.length
+            const inCurrent = i < currentLines.length
+            const hasChange =
+                (inSnapshot && inCurrent && currentLines[i] !== snapshotLines[i]) || inSnapshot !== inCurrent
+            return hasChange
+        })
     }
 
     /**

@@ -130,6 +130,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                         notifications: true,
                         showSaveFileDialog: true,
                     },
+                    textDocument: {
+                        inlineCompletionWithReferences: {
+                            inlineEditSupport: true,
+                        },
+                    },
                 },
             } as AWSInitializationOptions,
         },
