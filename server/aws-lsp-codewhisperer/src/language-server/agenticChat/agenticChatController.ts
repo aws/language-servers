@@ -109,7 +109,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
-import { FuzzySearch, FuzzySearchParams } from './tools/fuzzySearch'
+import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
@@ -932,7 +932,7 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsRead':
                     case 'listDirectory':
                     case 'grepSearch':
-                    case 'fuzzySearch':
+                    case 'fileSearch':
                     case 'fsWrite':
                     case 'executeBash': {
                         const toolMap = {
@@ -941,7 +941,7 @@ export class AgenticChatController implements ChatHandlers {
                             fsWrite: { Tool: FsWrite },
                             executeBash: { Tool: ExecuteBash },
                             grepSearch: { Tool: GrepSearch },
-                            fuzzySearch: { Tool: FuzzySearch },
+                            fileSearch: { Tool: FileSearch },
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
@@ -1039,13 +1039,13 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                    case 'fuzzySearch':
+                    case 'fileSearch':
                         const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                         if (initialListDirResult) {
                             await chatResultStream.writeResultBlock(initialListDirResult)
                         }
                         break
-                    // no need to write tool result for listDir,fsRead,fuzzySearch into chat stream
+                    // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
@@ -1464,8 +1464,8 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 break
 
-            case 'fuzzySearch':
-                const searchPath = (toolUse.input as unknown as FuzzySearchParams).path
+            case 'fileSearch':
+                const searchPath = (toolUse.input as unknown as FileSearchParams).path
                 header = {
                     body: 'File Search',
                     status: {
@@ -1704,7 +1704,7 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name === 'fsRead') {
             currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
         } else {
-            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FuzzySearchParams)?.path)
+            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
         }
 
         if (!currentPaths) return
@@ -1733,7 +1733,7 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === 'fuzzySearch'
+                    : toolUse.name === 'fileSearch'
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
