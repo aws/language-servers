@@ -9,7 +9,11 @@ import {
     WorkspaceContextServerTokenProxy,
 } from '@aws/lsp-codewhisperer'
 import { IdentityServer } from '@aws/lsp-identity'
-import { BashToolsServer, FsToolsServer } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
+import {
+    BashToolsServer,
+    FsToolsServer,
+    QCodeAnalysisServer,
+} from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
 import { createTokenRuntimeProps } from './standalone-common'
 
 const MAJOR = 0
@@ -28,6 +32,7 @@ const props = createTokenRuntimeProps(VERSION, [
     BashToolsServer,
     QLocalProjectContextServerTokenProxy,
     WorkspaceContextServerTokenProxy,
+    QCodeAnalysisServer,
     // McpToolsServer,
     // LspToolsServer,
 ])
