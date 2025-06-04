@@ -14,7 +14,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
 
-export const DEFAULT_TOKEN_CACHE_DIR = path.join(os.homedir(), '.aws/device-sso-lsp/cache')
+export const DEFAULT_TOKEN_CACHE_DIR = path.join(os.homedir(), '.aws/sso/cache')
 
 // For the Proof of concept, this file's code was copied (and culled) from the AWS Toolkit for VS Code repo
 // https://github.com/aws/aws-toolkit-vscode/blob/5d621c8405a8b20ffe571ad0ba10ae700178e051/src/auth/auth.ts
@@ -211,8 +211,8 @@ export class SsoAccessTokenProvider {
         private readonly tokenCacheDir: string = DEFAULT_TOKEN_CACHE_DIR,
         private readonly oidc = OidcClient.create(profile.region)
     ) {
-        this.TOKEN_CACHE_FILE = path.join(this.tokenCacheDir, 'token.json')
-        this.REGISTRATION_CACHE_FILE = path.join(this.tokenCacheDir, 'registration.json')
+        this.TOKEN_CACHE_FILE = path.join(this.tokenCacheDir, 'device-sso-lsp-token.json')
+        this.REGISTRATION_CACHE_FILE = path.join(this.tokenCacheDir, 'device-sso-lsp-registration.json')
     }
 
     public async invalidate(): Promise<void> {
