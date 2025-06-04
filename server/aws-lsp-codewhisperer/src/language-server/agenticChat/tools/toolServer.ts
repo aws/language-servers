@@ -9,7 +9,7 @@ import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
 import { McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FuzzySearch, FuzzySearchParams } from './fuzzySearch'
-import { GrepSearch, GrepSearchParams } from './grepSearch'
+import { GrepSearch } from './grepSearch'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -38,10 +38,11 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         return await fuzzySearchTool.invoke(input, token)
     })
 
-    agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
-        await grepSearchTool.validate(input)
-        return await grepSearchTool.invoke(input, token)
-    })
+    // Temporarily disable grep search
+    // agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
+    //     await grepSearchTool.validate(input)
+    //     return await grepSearchTool.invoke(input, token)
+    // })
 
     return () => {}
 }
