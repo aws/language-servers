@@ -47,10 +47,11 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         return await fuzzySearchTool.invoke(input, token)
     })
 
-    agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
-        await grepSearchTool.validate(input)
-        return await grepSearchTool.invoke(input, token)
-    })
+    // Temporarily disable grep search
+    // agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
+    //     await grepSearchTool.validate(input)
+    //     return await grepSearchTool.invoke(input, token)
+    // })
 
     return () => {}
 }
