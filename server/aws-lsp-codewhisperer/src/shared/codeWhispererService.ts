@@ -319,16 +319,14 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 throw new Error('shouldnt be here')
             }
 
-            if (this.prefetchSuggestions.length < 3) {
-                this.chainedGenerateCompletionCall(r.request, r.response, textDocument).catch(e => {})
-            }
-
             return r.response
         } else {
             this.logging.info(`cold start`)
             const coldStartResponse = await this.generateSuggestions(originalRequest)
             if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
-                void this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument).catch(e => {})
+                setTimeout(() => {
+                    this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument).catch(e => {})
+                }, 200)
             }
             return coldStartResponse
         }
@@ -339,7 +337,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         baseResponse: GenerateSuggestionsResponse,
         textDocument: TextDocument
     ) {
-        if (this.prefetchSuggestions.length > 3) {
+        const depth = 3
+        if (this.prefetchSuggestions.length > depth) {
             return
         }
 
@@ -363,7 +362,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
                 setTimeout(async () => {
                     await this.chainedGenerateCompletionCall(request, response, textDocument)
-                }, 100)
+                }, 200)
             } else if (
                 response.suggestions.length > 0 &&
                 baseResponse.suggestions[0].content === response.suggestions[0].content
@@ -412,18 +411,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 : []
 
             subsequentRequest.editorState = {
+                ...originalRequest.editorState,
                 document: {
                     relativeFilePath: textDocument.uri,
                     programmingLanguage: {
                         languageName: textDocument.languageId,
                     },
                     text: leftContent + rightContent,
-                },
-                cursorState: {
-                    position: {
-                        line: afterChangePosition.line,
-                        character: afterChangePosition.character,
-                    },
                 },
             }
 
