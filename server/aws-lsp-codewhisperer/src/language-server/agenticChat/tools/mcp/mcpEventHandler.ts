@@ -205,8 +205,9 @@ export class McpEventHandler {
         const header = {
             title: 'MCP Servers',
             description: "Add MCP servers to extend Q's capabilities.",
-            status: combinedErrors
-                ? { title: combinedErrors, icon: 'cancel-circle', status: 'error' as Status }
+            // only  show error on list mcp server page if unable to read mcp.json file
+            status: configLoadErrors
+                ? { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
                 : undefined,
         }
 
@@ -226,7 +227,6 @@ export class McpEventHandler {
             'save-mcp': () => this.#handleSaveMcp(params),
             'open-mcp-server': () => this.#handleOpenMcpServer(params),
             'edit-mcp': () => this.#handleEditMcpServer(params),
-
             'mcp-permission-change': () => this.#handleMcpPermissionChange(params),
             'refresh-mcp-list': () => this.#handleRefreshMCPList(params),
             'mcp-enable-server': () => this.#handleEnableMcpServer(params),

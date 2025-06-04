@@ -733,11 +733,6 @@ export class McpManager {
         if (server) {
             this.setState(server, McpServerStatus.FAILED, 0, msg)
             this.emitToolsChanged(server)
-
-            // Store the error in the configLoadErrors map
-            if (server !== undefined) {
-                this.configLoadErrors.set(server, msg)
-            }
         }
     }
 
