@@ -159,8 +159,6 @@ export class ChatSessionService {
                 // Log the error using the logging property if available, otherwise fall back to console.error
                 if (this.#logging) {
                     this.#logging.error(`Error in generateAssistantResponse: ${loggingUtils.formatErr(e)}`)
-                } else {
-                    console.error(`Error in generateAssistantResponse: ${loggingUtils.formatErr(e)}`)
                 }
                 if (isRequestAbortedError(e)) {
                     const requestId =
