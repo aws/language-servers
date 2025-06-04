@@ -150,7 +150,8 @@ export class ChatSessionService {
 
         if (client instanceof StreamingClientServiceToken) {
             try {
-                return await client.generateAssistantResponse(request, this.#abortController)
+                throw new Error('trial')
+                // return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {
                 if (isRequestAbortedError(e)) {
                     const requestId =
@@ -173,13 +174,8 @@ export class ChatSessionService {
                     )
                 }
                 let error = wrapErrorWithCode(e, 'QModelResponse')
-                if (
-                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
-                    (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
-                    error.message ===
-                        'Encountered unexpectedly high load when processing the request, please try again.'
-                ) {
-                    error.message = ` The model you've selected is temporarily unavailable. Please select Auto or a different model and try again.`
+                if (error) {
+                    error.message = `The model you've selected is temporarily unavailable. Please select Auto or a different model and try again.`
                 }
                 throw error
             }

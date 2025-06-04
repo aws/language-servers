@@ -222,6 +222,10 @@ export function getErrorMessage(error: any): string {
     return String(error)
 }
 
+export function getErrorCode(error: any): string {
+    return hasCode(error) ? error.code : String(error)
+}
+
 export function getRequestID(error: any): string | undefined {
     if (hasCause(error) && error.cause.$metadata?.requestId) {
         return error.cause.$metadata.requestId

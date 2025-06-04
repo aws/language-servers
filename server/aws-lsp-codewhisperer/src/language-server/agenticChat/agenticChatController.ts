@@ -74,7 +74,15 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { ChatTelemetryController } from '../chat/telemetry/chatTelemetryController'
 import { QuickAction } from '../chat/quickActions'
 import { Metric } from '../../shared/telemetry/metric'
-import { getErrorMessage, getHttpStatusCode, getRequestID, isAwsError, isNullish, isObject } from '../../shared/utils'
+import {
+    getErrorCode,
+    getErrorMessage,
+    getHttpStatusCode,
+    getRequestID,
+    isAwsError,
+    isNullish,
+    isObject,
+} from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -507,6 +515,19 @@ export class AgenticChatController implements ChatHandlers {
                 return {
                     type: 'answer',
                     body: '',
+                    messageId: errorMessageId,
+                    buttons: [],
+                }
+            }
+            if (err instanceof Error && getErrorCode(err) === 'QModelResponse') {
+                const requestID = getRequestID(err)
+                const errorBody =
+                    getErrorCode(err) === 'QModelResponse' && requestID
+                        ? `${err.message} \n\nRequest ID: ${requestID} `
+                        : err.message
+                return {
+                    type: 'answer',
+                    body: errorBody,
                     messageId: errorMessageId,
                     buttons: [],
                 }
@@ -1992,13 +2013,9 @@ export class AgenticChatController implements ChatHandlers {
                 this.#chatHistoryDb.clearTab(tabId)
             }
 
-            const errorBody =
-                err.code === 'QModelResponse' && requestID
-                    ? `${err.message} \n\nRequest ID: ${requestID} `
-                    : err.message
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
-                body: errorBody,
+                body: err.message,
                 messageId: errorMessageId,
                 buttons: [],
             })
