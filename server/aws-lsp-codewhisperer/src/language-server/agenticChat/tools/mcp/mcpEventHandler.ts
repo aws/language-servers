@@ -759,7 +759,7 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.updateServerPermission(serverName, perm)
-            await this.#handleRefreshMCPList({
+            await this.#refreshSingleServer({
                 id: params.id,
             })
         } catch (error) {
@@ -806,10 +806,6 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.removeServer(serverName)
-            // Refresh the MCP list to show updated server list
-            await this.#handleRefreshMCPList({
-                id: params.id,
-            })
         } catch (error) {
             this.#features.logging.error(`Failed to delete MCP server: ${error}`)
         }
@@ -1100,5 +1096,19 @@ export class McpEventHandler {
         }
 
         return undefined
+    }
+
+    async #refreshSingleServer(params: McpServerClickParams) {
+        const serverName = params.title
+        if (!serverName) {
+            return { id: params.id }
+        }
+        this.#shouldDisplayListMCPServers = true
+        try {
+            await McpManager.instance.reinitializeOneServer(serverName)
+        } catch (err) {
+            this.#features.logging.error(`Failed to reinitialize MCP server ${serverName}: ${err}`)
+        }
+        return { id: params.id }
     }
 }

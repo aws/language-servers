@@ -793,4 +793,27 @@ export class McpManager {
     public setToolNameMapping(mapping: Map<string, { serverName: string; toolName: string }>): void {
         this.toolNameMapping = new Map(mapping)
     }
+
+    public async reinitializeOneServer(serverName: string): Promise<void> {
+        const config = this.mcpServers.get(serverName)
+        if (!config) {
+            this.features.logging.error(`MCP: server '${serverName}' not found or config path is missing`)
+            return
+        }
+        const client = this.clients.get(serverName)
+        if (client) {
+            await client.close()
+            this.clients.delete(serverName)
+        }
+
+        this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
+
+        try {
+            await this.initOneServer(serverName, config!)
+            this.features.logging.info(`MCP: reinitialized server '${serverName}' successfully`)
+        } catch (err: any) {
+            this.features.logging.error(`failed to restart the MCP server '${serverName}': ${err.message}`)
+            throw err
+        }
+    }
 }
