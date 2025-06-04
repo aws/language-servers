@@ -286,14 +286,6 @@ export class McpManager {
             star?.toolPerms['*'] ??
             McpPermissionType.ask
 
-        this.features.logging.debug(
-            `Permission for ${server}::${tool}: ${result} (from: ` +
-                `server specific=${srv?.toolPerms[tool]}, ` +
-                `server wildcard=${srv?.toolPerms['*']}, ` +
-                `global specific=${star?.toolPerms[tool]}, ` +
-                `global wildcard=${star?.toolPerms['*']})`
-        )
-
         return result
     }
 

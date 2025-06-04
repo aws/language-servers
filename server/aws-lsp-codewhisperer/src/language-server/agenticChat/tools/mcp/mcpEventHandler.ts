@@ -1061,6 +1061,7 @@ export class McpEventHandler {
             //     defaultPermission = serverName === 'Built-in' ? 'alwaysAllow' : 'ask'
             // }
 
+            // If the value is an empty string (''), skip this tool to preserve its existing permission in the persona file
             if (val === '') continue
             switch (val) {
                 case McpPermissionType.alwaysAllow:
