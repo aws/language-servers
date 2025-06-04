@@ -1061,6 +1061,7 @@ export class McpEventHandler {
             //     defaultPermission = serverName === 'Built-in' ? 'alwaysAllow' : 'ask'
             // }
 
+            if (val === '') continue
             switch (val) {
                 case McpPermissionType.alwaysAllow:
                     perm.toolPerms[key] = McpPermissionType.alwaysAllow
