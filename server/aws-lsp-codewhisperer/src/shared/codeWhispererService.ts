@@ -70,12 +70,11 @@ export abstract class CodeWhispererServiceBase {
 
     inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
 
-    prefetchSuggestions:
-        | { id: string; response: GenerateSuggestionsResponse; request: GenerateSuggestionsRequest }
-        | undefined
+    prefetchSuggestions: { id: string; response: GenerateSuggestionsResponse; request: GenerateSuggestionsRequest }[] =
+        []
 
     clearPrefetch() {
-        this.prefetchSuggestions = undefined
+        this.prefetchSuggestions = []
     }
 
     abortInflightRequests() {
@@ -290,59 +289,80 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         originalRequest: GenerateSuggestionsRequest
     ): Promise<GenerateSuggestionsResponse> {
         // If codewhispererService has prefetched result && id matches, return the cached prefetched result directly
-        const shouldUsePrefetch = this.prefetchSuggestions
-        if (shouldUsePrefetch) {
+
+        // TODO: handle if textDocument/cursor/request position doesn't match prefetchSuggestions
+        // e.g. if it's not a subsequent call, it must be a cold start
+        let isColdStart = this.prefetchSuggestions.length === 0 || this.prefetchSuggestions[0].id !== textDocument.uri
+
+        // TODO: make id more strict, possibly session id or check if previous suggestion is in the doc
+        // if () {
+        //     isColdStart = true
+        // }
+
+        if (!isColdStart) {
             this.logging.info(`will use prefetch suggestion`)
+            const r = this.prefetchSuggestions.pop()
+            if (!r) {
+                throw new Error('shouldnt be here')
+            }
+
+            if (this.prefetchSuggestions.length < 3) {
+                this.chainedGenerateCompletionCall(r.request, r.response, textDocument).catch(e => {})
+            }
+
+            return r.response
         } else {
             this.logging.info(`cold start`)
+            const coldStartResponse = await this.generateSuggestions(originalRequest)
+            if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
+                void this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument).catch(e => {})
+            }
+            return coldStartResponse
         }
-
-        const originalResponse =
-            (shouldUsePrefetch ? this.prefetchSuggestions?.response : undefined) ??
-            (await this.generateSuggestions(originalRequest))
-
-        if (originalResponse.suggestions && originalResponse.suggestions.length > 0) {
-            const suggestion = originalResponse.suggestions[0]
-
-            setTimeout(async () => {
-                const subsequentRequest = this.generateSubsequentRequest(
-                    originalRequest,
-                    originalResponse,
-                    textDocument
-                )
-
-                try {
-                    const subsequenceResponse = await this.generateSuggestions(subsequentRequest)
-                    if (
-                        subsequenceResponse.suggestions.length > 0 &&
-                        subsequenceResponse.suggestions[0].content !== originalResponse.suggestions[0].content
-                    ) {
-                        console.log(`prefetch result: `)
-                        console.log(subsequenceResponse.suggestions[0].content)
-                        this.prefetchSuggestions = {
-                            id: originalResponse.suggestions[0].content, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
-                            response: subsequenceResponse,
-                            request: subsequentRequest,
-                        }
-                    } else if (subsequenceResponse.suggestions.length === 0) {
-                        this.prefetchSuggestions = undefined
-                    }
-
-                    if (originalResponse.suggestions[0].content === subsequenceResponse.suggestions[0].content) {
-                        console.log('identical result, discard', originalResponse.suggestions[0].content)
-                    }
-                } catch (e) {
-                    console.log(e)
-                }
-            }, 50)
-        }
-
-        console.log(`current result: `)
-        console.log(originalResponse.suggestions[0].content)
-        return originalResponse
     }
 
-    private generateSubsequentRequest(
+    private async chainedGenerateCompletionCall(
+        baseRequest: GenerateSuggestionsRequest,
+        baseResponse: GenerateSuggestionsResponse,
+        textDocument: TextDocument
+    ) {
+        if (this.prefetchSuggestions.length > 3) {
+            return
+        }
+
+        console.log(`prefetchSuggestions.length = ${this.prefetchSuggestions.length}`)
+
+        const request = this.buildSubsequentRequest(baseRequest, baseResponse, textDocument)
+
+        try {
+            const response = await this.generateSuggestions(request)
+            if (
+                response.suggestions.length > 0 &&
+                response.suggestions[0].content !== baseResponse.suggestions[0].content
+            ) {
+                console.log('**************')
+                console.log(response.suggestions[0].content)
+                this.prefetchSuggestions.push({
+                    id: textDocument.uri, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
+                    response: response,
+                    request: request,
+                })
+
+                setTimeout(async () => {
+                    await this.chainedGenerateCompletionCall(request, response, textDocument)
+                }, 100)
+            } else if (
+                response.suggestions.length > 0 &&
+                baseResponse.suggestions[0].content === response.suggestions[0].content
+            ) {
+                console.log('identical result, discard', baseResponse.suggestions[0].content)
+            }
+        } catch (e) {
+            console.log(e)
+        }
+    }
+
+    private buildSubsequentRequest(
         originalRequest: GenerateSuggestionsRequest,
         originalResponse: GenerateSuggestionsResponse,
         textDocument: TextDocument
@@ -360,7 +380,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         // NEP flow requires more updates other than left/right filecontent
         if (originalResponse.suggestionType && originalResponse.suggestionType === SuggestionType.EDIT) {
-            const docText = textDocument.getText()
+            const docText = originalRequest.fileContext.leftFileContent + originalRequest.fileContext.rightFileContent
             const afterDiff = applyUnifiedDiff(docText, suggestion.content)
             const newCode = afterDiff.newCode
 
