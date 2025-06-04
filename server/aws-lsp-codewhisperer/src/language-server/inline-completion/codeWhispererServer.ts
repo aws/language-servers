@@ -786,12 +786,11 @@ export const CodewhispererServerFactory =
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
-            } else {
-                // Clear if it's a reject
-                logging.info(`user reject suggestion, clearning prefetched suggestion`)
             }
 
             if (acceptedSuggestion === undefined) {
+                // Clear if it's a reject
+                logging.info(`user reject suggestion, clearning prefetched suggestion`)
                 // TODO: move to somewhere like session.close()
                 // acceptedSuggestion.insertText will be undefined if its' NEP
                 amazonQServiceManager.getCodewhispererService().clearPrefetch()

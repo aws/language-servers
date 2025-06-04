@@ -343,7 +343,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             return
         }
 
-        console.log(`prefetchSuggestions.length = ${this.prefetchSuggestions.length}`)
+        this.logging.info(`prefetchSuggestions.length = ${this.prefetchSuggestions.length}`)
 
         const request = this.buildSubsequentRequest(baseRequest, baseResponse, textDocument)
 
@@ -353,8 +353,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 response.suggestions.length > 0 &&
                 response.suggestions[0].content !== baseResponse.suggestions[0].content
             ) {
-                console.log('**************')
-                console.log(response.suggestions[0].content)
+                this.logging.info(`prefetch suggestion[0]: `)
+                this.logging.info(response.suggestions[0].content)
                 this.prefetchSuggestions.push({
                     id: textDocument.uri, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
                     response: response,
@@ -368,7 +368,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 response.suggestions.length > 0 &&
                 baseResponse.suggestions[0].content === response.suggestions[0].content
             ) {
-                console.log('identical result, discard', baseResponse.suggestions[0].content)
+                this.logging.info('identical result, discard')
             }
         } catch (e) {
             console.log(e)
