@@ -7,8 +7,8 @@ import {
     Telemetry,
     Workspace,
 } from '@aws/language-server-runtimes/server-interface'
-import { CancellationToken, ExecuteCommandParams } from 'vscode-languageserver/node'
-import { BuilderIdConnectionBuilder, SsoConnection } from './sso/builderId'
+import { CancellationToken, ExecuteCommandParams, InitializeParams } from 'vscode-languageserver/node'
+import { BuilderIdConnectionBuilder, SsoConnection, DEFAULT_TOKEN_CACHE_DIR } from './sso/builderId'
 
 const AUTH_DEVICE_COMMAND = 'ssoAuth/authDevice/getToken'
 
@@ -21,6 +21,7 @@ export const SsoAuthServer: Server = (features: {
 }) => {
     const { lsp, logging } = features
     let activeBuilderIdConnection: SsoConnection | undefined
+    let tokenCacheLocation = DEFAULT_TOKEN_CACHE_DIR
 
     const onInitializedHandler = async () => {}
 
@@ -44,7 +45,8 @@ export const SsoAuthServer: Server = (features: {
                     return true
                 },
             },
-            startUrl
+            startUrl,
+            tokenCacheLocation
         )
 
         const token = await activeBuilderIdConnection.getToken()
@@ -67,8 +69,10 @@ export const SsoAuthServer: Server = (features: {
         return
     }
 
-    lsp.addInitializer(() => {
+    lsp.addInitializer((params: InitializeParams) => {
         logging.log('SSO Auth capability has been initialised')
+
+        tokenCacheLocation = params.initializationOptions?.tokenCacheLocation || DEFAULT_TOKEN_CACHE_DIR
 
         return {
             capabilities: {
