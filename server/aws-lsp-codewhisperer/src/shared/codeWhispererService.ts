@@ -382,7 +382,16 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         this.#createSubscriptionTokenPromise = (async () => {
             try {
-                return this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
+                const r = await this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
+                this.logging.error(`setpaidtier
+
+    request: ${JSON.stringify(request)}
+    response: ${JSON.stringify(r as any)}
+    requestId: ${(r as any).$response?.requestId}
+    httpStatusCode: ${(r as any).$response?.httpResponse?.statusCode}
+    headers: ${JSON.stringify((r as any).$response?.httpResponse?.headers)}
+    `)
+                return r
             } finally {
                 this.#createSubscriptionTokenPromise = undefined
             }
