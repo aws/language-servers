@@ -2233,10 +2233,15 @@ export class AgenticChatController implements ChatHandlers {
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
-        this.#chatSessionManagementService.createSession(params.tabId)
-
         const modelId = this.#chatHistoryDb.getModelId()
         this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
+
+        const sessionResult = this.#chatSessionManagementService.createSession(params.tabId)
+        const { data: session, success } = sessionResult
+        if (!success) {
+            return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
+        }
+        session.modelId = modelId
     }
 
     onTabChange(params: TabChangeParams) {
