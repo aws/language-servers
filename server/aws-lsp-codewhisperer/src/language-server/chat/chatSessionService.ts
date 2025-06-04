@@ -150,6 +150,7 @@ export class ChatSessionService {
 
         if (client instanceof StreamingClientServiceToken) {
             try {
+                // Todo: return to its previous stage
                 throw new Error('trial')
                 // return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {
