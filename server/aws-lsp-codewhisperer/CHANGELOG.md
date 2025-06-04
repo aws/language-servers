@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.43](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.42...lsp-codewhisperer/v0.0.43) (2025-06-04)
+
+
+### Bug Fixes
+
+* disable grep search ([#1514](https://github.com/aws/language-servers/issues/1514)) ([f4f66fa](https://github.com/aws/language-servers/commit/f4f66fa3d5f8a335ae696506a4e92afe0deb262b))
+* model doesn't update in session for new tabs ([#1506](https://github.com/aws/language-servers/issues/1506)) ([89aa1ef](https://github.com/aws/language-servers/commit/89aa1efade5ff9421eaf8c66db55d0a9fb8bd283))
+
 ## [0.0.42](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.41...lsp-codewhisperer/v0.0.42) (2025-06-02)
 
 
