@@ -243,9 +243,18 @@ export async function loadPersonaPermissions(
             result.set(name, { enabled: true, toolPerms: {}, __configPath__: file })
         }
 
-        // apply toolPerms only to enabled servers
+        // Check if wildcard is present in mcpServers
+        const hasWildcard = enabled.has('*')
+
+        // apply toolPerms to servers
         for (const [name, perms] of Object.entries(cfg['toolPerms'] ?? {})) {
-            if (enabled.has(name)) {
+            // If there's a wildcard in mcpServers, or if this server is explicitly enabled
+            if (hasWildcard || enabled.has(name)) {
+                // Create entry for this server if it doesn't exist yet
+                if (!result.has(name)) {
+                    result.set(name, { enabled: true, toolPerms: {}, __configPath__: file })
+                }
+
                 const rec = result.get(name)!
                 rec.toolPerms = perms as Record<string, McpPermissionType>
             } else if (isWorkspace && result.has(name)) {

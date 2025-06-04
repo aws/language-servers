@@ -278,13 +278,15 @@ export class McpManager {
     public getToolPerm(server: string, tool: string): McpPermissionType {
         const srv = this.mcpServerPermissions.get(server)
         const star = this.mcpServerPermissions.get('*')
-        return (
+
+        const result =
             srv?.toolPerms[tool] ??
             srv?.toolPerms['*'] ??
             star?.toolPerms[tool] ??
             star?.toolPerms['*'] ??
             McpPermissionType.ask
-        )
+
+        return result
     }
 
     /**
@@ -750,6 +752,30 @@ export class McpManager {
         return Array.from(this.configLoadErrors.entries())
             .map(([server, error]) => `File: ${server}, Error: ${error}`)
             .join('\n\n')
+    }
+
+    /**
+     * Remove a server from the config file but keep it in memory.
+     * This is used when there's a server status error during initialization.
+     */
+    public async removeServerFromConfigFile(serverName: string): Promise<void> {
+        try {
+            const cfg = this.mcpServers.get(serverName)
+            if (!cfg || !cfg.__configPath__) {
+                this.features.logging.warn(
+                    `Cannot remove config for server '${serverName}': Config not found or missing path`
+                )
+                return
+            }
+
+            await this.mutateConfigFile(cfg.__configPath__, json => {
+                delete json.mcpServers[serverName]
+            })
+
+            this.features.logging.info(`Removed server '${serverName}' from config file but kept in memory`)
+        } catch (err) {
+            this.features.logging.error(`Error removing server '${serverName}' from config file: ${err}`)
+        }
     }
 
     public getOriginalToolNames(namespacedName: string): { serverName: string; toolName: string } | undefined {
