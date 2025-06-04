@@ -1003,7 +1003,7 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (toolUse.name === 'fsWrite') {
                     const input = toolUse.input as unknown as FsWriteParams
-                    const document = await this.#triggerContext.getTextDocument(input.path)
+                    const document = await this.#triggerContext.getTextDocumentFromPath(input.path, true, true)
                     session.toolUseLookup.set(toolUse.toolUseId, {
                         ...toolUse,
                         fileChange: { before: document?.getText() },
@@ -1058,7 +1058,13 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     case 'fsWrite':
                         const input = toolUse.input as unknown as FsWriteParams
-                        const doc = await this.#triggerContext.getTextDocument(input.path)
+                        // Load from the filesystem instead of workspace.
+                        // Workspace is likely out of date - when files
+                        // are modified external to the IDE, many IDEs
+                        // will only update their file contents (which
+                        // then propagates to the LSP) if/when that
+                        // document receives focus.
+                        const doc = await this.#triggerContext.getTextDocumentFromPath(input.path, false, true)
                         const chatResult = await this.#getFsWriteChatResult(toolUse, doc, session)
                         const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
                         if (cachedToolUse) {
