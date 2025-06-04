@@ -496,6 +496,7 @@ export const CodewhispererServerFactory =
                         requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
                     
+                    // TODO: generateSuggestionsAndPrefetch should only apply to vscode but not other IDEs
                     return codeWhispererService.generateSuggestionsAndPrefetch(textDocument, {
                         ...requestContext,
                         predictionTypes : predictionTypes.flat(),
