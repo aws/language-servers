@@ -519,19 +519,6 @@ export class AgenticChatController implements ChatHandlers {
                     buttons: [],
                 }
             }
-            if (err instanceof Error && getErrorCode(err) === 'QModelResponse') {
-                const requestID = getRequestID(err)
-                const errorBody =
-                    getErrorCode(err) === 'QModelResponse' && requestID
-                        ? `${err.message} \n\nRequest ID: ${requestID} `
-                        : err.message
-                return {
-                    type: 'answer',
-                    body: errorBody,
-                    messageId: errorMessageId,
-                    buttons: [],
-                }
-            }
             return this.#handleRequestError(
                 session.conversationId,
                 err,
@@ -2012,10 +1999,21 @@ export class AgenticChatController implements ChatHandlers {
                 // Clear the chat history in the database for this tab
                 this.#chatHistoryDb.clearTab(tabId)
             }
-
+            const errorBody =
+                err.code === 'QModelResponse' && requestID
+                    ? `${err.message} \n\nRequest ID: ${requestID} `
+                    : err.message
+            if (err.code === 'QModelResponse') {
+                return {
+                    type: 'answer',
+                    body: errorBody,
+                    messageId: errorMessageId,
+                    buttons: [],
+                }
+            }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
-                body: err.message,
+                body: errorBody,
                 messageId: errorMessageId,
                 buttons: [],
             })
