@@ -19,6 +19,7 @@ import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
+    getFileContext,
     Suggestion,
     SuggestionType,
 } from '../../shared/codeWhispererService'
@@ -60,38 +61,6 @@ const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAuto
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const CONTEXT_CHARACTERS_LIMIT = 10240
-
-// Both clients (token, sigv4) define their own types, this return value needs to match both of them.
-const getFileContext = (params: {
-    textDocument: TextDocument
-    position: Position
-    inferredLanguageId: CodewhispererLanguage
-}): {
-    filename: string
-    programmingLanguage: {
-        languageName: CodewhispererLanguage
-    }
-    leftFileContent: string
-    rightFileContent: string
-} => {
-    const left = params.textDocument.getText({
-        start: { line: 0, character: 0 },
-        end: params.position,
-    })
-    const right = params.textDocument.getText({
-        start: params.position,
-        end: params.textDocument.positionAt(params.textDocument.getText().length),
-    })
-
-    return {
-        filename: params.textDocument.uri,
-        programmingLanguage: {
-            languageName: params.inferredLanguageId,
-        },
-        leftFileContent: left,
-        rightFileContent: right,
-    }
-}
 
 const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
     const duration = new Date().getTime() - session.startTime
@@ -526,7 +495,9 @@ export const CodewhispererServerFactory =
                     if (extraContext) {
                         requestContext.fileContext.leftFileContent = extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
-                    return codeWhispererService.generateSuggestions({
+                    
+                    // TODO: generateSuggestionsAndPrefetch should only apply to vscode but not other IDEs
+                    return codeWhispererService.generateSuggestionsAndPrefetch(textDocument, {
                         ...requestContext,
                         predictionTypes : predictionTypes.flat(),
                         fileContext: {
@@ -816,6 +787,14 @@ export const CodewhispererServerFactory =
 
                     enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
+            }
+
+            if (acceptedSuggestion === undefined) {
+                // Clear if it's a reject
+                logging.info(`user reject suggestion, clearning prefetched suggestion`)
+                // TODO: move to somewhere like session.close()
+                // acceptedSuggestion.insertText will be undefined if its' NEP
+                amazonQServiceManager.getCodewhispererService().clearPrefetch()
             }
 
             // Handle rejected edit predictions

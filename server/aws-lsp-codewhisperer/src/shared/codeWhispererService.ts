@@ -5,6 +5,7 @@ import {
     Workspace,
     Logging,
     SDKInitializator,
+    TextDocument,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
@@ -53,6 +54,9 @@ export interface GenerateSuggestionsResponse {
 
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
+import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inline-completion/diffUtils'
+import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
+import { Position } from 'vscode-languageserver-textdocument'
 import { error } from 'console'
 import { DebugLogger } from './debugUtils'
 
@@ -67,6 +71,13 @@ export abstract class CodeWhispererServiceBase {
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
 
     inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
+
+    prefetchSuggestions: { id: string; response: GenerateSuggestionsResponse; request: GenerateSuggestionsRequest }[] =
+        []
+
+    clearPrefetch() {
+        this.prefetchSuggestions = []
+    }
 
     abortInflightRequests() {
         this.inflightRequests.forEach(request => {
@@ -84,6 +95,11 @@ export abstract class CodeWhispererServiceBase {
     }
 
     abstract getCredentialsType(): CredentialsType
+
+    abstract generateSuggestionsAndPrefetch(
+        textDocument: TextDocument,
+        request: GenerateSuggestionsRequest
+    ): Promise<GenerateSuggestionsResponse>
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
@@ -135,6 +151,14 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         return 'iam'
     }
 
+    // TODO: same as regular GC until we want to enable prefetch with IAM client
+    override async generateSuggestionsAndPrefetch(
+        textDocument: TextDocument,
+        request: GenerateSuggestionsRequest
+    ): Promise<GenerateSuggestionsResponse> {
+        return await this.generateSuggestions(request)
+    }
+
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
@@ -164,7 +188,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     constructor(
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
-        logging: Logging,
+        private logging: Logging,
         codeWhispererRegion: string,
         codeWhispererEndpoint: string,
         sdkInitializator: SDKInitializator
@@ -270,6 +294,156 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             nextToken: response.nextToken,
         }
         return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+    }
+
+    // Only used when it's a cold start
+    override async generateSuggestionsAndPrefetch(
+        textDocument: TextDocument,
+        originalRequest: GenerateSuggestionsRequest
+    ): Promise<GenerateSuggestionsResponse> {
+        // If codewhispererService has prefetched result && id matches, return the cached prefetched result directly
+
+        // TODO: handle if textDocument/cursor/request position doesn't match prefetchSuggestions
+        // e.g. if it's not a subsequent call, it must be a cold start
+        let isColdStart = this.prefetchSuggestions.length === 0 || this.prefetchSuggestions[0].id !== textDocument.uri
+
+        // TODO: make id more strict, possibly session id or check if previous suggestion is in the doc
+        // if () {
+        //     isColdStart = true
+        // }
+
+        if (!isColdStart) {
+            this.logging.info(`will use prefetch suggestion`)
+            const r = this.prefetchSuggestions.pop()
+            if (!r) {
+                throw new Error('shouldnt be here')
+            }
+
+            if (this.prefetchSuggestions.length < 3) {
+                this.chainedGenerateCompletionCall(r.request, r.response, textDocument).catch(e => {})
+            }
+
+            return r.response
+        } else {
+            this.logging.info(`cold start`)
+            const coldStartResponse = await this.generateSuggestions(originalRequest)
+            if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
+                void this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument).catch(e => {})
+            }
+            return coldStartResponse
+        }
+    }
+
+    private async chainedGenerateCompletionCall(
+        baseRequest: GenerateSuggestionsRequest,
+        baseResponse: GenerateSuggestionsResponse,
+        textDocument: TextDocument
+    ) {
+        if (this.prefetchSuggestions.length > 3) {
+            return
+        }
+
+        this.logging.info(`prefetchSuggestions.length = ${this.prefetchSuggestions.length}`)
+
+        const request = this.buildSubsequentRequest(baseRequest, baseResponse, textDocument)
+
+        try {
+            const response = await this.generateSuggestions(request)
+            if (
+                response.suggestions.length > 0 &&
+                response.suggestions[0].content !== baseResponse.suggestions[0].content
+            ) {
+                this.logging.info(`prefetch suggestion[0]: `)
+                this.logging.info(response.suggestions[0].content)
+                this.prefetchSuggestions.push({
+                    id: textDocument.uri, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
+                    response: response,
+                    request: request,
+                })
+
+                setTimeout(async () => {
+                    await this.chainedGenerateCompletionCall(request, response, textDocument)
+                }, 100)
+            } else if (
+                response.suggestions.length > 0 &&
+                baseResponse.suggestions[0].content === response.suggestions[0].content
+            ) {
+                this.logging.info('identical result, discard')
+            }
+        } catch (e) {
+            console.log(e)
+        }
+    }
+
+    private buildSubsequentRequest(
+        originalRequest: GenerateSuggestionsRequest,
+        originalResponse: GenerateSuggestionsResponse,
+        textDocument: TextDocument
+    ): GenerateSuggestionsRequest {
+        const suggestion = originalResponse.suggestions[0]
+
+        const subsequentRequest = {
+            ...originalRequest,
+            fileContext: {
+                ...originalRequest.fileContext,
+                leftFileContent: originalRequest.fileContext.leftFileContent + suggestion.content,
+            },
+            nextToken: undefined,
+        }
+
+        // NEP flow requires more updates other than left/right filecontent
+        if (originalResponse.suggestionType && originalResponse.suggestionType === SuggestionType.EDIT) {
+            const docText = originalRequest.fileContext.leftFileContent + originalRequest.fileContext.rightFileContent
+            const afterDiff = applyUnifiedDiff(docText, suggestion.content)
+            const newCode = afterDiff.newCode
+
+            const afterChangePosition = getEndOfEditPosition(docText, newCode)
+            // Calculate new left context & right context
+            const { leftContent, rightContent } = splitContentAtPosition(newCode, afterChangePosition)
+
+            subsequentRequest.fileContext = {
+                ...originalRequest.fileContext,
+                leftFileContent: leftContent.slice(-10240),
+                rightFileContent: rightContent.slice(0, 10240),
+            }
+
+            subsequentRequest.supplementalContexts = originalRequest.supplementalContexts
+                ? [...originalRequest.supplementalContexts]
+                : []
+
+            subsequentRequest.editorState = {
+                document: {
+                    relativeFilePath: textDocument.uri,
+                    programmingLanguage: {
+                        languageName: textDocument.languageId,
+                    },
+                    text: leftContent + rightContent,
+                },
+                cursorState: {
+                    position: {
+                        line: afterChangePosition.line,
+                        character: afterChangePosition.character,
+                    },
+                },
+            }
+
+            // updated edit supplemental context
+            if (originalResponse.suggestions[0]) {
+                // TODO: handle sup context length > 5 ?
+                subsequentRequest.supplementalContexts.push({
+                    content: originalResponse.suggestions[0].content,
+                    filePath: subsequentRequest.fileContext.filename,
+                    type: 'PreviousEditorState',
+                    metadata: {
+                        previousEditorStateMetadata: {
+                            timeOffset: 1000,
+                        },
+                    },
+                })
+            }
+        }
+
+        return subsequentRequest
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
@@ -431,4 +605,64 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
         return this.client.listFeatureEvaluations(this.withProfileArn(request)).promise()
     }
+}
+
+// Both clients (token, sigv4) define their own types, this return value needs to match both of them.
+export const getFileContext = (params: {
+    textDocument: TextDocument
+    position: Position
+    inferredLanguageId: CodewhispererLanguage
+}): {
+    filename: string
+    programmingLanguage: {
+        languageName: CodewhispererLanguage
+    }
+    leftFileContent: string
+    rightFileContent: string
+} => {
+    const left = params.textDocument.getText({
+        start: { line: 0, character: 0 },
+        end: params.position,
+    })
+    const right = params.textDocument.getText({
+        start: params.position,
+        end: params.textDocument.positionAt(params.textDocument.getText().length),
+    })
+
+    return {
+        filename: params.textDocument.uri,
+        programmingLanguage: {
+            languageName: params.inferredLanguageId,
+        },
+        leftFileContent: left,
+        rightFileContent: right,
+    }
+}
+
+// TODO: not precise
+function splitContentAtPosition(
+    content: string,
+    position: Position
+): {
+    leftContent: string
+    rightContent: string
+} {
+    // Split content into lines
+    const lines = content.split('\n')
+
+    // Normalize position
+    const targetLine = Math.max(0, Math.min(position.line, lines.length - 1))
+    const targetChar = Math.max(0, Math.min(position.character, lines[targetLine].length))
+
+    // Create left content
+    const leftLines = lines.slice(0, targetLine)
+    const leftPartOfTargetLine = lines[targetLine].substring(0, targetChar)
+    const leftContent = [...leftLines, leftPartOfTargetLine].join('\n')
+
+    // Create right content
+    const rightPartOfTargetLine = lines[targetLine].substring(targetChar)
+    const rightLines = lines.slice(targetLine + 1)
+    const rightContent = [rightPartOfTargetLine, ...rightLines].join('\n')
+
+    return { leftContent, rightContent }
 }
