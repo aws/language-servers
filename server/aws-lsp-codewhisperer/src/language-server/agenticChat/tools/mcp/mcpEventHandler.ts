@@ -648,7 +648,10 @@ export class McpEventHandler {
         // need to check server state now, as there is possibility of error during server initialization
         const serverStatusError = this.#getServerStatusError(serverName)
         if (serverStatusError) {
-            // error case: stays on add/edit page and show error to user
+            // error case: remove config from config file but persist in memory
+            await McpManager.instance.removeServerFromConfigFile(serverName)
+
+            // stays on add/edit page and show error to user
             if (isEditMode) {
                 params.id = 'edit-mcp'
                 params.title = originalServerName!
