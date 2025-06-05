@@ -633,12 +633,8 @@ export class McpEventHandler {
         this.#shouldDisplayListMCPServers = false
 
         if (isEditMode && originalServerName) {
-            if (serverName !== originalServerName) {
-                await McpManager.instance.removeServer(originalServerName)
-                await McpManager.instance.addServer(serverName, config, configPath, personaPath)
-            } else {
-                await McpManager.instance.updateServer(serverName, config, configPath)
-            }
+            await McpManager.instance.removeServer(originalServerName)
+            await McpManager.instance.addServer(serverName, config, configPath, personaPath)
         } else {
             // Create new server
             await McpManager.instance.addServer(serverName, config, configPath, personaPath)
