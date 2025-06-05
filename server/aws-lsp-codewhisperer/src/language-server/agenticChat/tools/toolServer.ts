@@ -11,9 +11,7 @@ import { McpTool } from './mcp/mcpTool'
 import { FuzzySearch, FuzzySearchParams } from './fuzzySearch'
 import { GrepSearch, GrepSearchParams } from './grepSearch'
 import { QCodeReview } from './qCodeReview'
-import { QFindingCritic } from './qFindingCritic'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
-import { StreamingClientServiceToken } from '../../../shared/streamingClientService'
 
 export const QCodeAnalysisServer: Server = ({
     workspace,
@@ -25,7 +23,6 @@ export const QCodeAnalysisServer: Server = ({
 }) => {
     logging.info('QCodeAnalysisServer')
     const qCodeReviewTool = new QCodeReview({ workspace, lsp, logging })
-    const qFindingCriticTool = new QFindingCritic({ workspace, lsp, logging })
 
     lsp.onInitialized(async () => {
         logging.info('LSP on initialize for QCodeAnalysisServer')
@@ -55,24 +52,6 @@ export const QCodeAnalysisServer: Server = ({
                 return await qCodeReviewTool.execute(input, { codeWhispererClient })
             }
         )
-
-        // const qStreamingClient = new StreamingClientServiceToken(
-        //     credentialsProvider,
-        //     sdkInitializator,
-        //     logging,
-        //     process.env.CODEWHISPERER_REGION || 'us-east-1',
-        //     process.env.CODEWHISPERER_ENDPOINT || 'https://codewhisperer.us-east-1.amazonaws.com/',
-        //     "QFindingCriticTool"
-        // )
-
-        // agent.addTool({
-        //     name: QFindingCritic.toolName,
-        //     description: QFindingCritic.toolDescription,
-        //     inputSchema: QFindingCritic.inputSchema,
-        // },
-        // async(input: any) => {
-        //     return await qFindingCriticTool.execute(input, { qStreamingClient })
-        // })
     })
 
     return () => {}

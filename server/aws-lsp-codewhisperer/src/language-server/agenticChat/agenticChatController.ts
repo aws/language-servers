@@ -125,7 +125,6 @@ import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unac
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { QCodeReview } from './tools/qCodeReview'
-import { QFindingCritic } from './tools/qFindingCritic'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -994,8 +993,7 @@ export class AgenticChatController implements ChatHandlers {
                         // no need to write tool message for code search.
                         break
                     case QCodeReview.toolName:
-                    case QFindingCritic.toolName:
-                        // no need to write tool message for code review / finding critic
+                        // no need to write tool message for code review
                         break
                     default:
                         this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
@@ -1083,13 +1081,7 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     case QCodeReview.toolName:
-                    case QFindingCritic.toolName:
-                        // no need to write tool result for code review
-                        // await chatResultStream.writeResultBlock({
-                        //     type: 'tool',
-                        //     body: QCodeReview.getCodeReviewFindingSummary(result.result.findings),
-                        //     messageId: toolUse.toolUseId,
-                        // })
+                        // no need to write tool result for code review, this is handled by model via chat
                         break
                     default:
                         this.#features.logging.warn(`Processing unrecognized tool: ${toolUse.name}`)
