@@ -380,7 +380,10 @@ export const CodewhispererServerFactory =
                         return EMPTY_RESULT
                     }
 
-                    const predictionTypes = ['EDITS']
+                    const predictionTypes = [
+                        ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
+                        ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : [])
+                    ]
 
                      console.log('[PredictionTypes] Result:' + predictionTypes);
 
@@ -877,7 +880,9 @@ export const CodewhispererServerFactory =
             )
 
             logging.log(`Client initialization params: ${JSON.stringify(clientParams)}`)
-            editsEnabled = true
+            editsEnabled =
+                clientParams?.initializationOptions?.aws?.awsClientCapabilities?.textDocument
+                    ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
             console.log('[EDITS] Edits enabled: ' + editsEnabled)
             console.log('Initializing DebugLogger with GraphQL server')
             DebugLogger.getInstance() // This will initialize the singleton and start the server
