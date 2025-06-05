@@ -144,10 +144,10 @@ const IS_WINDOWS_PLATFORM = process.platform === 'win32'
 export class ExecuteBash {
     private childProcess?: ChildProcess
     private readonly logging: Features['logging']
-    private readonly lsp: Features['lsp']
-    constructor(features: Pick<Features, 'logging' | 'lsp'> & Partial<Features>) {
+    private readonly workspace: Features['workspace']
+    constructor(features: Pick<Features, 'logging' | 'workspace'> & Partial<Features>) {
         this.logging = features.logging
-        this.lsp = features.lsp
+        this.workspace = features.workspace
     }
 
     public async validate(input: ExecuteBashParams): Promise<void> {
@@ -241,7 +241,10 @@ export class ExecuteBash {
                             continue
                         }
 
-                        const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.lsp), fullPath)
+                        const isInWorkspace = workspaceUtils.isInWorkspace(
+                            getWorkspaceFolderPaths(this.workspace),
+                            fullPath
+                        )
                         if (!isInWorkspace) {
                             return {
                                 requiresAcceptance: true,
@@ -291,7 +294,7 @@ export class ExecuteBash {
             if (params.cwd) {
                 // Check if the cwd is already approved
                 if (!(approvedPaths && isPathApproved(params.cwd, approvedPaths))) {
-                    const workspaceFolders = getWorkspaceFolderPaths(this.lsp)
+                    const workspaceFolders = getWorkspaceFolderPaths(this.workspace)
 
                     // If there are no workspace folders, we can't validate the path
                     if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -433,7 +436,7 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: true,
-                        content: chunk,
+                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
                         isFirst,
                     })
                     processQueue()
@@ -448,19 +451,18 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: false,
-                        content: chunk,
+                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
                         isFirst,
                     })
                     processQueue()
                 },
             }
 
-            this.childProcess = new ChildProcess(
-                this.logging,
-                shellName,
-                [shellFlag, params.command],
-                childProcessOptions
-            )
+            const shellArgs = IS_WINDOWS_PLATFORM
+                ? ['/u', shellFlag, ...split(params.command)] // Windows: split for proper arg handling
+                : [shellFlag, params.command]
+
+            this.childProcess = new ChildProcess(this.logging, shellName, shellArgs, childProcessOptions)
 
             // Set up cancellation listener
             if (cancellationToken) {
@@ -534,6 +536,24 @@ export class ExecuteBash {
         })
     }
 
+    /**
+     * Re‑creates the raw bytes from the received string (Buffer.from(text, 'binary')).
+     * Detects UTF‑16 LE by checking whether every odd byte in the first 32 bytes is 0x00.
+     * Decodes with buf.toString('utf16le') when the pattern matches, otherwise falls back to UTF‑8.
+     */
+    private static decodeWinUtf(raw: string): string {
+        const buffer = Buffer.from(raw, 'binary')
+
+        let utf16 = true
+        for (let i = 1, n = Math.min(buffer.length, 32); i < n; i += 2) {
+            if (buffer[i] !== 0x00) {
+                utf16 = false
+                break
+            }
+        }
+        return utf16 ? buffer.toString('utf16le') : buffer.toString('utf8')
+    }
+
     private static handleChunk(chunk: string, buffer: string[], writer?: WritableStreamDefaultWriter<any>) {
         try {
             void writer?.write(chunk)
@@ -557,25 +577,67 @@ export class ExecuteBash {
         return [str, false]
     }
 
-    private static async whichCommand(logger: Logging, cmd: string): Promise<string> {
-        const { command, args } = IS_WINDOWS_PLATFORM
-            ? { command: 'where', args: [cmd] }
-            : { command: 'sh', args: ['-c', `command -v ${cmd}`] }
-        const cp = new processUtils.ChildProcess(logger, command, args, {
-            collect: true,
-            waitForStreams: true,
-        })
-        const result = await cp.run()
+    private static async whichCommand(logger: Logging, cmd: string): Promise<void> {
+        if (IS_WINDOWS_PLATFORM) {
+            await this.resolveWindowsCommand(logger, cmd)
+        } else {
+            await this.resolveUnixCommand(logger, cmd)
+        }
+    }
 
-        if (result.exitCode !== 0) {
-            throw new Error(`Command '${cmd}' not found on PATH.`)
+    private static async resolveWindowsCommand(logger: Logging, cmd: string): Promise<void> {
+        // 1. Check for external command or alias
+        try {
+            const whereProc = new processUtils.ChildProcess(logger, 'where', [cmd], {
+                collect: true,
+                waitForStreams: true,
+            })
+            const result = await whereProc.run()
+            const output = result.stdout.trim()
+
+            if (result.exitCode === 0 && output) {
+                return
+            }
+        } catch (err) {
+            logger.debug(`'where ${cmd}' failed: ${(err as Error).message}`)
         }
 
-        const output = result.stdout.trim()
-        if (!output) {
-            throw new Error(`Command '${cmd}' found but '${command} ${args.join(' ')}' returned empty output.`)
+        // 2. Check for built-in command
+        try {
+            const helpProc = new processUtils.ChildProcess(logger, 'cmd.exe', ['/c', 'help', cmd], {
+                collect: true,
+                waitForStreams: true,
+            })
+            const result = await helpProc.run()
+            const output = result.stdout.trim()
+
+            if (output && !output.includes('This command is not supported by the help utility')) {
+                return
+            }
+        } catch (err) {
+            logger.debug(`'help ${cmd}' failed: ${(err as Error).message}`)
         }
-        return output
+
+        throw new Error(`Command '${cmd}' not found as executable or Windows built-in command`)
+    }
+
+    private static async resolveUnixCommand(logger: Logging, cmd: string): Promise<void> {
+        try {
+            const proc = new processUtils.ChildProcess(logger, 'sh', ['-c', `command -v ${cmd}`], {
+                collect: true,
+                waitForStreams: true,
+            })
+            const result = await proc.run()
+            const output = result.stdout.trim()
+
+            if (result.exitCode === 0 && output) {
+                return
+            }
+        } catch (err) {
+            logger.debug(`'command -v ${cmd}' failed: ${(err as Error).message}`)
+        }
+
+        throw new Error(`Command '${cmd}' not found as executable or shell built-in`)
     }
 
     public async queueDescription(command: string, updates: WritableStream) {
@@ -589,7 +651,23 @@ export class ExecuteBash {
         return {
             name: 'executeBash',
             description:
-                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).',
+                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).\n\n' +
+                '## Overview\n' +
+                "This tool executes commands on the user's system shell and returns the output.\n\n" +
+                '## Operating System Specific Commands\n' +
+                "- IMPORTANT: You MUST use commands specific to the user's current operating system. This tool will NOT adapt or translate commands between operating systems.\n" +
+                "  - On Windows (cmd.exe): Use Windows-specific commands like 'dir', 'type', 'mkdir' (without -p flag).\n" +
+                "  - On Unix/Linux/macOS (bash): Use Unix commands like 'ls', 'cat', 'mkdir -p'.\n" +
+                '## When to use\n' +
+                "- When you need to run system commands that aren't covered by specialized tools.\n" +
+                '- When you need to interact with installed applications or utilities.\n' +
+                '- When you need to perform operations that require shell capabilities.\n\n' +
+                '## When not to use\n' +
+                '- When specialized tools would be more appropriate for the task.\n' +
+                '- When you need to perform file operations (use dedicated file tools instead).\n' +
+                '- When you need to search through files (use dedicated search tools instead).\n\n' +
+                '## Notes\n' +
+                '- Output is limited to prevent overwhelming responses.\n',
             inputSchema: {
                 type: 'object',
                 properties: {

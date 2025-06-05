@@ -33,7 +33,6 @@ import { CancellationError } from '@aws/lsp-core'
  *
  */
 export class TabBarController {
-    #loadedChats: boolean = false
     #searchTimeout: NodeJS.Timeout | undefined = undefined
     readonly #DebounceTime = 300 // milliseconds
     #features: Features
@@ -232,8 +231,7 @@ export class TabBarController {
         const defaultFileName = `q-dev-chat-${new Date().toISOString().split('T')[0]}.md`
         try {
             let defaultUri
-            const clientParams = this.#features.lsp.getClientInitializeParams()
-            let workspaceFolders = clientParams?.workspaceFolders
+            let workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
             if (workspaceFolders && workspaceFolders.length > 0) {
                 const workspaceUri = URI.parse(workspaceFolders[0].uri)
                 defaultUri = Utils.joinPath(workspaceUri, defaultFileName)
@@ -300,10 +298,6 @@ export class TabBarController {
      * When IDE is opened, restore chats that were previously open in IDE for the current workspace.
      */
     async loadChats() {
-        if (this.#loadedChats) {
-            return
-        }
-        this.#loadedChats = true
         const openConversations = this.#chatHistoryDb.getOpenTabs()
         if (openConversations) {
             for (const conversation of openConversations) {

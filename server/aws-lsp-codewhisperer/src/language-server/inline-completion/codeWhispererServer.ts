@@ -13,6 +13,7 @@ import {
     TextDocument,
     ResponseError,
     LSPErrorCodes,
+    WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -57,15 +58,61 @@ import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/cod
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 import { DebugLogger, InlineCompletionsHandlerData, parseInlineCompletionParams } from '../../shared/debugUtils'
+import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
+import path = require('path')
+import { getRelativePath } from '../workspaceContext/util'
+import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
+export const FILE_URI_CHARS_LIMIT = 1024
+export const FILENAME_CHARS_LIMIT = 1024
 export const CONTEXT_CHARACTERS_LIMIT = 10240
 
-const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
+// Both clients (token, sigv4) define their own types, this return value needs to match both of them.
+const getFileContext = (params: {
+    textDocument: TextDocument
+    position: Position
+    inferredLanguageId: CodewhispererLanguage
+    workspaceFolder: WorkspaceFolder | null | undefined
+}): {
+    fileUri: string
+    filename: string
+    programmingLanguage: {
+        languageName: CodewhispererLanguage
+    }
+    leftFileContent: string
+    rightFileContent: string
+} => {
+    const left = params.textDocument.getText({
+        start: { line: 0, character: 0 },
+        end: params.position,
+    })
+    const right = params.textDocument.getText({
+        start: params.position,
+        end: params.textDocument.positionAt(params.textDocument.getText().length),
+    })
+
+    const relativeFilePath = params.workspaceFolder
+        ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
+        : path.basename(params.textDocument.uri)
+
+    return {
+        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
+        filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
+        programmingLanguage: {
+            languageName: getRuntimeLanguage(params.inferredLanguageId),
+        },
+        leftFileContent: left,
+        rightFileContent: right,
+    }
+}
+
+const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession, requestId: string) => {
     const duration = new Date().getTime() - session.startTime
     const data: CodeWhispererServiceInvocationEvent = {
-        codewhispererRequestId: session.responseContext?.requestId,
+        codewhispererRequestId: requestId,
         codewhispererSessionId: session.responseContext?.codewhispererSessionId,
         codewhispererLastSuggestionIndex: session.suggestions.length - 1,
         codewhispererCompletionType:
@@ -296,6 +343,9 @@ export const CodewhispererServerFactory =
                     'onInlineCompletionHandler'
                 )
                 sessionManager.discardSession(currentSession)
+                // Also set this flag for compatibility with main branch
+                currentSession.discardInflightSessionOnNewInvocation = true
+            }
             }
 
             if (cursorTracker) {
@@ -304,6 +354,36 @@ export const CodewhispererServerFactory =
 
             // prettier-ignore
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
+                const codeWhispererService = amazonQServiceManager.getCodewhispererService()
+                if (params.partialResultToken && currentSession) {
+                    // subsequent paginated requests for current session
+                    return codeWhispererService
+                        .generateSuggestions({
+                            ...currentSession.requestContext,
+                            fileContext: {
+                                ...currentSession.requestContext.fileContext,
+                                leftFileContent: currentSession.requestContext.fileContext.leftFileContent
+                                    .slice(-CONTEXT_CHARACTERS_LIMIT)
+                                    .replaceAll('\r\n', '\n'),
+                                rightFileContent: currentSession.requestContext.fileContext.rightFileContent
+                                    .slice(0, CONTEXT_CHARACTERS_LIMIT)
+                                    .replaceAll('\r\n', '\n'),
+                            },
+                            nextToken: `${params.partialResultToken}`,
+                        })
+                        .then(async suggestionResponse => {
+                            return await processSuggestionResponse(
+                                suggestionResponse,
+                                currentSession,
+                                false,
+                                params.context.selectedCompletionInfo?.range
+                            )
+                        })
+                        .catch(error => {
+                            return handleSuggestionsErrors(error, currentSession)
+                        })
+                } else {
+                    // request for new session
                     if (!textDocument) {
                         logging.log(`textDocument [${params.textDocument.uri}] not found`)
                         return EMPTY_RESULT
@@ -322,15 +402,24 @@ export const CodewhispererServerFactory =
                         params.context.triggerKind == InlineCompletionTriggerKind.Automatic
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
-                    const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
-
+                    const fileContext = getFileContext({
+                        textDocument,
+                        inferredLanguageId,
+                        position: params.position,
+                        workspaceFolder: workspace.getWorkspaceFolder(textDocument.uri),
+                    })
+                    
                     // Get supplemental context from recent edits if available
                     let supplementalContextFromEdits = undefined
                     if (recentEditTracker) {
                         supplementalContextFromEdits = await recentEditTracker.generateEditBasedContext(textDocument)
                     }
-
-
+                    
+                    const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
+                    const workspaceId = workspaceState?.webSocketClient?.isConnected()
+                        ? workspaceState.workspaceId
+                        : undefined
+                    
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
                     const codewhispererAutoTriggerType = triggerType(fileContext)
@@ -509,6 +598,7 @@ export const CodewhispererServerFactory =
                                 .slice(0, CONTEXT_CHARACTERS_LIMIT)
                                 .replaceAll('\r\n', '\n'),
                         },
+                        ...(workspaceId ? { workspaceId: workspaceId } : {}),
                     })
                         .then(async suggestionResponse => {
                             DebugLogger.getInstance().log(
@@ -687,6 +777,62 @@ export const CodewhispererServerFactory =
                             }
                             return EMPTY_RESULT
                         })
+
+        const processSuggestionResponse = async (
+            suggestionResponse: GenerateSuggestionsResponse,
+            session: CodeWhispererSession,
+            isNewSession: boolean,
+            selectionRange?: Range
+        ): Promise<InlineCompletionListWithReferences> => {
+            codePercentageTracker.countInvocation(session.language)
+
+            userWrittenCodeTracker?.recordUsageCount(session.language)
+            session.includeImportsWithSuggestions =
+                amazonQServiceManager.getConfiguration().includeImportsWithSuggestions
+
+            if (isNewSession) {
+                // Populate the session with information from codewhisperer response
+                session.suggestions = suggestionResponse.suggestions
+                session.responseContext = suggestionResponse.responseContext
+                session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
+                session.timeToFirstRecommendation = new Date().getTime() - session.startTime
+            } else {
+                session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
+            }
+
+            // Emit service invocation telemetry for every request sent to backend
+            emitServiceInvocationTelemetry(telemetry, session, suggestionResponse.responseContext.requestId)
+
+            // Discard previous inflight API response due to new trigger
+            if (session.discardInflightSessionOnNewInvocation) {
+                session.discardInflightSessionOnNewInvocation = false
+                sessionManager.discardSession(session)
+                await emitUserTriggerDecisionTelemetry(
+                    telemetry,
+                    telemetryService,
+                    session,
+                    timeSinceLastUserModification
+                )
+            }
+
+            // session was closed by user already made decisions consequent completion request before new paginated API response was received
+            if (session.state === 'CLOSED' || session.state === 'DISCARD') {
+                return EMPTY_RESULT
+            }
+
+            // API response was recieved, we can activate session now
+            sessionManager.activateSession(session)
+
+            // Process suggestions to apply Empty or Filter filters
+            const filteredSuggestions = suggestionResponse.suggestions
+                // Empty suggestion filter
+                .filter(suggestion => {
+                    if (suggestion.content === '') {
+                        session.setSuggestionState(suggestion.itemId, 'Empty')
+                        return false
+                    }
+
+                    return true
                 })
                     .catch(error => {
                         logging.log('onInlineCompletionHandler error:' + error)
@@ -703,6 +849,89 @@ export const CodewhispererServerFactory =
 
                         return EMPTY_RESULT
                     })
+                    return false
+                })
+
+            const { includeImportsWithSuggestions } = amazonQServiceManager.getConfiguration()
+            const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
+                session.requestContext.fileContext.rightFileContent,
+                filteredSuggestions,
+                includeImportsWithSuggestions,
+                selectionRange
+            ).filter(suggestion => {
+                // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
+                if (suggestion.insertText === '') {
+                    session.setSuggestionState(suggestion.itemId, 'Discard')
+                    return false
+                }
+
+                return true
+            })
+
+            suggestionsWithRightContext.forEach(suggestion => {
+                const cachedSuggestion = session.suggestions.find(s => s.itemId === suggestion.itemId)
+                if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
+            })
+
+            // TODO: need dedupe after right context merging but I don't see one
+            session.suggestionsAfterRightContextMerge.push(...suggestionsWithRightContext)
+
+            session.codewhispererSuggestionImportCount =
+                session.codewhispererSuggestionImportCount +
+                suggestionsWithRightContext.reduce((total, suggestion) => {
+                    return total + (suggestion.mostRelevantMissingImports?.length || 0)
+                }, 0)
+
+            // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
+            // close session and return empty results
+            if (
+                session.suggestionsAfterRightContextMerge.length === 0 &&
+                !suggestionResponse.responseContext.nextToken
+            ) {
+                sessionManager.closeSession(session)
+                await emitUserTriggerDecisionTelemetry(
+                    telemetry,
+                    telemetryService,
+                    session,
+                    timeSinceLastUserModification
+                )
+
+                return EMPTY_RESULT
+            }
+
+            return {
+                items: suggestionsWithRightContext,
+                sessionId: session.id,
+                partialResultToken: suggestionResponse.responseContext.nextToken,
+            }
+        }
+
+        const handleSuggestionsErrors = (
+            error: Error,
+            session: CodeWhispererSession
+        ): InlineCompletionListWithReferences => {
+            logging.log('Recommendation failure: ' + error)
+            emitServiceInvocationFailure(telemetry, session, error)
+
+            sessionManager.closeSession(session)
+
+            let translatedError = error
+
+            if (hasConnectionExpired(error)) {
+                translatedError = new AmazonQServiceConnectionExpiredError(getErrorMessage(error))
+            }
+
+            if (translatedError instanceof AmazonQError) {
+                throw new ResponseError(
+                    LSPErrorCodes.RequestFailed,
+                    translatedError.message || 'Error processing suggestion requests',
+                    {
+                        awsErrorCode: translatedError.code,
+                    }
+                )
+            }
+
+            return EMPTY_RESULT
         }
 
         // Schedule tracker for UserModification Telemetry event

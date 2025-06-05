@@ -306,14 +306,12 @@ describe('TabBarController', () => {
         let fsWriteFileStub: sinon.SinonStub
 
         beforeEach(() => {
-            testFeatures.setClientParams({
-                workspaceFolders: [
-                    {
-                        uri: 'file:///testworkspace',
-                        name: 'workspace',
-                    },
-                ],
-            } as InitializeParams)
+            testFeatures.workspace.getAllWorkspaceFolders = sinon.stub().returns([
+                {
+                    uri: 'file:///testworkspace',
+                    name: 'workspace',
+                },
+            ]) as any
 
             showSaveFileDialogStub = sinon.stub().returns({
                 targetUri: 'file:///testworkspace/test.md',
@@ -504,17 +502,17 @@ describe('TabBarController', () => {
             })
         })
 
-        it('should only load chats once', async () => {
+        it('restore tab can be called multiple times', async () => {
             const mockTabs = [{ historyId: 'history1', conversations: [{ messages: [] }] }] as unknown as Tab[]
             ;(chatHistoryDb.getOpenTabs as sinon.SinonStub).returns(mockTabs)
 
             const restoreTabStub = sinon.stub(tabBarController, 'restoreTab')
 
             await tabBarController.loadChats()
-            await tabBarController.loadChats() // Second call should be ignored
+            await tabBarController.loadChats()
 
-            sinon.assert.calledOnce(restoreTabStub)
-            sinon.assert.calledOnce(telemetryService.emitLoadHistory as sinon.SinonStub)
+            sinon.assert.calledTwice(restoreTabStub)
+            sinon.assert.calledTwice(telemetryService.emitLoadHistory as sinon.SinonStub)
             sinon.assert.calledWith(telemetryService.emitLoadHistory as sinon.SinonStub, {
                 openTabCount: 1,
                 amazonqTimeToLoadHistory: -1,

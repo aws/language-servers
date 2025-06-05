@@ -34,7 +34,7 @@ export class FsRead {
     public async requiresAcceptance(params: FsReadParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
         // Check acceptance for all paths in the array
         for (const path of params.paths) {
-            const validation = await requiresPathAcceptance(path, this.lsp, this.logging, approvedPaths)
+            const validation = await requiresPathAcceptance(path, this.workspace, this.logging, approvedPaths)
             if (validation.requiresAcceptance) {
                 return validation
             }
@@ -105,7 +105,8 @@ export class FsRead {
                 type: 'object',
                 properties: {
                     paths: {
-                        description: 'List of file paths to read in a sequence',
+                        description:
+                            'List of file paths to read in a sequence, e.g. `["/repo/file.py"]` for Unix-like system including Unix/Linux/macOS or `["d:\\repo\\file.py"]` for Windows.',
                         type: 'array',
                         items: {
                             type: 'string',

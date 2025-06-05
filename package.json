@@ -32,6 +32,7 @@
         "package": "npm run compile && npm run package --workspaces --if-present"
     },
     "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.90",
         "@smithy/types": "4.2.0",
         "typescript": "^5.8.2"
     },
@@ -40,8 +41,8 @@
         "@commitlint/config-conventional": "^19.8.0",
         "@types/diff-match-patch": "^1.0.36",
         "@types/node": "^22.9.0",
-        "@typescript-eslint/eslint-plugin": "^8.18.2",
-        "@typescript-eslint/parser": "^8.18.2",
+        "@typescript-eslint/eslint-plugin": "^8.32.1",
+        "@typescript-eslint/parser": "^8.32.1",
         "conventional-changelog-conventionalcommits": "^8.0.0",
         "diff-match-patch": "^1.0.5",
         "eslint": "^8.42.0",

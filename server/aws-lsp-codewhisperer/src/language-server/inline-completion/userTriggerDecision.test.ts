@@ -229,6 +229,7 @@ describe('Telemetry', () => {
                 state: 'CLOSED',
                 codewhispererSessionId: 'cwspr-session-id',
                 startPosition: { line: 2, character: 21 },
+                suggestionsAfterRightContextMerge: [],
                 suggestions: [
                     { itemId: 'cwspr-item-id-1', content: '' },
                     { itemId: 'cwspr-item-id-2', content: '' },
@@ -523,6 +524,29 @@ describe('Telemetry', () => {
                         { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
+                    suggestionsAfterRightContextMerge: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                    ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Discard'],
                         ['cwspr-item-id-2', 'Discard'],
@@ -594,6 +618,29 @@ describe('Telemetry', () => {
                         { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
+                    suggestionsAfterRightContextMerge: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                    ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Ignore'],
                         ['cwspr-item-id-2', 'Accept'],
@@ -638,6 +685,29 @@ describe('Telemetry', () => {
                         { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
+                    ],
+                    suggestionsAfterRightContextMerge: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Reject'],
@@ -688,6 +758,29 @@ describe('Telemetry', () => {
                         { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
+                    suggestionsAfterRightContextMerge: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                    ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Discard'],
                         ['cwspr-item-id-2', 'Discard'],
@@ -736,6 +829,29 @@ describe('Telemetry', () => {
                         { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                     ],
+                    suggestionsAfterRightContextMerge: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                    ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Reject'],
                         ['cwspr-item-id-2', 'Reject'],
@@ -768,6 +884,29 @@ describe('Telemetry', () => {
                         { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
+                    ],
+                    suggestionsAfterRightContextMerge: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Discard'],
@@ -809,6 +948,29 @@ describe('Telemetry', () => {
                         { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
+                    ],
+                    suggestionsAfterRightContextMerge: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Discard'],
@@ -914,6 +1076,29 @@ describe('Telemetry', () => {
                             { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                             { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
                         ],
+                        suggestionsAfterRightContextMerge: [
+                            {
+                                itemId: 'cwspr-item-id-1',
+                                insertText: 'recommendation',
+                                range: undefined,
+                                references: undefined,
+                                mostRelevantMissingImports: undefined,
+                            },
+                            {
+                                itemId: 'cwspr-item-id-2',
+                                insertText: 'recommendation',
+                                range: undefined,
+                                references: undefined,
+                                mostRelevantMissingImports: undefined,
+                            },
+                            {
+                                itemId: 'cwspr-item-id-3',
+                                insertText: 'recommendation',
+                                range: undefined,
+                                references: undefined,
+                                mostRelevantMissingImports: undefined,
+                            },
+                        ],
                         suggestionsStates: new Map([
                             ['cwspr-item-id-1', 'Discard'],
                             ['cwspr-item-id-2', 'Discard'],
@@ -973,6 +1158,29 @@ describe('Telemetry', () => {
                             { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
                             { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                             { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
+                        ],
+                        suggestionsAfterRightContextMerge: [
+                            {
+                                itemId: 'cwspr-item-id-1',
+                                insertText: 'recommendation',
+                                range: undefined,
+                                references: undefined,
+                                mostRelevantMissingImports: undefined,
+                            },
+                            {
+                                itemId: 'cwspr-item-id-2',
+                                insertText: 'recommendation',
+                                range: undefined,
+                                references: undefined,
+                                mostRelevantMissingImports: undefined,
+                            },
+                            {
+                                itemId: 'cwspr-item-id-3',
+                                insertText: 'recommendation',
+                                range: undefined,
+                                references: undefined,
+                                mostRelevantMissingImports: undefined,
+                            },
                         ],
                         suggestionsStates: new Map([
                             ['cwspr-item-id-1', 'Reject'],
@@ -1116,7 +1324,7 @@ describe('Telemetry', () => {
                             codewhispererSessionId: 'cwspr-session-id-0',
                         },
                         timeToFirstRecommendation: 1260,
-                        closeTime: 1483228801000,
+                        closeTime: 1483228801260,
                     })
                 )
                 sinon.assert.match(secondCallArgs, {
@@ -1130,7 +1338,7 @@ describe('Telemetry', () => {
                         _lineOffsets: [0, 17, 19, 42, 48, 91, 97, 99],
                     },
                     startTime: 1483228801260,
-                    closeTime: 1483228802260,
+                    closeTime: 1483228802520,
                     state: 'DISCARD',
                     codewhispererSessionId: 'cwspr-session-id-1',
                     startPosition: { line: 2, character: 21 },
@@ -1160,7 +1368,7 @@ describe('Telemetry', () => {
                     timeToFirstRecommendation: 1260,
                     credentialStartUrl: 'teststarturl',
                     previousTriggerDecision: 'Discard',
-                    previousTriggerDecisionTime: 1483228801000,
+                    previousTriggerDecisionTime: 1483228801260,
                     reportedUserDecision: true,
                 })
                 sinon.assert.neverCalledWithMatch(telemetryServiceSpy, {
@@ -1181,6 +1389,29 @@ describe('Telemetry', () => {
                         startTime: 1483228802520,
                         closeTime: 1483228803770,
                         codewhispererSessionId: 'cwspr-session-id-2',
+                        suggestionsAfterRightContextMerge: [
+                            {
+                                itemId: 'cwspr-item-id-1',
+                                insertText: 'recommendation',
+                                range: undefined,
+                                references: undefined,
+                                mostRelevantMissingImports: undefined,
+                            },
+                            {
+                                itemId: 'cwspr-item-id-2',
+                                insertText: 'recommendation',
+                                range: undefined,
+                                references: undefined,
+                                mostRelevantMissingImports: undefined,
+                            },
+                            {
+                                itemId: 'cwspr-item-id-3',
+                                insertText: 'recommendation',
+                                range: undefined,
+                                references: undefined,
+                                mostRelevantMissingImports: undefined,
+                            },
+                        ],
                         suggestions: [
                             { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
                             { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
@@ -1192,7 +1423,7 @@ describe('Telemetry', () => {
                             ['cwspr-item-id-3', 'Reject'],
                         ]),
                         previousTriggerDecision: 'Discard',
-                        previousTriggerDecisionTime: 1483228802260,
+                        previousTriggerDecisionTime: 1483228802520,
                         timeToFirstRecommendation: 1250,
                         completionSessionResult: {
                             'cwspr-item-id-1': { seen: true, accepted: false, discarded: false },
@@ -1229,6 +1460,29 @@ describe('Telemetry', () => {
                         { itemId: 'cwspr-item-id-1', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-2', content: 'recommendation', insertText: 'recommendation' },
                         { itemId: 'cwspr-item-id-3', content: 'recommendation', insertText: 'recommendation' },
+                    ],
+                    suggestionsAfterRightContextMerge: [
+                        {
+                            itemId: 'cwspr-item-id-1',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-2',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
+                        {
+                            itemId: 'cwspr-item-id-3',
+                            insertText: 'recommendation',
+                            range: undefined,
+                            references: undefined,
+                            mostRelevantMissingImports: undefined,
+                        },
                     ],
                     suggestionsStates: new Map([
                         ['cwspr-item-id-1', 'Reject'],

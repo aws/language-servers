@@ -4,6 +4,8 @@ import { ArtifactManager, FileMetadata } from '../../artifactManager'
 import path = require('path')
 import { EventEmitter } from 'events'
 import { CodewhispererLanguage } from '../../../../shared/languageDetection'
+import { isDirectory } from '../../util'
+import { DependencyWatcher } from './DependencyWatcher'
 
 export interface Dependency {
     name: string
@@ -26,13 +28,15 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     protected workspaceFolders: WorkspaceFolder[]
     // key: workspaceFolder, value: {key: dependency name, value: Dependency}
     protected dependencyMap = new Map<WorkspaceFolder, Map<string, Dependency>>()
-    protected dependencyUploadedSize = new Map<WorkspaceFolder, number>()
-    protected dependencyWatchers: Map<string, fs.FSWatcher> = new Map<string, fs.FSWatcher>()
+    protected dependencyUploadedSizeMap = new Map<WorkspaceFolder, number>()
+    protected dependencyUploadedSizeSum: Uint32Array<SharedArrayBuffer>
+    protected dependencyWatchers: Map<string, DependencyWatcher> = new Map<string, DependencyWatcher>()
     protected artifactManager: ArtifactManager
     protected dependenciesFolderName: string
     protected eventEmitter: EventEmitter
     protected readonly MAX_SINGLE_DEPENDENCY_SIZE: number = 500 * 1024 * 1024 // 500 MB
-    protected readonly MAX_WORKSPACE_DEPENDENCY_SIZE: number = 5 * 1024 * 1024 * 1024 //5 GB
+    protected readonly MAX_WORKSPACE_DEPENDENCY_SIZE: number = 8 * 1024 * 1024 * 1024 // 8 GB
+    protected readonly DEPENDENCY_WATCHER_EVENT_BATCH_INTERVAL: number = 1000
 
     constructor(
         language: CodewhispererLanguage,
@@ -40,7 +44,8 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         logging: Logging,
         workspaceFolders: WorkspaceFolder[],
         artifactManager: ArtifactManager,
-        dependenciesFolderName: string
+        dependenciesFolderName: string,
+        dependencyUploadedSizeSum: Uint32Array<SharedArrayBuffer>
     ) {
         this.language = language
         this.workspace = workspace
@@ -54,7 +59,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         this.workspaceFolders.forEach(workSpaceFolder =>
             this.dependencyMap.set(workSpaceFolder, new Map<string, Dependency>())
         )
-
+        this.dependencyUploadedSizeSum = dependencyUploadedSizeSum
         this.eventEmitter = new EventEmitter()
     }
 
@@ -85,14 +90,18 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         dependencyMap: Map<string, Dependency>
     ): void
 
-    public onDependencyChange(callback: (workspaceFolder: WorkspaceFolder, zips: FileMetadata[]) => void): void {
+    public onDependencyChange(
+        callback: (workspaceFolder: WorkspaceFolder, zips: FileMetadata[], addWSFolderPathInS3: boolean) => void
+    ): void {
         this.eventEmitter.on('dependencyChange', callback)
     }
 
     protected emitDependencyChange(workspaceFolder: WorkspaceFolder, zips: FileMetadata[]): void {
         if (zips.length > 0) {
             this.logging.log(`Emitting ${this.language} dependency change event for ${workspaceFolder.name}`)
-            this.eventEmitter.emit('dependencyChange', workspaceFolder, zips)
+            // If language is JavaScript or TypeScript, we want to preserve the workspaceFolder path in S3 path
+            const addWSFolderPathInS3 = this.language === 'javascript' || this.language === 'typescript'
+            this.eventEmitter.emit('dependencyChange', workspaceFolder, zips, addWSFolderPathInS3)
             return
         }
     }
@@ -170,10 +179,11 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                 }
                 currentChunk.push(dependency)
                 currentChunkSize += dependency.size
-                this.dependencyUploadedSize.set(
+                this.dependencyUploadedSizeMap.set(
                     workspaceFolder,
-                    (this.dependencyUploadedSize.get(workspaceFolder) || 0) + dependency.size
+                    (this.dependencyUploadedSizeMap.get(workspaceFolder) || 0) + dependency.size
                 )
+                Atomics.add(this.dependencyUploadedSizeSum, 0, dependency.size)
                 // Mark this dependency that has been zipped
                 dependency.zipped = true
                 this.dependencyMap.get(workspaceFolder)?.set(dependency.name, dependency)
@@ -299,7 +309,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
      * However, everytime flare server restarts, this dependency map will be initialized.
      */
     private validateWorkspaceDependencySize(workspaceFolder: WorkspaceFolder): boolean {
-        let uploadedSize = this.dependencyUploadedSize.get(workspaceFolder)
+        let uploadedSize = Atomics.load(this.dependencyUploadedSizeSum, 0)
         if (uploadedSize && this.MAX_WORKSPACE_DEPENDENCY_SIZE < uploadedSize) {
             return false
         }
@@ -308,14 +318,15 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
     dispose(): void {
         this.dependencyMap.clear()
-        this.dependencyUploadedSize.clear()
-        this.dependencyWatchers.forEach(watcher => watcher.close())
+        this.dependencyUploadedSizeMap.clear()
+        this.dependencyWatchers.forEach(watcher => watcher.dispose())
         this.dependencyWatchers.clear()
     }
 
     disposeWorkspaceFolder(workspaceFolder: WorkspaceFolder): void {
         this.dependencyMap.delete(workspaceFolder)
-        this.dependencyUploadedSize.delete(workspaceFolder)
+        Atomics.sub(this.dependencyUploadedSizeSum, 0, this.dependencyUploadedSizeMap.get(workspaceFolder) || 0)
+        this.dependencyUploadedSizeMap.delete(workspaceFolder)
         this.disposeWatchers(workspaceFolder)
         this.disposeDependencyInfo(workspaceFolder)
     }
@@ -331,6 +342,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
     // For synchronous version if needed:
     protected getDirectorySize(directoryPath: string): number {
+        if (!isDirectory(directoryPath)) {
+            return fs.statSync(directoryPath).size
+        }
         let totalSize = 0
         try {
             const files = fs.readdirSync(directoryPath)
@@ -338,12 +352,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             for (const file of files) {
                 const filePath = path.join(directoryPath, file)
                 const stats = fs.statSync(filePath)
-
-                if (stats.isDirectory()) {
-                    totalSize += this.getDirectorySize(filePath)
-                } else {
-                    totalSize += stats.size
-                }
+                totalSize += this.getDirectorySize(filePath)
             }
 
             return totalSize

@@ -68,7 +68,13 @@ describe('workspaceUtils', function () {
             tempFolder = await TestFolder.create()
             testFeatures = new TestFeatures()
             // Taken from https://github.com/aws/language-server-runtimes/blob/674c02696c150838b4bc93543fb0009c5982e7ad/runtimes/runtimes/standalone.ts#L216
-            testFeatures.workspace.fs.readdir = path => fs.readdir(path, { withFileTypes: true })
+            testFeatures.workspace.fs.readdir = async dirPath => {
+                const entries = await fs.readdir(dirPath, { withFileTypes: true })
+                return entries.map(entry => {
+                    ;(entry as any).parentPath = dirPath
+                    return entry
+                })
+            }
             testFeatures.workspace.fs.exists = path =>
                 fs.access(path).then(
                     () => true,
@@ -130,9 +136,15 @@ describe('workspaceUtils', function () {
         it('correctly identifies entry types', async function () {
             const file = await tempFolder.write('file1', 'this is a file')
             const subdir = await tempFolder.nest('subdir1')
+            // Only create symlinks on non-Windows platforms
+            if (process.platform === 'win32') {
+                const results = (await readDirectoryRecursively(testFeatures, tempFolder.path, undefined)).sort()
+                assert.deepStrictEqual(results, [`[D] ${subdir.path}`, `[F] ${file}`])
+                return
+            }
+
             const linkPath = path.join(tempFolder.path, 'link1')
             await fs.symlink(tempFolder.path, linkPath, 'dir')
-
             const results = (await readDirectoryRecursively(testFeatures, tempFolder.path, undefined)).sort()
             assert.deepStrictEqual(results, [`[D] ${subdir.path}`, `[F] ${file}`, `[L] ${linkPath}`])
         })
@@ -224,7 +236,14 @@ describe('workspaceUtils', function () {
             tempFolder = await TestFolder.create()
             testFeatures = new TestFeatures()
             // Taken from https://github.com/aws/language-server-runtimes/blob/674c02696c150838b4bc93543fb0009c5982e7ad/runtimes/runtimes/standalone.ts#L216
-            testFeatures.workspace.fs.readdir = path => fs.readdir(path, { withFileTypes: true })
+            testFeatures.workspace.fs.readdir = async dirPath => {
+                const entries = await fs.readdir(dirPath, { withFileTypes: true })
+                // Add parentPath to each entry
+                return entries.map(entry => {
+                    ;(entry as any).parentPath = dirPath
+                    return entry
+                })
+            }
             testFeatures.workspace.fs.exists = path =>
                 fs.access(path).then(
                     () => true,

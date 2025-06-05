@@ -4,12 +4,12 @@
  * DO NOT EDIT BY HAND.
  */
 
-import {Request} from 'aws-sdk/lib/request';
-import {Response} from 'aws-sdk/lib/response';
-import {AWSError} from 'aws-sdk/lib/error';
-import {Service} from 'aws-sdk/lib/service';
-import {ServiceConfigurationOptions} from 'aws-sdk/lib/service';
-import {ConfigBase as Config} from 'aws-sdk/lib/config-base';
+import { Request } from 'aws-sdk/lib/request';
+import { Response } from 'aws-sdk/lib/response';
+import { AWSError } from 'aws-sdk/lib/error';
+import { Service } from 'aws-sdk/lib/service';
+import { ServiceConfigurationOptions } from 'aws-sdk/lib/service';
+import { ConfigBase as Config } from 'aws-sdk/lib/config-base';
 interface Blob {}
 declare class CodeWhispererBearerTokenClient extends Service {
   /**
@@ -278,6 +278,7 @@ declare namespace CodeWhispererBearerTokenClient {
   export type AdditionalContentEntryInnerContextString = string;
   export type AdditionalContentEntryNameString = string;
   export type AdditionalContentList = AdditionalContentEntry[];
+  export type AgenticChatEventStatus = "SUCCEEDED" | "CANCELLED" | "FAILED" | string;
   export interface AppStudioState {
     /**
      * The namespace of the context. Examples: 'ui.Button', 'ui.Table.DataSource', 'ui.Table.RowActions.Button', 'logic.invokeAWS', 'logic.JavaScript'
@@ -308,8 +309,8 @@ declare namespace CodeWhispererBearerTokenClient {
   }
   export type ApplicationPropertiesList = ApplicationProperties[];
   export type ArtifactId = string;
-  export type ArtifactMap = {[key: string]: UploadId};
-  export type ArtifactType = "SourceCode"|"BuiltJars"|string;
+  export type ArtifactMap = { [key: string]: UploadId };
+  export type ArtifactType = "SourceCode" | "BuiltJars" | string;
   export interface AssistantResponseMessage {
     messageId?: MessageId;
     /**
@@ -361,6 +362,7 @@ declare namespace CodeWhispererBearerTokenClient {
     responseLength?: Integer;
     numberOfCodeBlocks?: Integer;
     hasProjectLevelContext?: Boolean;
+    result?: AgenticChatEventStatus;
   }
   export type ChatHistory = ChatMessage[];
   export interface ChatInteractWithMessageEvent {
@@ -382,8 +384,8 @@ declare namespace CodeWhispererBearerTokenClient {
     userInputMessage?: UserInputMessage;
     assistantResponseMessage?: AssistantResponseMessage;
   }
-  export type ChatMessageInteractionType = "INSERT_AT_CURSOR"|"COPY_SNIPPET"|"COPY"|"CLICK_LINK"|"CLICK_BODY_LINK"|"CLICK_FOLLOW_UP"|"HOVER_REFERENCE"|"UPVOTE"|"DOWNVOTE"|string;
-  export type ChatTriggerType = "MANUAL"|"DIAGNOSTIC"|"INLINE_CHAT"|string;
+  export type ChatMessageInteractionType = "INSERT_AT_CURSOR" | "COPY_SNIPPET" | "COPY" | "CLICK_LINK" | "CLICK_BODY_LINK" | "CLICK_FOLLOW_UP" | "HOVER_REFERENCE" | "UPVOTE" | "DOWNVOTE" | string;
+  export type ChatTriggerType = "MANUAL" | "DIAGNOSTIC" | "INLINE_CHAT" | string;
   export interface ChatUserModificationEvent {
     conversationId: ConversationId;
     customizationArn?: CustomizationArn;
@@ -392,10 +394,16 @@ declare namespace CodeWhispererBearerTokenClient {
     modificationPercentage: Double;
     hasProjectLevelContext?: Boolean;
   }
+<<<<<<< HEAD
   export type ClientId = string;
   export type CodeAnalysisFindingsSchema = "codeanalysis/findings/1.0"|string;
   export type CodeAnalysisScope = "FILE"|"PROJECT"|string;
   export type CodeAnalysisStatus = "Completed"|"Pending"|"Failed"|string;
+=======
+  export type CodeAnalysisFindingsSchema = "codeanalysis/findings/1.0" | string;
+  export type CodeAnalysisScope = "FILE" | "PROJECT" | string;
+  export type CodeAnalysisStatus = "Completed" | "Pending" | "Failed" | string;
+>>>>>>> origin/main
   export interface CodeAnalysisUploadContext {
     codeScanName: CodeScanName;
   }
@@ -439,7 +447,7 @@ declare namespace CodeWhispererBearerTokenClient {
     linesOfCodeGenerated?: Integer;
     charsOfCodeGenerated?: Integer;
   }
-  export type CodeFixJobStatus = "Succeeded"|"InProgress"|"Failed"|string;
+  export type CodeFixJobStatus = "Succeeded" | "InProgress" | "Failed" | string;
   export type CodeFixName = string;
   export interface CodeFixUploadContext {
     codeFixName: CodeFixName;
@@ -450,8 +458,8 @@ declare namespace CodeWhispererBearerTokenClient {
     currentStage: CodeGenerationWorkflowStage;
   }
   export type CodeGenerationStatusDetail = string;
-  export type CodeGenerationWorkflowStage = "InitialCodeGeneration"|"CodeRefinement"|string;
-  export type CodeGenerationWorkflowStatus = "InProgress"|"Complete"|"Failed"|string;
+  export type CodeGenerationWorkflowStage = "InitialCodeGeneration" | "CodeRefinement" | string;
+  export type CodeGenerationWorkflowStatus = "InProgress" | "Complete" | "Failed" | string;
   export interface CodeScanEvent {
     programmingLanguage: ProgrammingLanguage;
     codeScanJobId: CodeScanJobId;
@@ -478,7 +486,7 @@ declare namespace CodeWhispererBearerTokenClient {
     result?: String;
     includesFix?: Boolean;
   }
-  export type CodeScanRemediationsEventType = "CODESCAN_ISSUE_HOVER"|"CODESCAN_ISSUE_APPLY_FIX"|"CODESCAN_ISSUE_VIEW_DETAILS"|string;
+  export type CodeScanRemediationsEventType = "CODESCAN_ISSUE_HOVER" | "CODESCAN_ISSUE_APPLY_FIX" | "CODESCAN_ISSUE_VIEW_DETAILS" | string;
   export interface CodeScanSucceededEvent {
     programmingLanguage: ProgrammingLanguage;
     codeScanJobId: CodeScanJobId;
@@ -492,7 +500,7 @@ declare namespace CodeWhispererBearerTokenClient {
     mostRelevantMissingImports?: Imports;
   }
   export type CompletionContentString = string;
-  export type CompletionType = "BLOCK"|"LINE"|string;
+  export type CompletionType = "BLOCK" | "LINE" | string;
   export type Completions = Completion[];
   export interface ConsoleState {
     region?: String;
@@ -502,14 +510,18 @@ declare namespace CodeWhispererBearerTokenClient {
     serviceSubconsolePage?: String;
     taskName?: SensitiveString;
   }
-  export type ContentChecksumType = "SHA_256"|string;
-  export type ContextTruncationScheme = "ANALYSIS"|"GUMBY"|string;
+  export type ContentChecksumType = "SHA_256" | string;
+  export type ContextTruncationScheme = "ANALYSIS" | "GUMBY" | string;
   export type ConversationId = string;
   export interface ConversationState {
     /**
      * Unique identifier for the chat conversation stream
      */
     conversationId?: ConversationId;
+    /**
+     * Unique identifier for remote workspace
+     */
+    workspaceId?: UUID;
     /**
      * Holds the history of chat messages.
      */
@@ -628,6 +640,7 @@ declare namespace CodeWhispererBearerTokenClient {
      */
     runtimeDiagnostic?: RuntimeDiagnostic;
   }
+<<<<<<< HEAD
   export interface DiagnosticLocation {
     uri: DiagnosticLocationUriString;
     range: Range;
@@ -648,6 +661,49 @@ declare namespace CodeWhispererBearerTokenClient {
   export type DiagnosticSeverity = "ERROR"|"WARNING"|"INFORMATION"|"HINT"|string;
   export type DiagnosticTag = "UNNECESSARY"|"DEPRECATED"|string;
   export type DiagnosticTagList = DiagnosticTag[];
+=======
+  export interface DiagnosticLocation {
+    uri: DiagnosticLocationUriString;
+    range: Range;
+  }
+  export type DiagnosticLocationUriString = string;
+  export interface DiagnosticRelatedInformation {
+    /**
+     * The location of this related diagnostic information.
+     */
+    location: DiagnosticLocation;
+    /**
+     * The message of this related diagnostic information.
+     */
+    message: DiagnosticRelatedInformationMessageString;
+  }
+  export type DiagnosticRelatedInformationList = DiagnosticRelatedInformation[];
+  export type DiagnosticRelatedInformationMessageString = string;
+  export type DiagnosticSeverity = "ERROR"|"WARNING"|"INFORMATION"|"HINT"|string;
+  export type DiagnosticTag = "UNNECESSARY"|"DEPRECATED"|string;
+  export type DiagnosticTagList = DiagnosticTag[];
+  export interface IdeDiagnostic {
+    /**
+     * The range at which the message applies.
+     */
+    range?: Range;
+    /**
+     * A human-readable string describing the source of the diagnostic
+     */
+    source?: IdeDiagnosticSourceString;
+    /**
+     * Diagnostic Error type
+     */
+    severity?: DiagnosticSeverity;
+    /**
+     * Type of the diagnostic
+     */
+    ideDiagnosticType: IdeDiagnosticType;
+  }
+  export type IdeDiagnosticList = IdeDiagnostic[];
+  export type IdeDiagnosticSourceString = string;
+  export type IdeDiagnosticType = "SYNTAX_ERROR"|"TYPE_ERROR"|"REFERENCE_ERROR"|"BEST_PRACTICE"|"SECURITY"|"OTHER"|string;
+>>>>>>> origin/main
   export interface Dimension {
     name?: DimensionNameString;
     value?: DimensionValueString;
@@ -655,7 +711,7 @@ declare namespace CodeWhispererBearerTokenClient {
   export type DimensionList = Dimension[];
   export type DimensionNameString = string;
   export type DimensionValueString = string;
-  export type DocFolderLevel = "SUB_FOLDER"|"ENTIRE_WORKSPACE"|string;
+  export type DocFolderLevel = "SUB_FOLDER" | "ENTIRE_WORKSPACE" | string;
   export interface DocGenerationEvent {
     conversationId: ConversationId;
     numberOfAddChars?: PrimitiveInteger;
@@ -667,8 +723,8 @@ declare namespace CodeWhispererBearerTokenClient {
     numberOfNavigation?: PrimitiveInteger;
     folderLevel?: DocFolderLevel;
   }
-  export type DocInteractionType = "GENERATE_README"|"UPDATE_README"|"EDIT_README"|string;
-  export type DocUserDecision = "ACCEPT"|"REJECT"|string;
+  export type DocInteractionType = "GENERATE_README" | "UPDATE_README" | "EDIT_README" | string;
+  export type DocUserDecision = "ACCEPT" | "REJECT" | string;
   export interface DocV2AcceptanceEvent {
     conversationId: ConversationId;
     numberOfAddedChars: DocV2AcceptanceEventNumberOfAddedCharsInteger;
@@ -719,7 +775,11 @@ declare namespace CodeWhispererBearerTokenClient {
     changeLogOptions?: ChangeLogOptions;
   }
   export type DocumentationIntentContextScopeString = string;
+<<<<<<< HEAD
   export type DocumentationType = "README"|"CHANGE_LOG"|string;
+=======
+  export type DocumentationType = "README" | string;
+>>>>>>> origin/main
   export type Double = number;
   export interface Edit {
     content: EditContentString;
@@ -836,8 +896,10 @@ declare namespace CodeWhispererBearerTokenClient {
     leftFileContent: FileContextLeftFileContentString;
     rightFileContent: FileContextRightFileContentString;
     filename: FileContextFilenameString;
+    fileUri?: FileContextFileUriString;
     programmingLanguage: ProgrammingLanguage;
   }
+  export type FileContextFileUriString = string;
   export type FileContextFilenameString = string;
   export type FileContextLeftFileContentString = string;
   export type FileContextRightFileContentString = string;
@@ -852,7 +914,11 @@ declare namespace CodeWhispererBearerTokenClient {
     userIntent?: UserIntent;
   }
   export type FollowupPromptContentString = string;
+<<<<<<< HEAD
   export type FunctionalityName = "COMPLETIONS"|"ANALYSIS"|"CONVERSATIONS"|"TASK_ASSIST"|"TRANSFORMATIONS"|"CHAT_CUSTOMIZATION"|"TRANSFORMATIONS_WEBAPP"|"FEATURE_DEVELOPMENT"|string;
+=======
+  export type FunctionalityName = "COMPLETIONS" | "ANALYSIS" | "CONVERSATIONS" | "TASK_ASSIST" | "TRANSFORMATIONS" | "CHAT_CUSTOMIZATION" | "TRANSFORMATIONS_WEBAPP" | string;
+>>>>>>> origin/main
   export interface GenerateCompletionsRequest {
     fileContext: FileContext;
     editorState?: EditorState;
@@ -933,6 +999,7 @@ declare namespace CodeWhispererBearerTokenClient {
     status?: GitStateStatusString;
   }
   export type GitStateStatusString = string;
+<<<<<<< HEAD
   export type IdeCategory = "JETBRAINS"|"VSCODE"|"CLI"|"JUPYTER_MD"|"JUPYTER_SM"|"ECLIPSE"|"VISUAL_STUDIO"|string;
   export interface IdeDiagnostic {
     /**
@@ -955,6 +1022,9 @@ declare namespace CodeWhispererBearerTokenClient {
   export type IdeDiagnosticList = IdeDiagnostic[];
   export type IdeDiagnosticSourceString = string;
   export type IdeDiagnosticType = "SYNTAX_ERROR"|"TYPE_ERROR"|"REFERENCE_ERROR"|"BEST_PRACTICE"|"SECURITY"|"OTHER"|string;
+=======
+  export type IdeCategory = "JETBRAINS" | "VSCODE" | "CLI" | "JUPYTER_MD" | "JUPYTER_SM" | "ECLIPSE" | "VISUAL_STUDIO" | string;
+>>>>>>> origin/main
   export type IdempotencyToken = string;
   export interface IdentityDetails {
     ssoIdentityDetails?: SSOIdentityDetails;
@@ -990,9 +1060,9 @@ declare namespace CodeWhispererBearerTokenClient {
     responseEndLatency?: Double;
     programmingLanguage?: ProgrammingLanguage;
   }
-  export type InlineChatUserDecision = "ACCEPT"|"REJECT"|"DISMISS"|string;
+  export type InlineChatUserDecision = "ACCEPT" | "REJECT" | "DISMISS" | string;
   export type Integer = number;
-  export type Intent = "DEV"|"DOC"|string;
+  export type Intent = "DEV" | "DOC" | string;
   export interface IntentContext {
     documentation?: DocumentationIntentContext;
   }
@@ -1101,14 +1171,18 @@ declare namespace CodeWhispererBearerTokenClient {
   }
   export type MetricDataMetricNameString = string;
   export type MetricDataProductString = string;
+<<<<<<< HEAD
   export type NextToken = string;
+=======
+  export type ModelId = string;
+>>>>>>> origin/main
   export type Notifications = NotificationsFeature[];
   export interface NotificationsFeature {
     feature: FeatureName;
     toggle: OptInFeatureToggle;
   }
-  export type OperatingSystem = "MAC"|"WINDOWS"|"LINUX"|string;
-  export type OptInFeatureToggle = "ON"|"OFF"|string;
+  export type OperatingSystem = "MAC" | "WINDOWS" | "LINUX" | string;
+  export type OptInFeatureToggle = "ON" | "OFF" | string;
   export interface OptInFeatures {
     promptLogging?: PromptLogging;
     byUserAnalytics?: ByUserAnalytics;
@@ -1116,8 +1190,8 @@ declare namespace CodeWhispererBearerTokenClient {
     notifications?: Notifications;
     workspaceContext?: WorkspaceContext;
   }
-  export type OptOutPreference = "OPTIN"|"OPTOUT"|string;
-  export type Origin = "CHATBOT"|"CONSOLE"|"DOCUMENTATION"|"MARKETING"|"MOBILE"|"SERVICE_INTERNAL"|"UNIFIED_SEARCH"|"UNKNOWN"|"MD"|"IDE"|"SAGE_MAKER"|"CLI"|"AI_EDITOR"|"OPENSEARCH_DASHBOARD"|"GITLAB"|string;
+  export type OptOutPreference = "OPTIN" | "OPTOUT" | string;
+  export type Origin = "CHATBOT" | "CONSOLE" | "DOCUMENTATION" | "MARKETING" | "MOBILE" | "SERVICE_INTERNAL" | "UNIFIED_SEARCH" | "UNKNOWN" | "MD" | "IDE" | "SAGE_MAKER" | "CLI" | "AI_EDITOR" | "OPENSEARCH_DASHBOARD" | "GITLAB" | string;
   export interface PackageInfo {
     executionCommand?: SensitiveString;
     buildCommand?: SensitiveString;
@@ -1174,8 +1248,8 @@ declare namespace CodeWhispererBearerTokenClient {
   export type ProfileDescription = string;
   export type ProfileList = Profile[];
   export type ProfileName = string;
-  export type ProfileStatus = "ACTIVE"|"CREATING"|"CREATE_FAILED"|"UPDATING"|"UPDATE_FAILED"|"DELETING"|"DELETE_FAILED"|string;
-  export type ProfileType = "Q_DEVELOPER"|"CODEWHISPERER"|string;
+  export type ProfileStatus = "ACTIVE" | "CREATING" | "CREATE_FAILED" | "UPDATING" | "UPDATE_FAILED" | "DELETING" | "DELETE_FAILED" | string;
+  export type ProfileType = "Q_DEVELOPER" | "CODEWHISPERER" | string;
   export interface ProgrammingLanguage {
     languageName: ProgrammingLanguageLanguageNameString;
   }
@@ -1195,7 +1269,7 @@ declare namespace CodeWhispererBearerTokenClient {
      */
     end: Position;
   }
-  export type RecommendationsWithReferencesPreference = "BLOCK"|"ALLOW"|string;
+  export type RecommendationsWithReferencesPreference = "BLOCK" | "ALLOW" | string;
   export interface Reference {
     /**
      * License name
@@ -1244,12 +1318,12 @@ declare namespace CodeWhispererBearerTokenClient {
   export type RelevantTextDocumentTextString = string;
   export type RequestHeaderKey = string;
   export type RequestHeaderValue = string;
-  export type RequestHeaders = {[key: string]: RequestHeaderValue};
+  export type RequestHeaders = { [key: string]: RequestHeaderValue };
   export type ResourceArn = string;
   export interface ResourcePolicy {
     effect: ResourcePolicyEffect;
   }
-  export type ResourcePolicyEffect = "ALLOW"|"DENY"|string;
+  export type ResourcePolicyEffect = "ALLOW" | "DENY" | string;
   export interface ResumeTransformationRequest {
     transformationJobId: TransformationJobId;
     userActionStatus?: TransformationUserActionStatus;
@@ -1287,6 +1361,7 @@ declare namespace CodeWhispererBearerTokenClient {
     optOutPreference?: OptOutPreference;
     userContext?: UserContext;
     profileArn?: ProfileArn;
+    modelId?: ModelId;
   }
   export interface SendTelemetryEventResponse {
   }
@@ -1457,8 +1532,12 @@ declare namespace CodeWhispererBearerTokenClient {
   export type SupplementaryWebLinkTitleString = string;
   export type SupplementaryWebLinkUrlString = string;
   export type SupplementaryWebLinks = SupplementaryWebLink[];
+<<<<<<< HEAD
   export type SymbolType = "DECLARATION"|"USAGE"|string;
   export type SyntheticTimestamp_date_time = Date;
+=======
+  export type SymbolType = "DECLARATION" | "USAGE" | string;
+>>>>>>> origin/main
   export interface TargetCode {
     /**
      * The file path relative to the root of the workspace, could be a single file or a folder.
@@ -1505,7 +1584,7 @@ declare namespace CodeWhispererBearerTokenClient {
      */
     action?: TaskAssistPlanStepAction;
   }
-  export type TaskAssistPlanStepAction = "MODIFY"|"CREATE"|"DELETE"|"UNKNOWN"|string;
+  export type TaskAssistPlanStepAction = "MODIFY" | "CREATE" | "DELETE" | "UNKNOWN" | string;
   export type TaskAssistPlanStepDescriptionString = string;
   export type TaskAssistPlanStepEndLineInteger = number;
   export type TaskAssistPlanStepFilePathString = string;
@@ -1550,7 +1629,7 @@ declare namespace CodeWhispererBearerTokenClient {
     isCompletionAccepted?: Boolean;
     cliToolCommand?: String;
   }
-  export type TerminalUserInteractionEventType = "CODEWHISPERER_TERMINAL_TRANSLATION_ACTION"|"CODEWHISPERER_TERMINAL_COMPLETION_INSERTED"|string;
+  export type TerminalUserInteractionEventType = "CODEWHISPERER_TERMINAL_TRANSLATION_ACTION" | "CODEWHISPERER_TERMINAL_COMPLETION_INSERTED" | string;
   export interface TestGenerationEvent {
     jobId: UUID;
     groupName: TestGenerationJobGroupName;
@@ -1580,7 +1659,7 @@ declare namespace CodeWhispererBearerTokenClient {
   export type TestGenerationJobJobPlanString = string;
   export type TestGenerationJobJobSummaryString = string;
   export type TestGenerationJobProgressRateInteger = number;
-  export type TestGenerationJobStatus = "IN_PROGRESS"|"FAILED"|"COMPLETED"|string;
+  export type TestGenerationJobStatus = "IN_PROGRESS" | "FAILED" | "COMPLETED" | string;
   export interface TextDocument {
     /**
      * Filepath relative to the root of the workspace
@@ -1675,7 +1754,7 @@ declare namespace CodeWhispererBearerTokenClient {
     json?: SensitiveDocument;
   }
   export type ToolResultContentBlockTextString = string;
-  export type ToolResultStatus = "success"|"error"|string;
+  export type ToolResultStatus = "success" | "error" | string;
   export type ToolResults = ToolResult[];
   export interface ToolSpecification {
     inputSchema: ToolInputSchema;
@@ -1702,14 +1781,14 @@ declare namespace CodeWhispererBearerTokenClient {
     charsOfCodeChanged?: Integer;
     linesOfCodeSubmitted?: Integer;
   }
-  export type TransformationDotNetRuntimeEnv = "NET_5_0"|"NET_6_0"|"NET_7_0"|"NET_8_0"|"NET_9_0"|"NET_STANDARD_2_0"|string;
+  export type TransformationDotNetRuntimeEnv = "NET_5_0" | "NET_6_0" | "NET_7_0" | "NET_8_0" | "NET_9_0" | "NET_STANDARD_2_0" | string;
   export interface TransformationDownloadArtifact {
     downloadArtifactType?: TransformationDownloadArtifactType;
     downloadArtifactId?: ArtifactId;
   }
-  export type TransformationDownloadArtifactType = "ClientInstructions"|"Logs"|"GeneratedCode"|string;
+  export type TransformationDownloadArtifactType = "ClientInstructions" | "Logs" | "GeneratedCode" | string;
   export type TransformationDownloadArtifacts = TransformationDownloadArtifact[];
-  export type TransformationJavaRuntimeEnv = "JVM_8"|"JVM_11"|"JVM_17"|"JVM_21"|string;
+  export type TransformationJavaRuntimeEnv = "JVM_8" | "JVM_11" | "JVM_17" | "JVM_21" | string;
   export interface TransformationJob {
     jobId?: TransformationJobId;
     transformationSpec?: TransformationSpec;
@@ -1720,10 +1799,10 @@ declare namespace CodeWhispererBearerTokenClient {
     endExecutionTime?: Timestamp;
   }
   export type TransformationJobId = string;
-  export type TransformationLanguage = "JAVA_8"|"JAVA_11"|"JAVA_17"|"JAVA_21"|"C_SHARP"|"COBOL"|"PL_I"|"JCL"|string;
+  export type TransformationLanguage = "JAVA_8" | "JAVA_11" | "JAVA_17" | "JAVA_21" | "C_SHARP" | "COBOL" | "PL_I" | "JCL" | string;
   export type TransformationLanguages = TransformationLanguage[];
-  export type TransformationMainframeRuntimeEnv = "MAINFRAME"|string;
-  export type TransformationOperatingSystemFamily = "WINDOWS"|"LINUX"|string;
+  export type TransformationMainframeRuntimeEnv = "MAINFRAME" | string;
+  export type TransformationOperatingSystemFamily = "WINDOWS" | "LINUX" | string;
   export interface TransformationPlan {
     transformationSteps: TransformationSteps;
   }
@@ -1738,7 +1817,7 @@ declare namespace CodeWhispererBearerTokenClient {
     endTime?: Timestamp;
     downloadArtifacts?: TransformationDownloadArtifacts;
   }
-  export type TransformationProgressUpdateStatus = "IN_PROGRESS"|"COMPLETED"|"FAILED"|"PAUSED"|"AWAITING_CLIENT_ACTION"|"SKIPPED"|string;
+  export type TransformationProgressUpdateStatus = "IN_PROGRESS" | "COMPLETED" | "FAILED" | "PAUSED" | "AWAITING_CLIENT_ACTION" | "SKIPPED" | string;
   export interface TransformationProjectArtifactDescriptor {
     sourceCodeArtifact?: TransformationSourceCodeArtifactDescriptor;
   }
@@ -1762,7 +1841,7 @@ declare namespace CodeWhispererBearerTokenClient {
     source?: TransformationProjectState;
     target?: TransformationProjectState;
   }
-  export type TransformationStatus = "CREATED"|"ACCEPTED"|"REJECTED"|"STARTED"|"PREPARING"|"PREPARED"|"PLANNING"|"PLANNED"|"TRANSFORMING"|"TRANSFORMED"|"FAILED"|"COMPLETED"|"PARTIALLY_COMPLETED"|"STOPPING"|"STOPPED"|"PAUSED"|"RESUMED"|string;
+  export type TransformationStatus = "CREATED" | "ACCEPTED" | "REJECTED" | "STARTED" | "PREPARING" | "PREPARED" | "PLANNING" | "PLANNED" | "TRANSFORMING" | "TRANSFORMED" | "FAILED" | "COMPLETED" | "PARTIALLY_COMPLETED" | "STOPPING" | "STOPPED" | "PAUSED" | "RESUMED" | string;
   export interface TransformationStep {
     id: StepId;
     name: String;
@@ -1772,15 +1851,15 @@ declare namespace CodeWhispererBearerTokenClient {
     startTime?: Timestamp;
     endTime?: Timestamp;
   }
-  export type TransformationStepStatus = "CREATED"|"COMPLETED"|"PARTIALLY_COMPLETED"|"STOPPED"|"FAILED"|"PAUSED"|"SKIPPED"|string;
+  export type TransformationStepStatus = "CREATED" | "COMPLETED" | "PARTIALLY_COMPLETED" | "STOPPED" | "FAILED" | "PAUSED" | "SKIPPED" | string;
   export type TransformationSteps = TransformationStep[];
-  export type TransformationType = "LANGUAGE_UPGRADE"|"DOCUMENT_GENERATION"|string;
-  export type TransformationUploadArtifactType = "Dependencies"|"ClientBuildResult"|string;
+  export type TransformationType = "LANGUAGE_UPGRADE" | "DOCUMENT_GENERATION" | string;
+  export type TransformationUploadArtifactType = "Dependencies" | "ClientBuildResult" | string;
   export interface TransformationUploadContext {
     jobId: TransformationJobId;
     uploadArtifactType: TransformationUploadArtifactType;
   }
-  export type TransformationUserActionStatus = "COMPLETED"|"REJECTED"|string;
+  export type TransformationUserActionStatus = "COMPLETED" | "REJECTED" | string;
   export type UUID = string;
   export interface UploadContext {
     taskAssistPlanningUploadContext?: TaskAssistPlanningUploadContext;
@@ -1790,7 +1869,7 @@ declare namespace CodeWhispererBearerTokenClient {
     workspaceContextUploadContext?: WorkspaceContextUploadContext;
   }
   export type UploadId = string;
-  export type UploadIntent = "TRANSFORMATION"|"TASK_ASSIST_PLANNING"|"AUTOMATIC_FILE_SECURITY_SCAN"|"FULL_PROJECT_SECURITY_SCAN"|"UNIT_TESTS_GENERATION"|"CODE_FIX_GENERATION"|"WORKSPACE_CONTEXT"|string;
+  export type UploadIntent = "TRANSFORMATION" | "TASK_ASSIST_PLANNING" | "AUTOMATIC_FILE_SECURITY_SCAN" | "FULL_PROJECT_SECURITY_SCAN" | "UNIT_TESTS_GENERATION" | "CODE_FIX_GENERATION" | "WORKSPACE_CONTEXT" | string;
   export type Url = string;
   export interface UserContext {
     ideCategory: IdeCategory;
@@ -1869,7 +1948,7 @@ declare namespace CodeWhispererBearerTokenClient {
      */
     tools?: Tools;
   }
-  export type UserIntent = "SUGGEST_ALTERNATE_IMPLEMENTATION"|"APPLY_COMMON_BEST_PRACTICES"|"IMPROVE_CODE"|"SHOW_EXAMPLES"|"CITE_SOURCES"|"EXPLAIN_LINE_BY_LINE"|"EXPLAIN_CODE_SELECTION"|"GENERATE_CLOUDFORMATION_TEMPLATE"|"GENERATE_UNIT_TESTS"|"CODE_GENERATION"|string;
+  export type UserIntent = "SUGGEST_ALTERNATE_IMPLEMENTATION" | "APPLY_COMMON_BEST_PRACTICES" | "IMPROVE_CODE" | "SHOW_EXAMPLES" | "CITE_SOURCES" | "EXPLAIN_LINE_BY_LINE" | "EXPLAIN_CODE_SELECTION" | "GENERATE_CLOUDFORMATION_TEMPLATE" | "GENERATE_UNIT_TESTS" | "CODE_GENERATION" | string;
   export interface UserModificationEvent {
     sessionId: UUID;
     requestId: UUID;
@@ -1937,12 +2016,12 @@ declare namespace CodeWhispererBearerTokenClient {
      */
     contextTruncationScheme?: ContextTruncationScheme;
   }
-  export type WorkspaceStatus = "CREATED"|"PENDING"|"READY"|"CONNECTED"|"DELETING"|string;
+  export type WorkspaceStatus = "CREATED" | "PENDING" | "READY" | "CONNECTED" | "DELETING" | string;
   export type timeBetweenChunks = Double[];
   /**
    * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.
    */
-  export type apiVersion = "2022-11-11"|"latest"|string;
+  export type apiVersion = "2022-11-11" | "latest" | string;
   export interface ClientApiVersions {
     /**
      * A string in YYYY-MM-DD format that represents the latest possible API version that can be used in this service. Specify 'latest' to use the latest possible version.

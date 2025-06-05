@@ -8,22 +8,22 @@ import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspRea
 import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
 import { McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
+import { FileSearch, FileSearchParams } from './fileSearch'
+import { GrepSearch } from './grepSearch'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
     const fsWriteTool = new FsWrite({ workspace, lsp, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
+    const fileSearchTool = new FileSearch({ workspace, lsp, logging })
+    const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
-        // TODO: fill in logic for handling invalid tool invocations
-        // TODO: implement chat streaming via queueDescription.
         await fsReadTool.validate(input)
         return await fsReadTool.invoke(input)
     })
 
     agent.addTool(fsWriteTool.getSpec(), async (input: FsWriteParams) => {
-        // TODO: fill in logic for handling invalid tool invocations
-        // TODO: implement chat streaming via queueDescription.
         await fsWriteTool.validate(input)
         return await fsWriteTool.invoke(input)
     })
@@ -32,6 +32,17 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         await listDirectoryTool.validate(input)
         return await listDirectoryTool.invoke(input, token)
     })
+
+    agent.addTool(fileSearchTool.getSpec(), async (input: FileSearchParams, token?: CancellationToken) => {
+        await fileSearchTool.validate(input)
+        return await fileSearchTool.invoke(input, token)
+    })
+
+    // Temporarily disable grep search
+    // agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
+    //     await grepSearchTool.validate(input)
+    //     return await grepSearchTool.invoke(input, token)
+    // })
 
     return () => {}
 }
@@ -65,7 +76,8 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
 export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     lsp.onInitialized(async () => {
         // todo: move to constants
-        const wsUris = lsp.getClientInitializeParams()?.workspaceFolders?.map(f => f.uri) ?? []
+        var workspaceFolders = workspace.getAllWorkspaceFolders()
+        const wsUris = workspaceFolders?.map(f => f.uri) ?? []
         const wsConfigPaths = wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
         const globalConfigPath = `${workspace.fs.getUserHomeDir()}/.aws/amazonq/mcp.json`
         const allPaths = [...wsConfigPaths, globalConfigPath]

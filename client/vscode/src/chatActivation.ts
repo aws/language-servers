@@ -50,7 +50,8 @@ export function registerChat(
     languageClient: LanguageClient,
     extensionUri: Uri,
     encryptionKey?: Buffer,
-    agenticMode?: boolean
+    agenticMode?: boolean,
+    modelSelectionEnabled?: boolean
 ) {
     const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
         const provider = {
@@ -273,7 +274,12 @@ export function registerChat(
                 registerHandlerWithResponseRouter(openTabRequestType.method)
                 registerHandlerWithResponseRouter(getSerializedChatRequestType.method)
 
-                webviewView.webview.html = getWebviewContent(webviewView.webview, extensionUri, !!agenticMode)
+                webviewView.webview.html = getWebviewContent(
+                    webviewView.webview,
+                    extensionUri,
+                    !!agenticMode,
+                    !!modelSelectionEnabled
+                )
 
                 registerGenericCommand('aws.sample-vscode-ext-amazonq.explainCode', 'Explain', webviewView.webview)
                 registerGenericCommand('aws.sample-vscode-ext-amazonq.refactorCode', 'Refactor', webviewView.webview)
@@ -393,7 +399,7 @@ async function handleRequest(
     })
 }
 
-function getWebviewContent(webView: Webview, extensionUri: Uri, agenticMode: boolean) {
+function getWebviewContent(webView: Webview, extensionUri: Uri, agenticMode: boolean, modelSelectionEnabled: boolean) {
     return `
     <!DOCTYPE html>
     <html lang="en">
@@ -404,7 +410,7 @@ function getWebviewContent(webView: Webview, extensionUri: Uri, agenticMode: boo
         ${generateCss()}
     </head>
     <body>
-        ${generateJS(webView, extensionUri, agenticMode)}
+        ${generateJS(webView, extensionUri, agenticMode, modelSelectionEnabled)}
     </body>
     </html>`
 }
@@ -425,7 +431,7 @@ function generateCss() {
     </style>`
 }
 
-function generateJS(webView: Webview, extensionUri: Uri, agenticMode: boolean): string {
+function generateJS(webView: Webview, extensionUri: Uri, agenticMode: boolean, modelSelectionEnabled: boolean): string {
     const assetsPath = Uri.joinPath(extensionUri)
     const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
@@ -444,7 +450,7 @@ function generateJS(webView: Webview, extensionUri: Uri, agenticMode: boolean): 
     <script type="text/javascript">
         const init = () => {
             amazonQChat.createChat(acquireVsCodeApi(), 
-                {disclaimerAcknowledged: false, agenticMode: ${!!agenticMode}}, 
+                {disclaimerAcknowledged: false, agenticMode: ${!!agenticMode}, modelSelectionEnabled: ${!!modelSelectionEnabled}},
                 undefined,
                 JSON.stringify(${stringifiedContextCommands})
             );

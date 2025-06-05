@@ -10,6 +10,8 @@ import {
     groupTabsByDate,
     Message,
     messageToStreamingMessage,
+    Settings,
+    SettingsCollection,
     Tab,
     TabCollection,
     TabType,
@@ -24,8 +26,6 @@ import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
-// Maximum number of characters to keep in history
-const MaxConversationHistoryCharacters = 600_000
 // Maximum number of messages to keep in history
 const MaxConversationHistoryMessages = 250
 
@@ -109,8 +109,9 @@ export class ChatDatabase {
      * Generates an identifier for the open workspace folder(s).
      */
     getWorkspaceIdentifier() {
-        let clientParams = this.#features.lsp.getClientInitializeParams()
-        let workspaceFolderPaths = clientParams?.workspaceFolders?.map(({ uri }) => new URL(uri).pathname)
+        let workspaceFolderPaths = this.#features.workspace
+            .getAllWorkspaceFolders()
+            ?.map(({ uri }) => new URL(uri).pathname)
         // Case 1: Multi-root workspace (unsaved)
         if (workspaceFolderPaths && workspaceFolderPaths.length > 1) {
             // Create hash from all folder paths combined
@@ -146,6 +147,7 @@ export class ChatDatabase {
                 indices: ['updatedAt', 'isOpen'],
             })
         }
+        this.#db.addCollection(SettingsCollection)
         this.#initialized = true
         this.#loadTimeMs = Date.now() - startTime
     }
@@ -397,7 +399,12 @@ export class ChatDatabase {
      * 5. The toolUse and toolResult relationship is valid
      * 6. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndValidateHistory(tabId: string, newUserMessage: ChatMessage, conversationId: string): boolean {
+    fixAndValidateHistory(
+        tabId: string,
+        newUserMessage: ChatMessage,
+        conversationId: string,
+        remainingCharacterBudget: number
+    ): boolean {
         if (!this.#initialized) {
             return true
         }
@@ -429,8 +436,8 @@ export class ChatDatabase {
         // Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
         const isValid = this.validateNewMessageToolResults(allMessages, newUserMessage)
 
-        //  Make sure max characters ≤ MaxConversationHistoryCharacters - newUserMessageCharacterCount
-        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage)
+        //  Make sure max characters ≤ remaining Character Budget
+        allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
 
         const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
 
@@ -482,7 +489,7 @@ export class ChatDatabase {
     }
 
     private handleEmptyAssistantMessage(messages: Message[]): void {
-        if (messages.length === 0) {
+        if (messages.length < 2) {
             return
         }
 
@@ -499,14 +506,11 @@ export class ChatDatabase {
         }
     }
 
-    private trimMessagesToMaxLength(messages: Message[], newUserMessage: ChatMessage): Message[] {
+    private trimMessagesToMaxLength(messages: Message[], remainingCharacterBudget: number): Message[] {
         let totalCharacters = this.calculateHistoryCharacterCount(messages)
         this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
-        const currentUserInputCharacterCount = this.calculateCurrentMessageCharacterCount(
-            chatMessageToMessage(newUserMessage)
-        )
-        this.#features.logging.debug(`Current user message characters: ${currentUserInputCharacterCount}`)
-        const maxHistoryCharacterSize = Math.max(0, MaxConversationHistoryCharacters - currentUserInputCharacterCount)
+        this.#features.logging.debug(`Current remaining character budget: ${remainingCharacterBudget}`)
+        const maxHistoryCharacterSize = Math.max(0, remainingCharacterBudget)
         while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
             // Find the next valid user message to start from
             const indexToTrim = this.findIndexToTrim(messages)
@@ -572,62 +576,6 @@ export class ChatDatabase {
         return count
     }
 
-    private calculateCurrentMessageCharacterCount(message: Message): number {
-        let count = 0
-        // Count characters of message text
-        count += message.body.length
-
-        // Count characters in tool uses
-        if (message.toolUses) {
-            try {
-                for (const toolUse of message.toolUses) {
-                    count += JSON.stringify(toolUse).length
-                }
-            } catch (e) {
-                this.#features.logging.error(`Error counting toolUses: ${String(e)}`)
-            }
-        }
-        // Count characters in tool results
-        if (message.userInputMessageContext?.toolResults) {
-            try {
-                for (const toolResul of message.userInputMessageContext.toolResults) {
-                    count += JSON.stringify(toolResul).length
-                }
-            } catch (e) {
-                this.#features.logging.error(`Error counting toolResults: ${String(e)}`)
-            }
-        }
-        // Count characters in tool spec for the current user message
-        if (message.userInputMessageContext?.tools) {
-            try {
-                for (const toolSpec of message.userInputMessageContext.tools) {
-                    count += JSON.stringify(toolSpec).length
-                }
-            } catch (e) {
-                this.#features.logging.error(`Error counting tool spec length: ${String(e)}`)
-            }
-        }
-
-        if (message.userInputMessageContext?.additionalContext) {
-            try {
-                for (const addtionalContext of message.userInputMessageContext.additionalContext) {
-                    count += JSON.stringify(addtionalContext).length
-                }
-            } catch (e) {
-                this.#features.logging.error(`Error counting addtionalContext length: ${String(e)}`)
-            }
-        }
-
-        if (message.userInputMessageContext?.editorState) {
-            try {
-                count += JSON.stringify(message.userInputMessageContext?.editorState).length
-            } catch (e) {
-                this.#features.logging.error(`Error counting editorState length: ${String(e)}`)
-            }
-        }
-        return count
-    }
-
     ensureValidMessageSequence(messages: Message[], newUserMessage: ChatMessage): void {
         if (messages.length === 0) {
             return
@@ -643,6 +591,10 @@ export class ChatDatabase {
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
             messages.pop()
             this.#features.logging.debug('Dropped trailing user message')
+        }
+
+        if (messages.length === 0) {
+            return
         }
 
         //  Make sure there are alternating user and assistant messages
@@ -661,6 +613,13 @@ export class ChatDatabase {
         if (newUserMessage?.userInputMessage?.userInputMessageContext) {
             const newUserMessageContext = newUserMessage.userInputMessage.userInputMessageContext
             const toolResults = newUserMessageContext.toolResults || []
+            if (messages.length === 0) {
+                if (toolResults && toolResults.length > 0) {
+                    this.#features.logging.warn('New message has tool results but last message has no tool uses')
+                    return false
+                }
+                return true
+            }
             const lastMsg = messages[messages.length - 1]
             const lastMsgToolUses = lastMsg?.toolUses || []
 
@@ -700,5 +659,37 @@ export class ChatDatabase {
             }
         }
         return true
+    }
+
+    getSettings(): Settings | undefined {
+        if (this.#initialized) {
+            const settingsCollection = this.#db.getCollection<Settings>(SettingsCollection)
+            const settings = settingsCollection.findOne({})
+            return settings || undefined
+        }
+        return undefined
+    }
+
+    updateSettings(settings: Settings): void {
+        if (this.#initialized) {
+            const settingsCollection = this.#db.getCollection<Settings>(SettingsCollection)
+            const existingSettings = settingsCollection.findOne({})
+            if (existingSettings) {
+                this.#features.logging.log('Updating existing settings')
+                settingsCollection.update({ ...existingSettings, ...settings })
+            } else {
+                this.#features.logging.log('Creating new settings')
+                settingsCollection.insert(settings)
+            }
+        }
+    }
+
+    getModelId(): string | undefined {
+        const settings = this.getSettings()
+        return settings?.modelId
+    }
+
+    setModelId(modelId: string | undefined): void {
+        this.updateSettings({ modelId })
     }
 }

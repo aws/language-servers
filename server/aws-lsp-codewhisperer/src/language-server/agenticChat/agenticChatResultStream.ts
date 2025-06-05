@@ -203,6 +203,10 @@ export class AgenticChatResultStream {
         this.#state.chatResultBlocks = this.#state.chatResultBlocks.filter(block => block.messageId !== messageId)
     }
 
+    /**
+     * Removes a specific messageId and renders the result on UI
+     * @param messageId
+     */
     async removeResultBlockAndUpdateUI(messageId: string) {
         if (this.hasMessage(messageId)) {
             const blockId = this.getMessageBlockId(messageId)
@@ -210,6 +214,22 @@ export class AgenticChatResultStream {
                 await this.overwriteResultBlock({ body: '', messageId: messageId }, blockId)
             }
             await this.removeResultBlock(messageId)
+        }
+    }
+
+    async updateOngoingProgressResult(errorMessage: string) {
+        for (const block of this.#state.chatResultBlocks) {
+            if (block.messageId?.startsWith(progressPrefix) && block.header?.status?.icon === 'progress') {
+                await this.removeResultBlockAndUpdateUI(block.messageId)
+                block.header.status = {
+                    status: 'error',
+                    icon: 'error',
+                    text: errorMessage,
+                }
+                block.messageId = block.messageId.substring(progressPrefix.length)
+                await this.writeResultBlock(block)
+                break
+            }
         }
     }
 

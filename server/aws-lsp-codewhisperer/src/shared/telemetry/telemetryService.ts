@@ -19,6 +19,7 @@ import {
     ChatAddMessageEvent,
     UserIntent,
     InlineChatEvent,
+    AgenticChatEventStatus,
 } from '../../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
@@ -48,6 +49,7 @@ export class TelemetryService {
     private credentialsProvider: CredentialsProvider
     private logging: Logging
     private profileArn: string | undefined
+    private modelId: string | undefined
 
     private readonly cwInteractionTypeMap: Record<ChatInteractionType, ChatMessageInteractionType> = {
         [ChatInteractionType.InsertAtCursor]: 'INSERT_AT_CURSOR',
@@ -84,6 +86,10 @@ export class TelemetryService {
 
     public updateProfileArn(profileArn: string) {
         this.profileArn = profileArn
+    }
+
+    public updateModelId(modelId: string | undefined) {
+        this.modelId = modelId
     }
 
     public updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination: boolean): void {
@@ -162,6 +168,9 @@ export class TelemetryService {
             }
             if (this.profileArn !== undefined) {
                 request.profileArn = this.profileArn
+            }
+            if (this.modelId !== undefined) {
+                request.modelId = this.modelId
             }
             await this.getService().sendTelemetryEvent(request)
         } catch (error) {
@@ -486,6 +495,7 @@ export class TelemetryService {
             numberOfCodeBlocks?: number
             hasProjectLevelContext?: number
             agenticCodingMode?: boolean
+            result?: string
         },
         additionalParams: Partial<{
             chatTriggerInteraction: string
@@ -510,9 +520,6 @@ export class TelemetryService {
             requestIds?: string[]
         }>
     ) {
-        if (!params.conversationId || !params.messageId) {
-            return
-        }
         const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
         // truncate requestIds if longer than 875 so it does not go over field limit
         const truncatedRequestIds = additionalParams.requestIds?.slice(0, 875)
@@ -553,7 +560,7 @@ export class TelemetryService {
                     cwsprChatFocusFileContextLength: additionalParams.cwsprChatFocusFileContextLength,
                     cwsprChatCodeContextCount: additionalParams.cwsprChatCodeContextCount,
                     cwsprChatCodeContextLength: additionalParams.cwsprChatCodeContextLength,
-                    result: 'Succeeded',
+                    result: params.result ?? 'Succeeded',
                     enabled: params.agenticCodingMode,
                     languageServerVersion: additionalParams.languageServerVersion,
                     requestIds: truncatedRequestIds,
@@ -562,8 +569,9 @@ export class TelemetryService {
         }
 
         const event: ChatAddMessageEvent = {
-            conversationId: params.conversationId,
-            messageId: params.messageId,
+            // Fields conversationId and messageId are required, but failed or cancelled events may not have those values, then just set them as dummy value
+            conversationId: params.conversationId ?? 'DummyConversationId',
+            messageId: params.messageId ?? 'DummyMessageId',
             userIntent: params.userIntent,
             hasCodeSnippet: params.hasCodeSnippet,
             activeEditorTotalCharacters: params.activeEditorTotalCharacters,
@@ -574,6 +582,7 @@ export class TelemetryService {
             responseLength: params.responseLength,
             numberOfCodeBlocks: params.numberOfCodeBlocks,
             hasProjectLevelContext: false,
+            result: params.result?.toUpperCase() ?? 'SUCCEEDED',
         }
         if (params.customizationArn) {
             event.customizationArn = params.customizationArn

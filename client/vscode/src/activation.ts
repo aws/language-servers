@@ -166,12 +166,14 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     // Activate chat server after LSP initialize handshake is done
     const enableChat = process.env.ENABLE_CHAT === 'true'
     const agenticMode = process.env.ENABLE_AGENTIC_UI_MODE === 'true'
+    const modelSelectionEnabled = process.env.ENABLE_MODEL_SELECTION === 'true'
     if (enableChat) {
         registerChat(
             client,
             extensionContext.extensionUri,
             enableEncryptionInit ? encryptionKey : undefined,
-            agenticMode
+            agenticMode,
+            modelSelectionEnabled
         )
     }
 

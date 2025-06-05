@@ -96,7 +96,8 @@
                 "ENABLE_CUSTOMIZATIONS": "true",
                 "ENABLE_AMAZON_Q_PROFILES": "false",
                 "ENABLE_AWS_Q_SECTION": "true",
-                "ENABLE_AGENTIC_UI_MODE": "false"
+                "ENABLE_AGENTIC_UI_MODE": "false",
+                "ENABLE_MODEL_SELECTION": "false"
                 // "HTTPS_PROXY": "http://127.0.0.1:8888",
                 // "AWS_CA_BUNDLE": "/path/to/cert.pem"
             }
@@ -120,7 +121,8 @@
                 "ENABLE_AMAZON_Q_PROFILES": "false",
                 "ENABLE_CUSTOMIZATIONS_WITH_METADATA": "false",
                 "ENABLE_AWS_Q_SECTION": "true",
-                "ENABLE_AGENTIC_UI_MODE": "true"
+                "ENABLE_AGENTIC_UI_MODE": "true",
+                "ENABLE_MODEL_SELECTION": "true"
                 // "HTTPS_PROXY": "http://127.0.0.1:8888",
                 // "AWS_CA_BUNDLE": "/path/to/cert.pem"
             }

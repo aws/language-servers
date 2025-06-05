@@ -4,12 +4,11 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { getWorkspaceFolders } from '../../shared/initializeUtils'
 import { URI } from 'vscode-uri'
 
 export const LocalProjectContextServer =
     (): Server =>
-    ({ credentialsProvider, telemetry, logging, lsp }) => {
+    ({ credentialsProvider, telemetry, logging, lsp, workspace }) => {
         let localProjectContextController: LocalProjectContextController
         let amazonQServiceManager: AmazonQTokenServiceManager
         let telemetryService: TelemetryService
@@ -17,7 +16,7 @@ export const LocalProjectContextServer =
         let localProjectContextEnabled: boolean = false
 
         lsp.addInitializer((params: InitializeParams) => {
-            const workspaceFolders = getWorkspaceFolders(logging, params)
+            const workspaceFolders = workspace.getAllWorkspaceFolders() || params.workspaceFolders
             localProjectContextController = new LocalProjectContextController(
                 params.clientInfo?.name ?? 'unknown',
                 workspaceFolders,
@@ -65,7 +64,7 @@ export const LocalProjectContextServer =
                 telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
                 await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
-                logging.log('Local context server has been initialized')
+                logging.info('Local context server has been initialized')
             } catch (error) {
                 logging.error(`Failed to initialize local context server: ${error}`)
             }
@@ -82,7 +81,7 @@ export const LocalProjectContextServer =
         lsp.workspace.onDidCreateFiles(async event => {
             try {
                 const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
-                await localProjectContextController.updateIndex(filePaths, 'add')
+                await localProjectContextController.updateIndexAndContextCommand(filePaths, true)
             } catch (error) {
                 logging.error(`Error handling create event: ${error}`)
             }
@@ -91,7 +90,7 @@ export const LocalProjectContextServer =
         lsp.workspace.onDidDeleteFiles(async event => {
             try {
                 const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
-                await localProjectContextController.updateIndex(filePaths, 'remove')
+                await localProjectContextController.updateIndexAndContextCommand(filePaths, false)
             } catch (error) {
                 logging.error(`Error handling delete event: ${error}`)
             }
@@ -102,8 +101,8 @@ export const LocalProjectContextServer =
                 const oldPaths = event.files.map(file => URI.parse(file.oldUri).fsPath)
                 const newPaths = event.files.map(file => URI.parse(file.newUri).fsPath)
 
-                await localProjectContextController.updateIndex(oldPaths, 'remove')
-                await localProjectContextController.updateIndex(newPaths, 'add')
+                await localProjectContextController.updateIndexAndContextCommand(oldPaths, false)
+                await localProjectContextController.updateIndexAndContextCommand(newPaths, true)
             } catch (error) {
                 logging.error(`Error handling rename event: ${error}`)
             }
@@ -122,18 +121,23 @@ export const LocalProjectContextServer =
             logging.log('Updating configuration of local context server')
             try {
                 localProjectContextEnabled = updatedConfig.projectContext?.enableLocalIndexing === true
-
-                logging.log(
-                    `Setting project context indexing enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`
-                )
-                await localProjectContextController.init({
-                    enableGpuAcceleration: updatedConfig?.projectContext?.enableGpuAcceleration,
-                    indexWorkerThreads: updatedConfig?.projectContext?.indexWorkerThreads,
-                    ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
-                    maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
-                    maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
-                    enableIndexing: localProjectContextEnabled,
-                })
+                if (process.env.DISABLE_INDEXING_LIBRARY === 'true') {
+                    logging.log('Skipping local project context initialization')
+                    localProjectContextEnabled = false
+                } else {
+                    logging.log(
+                        `Setting project context indexing enabled to ${updatedConfig.projectContext?.enableLocalIndexing}`
+                    )
+                    await localProjectContextController.init({
+                        enableGpuAcceleration: updatedConfig?.projectContext?.enableGpuAcceleration,
+                        indexWorkerThreads: updatedConfig?.projectContext?.indexWorkerThreads,
+                        ignoreFilePatterns: updatedConfig.projectContext?.localIndexing?.ignoreFilePatterns,
+                        maxFileSizeMB: updatedConfig.projectContext?.localIndexing?.maxFileSizeMB,
+                        maxIndexSizeMB: updatedConfig.projectContext?.localIndexing?.maxIndexSizeMB,
+                        enableIndexing: localProjectContextEnabled,
+                        indexCacheDirPath: updatedConfig.projectContext?.localIndexing?.indexCacheDirPath,
+                    })
+                }
             } catch (error) {
                 logging.error(`Error handling configuration change: ${error}`)
             }

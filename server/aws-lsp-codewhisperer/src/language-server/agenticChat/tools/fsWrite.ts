@@ -1,10 +1,7 @@
-import { workspaceUtils } from '@aws/lsp-core'
 import { CommandValidation, ExplanatoryParams, InvokeOutput, requiresPathAcceptance } from './toolShared'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { Change, diffLines } from 'diff'
-import { URI } from 'vscode-uri'
-import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
+import * as os from 'os'
 
 // Port of https://github.com/aws/aws-toolkit-vscode/blob/16aa8768834f41ae512522473a6a962bb96abe51/packages/core/src/codewhispererChat/tools/fsWrite.ts#L42
 
@@ -131,7 +128,7 @@ export class FsWrite {
     }
 
     public async requiresAcceptance(params: FsWriteParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
-        return requiresPathAcceptance(params.path, this.lsp, this.logging, approvedPaths)
+        return requiresPathAcceptance(params.path, this.workspace, this.logging, approvedPaths)
     }
 
     private async handleCreate(params: CreateParams, sanitizedPath: string): Promise<void> {
@@ -259,7 +256,15 @@ const getInsertContent = (params: InsertParams, oldContent: string) => {
 }
 
 const getStrReplaceContent = (params: StrReplaceParams, oldContent: string) => {
-    const matches = [...oldContent.matchAll(new RegExp(escapeRegExp(params.oldStr), 'g'))]
+    // Detect line ending from oldContent (CRLF, LF, or CR)
+    const match = oldContent.match(/\r\n|\r|\n/)
+    const lineEnding = match ? match[0] : os.EOL
+
+    // Normalize oldStr and newStr to match oldContent's line ending style
+    const normalizedOldStr = params.oldStr.split(/\r\n|\r|\n/).join(lineEnding)
+    const normalizedNewStr = params.newStr.split(/\r\n|\r|\n/).join(lineEnding)
+
+    const matches = [...oldContent.matchAll(new RegExp(escapeRegExp(normalizedOldStr), 'g'))]
 
     if (matches.length === 0) {
         throw new Error(`No occurrences of "${params.oldStr}" were found`)
@@ -268,7 +273,7 @@ const getStrReplaceContent = (params: StrReplaceParams, oldContent: string) => {
         throw new Error(`${matches.length} occurrences of oldStr were found when only 1 is expected`)
     }
 
-    return oldContent.replace(params.oldStr, params.newStr)
+    return oldContent.replace(normalizedOldStr, normalizedNewStr)
 }
 
 const escapeRegExp = (string: string) => {

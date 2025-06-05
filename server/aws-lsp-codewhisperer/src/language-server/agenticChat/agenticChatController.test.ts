@@ -57,6 +57,7 @@ import {
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
 import { AgenticChatResultStream } from './agenticChatResultStream'
+import { AgenticChatError } from './errors'
 
 describe('AgenticChatController', () => {
     const mockTabId = 'tab-1'
@@ -302,6 +303,18 @@ describe('AgenticChatController', () => {
         chatController.onTabAdd({ tabId: mockTabId })
 
         sinon.assert.calledWithExactly(activeTabSpy.set, mockTabId)
+    })
+
+    it('onTabAdd updates model ID in chat options and session', () => {
+        const modelId = 'test-model-id'
+        sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
+
+        chatController.onTabAdd({ tabId: mockTabId })
+
+        sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
+
+        const session = chatSessionManagementService.getSession(mockTabId).data
+        assert.strictEqual(session!.modelId, modelId)
     })
 
     it('onTabChange sets active tab id in telemetryController and emits metrics', () => {
@@ -1333,7 +1346,7 @@ describe('AgenticChatController', () => {
                     chatTriggerType: undefined,
                 },
             }
-            chatController.truncateRequest(request)
+            const result = chatController.truncateRequest(request)
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 500_000)
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
@@ -1345,7 +1358,8 @@ describe('AgenticChatController', () => {
                     ?.relevantDocuments?.length || 0,
                 0
             )
-            assert.strictEqual(request.conversationState?.history?.length || 0, 0)
+            assert.strictEqual(request.conversationState?.history?.length || 0, 1)
+            assert.strictEqual(result, 0)
         })
 
         it('should not modify user input message if within limit', () => {
@@ -1404,7 +1418,7 @@ describe('AgenticChatController', () => {
                     chatTriggerType: undefined,
                 },
             }
-            chatController.truncateRequest(request)
+            const result = chatController.truncateRequest(request)
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
@@ -1416,7 +1430,8 @@ describe('AgenticChatController', () => {
                     ?.relevantDocuments?.length || 0,
                 2
             )
-            assert.strictEqual(request.conversationState?.history?.length || 0, 0)
+            assert.strictEqual(request.conversationState?.history?.length || 0, 1)
+            assert.strictEqual(result, 99700)
         })
         it('should truncate current editor if combined length exceeds remaining budget', () => {
             const request: GenerateAssistantResponseCommandInput = {
@@ -1476,26 +1491,29 @@ describe('AgenticChatController', () => {
                     ?.relevantDocuments?.length || 0,
                 2
             )
-            assert.strictEqual(request.conversationState?.history?.length || 0, 2)
+            assert.strictEqual(request.conversationState?.history?.length || 0, 3)
         })
-
-        it('should truncate chat history if combined length exceeds remaining budget', () => {
+        it('should return remaining budget for history', () => {
             const request: GenerateAssistantResponseCommandInput = {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(400_000),
+                            content: 'a'.repeat(100_000),
                             userInputMessageContext: {
                                 editorState: {
                                     relevantDocuments: [
                                         {
                                             relativeFilePath: '',
-                                            text: 'a'.repeat(100),
+                                            text: 'a'.repeat(1000),
+                                        },
+                                        {
+                                            relativeFilePath: '',
+                                            text: 'a'.repeat(1000),
                                         },
                                     ],
                                     document: {
                                         relativeFilePath: '',
-                                        text: 'a'.repeat(10_000),
+                                        text: 'a'.repeat(100_000),
                                     },
                                 },
                             },
@@ -1521,19 +1539,20 @@ describe('AgenticChatController', () => {
                     chatTriggerType: undefined,
                 },
             }
-            chatController.truncateRequest(request)
-            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 400_000)
+            const result = chatController.truncateRequest(request)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.content?.length, 100_000)
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
                     ?.document?.text?.length || 0,
-                10_000
+                100_000
             )
             assert.strictEqual(
                 request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
-                    ?.relevantDocuments?.length || 0,
-                1
+                    ?.relevantDocuments?.length || 2,
+                2
             )
-            assert.strictEqual(request.conversationState?.history?.length || 0, 2)
+            assert.strictEqual(request.conversationState?.history?.length || 0, 3)
+            assert.strictEqual(result, 298000)
         })
     })
 
@@ -2218,10 +2237,12 @@ ${' '.repeat(8)}}
         const cancellationError = new CancellationError('user')
         const rejectionError = new ToolApprovalException()
         const tokenSource = new CancellationTokenSource()
+        const requestAbortedError = new AgenticChatError('Request aborted', 'RequestAborted')
 
         assert.ok(!chatController.isUserAction(nonUserAction))
         assert.ok(chatController.isUserAction(cancellationError))
         assert.ok(chatController.isUserAction(rejectionError))
+        assert.ok(chatController.isUserAction(requestAbortedError))
 
         assert.ok(!chatController.isUserAction(nonUserAction, tokenSource.token))
 

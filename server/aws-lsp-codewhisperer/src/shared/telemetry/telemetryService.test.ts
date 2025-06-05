@@ -804,6 +804,7 @@ describe('TelemetryService', () => {
                         responseLength: 3000,
                         numberOfCodeBlocks: 0,
                         hasProjectLevelContext: false,
+                        result: 'SUCCEEDED',
                     },
                 },
             }
@@ -886,28 +887,6 @@ describe('TelemetryService', () => {
             sinon.assert.neverCalledWithMatch(telemetry.emitMetric as sinon.SinonStub, {
                 name: 'amazonq_addMessage',
             })
-        })
-
-        it('should not send ChatAddMessage when conversationId is undefined', () => {
-            telemetryService.emitChatAddMessage(
-                {
-                    messageId: 'message123',
-                    customizationArn: 'cust-123',
-                },
-                {}
-            )
-            sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
-        })
-
-        it('should not send ChatAddMessage when messageId is undefined', () => {
-            telemetryService.emitChatAddMessage(
-                {
-                    conversationId: 'conv123',
-                    customizationArn: 'cust-123',
-                },
-                {}
-            )
-            sinon.assert.notCalled(codeWhisperServiceStub.sendTelemetryEvent)
         })
 
         it('should not send ChatAddMessage when credentialsType is IAM', () => {
