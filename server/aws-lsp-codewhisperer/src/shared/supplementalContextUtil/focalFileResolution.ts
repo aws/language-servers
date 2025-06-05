@@ -91,7 +91,7 @@ export class FocalFileResolver {
         const inferredSrcFilename = this.inferFocalFilename(testFilePath, language)
 
         if (!inferredSrcFilename) {
-            console.log(`not able to infer source file name`)
+            // TODO: logging
             return
         }
 
@@ -238,8 +238,7 @@ export class FocalFileResolver {
                 }
             }
         } catch (e) {
-            console.log(`error reading import paths: ${e}`)
-            throw e
+            // TODO: logging
         }
 
         return result
@@ -288,7 +287,7 @@ export class FocalFileResolver {
                 }
             }
         } catch (e) {
-            console.log(`error reading import symbols: ${e}`)
+            // TODO: logging
         }
         return result
     }
@@ -340,7 +339,7 @@ export class FocalFileResolver {
                 }
             }
         } catch (e) {
-            console.log(`error reading exported symbols: ${e}`)
+            // TODO: logging
         }
 
         return result
