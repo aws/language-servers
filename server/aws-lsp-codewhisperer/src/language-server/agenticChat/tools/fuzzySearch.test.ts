@@ -37,34 +37,34 @@ describe('FuzzySearch Tool', () => {
     it('invalidates empty path', async () => {
         const fuzzySearch = new FuzzySearch(testFeatures)
         await assert.rejects(
-            fuzzySearch.validate({ path: '', queryName: 'test' }),
+            fileSearch.validate({ path: '', queryName: 'test' }),
             /Path cannot be empty/i,
             'Expected an error about empty path'
         )
     })
 
     it('invalidates invalid threshold pattern', async () => {
-        const fuzzySearch = new FuzzySearch(testFeatures)
+        const fileSearch = new FileSearch(testFeatures)
         await assert.rejects(
-            fuzzySearch.validate({ path: tempFolder.path, queryName: 'test', threshold: -1 }),
+            fileSearch.validate({ path: tempFolder.path, queryName: 'test', threshold: -1 }),
             /Invalid threshold/i,
             'Expected an error about invalid threshold'
         )
     })
 
     it('invalidates empty maxDepth', async () => {
-        const fuzzySearch = new FuzzySearch(testFeatures)
+        const fileSearch = new FileSearch(testFeatures)
         await assert.rejects(
-            fuzzySearch.validate({ path: tempFolder.path, queryName: 'test', maxDepth: -1 }),
+            fileSearch.validate({ path: tempFolder.path, queryName: 'test', maxDepth: -1 }),
             /MaxDepth cannot be negative/i,
             'Expected an error about negative maxDepth'
         )
     })
 
     it('invalidates empty queryName', async () => {
-        const fuzzySearch = new FuzzySearch(testFeatures)
+        const fileSearch = new FileSearch(testFeatures)
         await assert.rejects(
-            fuzzySearch.validate({ path: tempFolder.path, queryName: '' }),
+            fileSearch.validate({ path: tempFolder.path, queryName: '' }),
             /queryName cannot be empty/i,
             'Expected an error about empty queryName'
         )
@@ -208,7 +208,7 @@ describe('FuzzySearch Tool', () => {
         const fuzzySearch = new FuzzySearch(testFeatures)
 
         await assert.rejects(
-            fuzzySearch.invoke({ path: missingPath, queryName: '.*' }),
+            fileSearch.invoke({ path: missingPath, queryName: '.*' }),
             /Failed to search directory/i,
             'Expected an error about non-existent path'
         )

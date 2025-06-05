@@ -112,7 +112,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
-import { FuzzySearch, FuzzySearchParams } from './tools/fuzzySearch'
+import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
@@ -125,12 +125,13 @@ import {
 } from './constants'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { URI } from 'vscode-uri'
-import { McpManager } from './tools/mcp/mcpManager'
-import { McpTool } from './tools/mcp/mcpTool'
+import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
+import { McpManager } from './tools/mcp/mcpManager'
+import { McpTool } from './tools/mcp/mcpTool'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -952,7 +953,7 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsRead':
                     case 'listDirectory':
                     case 'grepSearch':
-                    case 'fuzzySearch':
+                    case 'fileSearch':
                     case 'fsWrite':
                     case 'executeBash': {
                         const toolMap = {
@@ -2362,6 +2363,7 @@ export class AgenticChatController implements ChatHandlers {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
         session.modelId = modelId
+
         if (success && session) {
             // Set the logging object on the session
             session.setLogging(this.#features.logging)
