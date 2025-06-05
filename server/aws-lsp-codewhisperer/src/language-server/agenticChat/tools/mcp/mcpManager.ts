@@ -4,6 +4,9 @@
  */
 
 import type { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { ChatTelemetryEventName } from '../../../../shared/telemetry/types'
+import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
+import { getGlobalMcpConfigPath } from './mcpUtils'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import {
@@ -45,7 +48,10 @@ export class McpManager {
     private constructor(
         private configPaths: string[],
         private personaPaths: string[],
-        private features: Pick<Features, 'logging' | 'workspace' | 'lsp'>
+        private features: Pick<
+            Features,
+            'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime'
+        >
     ) {
         this.mcpTools = []
         this.clients = new Map<string, Client>()
@@ -61,16 +67,60 @@ export class McpManager {
     /**
      * Initialize or return existing manager, then discover all servers.
      */
+    #telemetryController?: ChatTelemetryController
+
     public static async init(
         configPaths: string[],
         personaPaths: string[],
-        features: Pick<Features, 'logging' | 'workspace' | 'lsp'>
+        features: Pick<Features, 'logging' | 'workspace' | 'lsp' | 'telemetry' | 'credentialsProvider' | 'runtime'>
     ): Promise<McpManager> {
         if (!McpManager.#instance) {
             const mgr = new McpManager(configPaths, personaPaths, features)
             McpManager.#instance = mgr
             await mgr.discoverAllServers()
             features.logging.info(`MCP: discovered ${mgr.mcpTools.length} tools across all servers`)
+
+            // Emit MCP configuration metrics
+            const serverConfigs = mgr.getAllServerConfigs()
+            const activeServers = Array.from(serverConfigs.entries()).filter(([name, _]) => !mgr.isServerDisabled(name))
+
+            // Count global vs project servers
+            const globalServers = Array.from(serverConfigs.entries()).filter(
+                ([_, config]) =>
+                    config?.__configPath__ === getGlobalMcpConfigPath(features.workspace.fs.getUserHomeDir())
+            ).length
+            const projectServers = serverConfigs.size - globalServers
+
+            // Count tools by permission
+            let toolsAlwaysAllowed = 0
+            let toolsDenied = 0
+
+            for (const [serverName, _] of activeServers) {
+                const toolsWithPermissions = mgr.getAllToolsWithPermissions(serverName)
+                toolsWithPermissions.forEach(item => {
+                    if (item.permission === McpPermissionType.alwaysAllow) {
+                        toolsAlwaysAllowed++
+                    } else if (item.permission === McpPermissionType.deny) {
+                        toolsDenied++
+                    }
+                })
+            }
+
+            // Emit MCP configuration metrics
+            if (features.telemetry) {
+                features.telemetry.emitMetric({
+                    name: ChatTelemetryEventName.MCPConfig,
+                    data: {
+                        credentialStartUrl: features.credentialsProvider?.getConnectionMetadata()?.sso?.startUrl,
+                        languageServerVersion: features.runtime?.serverInfo.version,
+                        numActiveServers: activeServers.length,
+                        numGlobalServers: globalServers,
+                        numProjectServers: projectServers,
+                        numToolsAlwaysAllowed: toolsAlwaysAllowed,
+                        numToolsDenied: toolsDenied,
+                    },
+                })
+            }
         }
         return McpManager.#instance
     }

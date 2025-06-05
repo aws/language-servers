@@ -82,7 +82,7 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     return () => {}
 }
 
-export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging, lsp, agent }) => {
+export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging, lsp, agent, telemetry, runtime }) => {
     const registered: Record<string, string[]> = {}
 
     const allNamespacedTools = new Set<string>()
@@ -141,7 +141,14 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
         const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
         const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
 
-        const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, { logging, workspace, lsp })
+        const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, {
+            logging,
+            workspace,
+            lsp,
+            telemetry,
+            credentialsProvider,
+            runtime,
+        })
 
         // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
         McpManager.instance.clearToolNameMapping()

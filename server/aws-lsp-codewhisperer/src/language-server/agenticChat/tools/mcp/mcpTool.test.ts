@@ -20,9 +20,11 @@ describe('McpTool', () => {
             },
         },
         lsp: {},
+        credentialsProvider: {},
+        telemetry: { record: () => {} },
     } as unknown as Pick<
         import('@aws/language-server-runtimes/server-interface/server').Features,
-        'logging' | 'workspace' | 'lsp'
+        'logging' | 'workspace' | 'lsp' | 'credentialsProvider' | 'telemetry' | 'runtime'
     >
 
     const definition: McpToolDefinition = {
