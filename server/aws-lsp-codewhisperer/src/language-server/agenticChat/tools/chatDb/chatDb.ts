@@ -375,7 +375,10 @@ export class ChatDatabase {
 
     formatChatHistoryMessage(message: Message): Message {
         if (message.type === ('prompt' as ChatItemType)) {
-            const hasToolResults = message.userInputMessageContext?.toolResults
+            let hasToolResults = false
+            if (message.userInputMessageContext?.toolResults) {
+                hasToolResults = message.userInputMessageContext?.toolResults.length > 0
+            }
             return {
                 ...message,
                 userInputMessageContext: {
@@ -589,6 +592,13 @@ export class ChatDatabase {
 
         //  Make sure the last stored message is from the assistant (type === 'answer'), else drop
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
+            // When user aborts some in-progress tooluse event, we should still send the previous toolResult back
+            if (messages[messages.length - 1].userInputMessageContext?.toolResults) {
+                if (newUserMessage.userInputMessage?.userInputMessageContext) {
+                    newUserMessage.userInputMessage.userInputMessageContext.toolResults =
+                        messages[messages.length - 1].userInputMessageContext?.toolResults
+                }
+            }
             messages.pop()
             this.#features.logging.debug('Dropped trailing user message')
         }
@@ -686,10 +696,10 @@ export class ChatDatabase {
 
     getModelId(): string | undefined {
         const settings = this.getSettings()
-        return settings?.modelId
+        return settings?.modelId === '' ? undefined : settings?.modelId
     }
 
     setModelId(modelId: string | undefined): void {
-        this.updateSettings({ modelId })
+        this.updateSettings({ modelId: modelId === '' ? undefined : modelId })
     }
 }
