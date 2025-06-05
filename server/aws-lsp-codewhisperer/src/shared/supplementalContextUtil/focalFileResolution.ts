@@ -239,6 +239,7 @@ export class FocalFileResolver {
             }
         } catch (e) {
             console.log(`error reading import paths: ${e}`)
+            throw e
         }
 
         return result
