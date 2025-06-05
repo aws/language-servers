@@ -195,6 +195,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         duration: 100, // 100ms
         depth: 3,
     }
+
     constructor(
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
