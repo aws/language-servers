@@ -33,6 +33,7 @@ import { CancellationError } from '@aws/lsp-core'
  *
  */
 export class TabBarController {
+    #loadedChats: boolean = false
     #searchTimeout: NodeJS.Timeout | undefined = undefined
     readonly #DebounceTime = 300 // milliseconds
     #features: Features
@@ -298,6 +299,10 @@ export class TabBarController {
      * When IDE is opened, restore chats that were previously open in IDE for the current workspace.
      */
     async loadChats() {
+        if (this.#loadedChats) {
+            return
+        }
+        this.#loadedChats = true
         const openConversations = this.#chatHistoryDb.getOpenTabs()
         if (openConversations) {
             for (const conversation of openConversations) {
