@@ -15,7 +15,7 @@ describe('FsReplace Tool', function () {
     const expectedOutput: InvokeOutput = {
         output: {
             kind: 'text',
-            content: '',
+            content: 'File updated successfully',
         },
     }
 
