@@ -13,6 +13,7 @@ import {
     TextDocument,
     ResponseError,
     LSPErrorCodes,
+    WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -56,6 +57,7 @@ import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const FILE_URI_CHARS_LIMIT = 1024
+export const FILENAME_CHARS_LIMIT = 1024
 export const CONTEXT_CHARACTERS_LIMIT = 10240
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
@@ -63,6 +65,7 @@ const getFileContext = (params: {
     textDocument: TextDocument
     position: Position
     inferredLanguageId: CodewhispererLanguage
+    workspaceFolder: WorkspaceFolder | null | undefined
 }): {
     fileUri: string
     filename: string
@@ -81,18 +84,13 @@ const getFileContext = (params: {
         end: params.textDocument.positionAt(params.textDocument.getText().length),
     })
 
-    let relativeFileName = params.textDocument.uri
-    relativeFileName = path.basename(params.textDocument.uri)
-    // const workspaceFolder = WorkspaceFolderManager.getInstance()?.getWorkspaceFolder(params.textDocument.uri)
-    // if (workspaceFolder) {
-    // relativeFileName = getRelativePath(workspaceFolder, params.textDocument.uri)
-    // } else {
-    // relativeFileName = path.basename(params.textDocument.uri)
-    // }
+    const relativeFilePath = params.workspaceFolder
+        ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
+        : path.basename(params.textDocument.uri)
 
     return {
         fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
-        filename: relativeFileName,
+        filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
         programmingLanguage: {
             languageName: getRuntimeLanguage(params.inferredLanguageId),
         },
@@ -312,6 +310,12 @@ export const CodewhispererServerFactory =
                             ...currentSession.requestContext,
                             fileContext: {
                                 ...currentSession.requestContext.fileContext,
+                                leftFileContent: currentSession.requestContext.fileContext.leftFileContent
+                                    .slice(-CONTEXT_CHARACTERS_LIMIT)
+                                    .replaceAll('\r\n', '\n'),
+                                rightFileContent: currentSession.requestContext.fileContext.rightFileContent
+                                    .slice(0, CONTEXT_CHARACTERS_LIMIT)
+                                    .replaceAll('\r\n', '\n'),
                             },
                             nextToken: `${params.partialResultToken}`,
                         })
@@ -346,7 +350,12 @@ export const CodewhispererServerFactory =
                         params.context.triggerKind == InlineCompletionTriggerKind.Automatic
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
-                    const fileContext = getFileContext({ textDocument, inferredLanguageId, position: params.position })
+                    const fileContext = getFileContext({
+                        textDocument,
+                        inferredLanguageId,
+                        position: params.position,
+                        workspaceFolder: workspace.getWorkspaceFolder(textDocument.uri),
+                    })
                     const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
                     const workspaceId = workspaceState?.webSocketClient?.isConnected()
                         ? workspaceState.workspaceId

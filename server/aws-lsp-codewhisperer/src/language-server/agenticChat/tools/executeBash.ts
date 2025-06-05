@@ -436,7 +436,7 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: true,
-                        content: chunk,
+                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
                         isFirst,
                     })
                     processQueue()
@@ -451,7 +451,7 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: false,
-                        content: chunk,
+                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
                         isFirst,
                     })
                     processQueue()
@@ -459,7 +459,7 @@ export class ExecuteBash {
             }
 
             const shellArgs = IS_WINDOWS_PLATFORM
-                ? [shellFlag, ...split(params.command)] // Windows: split for proper arg handling
+                ? ['/u', shellFlag, ...split(params.command)] // Windows: split for proper arg handling
                 : [shellFlag, params.command]
 
             this.childProcess = new ChildProcess(this.logging, shellName, shellArgs, childProcessOptions)
@@ -534,6 +534,24 @@ export class ExecuteBash {
                 writer?.releaseLock()
             }
         })
+    }
+
+    /**
+     * Re‑creates the raw bytes from the received string (Buffer.from(text, 'binary')).
+     * Detects UTF‑16 LE by checking whether every odd byte in the first 32 bytes is 0x00.
+     * Decodes with buf.toString('utf16le') when the pattern matches, otherwise falls back to UTF‑8.
+     */
+    private static decodeWinUtf(raw: string): string {
+        const buffer = Buffer.from(raw, 'binary')
+
+        let utf16 = true
+        for (let i = 1, n = Math.min(buffer.length, 32); i < n; i += 2) {
+            if (buffer[i] !== 0x00) {
+                utf16 = false
+                break
+            }
+        }
+        return utf16 ? buffer.toString('utf16le') : buffer.toString('utf8')
     }
 
     private static handleChunk(chunk: string, buffer: string[], writer?: WritableStreamDefaultWriter<any>) {
@@ -633,7 +651,23 @@ export class ExecuteBash {
         return {
             name: 'executeBash',
             description:
-                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).',
+                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).\n\n' +
+                '## Overview\n' +
+                "This tool executes commands on the user's system shell and returns the output.\n\n" +
+                '## Operating System Specific Commands\n' +
+                "- IMPORTANT: You MUST use commands specific to the user's current operating system. This tool will NOT adapt or translate commands between operating systems.\n" +
+                "  - On Windows (cmd.exe): Use Windows-specific commands like 'dir', 'type', 'mkdir' (without -p flag).\n" +
+                "  - On Unix/Linux/macOS (bash): Use Unix commands like 'ls', 'cat', 'mkdir -p'.\n" +
+                '## When to use\n' +
+                "- When you need to run system commands that aren't covered by specialized tools.\n" +
+                '- When you need to interact with installed applications or utilities.\n' +
+                '- When you need to perform operations that require shell capabilities.\n\n' +
+                '## When not to use\n' +
+                '- When specialized tools would be more appropriate for the task.\n' +
+                '- When you need to perform file operations (use dedicated file tools instead).\n' +
+                '- When you need to search through files (use dedicated search tools instead).\n\n' +
+                '## Notes\n' +
+                '- Output is limited to prevent overwhelming responses.\n',
             inputSchema: {
                 type: 'object',
                 properties: {

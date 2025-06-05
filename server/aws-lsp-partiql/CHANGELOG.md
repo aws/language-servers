@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.11](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.10...lsp-partiql/v0.0.11) (2025-05-30)
+
+
+### Bug Fixes
+
+* ensure local index server updates with workspaceChangeEvent and bump runtimes ([#1424](https://github.com/aws/language-servers/issues/1424)) ([9babbb6](https://github.com/aws/language-servers/commit/9babbb643daa2893454dbc977d3802822b2c0aa6))
+
 ## [0.0.10](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.9...lsp-partiql/v0.0.10) (2025-05-22)
 
 

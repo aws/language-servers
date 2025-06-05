@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-json",
-    "version": "0.1.9",
+    "version": "0.1.10",
     "description": "JSON Language Server",
     "main": "out/index.js",
     "repository": {
@@ -24,7 +24,7 @@
         "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.87",
+        "@aws/language-server-runtimes": "^0.2.90",
         "@aws/lsp-core": "^0.0.9",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"

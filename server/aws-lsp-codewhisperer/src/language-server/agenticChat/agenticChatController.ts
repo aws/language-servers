@@ -109,7 +109,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
-import { FuzzySearch, FuzzySearchParams } from './tools/fuzzySearch'
+import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
@@ -414,6 +414,13 @@ export class AgenticChatController implements ChatHandlers {
             const chatResultStream = this.#getChatResultStream(params.partialResultToken)
             token.onCancellationRequested(async () => {
                 this.#log('cancellation requested')
+
+                // Abort all operations immediately
+                session.abortRequest()
+                void this.#invalidateAllShellCommands(params.tabId, session)
+                session.rejectAllDeferredToolExecutions(new CancellationError('user'))
+
+                // Then update UI to inform the user
                 await this.#showUndoAllIfRequired(chatResultStream, session)
                 await chatResultStream.updateOngoingProgressResult('Canceled')
                 await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
@@ -421,17 +428,14 @@ export class AgenticChatController implements ChatHandlers {
                     messageId: 'stopped' + uuid(),
                     body: 'You stopped your current work, please provide additional examples or ask another question.',
                 })
+
+                // Finally, send telemetry/metrics
                 this.#telemetryController.emitInteractWithAgenticChat(
                     'StopChat',
                     params.tabId,
                     session.pairProgrammingMode,
                     session.getConversationType()
                 )
-
-                session.abortRequest()
-                void this.#invalidateAllShellCommands(params.tabId, session)
-                session.rejectAllDeferredToolExecutions(new CancellationError('user'))
-
                 await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
             })
             session.setConversationType('AgenticChat')
@@ -539,7 +543,8 @@ export class AgenticChatController implements ChatHandlers {
             profileArn,
             [],
             this.#getTools(session),
-            additionalContext
+            additionalContext,
+            session.modelId
         )
 
         return requestInput
@@ -927,7 +932,7 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsRead':
                     case 'listDirectory':
                     case 'grepSearch':
-                    case 'fuzzySearch':
+                    case 'fileSearch':
                     case 'fsWrite':
                     case 'executeBash': {
                         const toolMap = {
@@ -936,7 +941,7 @@ export class AgenticChatController implements ChatHandlers {
                             fsWrite: { Tool: FsWrite },
                             executeBash: { Tool: ExecuteBash },
                             grepSearch: { Tool: GrepSearch },
-                            fuzzySearch: { Tool: FuzzySearch },
+                            fileSearch: { Tool: FileSearch },
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
@@ -1034,13 +1039,13 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                    case 'fuzzySearch':
+                    case 'fileSearch':
                         const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                         if (initialListDirResult) {
                             await chatResultStream.writeResultBlock(initialListDirResult)
                         }
                         break
-                    // no need to write tool result for listDir,fsRead,fuzzySearch into chat stream
+                    // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
@@ -1167,6 +1172,36 @@ export class AgenticChatController implements ChatHandlers {
                     } else {
                         await chatResultStream.writeResultBlock(errorResult)
                     }
+                } else if (toolUse.name === 'executeBash' && toolUse.toolUseId) {
+                    const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
+                    const command = (toolUse.input as unknown as ExecuteBashParams).command
+                    const completedErrorResult = {
+                        type: 'tool',
+                        messageId: toolUse.toolUseId,
+                        body: `\`\`\`shell\n${command}\n\`\`\``,
+                        header: {
+                            body: 'shell',
+                            status: {
+                                status: 'success',
+                                icon: 'ok',
+                                text: 'Completed',
+                            },
+                            buttons: [],
+                        },
+                    } as ChatResult
+
+                    if (existingCard) {
+                        await chatResultStream.overwriteResultBlock(completedErrorResult, existingCard)
+                    } else {
+                        this.#features.chat.sendChatUpdate({
+                            tabId,
+                            state: { inProgress: false },
+                            data: {
+                                messages: [completedErrorResult],
+                            },
+                        })
+                    }
+                    this.#stoppedToolUses.add(toolUse.toolUseId)
                 }
                 const errMsg = err instanceof Error ? err.message : 'unknown error'
                 this.#log(`Error running tool ${toolUse.name}:`, errMsg)
@@ -1380,7 +1415,7 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 messageId: toolUse.toolUseId,
                 type: 'tool',
-                body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command + '\n',
+                body: '```shell\n' + (toolUse.input as unknown as ExecuteBashParams).command,
                 header: {
                     body: 'shell',
                     ...(isAccept
@@ -1429,8 +1464,8 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 break
 
-            case 'fuzzySearch':
-                const searchPath = (toolUse.input as unknown as FuzzySearchParams).path
+            case 'fileSearch':
+                const searchPath = (toolUse.input as unknown as FileSearchParams).path
                 header = {
                     body: 'File Search',
                     status: {
@@ -1669,7 +1704,7 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name === 'fsRead') {
             currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
         } else {
-            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FuzzySearchParams)?.path)
+            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
         }
 
         if (!currentPaths) return
@@ -1698,7 +1733,7 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === 'fuzzySearch'
+                    : toolUse.name === 'fileSearch'
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
@@ -1856,6 +1891,10 @@ export class AgenticChatController implements ChatHandlers {
         const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
         if (profileArn) {
             this.#telemetryService.updateProfileArn(profileArn)
+        }
+        const modelId = session.modelId
+        if (modelId) {
+            this.#telemetryService.updateModelId(modelId)
         }
         if (triggerContext.contextInfo) {
             metric.mergeWith({
@@ -2194,7 +2233,15 @@ export class AgenticChatController implements ChatHandlers {
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
-        this.#chatSessionManagementService.createSession(params.tabId)
+        const modelId = this.#chatHistoryDb.getModelId()
+        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
+
+        const sessionResult = this.#chatSessionManagementService.createSession(params.tabId)
+        const { data: session, success } = sessionResult
+        if (!success) {
+            return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
+        }
+        session.modelId = modelId
     }
 
     onTabChange(params: TabChangeParams) {
@@ -2582,7 +2629,11 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
 
-        session.pairProgrammingMode = !session.pairProgrammingMode
+        session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
+        session.modelId =
+            params.optionsValues['model-selection'] === 'auto' ? undefined : params.optionsValues['model-selection']
+
+        this.#chatHistoryDb.setModelId(session.modelId)
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {

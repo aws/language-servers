@@ -15,10 +15,9 @@ import {
 import { afterEach } from 'mocha'
 import { assert } from 'sinon'
 import { createChat } from './chat'
-import sinon = require('sinon')
+import * as sinon from 'sinon'
 import { TELEMETRY } from '../contracts/serverContracts'
 import {
-    ENTER_FOCUS,
     ERROR_MESSAGE_TELEMETRY_EVENT,
     SEND_TO_PROMPT_TELEMETRY_EVENT,
     TAB_ADD_TELEMETRY_EVENT,
@@ -35,10 +34,12 @@ describe('Chat', () => {
 
     before(() => {
         // Mock global observers for test environment
-        // @ts-ignore
+        // @ts-expect-error: mock implementation for testing
         global.ResizeObserver = null
-        // @ts-ignore
+        // @ts-expect-error: mock implementation for testing
         global.IntersectionObserver = null
+        // @ts-expect-error: mock implementation for testing
+        global.MutationObserver = null
     })
 
     beforeEach(() => {
@@ -64,8 +65,10 @@ describe('Chat', () => {
     })
 
     after(() => {
-        // @ts-ignore
+        // @ts-expect-error: mock implementation for testing
         global.ResizeObserver = undefined
+        // @ts-expect-error: mock implementation for testing
+        global.MutationObserver = undefined
     })
 
     it('publishes ready event when initialized', () => {
@@ -312,9 +315,9 @@ describe('Chat', () => {
             })
             window.dispatchEvent(chatOptionsRequest)
 
-            // @ts-ignore
+            // @ts-expect-error: accessing prototype method
             assert.called(TabFactory.prototype.enableHistory)
-            // @ts-ignore
+            // @ts-expect-error: accessing prototype method
             assert.called(TabFactory.prototype.enableExport)
         }).timeout(20000)
 
@@ -328,9 +331,9 @@ describe('Chat', () => {
             })
             window.dispatchEvent(chatOptionsRequest)
 
-            // @ts-ignore
+            // @ts-expect-error: accessing prototype method
             assert.notCalled(TabFactory.prototype.enableHistory)
-            // @ts-ignore
+            // @ts-expect-error: accessing prototype method
             assert.notCalled(TabFactory.prototype.enableExport)
         }).timeout(20000)
     })

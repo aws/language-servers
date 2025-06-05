@@ -49,6 +49,7 @@ export class TelemetryService {
     private credentialsProvider: CredentialsProvider
     private logging: Logging
     private profileArn: string | undefined
+    private modelId: string | undefined
 
     private readonly cwInteractionTypeMap: Record<ChatInteractionType, ChatMessageInteractionType> = {
         [ChatInteractionType.InsertAtCursor]: 'INSERT_AT_CURSOR',
@@ -85,6 +86,10 @@ export class TelemetryService {
 
     public updateProfileArn(profileArn: string) {
         this.profileArn = profileArn
+    }
+
+    public updateModelId(modelId: string | undefined) {
+        this.modelId = modelId
     }
 
     public updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination: boolean): void {
@@ -162,6 +167,9 @@ export class TelemetryService {
             }
             if (this.profileArn !== undefined) {
                 request.profileArn = this.profileArn
+            }
+            if (this.modelId !== undefined) {
+                request.modelId = this.modelId
             }
             await this.getService().sendTelemetryEvent(request)
         } catch (error) {

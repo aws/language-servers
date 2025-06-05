@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.0.44](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.43...lsp-codewhisperer/v0.0.44) (2025-06-05)
+
+
+### Bug Fixes
+
+* **amazonq:** always restore chat tabs when onReady is received ([#1524](https://github.com/aws/language-servers/issues/1524)) ([54fa813](https://github.com/aws/language-servers/commit/54fa813eb124cc3e59c30390a9ec2cc7303f9a1d))
+* rename fuzzySearch tool name ([#1512](https://github.com/aws/language-servers/issues/1512)) ([4d65c92](https://github.com/aws/language-servers/commit/4d65c92c87fb1138fcaa6f023518122823b60ba4))
+
+## [0.0.43](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.42...lsp-codewhisperer/v0.0.43) (2025-06-04)
+
+
+### Bug Fixes
+
+* disable grep search ([#1514](https://github.com/aws/language-servers/issues/1514)) ([f4f66fa](https://github.com/aws/language-servers/commit/f4f66fa3d5f8a335ae696506a4e92afe0deb262b))
+* model doesn't update in session for new tabs ([#1506](https://github.com/aws/language-servers/issues/1506)) ([89aa1ef](https://github.com/aws/language-servers/commit/89aa1efade5ff9421eaf8c66db55d0a9fb8bd283))
+
+## [0.0.42](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.41...lsp-codewhisperer/v0.0.42) (2025-06-02)
+
+
+### Features
+
+* **amazonq:** send relative file path for inline completion ([#1481](https://github.com/aws/language-servers/issues/1481)) ([35e4143](https://github.com/aws/language-servers/commit/35e4143dbaaeec8f3921b8859ce5a7451f099859))
+* model selection for agentic chat ([#1294](https://github.com/aws/language-servers/issues/1294)) ([10abd04](https://github.com/aws/language-servers/commit/10abd041d340b1b6fe6adad81cc1f6bd1610826e))
+
+
+### Bug Fixes
+
+* add environment variable override to disable indexing library init ([#1504](https://github.com/aws/language-servers/issues/1504)) ([01e9662](https://github.com/aws/language-servers/commit/01e9662cafb5a86e63a23cf908c0d01aede4db89))
+* **amazonq:** fix line endings before fswrite for windows ([#1483](https://github.com/aws/language-servers/issues/1483)) ([9e4c284](https://github.com/aws/language-servers/commit/9e4c28480f0660e10cbfce154323996ace7aea2b))
+* **amazonq:** pagination request should also used truncated left/right context ([#1497](https://github.com/aws/language-servers/issues/1497)) ([0a4ab2c](https://github.com/aws/language-servers/commit/0a4ab2ceffe0d3d759587199912adbc84dfb598f))
+* extra line when user run the command ([#1499](https://github.com/aws/language-servers/issues/1499)) ([86a17f5](https://github.com/aws/language-servers/commit/86a17f582ed21000ebc48fcab317b2cb212c4488))
+* fix paths array issue in fsRead ([#1496](https://github.com/aws/language-servers/issues/1496)) ([4bf8624](https://github.com/aws/language-servers/commit/4bf8624f6474590cb0632c9530ca6ff624ac2358))
+* grepSearch on Windows ([#1494](https://github.com/aws/language-servers/issues/1494)) ([57fca2f](https://github.com/aws/language-servers/commit/57fca2f0423ad485570f59e6921f36addb7d43a7))
+* improve the executeBash tool spec ([#1465](https://github.com/aws/language-servers/issues/1465)) ([cab801b](https://github.com/aws/language-servers/commit/cab801b3f7ad77c1fc99d06426fd8ba481109b54))
+
+## [0.0.41](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.40...lsp-codewhisperer/v0.0.41) (2025-05-30)
+
+
+### Features
+
+* **amazonq:** add abap as supported language [#1463](https://github.com/aws/language-servers/issues/1463) ([116ea07](https://github.com/aws/language-servers/commit/116ea07d4ae4744bb105f474d0d964c366673e7e))
+
+
+### Bug Fixes
+
+* add tests for workspace change supports ([#1484](https://github.com/aws/language-servers/issues/1484)) ([30559cb](https://github.com/aws/language-servers/commit/30559cb8a394e2f0e11b3150d7480d463014ea78))
+* **amazonq:** fix for honouring the index cache dir path value ([#1448](https://github.com/aws/language-servers/issues/1448)) ([40e15b7](https://github.com/aws/language-servers/commit/40e15b75ec514bb7019affdebdb12b923370bf27))
+* **amazonq:** fix UTDE suggestion state for pagination cases ([#1433](https://github.com/aws/language-servers/issues/1433)) ([6bf21e5](https://github.com/aws/language-servers/commit/6bf21e52fc0b7cefb7ee8c0ac820ad7825ba7de7))
+* **amazonq:** wrap sspc lsp handlers in try/catch so failures do not take down server ([#1464](https://github.com/aws/language-servers/issues/1464)) ([6a731cb](https://github.com/aws/language-servers/commit/6a731cb680d0574b4033f1fe209f788eb1fae221))
+* convert array values to comma-separated strings in telemetry metrics emitAgencticLoop_InvokeLLM ([#1458](https://github.com/aws/language-servers/issues/1458)) ([6682e21](https://github.com/aws/language-servers/commit/6682e2169f7f3815362d2d3a4bcdef809dea8c27))
+* decode UTF-16LE shell output on Windows ([#1456](https://github.com/aws/language-servers/issues/1456)) ([ae48442](https://github.com/aws/language-servers/commit/ae48442f499589560ff0bc9e3832171c98e53abb))
+* enable fuzzySearch tool ([#1328](https://github.com/aws/language-servers/issues/1328)) ([93d9c9c](https://github.com/aws/language-servers/commit/93d9c9ca704b59769eca0ce45857db6f9de88aa6))
+* enable grepSearch tool ([#1396](https://github.com/aws/language-servers/issues/1396)) ([a3a39de](https://github.com/aws/language-servers/commit/a3a39de85f822e10fe5a9e9d88165fa26739bc87))
+* ensure local index server updates with workspaceChangeEvent and bump runtimes ([#1424](https://github.com/aws/language-servers/issues/1424)) ([9babbb6](https://github.com/aws/language-servers/commit/9babbb643daa2893454dbc977d3802822b2c0aa6))
+* fix uncaught exception in workspaceFolderManager ([#1428](https://github.com/aws/language-servers/issues/1428)) ([1b15457](https://github.com/aws/language-servers/commit/1b154570c9cf1eb1d56141095adea4459426b774))
+* increase the code start and end line number by 1 ([#1470](https://github.com/aws/language-servers/issues/1470)) ([743666f](https://github.com/aws/language-servers/commit/743666fd18f262363a49a56bbd5063c24f1d4d31))
+* properly tokenize command args using shlex.split() for Windows ([#1440](https://github.com/aws/language-servers/issues/1440)) ([9355003](https://github.com/aws/language-servers/commit/9355003f5feb030a7b3984122e180368bae29d06))
+* reorder cancellation operations ([#1478](https://github.com/aws/language-servers/issues/1478)) ([0d392a7](https://github.com/aws/language-servers/commit/0d392a7996f6430d13e4d7171e320d5b0b0aaf43))
+* update executeBash UI for failures during command existence check ([#1462](https://github.com/aws/language-servers/issues/1462)) ([7165301](https://github.com/aws/language-servers/commit/7165301ac8de36c34011d9fc8b066fa2fe3aff7e))
+* use updated version of vecLib and use local context controller to raise context command updates ([#1479](https://github.com/aws/language-servers/issues/1479)) ([6d4280d](https://github.com/aws/language-servers/commit/6d4280d1eb61d3b10674a0aa137ae6fd2f5446bf))
+
 ## [0.0.40](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.39...lsp-codewhisperer/v0.0.40) (2025-05-22)
 
 
