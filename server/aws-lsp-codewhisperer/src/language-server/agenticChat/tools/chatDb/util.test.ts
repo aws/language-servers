@@ -17,7 +17,7 @@ import {
     initializeHistoryPriorityQueue,
     messageToChatMessage,
     messageToStreamingMessage,
-    updateOrCreateConversation,
+    updateOrCreateConversationWithMessagePair,
 } from './util'
 import { ChatMessage } from '@aws/language-server-runtimes/protocol'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
@@ -162,23 +162,34 @@ describe('ChatDb Utilities', () => {
         })
     })
 
-    describe('updateOrCreateConversation', () => {
-        it('should add message to existing conversation', () => {
+    describe('updateOrCreateConversationWithMessagePair', () => {
+        it('should add message pair to existing conversation', () => {
             const conversations = [
                 {
                     conversationId: 'conv-1',
                     clientType: 'vscode',
-                    messages: [{ body: 'Message 1', type: 'prompt' as ChatMessage['type'] }],
+                    messages: [
+                        { body: 'Message 1', type: 'prompt' as ChatMessage['type'] },
+                        { body: 'Response 1', type: 'answer' as ChatMessage['type'] },
+                    ],
                 },
             ]
 
-            const newMessage = { body: 'Message 2', type: 'answer' as ChatMessage['type'] }
+            const promptMessage = { body: 'Message 2', type: 'prompt' as ChatMessage['type'] }
+            const answerMessage = { body: 'Response 2', type: 'answer' as ChatMessage['type'] }
 
-            const result = updateOrCreateConversation(conversations, 'conv-1', newMessage, 'vscode')
+            const result = updateOrCreateConversationWithMessagePair(
+                conversations,
+                'conv-1',
+                promptMessage,
+                answerMessage,
+                'vscode'
+            )
 
             assert.strictEqual(result.length, 1)
-            assert.strictEqual(result[0].messages.length, 2)
-            assert.deepStrictEqual(result[0].messages[1], newMessage)
+            assert.strictEqual(result[0].messages.length, 4)
+            assert.deepStrictEqual(result[0].messages[2], promptMessage)
+            assert.deepStrictEqual(result[0].messages[3], answerMessage)
         })
 
         it('should create new conversation when conversationId does not exist', () => {
@@ -186,18 +197,60 @@ describe('ChatDb Utilities', () => {
                 {
                     conversationId: 'conv-1',
                     clientType: 'vscode',
-                    messages: [{ body: 'Message 1', type: 'prompt' as ChatMessage['type'] }],
+                    messages: [
+                        { body: 'Message 1', type: 'prompt' as ChatMessage['type'] },
+                        { body: 'Response 1', type: 'answer' as ChatMessage['type'] },
+                    ],
                 },
             ]
 
-            const newMessage = { body: 'Message 2', type: 'prompt' as ChatMessage['type'] }
+            const promptMessage = { body: 'Message 2', type: 'prompt' as ChatMessage['type'] }
+            const answerMessage = { body: 'Response 2', type: 'answer' as ChatMessage['type'] }
 
-            const result = updateOrCreateConversation(conversations, 'conv-2', newMessage, 'vscode')
+            const result = updateOrCreateConversationWithMessagePair(
+                conversations,
+                'conv-2',
+                promptMessage,
+                answerMessage,
+                'vscode'
+            )
 
             assert.strictEqual(result.length, 2)
             assert.strictEqual(result[1].conversationId, 'conv-2')
             assert.strictEqual(result[1].clientType, 'vscode')
-            assert.deepStrictEqual(result[1].messages, [newMessage])
+            assert.strictEqual(result[1].messages.length, 2)
+            assert.deepStrictEqual(result[1].messages[0], promptMessage)
+            assert.deepStrictEqual(result[1].messages[1], answerMessage)
+        })
+
+        it('should update conversation with updatedAt timestamp', () => {
+            const now = new Date()
+            const conversations = [
+                {
+                    conversationId: 'conv-1',
+                    clientType: 'vscode',
+                    updatedAt: new Date(now.getTime() - 1000), // 1 second ago
+                    messages: [
+                        { body: 'Message 1', type: 'prompt' as ChatMessage['type'] },
+                        { body: 'Response 1', type: 'answer' as ChatMessage['type'] },
+                    ],
+                },
+            ]
+
+            const promptMessage = { body: 'Message 2', type: 'prompt' as ChatMessage['type'] }
+            const answerMessage = { body: 'Response 2', type: 'answer' as ChatMessage['type'] }
+
+            const result = updateOrCreateConversationWithMessagePair(
+                conversations,
+                'conv-1',
+                promptMessage,
+                answerMessage,
+                'vscode'
+            )
+
+            assert.strictEqual(result.length, 1)
+            assert.ok(result[0].updatedAt instanceof Date)
+            assert.ok(result[0].updatedAt.getTime() >= now.getTime())
         })
     })
 

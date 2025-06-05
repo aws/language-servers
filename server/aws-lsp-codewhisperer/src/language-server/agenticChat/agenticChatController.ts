@@ -100,7 +100,7 @@ import {
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
-import { ChatDatabase } from './tools/chatDb/chatDb'
+import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -656,14 +656,17 @@ export class AgenticChatController implements ChatHandlers {
             let messages: DbMessage[] = []
             if (currentMessage) {
                 // Get preprocessed history messages from DB with size and number of character limits
-                let messages = this.#chatHistoryDb.getPreprocessedRequestHistory(
-                    tabId,
-                    currentMessage,
-                    remainingCharacterBudget
-                )
-                if (!this.#chatHistoryDb.validateAndFixNewMessageToolResults(messages, currentMessage)) {
-                    this.#features.logging.warn('Skipping request due to invalid tool result/tool use relationship')
-                    break
+                try {
+                    messages = this.#chatHistoryDb.getPreprocessedRequestHistory(
+                        tabId,
+                        currentMessage,
+                        remainingCharacterBudget
+                    )
+                } catch (err) {
+                    if (err instanceof ToolResultValidationError) {
+                        this.#features.logging.warn(`Tool validation error: ${err.message}`)
+                        break
+                    }
                 }
             }
 
@@ -692,20 +695,17 @@ export class AgenticChatController implements ChatHandlers {
             )
             await chatResultStream.removeResultBlock(loadingMessageId)
 
-            //  Add the current user message to the history DB
+            //  Construct the current user message to be stored to the history DB
+            let currentDbMessage
             if (currentMessage && conversationIdentifier) {
-                if (this.#isPromptCanceled(token, session, promptId)) {
-                    this.#debug('Skipping adding user message to history - cancelled by user')
-                } else {
-                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                        body: currentMessage.userInputMessage?.content ?? '',
-                        type: 'prompt' as any,
-                        userIntent: currentMessage.userInputMessage?.userIntent,
-                        origin: currentMessage.userInputMessage?.origin,
-                        userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
-                        shouldDisplayMessage: shouldDisplayMessage,
-                        timestamp: new Date(),
-                    })
+                currentDbMessage = {
+                    body: currentMessage.userInputMessage?.content ?? '',
+                    type: 'prompt' as any,
+                    userIntent: currentMessage.userInputMessage?.userIntent,
+                    origin: currentMessage.userInputMessage?.origin,
+                    userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
+                    shouldDisplayMessage: shouldDisplayMessage,
+                    timestamp: new Date(),
                 }
             }
             shouldDisplayMessage = true
@@ -724,16 +724,28 @@ export class AgenticChatController implements ChatHandlers {
             // This is needed to handle the case where the response stream times out
             // and we want to auto-retry
             if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
+                if (!currentDbMessage || this.#isPromptCanceled(token, session, promptId)) {
+                    this.#debug('Skipping adding messages to history - cancelled by user')
+                    throw new CancellationError('user')
+                }
+
                 const content =
                     'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
-                if (!this.#isPromptCanceled(token, session, promptId)) {
-                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                this.#chatHistoryDb.addMessagePair(
+                    tabId,
+                    'cwc',
+                    conversationIdentifier ?? '',
+                    // User prompt
+                    currentDbMessage,
+                    // Assistant response
+                    {
                         body: 'Response timed out - message took too long to generate',
                         type: 'answer',
                         shouldDisplayMessage: false,
                         timestamp: new Date(),
-                    })
-                }
+                    }
+                )
+
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
                 shouldDisplayMessage = false
                 // set the in progress tool use UI status to Error
@@ -741,12 +753,21 @@ export class AgenticChatController implements ChatHandlers {
                 continue
             }
 
-            //  Add the current assistantResponse message to the history DB
+            //  Add the user prompt and the assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
-                if (this.#isPromptCanceled(token, session, promptId)) {
-                    this.#debug('Skipping adding assistant message to history - cancelled by user')
-                } else {
-                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                if (!currentDbMessage || this.#isPromptCanceled(token, session, promptId)) {
+                    this.#debug('Skipping adding messages to history - cancelled by user')
+                    throw new CancellationError('user')
+                }
+
+                this.#chatHistoryDb.addMessagePair(
+                    tabId,
+                    'cwc',
+                    conversationIdentifier ?? '',
+                    // User prompt
+                    currentDbMessage,
+                    // Assistant answer
+                    {
                         body: result.data?.chatResult.body,
                         type: 'answer' as any,
                         codeReference: result.data.chatResult.codeReference,
@@ -764,8 +785,8 @@ export class AgenticChatController implements ChatHandlers {
                             })),
                         shouldDisplayMessage: shouldDisplayMessage,
                         timestamp: new Date(),
-                    })
-                }
+                    }
+                )
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
             }
@@ -961,6 +982,11 @@ export class AgenticChatController implements ChatHandlers {
         const results: ToolResult[] = []
 
         for (const toolUse of toolUses) {
+            // Check for cancellation before processing each tool
+            if (token?.isCancellationRequested) {
+                throw new CancellationError('user')
+            }
+
             // Store buttonBlockId to use it in `catch` block if needed
             let cachedButtonBlockId
             if (!toolUse.name || !toolUse.toolUseId) continue

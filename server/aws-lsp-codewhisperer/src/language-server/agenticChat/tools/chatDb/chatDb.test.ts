@@ -5,10 +5,11 @@
 
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
-import { ChatDatabase } from './chatDb'
+import { ChatDatabase, ToolResultValidationError } from './chatDb'
+import { ChatMessage } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { Message } from './util'
-import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
+import { Message, TabType } from './util'
+import { ChatMessage as StreamingMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
 import * as fs from 'fs'
 
 describe('ChatDatabase', () => {
@@ -33,6 +34,11 @@ describe('ChatDatabase', () => {
             },
             runtime: {
                 platform: 'node',
+            },
+            lsp: {
+                getClientInitializeParams: sinon.stub().returns({
+                    clientInfo: { name: 'test-client' },
+                }),
             },
             workspace: {
                 fs: {
@@ -71,7 +77,7 @@ describe('ChatDatabase', () => {
 
             chatDb.ensureValidMessageSequence(messages, {
                 userInputMessage: { content: 'New message', userInputMessageContext: {} },
-            } as ChatMessage)
+            } as StreamingMessage)
 
             assert.strictEqual(messages.length, 4, 'Should not modify valid sequence')
             assert.deepStrictEqual(messages, originalMessages, 'Messages should remain unchanged')
@@ -88,7 +94,7 @@ describe('ChatDatabase', () => {
             //  Should not be possible
             chatDb.ensureValidMessageSequence(messages, {
                 assistantResponseMessage: { content: 'New assisstant message' },
-            } as ChatMessage)
+            } as StreamingMessage)
 
             assert.strictEqual(messages.length, 1, 'Should have removed assistant messages from the beginning and end')
             assert.strictEqual(messages[0].type, 'prompt', 'First message should be from user')
@@ -103,7 +109,7 @@ describe('ChatDatabase', () => {
 
             chatDb.ensureValidMessageSequence(messages, {
                 userInputMessage: { content: 'New message', userInputMessageContext: {} },
-            } as ChatMessage)
+            } as StreamingMessage)
 
             assert.strictEqual(messages.length, 2, 'Should have removed user message from the end')
             assert.strictEqual(messages[0].type, 'prompt', 'First message should be from user')
@@ -115,7 +121,7 @@ describe('ChatDatabase', () => {
 
             chatDb.ensureValidMessageSequence(messages, {
                 userInputMessage: { content: 'New message', userInputMessageContext: {} },
-            } as ChatMessage)
+            } as StreamingMessage)
 
             assert.strictEqual(messages.length, 0, 'Empty array should remain empty')
         })
@@ -138,10 +144,11 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as ChatMessage
+            } as StreamingMessage
 
-            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, false)
+            assert.throws(() => {
+                chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
+            }, ToolResultValidationError)
         })
 
         it('should handle new user message with valid tool results', () => {
@@ -170,10 +177,10 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as ChatMessage
+            } as StreamingMessage
 
-            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, true)
+            // Should not throw an exception
+            chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
             assert.strictEqual(toolResults.length, 1, 'Should keep valid tool results')
@@ -200,10 +207,10 @@ describe('ChatDatabase', () => {
                     content: 'New message',
                     userInputMessageContext: {},
                 },
-            } as ChatMessage
+            } as StreamingMessage
 
-            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, true)
+            // Should not throw an exception
+            chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
             assert.strictEqual(toolResults.length, 1, 'Should have added tool results')
@@ -235,10 +242,11 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as ChatMessage
+            } as StreamingMessage
 
-            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, false)
+            assert.throws(() => {
+                chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
+            }, ToolResultValidationError)
         })
 
         it('should handle new user message with invalid tool results ID', () => {
@@ -263,10 +271,10 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as ChatMessage
+            } as StreamingMessage
 
-            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, true)
+            // Should not throw an exception
+            chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
             assert.strictEqual(toolResults.length, 1, 'Should have only one tool results')
@@ -312,7 +320,7 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as ChatMessage
+            } as StreamingMessage
 
             const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
@@ -347,10 +355,11 @@ describe('ChatDatabase', () => {
                         toolResults: [],
                     },
                 },
-            } as ChatMessage
+            } as StreamingMessage
 
-            const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, false)
+            assert.throws(() => {
+                chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
+            }, ToolResultValidationError)
         })
     })
 })
