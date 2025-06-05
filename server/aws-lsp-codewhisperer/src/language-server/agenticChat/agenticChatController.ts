@@ -2630,8 +2630,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
-        session.modelId =
-            params.optionsValues['model-selection'] === 'auto' ? undefined : params.optionsValues['model-selection']
+        session.modelId = params.optionsValues['model-selection']
 
         this.#chatHistoryDb.setModelId(session.modelId)
     }
