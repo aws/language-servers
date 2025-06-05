@@ -8,10 +8,12 @@ import * as sinon from 'sinon'
 import { McpEventHandler } from './mcpEventHandler'
 import { McpManager } from './mcpManager'
 import * as mcpUtils from './mcpUtils'
+import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
 
 describe('McpEventHandler error handling', () => {
     let eventHandler: McpEventHandler
     let features: any
+    let telemetryService: TelemetryService
     let loadStub: sinon.SinonStub
 
     beforeEach(() => {
@@ -44,8 +46,16 @@ describe('McpEventHandler error handling', () => {
             lsp: {},
         }
 
+        // Create mock telemetry service
+        telemetryService = {
+            emitUserTriggerDecision: sinon.stub(),
+            emitChatInteractWithMessage: sinon.stub(),
+            emitUserModificationEvent: sinon.stub(),
+            emitCodeCoverageEvent: sinon.stub(),
+        } as unknown as TelemetryService
+
         // Create the event handler
-        eventHandler = new McpEventHandler(features)
+        eventHandler = new McpEventHandler(features, telemetryService)
 
         // Stub loadPersonaPermissions
         sinon

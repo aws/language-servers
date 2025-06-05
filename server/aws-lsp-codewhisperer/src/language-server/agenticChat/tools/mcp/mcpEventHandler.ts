@@ -1,5 +1,6 @@
 import { Features } from '../../../types'
 import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
+import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
 import {
     DetailedListGroup,
     DetailedListItem,
@@ -22,6 +23,7 @@ import {
     McpServerRuntimeState,
     McpServerStatus,
 } from './mcpTypes'
+import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
 
 interface PermissionOption {
     label: string
@@ -33,12 +35,14 @@ export class McpEventHandler {
     #eventListenerRegistered: boolean
     #currentEditingServerName: string | undefined
     #shouldDisplayListMCPServers: boolean
+    #telemetryController: ChatTelemetryController
 
-    constructor(features: Features) {
+    constructor(features: Features, telemetryService: TelemetryService) {
         this.#features = features
         this.#eventListenerRegistered = false
         this.#currentEditingServerName = undefined
         this.#shouldDisplayListMCPServers = true
+        this.#telemetryController = new ChatTelemetryController(features, telemetryService)
     }
 
     /**
@@ -635,9 +639,28 @@ export class McpEventHandler {
         if (isEditMode && originalServerName) {
             await McpManager.instance.removeServer(originalServerName)
             await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+            // Emit server initialize event after updating server
+            this.#telemetryController?.emitMCPServerInitializeEvent({
+                source: 'updateServer',
+                command: config.command,
+                enabled: true,
+                numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+                scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
+                transportType: 'stdio',
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+            })
         } else {
             // Create new server
             await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+            this.#telemetryController?.emitMCPServerInitializeEvent({
+                source: 'addServer',
+                command: config.command,
+                enabled: true,
+                numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+                scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
+                transportType: 'stdio',
+                languageServerVersion: this.#features.runtime.serverInfo.version,
+            })
         }
 
         this.#currentEditingServerName = undefined
@@ -973,10 +996,88 @@ export class McpEventHandler {
             const mcpServerPermission = await this.#processPermissionUpdates(updatedPermissionConfig)
 
             await McpManager.instance.updateServerPermission(serverName, mcpServerPermission)
+
+            // Get server config to emit telemetry
+            const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
+            if (serverConfig) {
+                // Emit server initialize event after permission change
+                this.#telemetryController?.emitMCPServerInitializeEvent({
+                    source: 'updatePermission',
+                    command: serverConfig.command,
+                    enabled: true,
+                    numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+                    scope:
+                        serverConfig?.__configPath__ ===
+                        getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+                            ? 'global'
+                            : 'workspace',
+                    transportType: 'stdio',
+                    languageServerVersion: this.#features.runtime.serverInfo.version,
+                })
+            }
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to update MCP permissions: ${error}`)
             return { id: params.id }
+        }
+    }
+
+    #emitMCPConfigEvent() {
+        // Emit MCP config event after reinitialization
+        const mcpManager = McpManager.instance
+        const serverConfigs = mcpManager.getAllServerConfigs()
+        const activeServers = Array.from(serverConfigs.entries()).filter(
+            ([name, _]) => !mcpManager.isServerDisabled(name)
+        )
+
+        // Count global vs project servers
+        const globalServers = Array.from(serverConfigs.entries()).filter(
+            ([_, config]) =>
+                config?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+        ).length
+        const projectServers = serverConfigs.size - globalServers
+
+        // Count tools by permission
+        let toolsAlwaysAllowed = 0
+        let toolsDenied = 0
+
+        for (const [serverName, _] of activeServers) {
+            const toolsWithPermissions = mcpManager.getAllToolsWithPermissions(serverName)
+            toolsWithPermissions.forEach(item => {
+                if (item.permission === McpPermissionType.alwaysAllow) {
+                    toolsAlwaysAllowed++
+                } else if (item.permission === McpPermissionType.deny) {
+                    toolsDenied++
+                }
+            })
+        }
+
+        this.#telemetryController?.emitMCPConfigEvent({
+            numActiveServers: activeServers.length,
+            numGlobalServers: globalServers,
+            numProjectServers: projectServers,
+            numToolsAlwaysAllowed: toolsAlwaysAllowed,
+            numToolsDenied: toolsDenied,
+            languageServerVersion: this.#features.runtime.serverInfo.version,
+        })
+
+        // Emit server initialize events for all active servers
+        for (const [serverName, config] of serverConfigs.entries()) {
+            const enabled = !mcpManager.isServerDisabled(serverName)
+            if (enabled) {
+                this.#telemetryController?.emitMCPServerInitializeEvent({
+                    source: 'reload',
+                    command: config.command,
+                    enabled,
+                    numTools: mcpManager.getAllToolsWithPermissions(serverName).length,
+                    scope:
+                        config?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+                            ? 'global'
+                            : 'workspace',
+                    transportType: 'stdio',
+                    languageServerVersion: this.#features.runtime.serverInfo.version,
+                })
+            }
         }
     }
 
@@ -987,6 +1088,7 @@ export class McpEventHandler {
         this.#shouldDisplayListMCPServers = true
         try {
             await McpManager.instance.reinitializeMcpServers()
+            this.#emitMCPConfigEvent()
             return {
                 id: params.id,
             }
