@@ -43,19 +43,16 @@ export class FuzzySearch {
         }
     }
 
-    public async queueDescription(params: FuzzySearchParams, updates: WritableStream, requiresAcceptance: boolean) {
+    public async queueDescription(params: FileSearchParams, updates: WritableStream, requiresAcceptance: boolean) {
         // deprecated, no-op
         return
     }
 
-    public async requiresAcceptance(
-        params: FuzzySearchParams,
-        approvedPaths?: Set<string>
-    ): Promise<CommandValidation> {
+    public async requiresAcceptance(params: FileSearchParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
         return requiresPathAcceptance(params.path, this.workspace, this.logging, approvedPaths)
     }
 
-    public async invoke(params: FuzzySearchParams, token?: CancellationToken): Promise<InvokeOutput> {
+    public async invoke(params: FileSearchParams, token?: CancellationToken): Promise<InvokeOutput> {
         const path = sanitize(params.path)
         try {
             // Get all files and directories
@@ -117,7 +114,7 @@ export class FuzzySearch {
                 'It ignores common build and dependency directories.\n\n' +
                 '## When to use\n' +
                 '- When you need to locate files or folders by approximate names\n' +
-                "- When you don't know exact names\n" +
+                "- When you don't know exact names of files or directories\n" +
                 '- When you want to skip a listDirectory step\n\n' +
                 '## When not to use\n' +
                 '- When you need to search file contents\n' +
