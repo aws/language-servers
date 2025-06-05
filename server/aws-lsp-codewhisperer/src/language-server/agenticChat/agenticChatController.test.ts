@@ -1011,9 +1011,8 @@ describe('AgenticChatController', () => {
             )
 
             // These checks will fail if a response error is returned.
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.message, errorMsg)
-            assert.strictEqual(typedChatResult.data?.body, errorMsg)
+            const typedChatResult = chatResult as ChatResult
+            assert.strictEqual(typedChatResult.body, errorMsg)
         })
 
         it('truncate input to 500k character ', async function () {
