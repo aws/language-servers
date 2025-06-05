@@ -59,6 +59,7 @@ import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetecti
 import { Position } from 'vscode-languageserver-textdocument'
 import { error } from 'console'
 import { DebugLogger } from './debugUtils'
+import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 // Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -69,6 +70,7 @@ export abstract class CodeWhispererServiceBase {
     public customizationArn?: string
     public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
+    protected flag: boolean = false
 
     inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
 
@@ -305,7 +307,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         // TODO: handle if textDocument/cursor/request position doesn't match prefetchSuggestions
         // e.g. if it's not a subsequent call, it must be a cold start
-        let isColdStart = this.prefetchSuggestions.length === 0 || this.prefetchSuggestions[0].id !== textDocument.uri
+        let isColdStart =
+            this.flag || this.prefetchSuggestions.length === 0 || this.prefetchSuggestions[0].id !== textDocument.uri
 
         // TODO: make id more strict, possibly session id or check if previous suggestion is in the doc
         // if () {
@@ -314,24 +317,38 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         if (!isColdStart) {
             this.logging.info(`will use prefetch suggestion`)
-            const r = this.prefetchSuggestions.pop()
+            const r = await waitUntil(
+                async () => {
+                    return this.prefetchSuggestions.pop()
+                },
+                {
+                    timeout: 2000,
+                    interval: 200,
+                }
+            )
             if (!r) {
-                throw new Error('shouldnt be here')
+                this.clearPrefetch()
+                throw new Error('time out')
             }
 
             return r.response
         } else {
+            this.clearPrefetch()
+            // TODO: cancel wip prefetch calls
             this.logging.info(`cold start`)
             const coldStartResponse = await this.generateSuggestions(originalRequest)
             if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
                 setTimeout(() => {
+                    this.flag = true
                     this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument).catch(e => {})
+                    this.flag = false
                 }, 200)
             }
             return coldStartResponse
         }
     }
 
+    // TODO: make it cancellable
     private async chainedGenerateCompletionCall(
         baseRequest: GenerateSuggestionsRequest,
         baseResponse: GenerateSuggestionsResponse,
