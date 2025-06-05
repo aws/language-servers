@@ -759,9 +759,6 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.updateServerPermission(serverName, perm)
-            await this.#handleRefreshMCPList({
-                id: params.id,
-            })
         } catch (error) {
             this.#features.logging.error(`Failed to enable MCP server: ${error}`)
         }
