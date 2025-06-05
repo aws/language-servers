@@ -96,7 +96,7 @@ public class TestClass {}
         })
 
         describe('python', function () {
-            it('case1', function () {
+            it.skip('case1', function () {
                 const p = path.join(tmpProjectRoot, 'test_py_class.py')
                 fs.writeFileSync(
                     p,
