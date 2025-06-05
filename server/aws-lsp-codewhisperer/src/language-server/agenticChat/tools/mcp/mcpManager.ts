@@ -552,8 +552,15 @@ export class McpManager {
         this.features.logging.info('Reinitializing MCP servers')
 
         try {
+            // Save the current tool name mapping to preserve tool names across reinitializations
+            const savedToolNameMapping = this.getToolNameMapping()
+
             // close clients, clear state, but don't reset singleton
             await this.close(true)
+
+            // Restore the saved tool name mapping
+            this.setToolNameMapping(savedToolNameMapping)
+
             await this.discoverAllServers()
 
             const reinitializedServerCount = McpManager.#instance?.mcpServers.size
