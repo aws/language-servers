@@ -188,7 +188,7 @@ export class FocalFileResolver {
     extractImportedPaths(testFilePath: string, lang: string, projectRoot: string): Set<string> {
         const config = LANGUAGE_CONFIG[lang]
         const content = fs.readFileSync(testFilePath)
-        const lines = content.toString().split(os.EOL)
+        const lines = content.toString().split(/\r?\n/)
 
         const result: Set<string> = new Set()
         let buffer = ''
