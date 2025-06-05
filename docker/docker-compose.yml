@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+    language-servers-build:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                # Configure branches here
+                RUNTIMES_BRANCH: main
+                SERVERS_BRANCH: floralph/nep-flare
+        working_dir: /workspace/language-servers
+        command: sh -c "mkdir -p /output && cp /host-output/app/aws-lsp-codewhisperer-runtimes/build/aws-lsp-codewhisperer.js /output/ && /bin/zsh"
+        tty: true
+        stdin_open: true
+        volumes:
+            - ../:/host-output
