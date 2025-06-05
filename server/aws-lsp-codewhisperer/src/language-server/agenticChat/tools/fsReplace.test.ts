@@ -15,7 +15,7 @@ describe('FsReplace Tool', function () {
     const expectedOutput: InvokeOutput = {
         output: {
             kind: 'text',
-            content: '',
+            content: 'File updated successfully',
         },
     }
 
@@ -106,7 +106,7 @@ describe('FsReplace Tool', function () {
             const fsReplace = new FsReplace(features)
             await assert.rejects(
                 () => fsReplace.invoke(params),
-                /2 occurrences of oldStr were found when only 1 is expected/
+                /Multiple occurrences of "Hello" were found when only 1 is expected/
             )
         })
 
