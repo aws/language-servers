@@ -63,14 +63,14 @@ export const editPredictionAutoTrigger = ({
     const position = { line: lineNum, character: currentLineContent.length }
 
     // 1. Check required conditions
-    // 1.1 Recent Edit Detection
+    // 1.1 Recent Edit Detection [NEEDED]
     const hasRecentEdit = recentEdits?.hasRecentEditInLine(
         fileContext.filename,
         lineNum,
         config.recentEditThresholdMs,
         config.editAdjacentLineRange
     )
-    // 1.2 Cursor Position (not in middle of word)
+    // 1.2 Cursor Position (not in middle of word) [DISABLE]
     const charToLeft = currentLineContent.length > 0 ? currentLineContent[currentLineContent.length - 1] : ''
     const charToRight = rightContextLines[0]?.[0] || ''
 
@@ -80,10 +80,10 @@ export const editPredictionAutoTrigger = ({
 
     const isNotInMiddleOfWord = isWhitespaceOrSpecial(charToLeft) || isWhitespaceOrSpecial(charToRight)
 
-    // 1.3 Previous User Decision
+    // 1.3 Previous User Decision [WIP - P1]
     const isPreviousDecisionNotReject = previousDecision !== 'Reject'
 
-    // 1.4 Non-empty Suffix
+    // 1.4 Non-empty Suffix [NEEDED - Paramterize this]
     const hasNonEmptySuffix = rightContextLines.length > 1 && rightContextLines[1].trim().length > 0
 
     // 2. Check optional conditions
@@ -104,6 +104,8 @@ export const editPredictionAutoTrigger = ({
     // 2.4 Line Beginning
     const isAtLineBeginning =
         config.enableLineBeginningTrigger && languageDetector.isAtLineBeginning(currentLineContent)
+
+    // TODO : Disable all OR conditions
 
     // Determine if we should trigger
     const requiredConditionsMet =

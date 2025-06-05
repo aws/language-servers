@@ -426,8 +426,8 @@ export class Logger {
         return Logger.instance
     }
 
-    public getRequestHash(uri: string, posX: number, posY: number): string {
-        return crypto.createHash('sha256').update(`${uri}:${posX}:${posY}`).digest('hex')
+    public getRequestHash(uri: string, content: string, posX: number, posY: number): string {
+        return crypto.createHash('sha256').update(`${uri}:${content}:${posX}:${posY}`).digest('hex')
     }
 
     /**

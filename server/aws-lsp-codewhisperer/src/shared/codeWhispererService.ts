@@ -236,6 +236,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         if (requestBody.fileContext) {
                             const flareRequestId = logger.getRequestHash(
                                 requestBody.fileContext.filename,
+                                requestBody.editorState.text,
                                 requestBody.editorState.cursorState.position.line,
                                 requestBody.editorState.cursorState.position.character
                             )
@@ -263,6 +264,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         if (requestBody.fileContext) {
                             const flareRequestId = logger.getRequestHash(
                                 requestBody.fileContext.filename,
+                                requestBody.editorState.text,
                                 requestBody.editorState.cursorState.position.line,
                                 requestBody.editorState.cursorState.position.character
                             )

@@ -270,22 +270,6 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            const flareRequestId = logger.getRequestHash(
-                params.textDocument.uri,
-                params.position.line,
-                params.position.character
-            )
-
-            // Log the start of the request with structured data
-            const handlerData: CompletionLogData = {
-                textDocument: {
-                    uri: params.textDocument.uri,
-                },
-                position: params.position,
-                context: params.context,
-            }
-            logger.logCompletion(handlerData, flareRequestId)
-
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING') {
@@ -304,6 +288,23 @@ export const CodewhispererServerFactory =
                         logging.log(`textDocument [${params.textDocument.uri}] not found`)
                         return EMPTY_RESULT
                     }
+
+                    const flareRequestId = logger.getRequestHash(
+                        params.textDocument.uri,
+                        textDocument.getText(),
+                        params.position.line,
+                        params.position.character
+                    )
+
+                    // Log the start of the request with structured data
+                    const handlerData: CompletionLogData = {
+                        textDocument: {
+                            uri: params.textDocument.uri,
+                        },
+                        position: params.position,
+                        context: params.context,
+                    }
+                    logger.logCompletion(handlerData, flareRequestId)
 
                     const inferredLanguageId = getSupportedLanguageId(textDocument)
                     if (!inferredLanguageId) {
@@ -827,7 +828,8 @@ export const CodewhispererServerFactory =
 
             // Start the logger WebSocket server on port 3333
             try {
-                const port = Math.floor(Math.random() * 1001) + 3000
+                //const port = Math.floor(Math.random() * 1001) + 3000
+                const port = 3000
                 loggerServer.start(port)
                 logging.log(`[SERVER] Logger WebSocket server started on port ${port}`)
                 logging.log(`[SERVER] Logger Web UI available at http://localhost:${port}/`)
