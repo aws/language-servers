@@ -1,12 +1,12 @@
 import * as assert from 'assert'
-import { FuzzySearch } from './fuzzySearch'
+import { FileSearch } from './fileSearch'
 import { testFolder } from '@aws/lsp-core'
 import * as path from 'path'
 import * as fs from 'fs/promises'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
-describe('FuzzySearch Tool', () => {
+describe('FileSearch Tool', () => {
     let tempFolder: testFolder.TestFolder
     let testFeatures: TestFeatures
 
@@ -35,7 +35,7 @@ describe('FuzzySearch Tool', () => {
     })
 
     it('invalidates empty path', async () => {
-        const fuzzySearch = new FuzzySearch(testFeatures)
+        const fileSearch = new FileSearch(testFeatures)
         await assert.rejects(
             fileSearch.validate({ path: '', queryName: 'test' }),
             /Path cannot be empty/i,
@@ -75,8 +75,8 @@ describe('FuzzySearch Tool', () => {
         await tempFolder.write('fileB.md', '# fileB content')
         await tempFolder.write('fileC.js', 'console.log("fileC");')
 
-        const fuzzySearch = new FuzzySearch(testFeatures)
-        const result = await fuzzySearch.invoke({
+        const fileSearch = new FileSearch(testFeatures)
+        const result = await fileSearch.invoke({
             path: tempFolder.path,
             queryName: 'txt',
             maxDepth: 0,
@@ -97,8 +97,8 @@ describe('FuzzySearch Tool', () => {
         await subfolder.write('fileB.txt', 'fileB content')
         await tempFolder.write('fileC.md', '# fileC content')
 
-        const fuzzySearch = new FuzzySearch(testFeatures)
-        const result = await fuzzySearch.invoke({
+        const fileSearch = new FileSearch(testFeatures)
+        const result = await fileSearch.invoke({
             path: tempFolder.path,
             queryName: 'txt',
         })
@@ -124,8 +124,8 @@ describe('FuzzySearch Tool', () => {
         await subfolder1.write('level1.txt', 'level1 content')
         await subfolder2.write('level2.txt', 'level2 content')
 
-        const fuzzySearch = new FuzzySearch(testFeatures)
-        const result = await fuzzySearch.invoke({
+        const fileSearch = new FileSearch(testFeatures)
+        const result = await fileSearch.invoke({
             path: tempFolder.path,
             queryName: 'txt',
             maxDepth: 1,
@@ -146,8 +146,8 @@ describe('FuzzySearch Tool', () => {
         await tempFolder.write('FileUpper.txt', 'upper case filename')
         await tempFolder.write('fileLower.txt', 'lower case filename')
 
-        const fuzzySearch = new FuzzySearch(testFeatures)
-        const result = await fuzzySearch.invoke({
+        const fileSearch = new FileSearch(testFeatures)
+        const result = await fileSearch.invoke({
             path: tempFolder.path,
             queryName: 'file',
             maxDepth: 0,
@@ -166,8 +166,8 @@ describe('FuzzySearch Tool', () => {
         await tempFolder.write('FileUpper.txt', 'upper case filename')
         await tempFolder.write('fileLower.txt', 'lower case filename')
 
-        const fuzzySearch = new FuzzySearch(testFeatures)
-        const result = await fuzzySearch.invoke({
+        const fileSearch = new FileSearch(testFeatures)
+        const result = await fileSearch.invoke({
             path: tempFolder.path,
             queryName: 'file',
             maxDepth: 0,
@@ -188,8 +188,8 @@ describe('FuzzySearch Tool', () => {
         await tempFolder.write('regular.txt', 'regular content')
         await nodeModules.write('excluded.txt', 'excluded content')
 
-        const fuzzySearch = new FuzzySearch(testFeatures)
-        const result = await fuzzySearch.invoke({
+        const fileSearch = new FileSearch(testFeatures)
+        const result = await fileSearch.invoke({
             path: tempFolder.path,
             queryName: 'txt',
         })
@@ -205,7 +205,7 @@ describe('FuzzySearch Tool', () => {
 
     it('throws error if path does not exist', async () => {
         const missingPath = path.join(tempFolder.path, 'no_such_directory')
-        const fuzzySearch = new FuzzySearch(testFeatures)
+        const fileSearch = new FileSearch(testFeatures)
 
         await assert.rejects(
             fileSearch.invoke({ path: missingPath, queryName: '.*' }),
@@ -215,8 +215,8 @@ describe('FuzzySearch Tool', () => {
     })
 
     it('expands ~ path', async () => {
-        const fuzzySearch = new FuzzySearch(testFeatures)
-        const result = await fuzzySearch.invoke({
+        const fileSearch = new FileSearch(testFeatures)
+        const result = await fileSearch.invoke({
             path: '~',
             queryName: '.*',
             maxDepth: 0,
