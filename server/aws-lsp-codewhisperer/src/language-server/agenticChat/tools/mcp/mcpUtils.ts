@@ -337,6 +337,19 @@ export function createNamespacedToolName(
     allNamespacedTools: Set<string>,
     toolNameMapping: Map<string, { serverName: string; toolName: string }>
 ): string {
+    // First, check if this server/tool combination already has a mapping
+    // If it does, reuse that name to maintain consistency across reinitializations
+    for (const [existingName, mapping] of toolNameMapping.entries()) {
+        if (mapping.serverName === serverName && mapping.toolName === toolName) {
+            // If the name is already in the set, it's already registered
+            // If not, add it to the set
+            if (!allNamespacedTools.has(existingName)) {
+                allNamespacedTools.add(existingName)
+            }
+            return existingName
+        }
+    }
+
     const sep = '___'
     // If tool name alone isn't unique or is too long, try adding server prefix
     const fullName = `${serverName}${sep}${toolName}`

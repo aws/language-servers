@@ -1592,8 +1592,6 @@ ${params.message}`,
             )
         } else if (['mcp-disable-server', 'mcp-delete-server', 'mcp-enable-server'].includes(params.id)) {
             messager.onListMcpServers()
-        } else if (params.id === 'refresh-mcp-list') {
-            messager.onListMcpServers({ 'refresh-mcp-list': 'refresh-mcp-list' })
         } else if (params.id === 'update-mcp-list') {
             if (isMcpServersListActive) {
                 messager.onListMcpServers()
