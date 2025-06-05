@@ -33,15 +33,13 @@ export class FsReplace {
         if (!params.path) {
             throw new Error('Path must not be empty')
         }
+        if (!params.diffs || params.diffs.length === 0) {
+            throw new Error('Diffs must not be empty')
+        }
         const sanitizedPath = sanitize(params.path)
-        for (const diff of params.diffs) {
-            if (diff.oldStr === diff.newStr) {
-                throw new Error('The provided oldStr and newStr are the exact same, this is a no-op')
-            }
-            const fileExists = await this.workspace.fs.exists(sanitizedPath)
-            if (!fileExists) {
-                throw new Error('The provided path must exist in order to replace contents into it')
-            }
+        const fileExists = await this.workspace.fs.exists(sanitizedPath)
+        if (!fileExists) {
+            throw new Error('The provided path must exist in order to replace contents into it')
         }
     }
 
@@ -53,7 +51,7 @@ export class FsReplace {
         return {
             output: {
                 kind: 'text',
-                content: '',
+                content: 'File updated successfully',
             },
         }
     }
@@ -74,7 +72,7 @@ export class FsReplace {
             description:
                 'A tool for search and replace contents of an existing file.\n\n' +
                 '## Overview\n' +
-                'This tool replaces sections of content in an existing file using oldStr/newStr blocks that define exact changes to specific parts of the file.\n\n' +
+                'This tool replaces sections of content in an existing file using `oldStr`/`newStr` blocks that define exact changes to specific parts of the file. You MUST ALWAYS group as many changes as you can by populating the diffs array with multiple `oldStr`/`newStr` pairs, DO NOT be overly cautious and methodical by making one change at a time on the same file.\n\n' +
                 '## When to use\n' +
                 '- When you need to make targeted changes to specific parts of a file\n' +
                 '- When you need to update multiple sections of the same file\n' +
@@ -82,11 +80,9 @@ export class FsReplace {
                 '- When you need to create a new file\n' +
                 '- When you need to rename or move a file\n\n' +
                 '## IMPORTANT Notes\n' +
-                '- Use this tool to delete code by using empty `newStr` parameter.\n' +
-                '- The `oldStr` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces! Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`.\n' +
-                '- The `newStr` parameter should contain the edited lines that should replace the `oldStr`.\n' +
-                '- When multiple edits to the same file are needed, populate the diffs array with `oldStr` and `newStr` pairs. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state.\n' +
-                '- Each `oldStr` must be unique within the file - if there are multiple matches, the operation will fail.',
+                '- Use this tool to delete code by using empty `newStr` parameter\n' +
+                '- The `oldStr` parameter should match EXACTLY one or more consecutive lines from the target file. Be mindful of whitespaces including the tabs and spaces! Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`\n' +
+                '- When multiple edits to the same file are needed, ALWAYS populate the diffs array with MULTIPLE `oldStr` and `newStr` pairs. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state',
             inputSchema: {
                 type: 'object',
                 properties: {
@@ -96,14 +92,15 @@ export class FsReplace {
                         type: 'string',
                     },
                     diffs: {
-                        description: 'List of diffs to replace contents in an existing file.',
+                        description:
+                            'List of `oldStr`/`newStr` pairs to replace contents in an existing file. IMPORTANT: Must be provided as an array of objects, NOT as a string. For example, `[{"oldStr": "existingContent", "newStr": "newContent"}]`',
                         type: 'array',
                         items: {
                             type: 'object',
                             properties: {
                                 oldStr: {
                                     description:
-                                        'The exact string content to be replaced in the file. Must match exactly including whitespace and line breaks.',
+                                        'The exact string content to be replaced in the file. Must match EXACTLY including whitespaces (indentations, tabs, spaces) and line breaks.',
                                     type: 'string',
                                 },
                                 newStr: {
@@ -136,23 +133,32 @@ const getReplaceContent = (params: ReplaceParams, fileContent: string) => {
         if (diff.newStr == undefined) {
             diff.newStr = ''
         }
+        if (diff.oldStr === diff.newStr) {
+            continue
+        }
+
         // Normalize oldStr and newStr to match fileContent's line ending style
         const normalizedOldStr = diff.oldStr.split(/\r\n|\r|\n/).join(lineEnding)
         const normalizedNewStr = diff.newStr.split(/\r\n|\r|\n/).join(lineEnding)
 
-        const matches = [...fileContent.matchAll(new RegExp(escapeRegExp(normalizedOldStr), 'g'))]
+        // Use string indexOf and substring for safer replacement with special characters
+        const startIndex = fileContent.indexOf(normalizedOldStr)
 
-        if (matches.length === 0) {
+        if (startIndex === -1) {
             throw new Error(`No occurrences of "${diff.oldStr}" were found`)
         }
-        if (matches.length > 1) {
-            throw new Error(`${matches.length} occurrences of oldStr were found when only 1 is expected`)
+
+        // Check for multiple occurrences
+        const secondIndex = fileContent.indexOf(normalizedOldStr, startIndex + 1)
+        if (secondIndex !== -1) {
+            throw new Error(`Multiple occurrences of "${diff.oldStr}" were found when only 1 is expected`)
         }
-        fileContent = fileContent.replace(normalizedOldStr, normalizedNewStr)
+
+        // Perform the replacement using string operations instead of regex
+        fileContent =
+            fileContent.substring(0, startIndex) +
+            normalizedNewStr +
+            fileContent.substring(startIndex + normalizedOldStr.length)
     }
     return fileContent
-}
-
-const escapeRegExp = (string: string) => {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

@@ -14,7 +14,13 @@ describe('FsWrite Tool', function () {
     const expectedOutput: InvokeOutput = {
         output: {
             kind: 'text',
-            content: '',
+            content: 'File created successfully',
+        },
+    }
+    const expectedOutputAppend: InvokeOutput = {
+        output: {
+            kind: 'text',
+            content: 'File appended successfully',
         },
     }
 
@@ -115,7 +121,7 @@ describe('FsWrite Tool', function () {
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1\nLine 2\nLine 3\nLine 4')
 
-            assert.deepStrictEqual(output, expectedOutput)
+            assert.deepStrictEqual(output, expectedOutputAppend)
         })
 
         it('adds a newline before appending if file does not end with one', async function () {
@@ -134,7 +140,7 @@ describe('FsWrite Tool', function () {
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1\nLine 2\nLine 3\nLine 4')
 
-            assert.deepStrictEqual(output, expectedOutput)
+            assert.deepStrictEqual(output, expectedOutputAppend)
         })
 
         it('appends to an empty file', async function () {
@@ -152,7 +158,7 @@ describe('FsWrite Tool', function () {
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1')
 
-            assert.deepStrictEqual(output, expectedOutput)
+            assert.deepStrictEqual(output, expectedOutputAppend)
         })
 
         it('appends multiple lines correctly', async function () {
@@ -169,7 +175,7 @@ describe('FsWrite Tool', function () {
             const newContent = await features.workspace.fs.readFile(filePath)
             assert.strictEqual(newContent, 'Line 1\nLine 2\nLine 3')
 
-            assert.deepStrictEqual(output, expectedOutput)
+            assert.deepStrictEqual(output, expectedOutputAppend)
         })
 
         it('throws error when file does not exist', async function () {

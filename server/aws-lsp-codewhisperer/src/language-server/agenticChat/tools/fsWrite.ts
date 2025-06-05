@@ -63,20 +63,22 @@ export class FsWrite {
 
     public async invoke(params: FsWriteParams): Promise<InvokeOutput> {
         const sanitizedPath = sanitize(params.path)
-
+        let content = ''
         switch (params.command) {
             case 'create':
                 await this.handleCreate(params, sanitizedPath)
+                content = 'File created successfully'
                 break
             case 'append':
                 await this.handleAppend(params, sanitizedPath)
+                content = 'File appended successfully'
                 break
         }
 
         return {
             output: {
                 kind: 'text',
-                content: '',
+                content,
             },
         }
     }

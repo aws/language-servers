@@ -1159,6 +1159,7 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
+                    // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
                         const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
@@ -3278,7 +3279,9 @@ export class AgenticChatController implements ChatHandlers {
         const allTools = this.#features.agent.getTools({ format: 'bedrock' })
         if (!enabledMCP(this.#features.lsp.getClientInitializeParams())) {
             if (!session.pairProgrammingMode) {
-                return allTools.filter(tool => !['fsWrite', 'fsReplace', 'executeBash'].includes(tool.toolSpecification?.name || ''))
+                return allTools.filter(
+                    tool => !['fsWrite', 'fsReplace', 'executeBash'].includes(tool.toolSpecification?.name || '')
+                )
             }
             return allTools
         }
