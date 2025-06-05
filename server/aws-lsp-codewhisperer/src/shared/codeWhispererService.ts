@@ -6,6 +6,8 @@ import {
     Logging,
     SDKInitializator,
     TextDocument,
+    CancellationToken,
+    CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
@@ -187,6 +189,8 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
 
+    private tokenSrc = new CancellationTokenSource()
+    private token: CancellationToken = this.tokenSrc.token
     constructor(
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
@@ -334,13 +338,16 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             return r.response
         } else {
             this.clearPrefetch()
-            // TODO: cancel wip prefetch calls
+            const token = this.tokenSrc.token
+            this.token = token
             this.logging.info(`cold start`)
             const coldStartResponse = await this.generateSuggestions(originalRequest)
             if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
                 setTimeout(() => {
                     this.flag = true
-                    this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument).catch(e => {})
+                    this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument, token).catch(
+                        e => {}
+                    )
                     this.flag = false
                 }, 200)
             }
@@ -352,9 +359,14 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     private async chainedGenerateCompletionCall(
         baseRequest: GenerateSuggestionsRequest,
         baseResponse: GenerateSuggestionsResponse,
-        textDocument: TextDocument
+        textDocument: TextDocument,
+        token: CancellationToken
     ) {
         const depth = 3
+        if (token.isCancellationRequested) {
+            return
+        }
+
         if (this.prefetchSuggestions.length > depth) {
             return
         }
@@ -378,7 +390,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 })
 
                 setTimeout(async () => {
-                    await this.chainedGenerateCompletionCall(request, response, textDocument)
+                    await this.chainedGenerateCompletionCall(request, response, textDocument, token)
                 }, 200)
             } else if (
                 response.suggestions.length > 0 &&
