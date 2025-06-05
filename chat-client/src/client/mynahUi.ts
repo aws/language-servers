@@ -817,6 +817,7 @@ export const createMynahUi = (
         if (chatResult.body === '' && isValidAuthFollowUp) {
             // @ts-expect-error - type for MynahUI differs from ChatResult types so we ignore it
             mynahUi.addChatItem(tabId, {
+                ...(chatResultWithoutType as ChatItem),
                 type: ChatItemType.SYSTEM_PROMPT,
                 ...chatResultWithoutTypeSummary,
             })

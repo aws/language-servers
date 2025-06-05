@@ -160,6 +160,7 @@ export class ChatSessionService {
                 if (this.#logging) {
                     this.#logging.error(`Error in generateAssistantResponse: ${loggingUtils.formatErr(e)}`)
                 }
+
                 if (isRequestAbortedError(e)) {
                     const requestId =
                         e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined

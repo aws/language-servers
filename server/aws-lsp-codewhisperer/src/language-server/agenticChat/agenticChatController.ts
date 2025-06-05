@@ -112,7 +112,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
-import { FuzzySearch, FuzzySearchParams } from './tools/fuzzySearch'
+import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
@@ -125,10 +125,11 @@ import {
 } from './constants'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { URI } from 'vscode-uri'
-import { McpManager } from './tools/mcp/mcpManager'
-import { McpTool } from './tools/mcp/mcpTool'
+import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
+import { McpManager } from './tools/mcp/mcpManager'
+import { McpTool } from './tools/mcp/mcpTool'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 
@@ -952,7 +953,7 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsRead':
                     case 'listDirectory':
                     case 'grepSearch':
-                    case 'fuzzySearch':
+                    case 'fileSearch':
                     case 'fsWrite':
                     case 'executeBash': {
                         const toolMap = {
