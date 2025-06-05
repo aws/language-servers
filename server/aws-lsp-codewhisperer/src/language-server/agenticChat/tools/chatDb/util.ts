@@ -23,6 +23,7 @@ import {
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { ChatItemType } from '@aws/mynah-ui'
 import { PriorityQueue } from 'typescript-collections'
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
@@ -280,6 +281,42 @@ export function updateOrCreateConversation(
     }
 }
 
+/**
+ * Updates an existing conversation or creates a new one with a message pair.
+ * This is a helper function for adding both prompt and answer messages at once.
+ */
+export function updateOrCreateConversationWithMessagePair(
+    conversations: Conversation[],
+    conversationId: string,
+    promptMessage: Message,
+    answerMessage: Message,
+    clientType: string
+): Conversation[] {
+    const existingConversation = conversations.find(conv => conv.conversationId === conversationId)
+
+    if (existingConversation) {
+        return conversations.map(conv =>
+            conv.conversationId === conversationId
+                ? {
+                      ...conv,
+                      updatedAt: new Date(),
+                      messages: [...conv.messages, promptMessage, answerMessage],
+                  }
+                : conv
+        )
+    } else {
+        return [
+            ...conversations,
+            {
+                conversationId,
+                clientType,
+                updatedAt: new Date(),
+                messages: [promptMessage, answerMessage],
+            },
+        ]
+    }
+}
+
 export function groupTabsByDate(tabs: Tab[]): ConversationItemGroup[] {
     const now = new Date()
     const today = new Date(now.setHours(0, 0, 0, 0))
@@ -371,7 +408,7 @@ export function initializeHistoryPriorityQueue() {
 /**
  * Gets the timestamp of the oldest message in a tab
  * @param tabData The tab to check
- * @returns The Date of the oldest message, or 0 if no messages under the tab or the message doesn't have a timestamp
+ * @returns The Date of the oldest message, or 0 if no messages under the tab or it's a legacy message that doesn't have a timestamp
  */
 export function getOldestMessageTimestamp(tabData: Tab): Date {
     if (!tabData.conversations) {
@@ -414,4 +451,15 @@ function getTabTypeIcon(tabType: TabType): IconType {
         default:
             return 'chat'
     }
+}
+
+/**
+ * Calculates the size of a database file
+ * @param features Features object containing workspace filesystem access
+ * @param dbPath Path to the database file
+ * @returns Promise that resolves to the file size in bytes, or 0 if there's an error
+ */
+export async function calculateDatabaseSize(features: Features, dbPath: string): Promise<number> {
+    const result = await features.workspace.fs.getFileSize(dbPath)
+    return result.size
 }

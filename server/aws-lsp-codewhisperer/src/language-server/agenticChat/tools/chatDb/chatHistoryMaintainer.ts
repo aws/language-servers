@@ -13,23 +13,26 @@ import {
     initializeHistoryPriorityQueue,
     getOldestMessageTimestamp,
     DbReference,
+    calculateDatabaseSize,
 } from './util'
 import { PriorityQueue } from 'typescript-collections'
 
 // Maximum history file size across all workspaces, 200MB
 export const maxHistorySizeInBytes = 200 * 1024 * 1024
 // 75% of the max size, 150MB
-export const maxAfterTrimHistorySizeInBytes = 150 * 1024 * 1024
+export const targetHistorySizeInBytes = 150 * 1024 * 1024
 /**
- * The combination of messageBatchDeleteIterationBeforeRecalculateDBSize and messageBatchDeleteSizeForSingleTab can heavily impact the
+ * The combination of batchDeleteIterations and messagePairPerBatchDelete can heavily impact the
  * latency of trimming history since calculating the history file size is slow. We can tune these numbers according to the average message size
  */
-// Batch deletion iteration count when trimming history before re-calculating total history size
-export const messageBatchDeleteIterationBeforeRecalculateDBSize = 200
-// Batch deletion message size when trimming history for a specific tab before re-checking the oldest message among all workspace history
-export const messagePairBatchDeleteSizeForSingleTab = 5
-// In each iteration, we calculate the total history size and try to delete [messageBatchDeleteSizeForSingleTab * messageBatchDeleteIterationBeforeRecalculateDBSize] messages
-export const maxTrimHistoryLoopIteration = 100
+// Number of batch operations to perform before recalculating the total history size
+// Higher values improve performance but may result in more data being deleted than necessary
+export const batchDeleteIterations = 200
+// Number of message pairs to delete from a single tab in each batch operation before re-evaluating the oldest messages across all workspaces
+// Higher values improve performance but may cause more recent messages to be deleted unnecessarily
+export const messagePairPerBatchDelete = 5
+// In each iteration, we calculate the total history size and try to delete [messagePairPerBatchDelete * batchDeleteIterations] messages
+export const maxTrimIterations = 100
 
 /**
  * ChatHistoryMaintainer is responsible for maintaining the chat history database,
@@ -91,23 +94,22 @@ export class ChatHistoryMaintainer {
         // DB name to {collection, db} Map
         const allDbsMap = await this.loadAllDbFiles(allDbFiles)
 
-        this.#features.logging.info(`Loaded ${allDbsMap.size} databases in ${this.#dbDirectory}`)
+        this.#features.logging.info(`Loaded ${allDbsMap.size} databases from ${this.#dbDirectory} for history trimming`)
         if (allDbsMap.size < allDbFiles.length) {
             this.#features.logging.warn(
-                `Found ${allDbFiles.length - allDbsMap.size} bad DB files, will skip them when calculating history size`
+                `${allDbFiles.length - allDbsMap.size} DB files can't be loaded, will skip them when calculating history size`
             )
         }
 
         const tabQueue = initializeHistoryPriorityQueue()
 
-        // Add tabs to the queue(with ordering, the tab contains the oldest message first)
+        // Add tabs to the queue(with ordering, the tab which contains the oldest message first)
         for (const [dbName, dbRef] of allDbsMap.entries()) {
             const tabCollection = dbRef.collection
             if (!tabCollection) continue
 
             const tabs = tabCollection.find()
             for (const tab of tabs) {
-                // Use the first message under the first conversation to get the oldestMessageDate, if no timestamp under the message, use 0.
                 const oldestMessageDate = getOldestMessageTimestamp(tab)
                 tabQueue.add({
                     tab: tab,
@@ -125,16 +127,6 @@ export class ChatHistoryMaintainer {
     }
 
     /**
-     * Calculates the size of a database file
-     * @param dbPath Path to the database file
-     * @returns Promise that resolves to the file size in bytes, or 0 if there's an error
-     */
-    private async calculateDatabaseSize(dbPath: string): Promise<number> {
-        const result = await this.#features.workspace.fs.getFileSize(dbPath)
-        return result.size
-    }
-
-    /**
      * Calculates the total size of all history database files in the directory
      * @returns The total size of all database files in bytes
      */
@@ -149,7 +141,7 @@ export class ChatHistoryMaintainer {
             const filePath = path.join(this.#dbDirectory, file)
             let fileSize
             try {
-                fileSize = await this.calculateDatabaseSize(filePath)
+                fileSize = await calculateDatabaseSize(this.#features, filePath)
             } catch (err) {
                 this.#features.logging.error(`Error getting db file size: ${err}`)
                 fileSize = 0
@@ -199,14 +191,16 @@ export class ChatHistoryMaintainer {
             const totalSize = await this.calculateAllHistorySize(Array.from(allDbsMap.keys()))
 
             // If we're under the target size, we're done
-            if (totalSize <= maxAfterTrimHistorySizeInBytes) {
-                this.#features.logging.info(`Successfully trimmed history to ${totalSize} bytes`)
+            if (totalSize <= targetHistorySizeInBytes) {
+                this.#features.logging.info(
+                    `History size ${totalSize} bytes is below the threshold ${maxHistorySizeInBytes}`
+                )
                 break
             }
             // Infinite loop protection
-            if (++iterationCount > maxTrimHistoryLoopIteration) {
+            if (++iterationCount > maxTrimIterations) {
                 this.#features.logging.warn(
-                    `Exceeded max iteration count (${maxTrimHistoryLoopIteration}) when trimming history, current total size: ${totalSize}`
+                    `Exceeded max iteration count (${maxTrimIterations}) when trimming history, current total size: ${totalSize}`
                 )
                 break
             }
@@ -230,7 +224,7 @@ export class ChatHistoryMaintainer {
      */
     private batchDeleteMessagePairs(tabQueue: PriorityQueue<TabWithContext>): Set<string> {
         let updatedDbs = new Set<string>()
-        for (let i = 0; i < messageBatchDeleteIterationBeforeRecalculateDBSize / 2; i++) {
+        for (let i = 0; i < batchDeleteIterations / 2; i++) {
             const queueItem = tabQueue.dequeue()
             const tab = queueItem?.tab
             const collection = queueItem?.collection
@@ -240,13 +234,8 @@ export class ChatHistoryMaintainer {
             // Start deleting old messages
             updatedDbs.add(dbName)
 
-            if (!tab.conversations) {
-                collection.remove(tab)
-                continue
-            }
-
             // Remove messages under a tab, until reaching the batchDeleteSize or the Tab is empty
-            for (let pairsRemoved = 0; pairsRemoved < messagePairBatchDeleteSizeForSingleTab; pairsRemoved++) {
+            for (let pairsRemoved = 0; pairsRemoved < messagePairPerBatchDelete; pairsRemoved++) {
                 if (!this.removeOldestMessagePairFromTab(tab)) {
                     break
                 }
@@ -270,9 +259,11 @@ export class ChatHistoryMaintainer {
         for (const [dbName, dbRef] of allDbsMap.entries()) {
             if (updatedDbs.has(dbName)) {
                 this.#features.logging.debug(`Removed old messages from ${dbName}, saving changes`)
-                await new Promise<void>(resolve => {
-                    dbRef.db.saveDatabase(() => resolve())
-                })
+                try {
+                    await this.saveDatabase(dbRef.db, dbName)
+                } catch (err) {
+                    this.#features.logging.error(`Error saving database ${dbName}: ${err}`)
+                }
             }
         }
     }
@@ -284,6 +275,41 @@ export class ChatHistoryMaintainer {
                 dbRef.db.close()
             }
         }
+    }
+
+    /**
+     * Safely saves a database with proper error handling
+     * @param db The Loki database instance to save
+     * @param dbName The name of the database for logging purposes
+     * @returns Promise that resolves when save completes or rejects on error
+     */
+    private async saveDatabase(db: Loki, dbName: string): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            db.saveDatabase(err => {
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve()
+                }
+            })
+        })
+    }
+
+    /**
+     * Safely deletes a database with proper error handling
+     * @param db The Loki database instance to delete
+     * @returns Promise that resolves when deletion completes or rejects on error
+     */
+    private async deleteDatabase(db: Loki): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            db.deleteDatabase(err => {
+                if (err) {
+                    reject(err)
+                } else {
+                    resolve()
+                }
+            })
+        })
     }
 
     private async loadAllDbFiles(allDbFiles: string[]) {
@@ -306,10 +332,10 @@ export class ChatHistoryMaintainer {
                 })
                 const collection = db.getCollection<Tab>(TabCollection)
 
-                if (collection) {
+                if (!this.isEmptyCollection(collection)) {
                     allDbsMap.set(dbFile, { collection: collection, db: db })
                 } else {
-                    this.#features.logging.warn(`No ${TabCollection} collection found in database ${dbFile}`)
+                    this.#features.logging.info(`No ${TabCollection} collection found in database ${dbFile}`)
                 }
             } catch (err) {
                 this.#features.logging.error(`Error loading DB file ${dbFile}: ${err}`)
@@ -319,8 +345,17 @@ export class ChatHistoryMaintainer {
     }
 
     /**
+     * Checks if a collection is null or empty
+     * @param collection The collection to check
+     * @returns True if the collection is null or empty, false otherwise
+     */
+    private isEmptyCollection(collection: Collection<Tab>): boolean {
+        return collection === undefined || collection.findOne() === null
+    }
+
+    /**
      * Remove the oldest message pair, based on assumptions:
-     * 1. The messages are always stored in pair(prompt, answer)
+     * 1. The messages are always stored in pairs(prompt, answer)
      * 2. The messages are always stored in chronological order(new messages are added to the tail of the list)
      * @returns True if successfully trimmed the history.
      */

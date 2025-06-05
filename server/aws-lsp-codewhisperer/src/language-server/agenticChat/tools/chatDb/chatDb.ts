@@ -10,13 +10,13 @@ import {
     groupTabsByDate,
     isEmptyAssistantMessage,
     Message,
-    messageToStreamingMessage,
     Settings,
     SettingsCollection,
     Tab,
     TabCollection,
     TabType,
-    updateOrCreateConversation,
+    updateOrCreateConversationWithMessagePair,
+    calculateDatabaseSize,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -26,6 +26,13 @@ import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
+
+export class ToolResultValidationError extends Error {
+    constructor(message?: string) {
+        super(message)
+        this.name = 'ToolResultValidationError'
+    }
+}
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
 // Maximum number of messages to send in request
@@ -70,12 +77,12 @@ export class ChatDatabase {
 
         this.#features.logging.log(`Initializing database at ${dbPath}`)
 
-        this.calculateDatabaseSize(dbPath)
+        calculateDatabaseSize(this.#features, dbPath)
             .then(size => {
                 this.#dbFileSize = size
             })
             .catch(err => {
-                this.#features.logging.log(`Error getting db file size: ${err}`)
+                this.#features.logging.warn(`Error getting db file size: ${err}`)
             })
 
         const startTime = Date.now()
@@ -107,6 +114,13 @@ export class ChatDatabase {
     public close() {
         this.#db.close()
         ChatDatabase.#instance = undefined
+    }
+
+    /**
+     * Returns whether the database has been initialized.
+     */
+    isInitialized(): boolean {
+        return this.#initialized
     }
 
     setHistoryIdMapping(tabId: string, historyId: string) {
@@ -162,7 +176,7 @@ export class ChatDatabase {
     }
 
     getOpenTabs() {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const collection = this.#db.getCollection<Tab>(TabCollection)
             return collection.find({ isOpen: true })
         }
@@ -173,7 +187,7 @@ export class ChatDatabase {
     }
 
     getTab(historyId: string) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const collection = this.#db.getCollection<Tab>(TabCollection)
             return collection.findOne({ historyId })
         }
@@ -196,7 +210,7 @@ export class ChatDatabase {
      * Delete a conversation from history when /clear command is sent on an open tab
      */
     clearTab(tabId: string) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             const historyId = this.#historyIdMapping.get(tabId)
             if (historyId) {
@@ -210,7 +224,7 @@ export class ChatDatabase {
     }
 
     updateTabOpenState(tabId: string, isOpen: boolean) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             const historyId = this.#historyIdMapping.get(tabId)
             if (historyId) {
@@ -239,7 +253,7 @@ export class ChatDatabase {
         let searchResults: ConversationItemGroup[] = []
         const startTime = Date.now()
 
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             if (!filter) {
                 this.#features.logging.log(`Empty search filter, returning all history`)
                 return { results: this.getHistory(), searchTime: Date.now() - startTime }
@@ -272,7 +286,7 @@ export class ChatDatabase {
      * @param numMessages Optional number of most recent messages to return. If not provided, returns all messages.
      */
     getMessages(tabId: string, numMessages?: number) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             const historyId = this.#historyIdMapping.get(tabId)
             this.#features.logging.log(
@@ -280,10 +294,7 @@ export class ChatDatabase {
             )
             const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
             if (tabData) {
-                const allMessages = tabData.conversations.flatMap(
-                    (conversation: Conversation) => conversation.messages
-                    // .map(msg => messageToStreamingMessage(msg))
-                )
+                const allMessages = tabData.conversations.flatMap((conversation: Conversation) => conversation.messages)
                 if (numMessages !== undefined) {
                     return allMessages.slice(-numMessages)
                 }
@@ -297,7 +308,7 @@ export class ChatDatabase {
      * Get all conversations for the current workspace, grouped by last updated time
      */
     getHistory(): ConversationItemGroup[] {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             const tabs = tabCollection.find()
             let groupedTabs = groupTabsByDate(tabs)
@@ -315,7 +326,7 @@ export class ChatDatabase {
      * Deletes a conversation from history
      */
     deleteHistory(historyId: string) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             tabCollection.findAndRemove({ historyId })
             this.#features.logging.log(`Removed conversation from history with historyId=${historyId}`)
@@ -327,73 +338,95 @@ export class ChatDatabase {
     }
 
     /**
-     * Adds a message to a conversation within a specified tab.
+     * Adds a prompt message and an answer message to a conversation within a specified tab.
      *
      * This method manages chat messages in the following way:
      * - Creates a new history ID if none exists for the tab
-     * - Drops the message and the previous user prompt if it's an empty assistant response
+     * - Skip adding the messages if the assistant response is empty
      * - Updates existing conversation or creates new one
-     * - Updates tab title with last user prompt added to conversation
+     * - Updates tab title with the user prompt added to conversation
      * - Updates tab's last updated time
+     *
+     * @param tabId The ID of the tab to add messages to
+     * @param tabType The type of tab
+     * @param conversationId The ID of the conversation
+     * @param promptMessage The user prompt message
+     * @param answerMessage The assistant answer message
      */
-    addMessage(tabId: string, tabType: TabType, conversationId: string, message: Message) {
-        if (this.#initialized) {
-            const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
-            const tabCollection = this.#db.getCollection<Tab>(TabCollection)
-
-            this.#features.logging.log(
-                `Adding message to history: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
+    addMessagePair(
+        tabId: string,
+        tabType: TabType,
+        conversationId: string,
+        promptMessage: Message,
+        answerMessage: Message
+    ) {
+        if (!this.isInitialized()) {
+            return
+        }
+        // Skip adding to history DB if assistant response is empty
+        if (isEmptyAssistantMessage(answerMessage)) {
+            this.#features.logging.debug(
+                'The assistant response is empty. Skipped adding this message and removed last user prompt from the history DB'
             )
+            return
+        }
 
-            let historyId = this.#historyIdMapping.get(tabId)
+        const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
+        const tabCollection = this.#db.getCollection<Tab>(TabCollection)
 
-            if (!historyId) {
-                historyId = crypto.randomUUID()
-                this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
-                this.setHistoryIdMapping(tabId, historyId)
-            }
+        this.#features.logging.log(
+            `Adding message pair to history: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
+        )
 
-            const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
+        let historyId = this.#historyIdMapping.get(tabId)
 
-            // Skip adding to history DB if it's an empty assistant response
-            if (isEmptyAssistantMessage(message)) {
-                this.#features.logging.debug(
-                    'The message is empty partial assistant. Skipped adding this message and removed last user prompt from the history DB'
-                )
-                if (tabData) {
-                    // Remove the last user prompt as well
-                    this.removeLastPromptFromConversation(tabData.conversations, conversationId)
-                }
-                return
-            }
+        if (!historyId) {
+            historyId = crypto.randomUUID()
+            this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
+            this.setHistoryIdMapping(tabId, historyId)
+        }
 
-            const tabTitle =
-                (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
-                    ? message.body
-                    : tabData?.title) || 'Amazon Q Chat'
-            message = this.formatChatHistoryMessage(message)
-            if (tabData) {
-                this.#features.logging.log(`Updating existing tab with historyId=${historyId}`)
-                tabData.conversations = updateOrCreateConversation(
-                    tabData.conversations,
-                    conversationId,
-                    message,
-                    clientType
-                )
-                tabData.updatedAt = new Date()
-                tabData.title = tabTitle
-                tabCollection.update(tabData)
-            } else {
-                this.#features.logging.log(`Creating new tab with historyId=${historyId}`)
-                tabCollection.insert({
-                    historyId,
-                    updatedAt: new Date(),
-                    isOpen: true,
-                    tabType: tabType,
-                    title: tabTitle,
-                    conversations: [{ conversationId, clientType, messages: [message] }],
-                })
-            }
+        const tabData = historyId ? tabCollection?.findOne({ historyId }) : undefined
+
+        // Format both messages
+        const formattedPromptMessage = this.formatChatHistoryMessage(promptMessage)
+        const formattedAnswerMessage = this.formatChatHistoryMessage(answerMessage)
+
+        // Use prompt message for tab title if appropriate
+        const tabTitle =
+            (promptMessage.shouldDisplayMessage !== false && promptMessage.body.trim().length > 0
+                ? promptMessage.body
+                : tabData?.title) || 'Amazon Q Chat'
+
+        if (tabData) {
+            this.#features.logging.log(`Updating existing tab with historyId=${historyId}`)
+            // Add both messages at once to the conversation
+            tabData.conversations = updateOrCreateConversationWithMessagePair(
+                tabData.conversations,
+                conversationId,
+                formattedPromptMessage,
+                formattedAnswerMessage,
+                clientType
+            )
+            tabData.updatedAt = new Date()
+            tabData.title = tabTitle
+            tabCollection.update(tabData)
+        } else {
+            this.#features.logging.log(`Creating new tab with historyId=${historyId}`)
+            tabCollection.insert({
+                historyId,
+                updatedAt: new Date(),
+                isOpen: true,
+                tabType: tabType,
+                title: tabTitle,
+                conversations: [
+                    {
+                        conversationId,
+                        clientType,
+                        messages: [formattedPromptMessage, formattedAnswerMessage],
+                    },
+                ],
+            })
         }
     }
 
@@ -420,10 +453,11 @@ export class ChatDatabase {
      * 2. The last assistant message is not empty
      * 3. The first message is from the user and the last message is from the assistant.
      *    The history contains alternating sequene of userMessage followed by assistantMessages
-     * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
+     * 4. The toolUse and toolResult relationship is valid
+     * 5. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
     getPreprocessedRequestHistory(tabId: string, newUserMessage: ChatMessage, remainingCharacterBudget: number) {
-        if (!this.#initialized) {
+        if (!this.isInitialized()) {
             return []
         }
 
@@ -441,28 +475,14 @@ export class ChatDatabase {
         // 3. Ensure messages in history a valid for server side checks
         this.ensureValidMessageSequence(allMessages, newUserMessage)
 
-        // 4. Make sure max characters ≤ remaining Character Budget
+        // 4. Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
+        this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
+
+        // 5. NOTE: Keep this trimming logic at the end of the preprocess.
+        // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
         allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
 
         return allMessages
-    }
-
-    /**
-     * If the sum of all history file size exceeds the limit, start trimming the oldest conversation
-     * across all the workspace until the folder size is below the target size.
-     */
-    async trimHistoryToMaxSize() {
-        await this.#historyMaintainer.trimHistoryToMaxSize()
-    }
-
-    /**
-     * Calculates the size of a database file
-     * @param dbPath Path to the database file
-     * @returns Promise that resolves to the file size in bytes, or 0 if there's an error
-     */
-    private async calculateDatabaseSize(dbPath: string): Promise<number> {
-        const result = await this.#features.workspace.fs.getFileSize(dbPath)
-        return result.size
     }
 
     private findIndexToTrim(allMessages: Message[]): number | undefined {
@@ -500,26 +520,6 @@ export class ChatDatabase {
                 'Last message is empty partial assistant. Removed last assistant message and user message'
             )
             messages.splice(-2)
-        }
-    }
-
-    /**
-     * Remove the last user prompt from the conversation
-     */
-    private removeLastPromptFromConversation(conversations: Conversation[], conversationId: string) {
-        const conversation = conversations.find(conv => conv.conversationId === conversationId)
-        if (!conversation) {
-            return
-        }
-
-        const messages = conversation.messages
-        if (!messages.length) {
-            return
-        }
-
-        if (messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
-            this.#features.logging.debug('Removing the last prompt message from the history DB')
-            messages.pop()
         }
     }
 
@@ -636,26 +636,26 @@ export class ChatDatabase {
      *
      * @param messages The conversation history messages
      * @param newUserMessage The new user message being added to the conversation
-     * @returns true if the message is valid or was successfully fixed, false if invalid
+     * @throws ToolResultValidationError if the message is invalid and not able to be fixed
      */
-    validateAndFixNewMessageToolResults(messages: Message[], newUserMessage: ChatMessage): boolean {
+    validateAndFixNewMessageToolResults(messages: Message[], newUserMessage: ChatMessage) {
         if (newUserMessage?.userInputMessage?.userInputMessageContext) {
             const newUserMessageContext = newUserMessage.userInputMessage.userInputMessageContext
             const toolResults = newUserMessageContext.toolResults || []
             if (messages.length === 0) {
                 if (toolResults && toolResults.length > 0) {
-                    this.#features.logging.warn('New message has tool results but last message has no tool uses')
-                    return false
+                    throw new ToolResultValidationError(
+                        'New message has tool results but last message has no tool uses'
+                    )
                 }
-                return true
+                return
             }
             const lastMsg = messages[messages.length - 1]
             const lastMsgToolUses = lastMsg?.toolUses || []
 
             // If last message has no tool uses but new message has tool results, this is invalid
             if (toolResults && toolResults.length > 0 && lastMsgToolUses.length === 0) {
-                this.#features.logging.warn('New message has tool results but last message has no tool uses')
-                return false
+                throw new ToolResultValidationError('New message has tool results but last message has no tool uses')
             }
 
             const toolUseIds = new Set(lastMsgToolUses.map(toolUse => toolUse.toolUseId))
@@ -684,10 +684,9 @@ export class ChatDatabase {
                 newUserMessageContext.toolResults.length === 0 &&
                 (!newUserMessage.userInputMessage.content || newUserMessage.userInputMessage.content?.trim() == '')
             ) {
-                return false
+                throw new ToolResultValidationError('Empty message with no tool results')
             }
         }
-        return true
     }
 
     getSettings(): Settings | undefined {
