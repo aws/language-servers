@@ -448,6 +448,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     },
                     text: leftContent + rightContent,
                 },
+                cursorState: {
+                    position: {
+                        line: afterChangePosition.line,
+                        character: afterChangePosition.character,
+                    },
+                },
             }
 
             // updated edit supplemental context
