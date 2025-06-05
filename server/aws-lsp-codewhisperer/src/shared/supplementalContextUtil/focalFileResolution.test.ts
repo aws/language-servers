@@ -105,11 +105,7 @@ import pytest
 import sys
 import os
 from py_class import PyClass
-from util import {
-    foo,
-    bar,
-    baz
-}
+from util import (foo,bar,baz)
 
 def test_py_class():
     assert True
