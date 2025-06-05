@@ -442,6 +442,17 @@ export class ChatDatabase {
         //  Make sure max characters ≤ remaining Character Budget
         allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
 
+        // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
+        if (
+            allMessages.length === 0 &&
+            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
+            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
+        ) {
+            this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
+            newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
+            newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+        }
+
         const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
 
         tabData.conversations = [
