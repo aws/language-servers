@@ -63,6 +63,7 @@ import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManag
 import path = require('path')
 import { getRelativePath } from '../workspaceContext/util'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
+import { logger, Logger, CompletionLogData, EditAutoTriggerData, loggerServer } from '../../shared/simpleLogger'
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -317,31 +318,11 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            // Generate a unique request ID for this completion request
-            const flareRequestId = DebugLogger.getInstance().generateflareRequestId()
-
-            // Log the start of the request with structured data
-            const handlerData = parseInlineCompletionParams(params)
-            DebugLogger.getInstance().log(
-                flareRequestId,
-                'Starting inline completion request',
-                handlerData,
-                'info',
-                'onInlineCompletionHandler'
-            )
-
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING') {
                 // If session was requesting at cancellation time, close it
                 // User Trigger Decision will be reported at the time of processing API response in the callback below.
-                DebugLogger.getInstance().log(
-                    flareRequestId,
-                    'Discarding in-flight session',
-                    { sessionId: currentSession.id, state: currentSession.state },
-                    'debug',
-                    'onInlineCompletionHandler'
-                )
                 sessionManager.discardSession(currentSession)
                 // Also set this flag for compatibility with main branch
                 currentSession.discardInflightSessionOnNewInvocation = true
@@ -388,6 +369,23 @@ export const CodewhispererServerFactory =
                         logging.log(`textDocument [${params.textDocument.uri}] not found`)
                         return EMPTY_RESULT
                     }
+
+                    const flareRequestId = logger.getRequestHash(
+                        params.textDocument.uri,
+                        textDocument.getText(),
+                        params.position.line,
+                        params.position.character
+                    )
+
+                    // Log the start of the request with structured data
+                    const handlerData: CompletionLogData = {
+                        textDocument: {
+                            uri: params.textDocument.uri,
+                        },
+                        position: params.position,
+                        context: params.context,
+                    }
+                    logger.logCompletion(handlerData, flareRequestId)
 
                     const inferredLanguageId = getSupportedLanguageId(textDocument)
                     if (!inferredLanguageId) {
@@ -446,20 +444,10 @@ export const CodewhispererServerFactory =
                         flareRequestId: flareRequestId // Pass the request UUID for tracking
                     });
 
-                    DebugLogger.getInstance().log(
-                        flareRequestId,
-                        'EditPredictionAutoTrigger result',
-                        {
-                            shouldTrigger: editPredictionAutoTriggerResult.shouldTrigger,
-                            fileContext: {
-                                filename: fileContext.filename,
-                                language: fileContext.programmingLanguage.languageName
-                            },
-                            position: params.position
-                        },
-                        'debug',
-                        'onInlineCompletionHandler'
-                    );
+                    logger.logAutoTrigger({
+                        completionsAutoTrigger: autoTriggerResult.shouldTrigger,
+                        editAutoTrigger: editPredictionAutoTrigger
+                    }, flareRequestId)
 
                     if (
                         isAutomaticLspTriggerKind &&
@@ -601,17 +589,6 @@ export const CodewhispererServerFactory =
                         ...(workspaceId ? { workspaceId: workspaceId } : {}),
                     })
                         .then(async suggestionResponse => {
-                            DebugLogger.getInstance().log(
-                                flareRequestId,
-                                'Received suggestion response',
-                                {
-                                    suggestionCount: suggestionResponse.suggestions.length,
-                                    suggestionType: suggestionResponse.suggestionType,
-                                    responseContext: suggestionResponse.responseContext
-                                },
-                                'info',
-                                'onInlineCompletionHandler'
-                            );
 
                             codePercentageTracker.countInvocation(inferredLanguageId)
 
@@ -755,18 +732,6 @@ export const CodewhispererServerFactory =
                             logging.log('Recommendation failure: ' + error + '\n' + error.stack)
                             // TODO: check if we can/should emit UserTriggerDecision
                             sessionManager.closeSession(newSession)
-
-                            DebugLogger.getInstance().log(
-                                flareRequestId,
-                                'Error generating suggestions',
-                                {
-                                    error: error.toString(),
-                                    stack: error.stack,
-                                    sessionId: newSession.id
-                                },
-                                'error',
-                                'onInlineCompletionHandler'
-                            );
 
                             if (error instanceof AmazonQError) {
                                 throw error
@@ -974,26 +939,6 @@ export const CodewhispererServerFactory =
             }
 
             // Get the flareRequestId from the session if available
-            const flareRequestId = (session as any).flareRequestId
-
-            if (flareRequestId) {
-                DebugLogger.getInstance().log(
-                    flareRequestId,
-                    'Processing inline completion session results',
-                    {
-                        sessionId,
-                        completionSessionResult: JSON.stringify(completionSessionResult),
-                        firstCompletionDisplayLatency,
-                        totalSessionDisplayTime,
-                        typeaheadLength,
-                        addedCharacterCount,
-                        deletedCharacterCount,
-                    },
-                    'info',
-                    'onLogInlineCompletionSessionResultsHandler'
-                )
-            }
-
             if (session.state !== 'ACTIVE') {
                 logging.log(`ERROR: Trying to record trigger decision for not-active session ${sessionId}`)
                 return
@@ -1109,8 +1054,18 @@ export const CodewhispererServerFactory =
                 clientParams?.initializationOptions?.aws?.awsClientCapabilities?.textDocument
                     ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
             console.log('[EDITS] Edits enabled: ' + editsEnabled)
-            console.log('Initializing DebugLogger with GraphQL server')
-            DebugLogger.getInstance() // This will initialize the singleton and start the server
+            Logger.getInstance()
+
+            // Start the logger WebSocket server on port 3333
+            try {
+                //const port = Math.floor(Math.random() * 1001) + 3000
+                const port = 3000
+                loggerServer.start(port)
+                logging.log(`[SERVER] Logger WebSocket server started on port ${port}`)
+                logging.log(`[SERVER] Logger Web UI available at http://localhost:${port}/`)
+            } catch (error) {
+                logging.error('[SERVER] Failed to start logger WebSocket server:')
+            }
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'INLINE'))
@@ -1224,15 +1179,20 @@ export const CodewhispererServerFactory =
         logging.log('Amazon Q Inline Suggestion server has been initialised')
 
         return async () => {
+            // Stop the logger WebSocket server
+            try {
+                await loggerServer.stop()
+                logging.log('[SERVER] Logger WebSocket server stopped')
+            } catch (error) {
+                logging.error('[SERVER] Failed to stop logger WebSocket server:')
+            }
+
             // Dispose all trackers in reverse order of initialization
             if (codePercentageTracker) codePercentageTracker.dispose()
             if (codeDiffTracker) await codeDiffTracker.shutdown()
             if (recentEditTracker) recentEditTracker.dispose()
             if (cursorTracker) cursorTracker.dispose()
             if (rejectedEditTracker) rejectedEditTracker.dispose()
-
-            console.log('Shutting down DebugLogger GraphQL server')
-            await DebugLogger.getInstance().stopGraphQLServer()
 
             logging.log('Amazon Q Inline Suggestion server has been shut down')
         }

@@ -59,9 +59,8 @@ import CodeWhispererTokenClient = require('../client/token/codewhispererbearerto
 import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inline-completion/diffUtils'
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { Position } from 'vscode-languageserver-textdocument'
-import { error } from 'console'
-import { DebugLogger } from './debugUtils'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
+import { logger } from './simpleLogger'
 
 // Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -191,6 +190,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
     private tokenSrc = new CancellationTokenSource()
     private token: CancellationToken = this.tokenSrc.token
+
+    private prefetchConfig = {
+        duration: 100, // 100ms
+        depth: 3,
+    }
+
     constructor(
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
@@ -226,52 +231,57 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         const requestEndTime = new Date().getTime()
                         const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
-                        // Generate a request UUID for tracking
-                        const flareRequestId = DebugLogger.getInstance().generateflareRequestId()
+                        const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
 
-                        // Use the DebugLogger's logRequestResponse method instead of the legacy function
-                        DebugLogger.getInstance()
-                            .logRequestResponse(
-                                flareRequestId,
-                                req,
-                                response,
-                                '', // No error for successful responses
-                                response.requestId,
-                                this.codeWhispererEndpoint,
-                                latency
+                        if (requestBody.fileContext) {
+                            const flareRequestId = logger.getRequestHash(
+                                requestBody.fileContext.filename,
+                                requestBody.editorState.text,
+                                requestBody.editorState.cursorState.position.line,
+                                requestBody.editorState.cursorState.position.character
                             )
-                            .catch(err => {
-                                console.error('Failed to log request/response:', err)
-                            })
-                            .finally(() => {
-                                this.completeRequest(req)
-                            })
+                            logger.logApi(
+                                {
+                                    request: req.httpRequest.body,
+                                    response: response?.httpResponse?.body?.toString() || 'No response body',
+                                    endpoint: this.codeWhispererEndpoint,
+                                    error: null,
+                                    statusCode: response?.httpResponse?.statusCode || 0,
+                                    latency: latency,
+                                },
+                                flareRequestId
+                            )
+                        }
+                        this.completeRequest(req)
                     })
                     req.on('error', async (error, response) => {
                         const requestStartTime = req.startTime?.getTime() || 0
                         const requestEndTime = new Date().getTime()
                         const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
-                        // Generate a request UUID for tracking
-                        const flareRequestId = DebugLogger.getInstance().generateflareRequestId()
+                        const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
 
-                        // Use the DebugLogger's logRequestResponse method for error cases
-                        DebugLogger.getInstance()
-                            .logRequestResponse(
-                                flareRequestId,
-                                req,
-                                null,
-                                error,
-                                response.requestId,
-                                this.codeWhispererEndpoint,
-                                latency
+                        if (requestBody.fileContext) {
+                            const flareRequestId = logger.getRequestHash(
+                                requestBody.fileContext.filename,
+                                requestBody.editorState.text,
+                                requestBody.editorState.cursorState.position.line,
+                                requestBody.editorState.cursorState.position.character
                             )
-                            .catch(err => {
-                                console.error('Failed to log request/response:', err)
-                            })
-                            .finally(() => {
-                                this.completeRequest(req)
-                            })
+
+                            logger.logApi(
+                                {
+                                    request: req.httpRequest.body,
+                                    response: null,
+                                    endpoint: this.codeWhispererEndpoint,
+                                    error: error.toString(),
+                                    statusCode: response?.httpResponse?.statusCode,
+                                    latency: latency,
+                                },
+                                flareRequestId
+                            )
+                        }
+                        this.completeRequest(req)
                     })
                 },
             ],
@@ -327,7 +337,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 },
                 {
                     timeout: 2000,
-                    interval: 200,
+                    interval: 50,
                 }
             )
             if (!r) {
@@ -349,7 +359,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         e => {}
                     )
                     this.flag = false
-                }, 200)
+                }, this.prefetchConfig.duration)
             }
             return coldStartResponse
         }
@@ -362,12 +372,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         textDocument: TextDocument,
         token: CancellationToken
     ) {
-        const depth = 3
         if (token.isCancellationRequested) {
             return
         }
 
-        if (this.prefetchSuggestions.length > depth) {
+        if (this.prefetchSuggestions.length > this.prefetchConfig.depth) {
             return
         }
 
@@ -381,8 +390,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 response.suggestions.length > 0 &&
                 response.suggestions[0].content !== baseResponse.suggestions[0].content
             ) {
-                this.logging.info(`prefetch suggestion[0]: `)
-                this.logging.info(response.suggestions[0].content)
+                this.logging.info(`prefetch suggestion[0]: \n${response.suggestions[0].content}`)
                 this.prefetchSuggestions.push({
                     id: textDocument.uri, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
                     response: response,
@@ -391,7 +399,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
                 setTimeout(async () => {
                     await this.chainedGenerateCompletionCall(request, response, textDocument, token)
-                }, 200)
+                }, this.prefetchConfig.duration)
             } else if (
                 response.suggestions.length > 0 &&
                 baseResponse.suggestions[0].content === response.suggestions[0].content
@@ -404,24 +412,24 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     private buildSubsequentRequest(
-        originalRequest: GenerateSuggestionsRequest,
-        originalResponse: GenerateSuggestionsResponse,
+        baseRequest: GenerateSuggestionsRequest,
+        baseResponse: GenerateSuggestionsResponse,
         textDocument: TextDocument
     ): GenerateSuggestionsRequest {
-        const suggestion = originalResponse.suggestions[0]
+        const suggestion = baseResponse.suggestions[0]
 
         const subsequentRequest = {
-            ...originalRequest,
+            ...baseRequest,
             fileContext: {
-                ...originalRequest.fileContext,
-                leftFileContent: originalRequest.fileContext.leftFileContent + suggestion.content,
+                ...baseRequest.fileContext,
+                leftFileContent: baseRequest.fileContext.leftFileContent + suggestion.content,
             },
             nextToken: undefined,
         }
 
         // NEP flow requires more updates other than left/right filecontent
-        if (originalResponse.suggestionType && originalResponse.suggestionType === SuggestionType.EDIT) {
-            const docText = originalRequest.fileContext.leftFileContent + originalRequest.fileContext.rightFileContent
+        if (baseResponse.suggestionType && baseResponse.suggestionType === SuggestionType.EDIT) {
+            const docText = baseRequest.fileContext.leftFileContent + baseRequest.fileContext.rightFileContent
             const afterDiff = applyUnifiedDiff(docText, suggestion.content)
             const newCode = afterDiff.newCode
 
@@ -430,17 +438,17 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             const { leftContent, rightContent } = splitContentAtPosition(newCode, afterChangePosition)
 
             subsequentRequest.fileContext = {
-                ...originalRequest.fileContext,
+                ...baseRequest.fileContext,
                 leftFileContent: leftContent.slice(-10240),
                 rightFileContent: rightContent.slice(0, 10240),
             }
 
-            subsequentRequest.supplementalContexts = originalRequest.supplementalContexts
-                ? [...originalRequest.supplementalContexts]
+            subsequentRequest.supplementalContexts = baseRequest.supplementalContexts
+                ? [...baseRequest.supplementalContexts]
                 : []
 
             subsequentRequest.editorState = {
-                ...originalRequest.editorState,
+                ...baseRequest.editorState,
                 document: {
                     relativeFilePath: textDocument.uri,
                     programmingLanguage: {
@@ -457,10 +465,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
 
             // updated edit supplemental context
-            if (originalResponse.suggestions[0]) {
+            if (baseResponse.suggestions[0]) {
                 // TODO: handle sup context length > 5 ?
                 subsequentRequest.supplementalContexts.push({
-                    content: originalResponse.suggestions[0].content,
+                    content: baseResponse.suggestions[0].content,
                     filePath: subsequentRequest.fileContext.filename,
                     type: 'PreviousEditorState',
                     metadata: {

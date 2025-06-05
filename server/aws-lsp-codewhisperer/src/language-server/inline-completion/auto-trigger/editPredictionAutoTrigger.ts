@@ -9,7 +9,7 @@ import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { LanguageDetectorFactory } from './languageDetector'
 import { EditPredictionConfigManager } from './editPredictionConfig'
-import { DebugLogger, EditPredictionAutoTriggerData } from '../../../shared/debugUtils'
+import { logger, EditAutoTriggerData } from '../../../shared/simpleLogger'
 
 // Debug logger function
 const DEBUG = true
@@ -62,32 +62,15 @@ export const editPredictionAutoTrigger = ({
     const currentLineContent = leftContextLines[leftContextLines.length - 1] || ''
     const position = { line: lineNum, character: currentLineContent.length }
 
-    // Log the start of evaluation if flareRequestId is provided
-    if (flareRequestId) {
-        DebugLogger.getInstance().log(
-            flareRequestId,
-            'Starting editPredictionAutoTrigger evaluation',
-            {
-                filename: fileContext.filename,
-                lineNum,
-                char,
-                previousDecision,
-                position,
-            },
-            'debug',
-            'editPredictionAutoTrigger'
-        )
-    }
-
     // 1. Check required conditions
-    // 1.1 Recent Edit Detection
+    // 1.1 Recent Edit Detection [NEEDED]
     const hasRecentEdit = recentEdits?.hasRecentEditInLine(
         fileContext.filename,
         lineNum,
         config.recentEditThresholdMs,
         config.editAdjacentLineRange
     )
-    // 1.2 Cursor Position (not in middle of word)
+    // 1.2 Cursor Position (not in middle of word) [DISABLE]
     const charToLeft = currentLineContent.length > 0 ? currentLineContent[currentLineContent.length - 1] : ''
     const charToRight = rightContextLines[0]?.[0] || ''
 
@@ -97,10 +80,10 @@ export const editPredictionAutoTrigger = ({
 
     const isNotInMiddleOfWord = isWhitespaceOrSpecial(charToLeft) || isWhitespaceOrSpecial(charToRight)
 
-    // 1.3 Previous User Decision
+    // 1.3 Previous User Decision [WIP - P1]
     const isPreviousDecisionNotReject = previousDecision !== 'Reject'
 
-    // 1.4 Non-empty Suffix
+    // 1.4 Non-empty Suffix [NEEDED - Paramterize this]
     const hasNonEmptySuffix = rightContextLines.length > 1 && rightContextLines[1].trim().length > 0
 
     // 2. Check optional conditions
@@ -122,6 +105,8 @@ export const editPredictionAutoTrigger = ({
     const isAtLineBeginning =
         config.enableLineBeginningTrigger && languageDetector.isAtLineBeginning(currentLineContent)
 
+    // TODO : Disable all OR conditions
+
     // Determine if we should trigger
     const requiredConditionsMet =
         (hasRecentEdit && isNotInMiddleOfWord && isPreviousDecisionNotReject && hasNonEmptySuffix) || false
@@ -129,7 +114,7 @@ export const editPredictionAutoTrigger = ({
     const shouldTrigger = (requiredConditionsMet && optionalConditionsMet) || false
 
     // Create state object for logging
-    const state: EditPredictionAutoTriggerData = {
+    const state: EditAutoTriggerData = {
         // Required conditions
         hasRecentEdit,
         isNotInMiddleOfWord,
@@ -149,37 +134,12 @@ export const editPredictionAutoTrigger = ({
         shouldTrigger,
     }
 
-    // Log with DebugLogger if flareRequestId is provided
-    if (flareRequestId) {
-        DebugLogger.getInstance().log(
-            flareRequestId,
-            'EditPredictionAutoTrigger evaluation result',
-            state,
-            shouldTrigger ? 'info' : 'debug',
-            'editPredictionAutoTrigger'
-        )
-    }
-
-    // Legacy console logging
-    if (DEBUG) {
-        const logParts = [
-            // Required conditions
-            `hasRecentEdit: ${hasRecentEdit}`,
-            `isNotInMiddleOfWord: ${isNotInMiddleOfWord}`,
-            `isPreviousDecisionNotReject: ${isPreviousDecisionNotReject}`,
-            `hasNonEmptySuffix: ${hasNonEmptySuffix}`,
-            `requiredConditionsMet: ${requiredConditionsMet}`,
-            // Optional conditions
-            `isAfterKeyword: ${isAfterKeyword}`,
-            `isAfterOperatorOrDelimiter: ${isAfterOperatorOrDelimiter}`,
-            `hasUserPaused: ${hasUserPaused}`,
-            `isAtLineBeginning: ${isAtLineBeginning}`,
-            `optionalConditionsMet: ${optionalConditionsMet}`,
-            // Code context (just 2 lines)
-            `cursor: ${lineNum}:${position.character}`,
-            `currentLine: ${currentLineContent.slice(0, position.character)}█${currentLineContent.slice(position.character)}${rightContextLines[0] || ''}`,
-        ]
-        console.log(`[EditPredictionAutoTrigger] State: ${logParts.join('; ')}`)
-    }
+    // Log with logger if flareRequestId is provided
+    logger.logEdit(
+        {
+            ...state,
+        },
+        flareRequestId
+    )
     return { shouldTrigger }
 }

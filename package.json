@@ -64,8 +64,5 @@
         "bracketSpacing": true,
         "arrowParens": "avoid",
         "endOfLine": "lf"
-    },
-    "resolutions": {
-        "graphql": "^16.8.1"
     }
 }
