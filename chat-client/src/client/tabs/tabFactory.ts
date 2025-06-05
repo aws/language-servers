@@ -10,6 +10,7 @@ import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
+import { autoApproveEnableInput } from '../texts/autoApprove'
 import { modelSelection } from '../texts/modelSelection'
 
 export type DefaultTabData = MynahUIDataModel
@@ -43,7 +44,11 @@ export class TabFactory {
             ...this.getDefaultTabData(),
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             promptInputOptions: this.agenticMode
-                ? [pairProgrammingPromptInput, ...(this.modelSelectionEnabled ? [modelSelection] : [])]
+                ? [
+                      pairProgrammingPromptInput,
+                      autoApproveEnableInput,
+                      ...(this.modelSelectionEnabled ? [modelSelection] : []),
+                  ]
                 : [],
             cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
         }

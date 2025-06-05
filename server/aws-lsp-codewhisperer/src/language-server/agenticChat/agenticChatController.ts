@@ -966,6 +966,11 @@ export class AgenticChatController implements ChatHandlers {
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
+                            const isFsWrite = toolUse.name === 'fsWrite'
+                            const notReadOnlyBashExecution =
+                                isExecuteBash && commandCategory !== CommandCategory.ReadOnly
+                            const isAutoApprove = session.autoApproveEnabled
+
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -974,8 +979,18 @@ export class AgenticChatController implements ChatHandlers {
                                     session.getConversationType()
                                 )
                             }
+                            if (isAutoApprove && !requiresAcceptance) {
+                                // If auto-approve is enabled and no acceptance is required, we can proceed without waiting
+                                this.#log(`Auto-approving tool use: ${toolUse.name}`)
+                            }
                             if (requiresAcceptance) {
-                                await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
+                                if (!isAutoApprove || isFsWrite || notReadOnlyBashExecution)
+                                    await this.waitForToolApproval(
+                                        toolUse,
+                                        chatResultStream,
+                                        cachedButtonBlockId,
+                                        session
+                                    )
                             }
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
@@ -2625,6 +2640,8 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
+        session.autoApproveEnabled = params.optionsValues['auto-approve'] === 'true'
+
         session.modelId =
             params.optionsValues['model-selection'] === 'auto' ? undefined : params.optionsValues['model-selection']
 

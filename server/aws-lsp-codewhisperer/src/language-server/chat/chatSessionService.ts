@@ -24,6 +24,7 @@ type DeferredHandler = {
 export class ChatSessionService {
     public shareCodeWhispererContentWithAWS = false
     public pairProgrammingMode: boolean = true
+    public autoApproveEnabled: boolean = false
     public contextListSent: boolean = false
     public modelId: string | undefined
     #abortController?: AbortController
