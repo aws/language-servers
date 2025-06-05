@@ -390,7 +390,8 @@ export class FocalFileResolver {
      * @param pkgSeparator e.g. "."
      */
     resolvePackageToPath(pkg: string, pkgSeparator: string): string {
-        return pkg.replace(new RegExp(`\\` + pkgSeparator, 'g'), path.sep)
+        const normalized = pkg.replace(new RegExp(`\\` + pkgSeparator, 'g'), '/')
+        return normalized.split('/').join(path.sep)
     }
 
     // TODO: Duplicate to what [localProjectContextController.ts] has implemented, should pull this to a util
