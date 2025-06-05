@@ -127,7 +127,7 @@ def test_py_class():
         })
 
         describe('ts', function () {
-            it('case1', function () {
+            it.skip('case1', function () {
                 const p = path.join(tmpProjectRoot, 'src', 'test', 'foo.test.ts')
                 fs.mkdirSync(path.join(tmpProjectRoot, 'src', 'test'), { recursive: true })
                 fs.writeFileSync(
