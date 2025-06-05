@@ -1995,20 +1995,16 @@ export class AgenticChatController implements ChatHandlers {
                 err.code === 'QModelResponse' && requestID
                     ? `${err.message} \n\nRequest ID: ${requestID} `
                     : err.message
-            if (err.code === 'QModelResponse') {
-                return {
-                    type: 'answer',
-                    body: errorBody,
-                    messageId: errorMessageId,
-                    buttons: [],
-                }
-            }
-            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
+            const responseData: ChatResult = {
                 type: 'answer',
                 body: errorBody,
                 messageId: errorMessageId,
                 buttons: [],
-            })
+            }
+            if (err.code === 'QModelResponse') {
+                return responseData
+            }
+            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, responseData)
         }
         this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
