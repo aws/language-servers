@@ -125,7 +125,6 @@ import {
 } from './constants'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { URI } from 'vscode-uri'
-import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
@@ -962,7 +961,7 @@ export class AgenticChatController implements ChatHandlers {
                             fsWrite: { Tool: FsWrite },
                             executeBash: { Tool: ExecuteBash },
                             grepSearch: { Tool: GrepSearch },
-                            fuzzySearch: { Tool: FuzzySearch },
+                            fileSearch: { Tool: FileSearch },
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
@@ -1521,7 +1520,7 @@ export class AgenticChatController implements ChatHandlers {
                 break
 
             case 'fuzzySearch':
-                const searchPath = (toolUse.input as unknown as FuzzySearchParams).path
+                const searchPath = (toolUse.input as unknown as FileSearchParams).path
                 header = {
                     body: 'File Search',
                     status: {
@@ -1825,7 +1824,7 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name === 'fsRead') {
             currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
         } else {
-            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FuzzySearchParams)?.path)
+            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
         }
 
         if (!currentPaths) return
