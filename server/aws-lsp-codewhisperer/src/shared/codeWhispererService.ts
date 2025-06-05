@@ -6,6 +6,8 @@ import {
     Logging,
     SDKInitializator,
     TextDocument,
+    CancellationToken,
+    CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
@@ -59,6 +61,7 @@ import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetecti
 import { Position } from 'vscode-languageserver-textdocument'
 import { error } from 'console'
 import { DebugLogger } from './debugUtils'
+import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 // Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -69,6 +72,7 @@ export abstract class CodeWhispererServiceBase {
     public customizationArn?: string
     public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
+    protected flag: boolean = false
 
     inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
 
@@ -185,6 +189,8 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
 
+    private tokenSrc = new CancellationTokenSource()
+    private token: CancellationToken = this.tokenSrc.token
     constructor(
         credentialsProvider: CredentialsProvider,
         workspace: Workspace,
@@ -305,7 +311,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         // TODO: handle if textDocument/cursor/request position doesn't match prefetchSuggestions
         // e.g. if it's not a subsequent call, it must be a cold start
-        let isColdStart = this.prefetchSuggestions.length === 0 || this.prefetchSuggestions[0].id !== textDocument.uri
+        let isColdStart =
+            this.flag || this.prefetchSuggestions.length === 0 || this.prefetchSuggestions[0].id !== textDocument.uri
 
         // TODO: make id more strict, possibly session id or check if previous suggestion is in the doc
         // if () {
@@ -314,32 +321,53 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         if (!isColdStart) {
             this.logging.info(`will use prefetch suggestion`)
-            const r = this.prefetchSuggestions.pop()
+            const r = await waitUntil(
+                async () => {
+                    return this.prefetchSuggestions.pop()
+                },
+                {
+                    timeout: 2000,
+                    interval: 200,
+                }
+            )
             if (!r) {
-                throw new Error('shouldnt be here')
-            }
-
-            if (this.prefetchSuggestions.length < 3) {
-                this.chainedGenerateCompletionCall(r.request, r.response, textDocument).catch(e => {})
+                this.clearPrefetch()
+                throw new Error('time out')
             }
 
             return r.response
         } else {
+            this.clearPrefetch()
+            const token = this.tokenSrc.token
+            this.token = token
             this.logging.info(`cold start`)
             const coldStartResponse = await this.generateSuggestions(originalRequest)
             if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
-                void this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument).catch(e => {})
+                setTimeout(() => {
+                    this.flag = true
+                    this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument, token).catch(
+                        e => {}
+                    )
+                    this.flag = false
+                }, 200)
             }
             return coldStartResponse
         }
     }
 
+    // TODO: make it cancellable
     private async chainedGenerateCompletionCall(
         baseRequest: GenerateSuggestionsRequest,
         baseResponse: GenerateSuggestionsResponse,
-        textDocument: TextDocument
+        textDocument: TextDocument,
+        token: CancellationToken
     ) {
-        if (this.prefetchSuggestions.length > 3) {
+        const depth = 3
+        if (token.isCancellationRequested) {
+            return
+        }
+
+        if (this.prefetchSuggestions.length > depth) {
             return
         }
 
@@ -362,8 +390,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 })
 
                 setTimeout(async () => {
-                    await this.chainedGenerateCompletionCall(request, response, textDocument)
-                }, 100)
+                    await this.chainedGenerateCompletionCall(request, response, textDocument, token)
+                }, 200)
             } else if (
                 response.suggestions.length > 0 &&
                 baseResponse.suggestions[0].content === response.suggestions[0].content
@@ -412,6 +440,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 : []
 
             subsequentRequest.editorState = {
+                ...originalRequest.editorState,
                 document: {
                     relativeFilePath: textDocument.uri,
                     programmingLanguage: {
