@@ -1,7 +1,18 @@
-# Allowed patterns for git-secrets
-# This file contains patterns that are allowed exceptions to git-secrets prohibited patterns
-
-.gitallowed
-
-# Allow '.brazil' only in the constants.ts file where it's used as a directory name in exclude patterns
-server/aws-lsp-codewhisperer/src/language-server/chat/constants\.ts.*\.brazil
+apollo-server
+apollo-server-core
+apollo-server-express
+apollo-server-env
+apollo-server-errors
+apollo-server-plugin-base
+apollo-server-types
+apollo-datasource
+apollo-reporting-protobuf
+@apollo/protobufjs
+@apollo/usage-reporting-protobuf
+@apollo/utils
+@apollographql/apollo-tools
+apollo-pbjs
+apollo-pbts
+Create Apollo Server
+Apollo Server version
+.brazil
