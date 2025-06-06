@@ -356,7 +356,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             this.token = this.tokenSrc.token
             this.logging.info(`cold start`)
             const coldStartResponse = await this.generateSuggestions(originalRequest)
-            this.logging.info(`[NEP] time elapse=${performance.now() - t0}`)
             if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
                 setTimeout(() => {
                     this.flag = true
