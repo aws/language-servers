@@ -150,7 +150,10 @@ export class McpManager {
 
             const mergedEnv = {
                 ...(process.env as Record<string, string>),
-                ...(cfg.env ?? {}),
+                // Make sure we do not have empty key and value in mergedEnv, or adding server through UI will fail on Windows
+                ...(cfg.env && !isEmptyEnv(cfg.env)
+                    ? Object.fromEntries(Object.entries(cfg.env).filter(([key]) => key && key.trim() !== ''))
+                    : {}),
             }
             const transport = new StdioClientTransport({
                 command: cfg.command,
@@ -163,9 +166,10 @@ export class McpManager {
             })
 
             const connectPromise = client.connect(transport).catch(err => {
-                const invalidConfigError = err.code === 'ENOENT' || err.code === -32000
+                const invalidConfigErrorCodes = ['ENOENT', 'EINVAL', -32000]
+                const isConfigError = invalidConfigErrorCodes.includes(err.code)
                 throw new AgenticChatError(
-                    `MCP: server '${serverName}' failed to connect: ${invalidConfigError ? 'Invalid configuration' : err.message}`,
+                    `MCP: server '${serverName}' failed to connect: ${isConfigError ? 'Invalid configuration' : err.message}`,
                     'MCPServerConnectionFailed'
                 )
             })
