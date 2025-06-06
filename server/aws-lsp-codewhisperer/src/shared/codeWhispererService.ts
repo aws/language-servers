@@ -78,9 +78,7 @@ export abstract class CodeWhispererServiceBase {
     prefetchSuggestions: { id: string; response: GenerateSuggestionsResponse; request: GenerateSuggestionsRequest }[] =
         []
 
-    clearPrefetch() {
-        this.prefetchSuggestions = []
-    }
+    abstract clearCachedSuggestions(): void
 
     abortInflightRequests() {
         this.inflightRequests.forEach(request => {
@@ -99,7 +97,7 @@ export abstract class CodeWhispererServiceBase {
 
     abstract getCredentialsType(): CredentialsType
 
-    abstract generateCompletions(
+    abstract generateCompletionsAndEdits(
         textDocument: TextDocument,
         request: GenerateSuggestionsRequest,
         config: {
@@ -157,7 +155,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         return 'iam'
     }
 
-    generateCompletions(
+    generateCompletionsAndEdits(
         textDocument: TextDocument,
         request: GenerateSuggestionsRequest,
         config: {
@@ -188,14 +186,15 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             responseContext,
         }
     }
+
+    // No effect as IAM clients don't have this functionality yet
+    clearCachedSuggestions() {}
 }
 
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
-
     private tokenSrc = new CancellationTokenSource()
     private token: CancellationToken = this.tokenSrc.token
-
     private prefetchConfig = {
         duration: 100, // 100ms
         maxCacheSuggestionSize: 3,
@@ -305,7 +304,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return { ...request, profileArn: this.profileArn }
     }
 
-    generateCompletions(
+    clearCachedSuggestions() {
+        this.prefetchSuggestions = []
+        // TODO: fix this, rignt now it will make prefetch not work
+        // this.tokenSrc.cancel()
+    }
+
+    generateCompletionsAndEdits(
         textDocument: TextDocument,
         request: GenerateSuggestionsRequest,
         config: {
@@ -332,8 +337,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
     }
 
-    // Only used when it's a cold start
-    async generateSuggestionsAndPrefetch(
+    private async generateSuggestionsAndPrefetch(
         textDocument: TextDocument,
         originalRequest: GenerateSuggestionsRequest
     ): Promise<GenerateSuggestionsResponse> {
@@ -362,20 +366,20 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 }
             )
             if (!r) {
-                this.clearPrefetch()
+                this.clearCachedSuggestions()
                 throw new Error('time out')
             }
 
             this.logging.info(
-                `[NEP] it takes ${performance.now() - t0}ms to get prefetched result\n${r.response.suggestions[0].content}`
+                `[NEP] it takes ${performance.now() - t0}ms to get prefetched result\n${r.response.suggestions[0]?.content ?? 'no suggestion'}`
             )
             return r.response
         } else {
-            this.clearPrefetch()
+            this.clearCachedSuggestions()
             this.token = this.tokenSrc.token
             this.logging.info(`cold start`)
             const coldStartResponse = await this.generateSuggestions(originalRequest)
-            if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
+            if (coldStartResponse.suggestions.length > 0) {
                 setTimeout(() => {
                     this.flag = true
                     this.chainedGenerateCompletionCall(
@@ -389,13 +393,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 }, this.prefetchConfig.duration)
             }
             this.logging.info(
-                `[NEP] it takes ${performance.now() - t0}ms to get cold start result\n${coldStartResponse.suggestions[0].content}`
+                `[NEP] it takes ${performance.now() - t0}ms to get cold start result\n${coldStartResponse.suggestions[0]?.content ?? 'no suggestion'}`
             )
             return coldStartResponse
         }
     }
 
-    // TODO: make it cancellable
     private async chainedGenerateCompletionCall(
         baseRequest: GenerateSuggestionsRequest,
         baseResponse: GenerateSuggestionsResponse,
@@ -403,6 +406,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         token: CancellationToken,
         depth: number
     ) {
+        // Only prefetch for EDIT type suggestions
+        if (baseResponse.suggestionType !== SuggestionType.EDIT) {
+            return
+        }
+
         if (depth > this.prefetchConfig.maxRecursiveCallDepth) {
             return
         }
@@ -415,7 +423,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             return
         }
 
-        const request = this.buildSubsequentRequest(baseRequest, baseResponse, textDocument)
+        const request = this.buildSubsequentNepRequest(baseRequest, baseResponse, textDocument)
 
         try {
             const response = await this.generateSuggestions(request)
@@ -451,7 +459,7 @@ ${response.suggestions[0].content}`)
         }
     }
 
-    private buildSubsequentRequest(
+    private buildSubsequentNepRequest(
         baseRequest: GenerateSuggestionsRequest,
         baseResponse: GenerateSuggestionsResponse,
         textDocument: TextDocument

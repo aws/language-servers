@@ -531,7 +531,7 @@ export const CodewhispererServerFactory =
                     }
                     
                     // TODO: generateSuggestionsAndPrefetch should only apply to vscode but not other IDEs
-                    return codeWhispererService.generateCompletions(textDocument, {
+                    return codeWhispererService.generateCompletionsAndEdits(textDocument, {
                         ...requestContext,
                         predictionTypes : predictionTypes.flat(),
                         fileContext: {
@@ -826,7 +826,7 @@ export const CodewhispererServerFactory =
                 logging.info(`user reject suggestion, clearning prefetched suggestion`)
                 // TODO: move to somewhere like session.close()
                 // acceptedSuggestion.insertText will be undefined if its' NEP
-                amazonQServiceManager.getCodewhispererService().clearPrefetch()
+                amazonQServiceManager.getCodewhispererService().clearCachedSuggestions()
             }
 
             // Handle rejected edit predictions
