@@ -81,7 +81,8 @@ export const editPredictionAutoTrigger = ({
     const isNotInMiddleOfWord = isWhitespaceOrSpecial(charToLeft) || isWhitespaceOrSpecial(charToRight)
 
     // 1.3 Previous User Decision [WIP - P1]
-    const isPreviousDecisionNotReject = previousDecision !== 'Reject'
+    // const isPreviousDecisionNotReject = previousDecision !== 'Reject'
+    const isPreviousDecisionNotReject = true
 
     // 1.4 Non-empty Suffix [NEEDED - Paramterize this]
     const hasNonEmptySuffix = rightContextLines.length > 1 && rightContextLines[1].trim().length > 0
@@ -110,7 +111,8 @@ export const editPredictionAutoTrigger = ({
     // Determine if we should trigger
     const requiredConditionsMet =
         (hasRecentEdit && isNotInMiddleOfWord && isPreviousDecisionNotReject && hasNonEmptySuffix) || false
-    const optionalConditionsMet = isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
+    // const optionalConditionsMet = isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
+    const optionalConditionsMet = true
     const shouldTrigger = (requiredConditionsMet && optionalConditionsMet) || false
 
     // Create state object for logging
