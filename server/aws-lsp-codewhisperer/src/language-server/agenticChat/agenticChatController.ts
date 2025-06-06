@@ -680,7 +680,7 @@ export class AgenticChatController implements ChatHandlers {
                 continue
             }
 
-            //  Add the user prompt and the assistantResponse message to the history DB
+            // Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
                 if (this.#isPromptCanceled(token, session, promptId)) {
                     this.#debug('Skipping adding messages to history - cancelled by user')

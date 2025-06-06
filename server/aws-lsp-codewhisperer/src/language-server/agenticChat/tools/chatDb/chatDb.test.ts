@@ -7,7 +7,7 @@ import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatDatabase, ToolResultValidationError } from './chatDb'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { ChatMessage as StreamingMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
+import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
 import { Message } from './util'
 import * as fs from 'fs'
 
@@ -136,7 +136,7 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as StreamingMessage
+            } as ChatMessage
 
             assert.throws(() => {
                 chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
@@ -169,7 +169,7 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as StreamingMessage
+            } as ChatMessage
 
             // Should not throw an exception
             chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
@@ -199,7 +199,7 @@ describe('ChatDatabase', () => {
                     content: 'New message',
                     userInputMessageContext: {},
                 },
-            } as StreamingMessage
+            } as ChatMessage
 
             // Should not throw an exception
             chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
@@ -234,7 +234,7 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as StreamingMessage
+            } as ChatMessage
 
             assert.throws(() => {
                 chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
@@ -263,7 +263,7 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as StreamingMessage
+            } as ChatMessage
 
             // Should not throw an exception
             chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
@@ -312,7 +312,7 @@ describe('ChatDatabase', () => {
                         ],
                     },
                 },
-            } as StreamingMessage
+            } as ChatMessage
 
             const isValid = chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
@@ -347,7 +347,7 @@ describe('ChatDatabase', () => {
                         toolResults: [],
                     },
                 },
-            } as StreamingMessage
+            } as ChatMessage
 
             assert.throws(() => {
                 chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
