@@ -21,7 +21,7 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
-import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
+import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 
@@ -375,7 +375,10 @@ export class ChatDatabase {
 
     formatChatHistoryMessage(message: Message): Message {
         if (message.type === ('prompt' as ChatItemType)) {
-            const hasToolResults = message.userInputMessageContext?.toolResults
+            let hasToolResults = false
+            if (message.userInputMessageContext?.toolResults) {
+                hasToolResults = message.userInputMessageContext?.toolResults.length > 0
+            }
             return {
                 ...message,
                 userInputMessageContext: {
@@ -438,6 +441,17 @@ export class ChatDatabase {
 
         //  Make sure max characters ≤ remaining Character Budget
         allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
+
+        // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
+        if (
+            allMessages.length === 0 &&
+            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
+            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
+        ) {
+            this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
+            newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
+            newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+        }
 
         const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
 
@@ -589,6 +603,13 @@ export class ChatDatabase {
 
         //  Make sure the last stored message is from the assistant (type === 'answer'), else drop
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
+            // When user aborts some in-progress tooluse event, we should still send the previous toolResult back
+            if (messages[messages.length - 1].userInputMessageContext?.toolResults) {
+                if (newUserMessage.userInputMessage?.userInputMessageContext) {
+                    newUserMessage.userInputMessage.userInputMessageContext.toolResults =
+                        messages[messages.length - 1].userInputMessageContext?.toolResults
+                }
+            }
             messages.pop()
             this.#features.logging.debug('Dropped trailing user message')
         }
@@ -686,10 +707,10 @@ export class ChatDatabase {
 
     getModelId(): string | undefined {
         const settings = this.getSettings()
-        return settings?.modelId
+        return settings?.modelId === '' ? undefined : settings?.modelId
     }
 
     setModelId(modelId: string | undefined): void {
-        this.updateSettings({ modelId })
+        this.updateSettings({ modelId: modelId === '' ? undefined : modelId })
     }
 }

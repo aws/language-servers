@@ -19,7 +19,7 @@ import {
     ToolUse,
     UserInputMessage,
     AssistantResponseMessage,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts

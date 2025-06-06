@@ -17,7 +17,7 @@ import {
     ToolResultStatus,
     ToolUse,
     ToolUseEvent,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import {
     Button,
     Status,
@@ -109,7 +109,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
-import { FuzzySearch, FuzzySearchParams } from './tools/fuzzySearch'
+import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { loggingUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
@@ -119,6 +119,7 @@ import {
     outputLimitExceedsPartialMsg,
     responseTimeoutMs,
     responseTimeoutPartialMsg,
+    defaultModelId,
 } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
@@ -932,7 +933,7 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsRead':
                     case 'listDirectory':
                     case 'grepSearch':
-                    case 'fuzzySearch':
+                    case 'fileSearch':
                     case 'fsWrite':
                     case 'executeBash': {
                         const toolMap = {
@@ -941,7 +942,7 @@ export class AgenticChatController implements ChatHandlers {
                             fsWrite: { Tool: FsWrite },
                             executeBash: { Tool: ExecuteBash },
                             grepSearch: { Tool: GrepSearch },
-                            fuzzySearch: { Tool: FuzzySearch },
+                            fileSearch: { Tool: FileSearch },
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
@@ -1054,13 +1055,13 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                    case 'fuzzySearch':
+                    case 'fileSearch':
                         const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                         if (initialListDirResult) {
                             await chatResultStream.writeResultBlock(initialListDirResult)
                         }
                         break
-                    // no need to write tool result for listDir,fsRead,fuzzySearch into chat stream
+                    // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
@@ -1479,8 +1480,8 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 break
 
-            case 'fuzzySearch':
-                const searchPath = (toolUse.input as unknown as FuzzySearchParams).path
+            case 'fileSearch':
+                const searchPath = (toolUse.input as unknown as FileSearchParams).path
                 header = {
                     body: 'File Search',
                     status: {
@@ -1719,7 +1720,7 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name === 'fsRead') {
             currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
         } else {
-            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FuzzySearchParams)?.path)
+            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
         }
 
         if (!currentPaths) return
@@ -1748,7 +1749,7 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === 'fuzzySearch'
+                    : toolUse.name === 'fileSearch'
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
@@ -2248,10 +2249,17 @@ export class AgenticChatController implements ChatHandlers {
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
-        this.#chatSessionManagementService.createSession(params.tabId)
-
-        const modelId = this.#chatHistoryDb.getModelId()
+        // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
+        // In that case, we use the default modelId.
+        const modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
         this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
+
+        const sessionResult = this.#chatSessionManagementService.createSession(params.tabId)
+        const { data: session, success } = sessionResult
+        if (!success) {
+            return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
+        }
+        session.modelId = modelId
     }
 
     onTabChange(params: TabChangeParams) {
@@ -2640,10 +2648,8 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
+        session.modelId = params.optionsValues['model-selection']
         session.autoApproveEnabled = params.optionsValues['auto-approve'] === 'true'
-
-        session.modelId =
-            params.optionsValues['model-selection'] === 'auto' ? undefined : params.optionsValues['model-selection']
 
         this.#chatHistoryDb.setModelId(session.modelId)
     }

@@ -4,7 +4,7 @@ import {
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     ToolUse,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import {
     StreamingClientServiceToken,
     SendMessageCommandInput,

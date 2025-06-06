@@ -8,7 +8,7 @@ import {
     CodeWhispererStreaming,
     SendMessageCommandInput,
     SendMessageCommandOutput,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import { rejects } from 'assert'
 
 const TIME_TO_ADVANCE_MS = 100

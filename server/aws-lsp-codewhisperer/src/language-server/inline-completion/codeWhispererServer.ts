@@ -408,6 +408,7 @@ export const CodewhispererServerFactory =
                     }
 
                     const supplementalContext = await supplementalContextPromise
+                    // TODO: logging
                     if (codeWhispererService instanceof CodeWhispererServiceToken) {
                         requestContext.supplementalContexts = supplementalContext?.supplementalContextItems
                             ? supplementalContext.supplementalContextItems.map(v => ({
