@@ -275,6 +275,10 @@ export const CodewhispererServerFactory =
         let codePercentageTracker: CodePercentageTracker
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
+        // TODO: come up with a more structure way to do this
+        let previousPosition: Position | undefined
+        let previousFileContent: string | undefined
+
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
@@ -326,6 +330,15 @@ export const CodewhispererServerFactory =
                         )
                         return EMPTY_RESULT
                     }
+
+                    if (params.position.character === previousPosition?.character && 
+                        params.position.line === previousPosition?.line && 
+                        textDocument.getText() === previousFileContent) {
+                        return EMPTY_RESULT
+                    }
+
+                    previousPosition = params.position
+                    previousFileContent = textDocument.getText()
 
                     // Build request context
                     const isAutomaticLspTriggerKind =
