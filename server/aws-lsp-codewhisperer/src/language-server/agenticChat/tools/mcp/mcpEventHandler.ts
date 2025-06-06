@@ -36,6 +36,7 @@ export class McpEventHandler {
     #currentEditingServerName: string | undefined
     #shouldDisplayListMCPServers: boolean
     #telemetryController: ChatTelemetryController
+    #pendingPermissionConfig: { serverName: string; permission: MCPServerPermission } | undefined
 
     constructor(features: Features, telemetryService: TelemetryService) {
         this.#features = features
@@ -43,6 +44,7 @@ export class McpEventHandler {
         this.#currentEditingServerName = undefined
         this.#shouldDisplayListMCPServers = true
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
+        this.#pendingPermissionConfig = undefined
     }
 
     /**
@@ -232,6 +234,7 @@ export class McpEventHandler {
             'open-mcp-server': () => this.#handleOpenMcpServer(params),
             'edit-mcp': () => this.#handleEditMcpServer(params),
             'mcp-permission-change': () => this.#handleMcpPermissionChange(params),
+            'save-permission-change': () => this.#handleSavePermissionChange(params),
             'refresh-mcp-list': () => this.#handleRefreshMCPList(params),
             'mcp-enable-server': () => this.#handleEnableMcpServer(params),
             'mcp-disable-server': () => this.#handleDisableMcpServer(params),
@@ -833,6 +836,7 @@ export class McpEventHandler {
      * Handles edit MCP configuration
      */
     async #handleEditMcpServer(params: McpServerClickParams, error?: string) {
+        await this.#handleSavePermissionChange({ id: 'save-mcp-permission' })
         const serverName = params.title
         if (!serverName) {
             return { id: params.id }
@@ -970,7 +974,7 @@ export class McpEventHandler {
     // }
 
     /**
-     * Handles MCP permission change events
+     * Handles MCP permission change events to update the pending permission config without applying changes
      */
     async #handleMcpPermissionChange(params: McpServerClickParams) {
         const serverName = params.title
@@ -991,7 +995,36 @@ export class McpEventHandler {
 
             const mcpServerPermission = await this.#processPermissionUpdates(updatedPermissionConfig)
 
-            await McpManager.instance.updateServerPermission(serverName, mcpServerPermission)
+            // Store the permission config instead of applying it immediately
+            this.#pendingPermissionConfig = {
+                serverName,
+                permission: mcpServerPermission,
+            }
+
+            this.#features.logging.info(`Stored pending permission change for server: ${serverName}`)
+
+            return { id: params.id }
+        } catch (error) {
+            this.#features.logging.error(`Failed to process MCP permissions: ${error}`)
+            return { id: params.id }
+        }
+    }
+
+    /**
+     * Handles saving MCP permission changes
+     * Applies the stored permission changes
+     */
+    async #handleSavePermissionChange(params: McpServerClickParams) {
+        if (!this.#pendingPermissionConfig) {
+            this.#features.logging.warn('No pending permission changes to save')
+            return { id: params.id }
+        }
+
+        try {
+            const { serverName, permission } = this.#pendingPermissionConfig
+
+            // Apply the stored permission changes
+            await McpManager.instance.updateServerPermission(serverName, permission)
             this.#emitMCPConfigEvent()
 
             // Get server config to emit telemetry
@@ -1012,9 +1045,14 @@ export class McpEventHandler {
                     languageServerVersion: this.#features.runtime.serverInfo.version,
                 })
             }
+
+            // Clear the pending permission config after applying
+            this.#pendingPermissionConfig = undefined
+
+            this.#features.logging.info(`Applied permission changes for server: ${serverName}`)
             return { id: params.id }
         } catch (error) {
-            this.#features.logging.error(`Failed to update MCP permissions: ${error}`)
+            this.#features.logging.error(`Failed to save MCP permissions: ${error}`)
             return { id: params.id }
         }
     }
