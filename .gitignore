@@ -18,6 +18,10 @@ build
 **/out
 **/bundle
 **/node_modules
+
+# Coverage reports
+**/coverage
+**/.nyc_output
 **/.vscode-test
 !/bin
 *.tsbuildinfo

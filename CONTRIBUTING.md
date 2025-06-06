@@ -245,6 +245,43 @@ Using other clients can also be done with the bundle created from this package.
 npm test
 ```
 
+#### Running Tests with Coverage
+
+This repository supports code coverage reporting using [NYC (Istanbul)](https://github.com/istanbuljs/nyc) across multiple packages. Coverage is available for packages that use TypeScript with ts-mocha or regular mocha testing frameworks.
+
+**Individual Package Coverage:**
+```bash
+# Run coverage for a specific package
+npm run test:coverage --workspace=server/aws-lsp-codewhisperer
+npm run test:coverage --workspace=server/aws-lsp-json
+npm run test:coverage --workspace=chat-client
+npm run test:coverage --workspace=server/hello-world-lsp
+
+# Generate HTML coverage reports for a specific package
+npm run coverage:report --workspace=server/aws-lsp-codewhisperer
+```
+
+**Repository-Wide Coverage:**
+```bash
+# Run coverage across all packages that support it
+npm run test:coverage
+
+# Generate repository-wide coverage reports
+npm run coverage:report
+```
+
+**Coverage Reports:**
+- **Terminal output**: Shows coverage percentages and uncovered lines
+- **HTML reports**: Generated in each package's `coverage/` directory
+- **LCOV reports**: Generated for CI/CD integration
+
+**Packages with Coverage Support:**
+- ✅ **server/aws-lsp-codewhisperer**: Full TypeScript coverage (~55% coverage)
+- ✅ **server/aws-lsp-json**: Full TypeScript coverage (~65% coverage)  
+- ✅ **server/hello-world-lsp**: Full TypeScript coverage (~65% coverage)
+- ✅ **chat-client**: Full TypeScript coverage (~63% coverage)
+- 🔧 **Additional packages**: Infrastructure in place, can be activated as needed
+
 ---
 
 ### Writing Tests

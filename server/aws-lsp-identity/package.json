@@ -18,7 +18,10 @@
         "copy": "copyfiles --error --flat ./src/sso/authorizationCodePkce/resources/* ./out/sso/authorizationCodePkce/resources/",
         "package": "npm run compile && npm run copy",
         "test": "npm run package && npm run test-unit",
-        "test-unit": "mocha \"./out/**/*.test.js\""
+        "test-unit": "mocha \"./out/**/*.test.js\"",
+        "test-unit:coverage": "npm run compile && nyc mocha \"./out/**/*.test.js\"",
+        "test:coverage": "npm run package && npm run test-unit:coverage",
+        "coverage:report": "nyc report --reporter=html --reporter=text"
     },
     "dependencies": {
         "@aws-sdk/client-sso-oidc": "^3.616.0",
@@ -32,6 +35,7 @@
     },
     "devDependencies": {
         "@aws-sdk/types": "^3.734.0",
+        "@istanbuljs/nyc-config-typescript": "^1.0.2",
         "@smithy/types": "^3.4.1",
         "@types/chai": "^4.3.5",
         "@types/chai-as-promised": "^7.1.5",
@@ -42,6 +46,7 @@
         "chai-as-promised": "^7.1.1",
         "copyfiles": "^2.4.1",
         "mock-fs": "^5.2.0",
+        "nyc": "^17.1.0",
         "sinon": "^19.0.2",
         "ts-loader": "^9.5.1",
         "ts-mocha": "^11.1.0",
