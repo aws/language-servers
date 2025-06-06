@@ -161,7 +161,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         textDocument: TextDocument,
         request: GenerateSuggestionsRequest,
         config: {
-            enableNep: boolean
+            enablePrefetch: boolean
         }
     ): Promise<GenerateSuggestionsResponse> {
         return this.generateSuggestions(request)
