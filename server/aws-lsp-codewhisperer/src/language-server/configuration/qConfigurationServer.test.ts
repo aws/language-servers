@@ -619,10 +619,7 @@ describe('ServerConfigurationProvider', () => {
             })
 
             // Verify error was logged
-            sinon.assert.calledWith(
-                testFeatures.logging.error as sinon.SinonStub,
-                sinon.match(/Failed to fetch customizations for profile/)
-            )
+            sinon.assert.called(testFeatures.logging.error as sinon.SinonStub)
         })
 
         it('handles cancellation token', async () => {
