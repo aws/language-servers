@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.14](https://github.com/aws/language-servers/compare/chat-client/v0.1.13...chat-client/v0.1.14) (2025-06-06)
+
+
+### Features
+
+* remove auto model selection option ([#1548](https://github.com/aws/language-servers/issues/1548)) ([71fc801](https://github.com/aws/language-servers/commit/71fc80165a7e987ca4d103f40aa93980bcd015da))
+
+
+### Bug Fixes
+
+* prevent muting messages with completed status ([#1557](https://github.com/aws/language-servers/issues/1557)) ([527a373](https://github.com/aws/language-servers/commit/527a373cc0b7c2c253d700af002d4e6bc7fdb887))
+
 ## [0.1.13](https://github.com/aws/language-servers/compare/chat-client/v0.1.12...chat-client/v0.1.13) (2025-06-02)
 
 
