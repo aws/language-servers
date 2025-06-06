@@ -344,7 +344,7 @@
         "compile:chat-client": "npm run compile --prefix ../../chat-client && shx cp -R ../../chat-client/build ."
     },
     "devDependencies": {
-        "@aws-sdk/credential-providers": "^3.731.1",
+        "@aws-sdk/credential-providers": "^3.825.0",
         "@aws-sdk/types": "^3.734.0",
         "@aws/chat-client-ui-types": "^0.1.40",
         "@aws/language-server-runtimes": "^0.2.90",
