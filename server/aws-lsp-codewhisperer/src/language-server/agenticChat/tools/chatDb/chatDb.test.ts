@@ -6,10 +6,10 @@
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatDatabase, ToolResultValidationError } from './chatDb'
-import { ChatMessage } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
 import { Message, TabType } from './util'
-import { ChatMessage as StreamingMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
+import { ChatMessage as StreamingMessage } from '@amzn/codewhisperer-streaming'
 import * as fs from 'fs'
 
 describe('ChatDatabase', () => {

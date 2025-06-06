@@ -2,7 +2,6 @@
 // https://github.com/aws/aws-toolkit-vscode/blob/9d8ddbd85f4533e539a58e76f7c46883d8e50a79/packages/core/src/codewhisperer/util/supplementalContext/supplementalContextUtil.ts
 
 import { fetchSupplementalContextForSrc } from './crossFileContextUtil'
-import { isTestFile } from './codeParsingUtil'
 import { CodeWhispererSupplementalContext } from '../models/model'
 import {
     CancellationToken,
@@ -11,11 +10,18 @@ import {
     TextDocument,
     Workspace,
 } from '@aws/language-server-runtimes/server-interface'
-import { crossFileContextConfig } from '../models/constants'
+import { crossFileContextConfig, supplementalContextTimeoutInMs } from '../models/constants'
 import * as os from 'os'
 import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
+import { TestIntentDetector } from './unitTestIntentDetection'
+import { FocalFileResolver } from './focalFileResolution'
+import * as fs from 'fs'
+import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 export class CancellationError extends Error {}
+
+const unitTestIntentDetector = new TestIntentDetector()
+const utgFocalFileResolver = new FocalFileResolver()
 
 export async function fetchSupplementalContext(
     document: TextDocument,
@@ -27,10 +33,7 @@ export async function fetchSupplementalContext(
 ): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = performance.now()
 
-    const isUtg = isTestFile(document.uri, {
-        languageId: document.languageId,
-        fileContent: document.getText(),
-    })
+    const isUtg = unitTestIntentDetector.detectUnitTestIntent(document)
 
     try {
         let supplementalContextValue:
@@ -38,7 +41,32 @@ export async function fetchSupplementalContext(
             | undefined
 
         if (isUtg) {
-            return
+            supplementalContextValue = await waitUntil(
+                async function () {
+                    const focalFile = await utgFocalFileResolver.inferFocalFile(document, workspace)
+                    if (focalFile) {
+                        const srcContent = fs.readFileSync(focalFile, 'utf-8')
+                        return {
+                            isUtg: true,
+                            isProcessTimeout: false,
+                            supplementalContextItems: [
+                                {
+                                    content: srcContent,
+                                    filePath: focalFile,
+                                },
+                            ],
+                            contentsLength: srcContent.length,
+                            latency: performance.now() - timesBeforeFetching,
+                            strategy: 'NEW_UTG',
+                        }
+                    }
+                },
+                {
+                    timeout: supplementalContextTimeoutInMs,
+                    interval: 5,
+                    truthy: false,
+                }
+            )
         } else {
             supplementalContextValue = await fetchSupplementalContextForSrc(
                 document,
