@@ -958,19 +958,25 @@ export class AgenticChatController implements ChatHandlers {
                         )
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
+                            // get auto approve status from session
+                            const isAutoApprove = session.autoApproveEnabled
+
+                            // if auto-approve is enable, only processToolConfirmation if tool is executeBash
                             // for executeBash, we till send the confirmation message without action buttons
-                            const confirmationResult = this.#processToolConfirmation(
-                                toolUse,
-                                requiresAcceptance,
-                                warning,
-                                commandCategory
-                            )
-                            cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            if (!isAutoApprove || toolUse.name === 'executeBash') {
+                                const confirmationResult = this.#processToolConfirmation(
+                                    toolUse,
+                                    requiresAcceptance,
+                                    warning,
+                                    commandCategory
+                                )
+                                cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            }
+
                             const isExecuteBash = toolUse.name === 'executeBash'
                             const isFsWrite = toolUse.name === 'fsWrite'
                             const notReadOnlyBashExecution =
                                 isExecuteBash && commandCategory !== CommandCategory.ReadOnly
-                            const isAutoApprove = session.autoApproveEnabled
 
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
@@ -989,7 +995,7 @@ export class AgenticChatController implements ChatHandlers {
                                     await this.waitForToolApproval(
                                         toolUse,
                                         chatResultStream,
-                                        cachedButtonBlockId,
+                                        cachedButtonBlockId!,
                                         session
                                     )
                             }
