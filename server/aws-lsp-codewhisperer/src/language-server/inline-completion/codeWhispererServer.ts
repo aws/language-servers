@@ -275,6 +275,10 @@ export const CodewhispererServerFactory =
         let codePercentageTracker: CodePercentageTracker
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
+        // TODO: come up with a more structure way to do this
+        let previousPosition: Position | undefined
+        let previousFileContent: string | undefined
+
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
@@ -324,6 +328,10 @@ export const CodewhispererServerFactory =
                         logging.log(
                             `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
                         )
+                        return EMPTY_RESULT
+                    }
+
+                    if (params.position === previousPosition && textDocument.getText() === previousFileContent) {
                         return EMPTY_RESULT
                     }
 
