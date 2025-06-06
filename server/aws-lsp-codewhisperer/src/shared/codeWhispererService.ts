@@ -193,7 +193,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
     private prefetchConfig = {
         duration: 100, // 100ms
-        depth: 3,
+        maxCacheSuggestionSize: 3,
+        maxRecursiveCallDepth: 5,
     }
 
     constructor(
@@ -328,6 +329,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // if () {
         //     isColdStart = true
         // }
+        const t0 = performance.now()
 
         if (!isColdStart) {
             this.logging.info(`will use prefetch suggestion`)
@@ -345,22 +347,32 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 throw new Error('time out')
             }
 
+            this.logging.info(
+                `[NEP] it takes ${performance.now() - t0}ms to get prefetched result\n${r.response.suggestions[0].content}`
+            )
             return r.response
         } else {
             this.clearPrefetch()
-            const token = this.tokenSrc.token
-            this.token = token
+            this.token = this.tokenSrc.token
             this.logging.info(`cold start`)
             const coldStartResponse = await this.generateSuggestions(originalRequest)
+            this.logging.info(`[NEP] time elapse=${performance.now() - t0}`)
             if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
                 setTimeout(() => {
                     this.flag = true
-                    this.chainedGenerateCompletionCall(originalRequest, coldStartResponse, textDocument, token).catch(
-                        e => {}
-                    )
+                    this.chainedGenerateCompletionCall(
+                        originalRequest,
+                        coldStartResponse,
+                        textDocument,
+                        this.token,
+                        0
+                    ).catch(e => {})
                     this.flag = false
                 }, this.prefetchConfig.duration)
             }
+            this.logging.info(
+                `[NEP] it takes ${performance.now() - t0}ms to get cold start result\n${coldStartResponse.suggestions[0].content}`
+            )
             return coldStartResponse
         }
     }
@@ -370,27 +382,38 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         baseRequest: GenerateSuggestionsRequest,
         baseResponse: GenerateSuggestionsResponse,
         textDocument: TextDocument,
-        token: CancellationToken
+        token: CancellationToken,
+        depth: number
     ) {
+        if (depth > this.prefetchConfig.maxRecursiveCallDepth) {
+            return
+        }
+
         if (token.isCancellationRequested) {
             return
         }
 
-        if (this.prefetchSuggestions.length > this.prefetchConfig.depth) {
+        if (this.prefetchSuggestions.length > this.prefetchConfig.maxCacheSuggestionSize) {
             return
         }
-
-        this.logging.info(`prefetchSuggestions.length = ${this.prefetchSuggestions.length}`)
 
         const request = this.buildSubsequentRequest(baseRequest, baseResponse, textDocument)
 
         try {
             const response = await this.generateSuggestions(request)
-            if (
+            const isResponseValid =
                 response.suggestions.length > 0 &&
                 response.suggestions[0].content !== baseResponse.suggestions[0].content
-            ) {
-                this.logging.info(`prefetch suggestion[0]: \n${response.suggestions[0].content}`)
+
+            this.logging.info(`[NEP] @chainedGenerateCompletionCall:
+- file: ${baseRequest.fileContext.filename}
+- depth: ${depth}
+- current prefetch suggestion length: ${this.prefetchSuggestions.length}
+- is prefetch response valid: ${baseResponse.suggestions[0].content === response.suggestions[0].content}
+- suggestion (next line):
+${response.suggestions[0].content}`)
+
+            if (isResponseValid) {
                 this.prefetchSuggestions.push({
                     id: textDocument.uri, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
                     response: response,
@@ -398,16 +421,15 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 })
 
                 setTimeout(async () => {
-                    await this.chainedGenerateCompletionCall(request, response, textDocument, token)
+                    await this.chainedGenerateCompletionCall(request, response, textDocument, token, depth + 1)
                 }, this.prefetchConfig.duration)
-            } else if (
-                response.suggestions.length > 0 &&
-                baseResponse.suggestions[0].content === response.suggestions[0].content
-            ) {
-                this.logging.info('identical result, discard')
             }
         } catch (e) {
-            console.log(e)
+            this.logging.error(`[NEP] @chainedGenerateCompletionCall FAILED:
+- file: ${baseRequest.fileContext.filename}
+- depth: ${depth}
+- current prefetch suggestion length: ${this.prefetchSuggestions.length}
+- error: ${(e as Error).message}`)
         }
     }
 
@@ -427,7 +449,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             nextToken: undefined,
         }
 
-        // NEP flow requires more updates other than left/right filecontent
         if (baseResponse.suggestionType && baseResponse.suggestionType === SuggestionType.EDIT) {
             const docText = baseRequest.fileContext.leftFileContent + baseRequest.fileContext.rightFileContent
             const afterDiff = applyUnifiedDiff(docText, suggestion.content)
