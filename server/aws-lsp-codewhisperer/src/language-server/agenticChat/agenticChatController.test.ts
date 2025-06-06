@@ -2479,6 +2479,32 @@ ${' '.repeat(8)}}
             })
         })
     })
+
+    describe('onPromptInputOptionChange', () => {
+        it('should set model ID from prompt input options', () => {
+            const mockTabId = 'tab-1'
+            const modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
+            const setModelIdStub = sinon.stub(ChatDatabase.prototype, 'setModelId')
+
+            // Create a session
+            chatController.onTabAdd({ tabId: mockTabId })
+
+            // Call onPromptInputOptionChange with model selection
+            chatController.onPromptInputOptionChange({
+                tabId: mockTabId,
+                optionsValues: { 'model-selection': modelId },
+            })
+
+            // Verify the session has the model ID set
+            const session = chatSessionManagementService.getSession(mockTabId).data
+            assert.strictEqual(session!.modelId, modelId)
+
+            // Verify the model ID was saved to the database
+            sinon.assert.called(setModelIdStub)
+
+            setModelIdStub.restore()
+        })
+    })
 })
 
 // The body may include text-based progress updates from tool invocations.
