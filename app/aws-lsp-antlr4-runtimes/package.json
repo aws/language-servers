@@ -9,7 +9,10 @@
         "package": "npm run compile && npm run webpack",
         "test": "npm run test-integ",
         "test-integ": "npm run package && mocha --timeout 5000 \"./out/**/*Integ.test.js\" --retries 2",
-        "webpack": "webpack"
+        "webpack": "webpack",
+        "test-integ:coverage": "npm run package && nyc mocha --timeout 5000 \"./out/**/*Integ.test.js\" --retries 2",
+        "test:coverage": "npm run test-integ:coverage",
+        "coverage:report": "nyc report --reporter=html --reporter=text"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.90",
@@ -18,6 +21,7 @@
         "antlr4ng": "^3.0.4"
     },
     "devDependencies": {
+        "@istanbuljs/nyc-config-typescript": "^1.0.2",
         "@types/chai": "^4.3.5",
         "@types/chai-as-promised": "^7.1.5",
         "@types/mocha": "^10.0.9",
@@ -25,6 +29,7 @@
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
         "mocha": "^11.0.1",
+        "nyc": "^17.1.0",
         "ts-loader": "^9.4.4",
         "ts-lsp-client": "^1.0.3",
         "webpack": "^5.94.0",
