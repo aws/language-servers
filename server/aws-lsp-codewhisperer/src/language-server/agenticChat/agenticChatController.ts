@@ -199,7 +199,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.workspace,
             this.#features.lsp
         )
-        this.#mcpEventHandler = new McpEventHandler(features)
+        this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
     }
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {

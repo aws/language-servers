@@ -202,6 +202,8 @@ export enum ChatTelemetryEventName {
     ToolUseSuggested = 'amazonq_toolUseSuggested',
     AgencticLoop_InvokeLLM = 'amazonq_invokeLLM',
     InteractWithAgenticChat = 'amazonq_interactWithAgenticChat',
+    MCPConfig = 'amazonq_mcpConfig',
+    MCPServerInit = 'amazonq_mcpServerInit',
     LoadHistory = 'amazonq_loadHistory',
     ChatHistoryAction = 'amazonq_performChatHistoryAction',
     ExportTab = 'amazonq_exportTab',
@@ -222,6 +224,8 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.ToolUseSuggested]: ToolUseSuggestedEvent
     [ChatTelemetryEventName.AgencticLoop_InvokeLLM]: AgencticLoop_InvokeLLMEvent
     [ChatTelemetryEventName.InteractWithAgenticChat]: InteractWithAgenticChatEvent
+    [ChatTelemetryEventName.MCPConfig]: MCPConfigEvent
+    [ChatTelemetryEventName.MCPServerInit]: MCPServerInitializeEvent
     [ChatTelemetryEventName.LoadHistory]: LoadHistoryEvent
     [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
     [ChatTelemetryEventName.ExportTab]: ExportTabEvent
@@ -304,6 +308,29 @@ export type AddMessageEvent = {
     cwsprChatFocusFileContextLength?: number
     cwsprChatCodeContextCount?: number
     cwsprChatCodeContextLength?: number
+}
+
+// Agentic MCP Telemetry
+export type MCPConfigEvent = {
+    credentialStartUrl?: string
+    languageServerVersion?: string
+    numActiveServers?: number
+    numGlobalServers?: number
+    numProjectServers?: number
+    numToolsAlwaysAllowed?: number
+    numToolsDenied?: number
+}
+
+export type MCPServerInitializeEvent = {
+    command?: string
+    credentialStartUrl?: string
+    enabled?: boolean
+    initializeTime?: number
+    languageServerVersion?: string
+    numTools?: number
+    scope?: string
+    source?: string
+    transportType?: string
 }
 
 export type EnterFocusChatEvent = {
