@@ -13,7 +13,7 @@ import {
     ContentType,
     ProgrammingLanguage,
     EnvState,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import {
     BedrockTools,
     ChatParams,
@@ -29,7 +29,7 @@ import { workspaceUtils } from '@aws/lsp-core'
 import { URI } from 'vscode-uri'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import * as path from 'path'
-import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
+import { RelevantTextDocument } from '@aws/codewhisperer-streaming-client'
 import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
