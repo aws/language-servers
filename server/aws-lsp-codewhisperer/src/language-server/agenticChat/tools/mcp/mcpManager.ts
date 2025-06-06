@@ -5,7 +5,6 @@
 
 import type { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ChatTelemetryEventName } from '../../../../shared/telemetry/types'
-import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
 import { getGlobalMcpConfigPath } from './mcpUtils'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
@@ -63,11 +62,6 @@ export class McpManager {
         this.features.logging.info(`MCP manager: initialized with ${configPaths.length} configs`)
         this.toolNameMapping = new Map<string, { serverName: string; toolName: string }>()
     }
-
-    /**
-     * Initialize or return existing manager, then discover all servers.
-     */
-    #telemetryController?: ChatTelemetryController
 
     public static async init(
         configPaths: string[],

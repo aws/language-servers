@@ -778,6 +778,7 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.updateServerPermission(serverName, perm)
+            this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to enable MCP server: ${error}`)
         }
@@ -804,6 +805,7 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.updateServerPermission(serverName, perm)
+            this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to disable MCP server: ${error}`)
         }
@@ -996,6 +998,7 @@ export class McpEventHandler {
             const mcpServerPermission = await this.#processPermissionUpdates(updatedPermissionConfig)
 
             await McpManager.instance.updateServerPermission(serverName, mcpServerPermission)
+            this.#emitMCPConfigEvent()
 
             // Get server config to emit telemetry
             const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
