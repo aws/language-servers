@@ -394,16 +394,10 @@ declare namespace CodeWhispererBearerTokenClient {
     modificationPercentage: Double;
     hasProjectLevelContext?: Boolean;
   }
-<<<<<<< HEAD
   export type ClientId = string;
-  export type CodeAnalysisFindingsSchema = "codeanalysis/findings/1.0"|string;
-  export type CodeAnalysisScope = "FILE"|"PROJECT"|string;
-  export type CodeAnalysisStatus = "Completed"|"Pending"|"Failed"|string;
-=======
   export type CodeAnalysisFindingsSchema = "codeanalysis/findings/1.0" | string;
   export type CodeAnalysisScope = "FILE" | "PROJECT" | string;
   export type CodeAnalysisStatus = "Completed" | "Pending" | "Failed" | string;
->>>>>>> origin/main
   export interface CodeAnalysisUploadContext {
     codeScanName: CodeScanName;
   }
@@ -640,28 +634,6 @@ declare namespace CodeWhispererBearerTokenClient {
      */
     runtimeDiagnostic?: RuntimeDiagnostic;
   }
-<<<<<<< HEAD
-  export interface DiagnosticLocation {
-    uri: DiagnosticLocationUriString;
-    range: Range;
-  }
-  export type DiagnosticLocationUriString = string;
-  export interface DiagnosticRelatedInformation {
-    /**
-     * The location of this related diagnostic information.
-     */
-    location: DiagnosticLocation;
-    /**
-     * The message of this related diagnostic information.
-     */
-    message: DiagnosticRelatedInformationMessageString;
-  }
-  export type DiagnosticRelatedInformationList = DiagnosticRelatedInformation[];
-  export type DiagnosticRelatedInformationMessageString = string;
-  export type DiagnosticSeverity = "ERROR"|"WARNING"|"INFORMATION"|"HINT"|string;
-  export type DiagnosticTag = "UNNECESSARY"|"DEPRECATED"|string;
-  export type DiagnosticTagList = DiagnosticTag[];
-=======
   export interface DiagnosticLocation {
     uri: DiagnosticLocationUriString;
     range: Range;
@@ -703,7 +675,6 @@ declare namespace CodeWhispererBearerTokenClient {
   export type IdeDiagnosticList = IdeDiagnostic[];
   export type IdeDiagnosticSourceString = string;
   export type IdeDiagnosticType = "SYNTAX_ERROR"|"TYPE_ERROR"|"REFERENCE_ERROR"|"BEST_PRACTICE"|"SECURITY"|"OTHER"|string;
->>>>>>> origin/main
   export interface Dimension {
     name?: DimensionNameString;
     value?: DimensionValueString;
@@ -775,11 +746,7 @@ declare namespace CodeWhispererBearerTokenClient {
     changeLogOptions?: ChangeLogOptions;
   }
   export type DocumentationIntentContextScopeString = string;
-<<<<<<< HEAD
   export type DocumentationType = "README"|"CHANGE_LOG"|string;
-=======
-  export type DocumentationType = "README" | string;
->>>>>>> origin/main
   export type Double = number;
   export interface Edit {
     content: EditContentString;
@@ -914,11 +881,7 @@ declare namespace CodeWhispererBearerTokenClient {
     userIntent?: UserIntent;
   }
   export type FollowupPromptContentString = string;
-<<<<<<< HEAD
   export type FunctionalityName = "COMPLETIONS"|"ANALYSIS"|"CONVERSATIONS"|"TASK_ASSIST"|"TRANSFORMATIONS"|"CHAT_CUSTOMIZATION"|"TRANSFORMATIONS_WEBAPP"|"FEATURE_DEVELOPMENT"|string;
-=======
-  export type FunctionalityName = "COMPLETIONS" | "ANALYSIS" | "CONVERSATIONS" | "TASK_ASSIST" | "TRANSFORMATIONS" | "CHAT_CUSTOMIZATION" | "TRANSFORMATIONS_WEBAPP" | string;
->>>>>>> origin/main
   export interface GenerateCompletionsRequest {
     fileContext: FileContext;
     editorState?: EditorState;
@@ -999,32 +962,7 @@ declare namespace CodeWhispererBearerTokenClient {
     status?: GitStateStatusString;
   }
   export type GitStateStatusString = string;
-<<<<<<< HEAD
   export type IdeCategory = "JETBRAINS"|"VSCODE"|"CLI"|"JUPYTER_MD"|"JUPYTER_SM"|"ECLIPSE"|"VISUAL_STUDIO"|string;
-  export interface IdeDiagnostic {
-    /**
-     * The range at which the message applies.
-     */
-    range?: Range;
-    /**
-     * A human-readable string describing the source of the diagnostic
-     */
-    source?: IdeDiagnosticSourceString;
-    /**
-     * Diagnostic Error type
-     */
-    severity?: DiagnosticSeverity;
-    /**
-     * Type of the diagnostic
-     */
-    ideDiagnosticType: IdeDiagnosticType;
-  }
-  export type IdeDiagnosticList = IdeDiagnostic[];
-  export type IdeDiagnosticSourceString = string;
-  export type IdeDiagnosticType = "SYNTAX_ERROR"|"TYPE_ERROR"|"REFERENCE_ERROR"|"BEST_PRACTICE"|"SECURITY"|"OTHER"|string;
-=======
-  export type IdeCategory = "JETBRAINS" | "VSCODE" | "CLI" | "JUPYTER_MD" | "JUPYTER_SM" | "ECLIPSE" | "VISUAL_STUDIO" | string;
->>>>>>> origin/main
   export type IdempotencyToken = string;
   export interface IdentityDetails {
     ssoIdentityDetails?: SSOIdentityDetails;
@@ -1171,11 +1109,8 @@ declare namespace CodeWhispererBearerTokenClient {
   }
   export type MetricDataMetricNameString = string;
   export type MetricDataProductString = string;
-<<<<<<< HEAD
   export type NextToken = string;
-=======
   export type ModelId = string;
->>>>>>> origin/main
   export type Notifications = NotificationsFeature[];
   export interface NotificationsFeature {
     feature: FeatureName;
@@ -1532,12 +1467,8 @@ declare namespace CodeWhispererBearerTokenClient {
   export type SupplementaryWebLinkTitleString = string;
   export type SupplementaryWebLinkUrlString = string;
   export type SupplementaryWebLinks = SupplementaryWebLink[];
-<<<<<<< HEAD
   export type SymbolType = "DECLARATION"|"USAGE"|string;
   export type SyntheticTimestamp_date_time = Date;
-=======
-  export type SymbolType = "DECLARATION" | "USAGE" | string;
->>>>>>> origin/main
   export interface TargetCode {
     /**
      * The file path relative to the root of the workspace, could be a single file or a folder.
