@@ -331,9 +331,14 @@ export const CodewhispererServerFactory =
                         return EMPTY_RESULT
                     }
 
-                    if (params.position === previousPosition && textDocument.getText() === previousFileContent) {
+                    if (params.position.character === previousPosition?.character && 
+                        params.position.line === previousPosition?.line && 
+                        textDocument.getText() === previousFileContent) {
                         return EMPTY_RESULT
                     }
+
+                    previousPosition = params.position
+                    previousFileContent = textDocument.getText()
 
                     // Build request context
                     const isAutomaticLspTriggerKind =
