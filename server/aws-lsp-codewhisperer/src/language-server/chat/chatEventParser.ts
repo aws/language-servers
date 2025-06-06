@@ -2,7 +2,7 @@ import {
     ChatResponseStream as ChatResponseStreamCodeWhispererStreaming,
     Reference,
     SupplementaryWebLink,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import { ChatResponseStream as ChatResponseStreamQDeveloperStreaming } from '@amzn/amazon-q-developer-streaming-client'
 import {
     ChatItemAction,
