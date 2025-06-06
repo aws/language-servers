@@ -16,18 +16,47 @@ export interface CursorPosition {
 }
 
 /**
+ * Interface for time provider to make testing easier
+ */
+export interface TimeProvider {
+    now(): number
+    setTimeout(callback: () => void, ms: number): NodeJS.Timeout
+}
+
+/**
+ * Default time provider that uses the system time
+ */
+export class DefaultTimeProvider implements TimeProvider {
+    public now(): number {
+        return Date.now()
+    }
+
+    public setTimeout(callback: () => void, ms: number): NodeJS.Timeout {
+        return setTimeout(callback, ms)
+    }
+}
+
+/**
  * Tracks cursor positions over time to detect user pauses
  */
 export class CursorTracker implements Disposable {
     private static readonly MAX_HISTORY_SIZE = 100
     private cursorHistory: Map<string, CursorPosition[]> = new Map()
     private static _instance?: CursorTracker
+    private timeProvider: TimeProvider
+
+    /**
+     * Constructor
+     *
+     * @param timeProvider Optional time provider for testing
+     */
+    constructor(timeProvider: TimeProvider = new DefaultTimeProvider()) {
+        this.timeProvider = timeProvider
+    }
 
     /**
      * Gets the instance of CursorTracker
      *
-     * @param extensionContext The extension context
-     * @param log The logging interface
      * @returns The instance of CursorTracker
      */
     public static getInstance(): CursorTracker {
@@ -48,7 +77,7 @@ export class CursorTracker implements Disposable {
         const cursorPosition: CursorPosition = {
             uri,
             position: { ...position },
-            timestamp: Date.now(),
+            timestamp: this.timeProvider.now(),
         }
 
         // Initialize history array if it doesn't exist
@@ -112,7 +141,7 @@ export class CursorTracker implements Disposable {
         }
 
         // Check if the cursor has been at this position for at least the specified duration
-        const now = Date.now()
+        const now = this.timeProvider.now()
         const elapsedTime = now - lastTimestamp
 
         // Return true if the cursor has been at this position for at least the duration
@@ -174,7 +203,7 @@ export class CursorTracker implements Disposable {
             return
         }
 
-        setTimeout(() => {
+        this.timeProvider.setTimeout(() => {
             // Find the position in history and remove it if it still exists
             const index = history.findIndex(
                 pos =>
