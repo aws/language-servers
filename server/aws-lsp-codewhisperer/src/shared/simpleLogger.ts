@@ -574,6 +574,26 @@ export class Logger {
     }
 
     /**
+     * Generate a unique flare request ID
+     */
+    public generateflareRequestId(): string {
+        return uuidv4()
+    }
+
+    /**
+     * Log a message with context data
+     */
+    public log(
+        requestId: string,
+        message: string,
+        data: any,
+        level: string = 'info',
+        source: string = 'unknown'
+    ): void {
+        console.log(`[${level.toUpperCase()}][${source}][${requestId}] ${message}`, data)
+    }
+
+    /**
      * Clear all logs
      */
     public clearLogs(): void {
