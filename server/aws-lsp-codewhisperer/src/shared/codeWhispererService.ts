@@ -332,8 +332,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
     }
 
-    // Only used when it's a cold start
-    async generateSuggestionsAndPrefetch(
+    private async generateSuggestionsAndPrefetch(
         textDocument: TextDocument,
         originalRequest: GenerateSuggestionsRequest
     ): Promise<GenerateSuggestionsResponse> {
@@ -375,7 +374,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             this.token = this.tokenSrc.token
             this.logging.info(`cold start`)
             const coldStartResponse = await this.generateSuggestions(originalRequest)
-            if (coldStartResponse.suggestions && coldStartResponse.suggestions.length > 0) {
+            if (coldStartResponse.suggestions.length > 0) {
                 setTimeout(() => {
                     this.flag = true
                     this.chainedGenerateCompletionCall(
@@ -403,6 +402,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         token: CancellationToken,
         depth: number
     ) {
+        // Only prefetch for EDIT type suggestions
+        if (baseResponse.suggestionType !== SuggestionType.EDIT) {
+            return
+        }
+
         if (depth > this.prefetchConfig.maxRecursiveCallDepth) {
             return
         }
@@ -415,7 +419,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             return
         }
 
-        const request = this.buildSubsequentRequest(baseRequest, baseResponse, textDocument)
+        const request = this.buildSubsequentNepRequest(baseRequest, baseResponse, textDocument)
 
         try {
             const response = await this.generateSuggestions(request)
@@ -451,7 +455,7 @@ ${response.suggestions[0].content}`)
         }
     }
 
-    private buildSubsequentRequest(
+    private buildSubsequentNepRequest(
         baseRequest: GenerateSuggestionsRequest,
         baseResponse: GenerateSuggestionsResponse,
         textDocument: TextDocument
