@@ -932,7 +932,7 @@ export const createMynahUi = (
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
         // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
-        const shouldMute = message.header?.status?.text !== undefined
+        const shouldMute = message.header?.status?.text !== undefined && message.header?.status?.text !== 'Completed'
 
         return {
             body: message.body,
