@@ -119,6 +119,7 @@ import {
     outputLimitExceedsPartialMsg,
     responseTimeoutMs,
     responseTimeoutPartialMsg,
+    defaultModelId,
 } from './constants'
 import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
@@ -2233,7 +2234,9 @@ export class AgenticChatController implements ChatHandlers {
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
-        const modelId = this.#chatHistoryDb.getModelId()
+        // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
+        // In that case, we use the default modelId.
+        const modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
         this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
 
         const sessionResult = this.#chatSessionManagementService.createSession(params.tabId)
