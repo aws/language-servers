@@ -8,7 +8,7 @@ import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import {
     FileSystemAdapter,
     Tab,
-    TabWithContext,
+    TabWithDbMetadata,
     TabCollection,
     initializeHistoryPriorityQueue,
     getOldestMessageTimestamp,
@@ -66,9 +66,7 @@ export class ChatHistoryMaintainer {
         if (historyTotalSizeInBytes <= maxHistorySizeInBytes) {
             return
         }
-        this.#features.logging.info(
-            `History total size (${historyTotalSizeInBytes} Bytes) exceeds limit (${maxHistorySizeInBytes} Bytes), trimming history`
-        )
+        this.#features.logging.info(`History total size exceeds limit, trimming history`)
 
         const trimStart = performance.now()
         await this.trimHistoryForAllWorkspaces()
@@ -97,7 +95,7 @@ export class ChatHistoryMaintainer {
         this.#features.logging.info(`Loaded ${allDbsMap.size} databases from ${this.#dbDirectory} for history trimming`)
         if (allDbsMap.size < allDbFiles.length) {
             this.#features.logging.warn(
-                `${allDbFiles.length - allDbsMap.size} DB files can't be loaded, will skip them when calculating history size`
+                `${allDbFiles.length - allDbsMap.size} DB files can't be loaded or have empty tab collection, will skip them when calculating history size`
             )
         }
 
@@ -184,7 +182,10 @@ export class ChatHistoryMaintainer {
      * @param tabQueue Priority queue of tabs sorted by oldest message date
      * @param allDbsMap Map of database names to their collection and DB references
      */
-    private async runHistoryTrimmingLoop(tabQueue: PriorityQueue<TabWithContext>, allDbsMap: Map<string, DbReference>) {
+    private async runHistoryTrimmingLoop(
+        tabQueue: PriorityQueue<TabWithDbMetadata>,
+        allDbsMap: Map<string, DbReference>
+    ) {
         let iterationCount = 0
         while (!tabQueue.isEmpty()) {
             // Check current total size
@@ -222,7 +223,7 @@ export class ChatHistoryMaintainer {
      * @param tabQueue Priority queue of tabs sorted by oldest message date
      * @returns Set of database names that were modified and need to be saved
      */
-    private batchDeleteMessagePairs(tabQueue: PriorityQueue<TabWithContext>): Set<string> {
+    private batchDeleteMessagePairs(tabQueue: PriorityQueue<TabWithDbMetadata>): Set<string> {
         let updatedDbs = new Set<string>()
         for (let i = 0; i < batchDeleteIterations / 2; i++) {
             const queueItem = tabQueue.dequeue()

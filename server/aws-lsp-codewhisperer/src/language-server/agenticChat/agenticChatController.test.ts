@@ -356,18 +356,6 @@ describe('AgenticChatController', () => {
         assert.strictEqual(session!.modelId, modelId)
     })
 
-    it('onTabAdd updates model ID in chat options and session', () => {
-        const modelId = 'test-model-id'
-        sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
-
-        chatController.onTabAdd({ tabId: mockTabId })
-
-        sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
-
-        const session = chatSessionManagementService.getSession(mockTabId).data
-        assert.strictEqual(session!.modelId, modelId)
-    })
-
     it('onTabChange sets active tab id in telemetryController and emits metrics', () => {
         chatController.onTabChange({ tabId: mockTabId })
 

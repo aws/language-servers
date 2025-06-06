@@ -83,10 +83,10 @@ export type Message = {
 }
 
 /**
- * Represents a tab with its database collection reference, database name, and timestamp information
+ * Represents a tab with its database metadata, including collection reference, database name, and timestamp information
  * for use in history trimming operations.
  */
-export type TabWithContext = {
+export type TabWithDbMetadata = {
     tab: Tab
     collection: Collection<Tab> // The reference of chat DB collection
     dbName: string // The chat DB name
@@ -366,7 +366,7 @@ export function initializeHistoryPriorityQueue() {
     }
 
     // Create a priority queue with tabs and the collection it belongs to, and sorted by oldest message date
-    return new PriorityQueue<TabWithContext>(tabDateComparator)
+    return new PriorityQueue<TabWithDbMetadata>(tabDateComparator)
 }
 
 /**
@@ -385,12 +385,11 @@ export function getOldestMessageTimestamp(tabData: Tab): Date {
         if (!conversation.messages || conversation.messages.length === 0) {
             continue
         }
-        for (const message of conversation.messages) {
-            if (message.timestamp) {
-                return new Date(message.timestamp)
-            } else {
-                return new Date(0)
-            }
+        // Just need to check the first message which is the oldest one
+        if (conversation.messages[0].timestamp) {
+            return new Date(conversation.messages[0].timestamp)
+        } else {
+            return new Date(0)
         }
     }
 
