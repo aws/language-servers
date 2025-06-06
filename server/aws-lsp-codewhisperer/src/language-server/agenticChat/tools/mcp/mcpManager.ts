@@ -344,6 +344,10 @@ export class McpManager {
         return new Map(this.mcpServers)
     }
 
+    public getAllPermissions(): Map<string, MCPServerPermission> {
+        return new Map(this.mcpServerPermissions)
+    }
+
     /**
      * Map server names to their available tool names.
      */

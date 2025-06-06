@@ -198,14 +198,15 @@ export async function loadPersonaPermissions(
         .filter(p => p !== globalPath)
 
     const globalExists = await workspace.fs.exists(globalPath).catch(() => false)
-
-    // global first, then workspace
-    const files = [...(globalExists ? [globalPath] : []), ...wsFiles]
-
-    const result = new Map<string, MCPServerPermission>()
-
-    // if none found, write default global persona and use it
-    if (files.length === 0) {
+    // use workspace files if they exist, otherwise fall back to global
+    let selectedFile: string | undefined
+    if (wsFiles.length > 0) {
+        selectedFile = wsFiles[0]
+        logging.info(`Using workspace persona file: ${selectedFile}`)
+    } else if (globalExists) {
+        selectedFile = globalPath
+        logging.info(`Using global persona file: ${selectedFile}`)
+    } else {
         await workspace.fs.mkdir(path.dirname(globalPath), { recursive: true })
         await workspace.fs
             .writeFile(globalPath, DEFAULT_PERSONA_RAW)
@@ -213,34 +214,27 @@ export async function loadPersonaPermissions(
             .catch(e => {
                 logging.error(`Failed to create default persona file: ${e.message}`)
             })
-        files.push(globalPath)
-        logging.info(`Created default persona file at ${globalPath}`)
+        selectedFile = globalPath
+        logging.info(`Using newly created default persona file: ${selectedFile}`)
     }
 
-    // merge configs: later files override earlier ones
-    let wsHasStar = false
-    const wsEnabled = new Set<string>()
+    // read all persona files, including global and workspace
+    const result = new Map<string, MCPServerPermission>()
 
-    for (const file of files) {
-        const isWorkspace = wsFiles.includes(file)
-        logging.info(`Reading persona file ${file}`)
+    if (selectedFile) {
         let cfg: PersonaConfig
         try {
-            const raw = (await workspace.fs.readFile(file)).toString().trim()
+            const raw = (await workspace.fs.readFile(selectedFile)).toString().trim()
             cfg = raw ? (JSON.parse(raw) as PersonaConfig) : { mcpServers: [], toolPerms: {} }
         } catch (err: any) {
-            logging.warn(`Invalid Persona config in ${file}: ${err.message}`)
-            continue
+            logging.warn(`Invalid Persona config in ${selectedFile}: ${err.message}`)
+            return result
         }
 
         // enable servers listed under mcpServers
         const enabled = new Set(cfg['mcpServers'] ?? [])
-        if (wsFiles.includes(file)) {
-            if (enabled.has('*')) wsHasStar = true
-            enabled.forEach(s => wsEnabled.add(s))
-        }
         for (const name of enabled) {
-            result.set(name, { enabled: true, toolPerms: {}, __configPath__: file })
+            result.set(name, { enabled: true, toolPerms: {}, __configPath__: selectedFile })
         }
 
         // Check if wildcard is present in mcpServers
@@ -252,25 +246,12 @@ export async function loadPersonaPermissions(
             if (hasWildcard || enabled.has(name)) {
                 // Create entry for this server if it doesn't exist yet
                 if (!result.has(name)) {
-                    result.set(name, { enabled: true, toolPerms: {}, __configPath__: file })
+                    result.set(name, { enabled: true, toolPerms: {}, __configPath__: selectedFile })
                 }
 
                 const rec = result.get(name)!
                 rec.toolPerms = perms as Record<string, McpPermissionType>
-            } else if (isWorkspace && result.has(name)) {
-                // server dropped from workspace mcpServers → remove it entirely
-                result.delete(name)
             }
-        }
-    }
-
-    // workspace overrides global: global has '*' but workspace does not
-    if (wsFiles.length > 0 && !wsHasStar) {
-        // remove the global-level wildcard
-        result.delete('*')
-        // drop servers that were enabled only by the global '*'
-        for (const [srv] of result) {
-            if (srv !== '*' && !wsEnabled.has(srv)) result.delete(srv)
         }
     }
     const summary = [...result.entries()]

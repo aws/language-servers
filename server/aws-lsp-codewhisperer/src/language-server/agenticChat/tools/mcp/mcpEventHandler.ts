@@ -1102,7 +1102,12 @@ export class McpEventHandler {
      * @returns The persona path to use (workspace if exists, otherwise global)
      */
     async #getPersonaPath(): Promise<string> {
-        // Get the global path as fallback
+        const allPermissions = McpManager.instance.getAllPermissions()
+        for (const [, permission] of allPermissions) {
+            if (permission.__configPath__) {
+                return permission.__configPath__
+            }
+        }
         const globalPersonaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
 
         // Get workspace folders and check for workspace persona path
