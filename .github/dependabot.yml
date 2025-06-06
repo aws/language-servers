@@ -14,7 +14,3 @@ updates:
                   - '@typescript-eslint/*'
       commit-message:
           prefix: 'chore'
-    - package-ecosystem: 'npm'
-      target-branch: 'main'
-      schedule:
-          interval: 'weekly'
