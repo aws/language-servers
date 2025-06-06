@@ -417,9 +417,8 @@ export class McpEventHandler {
                 {
                     type: 'numericinput',
                     id: 'timeout',
-                    title: 'Timeout',
-                    description: 'Millisecond (0 disables timeout)',
-                    value: existingValues.timeout || 0, // Default not timeout
+                    title: 'Timeout - use 0 to disable',
+                    value: existingValues.timeout || 60, // Default to 60 seconds in UI
                     mandatory: false,
                 },
             ],
@@ -611,11 +610,13 @@ export class McpEventHandler {
             this.#features.logging.warn(`Failed to process env variables: ${e}`)
         }
 
+        // Config file requires timeout in milliseconds
+        const timeoutInMs = (parseInt(params.optionsValues.timeout) ?? 60) * 1000
         const config: MCPServerConfig = {
             command: params.optionsValues.command,
             args,
             env,
-            timeout: parseInt(params.optionsValues.timeout),
+            timeout: timeoutInMs,
         }
 
         let configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
@@ -859,6 +860,9 @@ export class McpEventHandler {
             }
         }
 
+        // UI must display timeout to user in seconds
+        const timeoutInSeconds =
+            params.optionsValues?.timeout || Math.floor((config.timeout ?? 60000) / 1000).toString()
         const existingValues: Record<string, any> = {
             name: params.optionsValues?.name || serverName,
             transport: 'stdio',
@@ -870,7 +874,7 @@ export class McpEventHandler {
                     env_var_name: k,
                     env_var_value: v,
                 })),
-            timeout: params.optionsValues?.timeout || (config.timeout ?? 0).toString(),
+            timeout: timeoutInSeconds,
             scope: params.optionsValues?.scope,
         }
 
