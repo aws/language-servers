@@ -1,21 +1,13 @@
 {
-  "extends": "@istanbuljs/nyc-config-typescript",
-  "all": true,
-  "check-coverage": false,
-  "reporter": ["text", "html", "lcov"],
-  "report-dir": "coverage",
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "src/**/*.test.ts",
-    "src/**/*.spec.ts",
-    "src/**/test/**",
-    "src/**/*TestConstants.ts",
-    "src/**/*.d.ts"
-  ],
-  "branches": 70,
-  "lines": 70,
-  "functions": 70,
-  "statements": 70
+    "extends": "@istanbuljs/nyc-config-typescript",
+    "all": true,
+    "check-coverage": false,
+    "reporter": ["text", "html", "lcov"],
+    "report-dir": "coverage",
+    "include": ["src/**/*.ts"],
+    "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts", "src/**/test/**", "src/**/*TestConstants.ts", "src/**/*.d.ts"],
+    "branches": 70,
+    "lines": 70,
+    "functions": 70,
+    "statements": 70
 }
