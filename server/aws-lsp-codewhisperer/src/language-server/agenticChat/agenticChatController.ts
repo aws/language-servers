@@ -1105,13 +1105,13 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case 'fsRead':
                     case 'listDirectory':
-                    case 'fuzzySearch':
+                    case 'fileSearch':
                         const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                         if (initialListDirResult) {
                             await chatResultStream.writeResultBlock(initialListDirResult)
                         }
                         break
-                    // no need to write tool result for listDir,fsRead,fuzzySearch into chat stream
+                    // no need to write tool result for listDir,fsRead,fileSearch into chat stream
                     case 'executeBash':
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
@@ -1519,7 +1519,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 break
 
-            case 'fuzzySearch':
+            case 'fileSearch':
                 const searchPath = (toolUse.input as unknown as FileSearchParams).path
                 header = {
                     body: 'File Search',
@@ -1853,7 +1853,7 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === 'fsRead'
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === 'fuzzySearch'
+                    : toolUse.name === 'fileSearch'
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
