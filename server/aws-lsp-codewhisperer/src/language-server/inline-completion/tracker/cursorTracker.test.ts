@@ -5,20 +5,33 @@
 
 import * as assert from 'assert'
 import * as sinon from 'sinon'
-import { CursorTracker } from '../tracker/cursorTracker'
+import { CursorTracker, DefaultTimeProvider } from '../tracker/cursorTracker'
 import { Position } from '@aws/language-server-runtimes/server-interface'
 
 describe('CursorTracker', function () {
     let cursorTracker: CursorTracker
     const testUri = 'file:///test.java'
+    let clock: sinon.SinonFakeTimers
+    let mockTimeProvider: sinon.SinonStubbedInstance<DefaultTimeProvider>
 
     beforeEach(function () {
-        cursorTracker = new CursorTracker()
-        // Use sinon fake timers
-        sinon.useFakeTimers()
+        // Create a fake timer that also mocks Date.now()
+        clock = sinon.useFakeTimers({
+            now: 1000,
+            toFake: ['setTimeout', 'clearTimeout', 'Date'],
+        })
+
+        // Create a mocked time provider that uses the fake timer
+        mockTimeProvider = sinon.createStubInstance(DefaultTimeProvider)
+        mockTimeProvider.now.callsFake(() => Date.now())
+        mockTimeProvider.setTimeout.callsFake((callback, ms) => setTimeout(callback, ms))
+
+        // Create the cursor tracker with the mocked time provider
+        cursorTracker = new CursorTracker(mockTimeProvider)
     })
 
     afterEach(function () {
+        clock.restore()
         sinon.restore()
     })
 
@@ -33,7 +46,7 @@ describe('CursorTracker', function () {
         // Assert
         assert.strictEqual(result.uri, testUri)
         assert.deepStrictEqual(result.position, position)
-        assert(result.timestamp >= now)
+        assert.strictEqual(result.timestamp, now)
     })
 
     it('getLastPositionTimestamp should return undefined for unknown position', function () {
@@ -88,7 +101,7 @@ describe('CursorTracker', function () {
         cursorTracker.trackPosition(testUri, position)
 
         // Advance time by more than the duration
-        sinon.clock.tick(1500)
+        clock.tick(1500)
 
         // Act
         const result = cursorTracker.hasPositionChanged(testUri, position, 1000)
@@ -175,12 +188,12 @@ describe('CursorTracker', function () {
         assert.strictEqual(cursorTracker.getHistory(testUri).length, 1)
 
         // Advance time by less than maxAge - position should still be there
-        sinon.clock.tick(maxAgeMs / 2)
+        clock.tick(maxAgeMs / 2)
         assert.notStrictEqual(cursorTracker.getLastPositionTimestamp(testUri, position), undefined)
         assert.strictEqual(cursorTracker.getHistory(testUri).length, 1)
 
         // Advance time past maxAge - position should be removed
-        sinon.clock.tick(maxAgeMs)
+        clock.tick(maxAgeMs)
         assert.strictEqual(cursorTracker.getLastPositionTimestamp(testUri, position), undefined)
         assert.strictEqual(cursorTracker.getHistory(testUri).length, 0)
     })
@@ -208,7 +221,7 @@ describe('CursorTracker', function () {
         assert.strictEqual(cursorTracker.getHistory(testUri).length, 2)
 
         // Advance time past maxAge - positions should be removed
-        sinon.clock.tick(maxAgeMs * 2)
+        clock.tick(maxAgeMs * 2)
 
         // Document should no longer be tracked
         assert.strictEqual(cursorTracker.getTrackedDocuments().includes(testUri), false)
