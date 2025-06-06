@@ -281,42 +281,6 @@ export function updateOrCreateConversation(
     }
 }
 
-/**
- * Updates an existing conversation or creates a new one with a message pair.
- * This is a helper function for adding both prompt and answer messages at once.
- */
-export function updateOrCreateConversationWithMessagePair(
-    conversations: Conversation[],
-    conversationId: string,
-    promptMessage: Message,
-    answerMessage: Message,
-    clientType: string
-): Conversation[] {
-    const existingConversation = conversations.find(conv => conv.conversationId === conversationId)
-
-    if (existingConversation) {
-        return conversations.map(conv =>
-            conv.conversationId === conversationId
-                ? {
-                      ...conv,
-                      updatedAt: new Date(),
-                      messages: [...conv.messages, promptMessage, answerMessage],
-                  }
-                : conv
-        )
-    } else {
-        return [
-            ...conversations,
-            {
-                conversationId,
-                clientType,
-                updatedAt: new Date(),
-                messages: [promptMessage, answerMessage],
-            },
-        ]
-    }
-}
-
 export function groupTabsByDate(tabs: Tab[]): ConversationItemGroup[] {
     const now = new Date()
     const today = new Date(now.setHours(0, 0, 0, 0))

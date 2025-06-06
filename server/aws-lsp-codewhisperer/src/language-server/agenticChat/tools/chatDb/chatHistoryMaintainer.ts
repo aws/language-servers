@@ -295,23 +295,6 @@ export class ChatHistoryMaintainer {
         })
     }
 
-    /**
-     * Safely deletes a database with proper error handling
-     * @param db The Loki database instance to delete
-     * @returns Promise that resolves when deletion completes or rejects on error
-     */
-    private async deleteDatabase(db: Loki): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
-            db.deleteDatabase(err => {
-                if (err) {
-                    reject(err)
-                } else {
-                    resolve()
-                }
-            })
-        })
-    }
-
     private async loadAllDbFiles(allDbFiles: string[]) {
         const allDbsMap = new Map<string, DbReference>()
         for (const dbFile of allDbFiles) {

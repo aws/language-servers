@@ -134,7 +134,7 @@ describe('AgenticChatController', () => {
     let telemetry: Telemetry
     let chatDbInitializedStub: sinon.SinonStub
     let getMessagesStub: sinon.SinonStub
-    let addMessagePairStub: sinon.SinonStub
+    let addMessageStub: sinon.SinonStub
 
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
@@ -249,7 +249,7 @@ describe('AgenticChatController', () => {
         }
 
         getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages').returns([])
-        addMessagePairStub = sinon.stub(ChatDatabase.prototype, 'addMessagePair')
+        addMessageStub = sinon.stub(ChatDatabase.prototype, 'addMessage')
         chatDbInitializedStub = sinon.stub(ChatDatabase.prototype, 'isInitialized')
 
         telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
@@ -483,7 +483,7 @@ describe('AgenticChatController', () => {
             // Execute with cancelled token
             await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, cancelledToken)
 
-            sinon.assert.notCalled(addMessagePairStub)
+            sinon.assert.notCalled(addMessageStub)
         })
 
         it('skips adding user message to history when prompt ID is no longer current', async () => {
@@ -495,7 +495,7 @@ describe('AgenticChatController', () => {
             await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
 
             sinon.assert.called(isCurrentPromptStub)
-            sinon.assert.notCalled(addMessagePairStub)
+            sinon.assert.notCalled(addMessageStub)
         })
 
         it('handles tool use responses and makes multiple requests', async () => {
@@ -1712,7 +1712,6 @@ describe('AgenticChatController', () => {
         })
 
         it('returns a ResponseError if response streams return an invalid state event', async () => {
-            getMessagesStub.returns([])
             sendMessageStub.callsFake(() => {
                 return Promise.resolve({
                     $metadata: {
