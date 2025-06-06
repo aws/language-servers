@@ -652,16 +652,11 @@ export class AgenticChatController implements ChatHandlers {
                 )
             }
             const remainingCharacterBudget = this.truncateRequest(currentRequestInput)
-            //  Get and process the messages from history DB to maintain invariants for service requests
             let messages: DbMessage[] = []
             if (currentMessage) {
-                // Get preprocessed history messages from DB with size and number of character limits
+                //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    messages = this.#chatHistoryDb.getPreprocessedRequestHistory(
-                        tabId,
-                        currentMessage,
-                        remainingCharacterBudget
-                    )
+                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, remainingCharacterBudget)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
                         this.#features.logging.warn(`Tool validation error: ${err.message}`)
@@ -695,10 +690,13 @@ export class AgenticChatController implements ChatHandlers {
             )
             await chatResultStream.removeResultBlock(loadingMessageId)
 
-            //  Construct the current user message to be stored to the history DB
-            let currentDbMessage
+            // Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
-                currentDbMessage = {
+                if (this.#isPromptCanceled(token, session, promptId)) {
+                    this.#debug('Skipping adding user message to history - cancelled by user')
+                    throw new CancellationError('user')
+                }
+                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
                     body: currentMessage.userInputMessage?.content ?? '',
                     type: 'prompt' as any,
                     userIntent: currentMessage.userInputMessage?.userIntent,
@@ -706,7 +704,7 @@ export class AgenticChatController implements ChatHandlers {
                     userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
                     shouldDisplayMessage: shouldDisplayMessage,
                     timestamp: new Date(),
-                }
+                })
             }
             shouldDisplayMessage = true
 
@@ -724,28 +722,19 @@ export class AgenticChatController implements ChatHandlers {
             // This is needed to handle the case where the response stream times out
             // and we want to auto-retry
             if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
-                if (!currentDbMessage || this.#isPromptCanceled(token, session, promptId)) {
+                if (this.#isPromptCanceled(token, session, promptId)) {
                     this.#debug('Skipping adding messages to history - cancelled by user')
                     throw new CancellationError('user')
                 }
 
                 const content =
                     'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
-                this.#chatHistoryDb.addMessagePair(
-                    tabId,
-                    'cwc',
-                    conversationIdentifier ?? '',
-                    // User prompt
-                    currentDbMessage,
-                    // Assistant response
-                    {
-                        body: 'Response timed out - message took too long to generate',
-                        type: 'answer',
-                        shouldDisplayMessage: false,
-                        timestamp: new Date(),
-                    }
-                )
-
+                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                    body: 'Response timed out - message took too long to generate',
+                    type: 'answer',
+                    shouldDisplayMessage: false,
+                    timestamp: new Date(),
+                })
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
                 shouldDisplayMessage = false
                 // set the in progress tool use UI status to Error
@@ -755,38 +744,30 @@ export class AgenticChatController implements ChatHandlers {
 
             //  Add the user prompt and the assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
-                if (!currentDbMessage || this.#isPromptCanceled(token, session, promptId)) {
+                if (this.#isPromptCanceled(token, session, promptId)) {
                     this.#debug('Skipping adding messages to history - cancelled by user')
                     throw new CancellationError('user')
                 }
 
-                this.#chatHistoryDb.addMessagePair(
-                    tabId,
-                    'cwc',
-                    conversationIdentifier ?? '',
-                    // User prompt
-                    currentDbMessage,
-                    // Assistant answer
-                    {
-                        body: result.data?.chatResult.body,
-                        type: 'answer' as any,
-                        codeReference: result.data.chatResult.codeReference,
-                        relatedContent:
-                            result.data.chatResult.relatedContent?.content &&
-                            result.data.chatResult.relatedContent.content.length > 0
-                                ? result.data?.chatResult.relatedContent
-                                : undefined,
-                        toolUses: Object.keys(result.data?.toolUses!)
-                            .filter(k => result.data!.toolUses[k].stop)
-                            .map(k => ({
-                                toolUseId: result.data!.toolUses[k].toolUseId,
-                                name: result.data!.toolUses[k].name,
-                                input: result.data!.toolUses[k].input,
-                            })),
-                        shouldDisplayMessage: shouldDisplayMessage,
-                        timestamp: new Date(),
-                    }
-                )
+                this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
+                    body: result.data?.chatResult.body,
+                    type: 'answer' as any,
+                    codeReference: result.data.chatResult.codeReference,
+                    relatedContent:
+                        result.data.chatResult.relatedContent?.content &&
+                        result.data.chatResult.relatedContent.content.length > 0
+                            ? result.data?.chatResult.relatedContent
+                            : undefined,
+                    toolUses: Object.keys(result.data?.toolUses!)
+                        .filter(k => result.data!.toolUses[k].stop)
+                        .map(k => ({
+                            toolUseId: result.data!.toolUses[k].toolUseId,
+                            name: result.data!.toolUses[k].name,
+                            input: result.data!.toolUses[k].input,
+                        })),
+                    shouldDisplayMessage: shouldDisplayMessage,
+                    timestamp: new Date(),
+                })
             } else {
                 this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
             }
