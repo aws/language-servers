@@ -531,7 +531,7 @@ export const CodewhispererServerFactory =
                     }
                     
                     // TODO: generateSuggestionsAndPrefetch should only apply to vscode but not other IDEs
-                    return codeWhispererService.generateSuggestionsAndPrefetch(textDocument, {
+                    return codeWhispererService.generateCompletions(textDocument, {
                         ...requestContext,
                         predictionTypes : predictionTypes.flat(),
                         fileContext: {
@@ -543,7 +543,8 @@ export const CodewhispererServerFactory =
                                 .slice(0, CONTEXT_CHARACTERS_LIMIT)
                                 .replaceAll('\r\n', '\n'),
                         },
-                    })
+                        // TODO: only vscode will enable this for now
+                    }, { enablePrefetch: true})
                         .then(async suggestionResponse => {
                             DebugLogger.getInstance().log(
                                 flareRequestId,

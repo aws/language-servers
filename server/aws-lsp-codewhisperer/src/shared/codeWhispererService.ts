@@ -99,9 +99,12 @@ export abstract class CodeWhispererServiceBase {
 
     abstract getCredentialsType(): CredentialsType
 
-    abstract generateSuggestionsAndPrefetch(
+    abstract generateCompletions(
         textDocument: TextDocument,
-        request: GenerateSuggestionsRequest
+        request: GenerateSuggestionsRequest,
+        config: {
+            enablePrefetch: boolean
+        }
     ): Promise<GenerateSuggestionsResponse>
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
@@ -154,12 +157,14 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         return 'iam'
     }
 
-    // TODO: same as regular GC until we want to enable prefetch with IAM client
-    override async generateSuggestionsAndPrefetch(
+    generateCompletions(
         textDocument: TextDocument,
-        request: GenerateSuggestionsRequest
+        request: GenerateSuggestionsRequest,
+        config: {
+            enableNep: boolean
+        }
     ): Promise<GenerateSuggestionsResponse> {
-        return await this.generateSuggestions(request)
+        return this.generateSuggestions(request)
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
@@ -300,6 +305,20 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return { ...request, profileArn: this.profileArn }
     }
 
+    generateCompletions(
+        textDocument: TextDocument,
+        request: GenerateSuggestionsRequest,
+        config: {
+            enablePrefetch: boolean
+        }
+    ): Promise<GenerateSuggestionsResponse> {
+        if (!config.enablePrefetch) {
+            return this.generateSuggestions(request)
+        }
+
+        return this.generateSuggestionsAndPrefetch(textDocument, request)
+    }
+
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
@@ -314,7 +333,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     // Only used when it's a cold start
-    override async generateSuggestionsAndPrefetch(
+    async generateSuggestionsAndPrefetch(
         textDocument: TextDocument,
         originalRequest: GenerateSuggestionsRequest
     ): Promise<GenerateSuggestionsResponse> {
