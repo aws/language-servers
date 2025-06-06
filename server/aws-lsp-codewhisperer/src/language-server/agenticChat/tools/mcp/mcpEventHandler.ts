@@ -639,38 +639,32 @@ export class McpEventHandler {
         if (isEditMode && originalServerName) {
             await McpManager.instance.removeServer(originalServerName)
             await McpManager.instance.addServer(serverName, config, configPath, personaPath)
-            // Emit server initialize event after updating server
-            this.#telemetryController?.emitMCPServerInitializeEvent({
-                source: 'updateServer',
-                command: config.command,
-                enabled: true,
-                numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
-                scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
-                transportType: 'stdio',
-                languageServerVersion: this.#features.runtime.serverInfo.version,
-            })
         } else {
             // Create new server
             await McpManager.instance.addServer(serverName, config, configPath, personaPath)
-            this.#telemetryController?.emitMCPServerInitializeEvent({
-                source: 'addServer',
-                command: config.command,
-                enabled: true,
-                numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
-                scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
-                transportType: 'stdio',
-                languageServerVersion: this.#features.runtime.serverInfo.version,
-            })
         }
 
         this.#currentEditingServerName = undefined
+
         // need to check server state now, as there is possibility of error during server initialization
         const serverStatusError = this.#getServerStatusError(serverName)
+
+        // Emit telemetry event regardless of success/failure
+        this.#telemetryController?.emitMCPServerInitializeEvent({
+            source: isEditMode ? 'updateServer' : 'addServer',
+            command: config.command,
+            enabled: true,
+            numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+            scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
+            transportType: 'stdio',
+            languageServerVersion: this.#features.runtime.serverInfo.version,
+        })
+
         if (serverStatusError) {
-            // error case: remove config from config file but persist in memory
+            // Error case: remove config from config file but persist in memory
             await McpManager.instance.removeServerFromConfigFile(serverName)
 
-            // stays on add/edit page and show error to user
+            // Stay on add/edit page and show error to user
             if (isEditMode) {
                 params.id = 'edit-mcp'
                 params.title = originalServerName!
@@ -680,7 +674,7 @@ export class McpEventHandler {
                 return this.#handleAddNewMcp(params)
             }
         } else {
-            // success case: goes to tools permissions page
+            // Success case: go to tools permissions page
             return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
         }
     }
