@@ -35,7 +35,7 @@ export class ToolResultValidationError extends Error {
 }
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
-// Maximum number of messages to send in request
+// Maximum number of history messages to include in each request to the LLM
 const maxConversationHistoryMessages = 250
 
 /**
@@ -396,7 +396,7 @@ export class ChatDatabase {
                     isOpen: true,
                     tabType: tabType,
                     title: tabTitle,
-                    conversations: [{ conversationId, clientType, messages: [message] }],
+                    conversations: [{ conversationId, clientType, updatedAt: new Date(), messages: [message] }],
                 })
             }
         }
@@ -423,7 +423,7 @@ export class ChatDatabase {
     }
 
     /**
-     * Prepare the history messages for service request `GenerateAssistantResponseCommandInput` to maintain the following invariants:
+     * Prepare the history messages for service request and fix the persisted history in DB to maintain the following invariants:
      * 1. The history contains at most MaxConversationHistoryMessages messages. Oldest messages are dropped.
      * 2. The first message is from the user and the last message is from the assistant.
      *    The history contains alternating sequene of userMessage followed by assistantMessages
@@ -588,13 +588,13 @@ export class ChatDatabase {
             return
         }
 
-        //  Make sure the first message is from the user (type === 'prompt'), else drop
+        //  Make sure the first message sent to LLM is from the user (type === 'prompt'), else drop
         while (messages.length > 0 && messages[0].type === ('answer' as ChatItemType)) {
             messages.shift()
             this.#features.logging.debug('Dropped first message since it is not from user')
         }
 
-        //  Make sure the last message is from the assistant (type === 'answer'), else add a cancellation response
+        //  Make sure the last message is from the assistant (type === 'answer'), else add a dummy response
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
             // Add an assistant response to both request and DB to maintain a valid sequence
             const dummyResponse: Message = {

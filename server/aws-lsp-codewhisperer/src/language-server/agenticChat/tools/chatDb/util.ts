@@ -385,12 +385,11 @@ export function getOldestMessageTimestamp(tabData: Tab): Date {
         if (!conversation.messages || conversation.messages.length === 0) {
             continue
         }
-        for (const message of conversation.messages) {
-            if (message.timestamp) {
-                return new Date(message.timestamp)
-            } else {
-                return new Date(0)
-            }
+        // Just need to check the first message which is the oldest one
+        if (conversation.messages[0].timestamp) {
+            return new Date(conversation.messages[0].timestamp)
+        } else {
+            return new Date(0)
         }
     }
 

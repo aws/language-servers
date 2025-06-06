@@ -66,9 +66,7 @@ export class ChatHistoryMaintainer {
         if (historyTotalSizeInBytes <= maxHistorySizeInBytes) {
             return
         }
-        this.#features.logging.info(
-            `History total size (${historyTotalSizeInBytes} Bytes) exceeds limit (${maxHistorySizeInBytes} Bytes), trimming history`
-        )
+        this.#features.logging.info(`History total size exceeds limit, trimming history`)
 
         const trimStart = performance.now()
         await this.trimHistoryForAllWorkspaces()
@@ -97,7 +95,7 @@ export class ChatHistoryMaintainer {
         this.#features.logging.info(`Loaded ${allDbsMap.size} databases from ${this.#dbDirectory} for history trimming`)
         if (allDbsMap.size < allDbFiles.length) {
             this.#features.logging.warn(
-                `${allDbFiles.length - allDbsMap.size} DB files can't be loaded, will skip them when calculating history size`
+                `${allDbFiles.length - allDbsMap.size} DB files can't be loaded or have empty tab collection, will skip them when calculating history size`
             )
         }
 
