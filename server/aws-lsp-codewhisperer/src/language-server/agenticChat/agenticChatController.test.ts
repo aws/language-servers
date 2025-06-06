@@ -12,7 +12,7 @@ import {
     ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import {
     ChatResult,
     LSPErrorCodes,
