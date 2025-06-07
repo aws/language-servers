@@ -188,7 +188,7 @@ export class ArtifactManager {
         )
         if (thirdPartyPackage) {
             artifactReference.isThirdPartyPackage = true
-
+            artifactReference.packageId = thirdPartyPackage.Id
             if (thirdPartyPackage.NetCompatibleAssemblyRelativePath && thirdPartyPackage.NetCompatibleAssemblyPath) {
                 const privatePackageRelativePath = path
                     .join(
