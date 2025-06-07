@@ -7,6 +7,9 @@ type AgenticChatErrorCode =
     | 'InputTooLong' // too much context given to backend service.
     | 'PromptCharacterLimit' // customer prompt exceeds
     | 'ResponseProcessingTimeout' // response didn't finish streaming in the allowed time
+    | 'MCPServerInitTimeout' // mcp server failed to start within allowed time
+    | 'MCPToolExecTimeout' // mcp tool call failed to complete within allowed time
+    | 'MCPServerConnectionFailed' // mcp server failed to connect
     | 'RequestAborted' // request was aborted by the user
 
 export const customerFacingErrorCodes: AgenticChatErrorCode[] = [

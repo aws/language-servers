@@ -62,9 +62,15 @@ import {
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
     LIST_CONVERSATIONS_REQUEST_METHOD,
+    LIST_MCP_SERVERS_REQUEST_METHOD,
     LinkClickParams,
     ListConversationsParams,
     ListConversationsResult,
+    ListMcpServersParams,
+    ListMcpServersResult,
+    MCP_SERVER_CLICK_REQUEST_METHOD,
+    McpServerClickParams,
+    McpServerClickResult,
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
@@ -162,9 +168,16 @@ export const createChat = (
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
-            case CHAT_UPDATE_NOTIFICATION_METHOD:
-                mynahApi.updateChat(message.params as ChatUpdateParams)
-                break
+            case CHAT_UPDATE_NOTIFICATION_METHOD: {
+                const messageParams = message.params as ChatUpdateParams
+                if (messageParams?.tabId === 'mcpserver') {
+                    mynahApi.mcpServerClick({ id: 'update-mcp-list' })
+                    break
+                } else {
+                    mynahApi.updateChat(message.params as ChatUpdateParams)
+                    break
+                }
+            }
             case OPEN_TAB_REQUEST_METHOD:
                 mynahApi.openTab(message.requestId, message.params as OpenTabParams)
                 break
@@ -185,6 +198,12 @@ export const createChat = (
                 break
             case CONVERSATION_CLICK_REQUEST_METHOD:
                 mynahApi.conversationClicked(message.params as ConversationClickResult)
+                break
+            case LIST_MCP_SERVERS_REQUEST_METHOD:
+                mynahApi.listMcpServers(message.params as ListMcpServersResult)
+                break
+            case MCP_SERVER_CLICK_REQUEST_METHOD:
+                mynahApi.mcpServerClick(message.params as McpServerClickResult)
                 break
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
@@ -218,6 +237,10 @@ export const createChat = (
                         })),
                     }))
                     tabFactory.updateQuickActionCommands(quickActionCommandGroups)
+                }
+
+                if (params?.mcpServers && config?.agenticMode) {
+                    tabFactory.enableMcp()
                 }
 
                 if (params?.history) {
@@ -362,6 +385,12 @@ export const createChat = (
         },
         conversationClick: (params: ConversationClickParams) => {
             sendMessageToClient({ command: CONVERSATION_CLICK_REQUEST_METHOD, params })
+        },
+        listMcpServers: (params: ListMcpServersParams) => {
+            sendMessageToClient({ command: LIST_MCP_SERVERS_REQUEST_METHOD, params })
+        },
+        mcpServerClick: function (params: McpServerClickParams): void {
+            sendMessageToClient({ command: MCP_SERVER_CLICK_REQUEST_METHOD, params })
         },
         tabBarAction: (params: TabBarActionParams) => {
             sendMessageToClient({ command: TAB_BAR_ACTION_REQUEST_METHOD, params })

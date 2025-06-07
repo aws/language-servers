@@ -14,6 +14,7 @@ import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/confi
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { safeGet } from '../../shared/utils'
+import { enabledMCP } from './tools/mcp/mcpUtils'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -39,6 +40,7 @@ export const QAgenticChatServer =
                                 },
                             ],
                         },
+                        mcpServers: enabledMCP(params),
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },
@@ -133,6 +135,14 @@ export const QAgenticChatServer =
 
         chat.onConversationClick(params => {
             return chatController.onConversationClick(params)
+        })
+
+        chat.onListMcpServers(params => {
+            return chatController.onListMcpServers(params)
+        })
+
+        chat.onMcpServerClick(params => {
+            return chatController.onMcpServerClick(params)
         })
 
         chat.onCreatePrompt((params) => {

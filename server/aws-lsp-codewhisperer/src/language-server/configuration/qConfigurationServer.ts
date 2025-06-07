@@ -35,9 +35,10 @@ interface QConfigurationSections {
 }
 
 // Feature flag interface for client capabilities
-interface QClientCapabilities {
+export interface QClientCapabilities {
     developerProfiles?: boolean
     customizationsWithMetadata?: boolean
+    mcp?: boolean
 }
 
 type QConfigurationResponse =
