@@ -687,6 +687,9 @@ export const CodewhispererServerFactory =
                                             }
                                         }
 
+                                        const cachedSuggestion = newSession.suggestions.find(s => s.itemId === suggestion.itemId)
+                                        if (cachedSuggestion) cachedSuggestion.insertText = suggestion.content
+
                                         return {
                                             insertText: suggestion.content,
                                             isInlineEdit: true,
