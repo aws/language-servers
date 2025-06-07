@@ -9,9 +9,12 @@ import * as path from 'path'
 import {
     FileSystemAdapter,
     Message,
+    Tab,
     TabType,
     chatMessageToMessage,
+    getOldestMessageTimestamp,
     groupTabsByDate,
+    initializeHistoryPriorityQueue,
     messageToChatMessage,
     messageToStreamingMessage,
     updateOrCreateConversation,
@@ -195,6 +198,26 @@ describe('ChatDb Utilities', () => {
             assert.strictEqual(result[1].conversationId, 'conv-2')
             assert.strictEqual(result[1].clientType, 'vscode')
             assert.deepStrictEqual(result[1].messages, [newMessage])
+        })
+
+        it('should update conversation with updatedAt timestamp', () => {
+            const now = new Date()
+            const conversations = [
+                {
+                    conversationId: 'conv-1',
+                    clientType: 'vscode',
+                    updatedAt: new Date(now.getTime() - 1000), // 1 second ago
+                    messages: [{ body: 'Message 1', type: 'prompt' as ChatMessage['type'] }],
+                },
+            ]
+
+            const newMessage = { body: 'Message 2', type: 'prompt' as ChatMessage['type'] }
+
+            const result = updateOrCreateConversation(conversations, 'conv-1', newMessage, 'vscode')
+
+            assert.strictEqual(result.length, 1)
+            assert.ok(result[0].updatedAt instanceof Date)
+            assert.ok(result[0].updatedAt.getTime() >= now.getTime())
         })
     })
 
@@ -447,6 +470,162 @@ describe('ChatDb Utilities', () => {
                 sinon.assert.calledOnce(callback)
                 assert(callback.firstCall.args[0] instanceof Error)
             })
+        })
+    })
+
+    describe('HistoryOrdering', () => {
+        it('should create history priority queue, oldest history message first', () => {
+            const queue = initializeHistoryPriorityQueue()
+
+            // Create tabs with different timestamps
+            const now = new Date()
+            const oneHourAgo = new Date(now.getTime() - 3600000)
+            const twoHoursAgo = new Date(now.getTime() - 7200000)
+            const threeHoursAgo = new Date(now.getTime() - 10800000)
+
+            // Create mock collections
+            const mockCollection = {} as Collection<Tab>
+
+            // Create tabs with different message timestamps
+            // Final timestamp for ordering is oneHourAgo(from message timestamp)
+            const tabWithRecentMessage = {
+                historyId: 'recent',
+                updatedAt: oneHourAgo,
+                isOpen: true,
+                tabType: 'cwc' as TabType,
+                title: 'Recent Tab',
+                conversations: [
+                    {
+                        conversationId: 'conv1',
+                        clientType: 'test',
+                        messages: [
+                            {
+                                body: 'test',
+                                type: 'prompt',
+                                timestamp: oneHourAgo,
+                            },
+                        ],
+                    },
+                ],
+            } as Tab
+
+            // Final timestamp for ordering is twoHoursAgo(from message timestamp)
+            const tabWithOldMessage = {
+                historyId: 'old',
+                updatedAt: twoHoursAgo, // More recent tab update
+                isOpen: true,
+                tabType: 'cwc' as TabType,
+                title: 'Old Tab',
+                conversations: [
+                    {
+                        conversationId: 'conv2',
+                        clientType: 'test',
+                        messages: [
+                            {
+                                body: 'test',
+                                type: 'prompt',
+                                timestamp: twoHoursAgo, // But older message
+                            },
+                        ],
+                    },
+                ],
+            } as Tab
+
+            // Final timestamp for ordering is now(from tab.updatedAt)
+            const recentTabWithNoTimestamp = {
+                historyId: 'no-timestamp',
+                updatedAt: oneHourAgo,
+                isOpen: true,
+                tabType: 'cwc' as TabType,
+                title: 'No Timestamp Tab',
+                conversations: [
+                    {
+                        conversationId: 'conv3',
+                        clientType: 'test',
+                        messages: [
+                            {
+                                body: 'test',
+                                type: 'prompt',
+                                // No timestamp
+                            },
+                        ],
+                    },
+                ],
+            } as Tab
+
+            // Final timestamp for ordering is threeHoursAgo(from tab.updatedAt)
+            const olderTabWithNoTimestamp = {
+                historyId: 'no-timestamp-older',
+                updatedAt: threeHoursAgo,
+                isOpen: true,
+                tabType: 'cwc' as TabType,
+                title: 'No Timestamp Tab',
+                conversations: [
+                    {
+                        conversationId: 'conv3',
+                        clientType: 'test',
+                        messages: [
+                            {
+                                body: 'test',
+                                type: 'prompt',
+                                // No timestamp
+                            },
+                        ],
+                    },
+                ],
+            } as Tab
+
+            // Confirm getOldestMessageDate gives the correct Date
+            assert.strictEqual(getOldestMessageTimestamp(tabWithRecentMessage).getTime(), oneHourAgo.getTime())
+            assert.strictEqual(getOldestMessageTimestamp(tabWithOldMessage).getTime(), twoHoursAgo.getTime())
+            assert.strictEqual(getOldestMessageTimestamp(recentTabWithNoTimestamp).getTime(), 0) // Zero timestamp for no timestamp
+            assert.strictEqual(getOldestMessageTimestamp(olderTabWithNoTimestamp).getTime(), 0) // Zero timestamp for no timestamp
+
+            // Add items to queue
+            queue.enqueue({
+                tab: tabWithRecentMessage,
+                collection: mockCollection,
+                dbName: 'db1',
+                oldestMessageDate: getOldestMessageTimestamp(tabWithRecentMessage),
+            })
+
+            queue.enqueue({
+                tab: tabWithOldMessage,
+                collection: mockCollection,
+                dbName: 'db2',
+                oldestMessageDate: getOldestMessageTimestamp(tabWithOldMessage),
+            })
+
+            queue.enqueue({
+                tab: recentTabWithNoTimestamp,
+                collection: mockCollection,
+                dbName: 'db3',
+                oldestMessageDate: getOldestMessageTimestamp(recentTabWithNoTimestamp),
+            })
+
+            queue.enqueue({
+                tab: olderTabWithNoTimestamp,
+                collection: mockCollection,
+                dbName: 'db4',
+                oldestMessageDate: getOldestMessageTimestamp(olderTabWithNoTimestamp),
+            })
+
+            // Verify queue ordering - should dequeue oldest first
+            const first = queue.dequeue()
+            const second = queue.dequeue()
+            const third = queue.dequeue()
+            const fourth = queue.dequeue()
+
+            // No timestamp should come first (oldest)
+            assert.strictEqual(first?.tab.historyId, 'no-timestamp-older')
+            assert.strictEqual(second?.tab.historyId, 'no-timestamp')
+            // Old message should come second
+            assert.strictEqual(third?.tab.historyId, 'old')
+            // Recent message should come last
+            assert.strictEqual(fourth?.tab.historyId, 'recent')
+
+            // Queue should be empty now
+            assert.strictEqual(queue.isEmpty(), true)
         })
     })
 })
