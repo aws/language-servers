@@ -671,7 +671,7 @@ export class McpEventHandler {
             // Stay on add/edit page and show error to user
             if (isEditMode) {
                 params.id = 'edit-mcp'
-                params.title = originalServerName!
+                params.title = serverName
                 return this.#handleEditMcpServer(params)
             } else {
                 params.id = 'add-new-mcp'
