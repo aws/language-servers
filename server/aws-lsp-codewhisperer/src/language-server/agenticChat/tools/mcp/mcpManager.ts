@@ -482,24 +482,29 @@ export class McpManager {
             throw new Error(`MCP: server '${serverName}' not found`)
         }
 
+        // Capture the remaining server keys before deletion for persona file update
+        const remainingServer = Array.from(this.mcpServers.keys()).filter(key => key !== serverName)
+
         const client = this.clients.get(serverName)
         if (client) {
             await client.close()
             this.clients.delete(serverName)
         }
         this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
-        this.mcpServers.delete(serverName)
         this.mcpServerStates.delete(serverName)
-        this.mcpServerPermissions.delete(serverName)
+
+        // Remove from config file first
         await this.mutateConfigFile(cfg.__configPath__, json => {
             delete json.mcpServers[serverName]
         })
 
+        // Remove from persona file with the correct remaining server list
         if (permission && permission.__configPath__) {
-            await this.mutatePersonaFile(permission.__configPath__, p =>
-                p.removeServer(serverName, Array.from(this.mcpServers.keys()))
-            )
+            await this.mutatePersonaFile(permission.__configPath__, p => p.removeServer(serverName, remainingServer))
         }
+
+        this.mcpServers.delete(serverName)
+        this.mcpServerPermissions.delete(serverName)
         this.mcpServerPermissions = await loadPersonaPermissions(
             this.features.workspace,
             this.features.logging,
