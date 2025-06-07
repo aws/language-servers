@@ -125,6 +125,7 @@ import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
+import { FsReplace, FsReplaceParams } from './tools/fsReplace'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -264,7 +265,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#log(`Reverting file change for tooluseId: ${toolUseId}`)
         const toolUse = session?.toolUseLookup.get(toolUseId)
 
-        const input = toolUse?.input as unknown as FsWriteParams
+        const input = toolUse?.input as unknown as FsWriteParams | FsReplaceParams
         if (toolUse?.fileChange?.before) {
             await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
         } else {
@@ -915,11 +916,11 @@ export class AgenticChatController implements ChatHandlers {
                 await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
 
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
-                if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
+                if (!['fsWrite', 'fsReplace', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
-                if (toolUse.name !== 'fsWrite') {
+                if (toolUse.name !== 'fsWrite' && toolUse.name !== 'fsReplace') {
                     const { explanation } = toolUse.input as unknown as ExplanatoryParams
                     if (explanation) {
                         await chatResultStream.writeResultBlock({
@@ -935,11 +936,13 @@ export class AgenticChatController implements ChatHandlers {
                     case 'grepSearch':
                     case 'fileSearch':
                     case 'fsWrite':
+                    case 'fsReplace':
                     case 'executeBash': {
                         const toolMap = {
                             fsRead: { Tool: FsRead },
                             listDirectory: { Tool: ListDirectory },
                             fsWrite: { Tool: FsWrite },
+                            fsReplace: { Tool: FsReplace },
                             executeBash: { Tool: ExecuteBash },
                             grepSearch: { Tool: GrepSearch },
                             fileSearch: { Tool: FileSearch },
@@ -989,9 +992,6 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
-                    case 'codeSearch':
-                        // no need to write tool message for code search.
-                        break
                     default:
                         this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
                         await chatResultStream.writeResultBlock({
@@ -1002,8 +1002,8 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
 
-                if (toolUse.name === 'fsWrite') {
-                    const input = toolUse.input as unknown as FsWriteParams
+                if (toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') {
+                    const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                     const document = await this.#triggerContext.getTextDocument(input.path)
                     session.toolUseLookup.set(toolUse.toolUseId, {
                         ...toolUse,
@@ -1057,8 +1057,9 @@ export class AgenticChatController implements ChatHandlers {
                             await chatResultStream.writeResultBlock(grepSearchResult)
                         }
                         break
+                    case 'fsReplace':
                     case 'fsWrite':
-                        const input = toolUse.input as unknown as FsWriteParams
+                        const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                         const doc = await this.#triggerContext.getTextDocument(input.path)
                         const chatResult = await this.#getFsWriteChatResult(toolUse, doc, session)
                         const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
@@ -1145,9 +1146,9 @@ export class AgenticChatController implements ChatHandlers {
                     }
                 }
                 // display fs write failure status in the UX of that file card
-                if (toolUse.name === 'fsWrite' && toolUse.toolUseId) {
+                if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
-                    const fsParam = toolUse.input as unknown as FsWriteParams
+                    const fsParam = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                     const fileName = path.basename(fsParam.path)
                     const errorResult = {
                         type: 'tool',
@@ -1237,7 +1238,7 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
             return
         }
-        if (toolUse.name === 'fsWrite') {
+        if (toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') {
             if (session.currentUndoAllId === undefined) {
                 session.currentUndoAllId = toolUse.toolUseId
             }
@@ -1441,6 +1442,7 @@ export class AgenticChatController implements ChatHandlers {
         let body: string | undefined
 
         switch (toolName) {
+            case 'fsReplace':
             case 'fsWrite':
                 header = {
                     body: undefined,
@@ -1595,7 +1597,7 @@ export class AgenticChatController implements ChatHandlers {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 body = '```shell\n' + commandString
                 break
-
+            case 'fsReplace':
             case 'fsWrite':
                 buttons = [
                     {
@@ -1611,10 +1613,9 @@ export class AgenticChatController implements ChatHandlers {
                     body: '#### Allow file modification outside of your workspace',
                     buttons,
                 }
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
+                const writeFilePath = (toolUse.input as unknown as FsWriteParams | FsReplaceParams).path
                 body = `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
                 break
-
             case 'fsRead':
             case 'listDirectory':
             default:
@@ -1658,7 +1659,7 @@ export class AgenticChatController implements ChatHandlers {
         doc: TextDocument | undefined,
         session: ChatSessionService
     ): Promise<ChatMessage> {
-        const input = toolUse.input as unknown as FsWriteParams
+        const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
         const oldContent = session.toolUseLookup.get(toolUse.toolUseId!)?.fileChange?.before ?? ''
         // Get just the filename instead of the full path
         const fileName = path.basename(input.path)
@@ -2179,8 +2180,8 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseId = params.messageId
         const toolUse = toolUseId ? session.data?.toolUseLookup.get(toolUseId) : undefined
 
-        if (toolUse?.name === 'fsWrite') {
-            const input = toolUse.input as unknown as FsWriteParams
+        if (toolUse?.name === 'fsWrite' || toolUse?.name === 'fsReplace') {
+            const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
             this.#features.lsp.workspace.openFileDiff({
                 originalFileUri: input.path,
                 originalFileContent: toolUse.fileChange?.before,
@@ -2459,7 +2460,7 @@ export class AgenticChatController implements ChatHandlers {
         }
         const toolUses = Object.values(data.toolUses)
         for (const toolUse of toolUses) {
-            if (toolUse.name === 'fsWrite' && typeof toolUse.input === 'string') {
+            if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && typeof toolUse.input === 'string') {
                 const filepath = extractKey(toolUse.input, 'path')
                 const msgId = progressPrefix + toolUse.toolUseId
                 // render fs write UI as soon as fs write starts
@@ -2486,7 +2487,7 @@ export class AgenticChatController implements ChatHandlers {
                         },
                     })
                 }
-                // render the tool use explanatory as soon as this is received for fsWrite
+                // render the tool use explanatory as soon as this is received for fsWrite/fsReplace
                 const explanation = extractKey(toolUse.input, 'explanation')
                 const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
                 if (explanation && !chatResultStream.hasMessage(messageId)) {
@@ -2663,7 +2664,9 @@ export class AgenticChatController implements ChatHandlers {
 
         // it's disabled so filter out the write tools
         if (!session.pairProgrammingMode) {
-            return tools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
+            return tools.filter(
+                tool => !['fsWrite', 'fsReplace', 'executeBash'].includes(tool.toolSpecification?.name || '')
+            )
         }
         return tools
     }
