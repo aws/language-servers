@@ -435,6 +435,7 @@ export const CodewhispererServerFactory =
                     }
 
                     const supplementalContext = await supplementalContextPromise
+                    // TODO: logging
                     if (codeWhispererService instanceof CodeWhispererServiceToken) {
                         // Combine supplemental contexts from both sources if available
                         const supplementalContextItems = [

@@ -148,4 +148,5 @@ export interface PackageReferenceMetadata {
     NetCompatiblePackageVersion?: string
     NetCompatibleAssemblyPath?: string
     NetCompatibleAssemblyRelativePath?: string
+    NetCompatiblePackageFilePath?: string
 }
