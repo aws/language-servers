@@ -77,6 +77,20 @@ describe('CodeWhispererServer NEP Integration', function () {
             const mockServiceManager = {
                 createCodeWhispererService: sandbox.stub(),
                 dispose: sandbox.stub(),
+                features: {} as any,
+                logging: {} as any,
+                configurationCache: {} as any,
+                handleDidChangeConfigurationListeners: sandbox.stub(),
+                handleDidChangeConfiguration: sandbox.stub(),
+                getConfiguration: sandbox.stub(),
+                updateConfiguration: sandbox.stub(),
+                getCredentials: sandbox.stub(),
+                getCredentialsProvider: sandbox.stub(),
+                getCodeWhispererService: sandbox.stub(),
+                getStreamingClientService: sandbox.stub(),
+                getCodeWhispererServiceToken: sandbox.stub(),
+                getStreamingClientServiceToken: sandbox.stub(),
+                createStreamingClientService: sandbox.stub(),
             }
 
             // Create the server
@@ -98,6 +112,10 @@ describe('CodeWhispererServer NEP Integration', function () {
                 } as any,
                 runtime: { serverInfo: { name: 'test', version: '1.0.0' } } as any,
                 sdkInitializator: { initialize: sandbox.stub() } as any,
+                chat: {} as any,
+                identityManagement: {} as any,
+                notification: {} as any,
+                agent: {} as any,
             })
 
             // Verify that all tracker singletons were requested
@@ -151,6 +169,35 @@ describe('CodeWhispererServer NEP Integration', function () {
             const mockServiceManager = {
                 createCodeWhispererService: sandbox.stub(),
                 dispose: sandbox.stub(),
+                features: {} as any,
+                logging: {} as any,
+                configurationCache: {} as any,
+                handleDidChangeConfigurationListeners: sandbox.stub(),
+                handleDidChangeConfiguration: sandbox.stub(),
+                getConfiguration: sandbox.stub(),
+                updateConfiguration: sandbox.stub(),
+                getCredentials: sandbox.stub(),
+                getCredentialsProvider: sandbox.stub(),
+                getCodeWhispererService: sandbox.stub(),
+                getStreamingClientService: sandbox.stub(),
+                getCodeWhispererServiceToken: sandbox.stub(),
+                getStreamingClientServiceToken: sandbox.stub(),
+                createStreamingClientService: sandbox.stub(),
+                // Add the remaining missing properties
+                isConfigChangeInProgress: sandbox.stub(),
+                getCodewhispererService: sandbox.stub(),
+                getStreamingClient: sandbox.stub(),
+                addDidChangeConfigurationListener: sandbox.stub(),
+                removeDidChangeConfigurationListener: sandbox.stub(),
+                notifyDidChangeConfiguration: sandbox.stub(),
+                getCredentialsType: sandbox.stub(),
+                getCodeWhispererServiceBase: sandbox.stub(),
+                getStreamingClientServiceBase: sandbox.stub(),
+                // Add the final missing properties
+                handleOnCredentialsDeleted: sandbox.stub(),
+                handleOnUpdateConfiguration: sandbox.stub(),
+                updateCachedServiceConfig: sandbox.stub(),
+                notifyDidChangeConfigurationListeners: sandbox.stub(),
             }
 
             // Mock all the tracker singletons
@@ -179,7 +226,7 @@ describe('CodeWhispererServer NEP Integration', function () {
                 .stub(require('./auto-trigger/editPredictionAutoTrigger'), 'editPredictionAutoTrigger')
                 .value(sandbox.stub().returns({ shouldTrigger: false }))
 
-            const serverFunction = CodewhispererServerFactory(() => mockServiceManager)
+            const serverFunction = CodewhispererServerFactory(() => mockServiceManager as any)
 
             // Should not throw when creating the server
             assert.doesNotThrow(() => {
@@ -214,6 +261,10 @@ describe('CodeWhispererServer NEP Integration', function () {
                     } as any,
                     runtime: { serverInfo: { name: 'test', version: '1.0.0' } } as any,
                     sdkInitializator: { initialize: sandbox.stub() } as any,
+                    chat: {} as any,
+                    identityManagement: {} as any,
+                    notification: {} as any,
+                    agent: {} as any,
                 })
             })
         })

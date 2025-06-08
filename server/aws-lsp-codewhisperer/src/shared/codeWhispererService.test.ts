@@ -78,6 +78,15 @@ describe('CodeWhispererService', function () {
                     return 'iam'
                 }
 
+                // Add public getters for protected properties
+                get testCodeWhispererRegion() {
+                    return this.codeWhispererRegion
+                }
+
+                get testCodeWhispererEndpoint() {
+                    return this.codeWhispererEndpoint
+                }
+
                 async generateCompletionsAndEdits(): Promise<GenerateSuggestionsResponse> {
                     return {
                         suggestions: [],
@@ -102,8 +111,11 @@ describe('CodeWhispererService', function () {
 
         describe('constructor', function () {
             it('should initialize with region and endpoint', function () {
-                assert.strictEqual(service.codeWhispererRegion, 'us-east-1')
-                assert.strictEqual(service.codeWhispererEndpoint, 'https://codewhisperer.us-east-1.amazonaws.com')
+                assert.strictEqual((service as any).testCodeWhispererRegion, 'us-east-1')
+                assert.strictEqual(
+                    (service as any).testCodeWhispererEndpoint,
+                    'https://codewhisperer.us-east-1.amazonaws.com'
+                )
             })
         })
 
@@ -151,7 +163,24 @@ describe('CodeWhispererService', function () {
                     config: {
                         update: sandbox.stub(),
                     },
-                }
+                    // Add minimal required properties to satisfy the interface
+                    createCodeScan: sandbox.stub(),
+                    createCodeScanUploadUrl: sandbox.stub(),
+                    createProfile: sandbox.stub(),
+                    deleteProfile: sandbox.stub(),
+                    generateCompletions: sandbox.stub(),
+                    generateSuggestions: sandbox.stub(),
+                    getCodeAnalysis: sandbox.stub(),
+                    getCodeScan: sandbox.stub(),
+                    listCodeAnalysisFindings: sandbox.stub(),
+                    listCodeScans: sandbox.stub(),
+                    listFeatureEvaluations: sandbox.stub(),
+                    listProfiles: sandbox.stub(),
+                    sendTelemetryEvent: sandbox.stub(),
+                    startCodeAnalysis: sandbox.stub(),
+                    stopCodeAnalysis: sandbox.stub(),
+                    updateProfile: sandbox.stub(),
+                } as any
                 service.client = mockClient
 
                 const options: ConfigurationOptions = { region: 'us-west-2' }
@@ -205,6 +234,7 @@ describe('CodeWhispererService', function () {
 
             service = new CodeWhispererServiceIAM(
                 mockCredentialsProvider as any,
+                {} as any, // workspace parameter
                 mockLogging as any,
                 'us-east-1',
                 'https://codewhisperer.us-east-1.amazonaws.com',
@@ -235,6 +265,9 @@ describe('CodeWhispererService', function () {
                     languageId: 'javascript',
                     version: 1,
                     getText: () => 'const x = ',
+                    positionAt: sandbox.stub(),
+                    offsetAt: sandbox.stub(),
+                    lineCount: 1,
                 }
 
                 // Mock the generateSuggestions method
@@ -378,6 +411,9 @@ describe('CodeWhispererService', function () {
                     languageId: 'javascript',
                     version: 1,
                     getText: () => 'const x = ',
+                    positionAt: sandbox.stub(),
+                    offsetAt: sandbox.stub(),
+                    lineCount: 1,
                 }
 
                 const generateSuggestionsStub = sandbox.stub(service, 'generateSuggestions')
@@ -412,6 +448,9 @@ describe('CodeWhispererService', function () {
                     languageId: 'javascript',
                     version: 1,
                     getText: () => 'const x = ',
+                    positionAt: sandbox.stub(),
+                    offsetAt: sandbox.stub(),
+                    lineCount: 1,
                 }
 
                 const generateSuggestionsAndPrefetchStub = sandbox.stub(
