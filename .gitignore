@@ -25,3 +25,6 @@ app/aws-lsp-partiql-*
 
 # Mynah
 !mynah-ui/dist
+
+# Coverage (C8)
+**/coverage/
