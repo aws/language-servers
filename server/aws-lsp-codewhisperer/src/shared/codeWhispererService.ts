@@ -80,13 +80,16 @@ export abstract class CodeWhispererServiceBase {
 
     abstract clearCachedSuggestions(): void
 
-    /**
-     * users trigger generateCompletion -> first response -> prefetch 2nd and 3rd -> user accepts
-     *   -> onLogInlineCompletionSessionResultsHandler -> acceptedSession -> ???
-     *   -> client IDE trigger generateCompletion -> onInlineCompletionHandler -> return cached(prefetched) result
-     *
-     */
-    acceptedSession(sessionId: string) {}
+    // Ensure the returned cached suggestion belong the correct session
+    acceptedSession(sessionId: string) {
+        if (this.prefetchSuggestions.length) {
+            this.prefetchSuggestions = this.prefetchSuggestions.filter(s => s.id === sessionId)
+            const afterLen = this.prefetchSuggestions.length
+            if (afterLen > 0) {
+                console.error(`[NEP]: inconsistent prefetched suggestions with different session id lived in cache`)
+            }
+        }
+    }
 
     abortInflightRequests() {
         this.inflightRequests.forEach(request => {
@@ -357,6 +360,20 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             this.isPrefetchInProgress ||
             this.prefetchSuggestions.length === 0 ||
             this.prefetchSuggestions[0].request.fileContext.filename !== originalRequest.fileContext.filename
+
+        // TODO: should combine with above
+        if (!isColdStart) {
+            const prefetchSuggestion = this.prefetchSuggestions[0]
+            const expectedEditorState = prefetchSuggestion.request.editorState
+            const actualEditorState = originalRequest.editorState
+
+            if (
+                expectedEditorState?.cursorState?.position?.character !== actualEditorState?.cursorState?.position ||
+                expectedEditorState?.cursorState?.position?.line !== actualEditorState?.cursorState?.position
+            ) {
+                isColdStart = true
+            }
+        }
 
         // TODO: make id more strict, possibly session id or check if previous suggestion is in the doc
         // if () {
