@@ -7,6 +7,34 @@ import { Button, ListMcpServersResult, McpServerClickResult } from '@aws/languag
 import { Messager } from './messager'
 import { toMynahIcon } from './utils'
 
+// MCP action and element IDs
+export const MCP_IDS = {
+    // Server actions
+    DISABLE_SERVER: 'mcp-disable-server',
+    DELETE_SERVER: 'mcp-delete-server',
+    ENABLE_SERVER: 'mcp-enable-server',
+    FIX_SERVER: 'mcp-fix-server',
+    OPEN_SERVER: 'open-mcp-server',
+
+    // Menu items
+    DETAILS_MENU: 'mcp-details-menu',
+    SERVER_CLICK: 'mcp-server-click',
+
+    // List actions
+    ADD_NEW: 'add-new-mcp',
+    REFRESH_LIST: 'refresh-mcp-list',
+    UPDATE_LIST: 'update-mcp-list',
+
+    // Form actions
+    EDIT: 'edit-mcp',
+    SAVE: 'save-mcp',
+    CANCEL: 'cancel-mcp',
+
+    // Permission actions
+    PERMISSION_CHANGE: 'mcp-permission-change',
+    SAVE_PERMISSION_CHANGE: 'save-permission-change',
+}
+
 // Type definitions for MCP server parameters
 export type McpFilterOption = {
     type: 'textarea' | 'textinput' | 'select' | 'numericinput' | 'radiogroup' | 'list'
@@ -130,16 +158,16 @@ export class McpMynahUi {
         if (isEditMode && hasError) {
             detailedList.header.actions = [
                 {
-                    id: 'mcp-details-menu',
+                    id: MCP_IDS.DETAILS_MENU,
                     icon: toMynahIcon('ellipsis'),
                     items: [
                         {
-                            id: 'mcp-disable-server',
+                            id: MCP_IDS.DISABLE_SERVER,
                             text: `Disable MCP server`,
                             data: { serverName },
                         },
                         {
-                            id: 'mcp-delete-server',
+                            id: MCP_IDS.DELETE_SERVER,
                             confirmation: {
                                 cancelButtonText: 'Cancel',
                                 confirmButtonText: 'Delete',
@@ -183,15 +211,15 @@ export class McpMynahUi {
                 actions: params.header.actions?.map(action => ({
                     ...action,
                     icon: action.icon ? toMynahIcon(action.icon) : undefined,
-                    ...(action.id === 'mcp-details-menu'
+                    ...(action.id === MCP_IDS.DETAILS_MENU
                         ? {
                               items: [
                                   {
-                                      id: 'mcp-disable-server',
+                                      id: MCP_IDS.DISABLE_SERVER,
                                       text: `Disable MCP server`,
                                   },
                                   {
-                                      id: 'mcp-delete-server',
+                                      id: MCP_IDS.DELETE_SERVER,
                                       confirmation: {
                                           cancelButtonText: 'Cancel',
                                           confirmButtonText: 'Delete',
@@ -232,13 +260,13 @@ export class McpMynahUi {
                       status: params.header.status,
                       actions: [
                           {
-                              id: 'add-new-mcp',
+                              id: MCP_IDS.ADD_NEW,
                               icon: toMynahIcon('plus'),
                               status: 'clear',
                               description: 'Add new MCP',
                           },
                           {
-                              id: 'refresh-mcp-list',
+                              id: MCP_IDS.REFRESH_LIST,
                               icon: toMynahIcon('refresh'),
                               status: 'clear',
                               description: 'Refresh MCP servers',
@@ -297,37 +325,37 @@ export class McpMynahUi {
 
                             const toolCount = getToolCount()
                             actions.push({
-                                id: 'open-mcp-server',
+                                id: MCP_IDS.OPEN_SERVER,
                                 icon: toMynahIcon('tools'),
                                 description: `${toolCount} available tools`,
                                 text: toolCount,
                             })
                             actions.push({
-                                id: 'open-mcp-server',
+                                id: MCP_IDS.OPEN_SERVER,
                                 icon: toMynahIcon('right-open'),
                             })
                         } else {
                             actions.push({
-                                id: 'mcp-fix-server',
+                                id: MCP_IDS.FIX_SERVER,
                                 icon: toMynahIcon('pencil'),
                                 text: 'Fix Configuration',
                                 description: 'Fix Configuration',
                             })
                             actions.push({
-                                id: 'open-mcp-server',
+                                id: MCP_IDS.OPEN_SERVER,
                                 icon: toMynahIcon('right-open'),
                                 disabled: true,
                             })
                         }
                     } else if (group.groupName === 'Disabled') {
                         actions.push({
-                            id: 'mcp-enable-server',
+                            id: MCP_IDS.ENABLE_SERVER,
                             icon: toMynahIcon('ok'),
                             text: 'Enable',
                             description: 'Enable',
                         })
                         actions.push({
-                            id: 'mcp-delete-server',
+                            id: MCP_IDS.DELETE_SERVER,
                             icon: toMynahIcon('trash'),
                             text: 'Delete',
                             description: 'Delete',
@@ -340,14 +368,14 @@ export class McpMynahUi {
                             },
                         })
                         actions.push({
-                            id: 'open-mcp-server',
+                            id: MCP_IDS.OPEN_SERVER,
                             icon: toMynahIcon('right-open'),
                             disabled: true,
                         })
                     }
 
                     return {
-                        id: 'mcp-server-click',
+                        id: MCP_IDS.SERVER_CLICK,
                         title: item.title,
                         icon: toMynahIcon(icon),
                         iconForegroundStatus: iconForegroundStatus,
@@ -404,7 +432,7 @@ export class McpMynahUi {
      */
     public mcpServerClick(params: McpServerClickResult) {
         const typedParams = params as McpServerParams
-        if (params.id === 'add-new-mcp' || params.id === 'edit-mcp' || params.id === 'mcp-fix-server') {
+        if (params.id === MCP_IDS.ADD_NEW || params.id === MCP_IDS.EDIT || params.id === MCP_IDS.FIX_SERVER) {
             this.mynahUi.toggleSplashLoader(false)
             const detailedList = this.createAddMcpServerDetailedList(typedParams)
 
@@ -417,13 +445,13 @@ export class McpMynahUi {
                     filterValues?: Record<string, string>,
                     isValid?: boolean
                 ) => {
-                    if (actionParams.id === 'cancel-mcp') {
+                    if (actionParams.id === MCP_IDS.CANCEL) {
                         this.messager.onListMcpServers()
                         return
                     }
 
                     // new and update will share the same save-mcp
-                    if (actionParams.id === 'save-mcp') {
+                    if (actionParams.id === MCP_IDS.SAVE) {
                         this.mynahUi.toggleSplashLoader(true, '**Activating MCP Server**')
                         this.messager.onMcpServerClick(actionParams.id, 'Save configuration', filterValues)
                     }
@@ -434,7 +462,7 @@ export class McpMynahUi {
                 },
             }
             this.mynahUi.openDetailedList({ detailedList, events }, true)
-        } else if (params.id === 'open-mcp-server') {
+        } else if (params.id === MCP_IDS.OPEN_SERVER) {
             //turning off splash loader in case of being on when new server is added
             this.mynahUi.toggleSplashLoader(false)
             const detailedList = this.createViewMcpServerDetailedList(typedParams)
@@ -446,7 +474,7 @@ export class McpMynahUi {
                         onFilterValueChange: (filterValues: Record<string, string>) => {
                             // Handle filter value changes for tool permissions
                             this.messager.onMcpServerClick(
-                                'mcp-permission-change',
+                                MCP_IDS.PERMISSION_CHANGE,
                                 detailedList.header?.title,
                                 filterValues
                             )
@@ -465,19 +493,19 @@ export class McpMynahUi {
                             this.messager.onMcpServerClick(action.id)
                         },
                         onClose: () => {
-                            this.messager.onMcpServerClick('save-permission-change')
+                            this.messager.onMcpServerClick(MCP_IDS.SAVE_PERMISSION_CHANGE)
                         },
                         onBackClick: () => {
-                            this.messager.onMcpServerClick('save-permission-change')
+                            this.messager.onMcpServerClick(MCP_IDS.SAVE_PERMISSION_CHANGE)
                             this.messager.onListMcpServers()
                         },
                     },
                 },
                 true
             )
-        } else if (['mcp-disable-server', 'mcp-delete-server', 'mcp-enable-server'].includes(params.id)) {
+        } else if ([MCP_IDS.DISABLE_SERVER, MCP_IDS.DELETE_SERVER, MCP_IDS.ENABLE_SERVER].includes(params.id)) {
             this.messager.onListMcpServers()
-        } else if (params.id === 'update-mcp-list') {
+        } else if (params.id === MCP_IDS.UPDATE_LIST) {
             if (this.isMcpServersListActive) {
                 this.messager.onListMcpServers()
             }
