@@ -824,7 +824,11 @@ export const CodewhispererServerFactory =
                 }
             }
 
-            if (acceptedSuggestion === undefined) {
+            if (acceptedSuggestion !== undefined) {
+                // [acceptedSuggestion.insertText] will be undefined for an NEP accept
+                // Tell codewhispererService the session is accepted and ready to provide prefetch results
+                amazonQServiceManager.getCodewhispererService().acceptedSession(params.sessionId)
+            } else {
                 // Clear if it's a reject
                 logging.info(`user reject suggestion, clearning prefetched suggestion`)
                 // TODO: move to somewhere like session.close()
