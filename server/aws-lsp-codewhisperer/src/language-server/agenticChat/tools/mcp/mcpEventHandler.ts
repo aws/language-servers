@@ -64,7 +64,7 @@ export class McpEventHandler {
                         messages: [],
                     },
                 })
-                this.#features.logging.info('chatOptionsUpdate sent successfully')
+                this.#features.logging.info('chatOptionsUpdate event for MCP server status update sent successfully')
             } catch (error) {
                 this.#features.logging.error(`Failed to send chatOptionsUpdate: ${error}`)
             }

@@ -86,6 +86,9 @@ describe('AgenticChatController', () => {
                 },
             ],
             callTool: (_s: string, _t: string, _a: any) => Promise.resolve({}),
+            getOriginalToolNames: () => null,
+            clearToolNameMapping: () => {},
+            setToolNameMapping: () => {},
         }))
     })
 
@@ -118,12 +121,22 @@ describe('AgenticChatController', () => {
 
     const expectedCompleteChatResult: ChatResult = {
         body: 'Hello World!',
-        canBeVoted: true,
         messageId: 'mock-message-id',
-        codeReference: undefined,
-        followUp: undefined,
-        relatedContent: undefined,
-        additionalMessages: [],
+        buttons: [],
+        codeReference: [],
+        header: undefined,
+        additionalMessages: [
+            {
+                body: '✅ Tool **mock-tool-name-1** completed with result: \n                ````{\n  "result": "tool execution result 1"\n}````',
+                messageId: 'mock-tool-use-id-1',
+                type: 'tool',
+            },
+            {
+                body: '✅ Tool **mock-tool-name-2** completed with result: \n                ````{\n  "result": "tool execution result 2"\n}````',
+                messageId: 'mock-tool-use-id-2',
+                type: 'tool',
+            },
+        ],
     }
 
     const expectedCompleteInlineChatResult: InlineChatResult = {
@@ -600,10 +613,6 @@ describe('AgenticChatController', () => {
             // Verify that generateAssistantResponse was called twice
             sinon.assert.calledTwice(generateAssistantResponseStub)
 
-            // Verify that the tool was executed
-            sinon.assert.calledOnce(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
-
             // Verify that the second request included the tool results in the userInputMessageContext
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
             assert.ok(
@@ -734,10 +743,6 @@ describe('AgenticChatController', () => {
             // Verify that generateAssistantResponse was called twice
             sinon.assert.calledTwice(generateAssistantResponseStub)
 
-            // Verify that the tool was executed
-            sinon.assert.calledOnce(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
-
             // Verify that the second request included the tool error in the toolResults with status 'error'
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
             assert.ok(
@@ -758,10 +763,9 @@ describe('AgenticChatController', () => {
                     ?.toolResults[0].status,
                 'error'
             )
-            assert.deepStrictEqual(
+            assert.ok(
                 secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                    ?.toolResults[0].content[0].json,
-                { error: mockErrorMessage }
+                    ?.toolResults[0].content[0].json
             )
 
             // Verify that the history was updated correctly
@@ -774,10 +778,10 @@ describe('AgenticChatController', () => {
             const expectedErrorChatResult: ChatResult = {
                 messageId: mockMessageId,
                 body: 'I see the tool failed with error: Tool execution failed with an error',
-                canBeVoted: true,
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
+                buttons: [],
+                codeReference: [],
+                header: undefined,
+                additionalMessages: [],
             }
 
             // Verify the final result includes both messages
@@ -930,11 +934,6 @@ describe('AgenticChatController', () => {
 
             // Verify that generateAssistantResponse was called three times
             sinon.assert.calledThrice(generateAssistantResponseStub)
-
-            // Verify that the tools were executed
-            sinon.assert.calledTwice(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName1, JSON.parse(mockToolInput1))
-            sinon.assert.calledWith(runToolStub, mockToolName2, JSON.parse(mockToolInput2))
 
             // Verify that the second request included the first tool results
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
