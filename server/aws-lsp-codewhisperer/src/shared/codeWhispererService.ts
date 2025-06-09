@@ -108,7 +108,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
             credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials('iam') as Credentials,
+                () => credentialsProvider.getCredentials() as Credentials,
             ]),
         }
         this.client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
@@ -168,7 +168,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 req => {
                     this.trackRequest(req)
                     req.on('build', ({ httpRequest }) => {
-                        const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
+                        const creds = credentialsProvider.getCredentials() as BearerCredentials
                         if (!creds?.token) {
                             throw new Error('Authorization failed, bearer token is not set')
                         }

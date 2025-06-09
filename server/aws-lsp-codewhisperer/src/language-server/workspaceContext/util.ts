@@ -68,7 +68,7 @@ export const isEmptyDirectory = (path: string): boolean => {
 }
 
 export const isLoggedInUsingBearerToken = (credentialsProvider: CredentialsProvider): boolean => {
-    return credentialsProvider.hasCredentials('bearer')
+    return credentialsProvider.hasCredentials()
 }
 
 export const getSha256Async = async (content: string | Buffer): Promise<string> => {

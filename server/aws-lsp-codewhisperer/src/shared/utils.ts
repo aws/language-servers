@@ -234,11 +234,11 @@ export function getRequestID(error: any): string | undefined {
 }
 
 export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvider) {
-    if (!credentialsProvider.hasCredentials('bearer')) {
+    if (!credentialsProvider.hasCredentials() || credentialsProvider.getCredentialsType() !== 'bearer') {
         throw new Error(MISSING_BEARER_TOKEN_ERROR)
     }
 
-    const credentials = credentialsProvider.getCredentials('bearer') as BearerCredentials
+    const credentials = credentialsProvider.getCredentials() as BearerCredentials
 
     if (!credentials.token) {
         throw new Error(MISSING_BEARER_TOKEN_ERROR)

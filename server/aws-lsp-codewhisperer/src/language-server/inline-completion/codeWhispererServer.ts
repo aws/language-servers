@@ -408,6 +408,7 @@ export const CodewhispererServerFactory =
                     }
 
                     const supplementalContext = await supplementalContextPromise
+                    // TODO: logging
                     if (codeWhispererService instanceof CodeWhispererServiceToken) {
                         requestContext.supplementalContexts = supplementalContext?.supplementalContextItems
                             ? supplementalContext.supplementalContextItems.map(v => ({
@@ -715,9 +716,9 @@ export const CodewhispererServerFactory =
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                        */
+                                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                            */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)

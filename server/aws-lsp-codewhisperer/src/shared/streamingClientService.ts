@@ -158,7 +158,7 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
             region: region,
             endpoint: endpoint,
             credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials('iam') as Credentials,
+                () => credentialsProvider.getCredentials() as Credentials,
             ]),
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })

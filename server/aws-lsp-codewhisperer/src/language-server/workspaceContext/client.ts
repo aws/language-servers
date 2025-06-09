@@ -21,7 +21,7 @@ export class WebSocketClient {
 
     private connect(): void {
         try {
-            const creds = this.credentialsProvider.getCredentials('bearer') as BearerCredentials
+            const creds = this.credentialsProvider.getCredentials() as BearerCredentials
             if (!creds?.token) {
                 throw new Error('Authorization failed, bearer token is not set')
             }

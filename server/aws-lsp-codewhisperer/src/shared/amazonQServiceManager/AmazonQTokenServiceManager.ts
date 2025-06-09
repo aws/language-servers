@@ -195,7 +195,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         this.logServiceState('Validate State of SSO Connection')
 
-        const noCreds = !this.features.credentialsProvider.hasCredentials('bearer')
+        const noCreds = !this.features.credentialsProvider.hasCredentials()
         const noConnectionType = newConnectionType === 'none'
         if (noCreds || noConnectionType) {
             // Connection was reset, wait for SSO connection token from client
