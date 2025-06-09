@@ -357,7 +357,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // TODO: handle if textDocument/cursor/request position doesn't match prefetchSuggestions
         // e.g. if it's not a subsequent call, it must be a cold start
         let isColdStart =
-            this.isPrefetchInProgress ||
+            !this.isPrefetchInProgress ||
             this.prefetchSuggestions.length === 0 ||
             this.prefetchSuggestions[0].request.fileContext.filename !== originalRequest.fileContext.filename
 
