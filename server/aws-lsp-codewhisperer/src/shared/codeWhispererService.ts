@@ -71,7 +71,7 @@ export abstract class CodeWhispererServiceBase {
     public customizationArn?: string
     public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
-    protected flag: boolean = false
+    protected isPrefetchInProgress: boolean = false
 
     inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
 
@@ -79,6 +79,17 @@ export abstract class CodeWhispererServiceBase {
         []
 
     abstract clearCachedSuggestions(): void
+
+    // Ensure the returned cached suggestion belong the correct session
+    acceptedSession(sessionId: string) {
+        if (this.prefetchSuggestions.length) {
+            this.prefetchSuggestions = this.prefetchSuggestions.filter(s => s.id === sessionId)
+            const afterLen = this.prefetchSuggestions.length
+            if (afterLen > 0) {
+                console.error(`[NEP]: inconsistent prefetched suggestions with different session id lived in cache`)
+            }
+        }
+    }
 
     abortInflightRequests() {
         this.inflightRequests.forEach(request => {
@@ -346,12 +357,24 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // TODO: handle if textDocument/cursor/request position doesn't match prefetchSuggestions
         // e.g. if it's not a subsequent call, it must be a cold start
         let isColdStart =
-            this.flag || this.prefetchSuggestions.length === 0 || this.prefetchSuggestions[0].id !== textDocument.uri
+            this.isPrefetchInProgress ||
+            this.prefetchSuggestions.length === 0 ||
+            this.prefetchSuggestions[0].request.fileContext.filename !== originalRequest.fileContext.filename
 
-        // TODO: make id more strict, possibly session id or check if previous suggestion is in the doc
-        // if () {
-        //     isColdStart = true
-        // }
+        // TODO: should combine with above
+        if (!isColdStart) {
+            const prefetchSuggestion = this.prefetchSuggestions[0]
+            const expectedEditorState = prefetchSuggestion.request.editorState
+            const actualEditorState = originalRequest.editorState
+
+            if (
+                expectedEditorState?.cursorState?.position?.character !== actualEditorState?.cursorState?.position ||
+                expectedEditorState?.cursorState?.position?.line !== actualEditorState?.cursorState?.position
+            ) {
+                isColdStart = true
+            }
+        }
+
         const t0 = performance.now()
 
         if (!isColdStart) {
@@ -381,7 +404,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             const coldStartResponse = await this.generateSuggestions(originalRequest)
             if (coldStartResponse.suggestions.length > 0) {
                 setTimeout(() => {
-                    this.flag = true
+                    this.isPrefetchInProgress = true
                     this.chainedGenerateCompletionCall(
                         originalRequest,
                         coldStartResponse,
@@ -389,7 +412,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         this.token,
                         0
                     ).catch(e => {})
-                    this.flag = false
+                    this.isPrefetchInProgress = false
                 }, this.prefetchConfig.duration)
             }
             this.logging.info(
@@ -441,7 +464,7 @@ ${response.suggestions[0].content}`)
 
             if (isResponseValid) {
                 this.prefetchSuggestions.push({
-                    id: textDocument.uri, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
+                    id: response.responseContext.codewhispererSessionId, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
                     response: response,
                     request: request,
                 })
