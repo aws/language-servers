@@ -207,9 +207,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     private tokenSrc = new CancellationTokenSource()
     private token: CancellationToken = this.tokenSrc.token
     private prefetchConfig = {
-        duration: 100, // 100ms
+        duration: 500, // 500ms
         maxCacheSuggestionSize: 3,
-        maxRecursiveCallDepth: 5,
+        maxRecursiveCallDepth: 3,
     }
 
     constructor(
