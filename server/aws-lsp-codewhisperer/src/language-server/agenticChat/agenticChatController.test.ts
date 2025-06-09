@@ -584,38 +584,25 @@ describe('AgenticChatController', () => {
                 })
             )
 
-            // Reset the runTool stub and make it resolve immediately
+            // Reset the runTool stub
             const runToolStub = testFeatures.agent.runTool as sinon.SinonStub
             runToolStub.reset()
             runToolStub.resolves(mockToolResult)
 
-            // Create a promise that will resolve when runTool is called
-            const runToolCalled = new Promise<void>(resolve => {
-                const originalResolves = runToolStub.resolves
-                runToolStub.callsFake((...args) => {
-                    resolve()
-                    return originalResolves.call(runToolStub, mockToolResult)
-                })
-            })
-
-            // Start the chat prompt request
+            // Make the request
             const chatResultPromise = chatController.onChatPrompt(
                 { tabId: mockTabId, prompt: { prompt: 'Hello with tool' } },
                 mockCancellationToken
             )
 
-            // Wait for runTool to be called
-            await runToolCalled
-
-            // Verify that the tool was executed
-            sinon.assert.calledOnce(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
-
-            // Now wait for the chat result to complete
             const chatResult = await chatResultPromise
 
             // Verify that generateAssistantResponse was called twice
             sinon.assert.calledTwice(generateAssistantResponseStub)
+
+            // Verify that the tool was executed
+            sinon.assert.calledOnce(runToolStub)
+            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
 
             // Verify that the second request included the tool results in the userInputMessageContext
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
