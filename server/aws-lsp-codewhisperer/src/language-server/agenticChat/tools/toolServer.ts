@@ -167,6 +167,18 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
         })
     })
 
+    lsp.onDidSaveTextDocument(async params => {
+        try {
+            const { uri } = params.textDocument
+            logging.info(`Document saved: ${uri}`)
+
+            // You can add custom logic here to handle saved documents
+            // await this.handleDocumentSave(uri)
+        } catch (error) {
+            logging.error(`Error handling save for document: ${error}`)
+        }
+    })
+
     return async () => {
         await McpManager.instance.close()
     }
