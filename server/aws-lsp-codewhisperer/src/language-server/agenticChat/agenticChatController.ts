@@ -1019,7 +1019,7 @@ export class AgenticChatController implements ChatHandlers {
                     case 'codeSearch':
                         // no need to write tool message for code search.
                         break
-                    // — DEFAULT ⇒ MCP tools
+                    // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
                         const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)

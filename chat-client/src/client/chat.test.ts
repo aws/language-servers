@@ -336,6 +336,81 @@ describe('Chat', () => {
             // @ts-expect-error: accessing prototype method
             assert.notCalled(TabFactory.prototype.enableExport)
         }).timeout(20000)
+
+        it('enables MCP when params.mcpServers is true and config.agenticMode is true', () => {
+            // Create a new instance with agenticMode enabled
+            const enableMcpStub = sandbox.stub(TabFactory.prototype, 'enableMcp')
+            const localClientApi = { postMessage: sandbox.stub() }
+
+            const localMynahUi = createChat(localClientApi, { agenticMode: true })
+
+            const chatOptionsRequest = createInboundEvent({
+                command: CHAT_OPTIONS,
+                params: {
+                    mcpServers: true,
+                    chatNotifications: [],
+                },
+            })
+            window.dispatchEvent(chatOptionsRequest)
+
+            assert.calledOnce(enableMcpStub)
+        })
+
+        it('does not enable MCP when params.mcpServers is true but config.agenticMode is false', () => {
+            // Create a new instance with agenticMode disabled
+            const enableMcpStub = sandbox.stub(TabFactory.prototype, 'enableMcp')
+            const localClientApi = { postMessage: sandbox.stub() }
+
+            const localMynahUi = createChat(localClientApi, { agenticMode: false })
+
+            const chatOptionsRequest = createInboundEvent({
+                command: CHAT_OPTIONS,
+                params: {
+                    mcpServers: true,
+                    chatNotifications: [],
+                },
+            })
+            window.dispatchEvent(chatOptionsRequest)
+
+            assert.notCalled(enableMcpStub)
+        })
+
+        it('does not enable MCP when params.mcpServers is false and config.agenticMode is true', () => {
+            // Create a new instance with agenticMode enabled
+            const enableMcpStub = sandbox.stub(TabFactory.prototype, 'enableMcp')
+            const localClientApi = { postMessage: sandbox.stub() }
+
+            const localMynahUi = createChat(localClientApi, { agenticMode: true })
+
+            const chatOptionsRequest = createInboundEvent({
+                command: CHAT_OPTIONS,
+                params: {
+                    mcpServers: false,
+                    chatNotifications: [],
+                },
+            })
+            window.dispatchEvent(chatOptionsRequest)
+
+            assert.notCalled(enableMcpStub)
+        })
+
+        it('does not enable MCP when params.mcpServers is undefined and config.agenticMode is true', () => {
+            // Create a new instance with agenticMode enabled
+            const enableMcpStub = sandbox.stub(TabFactory.prototype, 'enableMcp')
+            const localClientApi = { postMessage: sandbox.stub() }
+
+            const localMynahUi = createChat(localClientApi, { agenticMode: true })
+
+            const chatOptionsRequest = createInboundEvent({
+                command: CHAT_OPTIONS,
+                params: {
+                    chatNotifications: [],
+                },
+            })
+            window.dispatchEvent(chatOptionsRequest)
+
+            assert.notCalled(enableMcpStub)
+        })
     })
 
     describe('onGetSerializedChat', () => {
