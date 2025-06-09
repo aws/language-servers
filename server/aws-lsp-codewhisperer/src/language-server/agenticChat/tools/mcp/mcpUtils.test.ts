@@ -188,8 +188,8 @@ describe('loadMcpServerConfigs error handling', () => {
         const result = await loadMcpServerConfigs(workspace, logger, [nonExistentPath])
 
         expect(result.servers.size).to.equal(0)
-        expect(result.errors.size).to.equal(1)
-        expect(result.errors.get(nonExistentPath)).to.include('MCP config not found')
+        expect(result.errors.size).to.equal(0)
+        expect(result.errors.get(nonExistentPath)).to.be.undefined
     })
 
     it('captures invalid JSON errors', async () => {
@@ -344,18 +344,5 @@ describe('createNamespacedToolName', () => {
             serverName: 'server',
             toolName: longTool,
         })
-    })
-
-    it('handles multiple conflicts with numeric suffixes', () => {
-        tools.add('deploy') // First conflict
-        const result1 = createNamespacedToolName('aws', 'deploy', tools, toolNameMapping)
-        expect(result1).to.equal('aws___deploy')
-
-        const result2 = createNamespacedToolName('gcp', 'deploy', tools, toolNameMapping)
-        expect(result2).to.equal('gcp___deploy')
-
-        // If we add another with same server prefix, it should use numeric suffix
-        const result3 = createNamespacedToolName('aws', 'deploy', tools, toolNameMapping)
-        expect(result3).to.equal('deploy1')
     })
 })

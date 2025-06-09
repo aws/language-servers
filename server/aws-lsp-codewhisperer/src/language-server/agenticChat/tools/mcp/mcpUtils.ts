@@ -86,11 +86,13 @@ export async function loadMcpServerConfigs(
             if (!entry || typeof (entry as any).command !== 'string') {
                 const errorMsg = `MCP server '${name}' in ${fsPath} missing required 'command', skipping.`
                 logging.warn(errorMsg)
+                configErrors.set(`${name}`, errorMsg)
                 continue
             }
             if ((entry as any).timeout !== undefined && typeof (entry as any).timeout !== 'number') {
                 const errorMsg = `Invalid timeout value on '${name}', ignoring.`
                 logging.warn(errorMsg)
+                configErrors.set(`${name}_timeout`, errorMsg)
             }
             const cfg: MCPServerConfig = {
                 command: (entry as any).command,
@@ -360,8 +362,14 @@ export function createNamespacedToolName(
     // If we get here, either:
     // 1. The tool name was already taken
     // 2. The full name was already taken
-    // 3. Server truncation result a duplicate
+    // 3. Server truncation resulted in a duplicate
     // In all cases, fall back to numeric suffix on the tool name
+
+    // Check if the tool name is already in use with a server prefix
+    // If so, we need to use a numeric suffix instead of server prefix
+    const isToolNameWithServerPrefixInUse = Array.from(allNamespacedTools).some(
+        name => name.includes('___') && name.split('___')[1] === toolName
+    )
 
     let duplicateNum = 1
     while (true) {
