@@ -147,14 +147,18 @@ describe('loadPersonaPermissions', () => {
 describe('persona path helpers', () => {
     it('getWorkspacePersonaConfigPaths()', () => {
         const uris = ['uri1', 'uri2']
-        expect(getWorkspacePersonaConfigPaths(uris)).to.deep.equal([
-            'uri1/.amazonq/personas/default.json',
-            'uri2/.amazonq/personas/default.json',
-        ])
+        const expected = [
+            path.join('uri1', '.amazonq', 'personas', 'default.json'),
+            path.join('uri2', '.amazonq', 'personas', 'default.json'),
+        ]
+        expect(getWorkspacePersonaConfigPaths(uris)).to.deep.equal(expected)
     })
 
     it('getGlobalPersonaConfigPath()', () => {
-        expect(getGlobalPersonaConfigPath('/home/me')).to.equal('/home/me/.aws/amazonq/personas/default.json')
+        // Use a platform-neutral path for testing
+        const homePath = path.resolve('home_dir')
+        const expected = path.join(homePath, '.aws', 'amazonq', 'personas', 'default.json')
+        expect(getGlobalPersonaConfigPath(homePath)).to.equal(expected)
     })
 })
 
