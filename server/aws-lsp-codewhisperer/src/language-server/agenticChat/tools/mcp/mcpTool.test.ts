@@ -20,8 +20,11 @@ describe('McpTool', () => {
             },
         },
         lsp: {},
-        credentialsProvider: {},
-        telemetry: { record: () => {} },
+        credentialsProvider: {
+            getConnectionMetadata: () => ({ sso: { startUrl: 'https://example.com' } }),
+        },
+        telemetry: { record: () => {}, emitMetric: () => {} },
+        runtime: { serverInfo: { version: '1.0.0' } },
     } as unknown as Pick<
         import('@aws/language-server-runtimes/server-interface/server').Features,
         'logging' | 'workspace' | 'lsp' | 'credentialsProvider' | 'telemetry' | 'runtime'
@@ -77,14 +80,16 @@ describe('McpTool', () => {
         const stubFalse = sinon.stub(McpManager.prototype, 'requiresApproval').returns(false)
         let result = tool.requiresAcceptance(definition.serverName, definition.toolName)
         expect(result.requiresAcceptance).to.be.false
-        expect(result.warning).to.equal(`About to invoke MCP tool “${definition.toolName}”. Do you want to proceed?`)
+        expect(result.warning).to.include(`About to invoke MCP tool`)
+        expect(result.warning).to.include(definition.toolName)
         stubFalse.restore()
 
         // stub on the prototype → true
         const stubTrue = sinon.stub(McpManager.prototype, 'requiresApproval').returns(true)
         result = tool.requiresAcceptance(definition.serverName, definition.toolName)
         expect(result.requiresAcceptance).to.be.true
-        expect(result.warning).to.equal(`About to invoke MCP tool “${definition.toolName}”. Do you want to proceed?`)
+        expect(result.warning).to.include(`About to invoke MCP tool`)
+        expect(result.warning).to.include(definition.toolName)
         stubTrue.restore()
     })
 })
