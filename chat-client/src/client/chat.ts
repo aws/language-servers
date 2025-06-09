@@ -390,6 +390,10 @@ export const createChat = (
         promptInputOptionChange: (params: PromptInputOptionChangeParams) => {
             sendMessageToClient({ command: PROMPT_INPUT_OPTION_CHANGE_METHOD, params })
         },
+        promptInputButtonClick: params => {
+            // TODO
+            sendMessageToClient({ command: BUTTON_CLICK_REQUEST_METHOD, params })
+        },
         stopChatResponse: (tabId: string) => {
             sendMessageToClient({ command: STOP_CHAT_RESPONSE, params: { tabId } })
         },
