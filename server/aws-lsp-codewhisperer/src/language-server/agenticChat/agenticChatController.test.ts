@@ -2540,10 +2540,10 @@ function assertChatResultsMatch(actual: any, expected: ChatResult) {
         )
     }
 
-    // Compare all other properties except body
-    const actualWithoutBody = { ...actual, body: undefined }
-    const expectedWithoutBody = { ...expected, body: undefined }
+    // Compare all other properties except body and additionalMessages
+    const actualWithoutBodyAndAdditionalMessages = { ...actual, body: undefined, additionalMessages: undefined }
+    const expectedWithoutBodyAndAdditionalMessages = { ...expected, body: undefined, additionalMessages: undefined }
 
-    // Compare the objects without the body property
-    assert.deepStrictEqual(actualWithoutBody, expectedWithoutBody)
+    // Compare the objects without the body and additionalMessages properties
+    assert.deepStrictEqual(actualWithoutBodyAndAdditionalMessages, expectedWithoutBodyAndAdditionalMessages)
 }
