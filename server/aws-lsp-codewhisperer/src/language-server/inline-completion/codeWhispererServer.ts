@@ -544,7 +544,7 @@ export const CodewhispererServerFactory =
                                 .slice(0, CONTEXT_CHARACTERS_LIMIT)
                                 .replaceAll('\r\n', '\n'),
                         },
-                    }, { enablePrefetch: editsEnabled })
+                    }, { enablePrefetch: false })
                         .then(async suggestionResponse => {
                             DebugLogger.getInstance().log(
                                 flareRequestId,

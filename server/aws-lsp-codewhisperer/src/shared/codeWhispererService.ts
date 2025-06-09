@@ -375,10 +375,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
         }
 
-        // TODO: make id more strict, possibly session id or check if previous suggestion is in the doc
-        // if () {
-        //     isColdStart = true
-        // }
         const t0 = performance.now()
 
         if (!isColdStart) {
