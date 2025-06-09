@@ -144,6 +144,25 @@ export class ArtifactManager {
         }
         this.logging.log('Total project references: ' + projects.length)
 
+        let packages: string[] = []
+        if (request.PackageReferences != null) {
+            for (const pkg of request.PackageReferences) {
+                if (!pkg.NetCompatiblePackageFilePath) {
+                    continue
+                }
+                try {
+                    const packageRelativePath = this.normalizePackageFileRelativePath(pkg.NetCompatiblePackageFilePath)
+                    packages.push(packageRelativePath)
+                    await this.copyFile(
+                        pkg.NetCompatiblePackageFilePath,
+                        this.getWorkspaceReferencePathFromRelativePath(packageRelativePath)
+                    )
+                } catch (error) {
+                    this.logging.log('Failed to process package file: ' + error + pkg.NetCompatiblePackageFilePath)
+                }
+            }
+        }
+
         return {
             EntryPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SelectedProjectPath),
             SolutionPath: this.normalizeSourceFileRelativePath(request.SolutionRootPath, request.SolutionFilePath),
@@ -152,6 +171,7 @@ export class ArtifactManager {
             ...(request.EnableRazorViewTransform !== undefined && {
                 EnableRazorViewTransform: request.EnableRazorViewTransform,
             }),
+            Packages: packages,
         } as RequirementJson
     }
 
@@ -238,6 +258,10 @@ export class ArtifactManager {
         return includedInArtifact
             ? path.join(referencesFolderName, relativePath).toLowerCase()
             : relativePath.toLowerCase()
+    }
+
+    normalizePackageFileRelativePath(packageFilePath: string): string {
+        return path.join(packagesFolderName, path.basename(packageFilePath)).toLowerCase()
     }
 
     zipDirectory(sourceDir: string, outPath: string) {
