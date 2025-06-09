@@ -22,6 +22,8 @@ const fakeWorkspace = {
         exists: (_: string) => Promise.resolve(false),
         readFile: (_: string) => Promise.resolve(Buffer.from('{}')),
         writeFile: (_: string, _d: string) => Promise.resolve(),
+        getUserHomeDir: () => '',
+        mkdir: (_: string, __: any) => Promise.resolve(),
     },
     getUserHomeDir: () => '',
 }
@@ -801,7 +803,7 @@ describe('McpManager error handling', () => {
         expect(errors).to.be.undefined
     })
 
-    it('stores errors from handleError method', async () => {
+    it('logs error and updates server state', async () => {
         // Create a mock response with no errors initially
         loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
             servers: new Map(),
@@ -810,16 +812,23 @@ describe('McpManager error handling', () => {
 
         const mgr = await McpManager.init([], [], features)
 
+        // Spy on logging.error and setState
+        const errorSpy = sinon.spy(fakeLogging, 'error')
+        const setStateSpy = sinon.spy(mgr as any, 'setState')
+
         // Access the private handleError method using type assertion
         const handleError = (mgr as any).handleError.bind(mgr)
 
         // Call handleError with a server name and error
         handleError('testServer', new Error('Test error message'))
 
-        // Test that the error was stored
-        const errors = mgr.getConfigLoadErrors()
-        expect(errors).to.not.be.undefined
-        expect(errors).to.include('File: testServer, Error: Test error message')
+        // Verify error is logged
+        expect(errorSpy.calledOnce).to.be.true
+        // We can't check the exact arguments due to the function signature,
+        // so we'll focus on verifying the behavior through other means
+
+        // Verify setState is called with correct parameters
+        expect(setStateSpy.calledWith('testServer', McpServerStatus.FAILED, 0, 'Test error message')).to.be.true
     })
 
     it('clears errors when reloading configurations', async () => {

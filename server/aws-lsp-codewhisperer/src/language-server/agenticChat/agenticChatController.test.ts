@@ -125,18 +125,7 @@ describe('AgenticChatController', () => {
         buttons: [],
         codeReference: [],
         header: undefined,
-        additionalMessages: [
-            {
-                body: '✅ Tool **mock-tool-name-1** completed with result: \n                ````{\n  "result": "tool execution result 1"\n}````',
-                messageId: 'mock-tool-use-id-1',
-                type: 'tool',
-            },
-            {
-                body: '✅ Tool **mock-tool-name-2** completed with result: \n                ````{\n  "result": "tool execution result 2"\n}````',
-                messageId: 'mock-tool-use-id-2',
-                type: 'tool',
-            },
-        ],
+        additionalMessages: [],
     }
 
     const expectedCompleteInlineChatResult: InlineChatResult = {
@@ -2541,15 +2530,20 @@ ${' '.repeat(8)}}
 // The body may include text-based progress updates from tool invocations.
 // We want to ignore these in the tests.
 function assertChatResultsMatch(actual: any, expected: ChatResult) {
-    // TODO: tool messages completely re-order the response.
-    return
+    // Check if both actual and expected have body properties
+    if (actual?.body && expected?.body) {
+        // For chat results with tool messages, the body might contain additional text
+        // but should still end with the expected body text
+        assert.ok(
+            actual.body.endsWith(expected.body),
+            `Body should end with "${expected.body}"\nActual: "${actual.body}"`
+        )
+    }
 
-    // if (actual?.body && expected?.body) {
-    //     assert.ok(
-    //         actual.body.endsWith(expected.body),
-    //         `Body should end with "${expected.body}"\nActual: "${actual.body}"`
-    //     )
-    // }
+    // Compare all other properties except body
+    const actualWithoutBody = { ...actual, body: undefined }
+    const expectedWithoutBody = { ...expected, body: undefined }
 
-    // assert.deepStrictEqual({ ...actual, body: undefined }, { ...expected, body: undefined })
+    // Compare the objects without the body property
+    assert.deepStrictEqual(actualWithoutBody, expectedWithoutBody)
 }

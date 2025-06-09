@@ -33,8 +33,8 @@ describe('McpEventHandler error handling', () => {
                     exists: sinon.stub().resolves(false),
                     readFile: sinon.stub().resolves(Buffer.from('{}')),
                     writeFile: sinon.stub().resolves(undefined),
+                    getUserHomeDir: sinon.stub().returns('/fake/home'),
                 },
-                getUserHomeDir: sinon.stub().returns('/fake/home'),
                 getAllWorkspaceFolders: sinon.stub().returns([{ uri: '/fake/workspace' }]),
             },
             chat: {
@@ -44,6 +44,18 @@ describe('McpEventHandler error handling', () => {
                 getTools: sinon.stub().returns([]),
             },
             lsp: {},
+            telemetry: {
+                emitMetric: sinon.spy(),
+                onClientTelemetry: sinon.stub(),
+            },
+            credentialsProvider: {
+                getConnectionMetadata: sinon.stub().returns({}),
+            },
+            runtime: {
+                serverInfo: {
+                    version: '1.0.0',
+                },
+            },
         }
 
         // Create mock telemetry service
