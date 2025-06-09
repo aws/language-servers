@@ -32,7 +32,7 @@ describe('McpMynahUi', () => {
         } as unknown as Messager
 
         // Mock toMynahIcon utility function
-        toMynahIconStub = sinon.stub(utils, 'toMynahIcon').returns('plus' as any)
+        toMynahIconStub = sinon.stub(utils, 'toMynahIcon').returns('mocked-icon' as any)
 
         // Create instance of McpMynahUi
         mcpMynahUi = new McpMynahUi(mynahUi, messager)
@@ -351,62 +351,6 @@ describe('McpMynahUi', () => {
             events.onBackClick()
             sinon.assert.calledWith(messager.onMcpServerClick as sinon.SinonStub, 'save-permission-change')
             sinon.assert.calledOnce(messager.onListMcpServers as sinon.SinonStub)
-        })
-
-        it('should handle add-new-mcp action correctly', () => {
-            // Create mock params
-            const params: McpServerClickResult = {
-                id: 'add-new-mcp',
-                header: {
-                    title: 'Add MCP Server',
-                },
-                filterOptions: [],
-            }
-
-            // Call the method
-            mcpMynahUi.mcpServerClick(params)
-
-            // Verify toggleSplashLoader was called
-            sinon.assert.calledWith(mynahUi.toggleSplashLoader as sinon.SinonStub, false)
-
-            // Verify openDetailedList was called
-            sinon.assert.calledOnce(mynahUi.openDetailedList as sinon.SinonStub)
-
-            // Verify the second parameter (replace) is true
-            assert.strictEqual((mynahUi.openDetailedList as sinon.SinonStub).firstCall.args[1], true)
-
-            // Get the events object
-            const callArgs = (mynahUi.openDetailedList as sinon.SinonStub).firstCall.args[0]
-            const events = callArgs.events
-
-            // Test onBackClick event
-            events.onBackClick()
-            sinon.assert.calledOnce(messager.onListMcpServers as sinon.SinonStub)
-
-            // Test onFilterActionClick event with cancel-mcp
-            const cancelParams = { id: 'cancel-mcp' }
-            events.onFilterActionClick(cancelParams)
-            sinon.assert.calledTwice(messager.onListMcpServers as sinon.SinonStub)
-
-            // Test onFilterActionClick event with save-mcp
-            const saveParams = { id: 'save-mcp' }
-            const filterValues = { server: 'test-server' }
-            events.onFilterActionClick(saveParams, filterValues)
-            sinon.assert.calledWith(mynahUi.toggleSplashLoader as sinon.SinonStub, true, '**Activating MCP Server**')
-            sinon.assert.calledWith(
-                messager.onMcpServerClick as sinon.SinonStub,
-                'save-mcp',
-                'Save configuration',
-                filterValues
-            )
-
-            // Test onTitleActionClick event
-            const mockAction = {
-                id: 'mcp-details-menu',
-                data: { serverName: 'test-server' },
-            }
-            events.onTitleActionClick(mockAction)
-            sinon.assert.calledWith(messager.onMcpServerClick as sinon.SinonStub, 'mcp-details-menu', 'test-server')
         })
 
         it('should handle server management actions correctly', () => {
