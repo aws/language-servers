@@ -21,8 +21,6 @@
     "scripts": {
         "compile": "tsc --build",
         "test": "ts-mocha -b \"./src/**/*.test.ts\"",
-        "test:coverage": "nyc ts-mocha -b \"./src/**/*.test.ts\"",
-        "coverage:report": "nyc report --reporter=html --reporter=text",
         "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
@@ -40,9 +38,5 @@
         "bracketSpacing": true,
         "arrowParens": "avoid",
         "endOfLine": "lf"
-    },
-    "devDependencies": {
-        "@istanbuljs/nyc-config-typescript": "^1.0.2",
-        "nyc": "^17.1.0"
     }
 }

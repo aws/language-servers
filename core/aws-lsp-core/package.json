@@ -22,32 +22,27 @@
         "compile": "tsc --build",
         "test": "npm run test-unit",
         "test-unit": "mocha --timeout 0 \"./out/**/*.test.js\"",
-        "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md .",
-        "test-unit:coverage": "npm run compile && nyc mocha --timeout 0 \"./out/**/*.test.js\"",
-        "test:coverage": "npm run test-unit:coverage",
-        "coverage:report": "nyc report --reporter=html --reporter=text"
+        "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
         "@gerhobbelt/gitignore-parser": "^0.2.0-9",
-        "cross-spawn": "7.0.6",
         "jose": "^5.2.4",
+        "cross-spawn": "7.0.6",
         "request-light": "^0.8.0",
         "vscode-languageserver-textdocument": "^1.0.8",
         "vscode-languageserver-types": "^3.17.3",
         "vscode-uri": "^3.1.0"
     },
     "devDependencies": {
-        "@istanbuljs/nyc-config-typescript": "^1.0.2",
         "@types/chai": "^4.3.5",
-        "@types/chai-as-promised": "^7.1.5",
         "@types/cross-spawn": "^6.0.2",
+        "@types/chai-as-promised": "^7.1.5",
         "@types/mocha": "^10.0.9",
         "@types/mock-fs": "^4.13.1",
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
         "mocha": "^11.0.1",
         "mock-fs": "^5.2.0",
-        "nyc": "^17.1.0",
         "sinon": "^19.0.2",
         "ts-sinon": "^2.0.2"
     }

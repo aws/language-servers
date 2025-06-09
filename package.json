@@ -29,9 +29,6 @@
         "test": "npm run compile && npm run test --workspaces --if-present",
         "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
         "test-unit": "npm run compile && npm run test-unit --workspaces --if-present",
-        "test:coverage": "npm run compile && npm run test:coverage --workspaces --if-present",
-        "coverage:report": "nyc report --reporter=html --reporter=text",
-        "coverage:check": "nyc check-coverage --lines 70 --functions 70 --branches 70 --statements 70",
         "package": "npm run compile && npm run package --workspaces --if-present"
     },
     "dependencies": {
@@ -42,7 +39,6 @@
     "devDependencies": {
         "@commitlint/cli": "^19.8.0",
         "@commitlint/config-conventional": "^19.8.0",
-        "@istanbuljs/nyc-config-typescript": "^1.0.2",
         "@types/diff-match-patch": "^1.0.36",
         "@types/node": "^22.9.0",
         "@typescript-eslint/eslint-plugin": "^8.32.1",
@@ -54,7 +50,6 @@
         "eslint-plugin-unused-imports": "^4.1.4",
         "husky": "^9.1.7",
         "node-loader": "^2.1.0",
-        "nyc": "^17.1.0",
         "prettier": "^3.3.3",
         "pretty-quick": "^4.0.0",
         "shx": "^0.3.4",
