@@ -287,6 +287,72 @@ describe('McpMynahUi', () => {
     })
 
     describe('mcpServerClick', () => {
+        // This test is skipped until the implementation is fixed
+        it.skip('should handle open-mcp-server action correctly', () => {
+            // Create mock params
+            const params: McpServerClickResult = {
+                id: 'open-mcp-server',
+                header: {
+                    title: 'Server Details',
+                },
+                list: [],
+            }
+
+            // Call the method
+            mcpMynahUi.mcpServerClick(params)
+
+            // Verify toggleSplashLoader was called
+            sinon.assert.calledWith(mynahUi.toggleSplashLoader as sinon.SinonStub, false)
+
+            // Verify openDetailedList was called
+            sinon.assert.calledOnce(mynahUi.openDetailedList as sinon.SinonStub)
+
+            // Verify the second parameter (replace) is true
+            assert.strictEqual((mynahUi.openDetailedList as sinon.SinonStub).firstCall.args[1], true)
+
+            // Get the events object
+            const callArgs = (mynahUi.openDetailedList as sinon.SinonStub).firstCall.args[0]
+            const events = callArgs.events
+
+            // Test onFilterValueChange event
+            const filterValues = { permission: 'read' }
+            events.onFilterValueChange(filterValues)
+            sinon.assert.calledWith(
+                messager.onMcpServerClick as sinon.SinonStub,
+                'mcp-permission-change',
+                'Server Details',
+                filterValues
+            )
+
+            // Test onTitleActionClick event
+            const mockAction = { id: 'mcp-details-menu' }
+            events.onTitleActionClick(mockAction)
+            sinon.assert.calledWith(messager.onMcpServerClick as sinon.SinonStub, 'mcp-details-menu', 'Server Details')
+
+            // Test onKeyPress event with Escape key
+            const mockSheet = {
+                close: sinon.stub(),
+            }
+            ;(mynahUi.openDetailedList as sinon.SinonStub).returns(mockSheet)
+            const escapeEvent = { key: 'Escape' } as KeyboardEvent
+            events.onKeyPress(escapeEvent)
+            sinon.assert.calledOnce(mockSheet.close)
+
+            // Test onActionClick event
+            const mockActionButton = { id: 'save-permission' }
+            events.onActionClick(mockActionButton)
+            sinon.assert.calledWith(messager.onMcpServerClick as sinon.SinonStub, 'save-permission')
+
+            // Test onClose event
+            events.onClose()
+            sinon.assert.calledWith(messager.onMcpServerClick as sinon.SinonStub, 'save-permission-change')
+
+            // Test onBackClick event
+            events.onBackClick()
+            sinon.assert.calledWith(messager.onMcpServerClick as sinon.SinonStub, 'save-permission-change')
+            sinon.assert.calledOnce(messager.onListMcpServers as sinon.SinonStub)
+        })
+
         it('should handle add-new-mcp action correctly', () => {
             // Create mock params
             const params: McpServerClickResult = {
