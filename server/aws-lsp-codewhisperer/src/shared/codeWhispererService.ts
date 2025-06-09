@@ -394,7 +394,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
 
             this.logging.info(
-                `[NEP] it takes ${performance.now() - t0}ms to get prefetched result\n${r.response.suggestions[0]?.content ?? 'no suggestion'}`
+                `[NEP] @generateSuggestionsAndPrefetch response received, returning:
+- latency: ${performance.now() - t0}
+- type: prefetch
+- suggestion: 
+${r.response.suggestions[0]?.content ?? 'no suggestion'}`
             )
             return r.response
         } else {
@@ -416,7 +420,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 }, this.prefetchConfig.duration)
             }
             this.logging.info(
-                `[NEP] it takes ${performance.now() - t0}ms to get cold start result\n${coldStartResponse.suggestions[0]?.content ?? 'no suggestion'}`
+                `[NEP] @generateSuggestionsAndPrefetch response received, returning:
+- latency: ${performance.now() - t0}
+- type: coldstart
+- suggestion: 
+${coldStartResponse.suggestions[0]?.content ?? 'no suggestion'}`
             )
             return coldStartResponse
         }
