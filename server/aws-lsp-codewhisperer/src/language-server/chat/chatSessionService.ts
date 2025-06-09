@@ -15,6 +15,8 @@ import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapError
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { getRequestID, isFreeTierLimitError } from '../../shared/utils'
+import { AmazonQFreeTierLimitError } from '../../shared/amazonQServiceManager/errors'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -161,9 +163,16 @@ export class ChatSessionService {
                     this.#logging.error(`Error in generateAssistantResponse: ${loggingUtils.formatErr(e)}`)
                 }
 
+                const requestId = getRequestID(e)
+                if (isFreeTierLimitError(e)) {
+                    throw new AgenticChatError(
+                        'Request aborted',
+                        'AmazonQFreeTierLimitError',
+                        e instanceof Error ? e : undefined,
+                        requestId
+                    )
+                }
                 if (isRequestAbortedError(e)) {
-                    const requestId =
-                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
                     throw new AgenticChatError(
                         'Request aborted',
                         'RequestAborted',
@@ -172,8 +181,6 @@ export class ChatSessionService {
                     )
                 }
                 if (isInputTooLongError(e)) {
-                    const requestId =
-                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
                     throw new AgenticChatError(
                         'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.',
                         'InputTooLong',

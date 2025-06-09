@@ -1,10 +1,11 @@
 // Base error class for Amazon Q
 export class AmazonQError extends Error {
     public code: string
-    constructor(message: string, code: string) {
+    constructor(message: string, code: string, cause?: unknown) {
         super(message)
         this.name = 'AmazonQError'
         this.code = code
+        this.cause = cause
     }
 }
 
@@ -82,5 +83,12 @@ export class AmazonQServiceConnectionExpiredError extends AmazonQError {
     constructor(message: string = 'Current authentication token is expired.') {
         super(message, 'E_AMAZON_Q_CONNECTION_EXPIRED')
         this.name = 'AmazonQServiceConnectionExpiredError'
+    }
+}
+
+export class AmazonQFreeTierLimitError extends AmazonQError {
+    constructor(cause?: unknown, message: string = 'Free tier limit reached.') {
+        super(message, 'E_AMAZON_Q_FREE_TIER_LIMIT', cause)
+        this.name = 'AmazonQFreeTierLimitError'
     }
 }

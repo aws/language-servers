@@ -66,6 +66,7 @@ describe('MynahUI', () => {
             tabBarAction: sinon.stub(),
             onGetSerializedChat: sinon.stub(),
             promptInputOptionChange: sinon.stub(),
+            promptInputButtonClick: sinon.stub(),
             stopChatResponse: sinon.stub(),
             sendButtonClickEvent: sinon.stub(),
             onOpenSettings: sinon.stub(),

@@ -61,6 +61,13 @@ import {
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 import { getModelSelectionChatItem } from './texts/modelSelection'
+import {
+    freeTierLimitSticky,
+    upgradeSuccessSticky,
+    upgradePendingSticky,
+    plansAndPricingTitle,
+    freeTierLimitDirective,
+} from './texts/paidTier'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -463,7 +470,13 @@ export const createMynahUi = (
                 messager.onCreatePrompt(action.formItemValues![ContextPrompt.PromptNameFieldId])
             }
         },
-        onFormTextualItemKeyPress: (event: KeyboardEvent, formData: Record<string, string>, itemId: string) => {
+        onFormTextualItemKeyPress: (
+            event: KeyboardEvent,
+            formData: Record<string, string>,
+            itemId: string,
+            _tabId: string,
+            _eventId?: string
+        ) => {
             if (itemId === ContextPrompt.PromptNameFieldId && event.key === 'Enter') {
                 event.preventDefault()
                 messager.onCreatePrompt(formData[ContextPrompt.PromptNameFieldId])
@@ -497,6 +510,14 @@ export const createMynahUi = (
                 handlePromptInputChange(mynahUi, tabId, optionsValues)
             }
             messager.onPromptInputOptionChange({ tabId, optionsValues })
+        },
+        onPromptInputButtonClick: (tabId, buttonId, eventId) => {
+            const payload: ButtonClickParams = {
+                tabId,
+                messageId: 'not-a-message',
+                buttonId: buttonId,
+            }
+            messager.onPromptInputButtonClick(payload)
         },
         onMessageDismiss: (tabId, messageId) => {
             if (messageId === programmerModeCard.messageId) {
@@ -846,7 +867,99 @@ export const createMynahUi = (
         })
     }
 
+    /**
+     * Adjusts the UI when the user changes to/from free-tier/paid-tier.
+     * Shows a message if the user reaches free-tier limit.
+     * Shows a message if the user just upgraded to paid-tier.
+     */
+    const onPaidTierModeChange = (tabId: string, mode: string | undefined) => {
+        if (!mode || !['freetier', 'freetier-limit', 'upgrade-pending', 'paidtier'].includes(mode)) {
+            return false // invalid mode
+        }
+
+        tabId = !!tabId ? tabId : getOrCreateTabId()!
+        const store = mynahUi.getTabData(tabId).getStore() || {}
+
+        // Detect if the tab is already showing the "Upgrade Q" UI.
+        const isFreeTierLimitUi = store.promptInputStickyCard?.messageId === freeTierLimitSticky.messageId
+        const isUpgradePendingUi = store.promptInputStickyCard?.messageId === upgradePendingSticky.messageId
+        const isPlansAndPricingTab = plansAndPricingTitle === store.tabTitle
+
+        if (mode === 'freetier-limit') {
+            mynahUi.updateStore(tabId, {
+                promptInputStickyCard: freeTierLimitSticky,
+            })
+
+            if (!isFreeTierLimitUi) {
+                // TODO: how to set a warning icon on the user's failed prompt?
+                //
+                // const chatItems = store.chatItems ?? []
+                // const lastPrompt = chatItems.filter(ci => ci.type === ChatItemType.PROMPT).at(-1)
+                // for (const c of chatItems) {
+                //     c.body = 'xxx / ' + c.type
+                //     c.icon = 'warning'
+                //     c.iconStatus = 'warning'
+                //     c.status = 'warning'
+                // }
+                //
+                // if (lastPrompt && lastPrompt.messageId) {
+                //     lastPrompt.icon = 'warning'
+                //     lastPrompt.iconStatus = 'warning'
+                //     lastPrompt.status = 'warning'
+                //
+                //     // Decorate the failed prompt with a warning icon.
+                //     // mynahUi.updateChatAnswerWithMessageId(tabId, lastPrompt.messageId, lastPrompt)
+                // }
+                //
+                // mynahUi.updateStore(tabId, {
+                //     chatItems: chatItems,
+                // })
+            } else {
+                // Show directive only on 2nd chat attempt, not the initial attempt.
+                mynahUi.addChatItem(tabId, freeTierLimitDirective)
+            }
+        } else if (mode === 'upgrade-pending') {
+            // Change the sticky banner to show a progress spinner.
+            const card: typeof freeTierLimitSticky = {
+                ...(isFreeTierLimitUi ? freeTierLimitSticky : upgradePendingSticky),
+                icon: 'progress',
+            }
+            mynahUi.updateStore(tabId, {
+                // Show a progress ribbon.
+                promptInputVisible: true,
+                promptInputStickyCard: isFreeTierLimitUi ? card : null,
+            })
+        } else if (mode === 'paidtier') {
+            mynahUi.updateStore(tabId, {
+                promptInputStickyCard: null,
+                promptInputVisible: !isPlansAndPricingTab,
+            })
+            if (isFreeTierLimitUi || isUpgradePendingUi || isPlansAndPricingTab) {
+                // Transitioning from 'upgrade-pending' to upgrade success.
+                const card: typeof upgradeSuccessSticky = {
+                    ...upgradeSuccessSticky,
+                    canBeDismissed: !isPlansAndPricingTab,
+                }
+                mynahUi.updateStore(tabId, {
+                    promptInputStickyCard: card,
+                })
+            }
+        }
+
+        mynahUi.updateStore(tabId, {
+            // promptInputButtons: mode === 'freetier-limit' ? [upgradeQButton] : [],
+            // promptInputDisabledState: mode === 'freetier-limit',
+        })
+
+        return true
+    }
+
     const updateChat = (params: ChatUpdateParams) => {
+        // HACK: Special field sent by `agenticChatController.ts:setPaidTierMode()`.
+        if (onPaidTierModeChange(params.tabId, (params as any).paidTierMode as string)) {
+            return
+        }
+
         const isChatLoading = params.state?.inProgress
         mynahUi.updateStore(params.tabId, {
             loadingChat: isChatLoading,
