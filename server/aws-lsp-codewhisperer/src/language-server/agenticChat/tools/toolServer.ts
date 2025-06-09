@@ -8,8 +8,8 @@ import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspRea
 import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
 import { McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
-import { FuzzySearch, FuzzySearchParams } from './fuzzySearch'
-import { GrepSearch, GrepSearchParams } from './grepSearch'
+import { FileSearch, FileSearchParams } from './fileSearch'
+import { GrepSearch } from './grepSearch'
 import { QCodeReview } from './qCodeReview'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 
@@ -61,7 +61,7 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
     const fsWriteTool = new FsWrite({ workspace, lsp, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
-    const fuzzySearchTool = new FuzzySearch({ workspace, lsp, logging })
+    const fileSearchTool = new FileSearch({ workspace, lsp, logging })
     const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
@@ -79,15 +79,16 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         return await listDirectoryTool.invoke(input, token)
     })
 
-    agent.addTool(fuzzySearchTool.getSpec(), async (input: FuzzySearchParams, token?: CancellationToken) => {
-        await fuzzySearchTool.validate(input)
-        return await fuzzySearchTool.invoke(input, token)
+    agent.addTool(fileSearchTool.getSpec(), async (input: FileSearchParams, token?: CancellationToken) => {
+        await fileSearchTool.validate(input)
+        return await fileSearchTool.invoke(input, token)
     })
 
-    agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
-        await grepSearchTool.validate(input)
-        return await grepSearchTool.invoke(input, token)
-    })
+    // Temporarily disable grep search
+    // agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
+    //     await grepSearchTool.validate(input)
+    //     return await grepSearchTool.invoke(input, token)
+    // })
 
     return () => {}
 }

@@ -12,7 +12,7 @@ import {
     ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import {
     ChatResult,
     LSPErrorCodes,
@@ -303,6 +303,18 @@ describe('AgenticChatController', () => {
         chatController.onTabAdd({ tabId: mockTabId })
 
         sinon.assert.calledWithExactly(activeTabSpy.set, mockTabId)
+    })
+
+    it('onTabAdd updates model ID in chat options and session', () => {
+        const modelId = 'test-model-id'
+        sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
+
+        chatController.onTabAdd({ tabId: mockTabId })
+
+        sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
+
+        const session = chatSessionManagementService.getSession(mockTabId).data
+        assert.strictEqual(session!.modelId, modelId)
     })
 
     it('onTabChange sets active tab id in telemetryController and emits metrics', () => {
@@ -1011,9 +1023,8 @@ describe('AgenticChatController', () => {
             )
 
             // These checks will fail if a response error is returned.
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.message, errorMsg)
-            assert.strictEqual(typedChatResult.data?.body, errorMsg)
+            const typedChatResult = chatResult as ChatResult
+            assert.strictEqual(typedChatResult.body, errorMsg)
         })
 
         it('truncate input to 500k character ', async function () {
@@ -2465,6 +2476,32 @@ ${' '.repeat(8)}}
                 // Verify onButtonClick was called
                 assert.ok(onButtonClickStub.called)
             })
+        })
+    })
+
+    describe('onPromptInputOptionChange', () => {
+        it('should set model ID from prompt input options', () => {
+            const mockTabId = 'tab-1'
+            const modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
+            const setModelIdStub = sinon.stub(ChatDatabase.prototype, 'setModelId')
+
+            // Create a session
+            chatController.onTabAdd({ tabId: mockTabId })
+
+            // Call onPromptInputOptionChange with model selection
+            chatController.onPromptInputOptionChange({
+                tabId: mockTabId,
+                optionsValues: { 'model-selection': modelId },
+            })
+
+            // Verify the session has the model ID set
+            const session = chatSessionManagementService.getSession(mockTabId).data
+            assert.strictEqual(session!.modelId, modelId)
+
+            // Verify the model ID was saved to the database
+            sinon.assert.called(setModelIdStub)
+
+            setModelIdStub.restore()
         })
     })
 })
