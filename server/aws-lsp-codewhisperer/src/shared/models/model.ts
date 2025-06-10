@@ -32,3 +32,8 @@ export interface CodeWhispererSupplementalContextItem {
     filePath: string
     score?: number
 }
+
+export enum SuggestionType {
+    EDIT = 'EDIT',
+    COMPLETION = 'COMPLETION',
+}

@@ -43,14 +43,9 @@ export interface ResponseContext {
     nextToken?: string
 }
 
-export enum SuggestionType {
-    EDIT = 'EDIT',
-    COMPLETION = 'COMPLETION',
-}
-
 export interface GenerateSuggestionsResponse {
     suggestions: Suggestion[]
-    suggestionType?: SuggestionType
+    suggestionType: SuggestionType
     responseContext: ResponseContext
 }
 
@@ -61,6 +56,7 @@ import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetecti
 import { Position } from 'vscode-languageserver-textdocument'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { logger } from './simpleLogger'
+import { SuggestionType } from './models/model'
 
 // Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
