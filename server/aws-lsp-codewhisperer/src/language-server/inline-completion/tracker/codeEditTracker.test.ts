@@ -6,14 +6,7 @@
 import { TextDocumentItem, InitializeParams, Logging } from '@aws/language-server-runtimes/server-interface'
 import * as sinon from 'sinon'
 import * as assert from 'assert'
-import {
-    RecentEditTracker,
-    RecentEditTrackerConfig,
-    RecentEditTrackerDefaultConfig,
-    DocumentSnapshot,
-    generateDiffContexts,
-    FileSnapshotContent,
-} from './codeEditTracker'
+import { RecentEditTracker, RecentEditTrackerConfig, RecentEditTrackerDefaultConfig } from './codeEditTracker'
 
 describe('RecentEditTracker', function () {
     let sandbox: sinon.SinonSandbox
