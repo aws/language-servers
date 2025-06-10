@@ -216,7 +216,7 @@ export class McpManager {
                 if (err.code === 'ENOENT') {
                     errorMessage = `Command '${cfg.command}' not found. Please ensure it's installed and available in your PATH.`
                 } else if (err.code === 'EINVAL') {
-                    errorMessage = `Invalid arguments'. Please check the command and arguments.`
+                    errorMessage = `Invalid arguments. Please check the command and arguments.`
                 } else if (err.code === -32000) {
                     errorMessage = `MCP protocol error. The server may not be properly configured.`
                 }
