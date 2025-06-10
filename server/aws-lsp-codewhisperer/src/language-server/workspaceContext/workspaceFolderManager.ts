@@ -226,6 +226,7 @@ export class WorkspaceFolderManager {
             )
         } catch (e: any) {
             this.logging.warn(`Error uploading file to S3: ${e.message}`)
+            return
         }
         return s3Url
     }
@@ -604,7 +605,7 @@ export class WorkspaceFolderManager {
 
                 if (!s3Url) {
                     this.logging.warn(
-                        `Failed to get S3 URL for file in workspaceFolder: ${fileMetadata.workspaceFolder.name}`
+                        `Failed to upload to S3 for file in workspaceFolder: ${fileMetadata.workspaceFolder.name}`
                     )
                     continue
                 }
