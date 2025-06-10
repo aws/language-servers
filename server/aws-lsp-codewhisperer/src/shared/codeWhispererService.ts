@@ -82,14 +82,14 @@ export abstract class CodeWhispererServiceBase {
 
     // Ensure the returned cached suggestion belong the correct session
     acceptedSession(sessionId: string) {
-        if (this.prefetchSuggestions.length) {
-            // TODO: not work as expected, comment out to unblock
-            // this.prefetchSuggestions = this.prefetchSuggestions.filter(s => s.id === sessionId)
-            // const afterLen = this.prefetchSuggestions.length
-            // if (afterLen > 0) {
-            //     console.error(`[NEP]: inconsistent prefetched suggestions with different session id lived in cache`)
-            // }
-        }
+        // if (this.prefetchSuggestions.length) {
+        // TODO: not work as expected, comment out to unblock
+        // this.prefetchSuggestions = this.prefetchSuggestions.filter(s => s.id === sessionId)
+        // const afterLen = this.prefetchSuggestions.length
+        // if (afterLen > 0) {
+        //     console.error(`[NEP]: inconsistent prefetched suggestions with different session id lived in cache`)
+        // }
+        // }
     }
 
     abortInflightRequests() {
@@ -354,8 +354,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         originalRequest: GenerateSuggestionsRequest
     ): Promise<GenerateSuggestionsResponse> {
         // If codewhispererService has prefetched result && id matches, return the cached prefetched result directly
-
-        // TODO: handle if textDocument/cursor/request position doesn't match prefetchSuggestions
         // e.g. if it's not a subsequent call, it must be a cold start
         let useCache =
             this.isPrefetchInProgress ||
