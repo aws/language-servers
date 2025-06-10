@@ -210,10 +210,19 @@ export class McpManager {
             })
 
             const connectPromise = client.connect(transport).catch(err => {
-                const invalidConfigErrorCodes = ['ENOENT', 'EINVAL', -32000]
-                const isConfigError = invalidConfigErrorCodes.includes(err.code)
+                let errorMessage = err.message
+
+                // Provide specific guidance for common command not found errors
+                if (err.code === 'ENOENT') {
+                    errorMessage = `Command '${cfg.command}' not found. Please ensure it's installed and available in your PATH.`
+                } else if (err.code === 'EINVAL') {
+                    errorMessage = `Invalid arguments'. Please check the command and arguments.`
+                } else if (err.code === -32000) {
+                    errorMessage = `MCP protocol error. The server may not be properly configured.`
+                }
+
                 throw new AgenticChatError(
-                    `MCP: server '${serverName}' failed to connect: ${isConfigError ? 'Invalid configuration' : err.message}`,
+                    `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
                     'MCPServerConnectionFailed'
                 )
             })
@@ -467,6 +476,9 @@ export class McpManager {
                 await this.initOneServer(serverName, newCfg)
             }
         } catch (err) {
+            this.features.logging.error(
+                `Failed to add MCP server '${serverName}': ${err instanceof Error ? err.message : String(err)}`
+            )
             this.handleError(serverName, err)
             return
         }
