@@ -1,10 +1,20 @@
-import { BearerCredentials, CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
+import {
+    AwsResponseError,
+    BearerCredentials,
+    CredentialsProvider,
+    Position,
+} from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
 import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING_BEARER_TOKEN_ERROR } from './constants'
-import { CodeWhispererStreamingServiceException } from '@aws/codewhisperer-streaming-client'
+import {
+    CodeWhispererStreamingServiceException,
+    ServiceQuotaExceededException,
+    ThrottlingException,
+    ThrottlingExceptionReason,
+} from '@aws/codewhisperer-streaming-client'
 import { ServiceException } from '@smithy/smithy-client'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
@@ -14,7 +24,87 @@ export function isAwsError(error: unknown): error is AWSError {
         return false
     }
 
+    // TODO: do SDK v3 errors have `.code` ?
     return error instanceof Error && hasCode(error) && hasTime(error)
+}
+
+export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
+    if (!e) {
+        return false
+    }
+
+    // Non-AWS HTTP throttling error:
+    // const statusCode = getHttpStatusCode(e)
+    // if (statusCode === 429 || e.message.includes('Too many requests')) {
+    //     return true
+    // }
+
+    if (e instanceof ThrottlingException || (isAwsError(e) && e.code === 'ThrottlingException')) {
+        return true
+    }
+
+    return false
+}
+
+/**
+ * Special case of throttling error: "free tier" limit reached.
+ *
+ * See `client/token/bearer-token-service.json`.
+ */
+export function isFreeTierLimitError(e: unknown): e is ThrottlingException {
+    if (!e) {
+        return false
+    }
+
+    if (hasCode(e) && (e.code === 'AmazonQFreeTierLimitError' || e.code === 'E_AMAZON_Q_FREE_TIER_LIMIT')) {
+        return true
+    }
+
+    if ((e as Error).name === 'AmazonQFreeTierLimitError') {
+        return true
+    }
+
+    if (!isAwsThrottlingError(e)) {
+        return false
+    }
+
+    if (e.reason == ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT) {
+        return true
+    }
+
+    return false
+}
+
+export function isQuotaExceededError(e: unknown): e is AWSError {
+    if (!e) {
+        return false
+    }
+
+    // From client/token/bearer-token-service.json
+    if (isFreeTierLimitError(e)) {
+        return true
+    }
+
+    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
+    // "Backend service will throw ServiceQuota if code generation iteration limit is reached".
+    if (e instanceof ServiceQuotaExceededException || (isAwsError(e) && e.code == 'ServiceQuotaExceededException')) {
+        return true
+    }
+
+    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
+    // "API Front-end will throw Throttling if conversation limit is reached.
+    // API Front-end monitors StartCodeGeneration for throttling"
+    if (
+        isAwsThrottlingError(e) &&
+        (e.message.includes('reached for this month') ||
+            e.message.includes('limit for this month') ||
+            e.message.includes('limit reached') ||
+            e.message.includes('limit for number of iterations'))
+    ) {
+        return true
+    }
+
+    return false
 }
 
 /**
@@ -84,6 +174,17 @@ export function getErrorMsg(err: Error | undefined, withCause: boolean = false):
     }
 
     return msg
+}
+
+/**
+ * Gets a useful, but not excessive, error message for logs and user messages.
+ */
+export function fmtError(e: any): string {
+    const code = getErrorId(e)
+    const requestId = getRequestID(e)
+    const msg = getErrorMsg(e as Error)
+
+    return `${code}: "${msg}", requestId: ${requestId}`
 }
 
 /**
@@ -213,6 +314,7 @@ export function parseJson(jsonString: string) {
     }
 }
 
+/** @deprecated Use `getErrorMsg()` instead. */
 export function getErrorMessage(error: any): string {
     if (error?.cause?.message) {
         return error?.cause?.message
@@ -225,6 +327,9 @@ export function getErrorMessage(error: any): string {
 export function getRequestID(error: any): string | undefined {
     if (hasCause(error) && error.cause.$metadata?.requestId) {
         return error.cause.$metadata.requestId
+    }
+    if (typeof error.requestId === 'string') {
+        return error.requestId
     }
     if (error instanceof CodeWhispererStreamingServiceException) {
         return error.$metadata.requestId
@@ -321,6 +426,8 @@ export function isStringOrNull(object: any): object is string | null {
 // Port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/c22efa03e73b241564c8051c35761eb8620edb83/packages/core/src/shared/errors.ts#L648
 export function getHttpStatusCode(err: unknown): number | undefined {
+    // RTS throws validation errors with a 400 status code to LSP, we convert them to 500 from the perspective of the user
+
     if (hasResponse(err) && err?.$response?.statusCode !== undefined) {
         return err?.$response?.statusCode
     }

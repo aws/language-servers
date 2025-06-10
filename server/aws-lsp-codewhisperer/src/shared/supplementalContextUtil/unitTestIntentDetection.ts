@@ -39,7 +39,8 @@ export class TestIntentDetector {
     // @VisibleForTesting
     isTestFile(filePath: string, fileContent: string, language: string): boolean {
         if (!testFileNameRegex[language]) {
-            throw new Error('lang not supported by utg completion')
+            // TODO: logging
+            return false
         }
 
         // Filename + file extension
