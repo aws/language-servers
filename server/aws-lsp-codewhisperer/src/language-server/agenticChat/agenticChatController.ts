@@ -87,7 +87,7 @@ import {
     getHttpStatusCode,
     getRequestID,
     getSsoConnectionType,
-    isFreeTierLimitError,
+    isUsageLimitError,
     isNullish,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
@@ -1404,7 +1404,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     isUserAction(err: unknown, token?: CancellationToken, session?: ChatSessionService): boolean {
         return (
-            !isFreeTierLimitError(err) &&
+            !isUsageLimitError(err) &&
             (CancellationError.isUserCancelled(err) ||
                 err instanceof ToolApprovalException ||
                 isRequestAbortedError(err) ||
@@ -2113,12 +2113,14 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.cwsprChatConversationId = conversationId
         await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed')
 
-        if (isFreeTierLimitError(err)) {
-            this.setPaidTierMode(tabId, 'freetier-limit')
+        if (isUsageLimitError(err)) {
+            if (this.#paidTierMode !== 'paidtier') {
+                this.setPaidTierMode(tabId, 'freetier-limit')
+            }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
-                body: `AmazonQFreeTierLimitError: Free tier limit reached. ${requestID ? `\n\nRequest ID: ${requestID}` : ''}`,
-                messageId: 'freetier-limit',
+                body: `AmazonQUsageLimitError: Monthly limit reached. ${requestID ? `\n\nRequest ID: ${requestID}` : ''}`,
+                messageId: 'monthly-usage-limit',
                 buttons: [],
             })
         }
@@ -2160,7 +2162,7 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        if (isFreeTierLimitError(err) || customerFacingErrorCodes.includes(err.code)) {
+        if (isUsageLimitError(err) || customerFacingErrorCodes.includes(err.code)) {
             this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             if (err.code === 'InputTooLong') {
                 // Clear the chat history in the database for this tab
@@ -2655,7 +2657,7 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
 
-        if (this.#paidTierMode === 'freetier-limit' && mode === 'freetier') {
+        if (mode === 'freetier' && this.#paidTierMode === 'freetier-limit') {
             // mode = 'freetier-limit' // Sticky while 'freetier'.
         } else if (mode === 'freetier-limit' && mode !== this.#paidTierMode) {
             this.showFreeTierLimitMsgOnClient(tabId)
