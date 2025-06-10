@@ -10,9 +10,8 @@ import {
     Disposable,
     TextDocument,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../../shared/models/model'
-import * as diff from 'diff'
-import { trimSupplementalContexts } from '../../../shared/supplementalContextUtil/supplementalContextUtil'
+import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
+import { generateDiffContexts } from '../diffUtils'
 
 /**
  * Configuration for the RecentEditTracker
@@ -65,117 +64,6 @@ export interface FileSnapshotContent {
     readonly content: string
     /** Timestamp when the snapshot was taken */
     readonly timestamp: number
-}
-
-/**
- * Generates a unified diff format between old and new file contents
- *
- * @param oldFilePath - Path to the old version of the file
- * @param newFilePath - Path to the new version of the file
- * @param oldContent - Content of the old version
- * @param newContent - Content of the new version
- * @param oldTimestamp - Timestamp of the old version
- * @param newTimestamp - Timestamp of the new version
- * @param contextSize - Number of context lines to include in the diff
- * @returns Unified diff string
- */
-function generateUnifiedDiffWithTimestamps(
-    oldFilePath: string,
-    newFilePath: string,
-    oldContent: string,
-    newContent: string,
-    oldTimestamp: number,
-    newTimestamp: number,
-    contextSize: number = 3
-): string {
-    const patchResult = diff.createTwoFilesPatch(
-        oldFilePath,
-        newFilePath,
-        oldContent,
-        newContent,
-        String(oldTimestamp),
-        String(newTimestamp),
-        { context: contextSize }
-    )
-
-    // Remove unused headers
-    const lines = patchResult.split('\n')
-    if (lines.length >= 2 && lines[0].startsWith('Index:')) {
-        lines.splice(0, 2)
-        return lines.join('\n')
-    }
-
-    return patchResult
-}
-
-/**
- * Generates supplemental contexts from snapshot contents and current content
- *
- * @param filePath - Path to the file
- * @param currentContent - Current content of the file
- * @param snapshotContents - List of snapshot contents sorted by timestamp (oldest first)
- * @param maxContexts - Maximum number of supplemental contexts to return
- * @returns CodeWhispererSupplementalContext object containing diffs between snapshots and current content
- */
-export function generateDiffContexts(
-    filePath: string,
-    currentContent: string,
-    snapshotContents: FileSnapshotContent[],
-    maxContexts: number
-): CodeWhispererSupplementalContext {
-    if (snapshotContents.length === 0) {
-        return {
-            isUtg: false,
-            isProcessTimeout: false,
-            supplementalContextItems: [],
-            contentsLength: 0,
-            latency: 0,
-            strategy: 'recentEdits',
-        }
-    }
-
-    const startTime = Date.now()
-    const supplementalContextItems: CodeWhispererSupplementalContextItem[] = []
-    const currentTimestamp = Date.now()
-
-    // Process snapshots from newest to oldest
-    for (let i = snapshotContents.length - 1; i >= 0; i--) {
-        const snapshot = snapshotContents[i]
-        try {
-            const unifiedDiff = generateUnifiedDiffWithTimestamps(
-                snapshot.filePath,
-                filePath,
-                snapshot.content,
-                currentContent,
-                snapshot.timestamp,
-                currentTimestamp
-            )
-
-            // Only add non-empty diffs
-            if (unifiedDiff.trim().length > 0) {
-                supplementalContextItems.push({
-                    filePath: snapshot.filePath,
-                    content: unifiedDiff,
-                    score: 1.0, // Default score for recent edits
-                })
-            }
-        } catch (err) {
-            console.error(`Failed to generate diff: ${err}`)
-        }
-    }
-
-    const trimmedContextItems = trimSupplementalContexts(supplementalContextItems, maxContexts)
-    const contentsLength = trimmedContextItems.reduce((sum, ctx) => sum + ctx.content.length, 0)
-    const latency = Date.now() - startTime
-
-    return {
-        isUtg: false,
-        isProcessTimeout: false,
-        supplementalContextItems: trimmedContextItems,
-        contentsLength,
-        latency,
-        strategy: 'recentEdits',
-    }
 }
 
 /**
