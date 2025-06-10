@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.12](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.11...lsp-partiql/v0.0.12) (2025-06-10)
+
+
+### Features
+
+* adding mcp servers feature to the language-server ([#1544](https://github.com/aws/language-servers/issues/1544)) ([f37bf5f](https://github.com/aws/language-servers/commit/f37bf5f91921d7611c124de6d54dd6ec653038c6))
+
 ## [0.0.11](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.10...lsp-partiql/v0.0.11) (2025-05-30)
 
 

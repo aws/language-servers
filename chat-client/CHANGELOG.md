@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.14](https://github.com/aws/language-servers/compare/chat-client/v0.1.13...chat-client/v0.1.14) (2025-06-10)
+
+
+### Features
+
+* adding mcp servers feature to the language-server ([#1544](https://github.com/aws/language-servers/issues/1544)) ([f37bf5f](https://github.com/aws/language-servers/commit/f37bf5f91921d7611c124de6d54dd6ec653038c6))
+* **q:** builderid "paid tier" [#1197](https://github.com/aws/language-servers/issues/1197) ([d25bcb6](https://github.com/aws/language-servers/commit/d25bcb696572dd52938253bd15d838b1a0f57d68))
+* remove auto model selection option ([#1548](https://github.com/aws/language-servers/issues/1548)) ([71fc801](https://github.com/aws/language-servers/commit/71fc80165a7e987ca4d103f40aa93980bcd015da))
+
+
+### Bug Fixes
+
+* prevent muting messages with completed status ([#1557](https://github.com/aws/language-servers/issues/1557)) ([527a373](https://github.com/aws/language-servers/commit/527a373cc0b7c2c253d700af002d4e6bc7fdb887))
+
 ## [0.1.13](https://github.com/aws/language-servers/compare/chat-client/v0.1.12...chat-client/v0.1.13) (2025-06-02)
 
 
