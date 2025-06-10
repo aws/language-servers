@@ -23,8 +23,7 @@ export const modelSelection: ChatItemFormItem = {
     type: 'select',
     id: 'model-selection',
     options: modelOptions,
-    mandatory: true,
-    hideMandatoryIcon: true,
+    placeholder: 'Auto',
     border: false,
     autoWidth: true,
 }
@@ -33,5 +32,5 @@ export const getModelSelectionChatItem = (modelId: string): ChatItem => ({
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
     fullWidth: true,
-    body: `Switched model to ${modelRecord[modelId as BedrockModel].label}`,
+    body: `Switched model to ${modelId === '' ? 'Auto' : modelRecord[modelId as BedrockModel].label}`,
 })

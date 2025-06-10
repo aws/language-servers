@@ -6,6 +6,7 @@
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { ChatDatabase, ToolResultValidationError } from './chatDb'
+import { ChatMessage } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
 import { Message } from './util'

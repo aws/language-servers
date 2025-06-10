@@ -19,7 +19,7 @@ import {
     ToolUse,
     UserInputMessage,
     AssistantResponseMessage,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { ChatItemType } from '@aws/mynah-ui'
 import { PriorityQueue } from 'typescript-collections'
