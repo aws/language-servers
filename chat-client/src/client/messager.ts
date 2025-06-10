@@ -34,6 +34,8 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsParams,
+    ListMcpServersParams,
+    McpServerClickParams,
     OpenTabResult,
     PromptInputOptionChangeParams,
     QuickActionParams,
@@ -89,6 +91,8 @@ export interface OutboundChatApi {
     fileClick(params: FileClickParams): void
     listConversations(params: ListConversationsParams): void
     conversationClick(params: ConversationClickParams): void
+    mcpServerClick(params: McpServerClickParams): void
+    listMcpServers(params: ListMcpServersParams): void
     tabBarAction(params: TabBarActionParams): void
     onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
     promptInputOptionChange(params: PromptInputOptionChangeParams): void
@@ -216,6 +220,14 @@ export class Messager {
 
     onConversationClick = (conversationId: string, action?: ConversationAction): void => {
         this.chatApi.conversationClick({ id: conversationId, action })
+    }
+
+    onListMcpServers = (filter?: Record<string, FilterValue>): void => {
+        this.chatApi.listMcpServers({ filter })
+    }
+
+    onMcpServerClick = (id: string, title?: string, options?: Record<string, string>): void => {
+        this.chatApi.mcpServerClick({ id: id, title: title, optionsValues: options })
     }
 
     onTabBarAction = (params: TabBarActionParams): void => {

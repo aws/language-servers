@@ -44,6 +44,9 @@ import {
     InlineChatParams,
     ConversationClickParams,
     ListConversationsParams,
+    ListMcpServersParams,
+    McpServerClickParams,
+    McpServerClickResult,
     TabBarActionParams,
     CreatePromptParams,
     FileClickParams,
@@ -133,10 +136,14 @@ import {
     responseTimeoutPartialMsg,
     defaultModelId,
 } from './constants'
-import { URI } from 'vscode-uri'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
+import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
+import { McpEventHandler } from './tools/mcp/mcpEventHandler'
+import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
+import { McpManager } from './tools/mcp/mcpManager'
+import { McpTool } from './tools/mcp/mcpTool'
 import {
     freeTierLimitUserMsg,
     onPaidTierLearnMore,
@@ -153,6 +160,8 @@ type ChatHandlers = Omit<
     | 'sendContextCommands'
     | 'onListConversations'
     | 'onConversationClick'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
     | 'onTabBarAction'
     | 'getSerializedChat'
     | 'chatOptionsUpdate'
@@ -176,6 +185,7 @@ export class AgenticChatController implements ChatHandlers {
     #userWrittenCodeTracker: UserWrittenCodeTracker | undefined
     #toolUseStartTimes: Record<string, number> = {}
     #toolUseLatencies: Array<{ toolName: string; toolUseId: string; latency: number }> = []
+    #mcpEventHandler: McpEventHandler
     #paidTierMode: PaidTierMode | undefined
 
     /**
@@ -211,6 +221,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.workspace,
             this.#features.lsp
         )
+        this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -232,6 +243,7 @@ export class AgenticChatController implements ChatHandlers {
         if (
             params.buttonId === 'run-shell-command' ||
             params.buttonId === 'reject-shell-command' ||
+            params.buttonId === 'reject-mcp-tool' ||
             params.buttonId === 'allow-tools'
         ) {
             if (!session.data) {
@@ -250,7 +262,7 @@ export class AgenticChatController implements ChatHandlers {
                     failureReason: `could not find deferred tool execution for message: ${messageId} `,
                 }
             }
-            params.buttonId === 'reject-shell-command'
+            params.buttonId === 'reject-shell-command' || params.buttonId === 'reject-mcp-tool'
                 ? (() => {
                       handler.reject(new ToolApprovalException('Command was rejected.', true))
                       this.#stoppedToolUses.add(messageId)
@@ -405,6 +417,14 @@ export class AgenticChatController implements ChatHandlers {
 
     async onConversationClick(params: ConversationClickParams) {
         return this.#tabBarController.onConversationClick(params)
+    }
+
+    async onListMcpServers(params: ListMcpServersParams) {
+        return this.#mcpEventHandler.onListMcpServers(params)
+    }
+
+    async onMcpServerClick(params: McpServerClickParams) {
+        return this.#mcpEventHandler.onMcpServerClick(params)
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {
@@ -990,6 +1010,11 @@ export class AgenticChatController implements ChatHandlers {
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
                         const tool = new Tool(this.#features)
 
+                        // For MCP tools, get the permission from McpManager
+                        // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
+                        // If permission is 'alwaysAllow', we don't need to ask for acceptance
+                        // const builtInPermission = permission !== 'alwaysAllow'
+
                         // Get the approved paths from the session
                         const approvedPaths = session.approvedPaths
 
@@ -998,6 +1023,9 @@ export class AgenticChatController implements ChatHandlers {
                             toolUse.input as any,
                             approvedPaths
                         )
+
+                        // Honor built-in permission if available, otherwise use tool's requiresAcceptance
+                        // const requiresAcceptance = builtInPermission || toolRequiresAcceptance
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -1034,13 +1062,51 @@ export class AgenticChatController implements ChatHandlers {
                     case 'codeSearch':
                         // no need to write tool message for code search.
                         break
+                    // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
-                        this.#features.logging.warn(`Recieved unrecognized tool: ${toolUse.name}`)
-                        await chatResultStream.writeResultBlock({
-                            type: 'tool',
-                            body: `${executeToolMessage(toolUse)}`,
-                            messageId: toolUse.toolUseId,
-                        })
+                        // Get original server and tool names from the mapping
+                        const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                        if (originalNames) {
+                            const { serverName, toolName } = originalNames
+                            const def = McpManager.instance
+                                .getAllTools()
+                                .find(d => d.serverName === serverName && d.toolName === toolName)
+                            if (def) {
+                                const mcpTool = new McpTool(this.#features, def)
+                                const { requiresAcceptance, warning } = await mcpTool.requiresAcceptance(
+                                    serverName,
+                                    toolName
+                                )
+                                if (requiresAcceptance) {
+                                    const confirmation = this.#processToolConfirmation(
+                                        toolUse,
+                                        requiresAcceptance,
+                                        warning,
+                                        undefined,
+                                        toolName // Pass the original tool name here
+                                    )
+                                    cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmation)
+                                    await this.waitForToolApproval(
+                                        toolUse,
+                                        chatResultStream,
+                                        cachedButtonBlockId,
+                                        session
+                                    )
+                                }
+
+                                // Store the blockId in the session for later use
+                                if (toolUse.toolUseId) {
+                                    // Use a type assertion to add the runningCardBlockId property
+                                    const toolUseWithBlockId = {
+                                        ...toolUse,
+                                        cachedButtonBlockId,
+                                    } as typeof toolUse & { cachedButtonBlockId: number }
+
+                                    session.toolUseLookup.set(toolUse.toolUseId, toolUseWithBlockId)
+                                }
+                                break
+                            }
+                        }
                         break
                 }
 
@@ -1119,13 +1185,9 @@ export class AgenticChatController implements ChatHandlers {
                         )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
+                    // — DEFAULT ⇒ MCP tools
                     default:
-                        this.#features.logging.warn(`Processing unrecognized tool: ${toolUse.name}`)
-                        await chatResultStream.writeResultBlock({
-                            type: 'tool',
-                            body: toolResultMessage(toolUse, result),
-                            messageId: toolUse.toolUseId,
-                        })
+                        await this.#handleMcpToolResult(toolUse, result, session, chatResultStream)
                         break
                 }
                 this.#updateUndoAllState(toolUse, session)
@@ -1157,26 +1219,24 @@ export class AgenticChatController implements ChatHandlers {
             } catch (err) {
                 await this.#showUndoAllIfRequired(chatResultStream, session)
                 if (this.isUserAction(err, token)) {
-                    if (toolUse.name === 'executeBash') {
-                        if (err instanceof ToolApprovalException) {
-                            if (cachedButtonBlockId) {
-                                await chatResultStream.overwriteResultBlock(
-                                    this.#getUpdateToolConfirmResult(toolUse, false),
-                                    cachedButtonBlockId
-                                )
-                                if (err.shouldShowMessage) {
-                                    await chatResultStream.writeResultBlock({
-                                        type: 'answer',
-                                        messageId: `reject-message-${toolUse.toolUseId}`,
-                                        body: err.message || 'Command was rejected.',
-                                    })
-                                }
-                            } else {
-                                this.#features.logging.warn('Failed to update tool block: no blockId is available.')
-                            }
+                    // Handle ToolApprovalException for any tool
+                    if (err instanceof ToolApprovalException && cachedButtonBlockId) {
+                        await chatResultStream.overwriteResultBlock(
+                            this.#getUpdateToolConfirmResult(toolUse, false),
+                            cachedButtonBlockId
+                        )
+                        if (err.shouldShowMessage) {
+                            await chatResultStream.writeResultBlock({
+                                type: 'answer',
+                                messageId: `reject-message-${toolUse.toolUseId}`,
+                                body: err.message || 'Command was rejected.',
+                            })
                         }
-                        throw err
+                    } else if (err instanceof ToolApprovalException) {
+                        this.#features.logging.warn('Failed to update tool block: no blockId is available.')
                     }
+
+                    // Handle CancellationError
                     if (err instanceof CancellationError) {
                         results.push({
                             toolUseId: toolUse.toolUseId,
@@ -1185,7 +1245,13 @@ export class AgenticChatController implements ChatHandlers {
                         })
                         continue
                     }
+
+                    // Rethrow error for executeBash or any named tool
+                    if (toolUse.name === 'executeBash' || toolUse.name) {
+                        throw err
+                    }
                 }
+
                 // display fs write failure status in the UX of that file card
                 if (toolUse.name === 'fsWrite' && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
@@ -1485,19 +1551,8 @@ export class AgenticChatController implements ChatHandlers {
 
         switch (toolName) {
             case 'fsWrite':
-                header = {
-                    body: undefined,
-                    status: {
-                        status: 'success',
-                        icon: 'ok',
-                        text: 'Allowed',
-                    },
-                }
-                break
-
             case 'fsRead':
             case 'listDirectory':
-                // Common handling for read operations
                 header = {
                     body: undefined,
                     status: {
@@ -1518,21 +1573,38 @@ export class AgenticChatController implements ChatHandlers {
                         text: isAccept ? 'Allowed' : 'Rejected',
                     },
                 }
-                body = isAccept ? `File search allowed: \`${searchPath}\`` : `File search rejected: \`${searchPath}\``
+                body = `File search ${isAccept ? 'allowed' : 'rejected'}: \`${searchPath}\``
                 break
 
             default:
-                // Generic handler for other tool types
-                header = {
-                    body: toolUse.name || 'Tool',
-                    status: {
-                        status: isAccept ? 'success' : 'error',
-                        icon: isAccept ? 'ok' : 'cancel',
-                        text: isAccept ? 'Allowed' : 'Rejected',
+                // Default tool (not MCP)
+                return {
+                    type: 'tool',
+                    messageId: toolUse.toolUseId!,
+                    summary: {
+                        content: {
+                            header: {
+                                icon: 'tools',
+                                body: `${toolUse.name}`,
+                                status: {
+                                    status: isAccept ? 'success' : 'error',
+                                    icon: isAccept ? 'ok' : 'cancel',
+                                    text: isAccept ? 'Completed' : 'Rejected',
+                                },
+                                fileList: undefined,
+                            },
+                        },
+                        collapsedContent: [
+                            {
+                                header: {
+                                    body: 'Parameters',
+                                    status: undefined,
+                                },
+                                body: `\`\`\`json\n${JSON.stringify(toolUse.input, null, 2)}\n\`\`\``,
+                            },
+                        ],
                     },
                 }
-                body = isAccept ? `Tool execution allowed: ${toolUse.name}` : `Tool execution rejected: ${toolUse.name}`
-                break
         }
 
         return {
@@ -1576,8 +1648,10 @@ export class AgenticChatController implements ChatHandlers {
         requiresAcceptance: Boolean,
         warning?: string,
         commandCategory?: CommandCategory,
-        toolType?: string
+        toolType?: string,
+        builtInPermission?: boolean
     ): ChatResult {
+        const toolName = toolType || toolUse.name
         let buttons: Button[] = []
         let header: {
             body: string
@@ -1592,17 +1666,15 @@ export class AgenticChatController implements ChatHandlers {
                 text?: string
             }
         }
-        let body: string
+        let body: string | undefined
 
-        switch (toolType || toolUse.name) {
-            case 'executeBash':
+        // Configure tool-specific UI elements
+        switch (toolName) {
+            case 'executeBash': {
+                const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 buttons = requiresAcceptance
                     ? [
-                          {
-                              id: 'run-shell-command',
-                              text: 'Run',
-                              icon: 'play',
-                          },
+                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
                           {
                               id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,
@@ -1611,21 +1683,25 @@ export class AgenticChatController implements ChatHandlers {
                           },
                       ]
                     : []
+
+                const statusIcon =
+                    commandCategory === CommandCategory.Destructive
+                        ? 'warning'
+                        : commandCategory === CommandCategory.Mutate
+                          ? 'info'
+                          : 'none'
+                const statusType =
+                    commandCategory === CommandCategory.Destructive
+                        ? 'warning'
+                        : commandCategory === CommandCategory.Mutate
+                          ? 'info'
+                          : undefined
+
                 header = {
                     status: requiresAcceptance
                         ? {
-                              icon:
-                                  commandCategory === CommandCategory.Destructive
-                                      ? 'warning'
-                                      : commandCategory === CommandCategory.Mutate
-                                        ? 'info'
-                                        : 'none',
-                              status:
-                                  commandCategory === CommandCategory.Destructive
-                                      ? 'warning'
-                                      : commandCategory === CommandCategory.Mutate
-                                        ? 'info'
-                                        : undefined,
+                              icon: statusIcon,
+                              status: statusType,
                               position: 'left',
                               description: this.#getCommandCategoryDescription(
                                   commandCategory ?? CommandCategory.ReadOnly
@@ -1635,64 +1711,108 @@ export class AgenticChatController implements ChatHandlers {
                     body: 'shell',
                     buttons,
                 }
-                const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 body = '```shell\n' + commandString
                 break
+            }
 
-            case 'fsWrite':
-                buttons = [
-                    {
-                        id: 'allow-tools', // Reusing the same ID for simplicity, could be changed to 'allow-write-tools'
-                        text: 'Allow',
-                        icon: 'ok',
-                        status: 'clear',
-                    },
-                ]
+            case 'fsWrite': {
+                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
+                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
                     iconForegroundStatus: 'warning',
-                    body: '#### Allow file modification outside of your workspace',
+                    body: builtInPermission
+                        ? '#### Allow file modification'
+                        : '#### Allow file modification outside of your workspace',
                     buttons,
                 }
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
-                body = `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
+                body = builtInPermission
+                    ? `I need permission to modify files.\n\`${writeFilePath}\``
+                    : `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
                 break
+            }
 
             case 'fsRead':
-            case 'listDirectory':
-            default:
-                buttons = [
-                    {
-                        id: 'allow-tools',
-                        text: 'Allow',
-                        icon: 'ok',
-                        status: 'clear',
-                    },
-                ]
+            case 'listDirectory': {
+                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'tools',
-                    body: '#### Allow read-only tools outside your workspace',
+                    body: builtInPermission
+                        ? '#### Allow read-only tools'
+                        : '#### Allow read-only tools outside your workspace',
                     buttons,
                 }
-                // ⚠️ Warning: This accesses files outside the workspace
-                if (toolUse.name === 'fsRead') {
+
+                if (toolName === 'fsRead') {
                     const paths = (toolUse.input as unknown as FsReadParams).paths
                     const formattedPaths: string[] = []
                     paths.forEach(element => formattedPaths.push(`\`${element}\``))
-                    body = `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
+                    body = builtInPermission
+                        ? `I need permission to read files.\n${formattedPaths.join('\n')}`
+                        : `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
                 } else {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
-                    body = `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
+                    body = builtInPermission
+                        ? `I need permission to list directories.\n\`${readFilePath}\``
+                        : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
                 }
                 break
+            }
+
+            default: {
+                // — DEFAULT ⇒ MCP tools
+                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                header = {
+                    icon: 'tools',
+                    iconForegroundStatus: 'warning',
+                    body: `#### ${toolName}`,
+                    buttons,
+                }
+                body = ' '
+                break
+            }
         }
 
-        return {
-            type: 'tool',
-            messageId: this.#getMessageIdForToolUse(toolType, toolUse),
-            header,
-            body: warning ? (toolType === 'executeBash' ? '' : '\n\n') + body : body,
+        // Determine if this is a built-in tool or MCP tool
+        const isStandardTool =
+            toolName !== undefined && ['executeBash', 'fsWrite', 'fsRead', 'listDirectory'].includes(toolName)
+
+        if (isStandardTool) {
+            return {
+                type: 'tool',
+                messageId: this.#getMessageIdForToolUse(toolType, toolUse),
+                header,
+                body: warning ? (toolName === 'executeBash' ? '' : '\n\n') + body : body,
+            }
+        } else {
+            return {
+                type: 'tool',
+                messageId: toolUse.toolUseId,
+                summary: {
+                    content: {
+                        header: {
+                            icon: 'tools',
+                            body: `${toolName}`,
+                            buttons: [
+                                { id: 'allow-tools', text: 'Run', icon: 'play', status: 'clear' },
+                                {
+                                    id: 'reject-mcp-tool',
+                                    text: 'Reject',
+                                    icon: 'cancel',
+                                    status: 'dimmed-clear' as Status,
+                                },
+                            ],
+                        },
+                    },
+                    collapsedContent: [
+                        {
+                            header: { body: 'Parameters' },
+                            body: `\`\`\`json\n${JSON.stringify(toolUse.input, null, 2)}\n\`\`\``,
+                        },
+                    ],
+                },
+            }
         }
     }
 
@@ -2312,6 +2432,10 @@ export class AgenticChatController implements ChatHandlers {
         }
         session.modelId = modelId
 
+        if (success && session) {
+            // Set the logging object on the session
+            session.setLogging(this.#features.logging)
+        }
         this.setPaidTierMode(params.tabId)
     }
 
@@ -2964,13 +3088,38 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getTools(session: ChatSessionService) {
-        const tools = this.#features.agent.getTools({ format: 'bedrock' })
-
-        // it's disabled so filter out the write tools
-        if (!session.pairProgrammingMode) {
-            return tools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
+        const allTools = this.#features.agent.getTools({ format: 'bedrock' })
+        if (!enabledMCP(this.#features.lsp.getClientInitializeParams())) {
+            if (!session.pairProgrammingMode) {
+                return allTools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
+            }
+            return allTools
         }
-        return tools
+
+        // Clear tool name mapping to avoid conflicts from previous registrations
+        McpManager.instance.clearToolNameMapping()
+
+        const tempMapping = new Map<string, { serverName: string; toolName: string }>()
+
+        // Read Only Tools = All Tools - Restricted Tools (MCP + Write Tools)
+        // TODO: mcp tool spec name will be server___tool.
+        // TODO: Will also need to handle rare edge cases of long server name + long tool name > 64 char
+        const allNamespacedTools = new Set<string>()
+        const mcpToolSpecNames = new Set(
+            McpManager.instance
+                .getAllTools()
+                .map(tool => createNamespacedToolName(tool.serverName, tool.toolName, allNamespacedTools, tempMapping))
+        )
+
+        McpManager.instance.setToolNameMapping(tempMapping)
+        const writeToolNames = new Set(['fsWrite', 'executeBash'])
+        const restrictedToolNames = new Set([...mcpToolSpecNames, ...writeToolNames])
+
+        const readOnlyTools = allTools.filter(tool => {
+            const toolName = tool.toolSpecification.name
+            return !restrictedToolNames.has(toolName)
+        })
+        return session.pairProgrammingMode ? allTools : readOnlyTools
     }
 
     async restorePreviousChats() {
@@ -2989,6 +3138,89 @@ export class AgenticChatController implements ChatHandlers {
             reject = (e: Error) => rej(e)
         })
         return { promise, resolve, reject }
+    }
+
+    /**
+     * Handles the result of an MCP tool execution
+     * @param toolUse The tool use object
+     * @param result The result from running the tool
+     * @param session The chat session
+     * @param chatResultStream The chat result stream for writing/updating blocks
+     */
+    async #handleMcpToolResult(
+        toolUse: ToolUse,
+        result: any,
+        session: ChatSessionService,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        // Early return if name or toolUseId is undefined
+        if (!toolUse.name || !toolUse.toolUseId) {
+            this.#log(`Cannot handle MCP tool result: missing name or toolUseId`)
+            return
+        }
+
+        // Get original server and tool names from the mapping
+        const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+        if (originalNames) {
+            const { serverName, toolName } = originalNames
+            const def = McpManager.instance
+                .getAllTools()
+                .find(d => d.serverName === serverName && d.toolName === toolName)
+            if (def) {
+                // Format the tool result and input as JSON strings
+                const toolInput = JSON.stringify(toolUse.input, null, 2)
+                const toolResultContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+
+                const toolResultCard: ChatMessage = {
+                    type: 'tool',
+                    messageId: toolUse.toolUseId,
+                    summary: {
+                        content: {
+                            header: {
+                                icon: 'tools',
+                                body: `${toolName}`,
+                                fileList: undefined,
+                            },
+                        },
+                        collapsedContent: [
+                            {
+                                header: {
+                                    body: 'Parameters',
+                                },
+                                body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                            },
+                            {
+                                header: {
+                                    body: 'Result',
+                                },
+                                body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
+                            },
+                        ],
+                    },
+                }
+
+                // Get the stored blockId for this tool use
+                const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+                const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+
+                if (cachedButtonBlockId !== undefined) {
+                    // Update the existing card with the results
+                    await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
+                } else {
+                    // Fallback to creating a new card
+                    this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
+                    await chatResultStream.writeResultBlock(toolResultCard)
+                }
+                return
+            }
+        }
+
+        // Fallback for tools not found in mapping
+        await chatResultStream.writeResultBlock({
+            type: 'tool',
+            messageId: toolUse.toolUseId,
+            body: toolResultMessage(toolUse, result),
+        })
     }
 
     #log(...messages: string[]) {

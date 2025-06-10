@@ -26,6 +26,8 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    ListMcpServersResult,
+    McpServerClickResult,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
     SourceLinkClickParams,
@@ -43,7 +45,8 @@ import {
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
-import { ExportTabBarButtonId, TabFactory } from './tabs/tabFactory'
+import { McpMynahUi } from './mcpMynahUi'
+import { ExportTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
@@ -76,6 +79,8 @@ export interface InboundChatApi {
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
     conversationClicked(params: ConversationClickResult): void
+    listMcpServers(params: ListMcpServersResult): void
+    mcpServerClick(params: McpServerClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
     createTabId(openTab?: boolean): string | undefined
 }
@@ -480,6 +485,11 @@ export const createMynahUi = (
             return false
         },
         onTabBarButtonClick: (tabId: string, buttonId: string) => {
+            if (buttonId === McpServerTabButtonId) {
+                messager.onListMcpServers()
+                return
+            }
+
             if (buttonId === ChatHistory.TabBarButtonId) {
                 messager.onListConversations(undefined, true)
                 return
@@ -645,7 +655,7 @@ export const createMynahUi = (
 
     // addChatResponse handler to support Agentic chat UX changes for handling responses streaming.
     const agenticAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
-        const { type, ...chatResultWithoutType } = chatResult
+        const { type, summary, ...chatResultWithoutTypeSummary } = chatResult
         let header = toMynahHeader(chatResult.header)
         const fileList = toMynahFileList(chatResult.fileList)
         const buttons = toMynahButtons(chatResult.buttons)
@@ -688,9 +698,9 @@ export const createMynahUi = (
                 loadingChat: true,
                 cancelButtonWhenLoading: true,
             })
-            const chatItem: ChatItem = {
-                ...chatResult,
-                summary: chatResult.summary as ChatItem['summary'],
+            const chatItem = {
+                ...chatResultWithoutTypeSummary,
+                body: chatResult.body,
                 type: ChatItemType.ANSWER_STREAM,
                 header: header,
                 buttons: buttons,
@@ -719,7 +729,7 @@ export const createMynahUi = (
             isValidAuthFollowUpType(followUpOptions[0].type)
         if (chatResult.body === '' && isValidAuthFollowUp) {
             mynahUi.addChatItem(tabId, {
-                ...(chatResultWithoutType as ChatItem),
+                ...chatResultWithoutTypeSummary,
                 header: header,
                 buttons: buttons,
                 type: ChatItemType.SYSTEM_PROMPT,
@@ -737,8 +747,9 @@ export const createMynahUi = (
               }
             : {}
 
-        const chatItem: ChatItem = {
-            ...(chatResult as ChatItem),
+        const chatItem = {
+            ...chatResultWithoutTypeSummary,
+            body: chatResult.body,
             type: ChatItemType.ANSWER_STREAM,
             header: header,
             buttons: buttons,
@@ -770,7 +781,7 @@ export const createMynahUi = (
 
     // addChatResponse handler to support extensions that haven't migrated to agentic chat yet
     const legacyAddChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
-        const { type, ...chatResultWithoutType } = chatResult
+        const { type, summary, ...chatResultWithoutTypeSummary } = chatResult
         let header = undefined
 
         if (chatResult.contextList !== undefined) {
@@ -804,10 +815,8 @@ export const createMynahUi = (
         }
 
         if (isPartialResult) {
-            mynahUi.updateLastChatAnswer(tabId, {
-                ...(chatResultWithoutType as ChatItem),
-                header: header,
-            })
+            // @ts-expect-error - type for MynahUI differs from ChatResult types so we ignore it
+            mynahUi.updateLastChatAnswer(tabId, { ...chatResultWithoutTypeSummary, header: header })
             return
         }
 
@@ -823,9 +832,10 @@ export const createMynahUi = (
             followUpOptions[0].type &&
             isValidAuthFollowUpType(followUpOptions[0].type)
         if (chatResult.body === '' && isValidAuthFollowUp) {
+            // @ts-expect-error - type for MynahUI differs from ChatResult types so we ignore it
             mynahUi.addChatItem(tabId, {
-                ...(chatResultWithoutType as ChatItem),
                 type: ChatItemType.SYSTEM_PROMPT,
+                ...chatResultWithoutTypeSummary,
             })
 
             // TODO, prompt should be disabled until user is authenticated
@@ -978,19 +988,49 @@ export const createMynahUi = (
         }
     }
 
-    const updateFinalItemTypes = (tabId: string) => {
-        const store = mynahUi.getTabData(tabId)?.getStore() || {}
-        const chatItems = store.chatItems || []
-        const updatedItems = chatItems.map(item => ({
-            ...item,
-            type: item.type === ChatItemType.ANSWER_STREAM && !item.body ? ChatItemType.ANSWER : item.type,
-        }))
-        mynahUi.updateStore(tabId, {
-            loadingChat: false,
-            cancelButtonWhenLoading: agenticMode,
-            chatItems: updatedItems,
-            promptInputDisabledState: false,
-        })
+    /**
+     * Creates a properly formatted chat item for MCP tool summary with accordion view
+     */
+    const createMcpToolSummaryItem = (message: ChatMessage, isPartialResult?: boolean): Partial<ChatItem> => {
+        const muted = message.summary?.content?.header?.status !== undefined
+        return {
+            type: ChatItemType.ANSWER,
+            messageId: message.messageId,
+            muted,
+            summary: {
+                content: message.summary?.content
+                    ? {
+                          padding: false,
+                          wrapCodes: true,
+                          header: message.summary.content.header
+                              ? {
+                                    icon: message.summary.content.header.icon as any,
+                                    body: message.summary.content.header.body,
+                                    buttons: message.summary.content?.header?.buttons as any,
+                                    status: isPartialResult
+                                        ? (message.summary.content?.header?.status as any)
+                                        : undefined,
+                                    fileList: undefined,
+                                }
+                              : undefined,
+                      }
+                    : undefined,
+                collapsedContent:
+                    message.summary?.collapsedContent?.map(item => ({
+                        body: item.body,
+                        header: item.header
+                            ? {
+                                  body: item.header.body,
+                              }
+                            : undefined,
+                        fullWidth: true,
+                        padding: false,
+                        muted: true,
+                        wrapCodes: item.header?.body === 'Parameters' ? true : false,
+                        codeBlockActions: { copy: null, 'insert-to-cursor': null },
+                    })) || [],
+            },
+        }
     }
 
     const prepareChatItemFromMessage = (
@@ -1004,6 +1044,10 @@ export const createMynahUi = (
 
         let processedHeader = header
         if (message.type === 'tool') {
+            // Handle MCP tool summary with accordion view
+            if (message.summary) {
+                return createMcpToolSummaryItem(message, isPartialResult)
+            }
             processedHeader = { ...header }
             if (header?.buttons) {
                 processedHeader.buttons = header.buttons.map(button => ({
@@ -1205,6 +1249,22 @@ ${params.message}`,
         }
     }
 
+    // Create an instance of McpMynahUi to handle MCP server functionality
+    const mcpMynahUi = new McpMynahUi(mynahUi, messager)
+
+    const listMcpServers = (params: ListMcpServersResult) => {
+        mcpMynahUi.listMcpServers(params)
+    }
+
+    // MCP server functionality is now handled by the McpMynahUi class
+
+    /**
+     * Handles MCP server click events
+     */
+    const mcpServerClick = (params: McpServerClickResult) => {
+        mcpMynahUi.mcpServerClick(params)
+    }
+
     const getSerializedChat = (requestId: string, params: GetSerializedChatParams) => {
         const supportedFormats = ['markdown', 'html']
 
@@ -1246,6 +1306,8 @@ ${params.message}`,
         sendContextCommands: sendContextCommands,
         listConversations: listConversations,
         conversationClicked: conversationClicked,
+        listMcpServers: listMcpServers,
+        mcpServerClick: mcpServerClick,
         getSerializedChat: getSerializedChat,
         createTabId: createTabId,
     }

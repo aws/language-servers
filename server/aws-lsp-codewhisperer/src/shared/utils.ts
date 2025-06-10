@@ -426,6 +426,8 @@ export function isStringOrNull(object: any): object is string | null {
 // Port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/c22efa03e73b241564c8051c35761eb8620edb83/packages/core/src/shared/errors.ts#L648
 export function getHttpStatusCode(err: unknown): number | undefined {
+    // RTS throws validation errors with a 400 status code to LSP, we convert them to 500 from the perspective of the user
+
     if (hasResponse(err) && err?.$response?.statusCode !== undefined) {
         return err?.$response?.statusCode
     }

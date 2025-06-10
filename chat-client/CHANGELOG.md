@@ -216,8 +216,8 @@
 
 ### Changed
 
-- Update `@aws/chat-client-ui-types` to 0.1.0
-- Update `@aws/language-server-runtimes-types` to 0.1.0
+- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/language-server-runtimes-types` to 0.1.29
 - Shortened legal text in the footer
 
 ## [0.0.9] - 2024-11-20
@@ -241,8 +241,8 @@
 ### Changed
 
 - Changed legal text in the footer
-- Update `@aws/chat-client-ui-types` to 0.0.8
-- Update `@aws/language-server-runtimes-types` to to 0.0.7
+- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/language-server-runtimes-types` to 0.1.29
 - Upgraded dependency: `@aws/mynah-ui` from 4.15.11 to 4.18.0:
     - Inline code elements now wrap onto new lines
     - Send button no longer shifts out of the window when horizontally filling the prompt input without spaces (now it wraps)

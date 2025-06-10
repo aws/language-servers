@@ -100,7 +100,7 @@
 
 ### Bug Fixes
 
-* update @aws/language-server-runtimes to 0.2.48 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
+* update @aws/language-server-runtimes to 0.2.83 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
 
 ## [0.1.1](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.0...lsp-antlr4/v0.1.1) (2025-03-18)
 
