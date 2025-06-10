@@ -374,9 +374,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         }
 
         const t0 = performance.now()
-
+        this.logging.info(
+            `[NEP] @generateSuggestionsAndPrefetch try obtain suggestions with ${useCache ? 'prefetch' : 'coldstart'}`
+        )
         if (useCache) {
-            this.logging.info(`will use prefetch suggestion`)
             const r = await waitUntil(
                 async () => {
                     return this.prefetchSuggestions.pop()
@@ -402,7 +403,6 @@ ${r.response.suggestions[0]?.content ?? 'no suggestion'}`
         } else {
             this.clearCachedSuggestions()
             this.token = this.tokenSrc.token
-            this.logging.info(`cold start`)
             const coldStartResponse = await this.generateSuggestions(originalRequest)
             if (coldStartResponse.suggestions.length > 0) {
                 setTimeout(() => {
@@ -549,7 +549,7 @@ ${response.suggestions[0].content}`)
                     type: 'PreviousEditorState',
                     metadata: {
                         previousEditorStateMetadata: {
-                            timeOffset: 1000,
+                            timeOffset: 1000, // TODO: should change this?
                         },
                     },
                 })
