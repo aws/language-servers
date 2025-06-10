@@ -18,7 +18,7 @@ import {
 } from './util'
 import { ChatMessage } from '@aws/language-server-runtimes/protocol'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
-import { ChatMessage as StreamingMessage } from '@aws/codewhisperer-streaming-client'
+import { ChatMessage as StreamingMessage } from '@amzn/codewhisperer-streaming'
 
 describe('ChatDb Utilities', () => {
     describe('messageToStreamingMessage', () => {

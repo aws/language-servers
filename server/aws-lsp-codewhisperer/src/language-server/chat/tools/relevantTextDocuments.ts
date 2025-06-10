@@ -1,4 +1,4 @@
-import { RelevantTextDocument } from '@aws/codewhisperer-streaming-client'
+import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { Chunk } from 'local-indexing'
 
 export function convertChunksToRelevantTextDocuments(chunks: Chunk[]): RelevantTextDocument[] {

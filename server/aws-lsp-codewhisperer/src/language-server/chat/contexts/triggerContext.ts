@@ -1,11 +1,5 @@
 import { TriggerType } from '@aws/chat-client-ui-types'
-import {
-    ChatTriggerType,
-    UserIntent,
-    Tool,
-    ToolResult,
-    RelevantTextDocument,
-} from '@aws/codewhisperer-streaming-client'
+import { ChatTriggerType, UserIntent, Tool, ToolResult, RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { BedrockTools, ChatParams, CursorState, InlineChatParams } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../../types'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'

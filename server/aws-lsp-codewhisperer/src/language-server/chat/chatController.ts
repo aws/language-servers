@@ -1,4 +1,4 @@
-import { ChatTriggerType } from '@aws/codewhisperer-streaming-client'
+import { ChatTriggerType } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,

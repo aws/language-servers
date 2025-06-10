@@ -6,7 +6,7 @@ import {
     SendMessageCommandOutput as SendMessageCommandOutputCodeWhispererStreaming,
     ExportResultArchiveCommandInput as ExportResultArchiveCommandInputCodeWhispererStreaming,
     ExportResultArchiveCommandOutput as ExportResultArchiveCommandOutputCodeWhispererStreaming,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     QDeveloperStreaming,
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,

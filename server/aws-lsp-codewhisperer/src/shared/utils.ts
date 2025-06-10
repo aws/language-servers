@@ -14,7 +14,7 @@ import {
     ServiceQuotaExceededException,
     ThrottlingException,
     ThrottlingExceptionReason,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import { ServiceException } from '@smithy/smithy-client'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
