@@ -82,7 +82,6 @@ export const freeTierLimitSticky: Partial<ChatItem> = {
 
 export const upgradePendingSticky: Partial<ChatItem> = {
     messageId: 'upgrade-pending-banner',
-    // Note: starts with a non-breaking space to workaround https://github.com/aws/mynah-ui/issues/349
     body: '  Waiting for subscription status...',
     status: 'info',
     buttons: [],
