@@ -1,4 +1,4 @@
-import { ChatItem, ChatItemButton, ChatItemFormItem, ChatItemType, TextBasedFormItem } from '@aws/mynah-ui'
+import { ChatItem, ChatItemButton, ChatItemType, TextBasedFormItem } from '@aws/mynah-ui'
 
 export const plansAndPricingTitle = 'Plans &amp; Pricing'
 export const paidTierLearnMoreUrl = 'https://aws.amazon.com/q/pricing/'
@@ -48,8 +48,6 @@ export const freeTierLimitCard: ChatItem = {
     messageId: 'freetier-limit',
     status: 'warning',
     buttons: [],
-    icon: 'warning',
-    // iconStatus: 'success',
     header: {
         icon: 'warning',
         iconStatus: 'warning',
@@ -62,8 +60,6 @@ export const freeTierLimitCard: ChatItem = {
 
 export const freeTierLimitDirective: ChatItem = {
     type: ChatItemType.DIRECTIVE,
-    // title: '...',
-    // header: { },
     messageId: 'freetier-limit-directive',
     fullWidth: true,
     contentHorizontalAlignment: 'center',
@@ -74,12 +70,14 @@ export const freeTierLimitDirective: ChatItem = {
 /** "Banner" (sticky card) shown above the chat prompt. */
 export const freeTierLimitSticky: Partial<ChatItem> = {
     messageId: 'freetier-limit-banner',
-    title: freeTierLimitCard.title,
     body: freeTierLimitCard.body,
     buttons: [upgradeQButton],
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: '### Monthly request limit reached',
+    },
     canBeDismissed: false,
-    icon: 'warning',
-    // iconStatus: 'warning',
 }
 
 export const upgradePendingSticky: Partial<ChatItem> = {
