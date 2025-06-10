@@ -15,7 +15,7 @@ import {
     getSsoConnectionType,
     getUnmodifiedAcceptedTokens,
     isAwsThrottlingError,
-    isFreeTierLimitError,
+    isUsageLimitError,
     isQuotaExceededError,
     isStringOrNull,
     safeGet,
@@ -291,10 +291,10 @@ describe('isAwsThrottlingError', function () {
     })
 })
 
-describe('isFreeTierLimitError', function () {
+describe('isMonthlyLimitError', function () {
     it('false for non-throttling errors', function () {
         const regularError = new Error('Some error')
-        assert.strictEqual(isFreeTierLimitError(regularError), false)
+        assert.strictEqual(isUsageLimitError(regularError), false)
 
         const e = new Error()
         ;(e as any).name = 'AWSError'
@@ -302,7 +302,7 @@ describe('isFreeTierLimitError', function () {
         ;(e as any).code = 'SomeOtherError'
         ;(e as any).time = new Date()
 
-        assert.strictEqual(isFreeTierLimitError(e), false)
+        assert.strictEqual(isUsageLimitError(e), false)
     })
 
     it('false for throttling errors without MONTHLY_REQUEST_COUNT reason', function () {
@@ -313,18 +313,18 @@ describe('isFreeTierLimitError', function () {
         ;(throttlingError as any).time = new Date()
         ;(throttlingError as any).reason = 'SOME_OTHER_REASON'
 
-        assert.strictEqual(isFreeTierLimitError(throttlingError), false)
+        assert.strictEqual(isUsageLimitError(throttlingError), false)
     })
 
     it('true for throttling errors with MONTHLY_REQUEST_COUNT reason', function () {
-        const freeTierLimitError = new Error()
-        ;(freeTierLimitError as any).name = 'ThrottlingException'
-        ;(freeTierLimitError as any).message = 'Free tier limit reached'
-        ;(freeTierLimitError as any).code = 'ThrottlingException'
-        ;(freeTierLimitError as any).time = new Date()
-        ;(freeTierLimitError as any).reason = ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT
+        const usageLimitError = new Error()
+        ;(usageLimitError as any).name = 'ThrottlingException'
+        ;(usageLimitError as any).message = 'Free tier limit reached'
+        ;(usageLimitError as any).code = 'ThrottlingException'
+        ;(usageLimitError as any).time = new Date()
+        ;(usageLimitError as any).reason = ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT
 
-        assert.strictEqual(isFreeTierLimitError(freeTierLimitError), true)
+        assert.strictEqual(isUsageLimitError(usageLimitError), true)
     })
 })
 

@@ -13,8 +13,8 @@ export const upgradeQButton: ChatItemButton = {
     // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/q.svg
     // https://github.com/aws/mynah-ui/blob/main/src/components/icon/icons/rocket.svg
     // icon: MynahIcons.Q,
-    description: `Upgrade to ${qProName}`,
     text: `Subscribe to ${qProName}`,
+    // description: `Upgrade to ${qProName}`,
     status: 'primary',
     disabled: false,
 }
@@ -65,12 +65,14 @@ export const freeTierLimitSticky: Partial<ChatItem> = {
 
 export const upgradePendingSticky: Partial<ChatItem> = {
     messageId: 'upgrade-pending-banner',
-    body: 'Waiting for subscription status...',
-    status: 'info',
-    buttons: [],
+    body: freeTierLimitSticky.body,
+    buttons: [upgradeQButton],
+    header: {
+        icon: 'progress',
+        iconStatus: undefined,
+        body: '### Waiting for subscription status...',
+    },
     canBeDismissed: true,
-    icon: 'progress',
-    // iconStatus: 'info',
 }
 
 export const upgradeSuccessSticky: Partial<ChatItem> = {
@@ -137,7 +139,7 @@ export const paidTierPromptInput: TextBasedFormItem = {
     placeholder: '111111111111',
     type: 'textinput',
     id: 'paid-tier',
-    tooltip: `Upgrade to ${qProName}`,
+    // tooltip: `Upgrade to ${qProName}`,
     value: 'true',
     icon: 'magic',
 }

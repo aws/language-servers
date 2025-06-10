@@ -47,20 +47,21 @@ export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
 }
 
 /**
- * Special case of throttling error: "free tier" limit reached.
+ * Special case of throttling error: monthly limit reached. This is most common
+ * for "free tier" users, but is technically possible for "pro tier" also.
  *
  * See `client/token/bearer-token-service.json`.
  */
-export function isFreeTierLimitError(e: unknown): e is ThrottlingException {
+export function isUsageLimitError(e: unknown): e is ThrottlingException {
     if (!e) {
         return false
     }
 
-    if (hasCode(e) && (e.code === 'AmazonQFreeTierLimitError' || e.code === 'E_AMAZON_Q_FREE_TIER_LIMIT')) {
+    if (hasCode(e) && (e.code === 'AmazonQUsageLimitError' || e.code === 'E_AMAZON_Q_USAGE_LIMIT')) {
         return true
     }
 
-    if ((e as Error).name === 'AmazonQFreeTierLimitError') {
+    if ((e as Error).name === 'AmazonQUsageLimitError') {
         return true
     }
 
@@ -81,7 +82,7 @@ export function isQuotaExceededError(e: unknown): e is AWSError {
     }
 
     // From client/token/bearer-token-service.json
-    if (isFreeTierLimitError(e)) {
+    if (isUsageLimitError(e)) {
         return true
     }
 

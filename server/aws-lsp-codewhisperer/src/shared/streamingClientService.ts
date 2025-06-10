@@ -13,11 +13,11 @@ import {
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
 import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
-import { getBearerTokenFromProvider, isFreeTierLimitError } from './utils'
+import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { clientTimeoutMs } from '../language-server/agenticChat/constants'
-import { AmazonQFreeTierLimitError } from './amazonQServiceManager/errors'
+import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -104,8 +104,8 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
             return response
         } catch (e) {
-            if (isFreeTierLimitError(e)) {
-                throw new AmazonQFreeTierLimitError(e)
+            if (isUsageLimitError(e)) {
+                throw new AmazonQUsageLimitError(e)
             }
             throw e
         } finally {
@@ -132,8 +132,8 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             return response
         } catch (e) {
             // TODO add a test for this
-            if (isFreeTierLimitError(e)) {
-                throw new AmazonQFreeTierLimitError(e)
+            if (isUsageLimitError(e)) {
+                throw new AmazonQUsageLimitError(e)
             }
             throw e
         } finally {
