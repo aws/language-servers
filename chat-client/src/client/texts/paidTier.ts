@@ -41,23 +41,6 @@ export const continueUpgradeQButton: ChatItemButton = {
     disabled: false,
 }
 
-export const freeTierLimitCard: ChatItem = {
-    type: ChatItemType.ANSWER,
-    // Note: starts with a non-breaking space to workaround https://github.com/aws/mynah-ui/issues/349
-    title: '  Monthly request limit reached',
-    messageId: 'freetier-limit',
-    status: 'warning',
-    buttons: [],
-    header: {
-        icon: 'warning',
-        iconStatus: 'warning',
-        body: `Upgrade to ${qProName}`,
-    },
-    canBeDismissed: false,
-    fullWidth: true,
-    body: `To increase your limit, subscribe to ${qProName}. During the upgrade, you'll be asked to link your Builder ID to the AWS account that will be billed the monthly subscription fee. Learn more about [pricing &gt;](${paidTierLearnMoreUrl})`,
-}
-
 export const freeTierLimitDirective: ChatItem = {
     type: ChatItemType.DIRECTIVE,
     messageId: 'freetier-limit-directive',
@@ -70,7 +53,7 @@ export const freeTierLimitDirective: ChatItem = {
 /** "Banner" (sticky card) shown above the chat prompt. */
 export const freeTierLimitSticky: Partial<ChatItem> = {
     messageId: 'freetier-limit-banner',
-    body: freeTierLimitCard.body,
+    body: `To increase your limit, subscribe to ${qProName}. During the upgrade, you'll be asked to link your Builder ID to the AWS account that will be billed the monthly subscription fee. Learn more about [pricing &gt;](${paidTierLearnMoreUrl})`,
     buttons: [upgradeQButton],
     header: {
         icon: 'warning',
@@ -82,7 +65,7 @@ export const freeTierLimitSticky: Partial<ChatItem> = {
 
 export const upgradePendingSticky: Partial<ChatItem> = {
     messageId: 'upgrade-pending-banner',
-    body: '  Waiting for subscription status...',
+    body: 'Waiting for subscription status...',
     status: 'info',
     buttons: [],
     canBeDismissed: true,
