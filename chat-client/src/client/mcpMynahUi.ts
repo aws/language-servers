@@ -35,6 +35,11 @@ export const MCP_IDS = {
     SAVE_PERMISSION_CHANGE: 'save-permission-change',
 }
 
+// MCP UI display constants
+export const MCP_UI_CONSTANTS = {
+    MAX_SERVER_NAME_LENGTH: 25, // Maximum length for server name display before truncation when deleting a server
+}
+
 // Type definitions for MCP server parameters
 export type McpFilterOption = {
     type: 'textarea' | 'textinput' | 'select' | 'numericinput' | 'radiogroup' | 'list'
@@ -171,7 +176,7 @@ export class McpMynahUi {
                             confirmation: {
                                 cancelButtonText: 'Cancel',
                                 confirmButtonText: 'Delete',
-                                title: 'Delete Filesystem MCP server',
+                                title: `Delete ${serverName.length > MCP_UI_CONSTANTS.MAX_SERVER_NAME_LENGTH ? serverName.slice(0, MCP_UI_CONSTANTS.MAX_SERVER_NAME_LENGTH) + '...' : serverName} MCP server`,
                                 description:
                                     'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
                             },
@@ -223,7 +228,15 @@ export class McpMynahUi {
                                       confirmation: {
                                           cancelButtonText: 'Cancel',
                                           confirmButtonText: 'Delete',
-                                          title: 'Delete Filesystem MCP server',
+                                          title: `Delete ${
+                                              params.header?.title &&
+                                              params.header.title.length > MCP_UI_CONSTANTS.MAX_SERVER_NAME_LENGTH
+                                                  ? params.header.title.slice(
+                                                        0,
+                                                        MCP_UI_CONSTANTS.MAX_SERVER_NAME_LENGTH
+                                                    ) + '...'
+                                                  : params.header?.title
+                                          } MCP server`,
                                           description:
                                               'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
                                       },
@@ -362,7 +375,7 @@ export class McpMynahUi {
                             confirmation: {
                                 cancelButtonText: 'Cancel',
                                 confirmButtonText: 'Delete',
-                                title: 'Delete Filesystem MCP server',
+                                title: `Delete ${item.title.length > MCP_UI_CONSTANTS.MAX_SERVER_NAME_LENGTH ? item.title.slice(0, MCP_UI_CONSTANTS.MAX_SERVER_NAME_LENGTH) + '...' : item.title} MCP server`,
                                 description:
                                     'This configuration will be deleted and no longer available in Q. \n\n This cannot be undone.',
                             },
