@@ -6,9 +6,7 @@
 import * as diff from 'diff'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../shared/models/model'
 import { Position } from 'vscode-languageserver-textdocument'
-
-const supplementalContextMaxTotalLength: number = 8192
-const charactersLimit: number = 10000
+import { trimSupplementalContexts } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 
 /**
  * Generates a unified diff format between old and new file contents
@@ -131,52 +129,6 @@ export function generateDiffContexts(
         latency,
         strategy: 'recentEdits',
     }
-}
-
-/**
- * Trims the supplementalContexts array to ensure it doesn't exceed the max number
- * of contexts or total character length limit
- *
- * @param supplementalContextItems - Array of CodeWhispererSupplementalContextItem objects (already sorted with newest first)
- * @param maxContexts - Maximum number of supplemental contexts allowed
- * @returns Trimmed array of CodeWhispererSupplementalContextItem objects
- */
-function trimSupplementalContexts(
-    supplementalContextItems: CodeWhispererSupplementalContextItem[],
-    maxContexts: number
-): CodeWhispererSupplementalContextItem[] {
-    if (supplementalContextItems.length === 0) {
-        return supplementalContextItems
-    }
-
-    // First filter out any individual context that exceeds the character limit
-    let result = supplementalContextItems.filter(context => {
-        return context.content.length <= charactersLimit
-    })
-
-    // Then limit by max number of contexts
-    if (result.length > maxContexts) {
-        result = result.slice(0, maxContexts)
-    }
-
-    // Lastly enforce total character limit
-    let totalLength = 0
-    let i = 0
-
-    while (i < result.length) {
-        totalLength += result[i].content.length
-        if (totalLength > supplementalContextMaxTotalLength) {
-            break
-        }
-        i++
-    }
-
-    if (i === result.length) {
-        return result
-    }
-
-    const trimmedContexts = result.slice(0, i)
-    return trimmedContexts
 }
 
 /** src: https://github.com/aws/aws-toolkit-vscode/blob/3921457b0a2094b831beea0d66cc2cbd2a833890/packages/amazonq/src/app/inline/EditRendering/diffUtils.ts#L18
