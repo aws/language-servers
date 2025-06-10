@@ -456,7 +456,13 @@ describe('AgenticChatController', () => {
         it('includes chat history from the database in the request input', async () => {
             // Mock chat history
             const mockHistory = [
-                { type: 'prompt', body: 'Previous question' },
+                {
+                    type: 'prompt',
+                    body: 'Previous question',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
                 { type: 'answer', body: 'Previous answer' },
             ]
             const expectedRequestHistory = [
@@ -464,7 +470,7 @@ describe('AgenticChatController', () => {
                     userInputMessage: {
                         content: 'Previous question',
                         origin: 'IDE',
-                        userInputMessageContext: {},
+                        userInputMessageContext: { toolResults: [] },
                         userIntent: undefined,
                     },
                 },
@@ -576,7 +582,13 @@ describe('AgenticChatController', () => {
             chatDbInitializedStub.returns(true)
             getMessagesStub.onFirstCall().returns([])
             getMessagesStub.onSecondCall().returns([
-                { type: 'prompt', body: 'Hello with tool' },
+                {
+                    type: 'prompt',
+                    body: 'Hello with tool',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
                 {
                     type: 'answer',
                     body: 'I need to use a tool. ',
@@ -711,7 +723,13 @@ describe('AgenticChatController', () => {
                 .returns([])
                 .onSecondCall()
                 .returns([
-                    { type: 'prompt', body: 'Hello with failing tool' },
+                    {
+                        type: 'prompt',
+                        body: 'Hello with failing tool',
+                        userInputMessageContext: {
+                            toolResults: [],
+                        },
+                    },
                     {
                         type: 'answer',
                         body: 'I need to use a tool that will fail. ',
@@ -884,7 +902,13 @@ describe('AgenticChatController', () => {
             ]
 
             const historyAfterTool1 = [
-                { type: 'prompt', body: 'Hello with multiple tools' },
+                {
+                    type: 'prompt',
+                    body: 'Hello with multiple tools',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
                 {
                     type: 'answer',
                     body: 'I need to use tool 1. ',

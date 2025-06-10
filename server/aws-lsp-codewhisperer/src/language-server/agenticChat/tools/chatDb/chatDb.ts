@@ -611,7 +611,8 @@ export class ChatDatabase {
             messages[0].type === ('prompt' as ChatItemType) &&
             !this.isValidUserMessageWithoutToolResults(messages[0])
         ) {
-            messages.splice(0, 2) // Remove first user-assistant pair
+            // Remove first user-assistant pair - here we assume that the mid-sequence messages are always in the alternating user-assistant pattern
+            messages.splice(0, 2)
             this.#features.logging.debug('Dropped the first message pair since the user message has tool usage results')
         }
 
