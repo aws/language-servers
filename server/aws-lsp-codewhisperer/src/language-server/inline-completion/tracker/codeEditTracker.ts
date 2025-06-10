@@ -12,10 +12,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../../shared/models/model'
 import * as diff from 'diff'
-
-// Constants for supplemental context limits
-const supplementalContextMaxTotalLength: number = 8192
-const charactersLimit: number = 10000
+import { trimSupplementalContexts } from '../../../shared/supplementalContextUtil/supplementalContextUtil'
 
 /**
  * Configuration for the RecentEditTracker
@@ -179,52 +176,6 @@ export function generateDiffContexts(
         latency,
         strategy: 'recentEdits',
     }
-}
-
-/**
- * Trims the supplementalContexts array to ensure it doesn't exceed the max number
- * of contexts or total character length limit
- *
- * @param supplementalContextItems - Array of CodeWhispererSupplementalContextItem objects (already sorted with newest first)
- * @param maxContexts - Maximum number of supplemental contexts allowed
- * @returns Trimmed array of CodeWhispererSupplementalContextItem objects
- */
-function trimSupplementalContexts(
-    supplementalContextItems: CodeWhispererSupplementalContextItem[],
-    maxContexts: number
-): CodeWhispererSupplementalContextItem[] {
-    if (supplementalContextItems.length === 0) {
-        return supplementalContextItems
-    }
-
-    // First filter out any individual context that exceeds the character limit
-    let result = supplementalContextItems.filter(context => {
-        return context.content.length <= charactersLimit
-    })
-
-    // Then limit by max number of contexts
-    if (result.length > maxContexts) {
-        result = result.slice(0, maxContexts)
-    }
-
-    // Lastly enforce total character limit
-    let totalLength = 0
-    let i = 0
-
-    while (i < result.length) {
-        totalLength += result[i].content.length
-        if (totalLength > supplementalContextMaxTotalLength) {
-            break
-        }
-        i++
-    }
-
-    if (i === result.length) {
-        return result
-    }
-
-    const trimmedContexts = result.slice(0, i)
-    return trimmedContexts
 }
 
 /**
