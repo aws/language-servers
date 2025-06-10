@@ -3,9 +3,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { z } from 'zod'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import {
+    EXTENSION_TO_LANGUAGE,
+    PROGRAMMING_LANGUAGES_LOWERCASE,
+    TOOL_NAME,
+    TOOL_DESCRIPTION,
+} from './qCodeReviewConstants'
+import { QCodeReviewUtils } from './qCodeReviewUtils'
+import { INPUT_SCHEMA, Z_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
 
 export class QCodeReview {
     private readonly logging: Features['logging']
@@ -18,165 +25,15 @@ export class QCodeReview {
         this.lsp = features.lsp
     }
 
-    static readonly toolName = 'qCodeReview'
+    static readonly toolName = TOOL_NAME
 
-    static readonly toolDescription = [
-        'A tool for scanning code for security vulnerabilities and code quality issues',
-        '',
-        'Amazon Q Review provides comprehensive code analysis with:',
-        '- Static Application Security Testing (SAST): Identifies vulnerabilities in source code without execution',
-        '- Secrets Detection: Finds hardcoded credentials, API keys, tokens, and other sensitive information',
-        '- Infrastructure as Code (IaC) Analysis: Detects security issues in infrastructure definitions',
-        '- Software Composition Analysis (SCA): Identifies vulnerabilities in dependencies and third-party components',
-        '',
-        'Key capabilities include detection of:',
-        '- Security vulnerabilities: Injection flaws, XSS, CSRF, insecure authentication, data exposure risks',
-        '- Code quality issues: Bugs, anti-patterns, and maintainability concerns',
-        '- Best practice violations: Deviations from coding standards and recommended practices',
-        '- Resource leaks: Potential memory leaks and unclosed resources',
-        '- Input validation problems: Missing or improper validation of user inputs',
-        '',
-        'Findings include:',
-        '- Issue severity classification (Critical, High, Medium, Low)',
-        '- Specific code locations where issues were found',
-        '- References to relevant security standards and best practices',
-        '',
-        'Supported programming languages:',
-        '- Python, JavaScript/TypeScript, Java, C#, PHP, Ruby, Go, Rust, C/C++',
-        '- Shell scripts, SQL, Kotlin, Scala, Swift',
-    ].join('\n')
+    static readonly toolDescription = TOOL_DESCRIPTION
 
-    private static readonly programmingLanguageInCaps = [
-        'PYTHON',
-        'JAVASCRIPT',
-        'TYPESCRIPT',
-        'JAVA',
-        'CSHARP',
-        'PHP',
-        'RUBY',
-        'GO',
-        'RUST',
-        'CPP',
-        'C',
-        'SHELL',
-        'SQL',
-        'KOTLIN',
-        'SCALA',
-        'SWIFT',
-    ]
-
-    private static readonly programmingLanguageInLowerCase = [
-        'python',
-        'javascript',
-        'typescript',
-        'java',
-        'csharp',
-        'php',
-        'ruby',
-        'go',
-        'rust',
-        'cpp',
-        'c',
-        'shell',
-        'sql',
-        'kotlin',
-        'scala',
-        'swift',
-    ]
-
-    private static readonly findingSeverity = ['Info', 'Low', 'Medium', 'High', 'Critical']
-
-    // Used to send input schema info to model
-    static readonly inputSchema = {
-        type: <const>'object',
-        description: 'Contains either file level or folder level artifacts to perform code review',
-        properties: {
-            fileLevelArtifacts: {
-                type: <const>'array',
-                description:
-                    'Array of items containing file paths and their programming language (e.g. [{"path": "path/to/file.py", "programmingLanguage": "PYTHON"}])',
-                items: {
-                    type: <const>'object',
-                    description:
-                        'Array item containing artifact path and the programming language (e.g. {"path": "path/to/file.py", "programmingLanguage": "PYTHON"})',
-                    properties: {
-                        path: {
-                            type: <const>'string',
-                            description: 'The path of the file that will be scanned',
-                        },
-                        programmingLanguage: {
-                            type: <const>'string',
-                            description: 'The type of programming language of the file based on file extension',
-                            enum: QCodeReview.programmingLanguageInCaps,
-                        },
-                    },
-                    required: ['path', 'programmingLanguage'] as const,
-                },
-            },
-            folderLevelArtifacts: {
-                type: <const>'array',
-                description:
-                    'Array of items containing folder paths of code that will be scanned (e.g. [{"path": "path/to/code/"}])',
-                items: {
-                    type: <const>'object',
-                    description:
-                        'Array item containing folder path of code that will be scanned (e.g. {"path": "path/to/code/"})',
-                    properties: {
-                        path: {
-                            type: <const>'string',
-                            description: 'The path of the folder that will be scanned',
-                        },
-                    },
-                    required: ['path'] as const,
-                },
-            },
-        },
-    }
-
-    // Used for parsing input during execution
-    static readonly zInputSchema = z.object({
-        fileLevelArtifacts: z
-            .array(
-                z.object({
-                    path: z.string(),
-                    programmingLanguage: z.enum(QCodeReview.programmingLanguageInCaps as [string, ...string[]]),
-                })
-            )
-            .optional(),
-        folderLevelArtifacts: z
-            .array(
-                z.object({
-                    path: z.string(),
-                })
-            )
-            .optional(),
-    })
-
-    static readonly qFindingSchema = z.object({
-        description: z.object({
-            markdown: z.string(),
-            text: z.string(),
-        }),
-        endLine: z.number(),
-        filePath: z.string(),
-        findingId: z.string(),
-        relatedVulnerabilities: z.array(z.string().optional()),
-        remediation: z.object({
-            recommendation: z.object({
-                text: z.string(),
-                url: z.string().optional(),
-            }),
-        }),
-        severity: z.enum(QCodeReview.findingSeverity as [string, ...string[]]),
-        startLine: z.number(),
-        title: z.string(),
-    })
-
-    static readonly qFindingsSchema = z.array(QCodeReview.qFindingSchema)
+    static readonly inputSchema = INPUT_SCHEMA
 
     public async execute(input: any, context: any) {
         try {
-            this.logging.info(`Executing ${QCodeReview.toolName} (new): ${JSON.stringify(input)}`)
+            this.logging.info(`Executing ${TOOL_NAME}: ${JSON.stringify(input)}`)
 
             // Step 0: Validate input
             // Get the CodeWhisperer client from the context
@@ -186,11 +43,12 @@ export class QCodeReview {
             }
 
             // Parse and validate input using zod schema for file/folder level
-            const validatedInput = QCodeReview.zInputSchema.parse(input)
+            const validatedInput = Z_INPUT_SCHEMA.parse(input)
 
             // Prepare artifacts for processing
             const fileArtifacts = validatedInput.fileLevelArtifacts || []
             const folderArtifacts = validatedInput.folderLevelArtifacts || []
+            const isCodeDiffScan = validatedInput.isCodeDiffScan || false
 
             if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
                 throw new Error('No files or folders provided for code review')
@@ -199,22 +57,24 @@ export class QCodeReview {
             // Determine programming language from file artifacts if available
             const programmingLanguage =
                 fileArtifacts.length > 0 ? this.determineProgrammingLanguageFromFileArtifacts(fileArtifacts) : 'java'
-            //: this.determineLanguageFromFolderContent(folderArtifacts[0]?.path)
 
             if (!programmingLanguage) {
                 throw new Error('Programming language could not be determined')
             }
 
             // Step 1: Prepare the files for upload - create zip and calculate MD5
-            const { zipBuffer, md5Hash } = await this.prepareFilesAndFoldersForUpload(fileArtifacts, folderArtifacts)
+            const { zipBuffer, md5Hash } = await this.prepareFilesAndFoldersForUpload(
+                fileArtifacts,
+                folderArtifacts,
+                isCodeDiffScan
+            )
 
             // Step 2: Get a pre-signed URL for uploading the code
             const scanName = 'q-agentic-code-review-' + Date.now().toString()
             this.logging.info(`Creating code scan with name: ${scanName}`)
 
-            // Determine upload intent based on input
-            const uploadIntent =
-                folderArtifacts.length > 0 ? 'FULL_PROJECT_SECURITY_SCAN' : 'AUTOMATIC_FILE_SECURITY_SCAN'
+            // Determine upload intent based on input, setting 'FULL_PROJECT_SECURITY_SCAN' by default
+            const uploadIntent = 'FULL_PROJECT_SECURITY_SCAN'
 
             const uploadUrlResponse = await codeWhispererClient.createUploadUrl({
                 contentLength: zipBuffer.length,
@@ -246,13 +106,13 @@ export class QCodeReview {
                 SourceCode: uploadUrlResponse.uploadId,
             }
 
-            // Determine scan scope based on input
-            const scanScope = folderArtifacts.length > 0 ? 'PROJECT' : 'FILE'
+            // Determine scan scope based on input, setting it always to Project for now
+            const scanScope = 'PROJECT'
 
             const createResponse = await codeWhispererClient.startCodeAnalysis({
                 artifacts: artifactMap,
                 programmingLanguage: { languageName: programmingLanguage },
-                clientToken: this.generateClientToken(),
+                clientToken: QCodeReviewUtils.generateClientToken(),
                 codeScanName: scanName,
                 scope: scanScope,
             })
@@ -296,9 +156,7 @@ export class QCodeReview {
 
                 let validatedFindings: any[] = []
                 if (findingsResponse.codeAnalysisFindings) {
-                    validatedFindings = QCodeReview.qFindingsSchema.parse(
-                        JSON.parse(findingsResponse.codeAnalysisFindings)
-                    )
+                    validatedFindings = Q_FINDINGS_SCHEMA.parse(JSON.parse(findingsResponse.codeAnalysisFindings))
                 }
 
                 this.logging.info(`Parsed findings: ${JSON.stringify(validatedFindings)}`)
@@ -320,73 +178,8 @@ export class QCodeReview {
                 errorMessage: status === 'Failed' ? 'Code scan failed' : `Unexpected status: ${status}`,
             }
         } catch (error) {
-            this.logging.error(`Error in ${QCodeReview.toolName} - ${error}`)
+            this.logging.error(`Error in ${TOOL_NAME} - ${error}`)
             throw error
-        }
-    }
-
-    // Method to generate a summary of findings and show in chat window, not used anymore.
-    public static getCodeReviewFindingSummary(findingsJsonString: string): string {
-        // Step 1: Convert findingsJsonString to zFindingSchema
-        try {
-            const findings = JSON.parse(findingsJsonString)
-            const validatedFindings = QCodeReview.qFindingsSchema.parse(findings)
-
-            // Step 2: Map findings into severity and count of each severity
-            const severityCounts: Record<string, number> = {
-                Critical: 0,
-                High: 0,
-                Medium: 0,
-                Low: 0,
-                Info: 0,
-            }
-
-            // Count findings by severity
-            validatedFindings.forEach(finding => {
-                if (severityCounts.hasOwnProperty(finding.severity)) {
-                    severityCounts[finding.severity]++
-                }
-            })
-
-            // Step 3: Return summary string
-            const totalFindings = validatedFindings.length
-
-            let summary = `## Q Code Review \n`
-
-            if (totalFindings > 0) {
-                summary += `Based on my analysis, I've identified ${totalFindings} issue${totalFindings !== 1 ? 's' : ''} in the code that need to be addressed. Here is a summary of them -\n`
-                // Add counts for each severity level (only include non-zero counts)
-                // Iterate in reverse order to show most severe findings first
-                for (const severity of [...QCodeReview.findingSeverity].reverse()) {
-                    if (severityCounts[severity] > 0) {
-                        summary += `- ${severity}: ${severityCounts[severity]}\n`
-                    }
-                }
-                summary += `\nHere is a detailed list -\n`
-                validatedFindings.forEach(finding => {
-                    summary += `- **${finding.title}**\n`
-                    summary += `  - Severity: **${finding.severity}**\n`
-                    summary += `  - Location: ${finding.filePath} (lines ${finding.startLine}-${finding.endLine})\n`
-                    summary += `  - Description: ${finding.description.markdown}\n`
-                    if (finding.relatedVulnerabilities.length > 0) {
-                        summary += `  - Related Vulnerabilities: **${finding.relatedVulnerabilities.join(', ')}**\n`
-                    }
-                    if (finding.remediation.recommendation.text) {
-                        summary += `  - Recommendation: *${finding.remediation.recommendation.text}*\n`
-                    }
-                    if (finding.remediation.recommendation.url) {
-                        summary += `  - Reference: [${finding.remediation.recommendation.url}](${finding.remediation.recommendation.url})\n`
-                    }
-                    summary += `\n`
-                })
-            } else {
-                summary += 'No issues were found in the code review.'
-            }
-
-            return summary.trim()
-        } catch (error) {
-            console.error('Error parsing findings JSON:', error)
-            return 'Failed to parse code review findings.'
         }
     }
 
@@ -404,7 +197,8 @@ export class QCodeReview {
 
         // Use the programming language of the first artifact as default
         const firstLanguage = artifacts[0].programmingLanguage.toLowerCase()
-        if (QCodeReview.programmingLanguageInLowerCase.includes(firstLanguage)) {
+
+        if (PROGRAMMING_LANGUAGES_LOWERCASE.includes(firstLanguage)) {
             return firstLanguage
         } else {
             throw new Error(`Programming language : ${firstLanguage} is not supported for QCodeReview`)
@@ -443,45 +237,19 @@ export class QCodeReview {
                 }
             }
 
-            // Map extensions to languages
-            const extensionToLanguage: Record<string, string> = {
-                '.py': 'python',
-                '.js': 'javascript',
-                '.ts': 'typescript',
-                '.tsx': 'typescript',
-                '.jsx': 'javascript',
-                '.java': 'java',
-                '.cs': 'csharp',
-                '.php': 'php',
-                '.rb': 'ruby',
-                '.go': 'go',
-                '.rs': 'rust',
-                '.cpp': 'cpp',
-                '.cc': 'cpp',
-                '.c': 'c',
-                '.h': 'c',
-                '.hpp': 'cpp',
-                '.sh': 'shell',
-                '.bash': 'shell',
-                '.sql': 'sql',
-                '.kt': 'kotlin',
-                '.scala': 'scala',
-                '.swift': 'swift',
-            }
-
             // Find the most common extension
             let mostCommonExt = ''
             let highestCount = 0
 
             for (const [ext, count] of Object.entries(extensionCounts)) {
-                if (count > highestCount && extensionToLanguage[ext]) {
+                if (count > highestCount && EXTENSION_TO_LANGUAGE[ext]) {
                     highestCount = count
                     mostCommonExt = ext
                 }
             }
 
-            if (mostCommonExt && extensionToLanguage[mostCommonExt]) {
-                return extensionToLanguage[mostCommonExt]
+            if (mostCommonExt && EXTENSION_TO_LANGUAGE[mostCommonExt]) {
+                return EXTENSION_TO_LANGUAGE[mostCommonExt]
             }
 
             // If no language could be determined, default to JavaScript as a fallback
@@ -496,24 +264,33 @@ export class QCodeReview {
      * Create a zip archive of the files and folders to be scanned and calculate MD5 hash
      * @param fileArtifacts Array of file artifacts containing path and programming language
      * @param folderArtifacts Array of folder artifacts containing path
+     * @param isCodeDiffScan Did customer request for a scan of only code diff
      * @returns An object containing the zip file buffer and its MD5 hash
      */
     private async prepareFilesAndFoldersForUpload(
         fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
-        folderArtifacts: Array<{ path: string }>
+        folderArtifacts: Array<{ path: string }>,
+        isCodeDiffScan: boolean
     ): Promise<{ zipBuffer: Buffer; md5Hash: string }> {
         const JSZip = require('jszip')
         // eslint-disable-next-line import/no-nodejs-modules
         const crypto = require('crypto')
         // eslint-disable-next-line import/no-nodejs-modules
         const path = require('path')
+        // eslint-disable-next-line import/no-nodejs-modules
+        const { execFile } = require('child_process')
         const fs = this.workspace.fs
 
         try {
             this.logging.info(
                 `Preparing ${fileArtifacts.length} files and ${folderArtifacts.length} folders for upload`
             )
-            const zip = new JSZip()
+
+            const codeArtifactZip = new JSZip()
+            const customerCodeZip = new JSZip()
+
+            let codeDiff = ''
+            const customerCodeBasePath = 'customerCodeBaseFolder'
 
             // Add individual files to the zip archive
             for (const artifact of fileArtifacts) {
@@ -527,7 +304,19 @@ export class QCodeReview {
                     // Add file to zip with relative path to maintain directory structure
                     // Use the basename to avoid absolute paths in the zip
                     const fileName = path.basename(filePath)
-                    zip.file(fileName, fileContent)
+                    customerCodeZip.file(`${customerCodeBasePath}/${fileName}`, fileContent)
+
+                    // Get git diff of this filePath and append it to codeDiff
+                    if (isCodeDiffScan) {
+                        try {
+                            const diff = await this.getGitDiff(filePath)
+                            if (diff) {
+                                codeDiff += `\n${diff}\n`
+                            }
+                        } catch (diffError) {
+                            this.logging.warn(`Failed to get git diff for ${filePath}: ${diffError}`)
+                        }
+                    }
                 } catch (error) {
                     this.logging.error(`Failed to read file ${filePath}: ${error}`)
                     throw new Error(`Failed to read file ${filePath}: ${error}`)
@@ -540,15 +329,43 @@ export class QCodeReview {
                 this.logging.info(`Adding folder to zip: ${folderPath}`)
 
                 try {
-                    await this.addFolderToZip(zip, folderPath, '')
+                    await this.addFolderToZip(customerCodeZip, folderPath, customerCodeBasePath)
+
+                    // Get git diff of this folderPath and append it to codeDiff
+                    if (isCodeDiffScan) {
+                        try {
+                            const diff = await this.getGitDiff(folderPath)
+                            if (diff) {
+                                codeDiff += `\n${diff}\n`
+                            }
+                        } catch (diffError) {
+                            this.logging.warn(`Failed to get git diff for ${folderPath}: ${diffError}`)
+                        }
+                    }
                 } catch (error) {
                     this.logging.error(`Failed to add folder ${folderPath}: ${error}`)
                     throw new Error(`Failed to add folder ${folderPath}: ${error}`)
                 }
             }
 
-            // Generate zip file as buffer
-            const zipBuffer = await zip.generateAsync({
+            // Generate customer code zip buffer
+            const customerCodeBuffer = await customerCodeZip.generateAsync({
+                type: 'nodebuffer',
+                compression: 'DEFLATE',
+                compressionOptions: { level: 9 }, // Maximum compression
+            })
+
+            // Add customer code zip to the main artifact zip
+            codeArtifactZip.file('code_artifact/customerCode.zip', customerCodeBuffer)
+
+            // Add code diff file if we have any diffs
+            if (isCodeDiffScan && !!codeDiff && codeDiff.trim() !== '') {
+                this.logging.info(`Adding code diff to zip: ${codeDiff}`)
+                codeArtifactZip.file('code_artifact/codeDiff/customerCodeDiff.diff', codeDiff)
+            }
+
+            // Generate the final code artifact zip
+            const zipBuffer = await codeArtifactZip.generateAsync({
                 type: 'nodebuffer',
                 compression: 'DEFLATE',
                 compressionOptions: { level: 9 }, // Maximum compression
@@ -566,6 +383,60 @@ export class QCodeReview {
         } catch (error) {
             this.logging.error(`Error preparing files for upload: ${error}`)
             throw error
+        }
+    }
+
+    /**
+     * Get git diff for a file or folder
+     * @param artifactPath Path to the file or folder
+     * @returns Git diff output as string or null if not in a git repository
+     */
+    private async getGitDiff(artifactPath: string): Promise<string | null> {
+        // eslint-disable-next-line import/no-nodejs-modules
+        const { exec } = require('child_process')
+        // eslint-disable-next-line import/no-nodejs-modules
+        const path = require('path')
+
+        this.logging.info(`Get git diff for path - ${artifactPath}`)
+
+        const directoryPath = QCodeReviewUtils.getFolderPath(artifactPath)
+
+        const gitDiffCommandUnstaged = `cd ${directoryPath} && git diff ${artifactPath}`
+        const gitDiffCommandStaged = `cd ${directoryPath} && git diff --staged ${artifactPath}`
+
+        this.logging.info(`Running git commands - ${gitDiffCommandUnstaged} and ${gitDiffCommandStaged}`)
+
+        try {
+            // Get unstaged changes
+            const unstagedDiff = await new Promise<string>((resolve, reject) => {
+                exec(gitDiffCommandUnstaged, (error: any, stdout: string, stderr: string) => {
+                    if (error) {
+                        this.logging.warn(`Git diff failed for unstaged: ${stderr || error.message}`)
+                        resolve('') // Resolve with empty string on error
+                    } else {
+                        resolve(stdout.trim())
+                    }
+                })
+            })
+
+            // Get staged changes
+            const stagedDiff = await new Promise<string>((resolve, reject) => {
+                exec(gitDiffCommandStaged, (error: any, stdout: string, stderr: string) => {
+                    if (error) {
+                        this.logging.warn(`Git diff failed for staged: ${stderr || error.message}`)
+                        resolve('') // Resolve with empty string on error
+                    } else {
+                        resolve(stdout.trim())
+                    }
+                })
+            })
+
+            // Combine the diffs
+            const combinedDiff = [unstagedDiff, stagedDiff].filter(Boolean).join('\n\n')
+            return combinedDiff || null
+        } catch (error) {
+            this.logging.error(`Error getting git diff: ${error}`)
+            return null
         }
     }
 
@@ -591,7 +462,7 @@ export class QCodeReview {
                 if (entry.isFile()) {
                     // File
                     // Skip hidden files and common non-code files
-                    if (name.startsWith('.') || this.shouldSkipFile(name)) {
+                    if (name.startsWith('.') || QCodeReviewUtils.shouldSkipFile(name)) {
                         continue
                     }
 
@@ -600,7 +471,7 @@ export class QCodeReview {
                 } else if (entry.isDirectory()) {
                     // Directory
                     // Skip common directories to exclude
-                    if (this.shouldSkipDirectory(name)) {
+                    if (QCodeReviewUtils.shouldSkipDirectory(name)) {
                         continue
                     }
 
@@ -612,83 +483,6 @@ export class QCodeReview {
             this.logging.error(`Error adding folder to zip: ${error}`)
             throw error
         }
-    }
-
-    /**
-     * Check if a file should be skipped during zip creation
-     * @param fileName Name of the file to check
-     * @returns True if the file should be skipped, false otherwise
-     */
-    private shouldSkipFile(fileName: string): boolean {
-        const skipExtensions = [
-            '.jpg',
-            '.jpeg',
-            '.png',
-            '.gif',
-            '.bmp',
-            '.ico',
-            '.svg', // Images
-            '.mp3',
-            '.wav',
-            '.ogg',
-            '.mp4',
-            '.avi',
-            '.mov', // Media
-            '.zip',
-            '.tar',
-            '.gz',
-            '.rar',
-            '.7z', // Archives
-            '.pdf',
-            '.doc',
-            '.docx',
-            '.xls',
-            '.xlsx',
-            '.ppt',
-            '.pptx', // Documents
-            '.ttf',
-            '.otf',
-            '.woff',
-            '.woff2', // Fonts
-            '.log',
-            '.tmp',
-            '.temp', // Temporary files
-        ]
-
-        const extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase()
-        return skipExtensions.includes(extension)
-    }
-
-    /**
-     * Check if a directory should be skipped during zip creation
-     * @param dirName Name of the directory to check
-     * @returns True if the directory should be skipped, false otherwise
-     */
-    private shouldSkipDirectory(dirName: string): boolean {
-        const skipDirs = [
-            'node_modules',
-            'dist',
-            'build',
-            'target',
-            '.git',
-            '.svn',
-            '.hg',
-            '.vscode',
-            '.idea',
-            '.vs',
-            '__pycache__',
-            '.pytest_cache',
-            'venv',
-            'env',
-            '.env',
-            'virtualenv',
-            'coverage',
-            '.nyc_output',
-            'tmp',
-            'temp',
-        ]
-
-        return skipDirs.includes(dirName)
     }
 
     /**
@@ -742,13 +536,5 @@ export class QCodeReview {
             req.write(fileContent)
             req.end()
         })
-    }
-
-    /**
-     * Generate a unique client token for the request
-     * @returns A unique string token
-     */
-    private generateClientToken(): string {
-        return `code-scan-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
     }
 }

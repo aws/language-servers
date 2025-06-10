@@ -12,52 +12,6 @@ import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
 import { QCodeReview } from './qCodeReview'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
-import { McpManager } from './mcp/mcpManager'
-
-export const QCodeAnalysisServer: Server = ({
-    workspace,
-    logging,
-    agent,
-    lsp,
-    sdkInitializator,
-    credentialsProvider,
-}) => {
-    logging.info('QCodeAnalysisServer')
-    const qCodeReviewTool = new QCodeReview({ workspace, lsp, logging })
-
-    lsp.onInitialized(async () => {
-        logging.info('LSP on initialize for QCodeAnalysisServer')
-        // Get credentials provider from the LSP context
-        if (!credentialsProvider.hasCredentials) {
-            logging.error('Credentials provider not available')
-            return
-        }
-
-        // Create the CodeWhisperer client
-        const codeWhispererClient = new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            logging,
-            process.env.CODEWHISPERER_REGION || 'us-east-1',
-            process.env.CODEWHISPERER_ENDPOINT || 'https://codewhisperer.us-east-1.amazonaws.com/',
-            sdkInitializator
-        )
-
-        agent.addTool(
-            {
-                name: QCodeReview.toolName,
-                description: QCodeReview.toolDescription,
-                inputSchema: QCodeReview.inputSchema,
-            },
-            async (input: any) => {
-                return await qCodeReviewTool.execute(input, { codeWhispererClient })
-            }
-        )
-    })
-
-    return () => {}
-}
-
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
     getGlobalMcpConfigPath,
@@ -100,6 +54,50 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     //     await grepSearchTool.validate(input)
     //     return await grepSearchTool.invoke(input, token)
     // })
+
+    return () => {}
+}
+
+export const QCodeAnalysisServer: Server = ({
+    workspace,
+    logging,
+    agent,
+    lsp,
+    sdkInitializator,
+    credentialsProvider,
+}) => {
+    logging.info('QCodeAnalysisServer')
+    const qCodeReviewTool = new QCodeReview({ workspace, lsp, logging })
+
+    lsp.onInitialized(async () => {
+        logging.info('LSP on initialize for QCodeAnalysisServer')
+        // Get credentials provider from the LSP context
+        if (!credentialsProvider.hasCredentials) {
+            logging.error('Credentials provider not available')
+            return
+        }
+
+        // Create the CodeWhisperer client
+        const codeWhispererClient = new CodeWhispererServiceToken(
+            credentialsProvider,
+            workspace,
+            logging,
+            process.env.CODEWHISPERER_REGION || 'us-east-1',
+            process.env.CODEWHISPERER_ENDPOINT || 'https://codewhisperer.us-east-1.amazonaws.com/',
+            sdkInitializator
+        )
+
+        agent.addTool(
+            {
+                name: QCodeReview.toolName,
+                description: QCodeReview.toolDescription,
+                inputSchema: QCodeReview.inputSchema,
+            },
+            async (input: any) => {
+                return await qCodeReviewTool.execute(input, { codeWhispererClient })
+            }
+        )
+    })
 
     return () => {}
 }
