@@ -404,10 +404,7 @@ export class ChatDatabase {
 
     formatChatHistoryMessage(message: Message): Message {
         if (message.type === ('prompt' as ChatItemType)) {
-            let hasToolResults = false
-            if (message.userInputMessageContext?.toolResults) {
-                hasToolResults = message.userInputMessageContext?.toolResults.length > 0
-            }
+            const hasToolResults = message.userInputMessageContext?.toolResults
             return {
                 ...message,
                 userInputMessageContext: {
@@ -700,10 +697,10 @@ export class ChatDatabase {
 
     getModelId(): string | undefined {
         const settings = this.getSettings()
-        return settings?.modelId === '' ? undefined : settings?.modelId
+        return settings?.modelId
     }
 
     setModelId(modelId: string | undefined): void {
-        this.updateSettings({ modelId: modelId === '' ? undefined : modelId })
+        this.updateSettings({ modelId })
     }
 }
