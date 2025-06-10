@@ -4,7 +4,7 @@ import {
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     ToolUse,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     StreamingClientServiceToken,
     SendMessageCommandInput,
@@ -13,6 +13,10 @@ import {
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
 import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapErrorWithCode } from '../agenticChat/errors'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { loggingUtils } from '@aws/lsp-core'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { getRequestID, isFreeTierLimitError } from '../../shared/utils'
+import { AmazonQFreeTierLimitError } from '../../shared/amazonQServiceManager/errors'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -39,6 +43,7 @@ export class ChatSessionService {
     // Map to store approved paths to avoid repeated validation
     #approvedPaths: Set<string> = new Set<string>()
     #serviceManager?: AmazonQBaseServiceManager
+    #logging?: Logging
 
     public getConversationType(): string {
         return this.#conversationType
@@ -111,8 +116,9 @@ export class ChatSessionService {
         this.#approvedPaths.add(normalizedPath)
     }
 
-    constructor(serviceManager?: AmazonQBaseServiceManager) {
+    constructor(serviceManager?: AmazonQBaseServiceManager, logging?: Logging) {
         this.#serviceManager = serviceManager
+        this.#logging = logging
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
@@ -152,9 +158,21 @@ export class ChatSessionService {
             try {
                 return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {
+                // Log the error using the logging property if available, otherwise fall back to console.error
+                if (this.#logging) {
+                    this.#logging.error(`Error in generateAssistantResponse: ${loggingUtils.formatErr(e)}`)
+                }
+
+                const requestId = getRequestID(e)
+                if (isFreeTierLimitError(e)) {
+                    throw new AgenticChatError(
+                        'Request aborted',
+                        'AmazonQFreeTierLimitError',
+                        e instanceof Error ? e : undefined,
+                        requestId
+                    )
+                }
                 if (isRequestAbortedError(e)) {
-                    const requestId =
-                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
                     throw new AgenticChatError(
                         'Request aborted',
                         'RequestAborted',
@@ -163,8 +181,6 @@ export class ChatSessionService {
                     )
                 }
                 if (isInputTooLongError(e)) {
-                    const requestId =
-                        e instanceof CodeWhispererStreamingServiceException ? e.$metadata?.requestId : undefined
                     throw new AgenticChatError(
                         'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.',
                         'InputTooLong',
@@ -220,5 +236,13 @@ export class ChatSessionService {
 
     public abortRequest(): void {
         this.#abortController?.abort()
+    }
+
+    /**
+     * Sets the logging object for this session
+     * @param logging The logging object to use
+     */
+    public setLogging(logging: Logging): void {
+        this.#logging = logging
     }
 }

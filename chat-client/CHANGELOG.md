@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.14](https://github.com/aws/language-servers/compare/chat-client/v0.1.13...chat-client/v0.1.14) (2025-06-10)
+
+
+### Features
+
+* adding mcp servers feature to the language-server ([#1544](https://github.com/aws/language-servers/issues/1544)) ([f37bf5f](https://github.com/aws/language-servers/commit/f37bf5f91921d7611c124de6d54dd6ec653038c6))
+* **q:** builderid "paid tier" [#1197](https://github.com/aws/language-servers/issues/1197) ([d25bcb6](https://github.com/aws/language-servers/commit/d25bcb696572dd52938253bd15d838b1a0f57d68))
+* remove auto model selection option ([#1548](https://github.com/aws/language-servers/issues/1548)) ([71fc801](https://github.com/aws/language-servers/commit/71fc80165a7e987ca4d103f40aa93980bcd015da))
+
+
+### Bug Fixes
+
+* prevent muting messages with completed status ([#1557](https://github.com/aws/language-servers/issues/1557)) ([527a373](https://github.com/aws/language-servers/commit/527a373cc0b7c2c253d700af002d4e6bc7fdb887))
+
 ## [0.1.13](https://github.com/aws/language-servers/compare/chat-client/v0.1.12...chat-client/v0.1.13) (2025-06-02)
 
 
@@ -216,8 +230,8 @@
 
 ### Changed
 
-- Update `@aws/chat-client-ui-types` to 0.1.0
-- Update `@aws/language-server-runtimes-types` to 0.1.0
+- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/language-server-runtimes-types` to 0.1.29
 - Shortened legal text in the footer
 
 ## [0.0.9] - 2024-11-20
@@ -241,8 +255,8 @@
 ### Changed
 
 - Changed legal text in the footer
-- Update `@aws/chat-client-ui-types` to 0.0.8
-- Update `@aws/language-server-runtimes-types` to to 0.0.7
+- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/language-server-runtimes-types` to 0.1.29
 - Upgraded dependency: `@aws/mynah-ui` from 4.15.11 to 4.18.0:
     - Inline code elements now wrap onto new lines
     - Send button no longer shifts out of the window when horizontally filling the prompt input without spaces (now it wraps)

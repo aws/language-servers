@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.0.45](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.44...lsp-codewhisperer/v0.0.45) (2025-06-10)
+
+
+### Features
+
+* add C8 test coverage support ([#1567](https://github.com/aws/language-servers/issues/1567)) ([eee5048](https://github.com/aws/language-servers/commit/eee5048c783ffc300073865d391372d5a583365c))
+* adding mcp servers feature to the language-server ([#1544](https://github.com/aws/language-servers/issues/1544)) ([f37bf5f](https://github.com/aws/language-servers/commit/f37bf5f91921d7611c124de6d54dd6ec653038c6))
+* **amazonq:** inline unit test generation ([#1406](https://github.com/aws/language-servers/issues/1406)) ([b01610c](https://github.com/aws/language-servers/commit/b01610cdbaa54b0c4340322cdf02785134d0f472))
+* bundle nupkg files into artifact.zip ([#1510](https://github.com/aws/language-servers/issues/1510)) ([b47da11](https://github.com/aws/language-servers/commit/b47da112f256625e274a9156a09e1a4bdd6b6da3))
+* **q:** builderid "paid tier" [#1197](https://github.com/aws/language-servers/issues/1197) ([d25bcb6](https://github.com/aws/language-servers/commit/d25bcb696572dd52938253bd15d838b1a0f57d68))
+* remove auto model selection option ([#1548](https://github.com/aws/language-servers/issues/1548)) ([71fc801](https://github.com/aws/language-servers/commit/71fc80165a7e987ca4d103f40aa93980bcd015da))
+
+
+### Bug Fixes
+
+* **amazonq:** utg shouldnt throw when there is no corresponding config as its not handled at callers ([#1572](https://github.com/aws/language-servers/issues/1572)) ([cf79a8c](https://github.com/aws/language-servers/commit/cf79a8c69fcf81beec0e3b138bcb4f09172f12dc))
+* handle dangling tool results when history is cleared due to size limits ([#1527](https://github.com/aws/language-servers/issues/1527)) ([9082323](https://github.com/aws/language-servers/commit/9082323d1affe9cb71001aa76a216b690e892b06))
+* incorrect history when user aborts in-progress toolUse ([#1542](https://github.com/aws/language-servers/issues/1542)) ([0288d85](https://github.com/aws/language-servers/commit/0288d850f34ab0498f300da0a83c123bf7c62e54))
+* return QModelResponse as a response not an error ([#1523](https://github.com/aws/language-servers/issues/1523)) ([5d2b3ec](https://github.com/aws/language-servers/commit/5d2b3ecf13ab4bbcbab35a6a9c5788048170f09d))
+
+
+### Reverts
+
+* fix(amazonq): always restore chat tabs when onReady is received ([#1524](https://github.com/aws/language-servers/issues/1524)) ([#1536](https://github.com/aws/language-servers/issues/1536)) ([60b3b63](https://github.com/aws/language-servers/commit/60b3b63ded17e81e3dc12ff0f14b652bdff01667))
+
 ## [0.0.44](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.43...lsp-codewhisperer/v0.0.44) (2025-06-05)
 
 
@@ -574,7 +599,7 @@
 * **amazonq:** await for recordMetric in CodeDiff tracker ([ee04afc](https://github.com/aws/language-servers/commit/ee04afc7775e83bfa3868b4b661cf59ff3c7f949))
 * **amazonq:** handle exceptions in TelemetryService ([e8f6375](https://github.com/aws/language-servers/commit/e8f637524fe878c26c72f506de4abea86b481fde))
 * **amazonq:** specify code analysis scope and scan name when running scans ([#858](https://github.com/aws/language-servers/issues/858)) ([a925297](https://github.com/aws/language-servers/commit/a925297aabc89334f4f9eed6c13146f4fd20b164))
-* update @aws/language-server-runtimes to 0.2.48 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
+* update @aws/language-server-runtimes to 0.2.83 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
 
 ## [0.0.28](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.27...lsp-codewhisperer/v0.0.28) (2025-03-18)
 
