@@ -83,11 +83,12 @@ export abstract class CodeWhispererServiceBase {
     // Ensure the returned cached suggestion belong the correct session
     acceptedSession(sessionId: string) {
         if (this.prefetchSuggestions.length) {
-            this.prefetchSuggestions = this.prefetchSuggestions.filter(s => s.id === sessionId)
-            const afterLen = this.prefetchSuggestions.length
-            if (afterLen > 0) {
-                console.error(`[NEP]: inconsistent prefetched suggestions with different session id lived in cache`)
-            }
+            // TODO: not work as expected, comment out to unblock
+            // this.prefetchSuggestions = this.prefetchSuggestions.filter(s => s.id === sessionId)
+            // const afterLen = this.prefetchSuggestions.length
+            // if (afterLen > 0) {
+            //     console.error(`[NEP]: inconsistent prefetched suggestions with different session id lived in cache`)
+            // }
         }
     }
 
@@ -356,28 +357,27 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         // TODO: handle if textDocument/cursor/request position doesn't match prefetchSuggestions
         // e.g. if it's not a subsequent call, it must be a cold start
-        let isColdStart =
-            !this.isPrefetchInProgress ||
-            this.prefetchSuggestions.length === 0 ||
-            this.prefetchSuggestions[0].request.fileContext.filename !== originalRequest.fileContext.filename
-
-        // TODO: should combine with above
-        if (!isColdStart) {
+        let useCache =
+            this.isPrefetchInProgress ||
+            (this.prefetchSuggestions.length > 0 &&
+                this.prefetchSuggestions[0].request.fileContext.filename === originalRequest.fileContext.filename)
+        if (useCache) {
             const prefetchSuggestion = this.prefetchSuggestions[0]
             const expectedEditorState = prefetchSuggestion.request.editorState
             const actualEditorState = originalRequest.editorState
 
             if (
-                expectedEditorState?.cursorState?.position?.character !== actualEditorState?.cursorState?.position ||
-                expectedEditorState?.cursorState?.position?.line !== actualEditorState?.cursorState?.position
+                expectedEditorState?.cursorState?.position?.character !==
+                    actualEditorState?.cursorState?.position?.character ||
+                expectedEditorState?.cursorState?.position?.line !== actualEditorState?.cursorState?.position?.line
             ) {
-                isColdStart = true
+                useCache = false
             }
         }
 
         const t0 = performance.now()
 
-        if (!isColdStart) {
+        if (useCache) {
             this.logging.info(`will use prefetch suggestion`)
             const r = await waitUntil(
                 async () => {
@@ -472,7 +472,7 @@ ${response.suggestions[0].content}`)
 
             if (isResponseValid) {
                 this.prefetchSuggestions.push({
-                    id: response.responseContext.codewhispererSessionId, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
+                    id: baseResponse.responseContext.codewhispererSessionId, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
                     response: response,
                     request: request,
                 })
