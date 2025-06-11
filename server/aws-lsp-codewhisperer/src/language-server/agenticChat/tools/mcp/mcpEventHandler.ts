@@ -307,7 +307,10 @@ export class McpEventHandler {
             const serverName = existingValues.name
             const sanitizedServerName = sanitizeName(serverName)
             const serverState = McpManager.instance.getAllServerConfigs().get(sanitizedServerName)
-            if (serverState?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())) {
+            if (
+                !serverState ||
+                serverState?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+            ) {
                 existingValues.scope = 'global'
             } else {
                 existingValues.scope = 'workspace'
