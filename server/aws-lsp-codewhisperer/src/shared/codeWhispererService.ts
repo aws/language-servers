@@ -60,7 +60,6 @@ import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inlin
 import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { Position } from 'vscode-languageserver-textdocument'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
-import { logger } from './simpleLogger'
 
 // Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -249,26 +248,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
                         const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
-
-                        if (requestBody.fileContext) {
-                            const flareRequestId = logger.getRequestHash(
-                                requestBody.fileContext.filename,
-                                requestBody.editorState.text,
-                                requestBody.editorState.cursorState.position.line,
-                                requestBody.editorState.cursorState.position.character
-                            )
-                            logger.logApi(
-                                {
-                                    request: req.httpRequest.body,
-                                    response: response?.httpResponse?.body?.toString() || 'No response body',
-                                    endpoint: this.codeWhispererEndpoint,
-                                    error: null,
-                                    statusCode: response?.httpResponse?.statusCode || 0,
-                                    latency: latency,
-                                },
-                                flareRequestId
-                            )
-                        }
                         this.completeRequest(req)
                     })
                     req.on('error', async (error, response) => {
@@ -277,27 +256,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
                         const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
-
-                        if (requestBody.fileContext) {
-                            const flareRequestId = logger.getRequestHash(
-                                requestBody.fileContext.filename,
-                                requestBody.editorState.text,
-                                requestBody.editorState.cursorState.position.line,
-                                requestBody.editorState.cursorState.position.character
-                            )
-
-                            logger.logApi(
-                                {
-                                    request: req.httpRequest.body,
-                                    response: null,
-                                    endpoint: this.codeWhispererEndpoint,
-                                    error: error.toString(),
-                                    statusCode: response?.httpResponse?.statusCode,
-                                    latency: latency,
-                                },
-                                flareRequestId
-                            )
-                        }
                         this.completeRequest(req)
                     })
                 },

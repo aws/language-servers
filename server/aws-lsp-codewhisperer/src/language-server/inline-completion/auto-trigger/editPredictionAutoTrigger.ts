@@ -9,19 +9,6 @@ import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { LanguageDetectorFactory } from './languageDetector'
 import { EditPredictionConfigManager } from './editPredictionConfig'
-import { logger, EditAutoTriggerData } from '../../../shared/simpleLogger'
-
-// Debug logger function
-const DEBUG = true
-function log(message: string, state?: object): void {
-    if (DEBUG) {
-        if (state) {
-            console.log(`[EditPredictionAutoTrigger] ${message}`, JSON.stringify(state))
-        } else {
-            console.log(`[EditPredictionAutoTrigger] ${message}`)
-        }
-    }
-}
 
 /**
  * Parameters for the edit prediction auto-trigger
@@ -33,7 +20,6 @@ export interface EditPredictionAutoTriggerParams {
     previousDecision: string
     cursorHistory: CursorTracker
     recentEdits: RecentEditTracker
-    flareRequestId?: string // Optional request UUID for tracking
 }
 
 /**
@@ -49,7 +35,6 @@ export const editPredictionAutoTrigger = ({
     previousDecision,
     cursorHistory,
     recentEdits,
-    flareRequestId,
 }: EditPredictionAutoTriggerParams): {
     shouldTrigger: boolean
 } => {
@@ -113,33 +98,5 @@ export const editPredictionAutoTrigger = ({
     const optionalConditionsMet = isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
     const shouldTrigger = (requiredConditionsMet && optionalConditionsMet) || false
 
-    // Create state object for logging
-    const state: EditAutoTriggerData = {
-        // Required conditions
-        hasRecentEdit,
-        isNotInMiddleOfWord,
-        isPreviousDecisionNotReject,
-        hasNonEmptySuffix,
-        requiredConditionsMet,
-        // Optional conditions
-        isAfterKeyword,
-        isAfterOperatorOrDelimiter,
-        hasUserPaused,
-        isAtLineBeginning,
-        optionalConditionsMet,
-        // Code context
-        cursor: `${lineNum}:${position.character}`,
-        currentLine: `${currentLineContent.slice(0, position.character)}█${currentLineContent.slice(position.character)}${rightContextLines[0] || ''}`,
-        // Result
-        shouldTrigger,
-    }
-
-    // Log with logger if flareRequestId is provided
-    logger.logEdit(
-        {
-            ...state,
-        },
-        flareRequestId
-    )
     return { shouldTrigger }
 }

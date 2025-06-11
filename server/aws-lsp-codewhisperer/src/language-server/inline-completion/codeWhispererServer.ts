@@ -58,7 +58,6 @@ import { hasConnectionExpired } from '../../shared/utils'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
-import { DebugLogger } from '../../shared/simpleLogger'
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -283,30 +282,11 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            // Generate a unique request ID for this completion request
-            const flareRequestId = DebugLogger.getInstance().generateflareRequestId()
-
-            // Log the start of the request with structured data
-            DebugLogger.getInstance().log(
-                flareRequestId,
-                'Starting inline completion request',
-                { params },
-                'info',
-                'onInlineCompletionHandler'
-            )
-
             // On every new completion request close current inflight session.
             const currentSession = sessionManager.getCurrentSession()
             if (currentSession && currentSession.state == 'REQUESTING') {
                 // If session was requesting at cancellation time, close it
                 // User Trigger Decision will be reported at the time of processing API response in the callback below.
-                DebugLogger.getInstance().log(
-                    flareRequestId,
-                    'Discarding in-flight session',
-                    { sessionId: currentSession.id, state: currentSession.state },
-                    'debug',
-                    'onInlineCompletionHandler'
-                )
                 sessionManager.discardSession(currentSession)
                 // Also set this flag for compatibility with main branch
                 currentSession.discardInflightSessionOnNewInvocation = true
@@ -388,23 +368,7 @@ export const CodewhispererServerFactory =
                         previousDecision: previousDecision,
                         cursorHistory: cursorTracker,
                         recentEdits: recentEditTracker,
-                        flareRequestId: flareRequestId // Pass the request UUID for tracking
                     });
-
-                    DebugLogger.getInstance().log(
-                        flareRequestId,
-                        'EditPredictionAutoTrigger result',
-                        {
-                            shouldTrigger: editPredictionAutoTriggerResult.shouldTrigger,
-                            fileContext: {
-                                filename: fileContext.filename,
-                                language: fileContext.programmingLanguage.languageName
-                            },
-                            position: params.position
-                        },
-                        'debug',
-                        'onInlineCompletionHandler'
-                    );
 
                     if (
                         isAutomaticLspTriggerKind &&
@@ -522,7 +486,6 @@ export const CodewhispererServerFactory =
                             ]
                         },
                         customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
-                        flareRequestId: flareRequestId // Store the request UUID in the session
                     })
 
                     // Add extra context to request context
@@ -546,17 +509,6 @@ export const CodewhispererServerFactory =
                         },
                     }, { enablePrefetch: false })
                         .then(async suggestionResponse => {
-                            DebugLogger.getInstance().log(
-                                flareRequestId,
-                                'Received suggestion response',
-                                {
-                                    suggestionCount: suggestionResponse.suggestions.length,
-                                    suggestionType: suggestionResponse.suggestionType,
-                                    responseContext: suggestionResponse.responseContext
-                                },
-                                'info',
-                                'onInlineCompletionHandler'
-                            );
 
                             codePercentageTracker.countInvocation(inferredLanguageId)
 
@@ -567,7 +519,8 @@ export const CodewhispererServerFactory =
                             newSession.timeToFirstRecommendation = new Date().getTime() - newSession.startTime
 
                             // Emit service invocation telemetry for every request sent to backend
-                            emitServiceInvocationTelemetry(telemetry, newSession, flareRequestId)
+                            // TODO : This must be API request-id
+                            emitServiceInvocationTelemetry(telemetry, newSession, 'this-needs-a-fix')
 
                             // Exit early and discard API response
                             // session was closed by consequent completion request before API response was received
@@ -705,18 +658,6 @@ export const CodewhispererServerFactory =
                             // TODO: check if we can/should emit UserTriggerDecision
                             sessionManager.closeSession(newSession)
 
-                            DebugLogger.getInstance().log(
-                                flareRequestId,
-                                'Error generating suggestions',
-                                {
-                                    error: error.toString(),
-                                    stack: error.stack,
-                                    sessionId: newSession.id
-                                },
-                                'error',
-                                'onInlineCompletionHandler'
-                            );
-
                             if (error instanceof AmazonQError) {
                                 throw error
                             }
@@ -781,27 +722,6 @@ export const CodewhispererServerFactory =
             if (!session) {
                 logging.log(`ERROR: Session ID ${sessionId} was not found`)
                 return
-            }
-
-            // Get the flareRequestId from the session if available
-            const flareRequestId = (session as any).flareRequestId
-
-            if (flareRequestId) {
-                DebugLogger.getInstance().log(
-                    flareRequestId,
-                    'Processing inline completion session results',
-                    {
-                        sessionId,
-                        completionSessionResult: JSON.stringify(completionSessionResult),
-                        firstCompletionDisplayLatency,
-                        totalSessionDisplayTime,
-                        typeaheadLength,
-                        addedCharacterCount,
-                        deletedCharacterCount,
-                    },
-                    'info',
-                    'onLogInlineCompletionSessionResultsHandler'
-                )
             }
 
             if (session.state !== 'ACTIVE') {
@@ -922,9 +842,6 @@ export const CodewhispererServerFactory =
             editsEnabled =
                 clientParams?.initializationOptions?.aws?.awsClientCapabilities?.textDocument
                     ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
-            console.log('[EDITS] Edits enabled: ' + editsEnabled)
-            console.log('Initializing DebugLogger with GraphQL server')
-            DebugLogger.getInstance() // This will initialize the singleton and start the server
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'INLINE'))
