@@ -5,11 +5,20 @@ import { ListDirectory, ListDirectoryParams } from './listDirectory'
 import { ExecuteBash, ExecuteBashParams } from './executeBash'
 import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
-import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
-import { McpManager } from './mcp/mcpManager'
+import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
+import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
+import { McpToolDefinition } from './mcp/mcpTypes'
+import {
+    getGlobalMcpConfigPath,
+    getGlobalPersonaConfigPath,
+    getWorkspaceMcpConfigPaths,
+    getWorkspacePersonaConfigPaths,
+    createNamespacedToolName,
+    enabledMCP,
+} from './mcp/mcpUtils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -73,28 +82,94 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     return () => {}
 }
 
-export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
-    lsp.onInitialized(async () => {
-        // todo: move to constants
-        var workspaceFolders = workspace.getAllWorkspaceFolders()
-        const wsUris = workspaceFolders?.map(f => f.uri) ?? []
-        const wsConfigPaths = wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
-        const globalConfigPath = `${workspace.fs.getUserHomeDir()}/.aws/amazonq/mcp.json`
-        const allPaths = [...wsConfigPaths, globalConfigPath]
+export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging, lsp, agent, telemetry, runtime }) => {
+    const registered: Record<string, string[]> = {}
 
-        const mgr = await McpManager.init(allPaths, { logging, workspace, lsp })
+    const allNamespacedTools = new Set<string>()
 
-        for (const def of mgr.getAllTools()) {
-            const baseSpec = def
-            const namespaced = `${def.serverName}_${def.toolName}`
+    function registerServerTools(server: string, defs: McpToolDefinition[]) {
+        // 1) remove old tools
+        for (const name of registered[server] ?? []) {
+            agent.removeTool(name)
+            allNamespacedTools.delete(name)
+        }
+        registered[server] = []
+
+        // 2) add new enabled tools
+        for (const def of defs) {
+            const namespaced = createNamespacedToolName(
+                def.serverName,
+                def.toolName,
+                allNamespacedTools,
+                McpManager.instance.getToolNameMapping()
+            )
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
+            // Add explanation field to input schema
+            const inputSchemaWithExplanation = {
+                ...def.inputSchema,
+                properties: {
+                    ...def.inputSchema.properties,
+                    explanation: {
+                        type: 'string',
+                        description:
+                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
+                    },
+                },
+            }
+
             agent.addTool(
-                { name: namespaced, description: baseSpec.description, inputSchema: baseSpec.inputSchema },
-                (input: any) => tool.invoke(input)
+                {
+                    name: namespaced,
+                    description: def.description?.trim() || 'undefined',
+                    inputSchema: inputSchemaWithExplanation,
+                },
+                input => tool.invoke(input)
             )
-            logging.info(`MCP: registered tool ${namespaced}`)
+            registered[server].push(namespaced)
+            logging.info(`MCP: registered tool ${namespaced} (original: ${def.serverName}___${def.toolName})`)
         }
+    }
+
+    lsp.onInitialized(async () => {
+        if (!enabledMCP(lsp.getClientInitializeParams())) {
+            logging.warn('MCP is currently not supported')
+            return
+        }
+
+        const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
+        const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
+        const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
+        const allConfigPaths = [...wsConfigPaths, globalConfigPath]
+
+        const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
+        const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
+        const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
+
+        const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, {
+            logging,
+            workspace,
+            lsp,
+            telemetry,
+            credentialsProvider,
+            runtime,
+        })
+
+        // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
+        McpManager.instance.clearToolNameMapping()
+
+        const byServer: Record<string, McpToolDefinition[]> = {}
+        // only register enabled tools
+        for (const d of mgr.getEnabledTools()) {
+            ;(byServer[d.serverName] ||= []).push(d)
+        }
+        for (const [server, defs] of Object.entries(byServer)) {
+            registerServerTools(server, defs)
+        }
+
+        mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
+            registerServerTools(server, defs)
+        })
     })
 
     return async () => {

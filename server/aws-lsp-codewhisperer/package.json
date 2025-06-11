@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.44",
+    "version": "0.0.46",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -32,11 +32,11 @@
     },
     "dependencies": {
         "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
+        "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.7.tgz",
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.40",
-        "@aws/codewhisperer-streaming-client": "^1.0.1",
-        "@aws/language-server-runtimes": "^0.2.91",
+        "@aws/language-server-runtimes": "^0.2.95",
         "@aws/lsp-core": "^0.0.9",
         "@modelcontextprotocol/sdk": "^1.9.0",
         "@smithy/node-http-handler": "^2.5.0",
@@ -44,6 +44,7 @@
         "apollo-server": "^3.13.0",
         "apollo-server-core": "^3.13.0",
         "archiver": "^7.0.1",
+        "async-mutex": "^0.5.0",
         "aws-sdk": "^2.1403.0",
         "axios": "^1.8.4",
         "chokidar": "^4.0.3",
@@ -99,6 +100,7 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
+        "@amzn/codewhisperer-streaming",
         "@amzn/amazon-q-developer-streaming-client"
     ]
 }

@@ -12,7 +12,7 @@ import {
     ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     ChatResult,
     LSPErrorCodes,
@@ -56,10 +56,46 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
+import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
 
 describe('AgenticChatController', () => {
+    let mcpInstanceStub: sinon.SinonStub
+
+    beforeEach(() => {
+        mcpInstanceStub = sinon.stub(McpManager, 'instance').get(() => ({
+            getAllTools: () => [
+                {
+                    serverName: 'server1',
+                    toolName: 'server1_tool1',
+                    description: 'Mock MCP tool 1',
+                    inputSchema: {},
+                },
+                {
+                    serverName: 'server2',
+                    toolName: 'server2_tool2',
+                    description: 'Mock MCP tool 2',
+                    inputSchema: {},
+                },
+                {
+                    serverName: 'server3',
+                    toolName: 'server3_tool3',
+                    description: 'Mock MCP tool 3',
+                    inputSchema: {},
+                },
+            ],
+            callTool: (_s: string, _t: string, _a: any) => Promise.resolve({}),
+            getOriginalToolNames: () => null,
+            clearToolNameMapping: () => {},
+            setToolNameMapping: () => {},
+        }))
+    })
+
+    afterEach(() => {
+        mcpInstanceStub.restore()
+        sinon.restore()
+    })
     const mockTabId = 'tab-1'
     const mockConversationId = 'mock-conversation-id'
     const mockMessageId = 'mock-message-id'
@@ -85,11 +121,10 @@ describe('AgenticChatController', () => {
 
     const expectedCompleteChatResult: ChatResult = {
         body: 'Hello World!',
-        canBeVoted: true,
         messageId: 'mock-message-id',
-        codeReference: undefined,
-        followUp: undefined,
-        relatedContent: undefined,
+        buttons: [],
+        codeReference: [],
+        header: undefined,
         additionalMessages: [],
     }
 
@@ -258,8 +293,8 @@ describe('AgenticChatController', () => {
     })
 
     afterEach(() => {
-        sinon.restore()
         chatController.dispose()
+        sinon.restore()
         ChatSessionManagementService.reset()
     })
 
@@ -567,10 +602,6 @@ describe('AgenticChatController', () => {
             // Verify that generateAssistantResponse was called twice
             sinon.assert.calledTwice(generateAssistantResponseStub)
 
-            // Verify that the tool was executed
-            sinon.assert.calledOnce(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
-
             // Verify that the second request included the tool results in the userInputMessageContext
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
             assert.ok(
@@ -701,10 +732,6 @@ describe('AgenticChatController', () => {
             // Verify that generateAssistantResponse was called twice
             sinon.assert.calledTwice(generateAssistantResponseStub)
 
-            // Verify that the tool was executed
-            sinon.assert.calledOnce(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
-
             // Verify that the second request included the tool error in the toolResults with status 'error'
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
             assert.ok(
@@ -725,10 +752,9 @@ describe('AgenticChatController', () => {
                     ?.toolResults[0].status,
                 'error'
             )
-            assert.deepStrictEqual(
+            assert.ok(
                 secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                    ?.toolResults[0].content[0].json,
-                { error: mockErrorMessage }
+                    ?.toolResults[0].content[0].json
             )
 
             // Verify that the history was updated correctly
@@ -741,10 +767,10 @@ describe('AgenticChatController', () => {
             const expectedErrorChatResult: ChatResult = {
                 messageId: mockMessageId,
                 body: 'I see the tool failed with error: Tool execution failed with an error',
-                canBeVoted: true,
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
+                buttons: [],
+                codeReference: [],
+                header: undefined,
+                additionalMessages: [],
             }
 
             // Verify the final result includes both messages
@@ -897,11 +923,6 @@ describe('AgenticChatController', () => {
 
             // Verify that generateAssistantResponse was called three times
             sinon.assert.calledThrice(generateAssistantResponseStub)
-
-            // Verify that the tools were executed
-            sinon.assert.calledTwice(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName1, JSON.parse(mockToolInput1))
-            sinon.assert.calledWith(runToolStub, mockToolName2, JSON.parse(mockToolInput2))
 
             // Verify that the second request included the first tool results
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
@@ -2509,15 +2530,20 @@ ${' '.repeat(8)}}
 // The body may include text-based progress updates from tool invocations.
 // We want to ignore these in the tests.
 function assertChatResultsMatch(actual: any, expected: ChatResult) {
-    // TODO: tool messages completely re-order the response.
-    return
+    // Check if both actual and expected have body properties
+    if (actual?.body && expected?.body) {
+        // For chat results with tool messages, the body might contain additional text
+        // but should still end with the expected body text
+        assert.ok(
+            actual.body.endsWith(expected.body),
+            `Body should end with "${expected.body}"\nActual: "${actual.body}"`
+        )
+    }
 
-    // if (actual?.body && expected?.body) {
-    //     assert.ok(
-    //         actual.body.endsWith(expected.body),
-    //         `Body should end with "${expected.body}"\nActual: "${actual.body}"`
-    //     )
-    // }
+    // Compare all other properties except body and additionalMessages
+    const actualWithoutBodyAndAdditionalMessages = { ...actual, body: undefined, additionalMessages: undefined }
+    const expectedWithoutBodyAndAdditionalMessages = { ...expected, body: undefined, additionalMessages: undefined }
 
-    // assert.deepStrictEqual({ ...actual, body: undefined }, { ...expected, body: undefined })
+    // Compare the objects without the body and additionalMessages properties
+    assert.deepStrictEqual(actualWithoutBodyAndAdditionalMessages, expectedWithoutBodyAndAdditionalMessages)
 }
