@@ -169,7 +169,30 @@ export class QCodeReview {
 
                 let validatedFindings: any[] = []
                 if (findingsResponse.codeAnalysisFindings) {
-                    validatedFindings = Q_FINDINGS_SCHEMA.parse(JSON.parse(findingsResponse.codeAnalysisFindings))
+                    const intermediateFindings = Q_FINDINGS_SCHEMA.parse(
+                        JSON.parse(findingsResponse.codeAnalysisFindings)
+                    )
+
+                    validatedFindings = intermediateFindings.map((issue: any) => {
+                        return {
+                            startLine: issue.startLine - 1 >= 0 ? issue.startLine - 1 : 0,
+                            endLine: issue.endLine,
+                            comment: `${issue.title.trim()}: ${issue.description.text.trim()}`,
+                            title: issue.title,
+                            description: issue.description,
+                            detectorId: issue.detectorId,
+                            detectorName: issue.detectorName,
+                            findingId: issue.findingId,
+                            ruleId: issue.ruleId,
+                            relatedVulnerabilities: issue.relatedVulnerabilities,
+                            severity: issue.severity,
+                            recommendation: issue.remediation.recommendation,
+                            suggestedFixes: issue.remediation.suggestedFixes,
+                            scanJobId: jobId,
+                            language: programmingLanguage,
+                            autoDetected: false,
+                        }
+                    })
                 }
 
                 this.logging.info(`Parsed findings: ${JSON.stringify(validatedFindings)}`)

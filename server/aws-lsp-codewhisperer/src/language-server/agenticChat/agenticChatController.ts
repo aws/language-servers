@@ -1298,6 +1298,15 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     case QCodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
+                        const qCodeReviewJson = JSON.parse(JSON.stringify(result))
+                        await chatResultStream.writeResultBlock({
+                            type: 'tool',
+                            messageId: toolUse.toolUseId + '_findings',
+                            body: JSON.stringify({
+                                filePath: JSON.parse(JSON.stringify(toolUse.input))['fileLevelArtifacts'][0]['path'],
+                                issues: JSON.parse(qCodeReviewJson['result']['findings']),
+                            }),
+                        })
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
