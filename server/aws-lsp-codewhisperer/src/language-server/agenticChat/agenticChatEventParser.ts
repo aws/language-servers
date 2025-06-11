@@ -3,7 +3,7 @@
  * Will be deleted or merged.
  */
 
-import { ChatResponseStream, Reference, SupplementaryWebLink, ToolUse } from '@aws/codewhisperer-streaming-client'
+import { ChatResponseStream, Reference, SupplementaryWebLink, ToolUse } from '@amzn/codewhisperer-streaming'
 import {
     ChatItemAction,
     ChatResult,

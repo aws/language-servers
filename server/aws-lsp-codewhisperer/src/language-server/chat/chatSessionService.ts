@@ -4,7 +4,7 @@ import {
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
     ToolUse,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     StreamingClientServiceToken,
     SendMessageCommandInput,
@@ -15,8 +15,7 @@ import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapError
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
-import { getRequestID, isFreeTierLimitError } from '../../shared/utils'
-import { AmazonQFreeTierLimitError } from '../../shared/amazonQServiceManager/errors'
+import { getRequestID, isUsageLimitError } from '../../shared/utils'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -165,10 +164,10 @@ export class ChatSessionService {
                 }
 
                 const requestId = getRequestID(e)
-                if (isFreeTierLimitError(e)) {
+                if (isUsageLimitError(e)) {
                     throw new AgenticChatError(
                         'Request aborted',
-                        'AmazonQFreeTierLimitError',
+                        'AmazonQUsageLimitError',
                         e instanceof Error ? e : undefined,
                         requestId
                     )

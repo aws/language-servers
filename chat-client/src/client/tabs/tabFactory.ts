@@ -147,8 +147,8 @@ export class TabFactory {
         if (this.mcp) {
             tabBarButtons.push({
                 id: McpServerTabButtonId,
-                icon: MynahIcons.MCP,
-                description: 'Opening MCP Servers configuration',
+                icon: MynahIcons.TOOLS,
+                description: 'Configure MCP servers',
             })
         }
 

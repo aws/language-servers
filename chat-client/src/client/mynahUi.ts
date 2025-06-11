@@ -934,12 +934,15 @@ export const createMynahUi = (
             // Change the sticky banner to show a progress spinner.
             const card: typeof freeTierLimitSticky = {
                 ...(isFreeTierLimitUi ? freeTierLimitSticky : upgradePendingSticky),
-                icon: 'progress',
+            }
+            card.header = {
+                ...card.header,
+                icon: upgradePendingSticky.header?.icon,
+                iconStatus: upgradePendingSticky.header?.iconStatus,
             }
             mynahUi.updateStore(tabId, {
-                // Show a progress ribbon.
                 promptInputVisible: true,
-                promptInputStickyCard: isFreeTierLimitUi ? card : null,
+                promptInputStickyCard: card,
             })
         } else if (mode === 'paidtier') {
             mynahUi.updateStore(tabId, {

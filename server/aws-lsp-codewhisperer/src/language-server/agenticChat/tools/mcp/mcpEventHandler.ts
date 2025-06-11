@@ -15,6 +15,7 @@ import {
     getGlobalPersonaConfigPath,
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
+    sanitizeName,
 } from './mcpUtils'
 import {
     McpPermissionType,
@@ -153,7 +154,6 @@ export class McpEventHandler {
 
             // Check if this server has validation errors
             const hasValidationErrors = serversWithErrors.has(serverName)
-
             const item: DetailedListItem = {
                 title: serverName,
                 description: `Command: ${config.command}`,
@@ -305,8 +305,12 @@ export class McpEventHandler {
 
         if (existingValues.name) {
             const serverName = existingValues.name
-            const serverState = McpManager.instance.getAllServerConfigs().get(serverName)
-            if (serverState?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())) {
+            const sanitizedServerName = sanitizeName(serverName)
+            const serverState = McpManager.instance.getAllServerConfigs().get(sanitizedServerName)
+            if (
+                !serverState ||
+                serverState?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+            ) {
                 existingValues.scope = 'global'
             } else {
                 existingValues.scope = 'workspace'
@@ -496,9 +500,6 @@ export class McpEventHandler {
         if (!values.name || values.name.trim() === '') {
             errors.push('Server name cannot be empty')
         } else {
-            if (!/^[a-zA-Z0-9_-]+$/.test(values.name)) {
-                errors.push('Server name can only contain alphanumeric characters and hyphens')
-            }
             if (checkExistingServerName) {
                 const existingServers = McpManager.instance.getAllServerConfigs()
 
@@ -557,6 +558,7 @@ export class McpEventHandler {
         }
 
         const serverName = params.optionsValues.name
+        const sanitizedServerName = sanitizeName(serverName)
         const originalServerName = this.#currentEditingServerName
         const isEditMode = !!(originalServerName && McpManager.instance.getAllServerConfigs().has(originalServerName))
         // Validate form values
@@ -671,7 +673,7 @@ export class McpEventHandler {
             // Stay on add/edit page and show error to user
             if (isEditMode) {
                 params.id = 'edit-mcp'
-                params.title = serverName
+                params.title = sanitizedServerName
                 return this.#handleEditMcpServer(params)
             } else {
                 params.id = 'add-new-mcp'
@@ -679,7 +681,7 @@ export class McpEventHandler {
             }
         } else {
             // Success case: go to tools permissions page
-            return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: serverName })
+            return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: sanitizedServerName })
         }
     }
 
