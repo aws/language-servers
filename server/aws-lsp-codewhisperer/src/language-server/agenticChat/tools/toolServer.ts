@@ -118,8 +118,19 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
                 },
             }
 
+            // Clean tool name to match pattern ^[a-zA-Z0-9_-]+$ and max length 64
+            let cleanedName = namespaced
+            if (!/^[a-zA-Z0-9_-]+$/.test(namespaced) || namespaced.length > 64) {
+                cleanedName = namespaced.replace(/[^a-zA-Z0-9_-]/g, '').substring(0, 64)
+                logging.warn(`Tool name "${namespaced}" modified to "${cleanedName}" to match required pattern`)
+            }
+
             agent.addTool(
-                { name: namespaced, description: def.description, inputSchema: inputSchemaWithExplanation },
+                {
+                    name: cleanedName,
+                    description: def.description?.trim() || 'undefined',
+                    inputSchema: inputSchemaWithExplanation,
+                },
                 input => tool.invoke(input)
             )
             registered[server].push(namespaced)
