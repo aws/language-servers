@@ -306,7 +306,10 @@ export class McpEventHandler {
         if (existingValues.name) {
             const serverName = existingValues.name
             const serverState = McpManager.instance.getAllServerConfigs().get(serverName)
-            if (serverState?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())) {
+            if (
+                !serverState ||
+                serverState?.__configPath__ === getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
+            ) {
                 existingValues.scope = 'global'
             } else {
                 existingValues.scope = 'workspace'
