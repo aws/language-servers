@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.47](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.46...lsp-codewhisperer/v0.0.47) (2025-06-11)
+
+
+### Bug Fixes
+
+* **amazonq:** remove storing zips under workspaceContextArtifacts ([#1601](https://github.com/aws/language-servers/issues/1601)) ([c8445d5](https://github.com/aws/language-servers/commit/c8445d562a11153cc77fac52237f914478f54cb7))
+* fix for overwriting in workspace level config and persona files ([#1624](https://github.com/aws/language-servers/issues/1624)) ([b201e0c](https://github.com/aws/language-servers/commit/b201e0c938f98329d83ea6ba39776d36ca7e44d0))
+* fix to remove tool name sanitization ([#1621](https://github.com/aws/language-servers/issues/1621)) ([e4e6d96](https://github.com/aws/language-servers/commit/e4e6d9621d8ce70a626e9153859cd4660ccb4c26))
+
 ## [0.0.46](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.45...lsp-codewhisperer/v0.0.46) (2025-06-11)
 
 
