@@ -18,7 +18,7 @@ import {
     PersonaModel,
     MCPServerPermission,
 } from './mcpTypes'
-import { isEmptyEnv, loadMcpServerConfigs, loadPersonaPermissions } from './mcpUtils'
+import { isEmptyEnv, loadMcpServerConfigs, loadPersonaPermissions, sanitizeName } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
@@ -43,6 +43,7 @@ export class McpManager {
     private static readonly configMutex = new Mutex()
     private static readonly personaMutex = new Mutex()
     private toolNameMapping: Map<string, { serverName: string; toolName: string }>
+    private serverNameMapping: Map<string, string>
 
     private constructor(
         private configPaths: string[],
@@ -61,6 +62,7 @@ export class McpManager {
         this.events = new EventEmitter()
         this.features.logging.info(`MCP manager: initialized with ${configPaths.length} configs`)
         this.toolNameMapping = new Map<string, { serverName: string; toolName: string }>()
+        this.serverNameMapping = new Map<string, string>()
     }
 
     public static async init(
@@ -151,12 +153,13 @@ export class McpManager {
         )
         this.mcpServerPermissions = permissionMap
 
-        const { servers, errors } = await loadMcpServerConfigs(
+        const { servers, serverNameMapping, errors } = await loadMcpServerConfigs(
             this.features.workspace,
             this.features.logging,
             this.configPaths
         )
         this.mcpServers = servers
+        this.serverNameMapping = serverNameMapping
         // Reset the configuration errors after every refresh.
         this.configLoadErrors.clear()
 
@@ -433,8 +436,9 @@ export class McpManager {
         personaPath: string
     ): Promise<void> {
         try {
-            if (this.mcpServers.has(serverName)) {
-                throw new Error(`MCP: server '${serverName}' already exists`)
+            const sanitizedName = sanitizeName(serverName)
+            if (this.mcpServers.has(sanitizedName)) {
+                throw new Error(`MCP: server '${sanitizedName}' already exists`)
             }
 
             if (!configPath || !personaPath) {
@@ -457,7 +461,8 @@ export class McpManager {
             })
 
             const newCfg: MCPServerConfig = { ...cfg, __configPath__: configPath }
-            this.mcpServers.set(serverName, newCfg)
+            this.mcpServers.set(sanitizedName, newCfg)
+            this.serverNameMapping.set(sanitizedName, serverName)
 
             await this.mutatePersonaFile(personaPath, p => p.addServer(serverName))
             this.personaPaths = [...new Set([...this.personaPaths, personaPath])]
@@ -469,11 +474,11 @@ export class McpManager {
             )
             this.mcpServerPermissions = permissionMap
 
-            if (this.isServerDisabled(serverName)) {
-                this.setState(serverName, McpServerStatus.DISABLED, 0)
+            if (this.isServerDisabled(sanitizedName)) {
+                this.setState(sanitizedName, McpServerStatus.DISABLED, 0)
                 this.emitToolsChanged(serverName)
             } else {
-                await this.initOneServer(serverName, newCfg)
+                await this.initOneServer(sanitizedName, newCfg)
             }
         } catch (err) {
             this.features.logging.error(
@@ -489,6 +494,7 @@ export class McpManager {
      */
     public async removeServer(serverName: string): Promise<void> {
         const cfg = this.mcpServers.get(serverName)
+        const unsanitizedName = this.serverNameMapping.get(serverName)
         const permission = this.mcpServerPermissions.get(serverName)
         if (!cfg || !cfg.__configPath__) {
             throw new Error(`MCP: server '${serverName}' not found`)
@@ -506,16 +512,21 @@ export class McpManager {
         this.mcpServerStates.delete(serverName)
 
         // Remove from config file first
-        await this.mutateConfigFile(cfg.__configPath__, json => {
-            delete json.mcpServers[serverName]
-        })
+        if (unsanitizedName) {
+            await this.mutateConfigFile(cfg.__configPath__, json => {
+                delete json.mcpServers[unsanitizedName]
+            })
+        }
 
         // Remove from persona file with the correct remaining server list
-        if (permission && permission.__configPath__) {
-            await this.mutatePersonaFile(permission.__configPath__, p => p.removeServer(serverName, remainingServer))
+        if (permission && permission.__configPath__ && unsanitizedName) {
+            await this.mutatePersonaFile(permission.__configPath__, p =>
+                p.removeServer(unsanitizedName, remainingServer)
+            )
         }
 
         this.mcpServers.delete(serverName)
+        this.serverNameMapping.delete(serverName)
         this.mcpServerPermissions.delete(serverName)
         this.mcpServerPermissions = await loadPersonaPermissions(
             this.features.workspace,
@@ -542,9 +553,10 @@ export class McpManager {
                 throw new Error(`MCP: server '${serverName}' not found`)
             }
 
+            const unsanitizedServerName = this.serverNameMapping.get(serverName)!
             await this.mutateConfigFile(configPath, json => {
                 json.mcpServers ||= {}
-                const updatedConfig = { ...(json.mcpServers[serverName] || {}) }
+                const updatedConfig = { ...(json.mcpServers[unsanitizedServerName] || {}) }
                 if (configUpdates.command !== undefined) updatedConfig.command = configUpdates.command
                 if (configUpdates.initializationTimeout !== undefined)
                     updatedConfig.initializationTimeout = configUpdates.initializationTimeout
@@ -563,7 +575,7 @@ export class McpManager {
                         delete updatedConfig.env
                     }
                 }
-                json.mcpServers[serverName] = updatedConfig
+                json.mcpServers[unsanitizedServerName] = updatedConfig
             })
 
             const newCfg: MCPServerConfig = {
@@ -579,6 +591,7 @@ export class McpManager {
             }
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
             this.mcpServers.set(serverName, newCfg)
+            this.serverNameMapping.set(serverName, unsanitizedServerName)
 
             if (this.isServerDisabled(serverName)) {
                 this.setState(serverName, McpServerStatus.DISABLED, 0)
@@ -656,22 +669,24 @@ export class McpManager {
                     throw new Error('Server disabled state must be explicitly set')
                 }
 
+                const unsanitizedServerName = this.serverNameMapping.get(serverName)!
+
                 // disable whole server
                 if (!perm.enabled) {
-                    p.removeServer(serverName, Array.from(this.mcpServers.keys())) // removes from list clears tool perms
+                    p.removeServer(unsanitizedServerName, Array.from(this.mcpServers.keys())) // removes from list clears tool perms
                     return
                 }
 
                 // server must be enabled from here on
-                p.addServer(serverName)
+                p.addServer(unsanitizedServerName)
 
                 // handle permission updates
                 if (perm.toolPerms) {
-                    const existing = p.toJson().toolPerms?.[serverName] ?? {}
+                    const existing = p.toJson().toolPerms?.[unsanitizedServerName] ?? {}
                     const merged = { ...existing, ...perm.toolPerms }
-                    p.replaceToolPerms(serverName, merged)
+                    p.replaceToolPerms(unsanitizedServerName, merged)
                 } else {
-                    p.ensureWildcardAsk(serverName)
+                    p.ensureWildcardAsk(unsanitizedServerName)
                 }
             })
 
@@ -840,7 +855,7 @@ export class McpManager {
             }
 
             await this.mutateConfigFile(cfg.__configPath__, json => {
-                delete json.mcpServers[serverName]
+                delete json.mcpServers[this.serverNameMapping.get(serverName)!]
             })
 
             this.features.logging.info(`Removed server '${serverName}' from config file but kept in memory`)
