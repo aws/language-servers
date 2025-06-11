@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.0.47](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.46...lsp-codewhisperer/v0.0.47) (2025-06-11)
+
+
+### Bug Fixes
+
+* **amazonq:** remove storing zips under workspaceContextArtifacts ([#1601](https://github.com/aws/language-servers/issues/1601)) ([c8445d5](https://github.com/aws/language-servers/commit/c8445d562a11153cc77fac52237f914478f54cb7))
+* fix for overwriting in workspace level config and persona files ([#1624](https://github.com/aws/language-servers/issues/1624)) ([b201e0c](https://github.com/aws/language-servers/commit/b201e0c938f98329d83ea6ba39776d36ca7e44d0))
+* fix to remove tool name sanitization ([#1621](https://github.com/aws/language-servers/issues/1621)) ([e4e6d96](https://github.com/aws/language-servers/commit/e4e6d9621d8ce70a626e9153859cd4660ccb4c26))
+
+## [0.0.46](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.45...lsp-codewhisperer/v0.0.46) (2025-06-11)
+
+
+### Bug Fixes
+
+* add more detailed log when mcp server initialize failed and tooltip change ([#1594](https://github.com/aws/language-servers/issues/1594)) ([cdab4d6](https://github.com/aws/language-servers/commit/cdab4d6b59c4ded425822063cb568c4b831402e8))
+* **amazonq:** differentiate listWorkspaceMetadata failure and empty result ([#1566](https://github.com/aws/language-servers/issues/1566)) ([ae792d5](https://github.com/aws/language-servers/commit/ae792d5b1266c1c41b2a3f9129002ba3ce091c2b))
+* **amazonq:** skip sending websocket request when uploading fails ([#1562](https://github.com/aws/language-servers/issues/1562)) ([fec6fbd](https://github.com/aws/language-servers/commit/fec6fbd563826afc3f944b90b85178f9e2f9c8aa))
+* correct icon for mcp button ([#1605](https://github.com/aws/language-servers/issues/1605)) ([a2e7d57](https://github.com/aws/language-servers/commit/a2e7d571eafb3767471b401242ac8a25b41961cd))
+* fix for empty description of mcp tools ([#1612](https://github.com/aws/language-servers/issues/1612)) ([820c3bf](https://github.com/aws/language-servers/commit/820c3bfde935cba32b608dad4ac19fdc40a45203))
+* **paidtier:** Upgrade success message is unreliable ([#1602](https://github.com/aws/language-servers/issues/1602)) ([e0b274f](https://github.com/aws/language-servers/commit/e0b274ffee2e091e09574de03fe38e0a234e2f6e))
+* Relaxed MCP server naming constraints to align with Q CLI standards ([#1610](https://github.com/aws/language-servers/issues/1610)) ([52fd0ff](https://github.com/aws/language-servers/commit/52fd0ff5acbb699ec16edbdecb1e6ecc5b84a33b))
+* remove the tool from the mapping after user set incase the conflict ([#1609](https://github.com/aws/language-servers/issues/1609)) ([48b996d](https://github.com/aws/language-servers/commit/48b996d1a325e2f2cd4a843bf687f1c2c7cc4df4))
+
 ## [0.0.45](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.44...lsp-codewhisperer/v0.0.45) (2025-06-10)
 
 
