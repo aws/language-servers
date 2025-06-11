@@ -187,7 +187,7 @@ describe('addServer()', () => {
     })
 
     it('persists config and initializes', async () => {
-        loadStub.resolves({ servers: new Map(), errors: new Map() })
+        loadStub.resolves({ servers: new Map(), serverNameMapping: new Map(), errors: new Map() })
         const mgr = await McpManager.init([], [], features)
         const newCfg: MCPServerConfig = {
             command: 'c2',
@@ -266,7 +266,11 @@ describe('updateServer()', () => {
             timeout: 1,
             __configPath__: 'u.json',
         }
-        loadStub.resolves({ servers: new Map([['u1', oldCfg]]), errors: new Map() })
+        loadStub.resolves({
+            servers: new Map([['u1', oldCfg]]),
+            serverNameMapping: new Map([['u1', 'u1']]),
+            errors: new Map(),
+        })
         await McpManager.init([], [], features)
         const mgr = McpManager.instance
         const fakeClient = new Client({ name: 'c', version: 'v' })

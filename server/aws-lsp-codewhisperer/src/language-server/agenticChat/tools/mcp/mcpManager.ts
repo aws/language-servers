@@ -462,6 +462,7 @@ export class McpManager {
 
             const newCfg: MCPServerConfig = { ...cfg, __configPath__: configPath }
             this.mcpServers.set(sanitizedName, newCfg)
+            this.serverNameMapping.set(sanitizedName, serverName)
 
             await this.mutatePersonaFile(personaPath, p => p.addServer(serverName))
             this.personaPaths = [...new Set([...this.personaPaths, personaPath])]
@@ -473,11 +474,11 @@ export class McpManager {
             )
             this.mcpServerPermissions = permissionMap
 
-            if (this.isServerDisabled(serverName)) {
-                this.setState(serverName, McpServerStatus.DISABLED, 0)
+            if (this.isServerDisabled(sanitizedName)) {
+                this.setState(sanitizedName, McpServerStatus.DISABLED, 0)
                 this.emitToolsChanged(serverName)
             } else {
-                await this.initOneServer(serverName, newCfg)
+                await this.initOneServer(sanitizedName, newCfg)
             }
         } catch (err) {
             this.features.logging.error(
@@ -525,6 +526,7 @@ export class McpManager {
         }
 
         this.mcpServers.delete(serverName)
+        this.serverNameMapping.delete(serverName)
         this.mcpServerPermissions.delete(serverName)
         this.mcpServerPermissions = await loadPersonaPermissions(
             this.features.workspace,
@@ -551,9 +553,10 @@ export class McpManager {
                 throw new Error(`MCP: server '${serverName}' not found`)
             }
 
+            const unsanitizedServerName = this.serverNameMapping.get(serverName)!
             await this.mutateConfigFile(configPath, json => {
                 json.mcpServers ||= {}
-                const updatedConfig = { ...(json.mcpServers[serverName] || {}) }
+                const updatedConfig = { ...(json.mcpServers[unsanitizedServerName] || {}) }
                 if (configUpdates.command !== undefined) updatedConfig.command = configUpdates.command
                 if (configUpdates.initializationTimeout !== undefined)
                     updatedConfig.initializationTimeout = configUpdates.initializationTimeout
@@ -572,7 +575,7 @@ export class McpManager {
                         delete updatedConfig.env
                     }
                 }
-                json.mcpServers[serverName] = updatedConfig
+                json.mcpServers[unsanitizedServerName] = updatedConfig
             })
 
             const newCfg: MCPServerConfig = {
@@ -588,6 +591,7 @@ export class McpManager {
             }
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
             this.mcpServers.set(serverName, newCfg)
+            this.serverNameMapping.set(serverName, unsanitizedServerName)
 
             if (this.isServerDisabled(serverName)) {
                 this.setState(serverName, McpServerStatus.DISABLED, 0)
@@ -665,22 +669,24 @@ export class McpManager {
                     throw new Error('Server disabled state must be explicitly set')
                 }
 
+                const unsanitizedServerName = this.serverNameMapping.get(serverName)!
+
                 // disable whole server
                 if (!perm.enabled) {
-                    p.removeServer(serverName, Array.from(this.mcpServers.keys())) // removes from list clears tool perms
+                    p.removeServer(unsanitizedServerName, Array.from(this.mcpServers.keys())) // removes from list clears tool perms
                     return
                 }
 
                 // server must be enabled from here on
-                p.addServer(serverName)
+                p.addServer(unsanitizedServerName)
 
                 // handle permission updates
                 if (perm.toolPerms) {
-                    const existing = p.toJson().toolPerms?.[serverName] ?? {}
+                    const existing = p.toJson().toolPerms?.[unsanitizedServerName] ?? {}
                     const merged = { ...existing, ...perm.toolPerms }
-                    p.replaceToolPerms(serverName, merged)
+                    p.replaceToolPerms(unsanitizedServerName, merged)
                 } else {
-                    p.ensureWildcardAsk(serverName)
+                    p.ensureWildcardAsk(unsanitizedServerName)
                 }
             })
 
@@ -849,7 +855,7 @@ export class McpManager {
             }
 
             await this.mutateConfigFile(cfg.__configPath__, json => {
-                delete json.mcpServers[serverName]
+                delete json.mcpServers[this.serverNameMapping.get(serverName)!]
             })
 
             this.features.logging.info(`Removed server '${serverName}' from config file but kept in memory`)
