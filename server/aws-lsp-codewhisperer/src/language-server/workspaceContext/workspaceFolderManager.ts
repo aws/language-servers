@@ -412,6 +412,11 @@ export class WorkspaceFolderManager {
     }
 
     private async checkRemoteWorkspaceStatusAndReact(skipUploads: boolean = false) {
+        if (this.workspaceFolders.length === 0) {
+            this.logging.log(`No workspace folders added, skipping workspace status check`)
+            return
+        }
+
         this.logging.log(`Checking remote workspace status for workspace [${this.workspaceIdentifier}]`)
         const { metadata, optOut, error } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
 
