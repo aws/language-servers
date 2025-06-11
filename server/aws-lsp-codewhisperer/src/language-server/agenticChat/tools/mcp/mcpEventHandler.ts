@@ -25,6 +25,7 @@ import {
     McpServerStatus,
 } from './mcpTypes'
 import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
+import { URI } from 'vscode-uri'
 
 interface PermissionOption {
     label: string
@@ -38,6 +39,7 @@ export class McpEventHandler {
     #shouldDisplayListMCPServers: boolean
     #telemetryController: ChatTelemetryController
     #pendingPermissionConfig: { serverName: string; permission: MCPServerPermission } | undefined
+    #newlyAddedServers: Set<string> = new Set()
 
     constructor(features: Features, telemetryService: TelemetryService) {
         this.#features = features
@@ -633,7 +635,11 @@ export class McpEventHandler {
             // Get the first path from the result or fall back to configPath
             const workspaceMcpPaths = getWorkspaceMcpConfigPaths(workspacePaths)
             configPath =
-                Array.isArray(workspaceMcpPaths) && workspaceMcpPaths.length > 0 ? workspaceMcpPaths[0] : configPath
+                Array.isArray(workspaceMcpPaths) && workspaceMcpPaths.length > 0
+                    ? workspaceMcpPaths[0].startsWith('file:')
+                        ? URI.parse(workspaceMcpPaths[0]).fsPath
+                        : workspaceMcpPaths[0]
+                    : configPath
 
             // Get the appropriate persona path using our helper method
             personaPath = await this.#getPersonaPath()
@@ -648,6 +654,7 @@ export class McpEventHandler {
         } else {
             // Create new server
             await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+            this.#newlyAddedServers.add(serverName)
         }
 
         this.#currentEditingServerName = undefined
@@ -667,8 +674,11 @@ export class McpEventHandler {
         })
 
         if (serverStatusError) {
-            // Error case: remove config from config file but persist in memory
-            await McpManager.instance.removeServerFromConfigFile(serverName)
+            // Error case: remove config from config file only if it's a newly added server
+            if (this.#newlyAddedServers.has(serverName)) {
+                await McpManager.instance.removeServerFromConfigFile(serverName)
+                this.#newlyAddedServers.delete(serverName)
+            }
 
             // Stay on add/edit page and show error to user
             if (isEditMode) {
@@ -680,7 +690,12 @@ export class McpEventHandler {
                 return this.#handleAddNewMcp(params)
             }
         } else {
-            // Success case: go to tools permissions page
+            // Success case: if this was a newly added server, remove it from tracking
+            if (this.#newlyAddedServers.has(serverName)) {
+                this.#newlyAddedServers.delete(serverName)
+            }
+
+            // Go to tools permissions page
             return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: sanitizedServerName })
         }
     }
@@ -1162,10 +1177,15 @@ export class McpEventHandler {
 
             if (Array.isArray(workspacePersonaPaths) && workspacePersonaPaths.length > 0) {
                 try {
+                    // Convert URI format to filesystem path if needed
+                    const personaPath = workspacePersonaPaths[0].startsWith('file:')
+                        ? URI.parse(workspacePersonaPaths[0]).fsPath
+                        : workspacePersonaPaths[0]
+
                     // Check if the workspace persona path exists
-                    const fileExists = await this.#features.workspace.fs.exists(workspacePersonaPaths[0])
+                    const fileExists = await this.#features.workspace.fs.exists(personaPath)
                     if (fileExists) {
-                        return workspacePersonaPaths[0]
+                        return personaPath
                     }
                 } catch (e) {
                     this.#features.logging.warn(`Failed to check if workspace persona path exists: ${e}`)
