@@ -91,6 +91,7 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
         // 1) remove old tools
         for (const name of registered[server] ?? []) {
             agent.removeTool(name)
+            allNamespacedTools.delete(name)
         }
         registered[server] = []
 
