@@ -9,6 +9,7 @@
         "protocols": ["json"],
         "serviceFullName": "Amazon CodeWhisperer",
         "serviceId": "CodeWhispererRuntime",
+        "signatureVersion": "bearer",
         "signingName": "amazoncodewhispererservice",
         "targetPrefix": "AmazonCodeWhispererService",
         "uid": "codewhispererruntime-2022-11-11"
@@ -1494,7 +1495,7 @@
         },
         "CodeAnalysisScope": {
             "type": "string",
-            "enum": ["FILE", "PROJECT"]
+            "enum": ["FILE", "PROJECT", "AGENTIC"]
         },
         "CodeAnalysisStatus": {
             "type": "string",
@@ -6001,7 +6002,8 @@
                 "FULL_PROJECT_SECURITY_SCAN",
                 "UNIT_TESTS_GENERATION",
                 "CODE_FIX_GENERATION",
-                "WORKSPACE_CONTEXT"
+                "WORKSPACE_CONTEXT",
+                "AGENTIC_CODE_REVIEW"
             ]
         },
         "Url": {
