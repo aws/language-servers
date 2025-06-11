@@ -4,21 +4,21 @@ import { ChatSessionManagementService } from './chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { getOrThrowBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+// import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { safeGet } from '../../shared/utils'
 
 export const QChatServerFactory =
-    (serviceManager: () => AmazonQBaseServiceManager): Server =>
+    (serviceManager: () => BaseAmazonQServiceManager): Server =>
     features => {
         const { chat, credentialsProvider, lsp, telemetry, logging, runtime } = features
 
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
-        let amazonQServiceManager: AmazonQBaseServiceManager
+        let amazonQServiceManager: BaseAmazonQServiceManager
         let telemetryService: TelemetryService
 
         let chatController: ChatController
@@ -127,5 +127,5 @@ export const QChatServerFactory =
         }
     }
 
-export const QChatServerIAM = QChatServerFactory(getOrThrowBaseIAMServiceManager)
-export const QChatServerToken = QChatServerFactory(getOrThrowBaseTokenServiceManager)
+export const BaseQChatServer = QChatServerFactory(getOrThrowBaseServiceManager)
+// export const QChatServerToken = QChatServerFactory(getOrThrowBaseTokenServiceManager)

@@ -12,7 +12,12 @@ import {
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
-import { CredentialsProvider, SDKInitializator, Logging, CredentialsType } from '@aws/language-server-runtimes/server-interface'
+import {
+    CredentialsProvider,
+    SDKInitializator,
+    Logging,
+    CredentialsType,
+} from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -30,7 +35,7 @@ export class StreamingClientServiceBase {
     protected readonly endpoint: string
     public readonly client: CodeWhispererStreaming | QDeveloperStreaming
     public profileArn?: string
-    private credentialsType!: CredentialsType | undefined
+    public credentialsType!: CredentialsType | undefined
 
     inflightRequests: Set<AbortController> = new Set()
 
@@ -80,8 +85,7 @@ export class StreamingClientServiceBase {
                 ]),
                 retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
             })
-        }
-        else {
+        } else {
             throw new Error('Unknown credentials type')
         }
     }
@@ -100,7 +104,7 @@ export class StreamingClientServiceBase {
             response = await codeWhispererClient.sendMessage(
                 {
                     ...(request as SendMessageCommandInputCodeWhispererStreaming),
-                    profileArn: this.profileArn
+                    profileArn: this.profileArn,
                 },
                 {
                     abortSignal: controller.signal,
@@ -108,14 +112,10 @@ export class StreamingClientServiceBase {
             )
         } else if (this.credentialsType === 'iam') {
             const qDeveloperClient = this.client as QDeveloperStreaming
-            response = await qDeveloperClient.sendMessage(
-                request as SendMessageCommandInputQDeveloperStreaming,
-                {
-                    abortSignal: controller.signal,
-                }
-            )
-        }
-        else {
+            response = await qDeveloperClient.sendMessage(request as SendMessageCommandInputQDeveloperStreaming, {
+                abortSignal: controller.signal,
+            })
+        } else {
             throw new Error('Unknown credentials type')
         }
 

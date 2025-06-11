@@ -26,7 +26,7 @@ import { DocumentContextExtractor } from './contexts/documentContext'
 import * as utils from './utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from './constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import {
     AmazonQError,
     AmazonQServicePendingProfileError,
@@ -102,7 +102,7 @@ describe('ChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let serviceManager: AmazonQTokenServiceManager
+    let serviceManager: BaseAmazonQServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: ChatController
     let telemetryService: TelemetryService
@@ -147,9 +147,9 @@ describe('ChatController', () => {
 
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
 
-        AmazonQTokenServiceManager.resetInstance()
+        BaseAmazonQServiceManager.resetInstance()
 
-        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
+        serviceManager = BaseAmazonQServiceManager.initInstance(testFeatures)
 
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         chatSessionManagementService.withAmazonQServiceManager(serviceManager)

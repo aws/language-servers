@@ -29,7 +29,7 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { QueryInlineProjectContextRequestV2 } from 'local-indexing'
 import { URI } from 'vscode-uri'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
-import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
+import { BaseAmazonQServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 
 type CrossFileSupportedLanguage =
     | 'java'
@@ -67,7 +67,7 @@ export async function fetchSupplementalContextForSrc(
     position: Position,
     workspace: Workspace,
     cancellationToken: CancellationToken,
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    amazonQServiceManager?: BaseAmazonQServiceManager
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     const supplementalContextConfig = getSupplementalContextConfig(document.languageId)
 
@@ -86,7 +86,7 @@ export async function codemapContext(
     position: Position,
     workspace: Workspace,
     cancellationToken: CancellationToken,
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    amazonQServiceManager?: BaseAmazonQServiceManager
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     let strategy: SupplementalContextStrategy = 'Empty'
 
@@ -138,7 +138,7 @@ export async function fetchProjectContext(
     document: TextDocument,
     position: Position,
     target: 'default' | 'codemap' | 'bm25',
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    amazonQServiceManager?: BaseAmazonQServiceManager
 ): Promise<CodeWhispererSupplementalContextItem[]> {
     const inputChunk: Chunk = getInputChunk(document, position, crossFileContextConfig.numberOfLinesEachChunk)
     const fsPath = URI.parse(document.uri).fsPath

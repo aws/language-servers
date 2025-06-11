@@ -2,16 +2,16 @@ import { SendMessageCommandInput, SendMessageCommandOutput } from '@amzn/codewhi
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { StreamingClientServiceToken, StreamingClientServiceIAM } from '../../shared/streamingClientService'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+// import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { StreamingClientServiceBase } from '../../shared/streamingClientService'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+// import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 describe('Chat Session Service', () => {
     let abortStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
-    let amazonQServiceManager: StubbedInstance<AmazonQBaseServiceManager>
-    let codeWhispererStreamingClient: StubbedInstance<StreamingClientServiceToken>
+    let amazonQServiceManager: StubbedInstance<BaseAmazonQServiceManager>
+    let codeWhispererStreamingClient: StubbedInstance<StreamingClientServiceBase>
     const mockConversationId = 'mockConversationId'
 
     const mockRequestParams: SendMessageCommandInput = {
@@ -31,10 +31,10 @@ describe('Chat Session Service', () => {
     }
 
     beforeEach(() => {
-        codeWhispererStreamingClient = stubInterface<StreamingClientServiceToken>()
+        codeWhispererStreamingClient = stubInterface<StreamingClientServiceBase>()
         codeWhispererStreamingClient.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-        amazonQServiceManager = stubInterface<AmazonQBaseServiceManager>()
+        amazonQServiceManager = stubInterface<BaseAmazonQServiceManager>()
         amazonQServiceManager.getStreamingClient.returns(codeWhispererStreamingClient)
 
         abortStub = sinon.stub(AbortController.prototype, 'abort')
@@ -42,8 +42,8 @@ describe('Chat Session Service', () => {
         chatSessionService = new ChatSessionService(amazonQServiceManager)
 
         // needed to identify the stubs as the actual class when checking 'instanceof' in generateAssistantResponse
-        Object.setPrototypeOf(amazonQServiceManager, AmazonQTokenServiceManager.prototype)
-        Object.setPrototypeOf(codeWhispererStreamingClient, StreamingClientServiceToken.prototype)
+        Object.setPrototypeOf(amazonQServiceManager, BaseAmazonQServiceManager.prototype)
+        Object.setPrototypeOf(codeWhispererStreamingClient, StreamingClientServiceBase.prototype)
     })
 
     afterEach(() => {
@@ -147,10 +147,10 @@ describe('Chat Session Service', () => {
         })
 
         it('abortRequest() in IAM client, aborts request with AbortController', async () => {
-            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceBase>()
             codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            const amazonQServiceManagerIAM = stubInterface<BaseAmazonQServiceManager>()
             amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
             const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
@@ -162,10 +162,10 @@ describe('Chat Session Service', () => {
         })
 
         it('dispose() in IAM client, calls aborts outgoing requests', async () => {
-            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceBase>()
             codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            const amazonQServiceManagerIAM = stubInterface<BaseAmazonQServiceManager>()
             amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
             const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
@@ -206,10 +206,10 @@ describe('Chat Session Service', () => {
     })
 
     it('clear() in IAM client, resets conversation id and aborts outgoing request', async () => {
-        const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+        const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceBase>()
         codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-        const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+        const amazonQServiceManagerIAM = stubInterface<BaseAmazonQServiceManager>()
         amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
         const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)

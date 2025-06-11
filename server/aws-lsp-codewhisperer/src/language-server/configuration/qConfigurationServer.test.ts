@@ -7,7 +7,7 @@ import {
     ServerConfigurationProvider,
 } from './qConfigurationServer'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { CodeWhispererServiceBase } from '../../shared/codeWhispererService'
 import {
     CancellationToken,
     CancellationTokenSource,
@@ -16,7 +16,7 @@ import {
     ResponseError,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
 import { Q_CONFIGURATION_SECTION, AWS_Q_ENDPOINTS } from '../../shared/constants'
 import { AmazonQDeveloperProfile } from '../../shared/amazonQServiceManager/qDeveloperProfiles'
@@ -72,7 +72,7 @@ const mockCustomizations = [
 
 describe('QConfigurationServerToken', () => {
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let amazonQServiceManager: BaseAmazonQServiceManager
     let listAvailableProfilesStub: sinon.SinonStub
     let listAvailableCustomizationsStub: sinon.SinonStub
     let listAllAvailableCustomizationsWithMetadataStub: sinon.SinonStub
@@ -82,11 +82,11 @@ describe('QConfigurationServerToken', () => {
         testFeatures = new TestFeatures()
         testFeatures.setClientParams(getInitializeParams(customizationsWithMetadata, developerProfiles))
 
-        AmazonQTokenServiceManager.resetInstance()
-        AmazonQTokenServiceManager.initInstance(testFeatures)
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+        BaseAmazonQServiceManager.resetInstance()
+        BaseAmazonQServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = BaseAmazonQServiceManager.getInstance()
 
-        const codeWhispererService = stubInterface<CodeWhispererServiceToken>()
+        const codeWhispererService = stubInterface<CodeWhispererServiceBase>()
         const configurationServer: Server = QConfigurationServerToken()
 
         amazonQServiceManager.setServiceFactory(sinon.stub().returns(codeWhispererService))
@@ -215,8 +215,8 @@ describe('QConfigurationServerToken', () => {
 
 describe('ServerConfigurationProvider', () => {
     let serverConfigurationProvider: ServerConfigurationProvider
-    let amazonQServiceManager: AmazonQTokenServiceManager
-    let codeWhispererService: StubbedInstance<CodeWhispererServiceToken>
+    let amazonQServiceManager: BaseAmazonQServiceManager
+    let codeWhispererService: StubbedInstance<CodeWhispererServiceBase>
     let testFeatures: TestFeatures
     let listAvailableProfilesHandlerSpy: sinon.SinonSpy
     let tokenSource: CancellationTokenSource
@@ -227,9 +227,9 @@ describe('ServerConfigurationProvider', () => {
     const setupServerConfigurationProvider = (developerProfiles = true) => {
         testFeatures.setClientParams(getInitializeParams(false, developerProfiles))
 
-        AmazonQTokenServiceManager.resetInstance()
-        AmazonQTokenServiceManager.initInstance(testFeatures)
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+        BaseAmazonQServiceManager.resetInstance()
+        BaseAmazonQServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = BaseAmazonQServiceManager.getInstance()
 
         serviceFactoryStub = sinon.stub().returns(codeWhispererService)
         amazonQServiceManager.setServiceFactory(serviceFactoryStub)
@@ -248,7 +248,7 @@ describe('ServerConfigurationProvider', () => {
 
     beforeEach(() => {
         tokenSource = new CancellationTokenSource()
-        codeWhispererService = stubInterface<CodeWhispererServiceToken>()
+        codeWhispererService = stubInterface<CodeWhispererServiceBase>()
         codeWhispererService.listAvailableCustomizations.resolves({
             customizations: mockCustomizations,
             $response: {} as any,

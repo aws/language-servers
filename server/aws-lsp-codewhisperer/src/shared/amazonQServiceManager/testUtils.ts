@@ -16,94 +16,88 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 
 /**
- * A reusable test class that extends the abstract base class and allows for injecting features and service mocks.
+ * A test wrapper class that extends BaseAmazonQServiceManager to allow for mocking and testing.
  *
- * Note: it is the responsibility of the test suite to correctly reset/restore the injected mocks.
+ * This class provides test-specific functionality while maintaining the singleton pattern
+ * of the base class for testing purposes.
  */
-export class TestAmazonQServiceManager extends BaseAmazonQServiceManager<
-    CodeWhispererServiceBase,
-    StreamingClientServiceBase
-> {
-    private static instance: TestAmazonQServiceManager | null = null
+export class TestAmazonQServiceManager extends BaseAmazonQServiceManager {
+    private static testInstance: TestAmazonQServiceManager | null = null
 
     private constructor(features: TestFeatures) {
         super(features)
+        // Access the protected features property to set test features
+        ;(this as any).features = features
+        ;(this as any).logging = features.logging
+        ;(this as any).credentialsType = features.credentialsProvider.getCredentialsType()
     }
 
-    public static initInstance(features: TestFeatures): TestAmazonQServiceManager {
-        if (!TestAmazonQServiceManager.instance) {
-            TestAmazonQServiceManager.instance = new TestAmazonQServiceManager(features)
-
-            return TestAmazonQServiceManager.instance
+    public static initTestInstance(features: TestFeatures): TestAmazonQServiceManager {
+        if (!TestAmazonQServiceManager.testInstance) {
+            // Reset the base instance first to avoid conflicts
+            BaseAmazonQServiceManager.resetInstance()
+            TestAmazonQServiceManager.testInstance = new TestAmazonQServiceManager(features)
+            return TestAmazonQServiceManager.testInstance
         }
 
-        throw new AmazonQServiceInitializationError('Test service is already initialized.')
+        throw new AmazonQServiceAlreadyInitializedError('Test service is already initialized.')
     }
 
-    public static getInstance(): TestAmazonQServiceManager {
-        if (!TestAmazonQServiceManager.instance) {
+    public static getTestInstance(): TestAmazonQServiceManager {
+        if (!TestAmazonQServiceManager.testInstance) {
             throw new AmazonQServiceNotInitializedError('Test service is not yet initialized')
         }
 
-        return TestAmazonQServiceManager.instance
+        return TestAmazonQServiceManager.testInstance
     }
 
-    public getCodewhispererService(): CodeWhispererServiceBase {
-        if (!this.cachedCodewhispererService) {
-            throw new Error(
-                'Found undefined cached service, make sure to setup TestAmazonQServiceManager class correctly'
-            )
-        }
-
-        return this.cachedCodewhispererService
+    public withCodeWhispererService(service: CodeWhispererServiceBase): void {
+        ;(this as any).cachedCodewhispererService = service
     }
 
-    public getStreamingClient(): StreamingClientServiceBase {
-        if (!this.cachedStreamingClient) {
-            throw new Error(
-                'Found undefined cached streaming client, make sure to setup TestAmazonQServiceManager class correctly'
-            )
-        }
-
-        return this.cachedStreamingClient
+    public withStreamingClientService(streamingClient: StreamingClientServiceBase): void {
+        ;(this as any).cachedStreamingClient = streamingClient
     }
 
-    public override handleOnCredentialsDeleted(_type: CredentialsType): void {
-        return
+    public static resetTestInstance(): void {
+        TestAmazonQServiceManager.testInstance = null
+        BaseAmazonQServiceManager.resetInstance()
     }
 
-    public override handleOnUpdateConfiguration(
-        _params: UpdateConfigurationParams,
-        _token: CancellationToken
+    // Expose protected methods for testing
+    public testUpdateCachedServiceConfig(): void {
+        ;(this as any).updateCachedServiceConfig()
+    }
+
+    public testNotifyDidChangeConfigurationListeners(): Promise<void> {
+        return (this as any).notifyDidChangeConfigurationListeners()
+    }
+
+    // Override methods that interact with credentials for testing
+    public override async handleOnUpdateConfiguration(
+        params: UpdateConfigurationParams,
+        token: CancellationToken
     ): Promise<void> {
-        return Promise.resolve()
-    }
-
-    public withCodeWhispererService<C extends CodeWhispererServiceBase>(service: C) {
-        this.cachedCodewhispererService = service
-    }
-
-    public withStreamingClientService<S extends StreamingClientServiceBase>(streamingClient: S) {
-        this.cachedStreamingClient = streamingClient
-    }
-
-    public static resetInstance(): void {
-        TestAmazonQServiceManager.instance = null
+        // For testing, we can provide a simplified implementation
+        // or delegate to the parent implementation
+        return super.handleOnUpdateConfiguration(params, token)
     }
 }
 
 /**
+ * Initialize a test service manager with optional mocks
  *
- * @param features - TestFeatures
- * @param serviceMock - Mocked service, e.g. with sinon's stubInterface method.
+ * @param features - TestFeatures instance
+ * @param serviceMock - Optional mocked CodeWhispererServiceBase
+ * @param streamingClientMock - Optional mocked StreamingClientServiceBase
  * @returns A mocked AmazonQServiceManager for testing
  */
-export const initBaseTestServiceManager = <C extends CodeWhispererServiceBase, S extends StreamingClientServiceBase>(
+export const initBaseTestServiceManager = (
     features: TestFeatures,
-    serviceMock?: C,
-    streamingClientMock?: S
+    serviceMock?: CodeWhispererServiceBase,
+    streamingClientMock?: StreamingClientServiceBase
 ): TestAmazonQServiceManager => {
-    const testServiceManager = TestAmazonQServiceManager.initInstance(features)
+    const testServiceManager = TestAmazonQServiceManager.initTestInstance(features)
 
     if (serviceMock) {
         testServiceManager.withCodeWhispererService(serviceMock)
@@ -119,28 +113,19 @@ export const initBaseTestServiceManager = <C extends CodeWhispererServiceBase, S
 /**
  * Helper function to test the initialization process of the service managers
  *
- * @param SingletonServiceManager - Token or IAM Service manager class
+ * This function generates standard tests for singleton initialization patterns.
+ *
+ * @param ServiceManagerClass - The service manager class to test
  *
  * @example
  *
  * ```ts
- * describe('some test name', () => {
- *     generateSingletonInitializationTests(AmazonQTokenServiceManager)
+ * describe('BaseAmazonQServiceManager initialization', () => {
+ *     generateSingletonInitializationTests(BaseAmazonQServiceManager)
  * })
  * ```
  */
-export const generateSingletonInitializationTests = <
-    C extends CodeWhispererServiceBase,
-    S extends StreamingClientServiceBase,
-    T extends BaseAmazonQServiceManager<C, S>,
-    U extends {
-        getInstance(): T
-        initInstance(features: QServiceManagerFeatures): T
-        resetInstance(): void
-    },
->(
-    SingletonServiceManager: U
-) => {
+export const generateSingletonInitializationTests = (ServiceManagerClass: typeof BaseAmazonQServiceManager) => {
     let testFeatures: TestFeatures
 
     beforeEach(() => {
@@ -149,22 +134,230 @@ export const generateSingletonInitializationTests = <
     })
 
     afterEach(() => {
-        SingletonServiceManager.resetInstance()
+        ServiceManagerClass.resetInstance()
     })
 
     it('should throw when initInstance is called more than once', () => {
-        SingletonServiceManager.initInstance(testFeatures)
+        ServiceManagerClass.initInstance(testFeatures)
 
-        throws(() => SingletonServiceManager.initInstance(testFeatures), AmazonQServiceAlreadyInitializedError)
+        throws(() => ServiceManagerClass.initInstance(testFeatures), AmazonQServiceAlreadyInitializedError)
     })
 
     it('should throw when getInstance is called before initInstance', () => {
-        throws(() => SingletonServiceManager.getInstance(), AmazonQServiceInitializationError)
+        throws(() => ServiceManagerClass.getInstance(), AmazonQServiceInitializationError)
     })
 
     it('should not throw when getInstance is called after initInstance', () => {
-        const singletonServiceManagerInstance = SingletonServiceManager.initInstance(testFeatures)
+        const serviceManagerInstance = ServiceManagerClass.initInstance(testFeatures)
 
-        deepStrictEqual(SingletonServiceManager.getInstance(), singletonServiceManagerInstance)
+        deepStrictEqual(ServiceManagerClass.getInstance(), serviceManagerInstance)
     })
 }
+
+/**
+ * Helper function specifically for testing TestAmazonQServiceManager
+ *
+ * @example
+ *
+ * ```ts
+ * describe('TestAmazonQServiceManager initialization', () => {
+ *     generateTestSingletonInitializationTests()
+ * })
+ * ```
+ */
+export const generateTestSingletonInitializationTests = () => {
+    let testFeatures: TestFeatures
+
+    beforeEach(() => {
+        testFeatures = new TestFeatures()
+        testFeatures.setClientParams({} as InitializeParams)
+    })
+
+    afterEach(() => {
+        TestAmazonQServiceManager.resetTestInstance()
+    })
+
+    it('should throw when initTestInstance is called more than once', () => {
+        TestAmazonQServiceManager.initTestInstance(testFeatures)
+
+        throws(() => TestAmazonQServiceManager.initTestInstance(testFeatures), AmazonQServiceAlreadyInitializedError)
+    })
+
+    it('should throw when getTestInstance is called before initTestInstance', () => {
+        throws(() => TestAmazonQServiceManager.getTestInstance(), AmazonQServiceNotInitializedError)
+    })
+
+    it('should not throw when getTestInstance is called after initTestInstance', () => {
+        const testServiceManagerInstance = TestAmazonQServiceManager.initTestInstance(testFeatures)
+
+        deepStrictEqual(TestAmazonQServiceManager.getTestInstance(), testServiceManagerInstance)
+    })
+}
+
+// import { TestFeatures } from '@aws/language-server-runtimes/testing'
+// import { CodeWhispererServiceBase } from '../codeWhispererService'
+// import { BaseAmazonQServiceManager, QServiceManagerFeatures } from './BaseAmazonQServiceManager'
+// import { StreamingClientServiceBase } from '../streamingClientService'
+// import {
+//     AmazonQServiceAlreadyInitializedError,
+//     AmazonQServiceInitializationError,
+//     AmazonQServiceNotInitializedError,
+// } from './errors'
+// import { throws, deepStrictEqual } from 'assert'
+// import {
+//     CancellationToken,
+//     CredentialsType,
+//     InitializeParams,
+//     UpdateConfigurationParams,
+// } from '@aws/language-server-runtimes/server-interface'
+
+// /**
+//  * A reusable test class that extends the abstract base class and allows for injecting features and service mocks.
+//  *
+//  * Note: it is the responsibility of the test suite to correctly reset/restore the injected mocks.
+//  */
+// export class TestAmazonQServiceManager extends BaseAmazonQServiceManager {
+//     private static instance: TestAmazonQServiceManager | null = null
+
+//     private constructor(features: TestFeatures) {
+//         super(features)
+//     }
+
+//     public static initInstance(features: TestFeatures): TestAmazonQServiceManager {
+//         if (!TestAmazonQServiceManager.instance) {
+//             TestAmazonQServiceManager.instance = new TestAmazonQServiceManager(features)
+
+//             return TestAmazonQServiceManager.instance
+//         }
+
+//         throw new AmazonQServiceInitializationError('Test service is already initialized.')
+//     }
+
+//     public static getInstance(): TestAmazonQServiceManager {
+//         if (!TestAmazonQServiceManager.instance) {
+//             throw new AmazonQServiceNotInitializedError('Test service is not yet initialized')
+//         }
+
+//         return TestAmazonQServiceManager.instance
+//     }
+
+//     public getCodewhispererService(): CodeWhispererServiceBase {
+//         if (!this.cachedCodewhispererService) {
+//             throw new Error(
+//                 'Found undefined cached service, make sure to setup TestAmazonQServiceManager class correctly'
+//             )
+//         }
+
+//         return this.cachedCodewhispererService
+//     }
+
+//     public getStreamingClient(): StreamingClientServiceBase {
+//         if (!this.cachedStreamingClient) {
+//             throw new Error(
+//                 'Found undefined cached streaming client, make sure to setup TestAmazonQServiceManager class correctly'
+//             )
+//         }
+
+//         return this.cachedStreamingClient
+//     }
+
+//     public override handleOnCredentialsDeleted(_type: CredentialsType): void {
+//         return
+//     }
+
+//     public override handleOnUpdateConfiguration(
+//         _params: UpdateConfigurationParams,
+//         _token: CancellationToken
+//     ): Promise<void> {
+//         return Promise.resolve()
+//     }
+
+//     public withCodeWhispererService<C extends CodeWhispererServiceBase>(service: C) {
+//         this.cachedCodewhispererService = service
+//     }
+
+//     public withStreamingClientService<S extends StreamingClientServiceBase>(streamingClient: S) {
+//         this.cachedStreamingClient = streamingClient
+//     }
+
+//     public static resetInstance(): void {
+//         TestAmazonQServiceManager.instance = null
+//     }
+// }
+
+// /**
+//  *
+//  * @param features - TestFeatures
+//  * @param serviceMock - Mocked service, e.g. with sinon's stubInterface method.
+//  * @returns A mocked AmazonQServiceManager for testing
+//  */
+// export const initBaseTestServiceManager = <C extends CodeWhispererServiceBase, S extends StreamingClientServiceBase>(
+//     features: TestFeatures,
+//     serviceMock?: C,
+//     streamingClientMock?: S
+// ): TestAmazonQServiceManager => {
+//     const testServiceManager = TestAmazonQServiceManager.initInstance(features)
+
+//     if (serviceMock) {
+//         testServiceManager.withCodeWhispererService(serviceMock)
+//     }
+
+//     if (streamingClientMock) {
+//         testServiceManager.withStreamingClientService(streamingClientMock)
+//     }
+
+//     return testServiceManager
+// }
+
+// /**
+//  * Helper function to test the initialization process of the service managers
+//  *
+//  * @param SingletonServiceManager - Token or IAM Service manager class
+//  *
+//  * @example
+//  *
+//  * ```ts
+//  * describe('some test name', () => {
+//  *     generateSingletonInitializationTests(AmazonQTokenServiceManager)
+//  * })
+//  * ```
+//  */
+// export const generateSingletonInitializationTests = <
+//     C extends CodeWhispererServiceBase,
+//     S extends StreamingClientServiceBase,
+//     T extends BaseAmazonQServiceManager<C, S>,
+//     U extends {
+//         getInstance(): T
+//         initInstance(features: QServiceManagerFeatures): T
+//         resetInstance(): void
+//     },
+// >(
+//     SingletonServiceManager: U
+// ) => {
+//     let testFeatures: TestFeatures
+
+//     beforeEach(() => {
+//         testFeatures = new TestFeatures()
+//         testFeatures.setClientParams({} as InitializeParams)
+//     })
+
+//     afterEach(() => {
+//         SingletonServiceManager.resetInstance()
+//     })
+
+//     it('should throw when initInstance is called more than once', () => {
+//         SingletonServiceManager.initInstance(testFeatures)
+
+//         throws(() => SingletonServiceManager.initInstance(testFeatures), AmazonQServiceAlreadyInitializedError)
+//     })
+
+//     it('should throw when getInstance is called before initInstance', () => {
+//         throws(() => SingletonServiceManager.getInstance(), AmazonQServiceInitializationError)
+//     })
+
+//     it('should not throw when getInstance is called after initInstance', () => {
+//         const singletonServiceManagerInstance = SingletonServiceManager.initInstance(testFeatures)
+
+//         deepStrictEqual(SingletonServiceManager.getInstance(), singletonServiceManagerInstance)
+//     })
+// }

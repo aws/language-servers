@@ -52,7 +52,7 @@ import {
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -78,13 +78,13 @@ export class ChatController implements ChatHandlers {
     #triggerContext: QChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #serviceManager: AmazonQBaseServiceManager
+    #serviceManager: BaseAmazonQServiceManager
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        serviceManager: AmazonQBaseServiceManager
+        serviceManager: BaseAmazonQServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService

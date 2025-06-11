@@ -39,7 +39,7 @@ import { DocumentContextExtractor } from '../chat/contexts/documentContext'
 import * as utils from '../chat/utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { TabBarController } from './tabBarController'
 import { getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
@@ -127,7 +127,7 @@ describe('AgenticChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let serviceManager: AmazonQTokenServiceManager
+    let serviceManager: BaseAmazonQServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
@@ -223,9 +223,9 @@ describe('AgenticChatController', () => {
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
         sinon.stub(ContextCommandsProvider.prototype, 'maybeUpdateCodeSymbols').resolves()
 
-        AmazonQTokenServiceManager.resetInstance()
+        BaseAmazonQServiceManager.resetInstance()
 
-        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
+        serviceManager = BaseAmazonQServiceManager.initInstance(testFeatures)
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 

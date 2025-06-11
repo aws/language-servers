@@ -6,13 +6,13 @@ import {
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import {
-    StreamingClientServiceToken,
+    StreamingClientServiceBase,
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '../../shared/streamingClientService'
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
 import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapErrorWithCode } from '../agenticChat/errors'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -38,7 +38,7 @@ export class ChatSessionService {
     #currentUndoAllId?: string
     // Map to store approved paths to avoid repeated validation
     #approvedPaths: Set<string> = new Set<string>()
-    #serviceManager?: AmazonQBaseServiceManager
+    #serviceManager?: BaseAmazonQServiceManager
 
     public getConversationType(): string {
         return this.#conversationType
@@ -111,7 +111,7 @@ export class ChatSessionService {
         this.#approvedPaths.add(normalizedPath)
     }
 
-    constructor(serviceManager?: AmazonQBaseServiceManager) {
+    constructor(serviceManager?: BaseAmazonQServiceManager) {
         this.#serviceManager = serviceManager
     }
 
@@ -148,7 +148,7 @@ export class ChatSessionService {
 
         const client = this.#serviceManager.getStreamingClient()
 
-        if (client instanceof StreamingClientServiceToken) {
+        if (client instanceof StreamingClientServiceBase) {
             try {
                 return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {

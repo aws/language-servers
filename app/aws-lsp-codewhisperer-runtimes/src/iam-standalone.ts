@@ -1,7 +1,7 @@
 import { standalone } from '@aws/language-server-runtimes/runtimes'
-import { CodeWhispererServerIAM, QChatServerIAMProxy } from '@aws/lsp-codewhisperer'
-import { createIAMRuntimeProps } from './standalone-common'
+import { CodeWhispererServerIAMProxy, QChatServerIAMProxy } from '@aws/lsp-codewhisperer'
+import { createRuntimeProps } from './standalone-common'
 
-const props = createIAMRuntimeProps('0.1.0', [CodeWhispererServerIAM, QChatServerIAMProxy])
+const props = createRuntimeProps('0.1.0', [CodeWhispererServerIAMProxy, QChatServerIAMProxy])
 
 standalone(props)

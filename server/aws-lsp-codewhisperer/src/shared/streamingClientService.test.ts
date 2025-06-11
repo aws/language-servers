@@ -1,4 +1,4 @@
-import { StreamingClientServiceToken } from './streamingClientService'
+import { StreamingClientServiceBase } from './streamingClientService'
 import sinon from 'ts-sinon'
 import { expect } from 'chai'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
@@ -14,7 +14,7 @@ import { rejects } from 'assert'
 const TIME_TO_ADVANCE_MS = 100
 
 describe('StreamingClientService', () => {
-    let streamingClientService: StreamingClientServiceToken
+    let streamingClientService: StreamingClientServiceBase
     let features: TestFeatures
     let clock: sinon.SinonFakeTimers
     let sendMessageStub: sinon.SinonStub
@@ -50,7 +50,7 @@ describe('StreamingClientService', () => {
         sendMessageStub = sinon
             .stub(CodeWhispererStreaming.prototype, 'sendMessage')
             .callsFake(() => Promise.resolve(MOCKED_SEND_MESSAGE_RESPONSE))
-        streamingClientService = new StreamingClientServiceToken(
+        streamingClientService = new StreamingClientServiceBase(
             features.credentialsProvider,
             features.sdkInitializator,
             features.logging,
@@ -68,7 +68,13 @@ describe('StreamingClientService', () => {
     })
 
     it('provides the lastest token present in the credentials provider', async () => {
-        const tokenProvider = streamingClientService.client.config.token
+        let tokenProvider
+        if (streamingClientService.credentialsType === 'bearer') {
+            const codeWhispererClient = streamingClientService.client as CodeWhispererStreaming
+            tokenProvider = codeWhispererClient.config.token
+        } else {
+            throw new Error('Token provider is only available for bearer authentication')
+        }
         expect(tokenProvider).not.to.be.undefined
 
         const firstTokenPromise = (tokenProvider as any)()

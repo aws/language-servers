@@ -27,7 +27,7 @@ export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhi
 
 export interface GenerateSuggestionsRequest
     extends CodeWhispererTokenClient.GenerateCompletionsRequest,
-    CodeWhispererSigv4Client.GenerateRecommendationsRequest {
+        CodeWhispererSigv4Client.GenerateRecommendationsRequest {
     maxResults: number
 }
 
@@ -47,7 +47,6 @@ export interface GenerateSuggestionsResponse {
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 
-
 export class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion?: string
     protected readonly codeWhispererEndpoint?: string
@@ -65,13 +64,13 @@ export class CodeWhispererServiceBase {
         logging: Logging,
         sdkInitializator: SDKInitializator,
         codeWhispererRegion?: string,
-        codeWhispererEndpoint?: string,
+        codeWhispererEndpoint?: string
     ) {
         this.codeWhispererRegion = codeWhispererRegion
         this.codeWhispererEndpoint = codeWhispererEndpoint
         this.credentialsType = credentialsProvider.getCredentialsType()
 
-        if (this.credentialsType === 'bearer') {
+        if (this.credentialsType === 'iam') {
             const options: CodeWhispererSigv4ClientConfigurationOptions = {
                 region: this.codeWhispererRegion,
                 endpoint: this.codeWhispererEndpoint,
@@ -82,12 +81,14 @@ export class CodeWhispererServiceBase {
             this.client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
             // Avoid overwriting any existing client listeners
             const clientRequestListeners = (this.client as CodeWhispererSigv4Client).setupRequestListeners
-                ; (this.client as CodeWhispererSigv4Client).setupRequestListeners = (request: Request<unknown, AWSError>) => {
-                    if (clientRequestListeners) {
-                        clientRequestListeners.call(this.client, request)
-                    }
-                    request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+            ;(this.client as CodeWhispererSigv4Client).setupRequestListeners = (
+                request: Request<unknown, AWSError>
+            ) => {
+                if (clientRequestListeners) {
+                    clientRequestListeners.call(this.client, request)
                 }
+                request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+            }
         } else {
             const options: CodeWhispererTokenClientConfigurationOptions = {
                 region: this.codeWhispererRegion,
@@ -101,7 +102,8 @@ export class CodeWhispererServiceBase {
                                 throw new Error('Authorization failed, bearer token is not set')
                             }
                             httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
-                            httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+                            httpRequest.headers['x-amzn-codewhisperer-optout'] =
+                                `${!this.shareCodeWhispererContentWithAWS}`
                         })
                         req.on('complete', () => {
                             this.completeRequest(req)
@@ -111,6 +113,13 @@ export class CodeWhispererServiceBase {
             }
             this.client = createCodeWhispererTokenClient(options, sdkInitializator, logging)
         }
+    }
+
+    getCredentialsType(): CredentialsType {
+        if (!this.credentialsType) {
+            throw new Error('Credentials type is not set')
+        }
+        return this.credentialsType
     }
 
     abortInflightRequests() {

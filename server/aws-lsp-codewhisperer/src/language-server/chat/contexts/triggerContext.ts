@@ -6,7 +6,7 @@ import { DocumentContext, DocumentContextExtractor } from './documentContext'
 import { SendMessageCommandInput } from '../../../shared/streamingClientService'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { convertChunksToRelevantTextDocuments } from '../tools/relevantTextDocuments'
-import { AmazonQBaseServiceManager as AmazonQServiceManager } from '../../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { BaseAmazonQServiceManager as AmazonQServiceManager } from '../../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent

@@ -14,7 +14,7 @@ import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { safeGet } from '../../shared/utils'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
@@ -30,7 +30,7 @@ export const WorkspaceContextServer = (): Server => features => {
     let isOptedIn: boolean = false
     let abTestingEvaluated = false
     let abTestingEnabled = false
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let amazonQServiceManager: BaseAmazonQServiceManager
     let allowedExtension: string[] = ['AmazonQ-For-VSCode', 'Amazon Q For JetBrains']
     let isSupportedExtension = false
 
@@ -183,7 +183,7 @@ export const WorkspaceContextServer = (): Server => features => {
             if (!isSupportedExtension) {
                 return {}
             }
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+            amazonQServiceManager = BaseAmazonQServiceManager.getInstance()
 
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
             dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders, artifactManager)

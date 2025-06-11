@@ -9,15 +9,15 @@ import sinon from 'ts-sinon'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
 import { QAgenticChatServer } from './qAgenticChatServer'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+// import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 describe('QAgenticChatServer', () => {
     const mockTabId = 'mockTabId'
     let disposeStub: sinon.SinonStub
-    let withAmazonQServiceSpy: sinon.SinonSpy<[amazonQService: AmazonQBaseServiceManager], ChatSessionManagementService>
+    let withAmazonQServiceSpy: sinon.SinonSpy<[amazonQService: BaseAmazonQServiceManager], ChatSessionManagementService>
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let amazonQServiceManager: BaseAmazonQServiceManager
     let disposeServer: () => void
     let chatSessionManagementService: ChatSessionManagementService
 
@@ -48,10 +48,10 @@ describe('QAgenticChatServer', () => {
         }
         testFeatures.setClientParams(cachedInitializeParams)
 
-        AmazonQTokenServiceManager.resetInstance()
+        BaseAmazonQServiceManager.resetInstance()
 
-        AmazonQTokenServiceManager.initInstance(testFeatures)
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+        BaseAmazonQServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = BaseAmazonQServiceManager.getInstance()
 
         disposeStub = sinon.stub(ChatSessionManagementService.prototype, 'dispose')
         chatSessionManagementService = ChatSessionManagementService.getInstance()

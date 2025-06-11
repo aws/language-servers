@@ -13,12 +13,7 @@ import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance } from 'ts-sinon'
 import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
-import {
-    CodeWhispererServiceBase,
-    CodeWhispererServiceToken,
-    ResponseContext,
-    Suggestion,
-} from '../../shared/codeWhispererService'
+import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 import {
     EMPTY_RESULT,
@@ -764,8 +759,8 @@ describe('CodeWhisperer Server', () => {
         describe('Supplemental Context', () => {
             it('should send supplemental context when using token authentication', async () => {
                 const test_service = sinon.createStubInstance(
-                    CodeWhispererServiceToken
-                ) as StubbedInstance<CodeWhispererServiceToken>
+                    CodeWhispererServiceBase
+                ) as StubbedInstance<CodeWhispererServiceBase>
 
                 test_service.generateSuggestions.returns(
                     Promise.resolve({
@@ -779,7 +774,7 @@ describe('CodeWhisperer Server', () => {
                 } as unknown as LocalProjectContextController)
 
                 // Initialize the features, but don't start server yet
-                TestAmazonQServiceManager.resetInstance()
+                TestAmazonQServiceManager.resetTestInstance()
                 const test_features = new TestFeatures()
                 const test_server = CodewhispererServerFactory(() =>
                     initBaseTestServiceManager(test_features, test_service)

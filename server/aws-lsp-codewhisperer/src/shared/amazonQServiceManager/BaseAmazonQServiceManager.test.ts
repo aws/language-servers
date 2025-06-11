@@ -4,17 +4,13 @@ import { expect } from 'chai'
 import { CodeWhispererServiceBase } from '../codeWhispererService'
 import { stubCodeWhispererService } from '../testUtils'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from './testUtils'
-import {
-    AmazonQBaseServiceManager,
-    BaseAmazonQServiceManager,
-    CONFIGURATION_CHANGE_IN_PROGRESS_MSG,
-} from './BaseAmazonQServiceManager'
+import { BaseAmazonQServiceManager, CONFIGURATION_CHANGE_IN_PROGRESS_MSG } from './BaseAmazonQServiceManager'
 import { CODE_WHISPERER_CONFIGURATION_SECTION, Q_CONFIGURATION_SECTION } from '../constants'
 
 describe('BaseAmazonQServiceManager', () => {
     let features: TestFeatures
     let serviceStub: StubbedInstance<CodeWhispererServiceBase>
-    let serviceManager: AmazonQBaseServiceManager
+    let serviceManager: BaseAmazonQServiceManager
     let handleDidChangeConfigurationSpy: sinon.SinonSpy
     beforeEach(() => {
         features = new TestFeatures()

@@ -18,7 +18,7 @@ import {
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
-    CodeWhispererServiceToken,
+    CodeWhispererServiceBase,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     Suggestion,
@@ -45,11 +45,11 @@ import {
     AmazonQServiceConnectionExpiredError,
     AmazonQServiceInitializationError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { getOrThrowBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { hasConnectionExpired } from '../../shared/utils'
-import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+// import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import path = require('path')
 import { getRelativePath } from '../workspaceContext/util'
@@ -269,7 +269,7 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
 }
 
 export const CodewhispererServerFactory =
-    (serviceManager: () => AmazonQBaseServiceManager): Server =>
+    (serviceManager: () => BaseAmazonQServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
@@ -277,7 +277,7 @@ export const CodewhispererServerFactory =
         const sessionManager = SessionManager.getInstance()
 
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
-        let amazonQServiceManager: AmazonQBaseServiceManager
+        let amazonQServiceManager: BaseAmazonQServiceManager
         let telemetryService: TelemetryService
 
         lsp.addInitializer((params: InitializeParams) => {
@@ -391,7 +391,7 @@ export const CodewhispererServerFactory =
 
                     // supplementalContext available only via token authentication
                     const supplementalContextPromise =
-                        codeWhispererService instanceof CodeWhispererServiceToken
+                        codeWhispererService instanceof CodeWhispererServiceBase
                             ? fetchSupplementalContext(
                                   textDocument,
                                   params.position,
@@ -409,7 +409,7 @@ export const CodewhispererServerFactory =
 
                     const supplementalContext = await supplementalContextPromise
                     // TODO: logging
-                    if (codeWhispererService instanceof CodeWhispererServiceToken) {
+                    if (codeWhispererService instanceof CodeWhispererServiceBase) {
                         requestContext.supplementalContexts = supplementalContext?.supplementalContextItems
                             ? supplementalContext.supplementalContextItems.map(v => ({
                                   content: v.content,
@@ -716,9 +716,9 @@ export const CodewhispererServerFactory =
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                            */
+                                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -812,5 +812,5 @@ export const CodewhispererServerFactory =
         }
     }
 
-export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
-export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
+export const BaseCodeWhispererServer = CodewhispererServerFactory(getOrThrowBaseServiceManager)
+// export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)

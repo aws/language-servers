@@ -82,7 +82,7 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase } from './tools/chatDb/chatDb'
@@ -146,7 +146,7 @@ export class AgenticChatController implements ChatHandlers {
     #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #serviceManager?: AmazonQTokenServiceManager
+    #serviceManager?: BaseAmazonQServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
@@ -172,7 +172,7 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        serviceManager?: AmazonQTokenServiceManager
+        serviceManager?: BaseAmazonQServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
@@ -533,7 +533,7 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
-        const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+        const profileArn = BaseAmazonQServiceManager.getInstance().getActiveProfileArn()
         const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
             params,
             triggerContext,
@@ -1888,7 +1888,7 @@ export class AgenticChatController implements ChatHandlers {
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
         metric.setDimension('enabled', session.pairProgrammingMode)
-        const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+        const profileArn = BaseAmazonQServiceManager.getInstance().getActiveProfileArn()
         if (profileArn) {
             this.#telemetryService.updateProfileArn(profileArn)
         }

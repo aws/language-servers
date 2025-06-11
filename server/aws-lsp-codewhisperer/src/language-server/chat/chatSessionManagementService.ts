@@ -1,11 +1,11 @@
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { Result } from '../types'
 import { ChatSessionService } from './chatSessionService'
 
 export class ChatSessionManagementService {
     static #instance?: ChatSessionManagementService
     #sessionByTab: Map<string, ChatSessionService> = new Map<string, any>()
-    #serviceManager?: AmazonQBaseServiceManager
+    #serviceManager?: BaseAmazonQServiceManager
 
     public static getInstance() {
         if (!ChatSessionManagementService.#instance) {
@@ -21,7 +21,7 @@ export class ChatSessionManagementService {
 
     private constructor() {}
 
-    public withAmazonQServiceManager(serviceManager: AmazonQBaseServiceManager) {
+    public withAmazonQServiceManager(serviceManager: BaseAmazonQServiceManager) {
         this.#serviceManager = serviceManager
 
         return this

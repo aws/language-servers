@@ -28,18 +28,18 @@ import {
 import * as validation from './validation'
 import path = require('path')
 import AdmZip = require('adm-zip')
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { BaseAmazonQServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 
 const workspaceFolderName = 'artifactWorkspace'
 
 export class TransformHandler {
-    private serviceManager: AmazonQTokenServiceManager
+    private serviceManager: BaseAmazonQServiceManager
     private workspace: Workspace
     private logging: Logging
     private runtime: Runtime
     private cancelPollingEnabled: Boolean = false
 
-    constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
+    constructor(serviceManager: BaseAmazonQServiceManager, workspace: Workspace, logging: Logging, runtime: Runtime) {
         this.serviceManager = serviceManager
         this.workspace = workspace
         this.logging = logging
