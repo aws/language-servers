@@ -101,9 +101,6 @@ export class WorkspaceFolderManager {
 
                     // Process the dependencies
                     await this.handleDependencyChanges(zips, addWSFolderPathInS3)
-
-                    // Clean up only after successful processing
-                    await handler.cleanupZipFiles(zips)
                 } catch (error) {
                     this.logging.warn(`Error handling dependency change: ${error}`)
                 }
@@ -184,7 +181,6 @@ export class WorkspaceFolderManager {
         sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
 
         await this.uploadS3AndQueueEvents(sourceCodeMetadata)
-        this.artifactManager.cleanup(true, folders)
     }
 
     async uploadToS3(fileMetadata: FileMetadata, addWSFolderPathInS3: boolean = true): Promise<string | undefined> {
@@ -235,7 +231,6 @@ export class WorkspaceFolderManager {
         this.stopContinuousMonitoring()
         this.resetRemoteWorkspaceId()
         this.workspaceState.webSocketClient?.destroyClient()
-        this.artifactManager.cleanup()
         this.dependencyDiscoverer.dispose()
     }
 
