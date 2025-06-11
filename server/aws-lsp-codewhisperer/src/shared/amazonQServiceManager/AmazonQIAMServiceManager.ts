@@ -21,6 +21,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
     private region: string
     private endpoint: string
 
+    // moved
     private constructor(features: QServiceManagerFeatures) {
         super(features)
         const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(features.runtime, features.logging)
@@ -28,6 +29,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         this.endpoint = amazonQRegionAndEndpoint.endpoint
     }
 
+    // moved
     public static initInstance(features: QServiceManagerFeatures): AmazonQIAMServiceManager {
         if (!AmazonQIAMServiceManager.instance) {
             AmazonQIAMServiceManager.instance = new AmazonQIAMServiceManager(features)
@@ -38,6 +40,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         throw new AmazonQServiceAlreadyInitializedError()
     }
 
+    // moved
     public static getInstance(): AmazonQIAMServiceManager {
         if (!AmazonQIAMServiceManager.instance) {
             throw new AmazonQServiceInitializationError(
@@ -48,6 +51,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         return AmazonQIAMServiceManager.instance
     }
 
+    // moved
     public getCodewhispererService() {
         if (!this.cachedCodewhispererService) {
             this.cachedCodewhispererService = new CodeWhispererServiceIAM(
@@ -65,6 +69,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         return this.cachedCodewhispererService
     }
 
+    // moved
     public getStreamingClient() {
         if (!this.cachedStreamingClient) {
             this.cachedStreamingClient = new StreamingClientServiceIAM(
@@ -78,10 +83,12 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         return this.cachedStreamingClient
     }
 
+    // moved
     public handleOnCredentialsDeleted(_type: CredentialsType): void {
         return
     }
 
+    // moved
     public override handleOnUpdateConfiguration(
         _params: UpdateConfigurationParams,
         _token: CancellationToken

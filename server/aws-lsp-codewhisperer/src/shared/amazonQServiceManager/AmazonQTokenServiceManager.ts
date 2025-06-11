@@ -64,12 +64,15 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     StreamingClientServiceToken
 > {
     private static instance: AmazonQTokenServiceManager | null = null
+
     private enableDeveloperProfileSupport?: boolean
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
     private profileChangeTokenSource: CancellationTokenSource | undefined
     private region?: string
     private endpoint?: string
+
+
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
      * Supported states:
@@ -81,6 +84,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     private state: 'PENDING_CONNECTION' | 'PENDING_Q_PROFILE' | 'PENDING_Q_PROFILE_UPDATE' | 'INITIALIZED' =
         'PENDING_CONNECTION'
 
+    // moved
     private constructor(features: QServiceManagerFeatures) {
         super(features)
     }
@@ -90,6 +94,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.state = state
     }
 
+    // moved
     public static initInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
@@ -101,6 +106,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         throw new AmazonQServiceAlreadyInitializedError()
     }
 
+    // moved
     public static getInstance(): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             throw new AmazonQServiceInitializationError(
@@ -111,6 +117,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return AmazonQTokenServiceManager.instance
     }
 
+    // moved
     private initialize(): void {
         if (!this.features.lsp.getClientInitializeParams()) {
             this.log('AmazonQTokenServiceManager initialized before LSP connection was initialized.')
@@ -136,6 +143,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.log('Manager instance is initialize')
     }
 
+    // moved
     public handleOnCredentialsDeleted(type: CredentialsType): void {
         this.log(`Received credentials delete event for type: ${type}`)
         if (type === 'iam') {
@@ -148,6 +156,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.state = 'PENDING_CONNECTION'
     }
 
+    // moved
     public async handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken) {
         try {
             if (params.section === Q_CONFIGURATION_SECTION && params.settings.profileArn !== undefined) {
@@ -186,6 +195,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
     }
 
+    // moved
     /**
      * Validate if Bearer Token Connection type has changed mid-session.
      * When connection type change is detected: reinitialize CodeWhispererService class with current connection type.
@@ -259,12 +269,14 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.logServiceState('Unknown Connection state')
     }
 
+    // moved
     private cancelActiveProfileChangeToken() {
         this.profileChangeTokenSource?.cancel()
         this.profileChangeTokenSource?.dispose()
         this.profileChangeTokenSource = undefined
     }
 
+    // moved
     private handleTokenCancellationRequest(token: CancellationToken) {
         if (token.isCancellationRequested) {
             this.logServiceState('Handling CancellationToken cancellation request')
@@ -272,6 +284,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
     }
 
+    // moved
     private async handleProfileChange(newProfileArn: string | null, token: CancellationToken): Promise<void> {
         if (!this.enableDeveloperProfileSupport) {
             this.log('Developer Profiles Support is not enabled')
@@ -405,6 +418,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return
     }
 
+    // moved
     public getCodewhispererService(): CodeWhispererServiceToken {
         // Prevent initiating requests while profile change is in progress.
         if (this.state === 'PENDING_Q_PROFILE_UPDATE') {
@@ -428,6 +442,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         throw new AmazonQServiceNotInitializedError()
     }
 
+    // moved
     public getStreamingClient() {
         this.log('Getting instance of CodeWhispererStreaming client')
 
@@ -445,6 +460,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return this.cachedStreamingClient
     }
 
+    // moved
     private resetCodewhispererService() {
         this.cachedCodewhispererService?.abortInflightRequests()
         this.cachedCodewhispererService = undefined
@@ -455,6 +471,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.endpoint = undefined
     }
 
+    // moved
     private createCodewhispererServiceInstances(
         connectionType: 'builderId' | 'identityCenter',
         clientOrProfileRegion?: string
@@ -481,12 +498,14 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.logServiceState('CodewhispererService and StreamingClient Initialization finished')
     }
 
+    // moved
     private getCustomUserAgent() {
         const initializeParams = this.features.lsp.getClientInitializeParams() || {}
 
         return getUserAgent(initializeParams as InitializeParams, this.features.runtime.serverInfo)
     }
 
+    // moved
     private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
         const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
@@ -515,6 +534,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return service
     }
 
+    // moved
     private streamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
         const streamingClient = new StreamingClientServiceToken(
             this.features.credentialsProvider,
@@ -548,6 +568,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         )
     }
 
+    // moved
     // For Unit Tests
     public static resetInstance(): void {
         AmazonQTokenServiceManager.instance = null
