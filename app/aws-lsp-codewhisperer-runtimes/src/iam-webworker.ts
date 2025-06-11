@@ -1,6 +1,6 @@
 import { webworker } from '@aws/language-server-runtimes/runtimes/webworker'
-import { BaseCodeWhispererServer } from '@aws/lsp-codewhisperer/src/language-server/inline-completion/codeWhispererServer'
-import { BaseQChatServer } from '@aws/lsp-codewhisperer/src/language-server/chat/qChatServer'
+import { BaseCodeWhispererServer } from '@aws/lsp-codewhisperer/out/language-server/inline-completion/codeWhispererServer'
+import { BaseQChatServer } from '@aws/lsp-codewhisperer/out/language-server/chat/qChatServer'
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 import { BaseAmazonQServiceServer } from '@aws/lsp-codewhisperer/out/shared/amazonQServer'
 
