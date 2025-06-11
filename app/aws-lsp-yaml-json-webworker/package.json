@@ -11,7 +11,7 @@
         "serve:webpack": "NODE_ENV=development webpack serve"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.94",
+        "@aws/language-server-runtimes": "^0.2.95",
         "@aws/lsp-json": "*",
         "@aws/lsp-yaml": "*"
     },
