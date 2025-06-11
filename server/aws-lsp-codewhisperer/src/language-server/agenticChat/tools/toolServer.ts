@@ -119,7 +119,11 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             }
 
             agent.addTool(
-                { name: namespaced, description: def.description, inputSchema: inputSchemaWithExplanation },
+                {
+                    name: namespaced,
+                    description: def.description?.trim() || 'empty description',
+                    inputSchema: inputSchemaWithExplanation,
+                },
                 input => tool.invoke(input)
             )
             registered[server].push(namespaced)
