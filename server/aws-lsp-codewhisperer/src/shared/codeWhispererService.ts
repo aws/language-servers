@@ -9,6 +9,7 @@ import {
     CancellationToken,
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
+import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import { Request, Response } from 'aws-sdk/lib/core'
@@ -22,6 +23,12 @@ import {
     createCodeWhispererTokenClient,
     RequestExtras,
 } from '../client/token/codewhisperer'
+import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
+import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
+import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inline-completion/diffUtils'
+import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
+import { Position } from 'vscode-languageserver-textdocument'
+import { getErrorId } from './utils'
 
 import { PredictionType, GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
 
@@ -53,13 +60,6 @@ export interface GenerateSuggestionsResponse {
     suggestionType?: SuggestionType
     responseContext: ResponseContext
 }
-
-import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
-import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
-import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inline-completion/diffUtils'
-import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
-import { Position } from 'vscode-languageserver-textdocument'
-import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 // Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -202,6 +202,9 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     clearCachedSuggestions() {}
 }
 
+/**
+ * Hint: to get an instance of this: `AmazonQTokenServiceManager.getInstance().getCodewhispererService()`
+ */
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
     private tokenSrc = new CancellationTokenSource()
@@ -211,9 +214,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         maxCacheSuggestionSize: 3,
         maxRecursiveCallDepth: 3,
     }
+    /** Debounce createSubscriptionToken by storing the current, pending promise (if any). */
+    #createSubscriptionTokenPromise?: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse>
+    /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
+    #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
     constructor(
-        credentialsProvider: CredentialsProvider,
+        private credentialsProvider: CredentialsProvider,
         workspace: Workspace,
         private logging: Logging,
         codeWhispererRegion: string,
@@ -227,8 +234,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             endpoint: this.codeWhispererEndpoint,
             onRequestSetup: [
                 req => {
+                    logging.debug(`CodeWhispererServiceToken: req=${req.operation}`)
                     this.trackRequest(req)
-                    req.on('build', ({ httpRequest }) => {
+                    req.on('build', async ({ httpRequest }) => {
                         try {
                             const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
                             if (!creds?.token) {
@@ -237,9 +245,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                             httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
                             httpRequest.headers['x-amzn-codewhisperer-optout'] =
                                 `${!this.shareCodeWhispererContentWithAWS}`
-                        } catch (error) {
-                            console.error('CWSPR Error during request build:', error)
-                            throw error
+                        } catch (err) {
+                            this.completeRequest(req)
+                            throw err
                         }
                     })
                     req.on('complete', response => {
@@ -256,6 +264,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
                         const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
+                        this.completeRequest(req)
+                    })
+                    req.on('error', () => {
                         this.completeRequest(req)
                     })
                 },
@@ -674,6 +685,129 @@ ${response.suggestions[0].content}`)
      */
     async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
         return this.client.listFeatureEvaluations(this.withProfileArn(request)).promise()
+    }
+
+    /**
+     * (debounced by default)
+     *
+     * cool api you have there 🥹
+     */
+    async createSubscriptionToken(request: CodeWhispererTokenClient.CreateSubscriptionTokenRequest) {
+        // Debounce.
+        if (this.#createSubscriptionTokenPromise) {
+            return this.#createSubscriptionTokenPromise
+        }
+
+        this.#createSubscriptionTokenPromise = (async () => {
+            try {
+                const r = await this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
+                if (!r.encodedVerificationUrl) {
+                    this.logging.error(`setpaidtier
+    request: ${JSON.stringify(request)}
+    response: ${JSON.stringify(r as any)}
+    requestId: ${(r as any).$response?.requestId}
+    httpStatusCode: ${(r as any).$response?.httpResponse?.statusCode}
+    headers: ${JSON.stringify((r as any).$response?.httpResponse?.headers)}`)
+                }
+                return r
+            } finally {
+                this.#createSubscriptionTokenPromise = undefined
+            }
+        })()
+
+        return this.#createSubscriptionTokenPromise
+    }
+
+    /**
+     * Gets the Subscription status of the given user.
+     *
+     * @param statusOnly use this if you don't need the encodedVerificationUrl, else a ConflictException is treated as "ACTIVE"
+     */
+    async getSubscriptionStatus(
+        statusOnly?: boolean
+    ): Promise<{ status: 'active' | 'active-expiring' | 'none'; encodedVerificationUrl?: string }> {
+        // NOTE: The subscription API behaves in a non-intuitive way.
+        // https://github.com/aws/amazon-q-developer-cli-autocomplete/blob/86edd86a338b549b5192de67c9fdef240e6014b7/crates/chat-cli/src/cli/chat/mod.rs#L4079-L4102
+        //
+        // If statusOnly=true, the service only returns "ACTIVE" and "INACTIVE".
+        // If statusOnly=false, the following spec applies:
+        //
+        // 1. "ACTIVE" => 'active-expiring':
+        //    - Active but cancelled. User *has* a subscription, but set to *not auto-renew* (i.e., cancelled).
+        // 2. "INACTIVE" => 'none':
+        //    - User has no subscription at all (no Pro access).
+        // 3. ConflictException => 'active':
+        //    - User has an active subscription *with auto-renewal enabled*.
+        //
+        // Also, it is currently not possible to subscribe or re-subscribe via console, only IDE/CLI.
+        try {
+            const r = await this.createSubscriptionToken({
+                statusOnly: !!statusOnly,
+                // clientToken: this.credentialsProvider.getCredentials('bearer').token,
+            })
+            const status = r.status === 'ACTIVE' ? 'active-expiring' : 'none'
+
+            return {
+                status: status,
+                encodedVerificationUrl: r.encodedVerificationUrl,
+            }
+        } catch (e) {
+            if (getErrorId(e as Error) === 'ConflictException') {
+                return {
+                    status: 'active',
+                }
+            }
+
+            throw e
+        }
+    }
+
+    /**
+     * Polls the service until subscription status changes to "ACTIVE".
+     *
+     * Returns true on success, or false on timeout/cancellation.
+     */
+    async waitUntilSubscriptionActive(cancelToken?: CancellationToken): Promise<boolean> {
+        // If user clicks "Upgrade" multiple times, cancel any pending waitUntil().
+        if (this.#waitUntilSubscriptionCancelSource) {
+            this.#waitUntilSubscriptionCancelSource.cancel()
+            this.#waitUntilSubscriptionCancelSource.dispose()
+        }
+
+        this.#waitUntilSubscriptionCancelSource = new CancellationTokenSource()
+
+        // Combine the external cancelToken (if provided) with our internal one.
+        const combinedToken = cancelToken
+            ? {
+                  isCancellationRequested: () =>
+                      cancelToken.isCancellationRequested ||
+                      this.#waitUntilSubscriptionCancelSource!.token.isCancellationRequested,
+              }
+            : this.#waitUntilSubscriptionCancelSource.token
+
+        const r = await waitUntil(
+            async () => {
+                if (combinedToken.isCancellationRequested) {
+                    this.logging.info('waitUntilSubscriptionActive: cancelled')
+                    return false
+                }
+                const s = await this.getSubscriptionStatus(true)
+                this.logging.info(`waitUntilSubscriptionActive: ${s.status}`)
+                if (s.status !== 'none') {
+                    return true
+                }
+            },
+            {
+                timeout: 60 * 60 * 1000, // 1 hour
+                interval: 2000,
+                truthy: true,
+            }
+        ).finally(() => {
+            this.#waitUntilSubscriptionCancelSource?.dispose()
+            this.#waitUntilSubscriptionCancelSource = undefined
+        })
+
+        return !!r
     }
 }
 

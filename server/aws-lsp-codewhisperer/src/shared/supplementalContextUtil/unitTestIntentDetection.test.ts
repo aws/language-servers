@@ -14,11 +14,11 @@ describe('TestIntentDetector', function () {
     })
 
     describe('isTestFile', function () {
-        it('should throw if language is not in the supported language set', function () {
+        it('should return false if language is not in the supported language set', function () {
             const testCases = ['kotlin', 'vuejs', 'plaintext', 'markdown', 'c', 'cpp', 'foo', 'bar', 'unknown']
 
             for (const testCase of testCases) {
-                assert.throws(() => sut.isTestFile('foo', '', testCase), /lang not supported by utg completion/)
+                assert.ok(!sut.isTestFile('foo', '', testCase))
             }
         })
 

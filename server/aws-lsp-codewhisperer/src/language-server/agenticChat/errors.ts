@@ -1,4 +1,4 @@
-import { CodeWhispererStreamingServiceException } from '@aws/codewhisperer-streaming-client'
+import { CodeWhispererStreamingServiceException } from '@amzn/codewhisperer-streaming'
 
 type AgenticChatErrorCode =
     | 'QModelResponse' // generic backend error.
@@ -6,13 +6,18 @@ type AgenticChatErrorCode =
     | 'FailedResult' // general error when processing tool results
     | 'InputTooLong' // too much context given to backend service.
     | 'PromptCharacterLimit' // customer prompt exceeds
+    | 'AmazonQUsageLimitError' // Monthly usage limit was reached (usually free-tier user).
     | 'ResponseProcessingTimeout' // response didn't finish streaming in the allowed time
+    | 'MCPServerInitTimeout' // mcp server failed to start within allowed time
+    | 'MCPToolExecTimeout' // mcp tool call failed to complete within allowed time
+    | 'MCPServerConnectionFailed' // mcp server failed to connect
     | 'RequestAborted' // request was aborted by the user
 
 export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'QModelResponse',
     'InputTooLong',
     'PromptCharacterLimit',
+    'AmazonQUsageLimitError',
 ]
 
 export const unactionableErrorCodes: Partial<Record<AgenticChatErrorCode, string>> = {

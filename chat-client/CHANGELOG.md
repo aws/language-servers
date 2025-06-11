@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.15](https://github.com/aws/language-servers/compare/chat-client/v0.1.14...chat-client/v0.1.15) (2025-06-11)
+
+
+### Bug Fixes
+
+* add more detailed log when mcp server initialize failed and tooltip change ([#1594](https://github.com/aws/language-servers/issues/1594)) ([cdab4d6](https://github.com/aws/language-servers/commit/cdab4d6b59c4ded425822063cb568c4b831402e8))
+* correct icon for mcp button ([#1605](https://github.com/aws/language-servers/issues/1605)) ([a2e7d57](https://github.com/aws/language-servers/commit/a2e7d571eafb3767471b401242ac8a25b41961cd))
+* **paidtier:** Upgrade success message is unreliable ([#1602](https://github.com/aws/language-servers/issues/1602)) ([e0b274f](https://github.com/aws/language-servers/commit/e0b274ffee2e091e09574de03fe38e0a234e2f6e))
+* show server name when deleting ([#1593](https://github.com/aws/language-servers/issues/1593)) ([a2d495a](https://github.com/aws/language-servers/commit/a2d495a5799f078b455869058bb3a546974302ec))
+* updating sticky card css [#1586](https://github.com/aws/language-servers/issues/1586) ([1c92249](https://github.com/aws/language-servers/commit/1c92249635b19e0b0a88b271a200ffd56ea65e9d))
+
+## [0.1.14](https://github.com/aws/language-servers/compare/chat-client/v0.1.13...chat-client/v0.1.14) (2025-06-10)
+
+
+### Features
+
+* adding mcp servers feature to the language-server ([#1544](https://github.com/aws/language-servers/issues/1544)) ([f37bf5f](https://github.com/aws/language-servers/commit/f37bf5f91921d7611c124de6d54dd6ec653038c6))
+* **q:** builderid "paid tier" [#1197](https://github.com/aws/language-servers/issues/1197) ([d25bcb6](https://github.com/aws/language-servers/commit/d25bcb696572dd52938253bd15d838b1a0f57d68))
+* remove auto model selection option ([#1548](https://github.com/aws/language-servers/issues/1548)) ([71fc801](https://github.com/aws/language-servers/commit/71fc80165a7e987ca4d103f40aa93980bcd015da))
+
+
+### Bug Fixes
+
+* prevent muting messages with completed status ([#1557](https://github.com/aws/language-servers/issues/1557)) ([527a373](https://github.com/aws/language-servers/commit/527a373cc0b7c2c253d700af002d4e6bc7fdb887))
+
 ## [0.1.13](https://github.com/aws/language-servers/compare/chat-client/v0.1.12...chat-client/v0.1.13) (2025-06-02)
 
 
@@ -216,8 +241,8 @@
 
 ### Changed
 
-- Update `@aws/chat-client-ui-types` to 0.1.0
-- Update `@aws/language-server-runtimes-types` to 0.1.0
+- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/language-server-runtimes-types` to 0.1.29
 - Shortened legal text in the footer
 
 ## [0.0.9] - 2024-11-20
@@ -241,8 +266,8 @@
 ### Changed
 
 - Changed legal text in the footer
-- Update `@aws/chat-client-ui-types` to 0.0.8
-- Update `@aws/language-server-runtimes-types` to to 0.0.7
+- Update `@aws/chat-client-ui-types` to 0.1.35
+- Update `@aws/language-server-runtimes-types` to 0.1.29
 - Upgraded dependency: `@aws/mynah-ui` from 4.15.11 to 4.18.0:
     - Inline code elements now wrap onto new lines
     - Send button no longer shifts out of the window when horizontally filling the prompt input without spaces (now it wraps)

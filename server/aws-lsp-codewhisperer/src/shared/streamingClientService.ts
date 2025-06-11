@@ -6,17 +6,18 @@ import {
     SendMessageCommandOutput as SendMessageCommandOutputCodeWhispererStreaming,
     ExportResultArchiveCommandInput as ExportResultArchiveCommandInputCodeWhispererStreaming,
     ExportResultArchiveCommandOutput as ExportResultArchiveCommandOutputCodeWhispererStreaming,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     QDeveloperStreaming,
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
 import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
-import { getBearerTokenFromProvider } from './utils'
+import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { clientTimeoutMs } from '../language-server/agenticChat/constants'
+import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -93,16 +94,23 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
         this.inflightRequests.add(controller)
 
-        const response = await this.client.sendMessage(
-            { ...request, profileArn: this.profileArn },
-            {
-                abortSignal: controller.signal,
+        try {
+            const response = await this.client.sendMessage(
+                { ...request, profileArn: this.profileArn },
+                {
+                    abortSignal: controller.signal,
+                }
+            )
+
+            return response
+        } catch (e) {
+            if (isUsageLimitError(e)) {
+                throw new AmazonQUsageLimitError(e)
             }
-        )
-
-        this.inflightRequests.delete(controller)
-
-        return response
+            throw e
+        } finally {
+            this.inflightRequests.delete(controller)
+        }
     }
 
     public async generateAssistantResponse(
@@ -113,16 +121,24 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
         this.inflightRequests.add(controller)
 
-        const response = await this.client.generateAssistantResponse(
-            { ...request, profileArn: this.profileArn },
-            {
-                abortSignal: controller.signal,
+        try {
+            const response = await this.client.generateAssistantResponse(
+                { ...request, profileArn: this.profileArn },
+                {
+                    abortSignal: controller.signal,
+                }
+            )
+
+            return response
+        } catch (e) {
+            // TODO add a test for this
+            if (isUsageLimitError(e)) {
+                throw new AmazonQUsageLimitError(e)
             }
-        )
-
-        this.inflightRequests.delete(controller)
-
-        return response
+            throw e
+        } finally {
+            this.inflightRequests.delete(controller)
+        }
     }
 
     public async exportResultArchive(
