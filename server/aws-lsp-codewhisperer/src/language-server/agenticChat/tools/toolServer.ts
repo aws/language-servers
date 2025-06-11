@@ -128,7 +128,7 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             agent.addTool(
                 {
                     name: cleanedName,
-                    description: def.description?.trim() || 'empty description',
+                    description: def.description?.trim() || 'undefined',
                     inputSchema: inputSchemaWithExplanation,
                 },
                 input => tool.invoke(input)
