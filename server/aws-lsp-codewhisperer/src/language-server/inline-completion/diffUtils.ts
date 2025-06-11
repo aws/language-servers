@@ -137,21 +137,13 @@ export function generateDiffContexts(
  * @param unifiedDiff The unified diff content
  * @returns The modified code after applying the diff
  */
-export function applyUnifiedDiff(
-    docText: string,
-    unifiedDiff: string
-): { newCode: string; addedCharacterCount: number; deletedCharacterCount: number } {
+export function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
     try {
-        const { addedCharacterCount, deletedCharacterCount } = getAddedAndDeletedCharCount(unifiedDiff)
         // First try the standard diff package
         try {
             const result = diff.applyPatch(docText, unifiedDiff)
             if (result !== false) {
-                return {
-                    newCode: result,
-                    addedCharacterCount: addedCharacterCount,
-                    deletedCharacterCount: deletedCharacterCount,
-                }
+                return result
             }
         } catch (error) {}
 
@@ -215,51 +207,51 @@ export function applyUnifiedDiff(
             // Replace the text
             result = result.replace(textToReplace, newText)
         }
-        return {
-            newCode: result,
-            addedCharacterCount: addedCharacterCount,
-            deletedCharacterCount: deletedCharacterCount,
-        }
+        return result
     } catch (error) {
-        return {
-            newCode: docText, // Return original text if all methods fail
-            addedCharacterCount: 0,
-            deletedCharacterCount: 0,
-        }
+        return docText // Return original text if all methods fail
     }
 }
 
 // src https://github.com/aws/aws-toolkit-vscode/blob/3921457b0a2094b831beea0d66cc2cbd2a833890/packages/amazonq/src/app/inline/EditRendering/diffUtils.ts#L147
-export function getAddedAndDeletedCharCount(diff: string): {
-    addedCharacterCount: number
-    deletedCharacterCount: number
+export function getAddedAndDeletedChars(unifiedDiff: string): {
+    addedCharacters: string
+    deletedCharacters: string
 } {
-    let addedCharacterCount = 0
-    let deletedCharacterCount = 0
-    let i = 0
-    const lines = diff.split('\n')
-    while (i < lines.length) {
+    let addedCharacters = ''
+    let deletedCharacters = ''
+    const lines = unifiedDiff.split('\n')
+    for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
         if (line.startsWith('+') && !line.startsWith('+++')) {
-            addedCharacterCount += line.length - 1
+            addedCharacters += line.slice(1)
         } else if (line.startsWith('-') && !line.startsWith('---')) {
-            const removedLine = line.substring(1)
-            deletedCharacterCount += removedLine.length
+            const removedLine = line.slice(1)
 
             // Check if this is a modified line rather than a pure deletion
             const nextLine = lines[i + 1]
-            if (nextLine && nextLine.startsWith('+') && !nextLine.startsWith('+++') && nextLine.includes(removedLine)) {
+            if (nextLine && nextLine.startsWith('+') && !nextLine.startsWith('+++')) {
                 // This is a modified line, not a pure deletion
                 // We've already counted the deletion, so we'll just increment i to skip the next line
                 // since we'll process the addition on the next iteration
+                const addedLine = nextLine.slice(1)
+                const changes = diff.diffChars(removedLine, addedLine)
+                for (const part of changes) {
+                    if (part.removed) {
+                        deletedCharacters += part.value
+                    } else if (part.added) {
+                        addedCharacters += part.value
+                    }
+                }
                 i += 1
+            } else {
+                deletedCharacters += removedLine
             }
         }
-        i += 1
     }
     return {
-        addedCharacterCount,
-        deletedCharacterCount,
+        addedCharacters,
+        deletedCharacters,
     }
 }
 

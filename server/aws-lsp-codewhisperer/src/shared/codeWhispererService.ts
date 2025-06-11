@@ -464,8 +464,7 @@ ${response.suggestions[0].content}`)
 
         if (baseResponse.suggestionType && baseResponse.suggestionType === SuggestionType.EDIT) {
             const docText = baseRequest.fileContext.leftFileContent + baseRequest.fileContext.rightFileContent
-            const afterDiff = applyUnifiedDiff(docText, suggestion.content)
-            const newCode = afterDiff.newCode
+            const newCode = applyUnifiedDiff(docText, suggestion.content)
 
             const afterChangePosition = getEndOfEditPosition(docText, newCode)
             // Calculate new left context & right context
