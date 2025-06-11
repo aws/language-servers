@@ -10,7 +10,7 @@ import {
     Disposable,
     TextDocument,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
+import { CodeWhispererSupplementalContext, DocumentSnapshot, FileSnapshotContent } from '../../../shared/models/model'
 import { generateDiffContexts } from '../diffUtils'
 
 /**
@@ -38,32 +38,6 @@ export const RecentEditTrackerDefaultConfig: Readonly<RecentEditTrackerConfig> =
     debounceIntervalMs: 2000,
     maxAgeMs: 30000,
     maxSupplementalContext: 15,
-}
-
-/**
- * Represents a snapshot of a document at a specific point in time
- */
-export interface DocumentSnapshot {
-    /** URI of the document */
-    readonly filePath: string
-    /** Size of the snapshot content in bytes */
-    readonly size: number
-    /** Timestamp when the snapshot was taken */
-    readonly timestamp: number
-    /** Content of the document at the time of snapshot */
-    readonly content: string
-}
-
-/**
- * Represents a snapshot content of a file at a specific point in time
- */
-export interface FileSnapshotContent {
-    /** URI of the file */
-    readonly filePath: string
-    /** Content of the file */
-    readonly content: string
-    /** Timestamp when the snapshot was taken */
-    readonly timestamp: number
 }
 
 /**
