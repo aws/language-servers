@@ -101,7 +101,7 @@ describe('McpMynahUi', () => {
 
             // Verify the parameters
             const callArgs = (mynahUi.openDetailedList as sinon.SinonStub).firstCall.args[0]
-            assert.strictEqual(callArgs.detailedList.selectable, true)
+            assert.strictEqual(callArgs.detailedList.selectable, 'clickable')
             assert.strictEqual(callArgs.detailedList.textDirection, 'row')
             assert.strictEqual(callArgs.detailedList.header.title, 'Test Title')
             assert.strictEqual(callArgs.detailedList.header.description, 'Test Description')
@@ -246,20 +246,22 @@ describe('McpMynahUi', () => {
             sinon.assert.calledOnce(mockSheet.close)
 
             // Test onItemSelect event
-            const mockItem = {
+            const mockSelectItem = {
+                id: 'mcp-server-click',
                 title: 'Server 1',
                 actions: [{ id: 'open-mcp-server' }],
             } as DetailedListItem
-            events.onItemSelect(mockItem)
+            events.onItemSelect(mockSelectItem)
             sinon.assert.calledWith(messager.onMcpServerClick as sinon.SinonStub, 'open-mcp-server', 'Server 1')
 
             // Test onItemClick event
             const mockClickItem = {
                 id: 'mcp-server-click',
                 title: 'Server 1',
+                actions: [{ id: 'open-mcp-server' }],
             } as DetailedListItem
             events.onItemClick(mockClickItem)
-            sinon.assert.calledWith(messager.onMcpServerClick as sinon.SinonStub, 'mcp-server-click')
+            sinon.assert.calledWith(messager.onMcpServerClick as sinon.SinonStub, 'open-mcp-server', 'Server 1')
 
             // Test onActionClick event
             const mockAction = { id: 'add-new-mcp' } as ChatItemButton
