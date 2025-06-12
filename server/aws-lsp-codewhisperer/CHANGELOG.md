@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.48](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.47...lsp-codewhisperer/v0.0.48) (2025-06-12)
+
+
+### Bug Fixes
+
+* default model should be undefined until feature is enabled ([#1640](https://github.com/aws/language-servers/issues/1640)) ([8d2e6f0](https://github.com/aws/language-servers/commit/8d2e6f0faaa7ec155e75e22b24e11e9f5896833f))
+
 ## [0.0.47](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.46...lsp-codewhisperer/v0.0.47) (2025-06-11)
 
 
