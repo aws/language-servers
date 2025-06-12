@@ -1,4 +1,4 @@
-import { CodeWhispererStreaming } from '@aws/codewhisperer-streaming-client'
+import { CodeWhispererStreaming } from '@amzn/codewhisperer-streaming'
 import {
     Logging,
     Workspace,

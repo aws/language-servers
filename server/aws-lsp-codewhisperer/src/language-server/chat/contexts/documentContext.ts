@@ -1,4 +1,4 @@
-import { EditorState, TextDocument as CwsprTextDocument } from '@aws/codewhisperer-streaming-client'
+import { EditorState, TextDocument as CwsprTextDocument } from '@amzn/codewhisperer-streaming'
 import { CursorState, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { getLanguageId } from '../../../shared/languageDetection'

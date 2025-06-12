@@ -1,3 +1,4 @@
+import { EditorState } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'

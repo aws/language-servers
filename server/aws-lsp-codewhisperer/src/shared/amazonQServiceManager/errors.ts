@@ -86,9 +86,9 @@ export class AmazonQServiceConnectionExpiredError extends AmazonQError {
     }
 }
 
-export class AmazonQFreeTierLimitError extends AmazonQError {
+export class AmazonQUsageLimitError extends AmazonQError {
     constructor(cause?: unknown, message: string = 'Free tier limit reached.') {
-        super(message, 'E_AMAZON_Q_FREE_TIER_LIMIT', cause)
-        this.name = 'AmazonQFreeTierLimitError'
+        super(message, 'E_AMAZON_Q_USAGE_LIMIT', cause)
+        this.name = 'AmazonQUsageLimitError'
     }
 }

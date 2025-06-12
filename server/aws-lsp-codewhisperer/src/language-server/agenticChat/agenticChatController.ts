@@ -17,7 +17,7 @@ import {
     ToolResultStatus,
     ToolUse,
     ToolUseEvent,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     Button,
     Status,
@@ -87,7 +87,7 @@ import {
     getHttpStatusCode,
     getRequestID,
     getSsoConnectionType,
-    isFreeTierLimitError,
+    isUsageLimitError,
     isNullish,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
@@ -1028,15 +1028,26 @@ export class AgenticChatController implements ChatHandlers {
                         // const requiresAcceptance = builtInPermission || toolRequiresAcceptance
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
+                            // get auto approve status from session
+                            const isAutoApprove = session.autoApproveEnabled
+
+                            // if auto-approve is enable, only processToolConfirmation if tool is executeBash
                             // for executeBash, we till send the confirmation message without action buttons
-                            const confirmationResult = this.#processToolConfirmation(
-                                toolUse,
-                                requiresAcceptance,
-                                warning,
-                                commandCategory
-                            )
-                            cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            if (!isAutoApprove || toolUse.name === 'executeBash') {
+                                const confirmationResult = this.#processToolConfirmation(
+                                    toolUse,
+                                    requiresAcceptance,
+                                    warning,
+                                    commandCategory
+                                )
+                                cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            }
+
                             const isExecuteBash = toolUse.name === 'executeBash'
+                            const isFsWrite = toolUse.name === 'fsWrite'
+                            const notReadOnlyBashExecution =
+                                isExecuteBash && commandCategory !== CommandCategory.ReadOnly
+
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -1045,8 +1056,18 @@ export class AgenticChatController implements ChatHandlers {
                                     session.getConversationType()
                                 )
                             }
+                            if (isAutoApprove && !requiresAcceptance) {
+                                // If auto-approve is enabled and no acceptance is required, we can proceed without waiting
+                                this.#log(`Auto-approving tool use: ${toolUse.name}`)
+                            }
                             if (requiresAcceptance) {
-                                await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
+                                if (!isAutoApprove || isFsWrite || notReadOnlyBashExecution)
+                                    await this.waitForToolApproval(
+                                        toolUse,
+                                        chatResultStream,
+                                        cachedButtonBlockId!,
+                                        session
+                                    )
                             }
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
@@ -1404,7 +1425,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     isUserAction(err: unknown, token?: CancellationToken, session?: ChatSessionService): boolean {
         return (
-            !isFreeTierLimitError(err) &&
+            !isUsageLimitError(err) &&
             (CancellationError.isUserCancelled(err) ||
                 err instanceof ToolApprovalException ||
                 isRequestAbortedError(err) ||
@@ -2113,12 +2134,14 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.cwsprChatConversationId = conversationId
         await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed')
 
-        if (isFreeTierLimitError(err)) {
-            this.setPaidTierMode(tabId, 'freetier-limit')
+        if (isUsageLimitError(err)) {
+            if (this.#paidTierMode !== 'paidtier') {
+                this.setPaidTierMode(tabId, 'freetier-limit')
+            }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
-                body: `AmazonQFreeTierLimitError: Free tier limit reached. ${requestID ? `\n\nRequest ID: ${requestID}` : ''}`,
-                messageId: 'freetier-limit',
+                body: `AmazonQUsageLimitError: Monthly limit reached. ${requestID ? `\n\nRequest ID: ${requestID}` : ''}`,
+                messageId: 'monthly-usage-limit',
                 buttons: [],
             })
         }
@@ -2160,7 +2183,7 @@ export class AgenticChatController implements ChatHandlers {
             return createAuthFollowUpResult(authFollowType)
         }
 
-        if (isFreeTierLimitError(err) || customerFacingErrorCodes.includes(err.code)) {
+        if (isUsageLimitError(err) || customerFacingErrorCodes.includes(err.code)) {
             this.#features.logging.error(`${loggingUtils.formatErr(err)}`)
             if (err.code === 'InputTooLong') {
                 // Clear the chat history in the database for this tab
@@ -2642,10 +2665,12 @@ export class AgenticChatController implements ChatHandlers {
      * Updates the "Upgrade Q" (subscription tier) state of the UI in the chat component. If `mode` is not given, the user's subscription status is checked by calling the Q service.
      *
      * `mode` behavior:
-     * - 'freetier': treated as 'freetier-limit' if `this.#paidTierMode='freetier-limit'`.
-     * - 'freetier-limit': also show "Free Tier limit reached" card in chat.
-     *     - This mode is "sticky" until 'paidtier' is passed to override it.
-     * - 'paidtier': disable any "free-tier limit" UI.
+     *  - 'freetier': chat-ui clears "limit reached" UI, if any.
+     *  - 'freetier-limit':
+     *      - client (IDE) shows a message.
+     *      - chat-ui shows a chat card.
+     *  - 'paidtier': disable any "free-tier limit" UI.
+     *  - 'upgrade-pending': chat-ui shows a progress spinner.
      */
     setPaidTierMode(tabId?: string, mode?: PaidTierMode) {
         const isBuilderId = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
@@ -2653,7 +2678,7 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
 
-        if (this.#paidTierMode === 'freetier-limit' && mode === 'freetier') {
+        if (mode === 'freetier' && this.#paidTierMode === 'freetier-limit') {
             // mode = 'freetier-limit' // Sticky while 'freetier'.
         } else if (mode === 'freetier-limit' && mode !== this.#paidTierMode) {
             this.showFreeTierLimitMsgOnClient(tabId)
@@ -2739,7 +2764,7 @@ export class AgenticChatController implements ChatHandlers {
                             this.#log('onManageSubscription: missing encodedVerificationUrl in server response')
                             this.#features.lsp.window
                                 .showMessage({
-                                    message: 'Subscription request failed. Check the account id.',
+                                    message: 'Subscription request failed.',
                                     type: MessageType.Error,
                                 })
                                 .catch(e => {
@@ -3063,6 +3088,7 @@ export class AgenticChatController implements ChatHandlers {
 
         session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
         session.modelId = params.optionsValues['model-selection']
+        session.autoApproveEnabled = params.optionsValues['auto-approve'] === 'true'
 
         this.#chatHistoryDb.setModelId(session.modelId)
     }

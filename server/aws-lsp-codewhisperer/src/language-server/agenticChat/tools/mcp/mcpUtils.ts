@@ -8,6 +8,7 @@ import { URI } from 'vscode-uri'
 import { MCPServerConfig, PersonaConfig, MCPServerPermission, McpPermissionType } from './mcpTypes'
 import path = require('path')
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
+import crypto = require('crypto')
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
@@ -22,8 +23,13 @@ export async function loadMcpServerConfigs(
     workspace: Workspace,
     logging: Logger,
     rawPaths: string[]
-): Promise<{ servers: Map<string, MCPServerConfig>; errors: Map<string, string> }> {
+): Promise<{
+    servers: Map<string, MCPServerConfig>
+    serverNameMapping: Map<string, string>
+    errors: Map<string, string>
+}> {
     const servers = new Map<string, MCPServerConfig>()
+    const serverNameMapping = new Map<string, string>()
     const configErrors = new Map<string, string>()
     const uniquePaths = Array.from(new Set(rawPaths))
     const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
@@ -106,8 +112,9 @@ export async function loadMcpServerConfigs(
                 __configPath__: fsPath,
             }
 
-            if (servers.has(name)) {
-                const existing = servers.get(name)!
+            const sanitizedName = sanitizeName(name)
+            if (servers.has(sanitizedName)) {
+                const existing = servers.get(sanitizedName)!
                 const existingIsGlobal = existing.__configPath__ === globalConfigPath
                 const currentIsGlobal = fsPath === globalConfigPath
                 if (existingIsGlobal && !currentIsGlobal) {
@@ -122,12 +129,15 @@ export async function loadMcpServerConfigs(
                 }
             }
 
-            servers.set(name, cfg)
-            logging.info(`Loaded MCP server '${name}' from ${fsPath}`)
+            servers.set(sanitizedName, cfg)
+            serverNameMapping.set(sanitizedName, name)
+            logging.info(
+                `Loaded MCP server with sanitizedName: '${sanitizedName}' and originalName : '${name}' from ${fsPath}`
+            )
         }
     }
 
-    return { servers, errors: configErrors }
+    return { servers, serverNameMapping, errors: configErrors }
 }
 
 const DEFAULT_PERSONA_RAW = `{
@@ -236,7 +246,11 @@ export async function loadPersonaPermissions(
         // enable servers listed under mcpServers
         const enabled = new Set(cfg['mcpServers'] ?? [])
         for (const name of enabled) {
-            result.set(name, { enabled: true, toolPerms: {}, __configPath__: selectedFile })
+            result.set(name === '*' ? name : sanitizeName(name), {
+                enabled: true,
+                toolPerms: {},
+                __configPath__: selectedFile,
+            })
         }
 
         // Check if wildcard is present in mcpServers
@@ -247,11 +261,12 @@ export async function loadPersonaPermissions(
             // If there's a wildcard in mcpServers, or if this server is explicitly enabled
             if (hasWildcard || enabled.has(name)) {
                 // Create entry for this server if it doesn't exist yet
-                if (!result.has(name)) {
-                    result.set(name, { enabled: true, toolPerms: {}, __configPath__: selectedFile })
+                const sanitizedServerName = name === '*' ? name : sanitizeName(name)
+                if (!result.has(sanitizedServerName)) {
+                    result.set(sanitizedServerName, { enabled: true, toolPerms: {}, __configPath__: selectedFile })
                 }
 
-                const rec = result.get(name)!
+                const rec = result.get(sanitizedServerName)!
                 rec.toolPerms = perms as Record<string, McpPermissionType>
             }
         }
@@ -305,6 +320,37 @@ export function enabledMCP(params: InitializeParams | undefined): boolean {
         | QClientCapabilities
         | undefined
     return qCapabilities?.mcp || false
+}
+
+/**
+ * Sanitizes a name by:
+ * 1. Returning the original if it matches the regex and doesn't contain namespace delimiter(__)
+ * 2. Filtering to only allow ascii alphanumeric, underscore characters, and hyphen.
+ * 3. Handling empty or invalid
+ * 4. Using hash of original string when needed
+ */
+export function sanitizeName(orig: string): string {
+    const regex: RegExp = /^[a-zA-Z0-9_-]+$/
+    // Return original if it matches regex and doesn't contain the namespace delimiter
+    if (regex.test(orig) && !orig.includes('___')) {
+        return orig
+    }
+
+    // Filter to allowed characters
+    let sanitized = orig
+        .split('')
+        .filter(c => /[a-zA-Z0-9_-]/.test(c))
+        .join('')
+        .replace('___', '')
+
+    if (sanitized.length === 0) {
+        // Create hash for empty sanitized string
+        const hash = crypto.createHash('md5').update(orig).digest('hex')
+        const shortHash = hash.substring(0, 3)
+        return shortHash
+    }
+
+    return sanitized
 }
 
 export const MAX_TOOL_NAME_LENGTH = 64

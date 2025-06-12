@@ -15,7 +15,7 @@ import {
     RelevancyVoteType,
     isClientTelemetryEvent,
 } from './clientTelemetry'
-import { ToolUse, UserIntent } from '@aws/codewhisperer-streaming-client'
+import { ToolUse, UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.10...lsp-antlr4/v0.1.11) (2025-06-10)
+
+
+### Features
+
+* adding mcp servers feature to the language-server ([#1544](https://github.com/aws/language-servers/issues/1544)) ([f37bf5f](https://github.com/aws/language-servers/commit/f37bf5f91921d7611c124de6d54dd6ec653038c6))
+
 ## [0.1.10](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.9...lsp-antlr4/v0.1.10) (2025-05-30)
 
 

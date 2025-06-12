@@ -91,6 +91,7 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
         // 1) remove old tools
         for (const name of registered[server] ?? []) {
             agent.removeTool(name)
+            allNamespacedTools.delete(name)
         }
         registered[server] = []
 
@@ -118,7 +119,11 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             }
 
             agent.addTool(
-                { name: namespaced, description: def.description, inputSchema: inputSchemaWithExplanation },
+                {
+                    name: namespaced,
+                    description: def.description?.trim() || 'undefined',
+                    inputSchema: inputSchemaWithExplanation,
+                },
                 input => tool.invoke(input)
             )
             registered[server].push(namespaced)

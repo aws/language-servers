@@ -68,6 +68,7 @@ import {
     plansAndPricingTitle,
     freeTierLimitDirective,
 } from './texts/paidTier'
+import { autoApproveDisabled, autoApproveEnabled } from './texts/autoApprove'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -105,6 +106,9 @@ const getTabPairProgrammingMode = (mynahUi: MynahUI, tabId: string) =>
 const getTabModelSelection = (mynahUi: MynahUI, tabId: string) =>
     getTabPromptInputValue(mynahUi, tabId, 'model-selection')
 
+const getAutoApproveMode = (mynahUi: MynahUI, tabId: string) =>
+    getTabPromptInputValue(mynahUi, tabId, 'auto-approve') === 'true'
+
 export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, optionsValues: Record<string, string>) => {
     const previousPairProgrammerValue = getTabPairProgrammingMode(mynahUi, tabId)
     const currentPairProgrammerValue = optionsValues['pair-programmer-mode'] === 'true'
@@ -120,7 +124,15 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
         mynahUi.addChatItem(tabId, getModelSelectionChatItem(currentModelSelectionValue))
     }
 
+    const previousAutoApproveValue = getAutoApproveMode(mynahUi, tabId)
+    const currentAutoApproveValue = optionsValues['auto-approve'] === 'true'
+
+    if (currentAutoApproveValue !== previousAutoApproveValue) {
+        mynahUi.addChatItem(tabId, currentAutoApproveValue ? autoApproveEnabled : autoApproveDisabled)
+    }
+
     const promptInputOptions = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+
     mynahUi.updateStore(tabId, {
         promptInputOptions: promptInputOptions?.map(option => {
             option.value = optionsValues[option.id]
@@ -922,12 +934,15 @@ export const createMynahUi = (
             // Change the sticky banner to show a progress spinner.
             const card: typeof freeTierLimitSticky = {
                 ...(isFreeTierLimitUi ? freeTierLimitSticky : upgradePendingSticky),
-                icon: 'progress',
+            }
+            card.header = {
+                ...card.header,
+                icon: upgradePendingSticky.header?.icon,
+                iconStatus: upgradePendingSticky.header?.iconStatus,
             }
             mynahUi.updateStore(tabId, {
-                // Show a progress ribbon.
                 promptInputVisible: true,
-                promptInputStickyCard: isFreeTierLimitUi ? card : null,
+                promptInputStickyCard: card,
             })
         } else if (mode === 'paidtier') {
             mynahUi.updateStore(tabId, {

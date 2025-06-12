@@ -101,9 +101,6 @@ export class WorkspaceFolderManager {
 
                     // Process the dependencies
                     await this.handleDependencyChanges(zips, addWSFolderPathInS3)
-
-                    // Clean up only after successful processing
-                    await handler.cleanupZipFiles(zips)
                 } catch (error) {
                     this.logging.warn(`Error handling dependency change: ${error}`)
                 }
@@ -184,7 +181,6 @@ export class WorkspaceFolderManager {
         sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
 
         await this.uploadS3AndQueueEvents(sourceCodeMetadata)
-        this.artifactManager.cleanup(true, folders)
     }
 
     async uploadToS3(fileMetadata: FileMetadata, addWSFolderPathInS3: boolean = true): Promise<string | undefined> {
@@ -226,6 +222,7 @@ export class WorkspaceFolderManager {
             )
         } catch (e: any) {
             this.logging.warn(`Error uploading file to S3: ${e.message}`)
+            return
         }
         return s3Url
     }
@@ -234,7 +231,6 @@ export class WorkspaceFolderManager {
         this.stopContinuousMonitoring()
         this.resetRemoteWorkspaceId()
         this.workspaceState.webSocketClient?.destroyClient()
-        this.artifactManager.cleanup()
         this.dependencyDiscoverer.dispose()
     }
 
@@ -416,14 +412,24 @@ export class WorkspaceFolderManager {
     }
 
     private async checkRemoteWorkspaceStatusAndReact(skipUploads: boolean = false) {
+        if (this.workspaceFolders.length === 0) {
+            this.logging.log(`No workspace folders added, skipping workspace status check`)
+            return
+        }
+
         this.logging.log(`Checking remote workspace status for workspace [${this.workspaceIdentifier}]`)
-        const { metadata, optOut } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
+        const { metadata, optOut, error } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
 
         if (optOut) {
             this.logging.log('User opted out, clearing all resources and starting opt-out monitor')
             this.isOptedOut = true
             await this.clearAllWorkspaceResources()
             await this.startOptOutMonitor()
+            return
+        }
+
+        if (error) {
+            // Do not do anything if we received an exception but not caused by optOut
             return
         }
 
@@ -604,7 +610,7 @@ export class WorkspaceFolderManager {
 
                 if (!s3Url) {
                     this.logging.warn(
-                        `Failed to get S3 URL for file in workspaceFolder: ${fileMetadata.workspaceFolder.name}`
+                        `Failed to upload to S3 for file in workspaceFolder: ${fileMetadata.workspaceFolder.name}`
                     )
                     continue
                 }
@@ -667,14 +673,17 @@ export class WorkspaceFolderManager {
     private async listWorkspaceMetadata(workspaceRoot?: WorkspaceRoot): Promise<{
         metadata: WorkspaceMetadata | undefined | null
         optOut: boolean
+        error: any
     }> {
         let metadata: WorkspaceMetadata | undefined | null
         let optOut = false
+        let error: any
         try {
             const params = workspaceRoot ? { workspaceRoot } : {}
             const response = await this.serviceManager.getCodewhispererService().listWorkspaceMetadata(params)
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
+            error = e
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
             if (
                 e?.__type?.includes('AccessDeniedException') &&
@@ -684,7 +693,7 @@ export class WorkspaceFolderManager {
                 optOut = true
             }
         }
-        return { metadata, optOut }
+        return { metadata, optOut, error }
     }
 
     private async createWorkspace(workspaceRoot: WorkspaceRoot) {

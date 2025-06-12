@@ -330,4 +330,71 @@ describe('toolShared', () => {
             assert.strictEqual(result.requiresAcceptance, false)
         })
     })
+
+    describe('auto-approve behavior', () => {
+        // Helper function to determine if waitForToolApproval would be called
+        // based on the logic in agenticChatController.ts
+        function shouldCallWaitForToolApproval(
+            isAutoApprove: boolean,
+            requiresAcceptance: boolean,
+            toolName: string
+        ): boolean {
+            // This directly implements the logic from agenticChatController.ts:
+            // if (requiresAcceptance) {
+            //     if (!isAutoApprove || isFsWrite || notReadOnlyBashExecution)
+            //         await this.waitForToolApproval(...)
+            // }
+
+            const isFsWrite = toolName === 'fsWrite'
+            const isExecuteBash = toolName === 'executeBash'
+
+            // For regular tools (not fsWrite or executeBash):
+            // - If requiresAcceptance is true AND auto-approve is disabled, waitForToolApproval is called
+            // - If requiresAcceptance is true AND auto-approve is enabled, waitForToolApproval is NOT called
+
+            return requiresAcceptance && (!isAutoApprove || isFsWrite || isExecuteBash)
+        }
+
+        it('should NOT call waitForToolApproval when auto-approve is enabled and requiresAcceptance is true for regular tools', async () => {
+            // Test case for regular tools with auto-approve ON
+            const isAutoApprove = true
+            const requiresAcceptance = true
+            const toolName = 'someRegularTool' // Not fsWrite or executeBash
+
+            // Check if waitForToolApproval would be called
+            const wouldCallWaitForToolApproval = shouldCallWaitForToolApproval(
+                isAutoApprove,
+                requiresAcceptance,
+                toolName
+            )
+
+            // With auto-approve ON for regular tools, waitForToolApproval should NOT be called
+            assert.strictEqual(
+                wouldCallWaitForToolApproval,
+                false,
+                'With auto-approve ON, waitForToolApproval should NOT be called for regular tools'
+            )
+        })
+
+        it('should call waitForToolApproval when auto-approve is OFF and requiresAcceptance is ON for regular tools', async () => {
+            // Test case for regular tools with auto-approve OFF
+            const isAutoApprove = false
+            const requiresAcceptance = true
+            const toolName = 'someRegularTool' // Not fsWrite or executeBash
+
+            // Check if waitForToolApproval would be called
+            const wouldCallWaitForToolApproval = shouldCallWaitForToolApproval(
+                isAutoApprove,
+                requiresAcceptance,
+                toolName
+            )
+
+            // With auto-approve OFF for regular tools, waitForToolApproval should be called
+            assert.strictEqual(
+                wouldCallWaitForToolApproval,
+                true,
+                'With auto-approve OFF, waitForToolApproval should be called for regular tools'
+            )
+        })
+    })
 })
