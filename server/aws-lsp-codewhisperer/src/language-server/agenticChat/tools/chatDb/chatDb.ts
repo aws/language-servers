@@ -8,7 +8,6 @@ import {
     Conversation,
     FileSystemAdapter,
     groupTabsByDate,
-    isEmptyAssistantMessage,
     Message,
     Settings,
     SettingsCollection,
@@ -348,14 +347,6 @@ export class ChatDatabase {
      */
     addMessage(tabId: string, tabType: TabType, conversationId: string, message: Message) {
         if (this.isInitialized()) {
-            // Skip adding to history DB if it's an empty response
-            if (isEmptyAssistantMessage(message)) {
-                this.#features.logging.debug(
-                    'The assistant response is empty. Skipped adding this message and removed last user prompt from the history DB'
-                )
-                return
-            }
-
             const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
 

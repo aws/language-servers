@@ -182,14 +182,6 @@ export function chatMessageToMessage(chatMessage: StreamingMessage): Message {
     }
 }
 
-export function isEmptyAssistantMessage(message: Message) {
-    return (
-        message.type === ('answer' as ChatItemType) &&
-        (!message.body || message.body.trim().length === 0) &&
-        (!message.toolUses || message.toolUses.length === 0)
-    )
-}
-
 /**
  *
  * This adapter implements the LokiPersistenceAdapter interface for file system operations using web-compatible shared fs utils.
