@@ -364,18 +364,4 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     protected isDependencyZipped(dependencyName: string, workspaceFolder: WorkspaceFolder): boolean | undefined {
         return this.dependencyMap.get(workspaceFolder)?.get(dependencyName)?.zipped
     }
-
-    public async cleanupZipFiles(zipFileMetadata: FileMetadata[]): Promise<void> {
-        for (const zip of zipFileMetadata) {
-            try {
-                if (fs.existsSync(zip.filePath)) {
-                    fs.unlinkSync(zip.filePath)
-                    this.logging.log(`Cleanup zip file: ${zip.filePath}`)
-                }
-            } catch (error) {
-                // Log error but don't throw to ensure other files are processed
-                this.logging.warn(`Error deleting zip file ${zip.filePath}: ${error}`)
-            }
-        }
-    }
 }

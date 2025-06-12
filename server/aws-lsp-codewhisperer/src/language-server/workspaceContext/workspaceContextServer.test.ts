@@ -2,6 +2,7 @@ import { InitializeParams, Server } from '@aws/language-server-runtimes/server-i
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import { WorkspaceContextServer } from './workspaceContextServer'
+import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('WorkspaceContext Server', () => {
     let features: TestFeatures
@@ -33,6 +34,10 @@ describe('WorkspaceContext Server', () => {
                     },
                 },
             } as InitializeParams)
+
+            // Create a stub for the static getInstance method
+            const getInstanceStub = sinon.stub(AmazonQTokenServiceManager, 'getInstance')
+            getInstanceStub.throws(new Error('Deliberate error to exit the test at onInitialized'))
 
             await features.initialize(server)
 
