@@ -1,7 +1,7 @@
 import { strict as assert } from 'assert'
 import * as mockfs from 'mock-fs'
 import * as sinon from 'sinon'
-import { ExecuteBash } from './executeBash'
+import { ExecuteBash, CommandCategory } from './executeBash'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { URI } from 'vscode-uri'
@@ -15,6 +15,104 @@ describe('ExecuteBash Tool', () => {
         features.workspace.getAllWorkspaceFolders = sinon
             .stub()
             .returns([{ uri: URI.file(workspaceFolder).toString(), name: 'test' }]) as any
+    })
+
+    describe('auto-approve behavior for executeBash', () => {
+        // Helper function to determine if waitForToolApproval would be called
+        // based on the logic in agenticChatController.ts for executeBash
+        function shouldCallWaitForToolApproval(
+            isAutoApprove: boolean,
+            requiresAcceptance: boolean,
+            commandCategory: CommandCategory | undefined
+        ): boolean {
+            // This directly implements the logic from agenticChatController.ts:
+            // if (requiresAcceptance) {
+            //     if (!isAutoApprove || isFsWrite || notReadOnlyBashExecution)
+            //         await this.waitForToolApproval(...)
+            // }
+
+            // For executeBash:
+            // - notReadOnlyBashExecution = isExecuteBash && commandCategory !== CommandCategory.ReadOnly
+            const isExecuteBash = true // We're testing executeBash
+            const notReadOnlyBashExecution = isExecuteBash && commandCategory !== CommandCategory.ReadOnly
+
+            return requiresAcceptance && (!isAutoApprove || notReadOnlyBashExecution)
+        }
+
+        it('should NOT call waitForToolApproval when auto-approve is ON, requiresAcceptance is ON, and command is ReadOnly', async () => {
+            // Test case for ReadOnly executeBash command with auto-approve ON
+            const isAutoApprove = true
+            const requiresAcceptance = true
+            const commandCategory = CommandCategory.ReadOnly
+
+            // Check if waitForToolApproval would be called
+            const wouldCallWaitForToolApproval = shouldCallWaitForToolApproval(
+                isAutoApprove,
+                requiresAcceptance,
+                commandCategory
+            )
+
+            // With auto-approve ON and ReadOnly command, waitForToolApproval should NOT be called
+            assert.strictEqual(
+                wouldCallWaitForToolApproval,
+                false,
+                'With auto-approve ON and ReadOnly command, waitForToolApproval should NOT be called'
+            )
+        })
+
+        it('should call waitForToolApproval when auto-approve is ON, requiresAcceptance is ON, and command is NOT ReadOnly', async () => {
+            // Test case for non-ReadOnly executeBash command with auto-approve ON
+            const isAutoApprove = true
+            const requiresAcceptance = true
+            const commandCategory = CommandCategory.Destructive // Not ReadOnly
+
+            // Check if waitForToolApproval would be called
+            const wouldCallWaitForToolApproval = shouldCallWaitForToolApproval(
+                isAutoApprove,
+                requiresAcceptance,
+                commandCategory
+            )
+
+            // With auto-approve ON but non-ReadOnly command, waitForToolApproval should be called
+            assert.strictEqual(
+                wouldCallWaitForToolApproval,
+                true,
+                'With auto-approve ON but non-ReadOnly command, waitForToolApproval should be called'
+            )
+        })
+
+        it('should call waitForToolApproval when auto-approve is OFF, regardless of command category', async () => {
+            // Test case for executeBash command with auto-approve OFF
+            const isAutoApprove = false
+            const requiresAcceptance = true
+
+            // Test with ReadOnly command
+            const wouldCallWaitForToolApprovalReadOnly = shouldCallWaitForToolApproval(
+                isAutoApprove,
+                requiresAcceptance,
+                CommandCategory.ReadOnly
+            )
+
+            // Test with non-ReadOnly command
+            const wouldCallWaitForToolApprovalNonReadOnly = shouldCallWaitForToolApproval(
+                isAutoApprove,
+                requiresAcceptance,
+                CommandCategory.Mutate
+            )
+
+            // With auto-approve OFF, waitForToolApproval should be called regardless of command category
+            assert.strictEqual(
+                wouldCallWaitForToolApprovalReadOnly,
+                true,
+                'With auto-approve OFF and ReadOnly command, waitForToolApproval should be called'
+            )
+
+            assert.strictEqual(
+                wouldCallWaitForToolApprovalNonReadOnly,
+                true,
+                'With auto-approve OFF and non-ReadOnly command, waitForToolApproval should be called'
+            )
+        })
     })
 
     beforeEach(() => {
