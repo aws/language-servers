@@ -132,14 +132,13 @@ export class BaseAmazonQServiceManager {
 
         this.features.logging.debug('BaseAmazonQServiceManager functionality initialized')
 
-        // TODO:
-        if (this.features.credentialsProvider.getCredentialsType() === 'bearer') {
-            this.initializeToken()
-        } else if (this.features.credentialsProvider.getCredentialsType() === 'iam') {
-            this.initializeIam()
-        } else {
-            throw new Error('Unknown credentials type')
-        }
+        // if (this.features.credentialsProvider.getCredentialsType() === 'bearer') {
+        //     this.initializeToken()
+        // } else if (this.features.credentialsProvider.getCredentialsType() === 'iam') {
+        //     this.initializeIam()
+        // } else {
+        //     throw new Error('Unknown credentials type abc')
+        // }
     }
 
     public getCredentialsType(): CredentialsType {
@@ -149,6 +148,7 @@ export class BaseAmazonQServiceManager {
     public static initInstance(features: QServiceManagerFeatures): BaseAmazonQServiceManager {
         if (!BaseAmazonQServiceManager.instance) {
             BaseAmazonQServiceManager.instance = new BaseAmazonQServiceManager(features)
+            BaseAmazonQServiceManager.instance.initialize()
 
             return BaseAmazonQServiceManager.instance
         }
@@ -166,13 +166,17 @@ export class BaseAmazonQServiceManager {
         return BaseAmazonQServiceManager.instance
     }
 
-    private initializeToken(): void {
+    private initialize(): void {
+        // Check if LSP connection is initialized
         if (!this.features.lsp.getClientInitializeParams()) {
-            this.features.logging.log('BaseAmazonQServiceManager initialized before LSP connection was initialized.')
+            this.features.logging.log('AmazonQTokenServiceManager initialized before LSP connection was initialized.')
             throw new AmazonQServiceInitializationError(
-                'BaseAmazonQServiceManager initialized before LSP connection was initialized.'
+                'AmazonQTokenServiceManager initialized before LSP connection was initialized.'
             )
         }
+
+        // Bind methods that are passed by reference to some handlers to maintain proper scope.
+        this.serviceFactory = this.serviceFactory.bind(this)
 
         this.features.logging.log('Reading enableDeveloperProfileSupport setting from AWSInitializationOptions')
         if (this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws) {
@@ -182,19 +186,47 @@ export class BaseAmazonQServiceManager {
             this.features.logging.log(`Enabled Q Developer Profile support: ${this.enableDeveloperProfileSupport}`)
         }
 
-        this.connectionType = 'none'
-        this.state = 'PENDING_CONNECTION'
-
-        this.features.logging.log('Token service manager instance is initialize')
-    }
-
-    private initializeIam(): void {
+        // Initialize Amazon Q connection parameters
         const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(this.features.runtime, this.features.logging)
         this.region = amazonQRegionAndEndpoint.region
         this.endpoint = amazonQRegionAndEndpoint.endpoint
 
-        this.features.logging.log('IAM service manager instance is initialize')
+        // Initialize connection state
+        this.connectionType = 'none'
+        this.state = 'PENDING_CONNECTION'
+
+        this.features.logging.log('Amazon Q service manager instance is initialized')
     }
+
+    // private initializeToken(): void {
+    //     if (!this.features.lsp.getClientInitializeParams()) {
+    //         this.features.logging.log('BaseAmazonQServiceManager initialized before LSP connection was initialized.')
+    //         throw new AmazonQServiceInitializationError(
+    //             'BaseAmazonQServiceManager initialized before LSP connection was initialized.'
+    //         )
+    //     }
+
+    //     this.features.logging.log('Reading enableDeveloperProfileSupport setting from AWSInitializationOptions')
+    //     if (this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws) {
+    //         const awsOptions = this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws || {}
+    //         this.enableDeveloperProfileSupport = signalsAWSQDeveloperProfilesEnabled(awsOptions)
+
+    //         this.features.logging.log(`Enabled Q Developer Profile support: ${this.enableDeveloperProfileSupport}`)
+    //     }
+
+    //     this.connectionType = 'none'
+    //     this.state = 'PENDING_CONNECTION'
+
+    //     this.features.logging.log('Token service manager instance is initialize')
+    // }
+
+    // private initializeIam(): void {
+    //     const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(this.features.runtime, this.features.logging)
+    //     this.region = amazonQRegionAndEndpoint.region
+    //     this.endpoint = amazonQRegionAndEndpoint.endpoint
+
+    //     this.features.logging.log('IAM service manager instance is initialize')
+    // }
 
     public getCodewhispererService(): CodeWhispererServiceBase {
         if (this.getCredentialsType() == 'bearer') {

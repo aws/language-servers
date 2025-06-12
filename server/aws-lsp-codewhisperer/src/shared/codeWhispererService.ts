@@ -89,7 +89,7 @@ export class CodeWhispererServiceBase {
                 }
                 request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
             }
-        } else {
+        } else if (this.credentialsType === 'bearer') {
             const options: CodeWhispererTokenClientConfigurationOptions = {
                 region: this.codeWhispererRegion,
                 endpoint: this.codeWhispererEndpoint,
@@ -112,6 +112,8 @@ export class CodeWhispererServiceBase {
                 ],
             }
             this.client = createCodeWhispererTokenClient(options, sdkInitializator, logging)
+        } else {
+            throw new Error('Unknown credentials type')
         }
     }
 
