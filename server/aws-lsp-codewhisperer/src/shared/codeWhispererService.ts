@@ -269,6 +269,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                     req.on('error', () => {
                         this.completeRequest(req)
                     })
+                    req.on('error', () => {
+                        this.completeRequest(req)
+                    })
                 },
             ],
         }
