@@ -264,7 +264,7 @@ export class McpMynahUi {
         this.isMcpServersListActive = true
         // Convert the ListMcpServersResult to the format expected by mynahUi.openDetailedList
         const detailedList: any = {
-            selectable: true,
+            selectable: 'clickable',
             textDirection: 'row',
             header: params.header
                 ? {
@@ -416,15 +416,16 @@ export class McpMynahUi {
                     }
                 },
                 onItemSelect: (item: DetailedListItem) => {
-                    // actionId: open-mcp-server if valid server or mcp-fix-server if server needs to be fixed
                     const actionId = item.actions?.[0].id
                     if (actionId) {
                         this.messager.onMcpServerClick(actionId, item.title)
                     }
                 },
                 onItemClick: (item: DetailedListItem) => {
-                    if (item.id) {
-                        this.messager.onMcpServerClick(item.id)
+                    // actionId: open-mcp-server if valid server or mcp-fix-server if server needs to be fixed
+                    const actionId = item.actions?.[0].id
+                    if (actionId) {
+                        this.messager.onMcpServerClick(actionId, item.title)
                     }
                 },
                 onActionClick: (action: ChatItemButton, item?: DetailedListItem) => {
