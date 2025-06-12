@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.16](https://github.com/aws/language-servers/compare/chat-client/v0.1.15...chat-client/v0.1.16) (2025-06-12)
+
+
+### Bug Fixes
+
+* mcp server list highlighting ([#1627](https://github.com/aws/language-servers/issues/1627)) ([e3c7f2c](https://github.com/aws/language-servers/commit/e3c7f2c529726b88a811c701e7ad8514a3abe4b2))
+
 ## [0.1.15](https://github.com/aws/language-servers/compare/chat-client/v0.1.14...chat-client/v0.1.15) (2025-06-11)
 
 
