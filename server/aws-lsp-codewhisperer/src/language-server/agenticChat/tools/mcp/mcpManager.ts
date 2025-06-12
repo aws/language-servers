@@ -728,6 +728,7 @@ export class McpManager {
                 let json: any = { mcpServers: {} }
                 try {
                     const raw = await this.features.workspace.fs.readFile(configPath)
+                    this.features.logging.info(`Updating MCP config file: ${configPath}`)
                     const existing = JSON.parse(raw.toString())
                     json = { mcpServers: {}, ...existing }
                 } catch (err: any) {
