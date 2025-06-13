@@ -458,9 +458,7 @@ export class ExecuteBash {
                 },
             }
 
-            const shellArgs = IS_WINDOWS_PLATFORM
-                ? ['/u', shellFlag, ...split(params.command)] // Windows: split for proper arg handling
-                : [shellFlag, params.command]
+            const shellArgs = IS_WINDOWS_PLATFORM ? ['/u', shellFlag, params.command] : [shellFlag, params.command]
 
             this.childProcess = new ChildProcess(this.logging, shellName, shellArgs, childProcessOptions)
 
