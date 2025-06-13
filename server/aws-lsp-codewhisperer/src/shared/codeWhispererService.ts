@@ -811,38 +811,6 @@ ${response.suggestions[0].content}`)
     }
 }
 
-// Both clients (token, sigv4) define their own types, this return value needs to match both of them.
-export const getFileContext = (params: {
-    textDocument: TextDocument
-    position: Position
-    inferredLanguageId: CodewhispererLanguage
-}): {
-    filename: string
-    programmingLanguage: {
-        languageName: CodewhispererLanguage
-    }
-    leftFileContent: string
-    rightFileContent: string
-} => {
-    const left = params.textDocument.getText({
-        start: { line: 0, character: 0 },
-        end: params.position,
-    })
-    const right = params.textDocument.getText({
-        start: params.position,
-        end: params.textDocument.positionAt(params.textDocument.getText().length),
-    })
-
-    return {
-        filename: params.textDocument.uri,
-        programmingLanguage: {
-            languageName: params.inferredLanguageId,
-        },
-        leftFileContent: left,
-        rightFileContent: right,
-    }
-}
-
 // TODO: not precise
 function splitContentAtPosition(
     content: string,
