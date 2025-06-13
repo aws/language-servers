@@ -100,7 +100,7 @@ import {
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
-import { ChatDatabase } from './tools/chatDb/chatDb'
+import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -152,6 +152,7 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
+import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -651,25 +652,24 @@ export class AgenticChatController implements ChatHandlers {
                 )
             }
             const remainingCharacterBudget = this.truncateRequest(currentRequestInput)
-            //  Fix the history to maintain invariants
+            let messages: DbMessage[] = []
             if (currentMessage) {
-                const isHistoryValid = this.#chatHistoryDb.fixAndValidateHistory(
-                    tabId,
-                    currentMessage,
-                    conversationIdentifier ?? '',
-                    remainingCharacterBudget
-                )
-                if (!isHistoryValid) {
-                    this.#features.logging.warn('Skipping request due to invalid tool result/tool use relationship')
-                    break
+                //  Get and process the messages from history DB to maintain invariants for service requests
+                try {
+                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, remainingCharacterBudget)
+                } catch (err) {
+                    if (err instanceof ToolResultValidationError) {
+                        this.#features.logging.warn(`Tool validation error: ${err.message}`)
+                        break
+                    }
                 }
             }
 
-            //  Retrieve the history from DB; Do not include chatHistory for requests going to Mynah Backend
+            //  Do not include chatHistory for requests going to Mynah Backend
             currentRequestInput.conversationState!.history = currentRequestInput.conversationState?.currentMessage
                 ?.userInputMessage?.userIntent
                 ? []
-                : this.#chatHistoryDb.getMessages(tabId)
+                : messages.map(msg => messageToStreamingMessage(msg))
 
             // Add loading message before making the request
             const loadingMessageId = `loading-${uuid()}`
@@ -690,9 +690,10 @@ export class AgenticChatController implements ChatHandlers {
             )
             await chatResultStream.removeResultBlock(loadingMessageId)
 
-            //  Add the current user message to the history DB
+            // Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
                 if (this.#isPromptCanceled(token, session, promptId)) {
+                    // Only skip adding message to history, continue executing to avoid unexpected stop for the conversation
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
@@ -702,6 +703,7 @@ export class AgenticChatController implements ChatHandlers {
                         origin: currentMessage.userInputMessage?.origin,
                         userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
                         shouldDisplayMessage: shouldDisplayMessage,
+                        timestamp: new Date(),
                     })
                 }
             }
@@ -723,11 +725,15 @@ export class AgenticChatController implements ChatHandlers {
             if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
                 const content =
                     'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
-                if (!this.#isPromptCanceled(token, session, promptId)) {
+                if (this.#isPromptCanceled(token, session, promptId)) {
+                    // Only skip adding message to the history DB, continue executing to avoid unexpected stop for the conversation
+                    this.#debug('Skipping adding messages to history - cancelled by user')
+                } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
                         body: 'Response timed out - message took too long to generate',
                         type: 'answer',
                         shouldDisplayMessage: false,
+                        timestamp: new Date(),
                     })
                 }
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
@@ -737,10 +743,11 @@ export class AgenticChatController implements ChatHandlers {
                 continue
             }
 
-            //  Add the current assistantResponse message to the history DB
+            // Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
                 if (this.#isPromptCanceled(token, session, promptId)) {
-                    this.#debug('Skipping adding assistant message to history - cancelled by user')
+                    // Only skip adding message to the history DB, continue executing to avoid unexpected stop for the conversation
+                    this.#debug('Skipping adding messages to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
                         body: result.data?.chatResult.body,
@@ -759,6 +766,7 @@ export class AgenticChatController implements ChatHandlers {
                                 input: result.data!.toolUses[k].input,
                             })),
                         shouldDisplayMessage: shouldDisplayMessage,
+                        timestamp: new Date(),
                     })
                 }
             } else {
