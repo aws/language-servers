@@ -3,9 +3,12 @@ import {
     AwsBuilderIdSsoTokenSource,
     AwsErrorCodes,
     CancellationToken,
+    GetIamCredentialParams,
+    GetIamCredentialResult,
     getSsoTokenOptionsDefaults,
     GetSsoTokenParams,
     GetSsoTokenResult,
+    IamCredentials,
     IamIdentityCenterSsoTokenSource,
     InvalidateSsoTokenParams,
     InvalidateSsoTokenResult,
@@ -131,6 +134,46 @@ export class IdentityService {
             }
         } catch (e) {
             emitMetric('Failed', e, ssoSession, clientRegistration)
+
+            throw e
+        }
+    }
+
+    async getIamCredential(params: GetIamCredentialParams, token: CancellationToken): Promise<GetIamCredentialResult> {
+        const emitMetric = this.emitMetric.bind(
+            this,
+            'flareIdentity_getIamCredential',
+            this.getIamCredential.name,
+            Date.now()
+        )
+
+        try {
+            // Get the profile with provided name
+            const profileData = await this.profileStore.load()
+            const profile = profileData.profiles.find(profile => profile.name === params.profileName)
+            if (!profile) {
+                this.observability.logging.log('Profile not found.')
+                throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
+            }
+            if (!profile.settings?.aws_access_key_id || !profile.settings?.aws_secret_access_key) {
+                this.observability.logging.log('Profile IAM credentials not found.')
+                throw new AwsError('Profile IAM credentials not found.', AwsErrorCodes.E_INVALID_PROFILE)
+            }
+
+            // Convert config file credentials into IamCredentials object
+            const iamCredentials: IamCredentials = {
+                accessKeyId: profile.settings.aws_access_key_id,
+                secretAccessKey: profile.settings.aws_secret_access_key,
+                sessionToken: profile.settings.aws_session_token,
+            }
+
+            return {
+                id: profile.name,
+                credentials: iamCredentials,
+                updateCredentialsParams: { data: iamCredentials, encrypted: false },
+            }
+        } catch (e) {
+            emitMetric('Failed', e)
 
             throw e
         }
