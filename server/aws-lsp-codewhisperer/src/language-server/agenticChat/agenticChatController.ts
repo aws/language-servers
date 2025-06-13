@@ -17,7 +17,7 @@ import {
     ToolResultStatus,
     ToolUse,
     ToolUseEvent,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import {
     Button,
     Status,
