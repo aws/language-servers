@@ -12,6 +12,8 @@ import {
     IamIdentityCenterSsoTokenSource,
     InvalidateSsoTokenParams,
     InvalidateSsoTokenResult,
+    InvalidateIamCredentialParams,
+    InvalidateIamCredentialResult,
     MetricEvent,
     SsoSession,
     SsoTokenSourceKind,
@@ -203,6 +205,33 @@ export class IdentityService {
 
             emitMetric('Succeeded')
             this.observability.logging.log('Successfully invalidated SSO token.')
+            return {}
+        } catch (e) {
+            emitMetric('Failed', e)
+
+            throw e
+        }
+    }
+
+    async invalidateIamCredential(
+        params: InvalidateIamCredentialParams,
+        token: CancellationToken
+    ): Promise<InvalidateIamCredentialResult> {
+        const emitMetric = this.emitMetric.bind(
+            this,
+            'flareIdentity_invalidateIamCredential',
+            this.invalidateIamCredential.name,
+            Date.now()
+        )
+
+        token.onCancellationRequested(_ => {
+            emitMetric('Cancelled')
+        })
+
+        try {
+
+            emitMetric('Succeeded')
+            this.observability.logging.log('Successfully invalidated Iam Credential.')
             return {}
         } catch (e) {
             emitMetric('Failed', e)
