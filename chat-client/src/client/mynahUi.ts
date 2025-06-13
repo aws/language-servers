@@ -60,7 +60,7 @@ import {
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
-import { getModelSelectionChatItem } from './texts/modelSelection'
+import { getModelSelectionChatItem, modelUnavailableBanner } from './texts/modelSelection'
 import {
     freeTierLimitSticky,
     upgradeSuccessSticky,
@@ -877,7 +877,7 @@ export const createMynahUi = (
             return false // invalid mode
         }
 
-        tabId = !!tabId ? tabId : getOrCreateTabId()!
+        tabId = tabId ? tabId : getOrCreateTabId()!
         const store = mynahUi.getTabData(tabId).getStore() || {}
 
         // Detect if the tab is already showing the "Upgrade Q" UI.
@@ -976,6 +976,13 @@ export const createMynahUi = (
             params.data?.messages.forEach(updatedMessage => {
                 if (!updatedMessage.messageId) {
                     // Do not process messages without known ID.
+                    return
+                }
+
+                if (updatedMessage.messageId === 'modelUnavailable') {
+                    mynahUi.updateStore(tabId, {
+                        promptInputStickyCard: modelUnavailableBanner,
+                    })
                     return
                 }
 

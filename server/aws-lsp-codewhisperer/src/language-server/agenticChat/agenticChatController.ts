@@ -2179,6 +2179,18 @@ export class AgenticChatController implements ChatHandlers {
                 buttons: [],
             }
             if (err.code === 'QModelResponse') {
+                // special case for throttling where we show error card instead of chat message
+                if (
+                    err.message ===
+                    `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                ) {
+                    this.#features.chat.sendChatUpdate({
+                        tabId: tabId,
+                        data: { messages: [{ messageId: 'modelUnavailable' }] },
+                    })
+                    const emptyChatResult: ChatResult = {}
+                    return emptyChatResult
+                }
                 return responseData
             }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, responseData)
