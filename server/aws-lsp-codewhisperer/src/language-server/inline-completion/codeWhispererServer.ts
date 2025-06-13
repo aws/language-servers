@@ -328,10 +328,6 @@ export const CodewhispererServerFactory =
         const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
         let editsEnabled = false
 
-        // TODO: come up with a more structure way to do this.
-        let previousPosition: Position | undefined
-        let previousFileContent: string | undefined
-
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
@@ -389,17 +385,6 @@ export const CodewhispererServerFactory =
                         )
                         return EMPTY_RESULT
                     }
-
-                    if (
-                        params.position.character === previousPosition?.character &&
-                        params.position.line === previousPosition?.line &&
-                        textDocument.getText() === previousFileContent &&
-                        editsEnabled
-                    ) {
-                        return EMPTY_RESULT
-                    }
-                    previousPosition = params.position
-                    previousFileContent = textDocument.getText()
 
                     // Build request context
                     const isAutomaticLspTriggerKind =
