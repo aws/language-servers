@@ -92,6 +92,7 @@ describe('McpEventHandler error handling', () => {
         // Stub loadMcpServerConfigs to return errors
         loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
             servers: new Map(),
+            serverNameMapping: new Map(),
             errors: mockErrors,
         })
 
@@ -131,6 +132,7 @@ describe('McpEventHandler error handling', () => {
         // Stub loadMcpServerConfigs to return a server with validation errors
         loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
             servers: serverConfig,
+            serverNameMapping: new Map(),
             errors: new Map([['errorServer', 'Missing command error']]),
         })
 
@@ -172,6 +174,7 @@ describe('McpEventHandler error handling', () => {
         // Stub loadMcpServerConfigs
         loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
             servers: new Map(),
+            serverNameMapping: new Map(),
             errors: new Map(),
         })
 

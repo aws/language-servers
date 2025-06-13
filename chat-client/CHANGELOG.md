@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.16](https://github.com/aws/language-servers/compare/chat-client/v0.1.15...chat-client/v0.1.16) (2025-06-12)
+
+
+### Bug Fixes
+
+* mcp server list highlighting ([#1627](https://github.com/aws/language-servers/issues/1627)) ([e3c7f2c](https://github.com/aws/language-servers/commit/e3c7f2c529726b88a811c701e7ad8514a3abe4b2))
+
+## [0.1.15](https://github.com/aws/language-servers/compare/chat-client/v0.1.14...chat-client/v0.1.15) (2025-06-11)
+
+
+### Bug Fixes
+
+* add more detailed log when mcp server initialize failed and tooltip change ([#1594](https://github.com/aws/language-servers/issues/1594)) ([cdab4d6](https://github.com/aws/language-servers/commit/cdab4d6b59c4ded425822063cb568c4b831402e8))
+* correct icon for mcp button ([#1605](https://github.com/aws/language-servers/issues/1605)) ([a2e7d57](https://github.com/aws/language-servers/commit/a2e7d571eafb3767471b401242ac8a25b41961cd))
+* **paidtier:** Upgrade success message is unreliable ([#1602](https://github.com/aws/language-servers/issues/1602)) ([e0b274f](https://github.com/aws/language-servers/commit/e0b274ffee2e091e09574de03fe38e0a234e2f6e))
+* show server name when deleting ([#1593](https://github.com/aws/language-servers/issues/1593)) ([a2d495a](https://github.com/aws/language-servers/commit/a2d495a5799f078b455869058bb3a546974302ec))
+* updating sticky card css [#1586](https://github.com/aws/language-servers/issues/1586) ([1c92249](https://github.com/aws/language-servers/commit/1c92249635b19e0b0a88b271a200ffd56ea65e9d))
+
 ## [0.1.14](https://github.com/aws/language-servers/compare/chat-client/v0.1.13...chat-client/v0.1.14) (2025-06-10)
 
 
