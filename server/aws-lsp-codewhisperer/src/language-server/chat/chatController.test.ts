@@ -1,4 +1,8 @@
-import { ChatResponseStream, CodeWhispererStreaming, SendMessageCommandInput } from '@amzn/codewhisperer-streaming'
+import {
+    ChatResponseStream,
+    CodeWhispererStreaming,
+    SendMessageCommandInput,
+} from '@aws/codewhisperer-streaming-client'
 import {
     ChatResult,
     LSPErrorCodes,

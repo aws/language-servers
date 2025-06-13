@@ -2,7 +2,7 @@ import {
     ServiceQuotaExceededException,
     ThrottlingException,
     ThrottlingExceptionReason,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import { CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'

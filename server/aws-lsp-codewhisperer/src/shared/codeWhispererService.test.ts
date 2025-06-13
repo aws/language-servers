@@ -4,7 +4,6 @@
  */
 
 import {
-    BearerCredentials,
     CredentialsProvider,
     CredentialsType,
     Workspace,

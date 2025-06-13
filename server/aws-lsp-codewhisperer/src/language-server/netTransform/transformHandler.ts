@@ -1,4 +1,4 @@
-import { ExportIntent } from '@amzn/codewhisperer-streaming'
+import { ExportIntent } from '@aws/codewhisperer-streaming-client'
 import { Logging, Runtime, Workspace } from '@aws/language-server-runtimes/server-interface'
 import * as fs from 'fs'
 import got from 'got'

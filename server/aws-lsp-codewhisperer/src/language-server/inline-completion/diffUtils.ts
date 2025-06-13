@@ -113,7 +113,8 @@ export function generateDiffContexts(
                 })
             }
         } catch (err) {
-            console.error(`Failed to generate diff: ${err}`)
+            // TODO: logging
+            // console.error(`Failed to generate diff: ${err}`)
         }
     }
 

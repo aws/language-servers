@@ -475,6 +475,44 @@ describe('TabBarController', () => {
             sinon.assert.notCalled(openTabStub)
             sinon.assert.notCalled(chatHistoryDb.setHistoryIdMapping as sinon.SinonStub)
         })
+
+        it('should limit messages to MaxRestoredHistoryMessages when count exceeds the limit', async () => {
+            // Create a tab with more messages than the limit
+            const largeTab: Tab = {
+                historyId: 'test-history-id',
+                isOpen: false,
+                updatedAt: new Date(),
+                tabType: 'cwc',
+                title: 'Test Tab',
+                conversations: [
+                    {
+                        conversationId: 'conv1',
+                        clientType: 'vsc',
+                        messages: createTestMessages(300), // Create 300 test messages
+                    },
+                ],
+            } as unknown as Tab
+
+            // Mock the openTab response
+            const openTabStub = sinon.stub<[OpenTabParams], Promise<OpenTabResult>>().resolves({ tabId: 'newTabId' })
+            testFeatures.chat.openTab = openTabStub
+
+            // Act
+            await tabBarController.restoreTab(largeTab)
+
+            // Assert
+            // Verify openTab was called
+            sinon.assert.calledOnce(openTabStub)
+
+            // Get the arguments passed to openTab
+            const openTabArgs = openTabStub.firstCall.args[0]
+            assert.ok(openTabArgs.newTabOptions, 'newTabOptions should exist')
+            assert.ok(openTabArgs.newTabOptions.data, 'data should exist')
+            const passedMessages = openTabArgs.newTabOptions.data.messages
+
+            // Verify only the last 250 messages were passed
+            assert.strictEqual(passedMessages.length, 250)
+        })
     })
 
     describe('loadChats', () => {
@@ -539,3 +577,14 @@ describe('TabBarController', () => {
         })
     })
 })
+
+function createTestMessages(count: number): any[] {
+    const messages: any[] = []
+    for (let i = 1; i <= count; i++) {
+        messages.push({
+            role: i % 2 === 1 ? 'prompt' : 'answer',
+            content: `Test message ${i}`,
+        })
+    }
+    return messages
+}

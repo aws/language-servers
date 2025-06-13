@@ -3,7 +3,6 @@ build
 .gradle
 .idea
 **/*.tgz
-!core/codewhisperer-streaming/amzn-codewhisperer-streaming-*.tgz
 !core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-*.tgz
 !server/aws-lsp-codewhisperer/types/types-local-indexing-*.tgz
 
