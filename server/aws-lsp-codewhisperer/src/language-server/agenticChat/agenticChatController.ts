@@ -2502,19 +2502,6 @@ export class AgenticChatController implements ChatHandlers {
                     body: HELP_MESSAGE,
                 }
 
-            // "Manage Subscription" (paid-tier user), or "Upgrade Q" (free-tier user)
-            case QuickAction.Manage:
-                this.#telemetryController.emitChatMetric({
-                    name: ChatTelemetryEventName.RunCommand,
-                    data: {
-                        cwsprChatCommandType: params.quickAction,
-                        cwsprChatCommandName: '/manage',
-                    },
-                })
-
-                void this.onManageSubscription(params.tabId)
-
-                return {}
             default:
                 return {}
         }
