@@ -44,22 +44,41 @@ export class SharedConfigProfileStore implements ProfileStore {
         for (const [parsedSectionName, settings] of Object.entries(parsedIni)) {
             const sectionHeader = SectionHeader.fromParsedSectionName(parsedSectionName)
             switch (sectionHeader.type) {
+                // Convert config file profile into profile object
                 case IniSectionType.PROFILE:
-                    result.profiles.push({
-                        kinds: [
-                            // As more profile kinds are added this will get more complex and need refactored
-                            profileDuckTypers.SsoTokenProfile.eval(settings)
-                                ? ProfileKind.SsoTokenProfile
-                                : ProfileKind.Unknown,
-                        ],
-                        name: sectionHeader.name,
-                        settings: {
-                            // Only apply settings expected on Profile
-                            region: settings.region,
-                            sso_session: settings.sso_session,
-                        },
-                    })
+                    if (profileDuckTypers.SsoTokenProfile.eval(settings)) {
+                        result.profiles.push({
+                            kinds: [ProfileKind.SsoTokenProfile],
+                            name: sectionHeader.name,
+                            settings: {
+                                // Only apply settings expected on SsoTokenProfile
+                                region: settings.region,
+                                sso_session: settings.sso_session,
+                            },
+                        })
+                    } else if (profileDuckTypers.IamCredentialProfile.eval(settings)) {
+                        result.profiles.push({
+                            kinds: [ProfileKind.IamCredentialProfile],
+                            name: sectionHeader.name,
+                            settings: {
+                                // Only apply settings expected on IamCredentialProfile
+                                aws_access_key_id: settings.aws_access_key_id!,
+                                aws_secret_access_key: settings.aws_secret_access_key!,
+                                ...(settings.aws_session_token ? { session_token: settings.aws_session_token } : {}),
+                            },
+                        })
+                    } else {
+                        result.profiles.push({
+                            kinds: [ProfileKind.Unknown],
+                            name: sectionHeader.name,
+                            settings: {
+                                region: settings.region,
+                                sso_session: settings.sso_session,
+                            },
+                        })
+                    }
                     break
+                // Convert config file SSO session into SSO session object
                 case IniSectionType.SSO_SESSION: {
                     if (!ssoSessionDuckTyper.eval(settings)) {
                         continue
@@ -91,9 +110,9 @@ export class SharedConfigProfileStore implements ProfileStore {
         return result
     }
 
-    // If a setting is set to undefined or null, it will be removed from shared config files
-    // If the settings property is set to undefined or null, the entire section will be removed
-    // from the shared config files.  This is equivalent to deleting a section.
+    // If a setting is set to undefined, null, or an empty string, it will be removed from shared
+    // config files. If the settings property is set to undefined or null, the entire section will
+    // be removed from the shared config files. This is equivalent to deleting a section.
     // Any settings or sections in the shared config files that are not passed into data will
     // be preserved as-is.
     async save(data: ProfileData, init?: SharedConfigInit): Promise<void> {
@@ -114,9 +133,15 @@ export class SharedConfigProfileStore implements ProfileStore {
                 IniSectionType.PROFILE,
                 data.profiles,
                 parsedKnownFiles,
-                (section, parsedSection) =>
-                    !section.kinds.includes(ProfileKind.SsoTokenProfile) ||
-                    profileDuckTypers.SsoTokenProfile.eval(parsedSection)
+                (section, parsedSection) => {
+                    if (section.kinds.includes(ProfileKind.SsoTokenProfile)) {
+                        return profileDuckTypers.SsoTokenProfile.eval(parsedSection)
+                    } else if (section.kinds.includes(ProfileKind.IamCredentialProfile)) {
+                        return profileDuckTypers.IamCredentialProfile.eval(parsedSection)
+                    } else {
+                        return true
+                    }
+                }
             )
         }
 
@@ -192,7 +217,9 @@ export class SharedConfigProfileStore implements ProfileStore {
                 // If setting not passed then preserve setting in file as-is
                 value = value?.toString().trim()
                 if (value === undefined || value === null || value === '') {
-                    Object.hasOwn(parsedSection, name) && delete parsedSection[name]
+                    if (Object.hasOwn(parsedSection, name)) {
+                        delete parsedSection[name]
+                    }
                 } else {
                     if (controlCharsRegex.test(value)) {
                         throwAwsError(`Setting [${name}] cannot contain control characters.`)
