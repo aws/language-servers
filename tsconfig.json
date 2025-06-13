@@ -1,85 +1,40 @@
 {
     "compilerOptions": {
-        "module": "UMD",
-        "target": "ES2021",
+        "composite": true,
+        "module": "commonjs",
+        "target": "es2020",
+        "esModuleInterop": true,
         "moduleResolution": "node",
-        "rootDir": "./src",
-        "outDir": "./out",
         "declaration": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "strict": true
+        "strict": true,
+        "sourceMap": true
     },
     "files": [],
     "references": [
-        {
-            "path": "./client/vscode"
-        },
-        {
-            "path": "./chat-client"
-        },
-        {
-            "path": "./core/aws-lsp-core"
-        },
-        {
-            "path": "./server/aws-lsp-json"
-        },
-        {
-            "path": "./server/aws-lsp-yaml"
-        },
-        {
-            "path": "./server/aws-lsp-buildspec"
-        },
-        {
-            "path": "./server/aws-lsp-cloudformation"
-        },
-        {
-            "path": "./server/aws-lsp-codewhisperer"
-        },
-        {
-            "path": "./server/aws-lsp-identity"
-        },
-        {
-            "path": "./server/aws-lsp-notification"
-        },
-        {
-            "path": "./server/hello-world-lsp"
-        },
-        {
-            "path": "./server/aws-lsp-s3"
-        },
-        {
-            "path": "./server/aws-lsp-partiql"
-        },
-        {
-            "path": "./app/aws-lsp-buildspec-runtimes"
-        },
-        {
-            "path": "./app/aws-lsp-cloudformation-runtimes"
-        },
-        {
-            "path": "./app/aws-lsp-codewhisperer-runtimes"
-        },
-        {
-            "path": "./app/aws-lsp-identity-runtimes"
-        },
-        {
-            "path": "./app/aws-lsp-s3-runtimes"
-        },
-        {
-            "path": "./app/hello-world-lsp-runtimes"
-        },
-        {
-            "path": "./app/aws-lsp-json-runtimes"
-        },
-        {
-            "path": "./app/aws-lsp-yaml-runtimes"
-        },
-        {
-            "path": "./app/aws-lsp-yaml-json-webworker"
-        },
-        {
-            "path": "./app/aws-lsp-partiql-runtimes"
-        }
+        { "path": "./core/aws-lsp-core" },
+        { "path": "./client/vscode" },
+        { "path": "./chat-client" },
+        { "path": "./server/aws-lsp-json" },
+        { "path": "./server/aws-lsp-yaml" },
+        { "path": "./server/aws-lsp-buildspec" },
+        { "path": "./server/aws-lsp-cloudformation" },
+        { "path": "./server/aws-lsp-codewhisperer" },
+        { "path": "./server/aws-lsp-identity" },
+        { "path": "./server/aws-lsp-notification" },
+        { "path": "./server/hello-world-lsp" },
+        { "path": "./server/aws-lsp-s3" },
+        { "path": "./server/aws-lsp-partiql" },
+        { "path": "./app/aws-lsp-buildspec-runtimes" },
+        { "path": "./app/aws-lsp-cloudformation-runtimes" },
+        { "path": "./app/aws-lsp-codewhisperer-runtimes" },
+        { "path": "./app/aws-lsp-identity-runtimes" },
+        { "path": "./app/aws-lsp-s3-runtimes" },
+        { "path": "./app/hello-world-lsp-runtimes" },
+        { "path": "./app/aws-lsp-json-runtimes" },
+        { "path": "./app/aws-lsp-yaml-runtimes" },
+        { "path": "./app/aws-lsp-yaml-json-webworker" },
+        { "path": "./app/aws-lsp-partiql-runtimes" }
     ]
 }

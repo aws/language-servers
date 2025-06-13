@@ -25,6 +25,7 @@ import { registerNotification } from './notificationActivation'
 import { registerQProfileSelection } from './selectQProfileActivation'
 import { registerAwsQSection } from './awsQSectionActivation'
 import { AWSInitializationOptions } from '@aws/language-server-runtimes/protocol'
+import { LspLogger } from './lspLogger'
 
 export async function activateDocumentsLanguageServer(extensionContext: ExtensionContext) {
     /**
@@ -62,7 +63,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableBearerTokenProvider = process.env.ENABLE_TOKEN_PROVIDER === 'true'
     const enableEncryptionInit = process.env.ENABLE_ENCRYPTION === 'true'
 
-    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012'] }
+    const debugOptions = { execArgv: ['--nolazy', '--inspect=6012', '--enable-source-maps'] }
 
     // If the extension is launch in debug mode the debug server options are use
     // Otherwise the run options are used
@@ -70,6 +71,10 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         run: { module: serverModule, transport: TransportKind.ipc, options: debugOptions },
         debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions },
     }
+
+    // Import the LSP logger
+    const lspLogger = new LspLogger()
+    extensionContext.subscriptions.push({ dispose: () => lspLogger.dispose() })
 
     const scriptOptions = []
     if (enableEncryptionInit) {
@@ -82,12 +87,22 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
         // Used by the aws-language-server-runtime based servers
         scriptOptions.push('--set-credentials-encryption-key')
 
+        // Log the command that will be executed
+        console.log(
+            'Starting process with command:',
+            'node',
+            [...debugOptions.execArgv, serverModule, ...scriptOptions].join(' ')
+        )
+
         // debugOptions are node process arguments and scriptOptions are script arguments
         const child = cp.spawn('node', [...debugOptions.execArgv, serverModule, ...scriptOptions])
 
         writeEncryptionInit(child.stdin)
 
-        serverOptions = () => Promise.resolve(child)
+        // Wrap the child process to log LSP communication
+        const wrappedChild = lspLogger.wrapChildProcess(child)
+
+        serverOptions = () => Promise.resolve(wrappedChild)
     }
 
     // Options to control the language client
@@ -114,6 +129,11 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
                     window: {
                         notifications: true,
                         showSaveFileDialog: true,
+                    },
+                    textDocument: {
+                        inlineCompletionWithReferences: {
+                            inlineEditSupport: true,
+                        },
                     },
                 },
             } as AWSInitializationOptions,
