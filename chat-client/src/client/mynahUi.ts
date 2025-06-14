@@ -995,11 +995,9 @@ export const createMynahUi = (
      * Creates a properly formatted chat item for MCP tool summary with accordion view
      */
     const createMcpToolSummaryItem = (message: ChatMessage, isPartialResult?: boolean): Partial<ChatItem> => {
-        const muted = message.summary?.content?.header?.status !== undefined
         return {
             type: ChatItemType.ANSWER,
             messageId: message.messageId,
-            muted,
             summary: {
                 content: message.summary?.content
                     ? {
@@ -1028,7 +1026,7 @@ export const createMynahUi = (
                             : undefined,
                         fullWidth: true,
                         padding: false,
-                        muted: true,
+                        muted: false,
                         wrapCodes: item.header?.body === 'Parameters' ? true : false,
                         codeBlockActions: { copy: null, 'insert-to-cursor': null },
                     })) || [],
