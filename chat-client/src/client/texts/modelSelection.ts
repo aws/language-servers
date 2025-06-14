@@ -35,3 +35,14 @@ export const getModelSelectionChatItem = (modelId: string): ChatItem => ({
     fullWidth: true,
     body: `Switched model to ${modelRecord[modelId as BedrockModel].label}`,
 })
+
+export const modelUnavailableBanner: Partial<ChatItem> = {
+    messageId: 'model-unavailable-banner',
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: '### Model Unavailable',
+    },
+    body: `The model you selected is temporarily unavailable. Please switch to a different model and try again.`,
+    canBeDismissed: true,
+}
