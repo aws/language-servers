@@ -2188,7 +2188,12 @@ export class AgenticChatController implements ChatHandlers {
                         tabId: tabId,
                         data: { messages: [{ messageId: 'modelUnavailable' }] },
                     })
-                    const emptyChatResult: ChatResult = {}
+                    const emptyChatResult: ChatResult = {
+                        type: 'answer',
+                        body: '',
+                        messageId: errorMessageId,
+                        buttons: [],
+                    }
                     return emptyChatResult
                 }
                 return responseData
