@@ -1025,7 +1025,7 @@ export const createMynahUi = (
                             : undefined,
                         fullWidth: true,
                         padding: false,
-                        muted: true,
+                        muted: false,
                         wrapCodes: item.header?.body === 'Parameters' ? true : false,
                         codeBlockActions: { copy: null, 'insert-to-cursor': null },
                     })) || [],
