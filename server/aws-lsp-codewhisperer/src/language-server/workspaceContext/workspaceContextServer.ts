@@ -503,10 +503,12 @@ export const WorkspaceContextServer = (): Server => features => {
 
     return () => {
         clearInterval(workflowInitializationInterval)
-        workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
-            logging.warn(
-                `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
-        })
+        if (workspaceFolderManager) {
+            workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
+                logging.warn(
+                    `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
+                )
+            })
+        }
     }
 }

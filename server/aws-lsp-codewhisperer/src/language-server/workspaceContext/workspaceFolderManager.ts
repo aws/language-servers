@@ -114,20 +114,6 @@ export class WorkspaceFolderManager {
             remoteWorkspaceState: 'CREATION_PENDING',
             messageQueue: [],
         }
-
-        this.messageQueueConsumerInterval = setInterval(() => {
-            if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
-                const message = this.workspaceState.messageQueue[0]
-                if (message) {
-                    try {
-                        this.workspaceState.webSocketClient.send(message)
-                        this.workspaceState.messageQueue.shift()
-                    } catch (error) {
-                        this.logging.error(`Error sending message: ${error}`)
-                    }
-                }
-            }
-        }, this.MESSAGE_PUBLISH_INTERVAL)
     }
 
     /**
@@ -229,6 +215,7 @@ export class WorkspaceFolderManager {
 
     async clearAllWorkspaceResources() {
         this.stopContinuousMonitoring()
+        this.stopMessageQueueConsumer()
         this.resetRemoteWorkspaceId()
         this.workspaceState.webSocketClient?.destroyClient()
         this.dependencyDiscoverer.dispose()
@@ -333,6 +320,22 @@ export class WorkspaceFolderManager {
 
     async initializeWorkspaceStatusMonitor() {
         this.logging.log(`Initializing workspace status check for workspace [${this.workspaceIdentifier}]`)
+
+        // Set up message queue consumer
+        this.messageQueueConsumerInterval = setInterval(() => {
+            if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
+                const message = this.workspaceState.messageQueue[0]
+                if (message) {
+                    try {
+                        this.workspaceState.webSocketClient.send(message)
+                        this.workspaceState.messageQueue.shift()
+                    } catch (error) {
+                        this.logging.error(`Error sending message: ${error}`)
+                    }
+                }
+            }
+        }, this.MESSAGE_PUBLISH_INTERVAL)
+
         // Perform a one-time checkRemoteWorkspaceStatusAndReact first
         // Pass skipUploads as true since it would be handled by processNewWorkspaceFolders
         await this.checkRemoteWorkspaceStatusAndReact(true)
@@ -575,6 +578,14 @@ export class WorkspaceFolderManager {
         if (this.continuousMonitorInterval) {
             clearInterval(this.continuousMonitorInterval)
             this.continuousMonitorInterval = undefined
+        }
+    }
+
+    private stopMessageQueueConsumer() {
+        this.logging.log(`Stopping message queue consumer`)
+        if (this.messageQueueConsumerInterval) {
+            clearInterval(this.messageQueueConsumerInterval)
+            this.messageQueueConsumerInterval = undefined
         }
     }
 
