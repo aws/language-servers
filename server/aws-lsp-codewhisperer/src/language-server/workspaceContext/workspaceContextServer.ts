@@ -237,6 +237,9 @@ export const WorkspaceContextServer = (): Server => features => {
              * of workspace folders is updated using *artifactManager.updateWorkspaceFolders(workspaceFolders)* before
              * initializing again.
              */
+            if (workflowInitializationInterval) {
+                return
+            }
             workflowInitializationInterval = setInterval(async () => {
                 if (!isOptedIn) {
                     return
