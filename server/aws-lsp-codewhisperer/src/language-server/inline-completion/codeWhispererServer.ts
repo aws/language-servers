@@ -478,7 +478,7 @@ export const CodewhispererServerFactory =
                     // TODO: logging
                     if (codeWhispererService instanceof CodeWhispererServiceToken) {
                         // Combine supplemental contexts from both sources if available.
-                        if (editsEnabled && predictionTypes.includes(['EDITS'])) {
+                        if (editsEnabled) {
                             const supplementalContextItems = [...(supplementalContext?.supplementalContextItems || [])]
                             const supplementalContextItemsForEdits = [
                                 ...(supplementalContextFromEdits?.supplementalContextItems || []),
@@ -544,28 +544,27 @@ export const CodewhispererServerFactory =
                         )
                     }
 
-                    const supplementalMetadata =
-                        editsEnabled && predictionTypes.includes(['EDITS'])
-                            ? {
-                                  // Merge metadata from edit-based context if available.
-                                  contentsLength:
-                                      (supplementalContext?.contentsLength || 0) +
-                                      (supplementalContextFromEdits?.contentsLength || 0),
-                                  latency: Math.max(
-                                      supplementalContext?.latency || 0,
-                                      supplementalContextFromEdits?.latency || 0
-                                  ),
-                                  isUtg: supplementalContext?.isUtg || false,
-                                  isProcessTimeout: supplementalContext?.isProcessTimeout || false,
-                                  strategy: supplementalContextFromEdits
-                                      ? 'recentEdits'
-                                      : supplementalContext?.strategy || 'Empty',
-                                  supplementalContextItems: [
-                                      ...(supplementalContext?.supplementalContextItems || []),
-                                      ...(supplementalContextFromEdits?.supplementalContextItems || []),
-                                  ],
-                              }
-                            : supplementalContext
+                    const supplementalMetadata = editsEnabled
+                        ? {
+                              // Merge metadata from edit-based context if available.
+                              contentsLength:
+                                  (supplementalContext?.contentsLength || 0) +
+                                  (supplementalContextFromEdits?.contentsLength || 0),
+                              latency: Math.max(
+                                  supplementalContext?.latency || 0,
+                                  supplementalContextFromEdits?.latency || 0
+                              ),
+                              isUtg: supplementalContext?.isUtg || false,
+                              isProcessTimeout: supplementalContext?.isProcessTimeout || false,
+                              strategy: supplementalContextFromEdits
+                                  ? 'recentEdits'
+                                  : supplementalContext?.strategy || 'Empty',
+                              supplementalContextItems: [
+                                  ...(supplementalContext?.supplementalContextItems || []),
+                                  ...(supplementalContextFromEdits?.supplementalContextItems || []),
+                              ],
+                          }
+                        : supplementalContext
                     const newSession = sessionManager.createSession({
                         document: textDocument,
                         startPosition: params.position,
@@ -588,7 +587,7 @@ export const CodewhispererServerFactory =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
 
-                    if (editsEnabled && predictionTypes.includes(['EDITS'])) {
+                    if (editsEnabled) {
                         // TODO: generateSuggestionsAndPrefetch should only apply to vscode but not other IDEs.
                         return codeWhispererService
                             .generateCompletionsAndEdits(
