@@ -7,14 +7,18 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 describe('WorkspaceContext Server', () => {
     let features: TestFeatures
     let server: Server
+    let disposeServer: () => void
 
     before(() => {
         features = new TestFeatures()
         server = WorkspaceContextServer()
+        disposeServer = server(features)
     })
 
     afterEach(() => {
         sinon.restore()
+        disposeServer()
+        features.dispose()
     })
 
     describe('Initialization', () => {
@@ -34,10 +38,6 @@ describe('WorkspaceContext Server', () => {
                     },
                 },
             } as InitializeParams)
-
-            // Create a stub for the static getInstance method
-            const getInstanceStub = sinon.stub(AmazonQTokenServiceManager, 'getInstance')
-            getInstanceStub.throws(new Error('Deliberate error to exit the test at onInitialized'))
 
             await features.initialize(server)
 
