@@ -28,3 +28,7 @@ app/aws-lsp-partiql-*
 
 # Coverage (C8)
 **/coverage/
+
+# Workspace
+client/vscode/lsp_client.code-workspace
+package-lock.json
