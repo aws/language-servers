@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.11...lsp-antlr4/v0.1.12) (2025-06-16)
+
+
+### Features
+
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+
 ## [0.1.11](https://github.com/aws/language-servers/compare/lsp-antlr4/v0.1.10...lsp-antlr4/v0.1.11) (2025-06-10)
 
 

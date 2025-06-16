@@ -141,6 +141,7 @@ export interface References {
     isThirdPartyPackage: boolean
     netCompatibleRelativePath?: string
     netCompatibleVersion?: string
+    packageId?: string
 }
 
 export interface PackageReferenceMetadata {
@@ -151,4 +152,5 @@ export interface PackageReferenceMetadata {
     NetCompatibleAssemblyPath?: string
     NetCompatibleAssemblyRelativePath?: string
     NetCompatiblePackageFilePath?: string
+    CurrentVersionAssemblyPath?: string
 }
