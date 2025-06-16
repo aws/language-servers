@@ -29,6 +29,10 @@ import {
     InlineChatResultParams,
     PromptInputOptionChangeParams,
     TextDocument,
+    RuleClickParams,
+    ListRulesParams,
+    ActiveEditorChangedParams,
+    PinnedContextParams,
     ChatUpdateParams,
     MessageType,
     ExecuteCommandParams,
@@ -114,7 +118,12 @@ import {
     TriggerContext,
 } from './context/agenticChatTriggerContext'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
-import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
+import {
+    getNewPromptFilePath,
+    getNewRuleFilePath,
+    getUserPromptsDirectory,
+    promptFileExtension,
+} from './context/contextUtils'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
@@ -168,6 +177,11 @@ type ChatHandlers = Omit<
     | 'chatOptionsUpdate'
     | 'onListMcpServers'
     | 'onMcpServerClick'
+    | 'onListRules'
+    | 'sendPinnedContext'
+    | 'onActiveEditorChanged'
+    | 'onPinnedContextAdd'
+    | 'onPinnedContextRemove'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -214,8 +228,14 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryService = telemetryService
         this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
-        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb, telemetryService)
-        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace)
+        this.#tabBarController = new TabBarController(
+            features,
+            this.#chatHistoryDb,
+            telemetryService,
+            (tabId: string) => this.sendPinnedContext(tabId)
+        )
+
+        this.#additionalContextProvider = new AdditionalContextProvider(features, this.#chatHistoryDb)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
             this.#features.chat,
@@ -393,6 +413,23 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
+        if (params.isRule) {
+            let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
+            let workspaceRulesDirectory = path.join(workspaceFolders[0], '.amazonq', 'rules')
+            if (workspaceFolders.length > 0) {
+                const newFilePath = getNewRuleFilePath(params.promptName, workspaceRulesDirectory)
+                const newFileContent = ''
+                try {
+                    await this.#features.workspace.fs.mkdir(workspaceRulesDirectory, { recursive: true })
+                    await this.#features.workspace.fs.writeFile(newFilePath, newFileContent, { mode: 0o600 })
+                    await this.#features.lsp.window.showDocument({ uri: URI.file(newFilePath).toString() })
+                } catch (e) {
+                    this.#features.logging.warn(`Error creating rule file: ${e}`)
+                }
+                return
+            }
+        }
+
         const newFilePath = getNewPromptFilePath(params.promptName)
         const newFileContent = ''
         try {
@@ -418,6 +455,14 @@ export class AgenticChatController implements ChatHandlers {
 
     async onConversationClick(params: ConversationClickParams) {
         return this.#tabBarController.onConversationClick(params)
+    }
+
+    async onRuleClick(params: RuleClickParams) {
+        return this.#additionalContextProvider.onRuleClick(params)
+    }
+
+    async onListRules(params: ListRulesParams) {
+        return this.#additionalContextProvider.onListRules(params)
     }
 
     async onListMcpServers(params: ListMcpServersParams) {
@@ -506,6 +551,7 @@ export class AgenticChatController implements ChatHandlers {
 
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
+                params.tabId,
                 params.context
             )
             if (additionalContext.length) {
@@ -2089,7 +2135,8 @@ export class AgenticChatController implements ChatHandlers {
                 cwsprChatHasContextList: triggerContext.documentReference?.filePaths?.length ? true : false,
                 cwsprChatFolderContextCount: triggerContext.contextInfo.contextCount.folderContextCount,
                 cwsprChatFileContextCount: triggerContext.contextInfo.contextCount.fileContextCount,
-                cwsprChatRuleContextCount: triggerContext.contextInfo.contextCount.ruleContextCount,
+                cwsprChatRuleContextCount: triggerContext.contextInfo.contextCount.activeRuleContextCount,
+                cwsprChatTotalRuleContextCount: triggerContext.contextInfo.contextCount.totalRuleContextCount,
                 cwsprChatPromptContextCount: triggerContext.contextInfo.contextCount.promptContextCount,
                 cwsprChatFileContextLength: triggerContext.contextInfo.contextLength.fileContextLength,
                 cwsprChatRuleContextLength: triggerContext.contextInfo.contextLength.ruleContextLength,
@@ -2097,6 +2144,10 @@ export class AgenticChatController implements ChatHandlers {
                 cwsprChatCodeContextCount: triggerContext.contextInfo.contextCount.codeContextCount,
                 cwsprChatCodeContextLength: triggerContext.contextInfo.contextLength.codeContextLength,
                 cwsprChatFocusFileContextLength: triggerContext.text?.length,
+                cwsprChatPinnedCodeContextCount: triggerContext.contextInfo.pinnedContextCount.codeContextCount,
+                cwsprChatPinnedFileContextCount: triggerContext.contextInfo.pinnedContextCount.fileContextCount,
+                cwsprChatPinnedFolderContextCount: triggerContext.contextInfo.pinnedContextCount.folderContextCount,
+                cwsprChatPinnedPromptContextCount: triggerContext.contextInfo.pinnedContextCount.promptContextCount,
             })
         }
         await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Succeeded')
@@ -2302,6 +2353,12 @@ export class AgenticChatController implements ChatHandlers {
         await this.#telemetryService.emitInlineChatResultLog(params)
     }
 
+    async onActiveEditorChanged(params: ActiveEditorChangedParams): Promise<void> {
+        if (this.#telemetryController.activeTabId) {
+            this.sendPinnedContext(this.#telemetryController.activeTabId)
+        }
+    }
+
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
         // Implementation based on https://github.com/aws/aws-toolkit-vscode/blob/1814cc84228d4bf20270574c5980b91b227f31cf/packages/core/src/amazonq/commons/controllers/contentController.ts#L38
         if (!params.textDocument || !params.cursorPosition || !params.code) {
@@ -2468,6 +2525,10 @@ export class AgenticChatController implements ChatHandlers {
         const modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
         this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
 
+        if (!params.restoredTab) {
+            this.sendPinnedContext(params.tabId)
+        }
+
         const sessionResult = this.#chatSessionManagementService.createSession(params.tabId)
         const { data: session, success } = sessionResult
         if (!success) {
@@ -2490,12 +2551,18 @@ export class AgenticChatController implements ChatHandlers {
 
         this.#telemetryController.activeTabId = params.tabId
 
+        this.sendPinnedContext(params.tabId)
+
         this.#telemetryController.emitConversationMetric({
             name: ChatTelemetryEventName.EnterFocusConversation,
             data: {},
         })
 
         this.setPaidTierMode(params.tabId)
+    }
+
+    sendPinnedContext(tabId: string) {
+        this.#additionalContextProvider.sendPinnedContext(tabId)
     }
 
     onTabRemove(params: TabRemoveParams) {
@@ -2546,6 +2613,14 @@ export class AgenticChatController implements ChatHandlers {
             default:
                 return {}
         }
+    }
+
+    onPinnedContextAdd(params: PinnedContextParams) {
+        this.#additionalContextProvider.onPinnedContextAdd(params)
+    }
+
+    onPinnedContextRemove(params: PinnedContextParams) {
+        this.#additionalContextProvider.onPinnedContextRemove(params)
     }
 
     async onTabBarAction(params: TabBarActionParams) {

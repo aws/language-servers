@@ -8,10 +8,12 @@ import { AdditionalContextProvider } from './addtionalContextProvider'
 import { getUserPromptsDirectory } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { workspaceUtils } from '@aws/lsp-core'
+import { ChatDatabase } from '../tools/chatDb/chatDb'
 
 describe('AdditionalContextProvider', () => {
     let provider: AdditionalContextProvider
     let testFeatures: TestFeatures
+    let chatHistoryDb: ChatDatabase
     let fsExistsStub: sinon.SinonStub
     let getContextCommandPromptStub: sinon.SinonStub
     let fsReadDirStub: sinon.SinonStub
@@ -23,8 +25,26 @@ describe('AdditionalContextProvider', () => {
         fsReadDirStub = sinon.stub()
         testFeatures.workspace.fs.exists = fsExistsStub
         testFeatures.workspace.fs.readdir = fsReadDirStub
+        testFeatures.chat.sendPinnedContext = sinon.stub()
         getContextCommandPromptStub = sinon.stub()
-        provider = new AdditionalContextProvider(testFeatures.workspace)
+        chatHistoryDb = {
+            getHistory: sinon.stub().returns([]),
+            searchMessages: sinon.stub().returns([]),
+            getOpenTabId: sinon.stub(),
+            getTab: sinon.stub(),
+            deleteHistory: sinon.stub(),
+            setHistoryIdMapping: sinon.stub(),
+            getOpenTabs: sinon.stub().returns([]),
+            updateTabOpenState: sinon.stub(),
+            getDatabaseFileSize: sinon.stub(),
+            getLoadTime: sinon.stub(),
+            getRules: sinon.stub(),
+            setRules: sinon.stub(),
+            addPinnedContext: sinon.stub(),
+            removePinnedContext: sinon.stub(),
+        } as unknown as ChatDatabase
+
+        provider = new AdditionalContextProvider(testFeatures, chatHistoryDb)
         localProjectContextControllerInstanceStub = sinon.stub(LocalProjectContextController, 'getInstance').resolves({
             getContextCommandPrompt: getContextCommandPromptStub,
         } as unknown as LocalProjectContextController)
@@ -45,7 +65,7 @@ describe('AdditionalContextProvider', () => {
             fsExistsStub.resolves(false)
             getContextCommandPromptStub.resolves([])
 
-            const result = await provider.getAdditionalContext(triggerContext)
+            const result = await provider.getAdditionalContext(triggerContext, '')
 
             assert.deepStrictEqual(result, [])
         })
@@ -77,7 +97,7 @@ describe('AdditionalContextProvider', () => {
                 },
             ])
 
-            const result = await provider.getAdditionalContext(triggerContext)
+            const result = await provider.getAdditionalContext(triggerContext, '')
 
             assert.strictEqual(result.length, 1)
             assert.strictEqual(result[0].name, 'Test Rule')

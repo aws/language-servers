@@ -41,11 +41,18 @@ export class TabBarController {
     #features: Features
     #chatHistoryDb: ChatDatabase
     #telemetryService: TelemetryService
+    #sendPinnedContext: (tabId: string) => void
 
-    constructor(features: Features, chatHistoryDb: ChatDatabase, telemetryService: TelemetryService) {
+    constructor(
+        features: Features,
+        chatHistoryDb: ChatDatabase,
+        telemetryService: TelemetryService,
+        sendPinnedContext: (tabId: string) => void
+    ) {
         this.#features = features
         this.#chatHistoryDb = chatHistoryDb
         this.#telemetryService = telemetryService
+        this.#sendPinnedContext = sendPinnedContext
     }
 
     /**
@@ -298,6 +305,7 @@ export class TabBarController {
             const { tabId } = await this.#features.chat.openTab({ newTabOptions: { data: { messages } } })
             this.#chatHistoryDb.setHistoryIdMapping(tabId, selectedTab.historyId)
             this.#chatHistoryDb.updateTabOpenState(tabId, true)
+            this.#sendPinnedContext(tabId)
         }
     }
 
@@ -312,9 +320,7 @@ export class TabBarController {
         const openConversations = this.#chatHistoryDb.getOpenTabs()
         if (openConversations) {
             for (const conversation of openConversations) {
-                if (conversation.conversations && conversation.conversations.length > 0) {
-                    await this.restoreTab(conversation)
-                }
+                await this.restoreTab(conversation)
             }
             this.#telemetryService.emitLoadHistory({
                 amazonqTimeToLoadHistory: this.#chatHistoryDb.getLoadTime() ?? -1,

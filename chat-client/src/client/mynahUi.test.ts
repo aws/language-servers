@@ -70,6 +70,10 @@ describe('MynahUI', () => {
             stopChatResponse: sinon.stub(),
             sendButtonClickEvent: sinon.stub(),
             onOpenSettings: sinon.stub(),
+            onRuleClick: sinon.stub(),
+            listRules: sinon.stub(),
+            onAddPinnedContext: sinon.stub(),
+            onRemovePinnedContext: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)

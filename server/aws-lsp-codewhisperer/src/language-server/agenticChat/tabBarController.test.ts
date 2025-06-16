@@ -43,7 +43,7 @@ describe('TabBarController', () => {
             emitLoadHistory: sinon.stub(),
         } as any
 
-        tabBarController = new TabBarController(testFeatures, chatHistoryDb, telemetryService)
+        tabBarController = new TabBarController(testFeatures, chatHistoryDb, telemetryService, sinon.stub())
         clock = sinon.useFakeTimers()
     })
 

@@ -303,11 +303,18 @@ export type AddMessageEvent = {
     cwsprChatFileContextLength?: number
     cwsprChatRuleContextCount?: number
     cwsprChatRuleContextLength?: number
+    cwsprChatTotalRuleContextCount?: number
     cwsprChatPromptContextCount?: number
     cwsprChatPromptContextLength?: number
     cwsprChatFocusFileContextLength?: number
     cwsprChatCodeContextCount?: number
     cwsprChatCodeContextLength?: number
+
+    //pinned context metrics
+    cwsprChatPinnedCodeContextCount?: number
+    cwsprChatPinnedFileContextCount?: number
+    cwsprChatPinnedFolderContextCount?: number
+    cwsprChatPinnedPromptContextCount?: number
 }
 
 // Agentic MCP Telemetry
