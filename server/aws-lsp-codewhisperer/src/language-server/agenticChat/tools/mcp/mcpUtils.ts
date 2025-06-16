@@ -353,6 +353,30 @@ export function sanitizeName(orig: string): string {
     return sanitized
 }
 
+/**
+ * Safely converts a path that might be in URI format to a filesystem path
+ * @param path The path that might be in URI format
+ * @param logging Optional logger for error reporting
+ * @returns The normalized filesystem path
+ */
+export function normalizePathFromUri(path: string, logging?: Logger): string {
+    if (!path) {
+        return path
+    }
+
+    try {
+        if (path.startsWith('file:')) {
+            return URI.parse(path).fsPath
+        }
+        return path
+    } catch (e) {
+        if (logging) {
+            logging.warn(`Failed to parse URI path: ${path}. Error: ${e}`)
+        }
+        return path // Return original path if parsing fails
+    }
+}
+
 export const MAX_TOOL_NAME_LENGTH = 64
 
 /**

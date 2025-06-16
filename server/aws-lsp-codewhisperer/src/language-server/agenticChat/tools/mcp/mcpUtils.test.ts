@@ -15,10 +15,12 @@ import {
     createNamespacedToolName,
     MAX_TOOL_NAME_LENGTH,
     enabledMCP,
+    normalizePathFromUri,
 } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { pathToFileURL } from 'url'
 import * as sinon from 'sinon'
+import { URI } from 'vscode-uri'
 
 describe('loadMcpServerConfigs', () => {
     let tmpDir: string
@@ -348,5 +350,73 @@ describe('createNamespacedToolName', () => {
             serverName: 'server',
             toolName: longTool,
         })
+    })
+})
+
+describe('normalizePathFromUri', () => {
+    let mockLogger: any
+
+    beforeEach(() => {
+        mockLogger = { warn: sinon.spy() }
+    })
+
+    it('returns empty path unchanged', () => {
+        expect(normalizePathFromUri('')).to.equal('')
+        expect(normalizePathFromUri(undefined as any)).to.equal(undefined)
+    })
+
+    it('converts file URI to filesystem path', () => {
+        const filePath = '/some/test/path'
+        const fileUri = pathToFileURL(filePath).toString()
+
+        const result = normalizePathFromUri(fileUri)
+
+        expect(result).to.not.equal(fileUri)
+        expect(result.startsWith('file:')).to.be.false
+
+        if (os.platform() !== 'win32') {
+            expect(result).to.equal(filePath)
+        }
+    })
+
+    it('returns non-URI path unchanged', () => {
+        const regularPath = '/regular/file/path'
+        expect(normalizePathFromUri(regularPath)).to.equal(regularPath)
+
+        const windowsPath = 'C:\\Windows\\Path'
+        expect(normalizePathFromUri(windowsPath)).to.equal(windowsPath)
+    })
+
+    it('handles parsing errors and logs warning', () => {
+        // Create a URI that will cause a parsing error
+        const invalidUri = 'file:///invalid%uri'
+
+        // Mock the URI.parse to throw an error
+        const originalParse = URI.parse
+        URI.parse = sinon.stub().throws(new Error('Test parse error'))
+
+        const result = normalizePathFromUri(invalidUri, mockLogger)
+
+        // Restore the original function
+        URI.parse = originalParse
+
+        expect(result).to.equal(invalidUri)
+        expect(mockLogger.warn.calledOnce).to.be.true
+        expect(mockLogger.warn.firstCall.args[0]).to.include('Failed to parse URI path')
+    })
+
+    it('returns original path when parsing fails without logger', () => {
+        const invalidUri = 'file:///invalid%uri'
+
+        // Mock the URI.parse to throw an error
+        const originalParse = URI.parse
+        URI.parse = sinon.stub().throws(new Error('Test parse error'))
+
+        const result = normalizePathFromUri(invalidUri)
+
+        // Restore the original function
+        URI.parse = originalParse
+
+        expect(result).to.equal(invalidUri)
     })
 })
