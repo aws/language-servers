@@ -1566,6 +1566,11 @@ export class AgenticChatController implements ChatHandlers {
                               text: 'Reject',
                               icon: 'cancel',
                           },
+                          {
+                              id: 'modify-shell-command',
+                              text: 'Modify',
+                              icon: 'edit',
+                          },
                       ]
                     : []
                 header = {
