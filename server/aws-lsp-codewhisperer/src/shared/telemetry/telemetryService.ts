@@ -511,11 +511,16 @@ export class TelemetryService {
             cwsprChatFileContextLength: number
             cwsprChatRuleContextCount: number
             cwsprChatRuleContextLength: number
+            cwsprChatTotalRuleContextCount: number
             cwsprChatPromptContextCount: number
             cwsprChatPromptContextLength: number
             cwsprChatCodeContextCount: number
             cwsprChatCodeContextLength: number
             cwsprChatFocusFileContextLength: number
+            cwsprChatPinnedCodeContextCount?: number
+            cwsprChatPinnedFileContextCount?: number
+            cwsprChatPinnedFolderContextCount?: number
+            cwsprChatPinnedPromptContextCount?: number
             languageServerVersion?: string
             requestIds?: string[]
         }>
@@ -556,10 +561,15 @@ export class TelemetryService {
                     cwsprChatPromptContextCount: additionalParams.cwsprChatPromptContextCount,
                     cwsprChatFileContextLength: additionalParams.cwsprChatFileContextLength,
                     cwsprChatRuleContextLength: additionalParams.cwsprChatRuleContextLength,
+                    cwsprChatTotalRuleContextCount: additionalParams.cwsprChatTotalRuleContextCount,
                     cwsprChatPromptContextLength: additionalParams.cwsprChatPromptContextLength,
                     cwsprChatFocusFileContextLength: additionalParams.cwsprChatFocusFileContextLength,
                     cwsprChatCodeContextCount: additionalParams.cwsprChatCodeContextCount,
                     cwsprChatCodeContextLength: additionalParams.cwsprChatCodeContextLength,
+                    cwsprChatPinnedCodeContextCount: additionalParams.cwsprChatPinnedCodeContextCount,
+                    cwsprChatPinnedFileContextCount: additionalParams.cwsprChatPinnedFileContextCount,
+                    cwsprChatPinnedFolderContextCount: additionalParams.cwsprChatPinnedFolderContextCount,
+                    cwsprChatPinnedPromptContextCount: additionalParams.cwsprChatPinnedPromptContextCount,
                     result: params.result ?? 'Succeeded',
                     enabled: params.agenticCodingMode,
                     languageServerVersion: additionalParams.languageServerVersion,

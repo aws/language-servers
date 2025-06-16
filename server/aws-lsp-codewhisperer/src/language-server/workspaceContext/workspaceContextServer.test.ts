@@ -7,14 +7,18 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 describe('WorkspaceContext Server', () => {
     let features: TestFeatures
     let server: Server
+    let disposeServer: () => void
 
     before(() => {
         features = new TestFeatures()
         server = WorkspaceContextServer()
+        disposeServer = server(features)
     })
 
     afterEach(() => {
         sinon.restore()
+        disposeServer()
+        features.dispose()
     })
 
     describe('Initialization', () => {

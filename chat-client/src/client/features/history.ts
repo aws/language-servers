@@ -7,7 +7,7 @@ export const ChatHistory = {
     TabBarButtonId: 'history_sheet',
 } as const
 
-interface MynahDetailedList {
+export interface MynahDetailedList {
     update: (data: DetailedList) => void
     close: () => void
     changeTarget: (direction: 'up' | 'down', snapOnLastAndFirst?: boolean) => void

@@ -47,6 +47,7 @@ export const QAgenticChatServer =
                             ],
                         },
                         mcpServers: enabledMCP(params),
+                        modelSelection: true,
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },
@@ -143,8 +144,16 @@ export const QAgenticChatServer =
             return chatController.onListConversations(params)
         })
 
+         chat.onListRules(params => {
+            return chatController.onListRules(params)
+        })
+
         chat.onConversationClick(params => {
             return chatController.onConversationClick(params)
+        })
+
+        chat.onRuleClick(params => {
+            return chatController.onRuleClick(params)
         })
 
         chat.onListMcpServers(params => {
@@ -185,6 +194,18 @@ export const QAgenticChatServer =
 
         chat.onInlineChatResult(params => {
             return chatController.onInlineChatResult(params)
+        })
+
+        chat.onActiveEditorChanged(params => {
+            return chatController.onActiveEditorChanged(params)
+        })
+
+        chat.onPinnedContextAdd(params => {
+            return chatController.onPinnedContextAdd(params)
+        })
+
+        chat.onPinnedContextRemove(params => {
+            return chatController.onPinnedContextRemove(params)
         })
 
         logging.log('Q Chat server has been initialized')

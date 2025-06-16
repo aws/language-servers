@@ -32,6 +32,8 @@ import {
     chatOptionsUpdateType,
     buttonClickRequestType,
     chatUpdateNotificationType,
+    listRulesRequestType,
+    ruleClickRequestType,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -162,6 +164,22 @@ export function registerChat(
                                 message.params,
                                 webviewView,
                                 listConversationsRequestType.method
+                            )
+                            break
+                        case ruleClickRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                ruleClickRequestType.method
+                            )
+                            break
+                        case listRulesRequestType.method:
+                            await handleRequest(
+                                languageClient,
+                                message.params,
+                                webviewView,
+                                listRulesRequestType.method
                             )
                             break
                         case conversationClickRequestType.method:

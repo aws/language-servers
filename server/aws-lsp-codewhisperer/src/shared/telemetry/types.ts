@@ -303,11 +303,41 @@ export type AddMessageEvent = {
     cwsprChatFileContextLength?: number
     cwsprChatRuleContextCount?: number
     cwsprChatRuleContextLength?: number
+    cwsprChatTotalRuleContextCount?: number
     cwsprChatPromptContextCount?: number
     cwsprChatPromptContextLength?: number
     cwsprChatFocusFileContextLength?: number
     cwsprChatCodeContextCount?: number
     cwsprChatCodeContextLength?: number
+
+    //pinned context metrics
+    cwsprChatPinnedCodeContextCount?: number
+    cwsprChatPinnedFileContextCount?: number
+    cwsprChatPinnedFolderContextCount?: number
+    cwsprChatPinnedPromptContextCount?: number
+}
+
+// Agentic MCP Telemetry
+export type MCPConfigEvent = {
+    credentialStartUrl?: string
+    languageServerVersion?: string
+    numActiveServers?: number
+    numGlobalServers?: number
+    numProjectServers?: number
+    numToolsAlwaysAllowed?: number
+    numToolsDenied?: number
+}
+
+export type MCPServerInitializeEvent = {
+    command?: string
+    credentialStartUrl?: string
+    enabled?: boolean
+    initializeTime?: number
+    languageServerVersion?: string
+    numTools?: number
+    scope?: string
+    source?: string
+    transportType?: string
 }
 
 // Agentic MCP Telemetry
