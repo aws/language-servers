@@ -26,10 +26,13 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsResult,
+    ListRulesResult,
     ListMcpServersResult,
     McpServerClickResult,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
     OpenTabParams,
+    PinnedContextParams,
+    RuleClickResult,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
 import {
@@ -60,6 +63,7 @@ import {
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
+import { ContextRule, RulesList } from './features/rules'
 import { getModelSelectionChatItem, modelUnavailableBanner } from './texts/modelSelection'
 import {
     freeTierLimitSticky,
@@ -78,11 +82,14 @@ export interface InboundChatApi {
     openTab(requestId: string, params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
+    listRules(params: ListRulesResult): void
     conversationClicked(params: ConversationClickResult): void
+    ruleClicked(params: RuleClickResult): void
     listMcpServers(params: ListMcpServersResult): void
     mcpServerClick(params: McpServerClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
     createTabId(openTab?: boolean): string | undefined
+    sendPinnedContext(params: PinnedContextParams): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -302,7 +309,7 @@ export const createMynahUi = (
                 defaultTabConfig.chatItems = tabFactory.getChatItems(true, programmingModeCardActive, [])
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
-            messager.onTabAdd(tabId)
+            messager.onTabAdd(tabId, undefined, tabStore?.tabMetadata?.openTabKey === true)
         },
         onTabRemove: (tabId: string) => {
             messager.onStopChatResponse(tabId)
@@ -342,6 +349,18 @@ export const createMynahUi = (
                 eventId,
             }
             messager.onVote(payload)
+        },
+        onPromptTopBarItemAdded: (tabId, item, eventId) => {
+            messager.onAddPinnedContext({ tabId, contextCommandGroups: [{ commands: [item as ContextCommand] }] })
+        },
+        onPromptTopBarItemRemoved: (tabId, item, eventId) => {
+            messager.onRemovePinnedContext({ tabId, contextCommandGroups: [{ commands: [item as ContextCommand] }] })
+        },
+        onPromptTopBarButtonClick(tabId, button, eventId) {
+            if (button.id === 'Rules') {
+                rulesList.showLoading(tabId)
+                messager.onListRules({ tabId })
+            }
         },
         onSendFeedback: (tabId, feedbackPayload, eventId) => {
             const payload: FeedbackParams = {
@@ -467,7 +486,12 @@ export const createMynahUi = (
         },
         onCustomFormAction: (tabId, action) => {
             if (action.id === ContextPrompt.SubmitButtonId) {
-                messager.onCreatePrompt(action.formItemValues![ContextPrompt.PromptNameFieldId])
+                messager.onCreatePrompt({ promptName: action.formItemValues![ContextPrompt.PromptNameFieldId] })
+            } else if (action.id === ContextRule.SubmitButtonId) {
+                messager.onCreatePrompt({
+                    promptName: action.formItemValues![ContextRule.RuleNameFieldId],
+                    isRule: true,
+                })
             }
         },
         onFormTextualItemKeyPress: (
@@ -477,10 +501,16 @@ export const createMynahUi = (
             _tabId: string,
             _eventId?: string
         ) => {
-            if (itemId === ContextPrompt.PromptNameFieldId && event.key === 'Enter') {
-                event.preventDefault()
-                messager.onCreatePrompt(formData[ContextPrompt.PromptNameFieldId])
-                return true
+            if (event.key === 'Enter') {
+                if (itemId === ContextPrompt.PromptNameFieldId) {
+                    event.preventDefault()
+                    messager.onCreatePrompt({ promptName: formData[ContextPrompt.PromptNameFieldId] })
+                    return true
+                } else if (itemId === ContextRule.RuleNameFieldId) {
+                    event.preventDefault()
+                    messager.onCreatePrompt({ promptName: formData[ContextRule.RuleNameFieldId], isRule: true })
+                    return true
+                }
             }
             return false
         },
@@ -1209,6 +1239,31 @@ ${params.message}`,
         }))
     }
 
+    const sendPinnedContext = (params: PinnedContextParams) => {
+        const pinnedContext = toContextCommands(params.contextCommandGroups[0]?.commands || [])
+        const activeEditor = pinnedContext[0]?.id === ACTIVE_EDITOR_CONTEXT_ID
+        // Update Active File pill description with active editor URI passed from IDE
+        if (activeEditor) {
+            if (params.textDocument != null) {
+                pinnedContext[0].description = params.textDocument.uri
+            } else {
+                pinnedContext.shift()
+            }
+        }
+        let promptTopBarTitle = '@'
+        // Show full `@Pin Context` title until user adds a pinned context item
+        if (pinnedContext.length == 0 || (activeEditor && pinnedContext.length === 1)) {
+            promptTopBarTitle = '@Pin Context'
+        }
+        mynahUi.updateStore(params.tabId, {
+            promptTopBarContextItems: pinnedContext,
+            promptTopBarTitle,
+            promptTopBarButton: params.showRules
+                ? { id: 'Rules', status: 'clear', text: 'Rules', icon: 'check-list' }
+                : null,
+        })
+    }
+
     const sendContextCommands = (params: ContextCommandParams) => {
         contextCommandGroups = params.contextCommandGroups.map(group => ({
             ...group,
@@ -1235,6 +1290,23 @@ ${params.message}`,
     const chatHistoryList = new ChatHistoryList(mynahUi, messager)
     const listConversations = (params: ListConversationsResult) => {
         chatHistoryList.show(params)
+    }
+
+    const rulesList = new RulesList(mynahUi, messager)
+
+    const listRules = (params: ListRulesResult) => {
+        rulesList.show(params)
+    }
+
+    const ruleClicked = (params: RuleClickResult) => {
+        if (!params.success) {
+            mynahUi.notify({
+                content: `Failed to toggle the workspace rule`,
+                type: NotificationType.ERROR,
+            })
+            return
+        }
+        messager.onListRules({ tabId: params.tabId })
     }
 
     const conversationClicked = (params: ConversationClickResult) => {
@@ -1312,16 +1384,21 @@ ${params.message}`,
         showError: showError,
         openTab: openTab,
         sendContextCommands: sendContextCommands,
+        sendPinnedContext: sendPinnedContext,
         listConversations: listConversations,
+        listRules: listRules,
         conversationClicked: conversationClicked,
         listMcpServers: listMcpServers,
         mcpServerClick: mcpServerClick,
         getSerializedChat: getSerializedChat,
         createTabId: createTabId,
+        ruleClicked: ruleClicked,
     }
 
     return [mynahUi, api]
 }
+
+const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
 export const DEFAULT_HELP_PROMPT = 'What can Amazon Q help me with?'
 const uiComponentsTexts = {

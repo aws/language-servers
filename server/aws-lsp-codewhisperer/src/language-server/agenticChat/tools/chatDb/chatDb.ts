@@ -6,13 +6,16 @@ import * as Loki from 'lokijs'
 import {
     chatMessageToMessage,
     Conversation,
+    DEFAULT_PINNED_CONTEXT,
     FileSystemAdapter,
     groupTabsByDate,
     Message,
+    Rules,
     Settings,
     SettingsCollection,
     Tab,
     TabCollection,
+    TabContext,
     TabType,
     calculateDatabaseSize,
     updateOrCreateConversation,
@@ -20,7 +23,7 @@ import {
 import * as crypto from 'crypto'
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
+import { ContextCommand, ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
 import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
@@ -181,6 +184,122 @@ export class ChatDatabase {
         }
     }
 
+    addTabWithContext(collection: Collection<Tab>, historyId: string, tabContext: TabContext) {
+        collection.insert({
+            tabType: 'cwc',
+            historyId,
+            title: 'Amazon Q Chat',
+            conversations: [],
+            isOpen: true,
+            updatedAt: new Date(),
+            tabContext,
+        })
+    }
+
+    getRules(tabId: string): Rules {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.#historyIdMapping.get(tabId)
+            if (historyId) {
+                const tab = collection.findOne({ historyId })
+                return tab?.tabContext?.rules || { folders: {}, rules: {} }
+            }
+        }
+        return { folders: {}, rules: {} }
+    }
+
+    getPinnedContext(tabId: string): ContextCommand[] {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            if (historyId) {
+                const tab = collection.findOne({ historyId })
+                return tab?.tabContext?.pinnedContext || DEFAULT_PINNED_CONTEXT
+            }
+        }
+        return []
+    }
+
+    setRules(tabId: string, rules: Rules) {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            const tab = collection.findOne({ historyId })
+
+            this.#features.logging.log(`Updating rules: rules=${JSON.stringify(rules)}`)
+
+            if (!tab) {
+                this.addTabWithContext(collection, historyId, { rules })
+            } else {
+                if (!tab.tabContext) {
+                    tab.tabContext = {}
+                }
+                tab.tabContext.rules = rules
+                collection.update(tab)
+            }
+        }
+    }
+
+    addPinnedContext(tabId: string, context: ContextCommand) {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            if (historyId) {
+                this.#features.logging.log(
+                    `Adding pinned context: historyId=${historyId}, context=${JSON.stringify(context)}`
+                )
+                const tab = collection.findOne({ historyId })
+                if (!tab) {
+                    this.addTabWithContext(collection, historyId, {
+                        pinnedContext: DEFAULT_PINNED_CONTEXT.concat([context]),
+                    })
+                } else {
+                    if (!tab.tabContext) {
+                        tab.tabContext = {}
+                    }
+                    if (!tab.tabContext.pinnedContext) {
+                        tab.tabContext.pinnedContext = DEFAULT_PINNED_CONTEXT
+                    }
+                    // Only add context item if its not already in this tab's pinned context
+                    if (!tab.tabContext.pinnedContext.find(c => c.id === context.id)) {
+                        // Active file pill should always be at the beginning of pinned context
+                        if (DEFAULT_PINNED_CONTEXT.find(item => context.id === item.id)) {
+                            tab.tabContext.pinnedContext.unshift(context)
+                        } else {
+                            tab.tabContext.pinnedContext.push(context)
+                        }
+                    }
+                    collection.update(tab)
+                }
+            }
+        }
+    }
+
+    removePinnedContext(tabId: string, context: ContextCommand) {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            if (historyId) {
+                this.#features.logging.log(
+                    `Removing pinned context: historyId=${historyId}, context=${JSON.stringify(context)}`
+                )
+                const tab = collection.findOne({ historyId })
+                if (!tab) {
+                    this.addTabWithContext(collection, historyId, { pinnedContext: [] })
+                } else {
+                    if (!tab.tabContext) {
+                        tab.tabContext = {}
+                    }
+                    if (!tab.tabContext.pinnedContext) {
+                        tab.tabContext.pinnedContext = []
+                    }
+                    tab.tabContext.pinnedContext = tab.tabContext.pinnedContext.filter(c => c.id !== context.id)
+                    collection.update(tab)
+                }
+            }
+        }
+    }
+
     getLoadTime() {
         return this.#loadTimeMs
     }
@@ -336,6 +455,18 @@ export class ChatDatabase {
         }
     }
 
+    getOrCreateHistoryId(tabId: string) {
+        let historyId = this.#historyIdMapping.get(tabId)
+
+        if (!historyId) {
+            historyId = crypto.randomUUID()
+            this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
+            this.setHistoryIdMapping(tabId, historyId)
+        }
+
+        return historyId
+    }
+
     /**
      * Adds a message to a conversation within a specified tab.
      *
@@ -354,13 +485,7 @@ export class ChatDatabase {
                 `Adding message to history: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
             )
 
-            let historyId = this.#historyIdMapping.get(tabId)
-
-            if (!historyId) {
-                historyId = crypto.randomUUID()
-                this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
-                this.setHistoryIdMapping(tabId, historyId)
-            }
+            let historyId = this.getOrCreateHistoryId(tabId)
 
             const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
             const tabTitle =

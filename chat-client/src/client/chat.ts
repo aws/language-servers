@@ -62,10 +62,13 @@ import {
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
     LIST_CONVERSATIONS_REQUEST_METHOD,
+    LIST_RULES_REQUEST_METHOD,
     LIST_MCP_SERVERS_REQUEST_METHOD,
     LinkClickParams,
     ListConversationsParams,
     ListConversationsResult,
+    ListRulesParams,
+    ListRulesResult,
     ListMcpServersParams,
     ListMcpServersResult,
     MCP_SERVER_CLICK_REQUEST_METHOD,
@@ -74,11 +77,18 @@ import {
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
+    PINNED_CONTEXT_ADD_NOTIFICATION_METHOD,
+    PINNED_CONTEXT_NOTIFICATION_METHOD,
+    PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD,
     PROMPT_INPUT_OPTION_CHANGE_METHOD,
+    PinnedContextParams,
     PromptInputOptionChangeParams,
     QUICK_ACTION_REQUEST_METHOD,
     QuickActionParams,
     READY_NOTIFICATION_METHOD,
+    RULE_CLICK_REQUEST_METHOD,
+    RuleClickParams,
+    RuleClickResult,
     SOURCE_LINK_CLICK_NOTIFICATION_METHOD,
     SourceLinkClickParams,
     TAB_ADD_NOTIFICATION_METHOD,
@@ -193,8 +203,17 @@ export const createChat = (
             case CONTEXT_COMMAND_NOTIFICATION_METHOD:
                 mynahApi.sendContextCommands(message.params as ContextCommandParams)
                 break
+            case PINNED_CONTEXT_NOTIFICATION_METHOD:
+                mynahApi.sendPinnedContext(message.params as PinnedContextParams)
+                break
             case LIST_CONVERSATIONS_REQUEST_METHOD:
                 mynahApi.listConversations(message.params as ListConversationsResult)
+                break
+            case LIST_RULES_REQUEST_METHOD:
+                mynahApi.listRules(message.params as ListRulesResult)
+                break
+            case RULE_CLICK_REQUEST_METHOD:
+                mynahApi.ruleClicked(message.params as RuleClickResult)
                 break
             case CONVERSATION_CLICK_REQUEST_METHOD:
                 mynahApi.conversationClicked(message.params as ConversationClickResult)
@@ -431,6 +450,18 @@ export const createChat = (
         },
         onOpenSettings: (settingKey: string) => {
             sendMessageToClient({ command: OPEN_SETTINGS, params: { settingKey } })
+        },
+        onRuleClick: (params: RuleClickParams) => {
+            sendMessageToClient({ command: RULE_CLICK_REQUEST_METHOD, params })
+        },
+        listRules: (params: ListRulesParams) => {
+            sendMessageToClient({ command: LIST_RULES_REQUEST_METHOD, params })
+        },
+        onAddPinnedContext: (params: PinnedContextParams) => {
+            sendMessageToClient({ command: PINNED_CONTEXT_ADD_NOTIFICATION_METHOD, params })
+        },
+        onRemovePinnedContext: (params: PinnedContextParams) => {
+            sendMessageToClient({ command: PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD, params })
         },
     }
 
