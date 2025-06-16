@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.50](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.49...lsp-codewhisperer/v0.0.50) (2025-06-16)
+
+
+### Features
+
+* add EnableWebFormsToBlazorTransform flag to support WebForms to Blazor transformation ([#1577](https://github.com/aws/language-servers/issues/1577)) ([8c6e9f6](https://github.com/aws/language-servers/commit/8c6e9f6e0a6fd1a7464b26572c1b613b3864b27a))
+* **amazonq:** edit predition auto trigger ([#1662](https://github.com/aws/language-servers/issues/1662)) ([cbcd82b](https://github.com/aws/language-servers/commit/cbcd82bf6632859539e46d1fbe12ec75ab505fb4))
+* **amazonq:** model throttling message as card instead of chat message ([#1657](https://github.com/aws/language-servers/issues/1657)) ([7ee1f2a](https://github.com/aws/language-servers/commit/7ee1f2ac0bdaa9f73fb63fc6d20d0de6d7b07523))
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+* update list of models and set default to 4 ([#1659](https://github.com/aws/language-servers/issues/1659)) ([1991658](https://github.com/aws/language-servers/commit/19916584d3f46049d30f0c23b41c3857a07bc622))
+
+
+### Bug Fixes
+
+* **agenticChat:** UX fixes for MCP ([#1661](https://github.com/aws/language-servers/issues/1661)) ([bbdb4b4](https://github.com/aws/language-servers/commit/bbdb4b451352af50a914df684d7654686142a13b))
+* **amazonq:** properly deposit workspace context server resources on exit ([#1647](https://github.com/aws/language-servers/issues/1647)) ([34efb2b](https://github.com/aws/language-servers/commit/34efb2b0e4ded031b33ed1ed7b96cf41fbe8e03b))
+* increase timeout value for the streaming client ([#1654](https://github.com/aws/language-servers/issues/1654)) ([439a488](https://github.com/aws/language-servers/commit/439a488fc95683ab0da2df18a5044d66b689f4ed))
+
 ## [0.0.49](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.48...lsp-codewhisperer/v0.0.49) (2025-06-13)
 
 
