@@ -29,6 +29,10 @@ import {
     InlineChatResultParams,
     PromptInputOptionChangeParams,
     TextDocument,
+    RuleClickParams,
+    ListRulesParams,
+    ActiveEditorChangedParams,
+    PinnedContextParams,
     ChatUpdateParams,
     MessageType,
     ExecuteCommandParams,
@@ -100,7 +104,7 @@ import {
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
-import { ChatDatabase } from './tools/chatDb/chatDb'
+import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -114,7 +118,12 @@ import {
     TriggerContext,
 } from './context/agenticChatTriggerContext'
 import { AdditionalContextProvider } from './context/addtionalContextProvider'
-import { getNewPromptFilePath, getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
+import {
+    getNewPromptFilePath,
+    getNewRuleFilePath,
+    getUserPromptsDirectory,
+    promptFileExtension,
+} from './context/contextUtils'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
@@ -152,6 +161,7 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
+import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -167,6 +177,11 @@ type ChatHandlers = Omit<
     | 'chatOptionsUpdate'
     | 'onListMcpServers'
     | 'onMcpServerClick'
+    | 'onListRules'
+    | 'sendPinnedContext'
+    | 'onActiveEditorChanged'
+    | 'onPinnedContextAdd'
+    | 'onPinnedContextRemove'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -213,8 +228,14 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryService = telemetryService
         this.#serviceManager = serviceManager
         this.#chatHistoryDb = new ChatDatabase(features)
-        this.#tabBarController = new TabBarController(features, this.#chatHistoryDb, telemetryService)
-        this.#additionalContextProvider = new AdditionalContextProvider(features.workspace)
+        this.#tabBarController = new TabBarController(
+            features,
+            this.#chatHistoryDb,
+            telemetryService,
+            (tabId: string) => this.sendPinnedContext(tabId)
+        )
+
+        this.#additionalContextProvider = new AdditionalContextProvider(features, this.#chatHistoryDb)
         this.#contextCommandsProvider = new ContextCommandsProvider(
             this.#features.logging,
             this.#features.chat,
@@ -392,6 +413,23 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
+        if (params.isRule) {
+            let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
+            let workspaceRulesDirectory = path.join(workspaceFolders[0], '.amazonq', 'rules')
+            if (workspaceFolders.length > 0) {
+                const newFilePath = getNewRuleFilePath(params.promptName, workspaceRulesDirectory)
+                const newFileContent = ''
+                try {
+                    await this.#features.workspace.fs.mkdir(workspaceRulesDirectory, { recursive: true })
+                    await this.#features.workspace.fs.writeFile(newFilePath, newFileContent, { mode: 0o600 })
+                    await this.#features.lsp.window.showDocument({ uri: URI.file(newFilePath).toString() })
+                } catch (e) {
+                    this.#features.logging.warn(`Error creating rule file: ${e}`)
+                }
+                return
+            }
+        }
+
         const newFilePath = getNewPromptFilePath(params.promptName)
         const newFileContent = ''
         try {
@@ -417,6 +455,14 @@ export class AgenticChatController implements ChatHandlers {
 
     async onConversationClick(params: ConversationClickParams) {
         return this.#tabBarController.onConversationClick(params)
+    }
+
+    async onRuleClick(params: RuleClickParams) {
+        return this.#additionalContextProvider.onRuleClick(params)
+    }
+
+    async onListRules(params: ListRulesParams) {
+        return this.#additionalContextProvider.onListRules(params)
     }
 
     async onListMcpServers(params: ListMcpServersParams) {
@@ -505,6 +551,7 @@ export class AgenticChatController implements ChatHandlers {
 
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
+                params.tabId,
                 params.context
             )
             if (additionalContext.length) {
@@ -651,25 +698,24 @@ export class AgenticChatController implements ChatHandlers {
                 )
             }
             const remainingCharacterBudget = this.truncateRequest(currentRequestInput)
-            //  Fix the history to maintain invariants
+            let messages: DbMessage[] = []
             if (currentMessage) {
-                const isHistoryValid = this.#chatHistoryDb.fixAndValidateHistory(
-                    tabId,
-                    currentMessage,
-                    conversationIdentifier ?? '',
-                    remainingCharacterBudget
-                )
-                if (!isHistoryValid) {
-                    this.#features.logging.warn('Skipping request due to invalid tool result/tool use relationship')
-                    break
+                //  Get and process the messages from history DB to maintain invariants for service requests
+                try {
+                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, remainingCharacterBudget)
+                } catch (err) {
+                    if (err instanceof ToolResultValidationError) {
+                        this.#features.logging.warn(`Tool validation error: ${err.message}`)
+                        break
+                    }
                 }
             }
 
-            //  Retrieve the history from DB; Do not include chatHistory for requests going to Mynah Backend
+            //  Do not include chatHistory for requests going to Mynah Backend
             currentRequestInput.conversationState!.history = currentRequestInput.conversationState?.currentMessage
                 ?.userInputMessage?.userIntent
                 ? []
-                : this.#chatHistoryDb.getMessages(tabId)
+                : messages.map(msg => messageToStreamingMessage(msg))
 
             // Add loading message before making the request
             const loadingMessageId = `loading-${uuid()}`
@@ -690,9 +736,10 @@ export class AgenticChatController implements ChatHandlers {
             )
             await chatResultStream.removeResultBlock(loadingMessageId)
 
-            //  Add the current user message to the history DB
+            // Add the current user message to the history DB
             if (currentMessage && conversationIdentifier) {
                 if (this.#isPromptCanceled(token, session, promptId)) {
+                    // Only skip adding message to history, continue executing to avoid unexpected stop for the conversation
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
@@ -702,6 +749,7 @@ export class AgenticChatController implements ChatHandlers {
                         origin: currentMessage.userInputMessage?.origin,
                         userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
                         shouldDisplayMessage: shouldDisplayMessage,
+                        timestamp: new Date(),
                     })
                 }
             }
@@ -723,11 +771,15 @@ export class AgenticChatController implements ChatHandlers {
             if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
                 const content =
                     'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
-                if (!this.#isPromptCanceled(token, session, promptId)) {
+                if (this.#isPromptCanceled(token, session, promptId)) {
+                    // Only skip adding message to the history DB, continue executing to avoid unexpected stop for the conversation
+                    this.#debug('Skipping adding messages to history - cancelled by user')
+                } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
                         body: 'Response timed out - message took too long to generate',
                         type: 'answer',
                         shouldDisplayMessage: false,
+                        timestamp: new Date(),
                     })
                 }
                 currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, [], content)
@@ -737,10 +789,11 @@ export class AgenticChatController implements ChatHandlers {
                 continue
             }
 
-            //  Add the current assistantResponse message to the history DB
+            // Add the current assistantResponse message to the history DB
             if (result.data?.chatResult.body !== undefined) {
                 if (this.#isPromptCanceled(token, session, promptId)) {
-                    this.#debug('Skipping adding assistant message to history - cancelled by user')
+                    // Only skip adding message to the history DB, continue executing to avoid unexpected stop for the conversation
+                    this.#debug('Skipping adding messages to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier ?? '', {
                         body: result.data?.chatResult.body,
@@ -759,6 +812,7 @@ export class AgenticChatController implements ChatHandlers {
                                 input: result.data!.toolUses[k].input,
                             })),
                         shouldDisplayMessage: shouldDisplayMessage,
+                        timestamp: new Date(),
                     })
                 }
             } else {
@@ -933,14 +987,18 @@ export class AgenticChatController implements ChatHandlers {
         toolUse: ToolUse,
         resultStream: AgenticChatResultStream,
         promptBlockId: number,
-        session: ChatSessionService
+        session: ChatSessionService,
+        toolName: string
     ) {
         const deferred = this.#createDeferred()
         session.setDeferredToolExecution(toolUse.toolUseId!, deferred.resolve, deferred.reject)
-        this.#log(`Prompting for tool approval for tool: ${toolUse.name}`)
+        this.#log(`Prompting for tool approval for tool: ${toolName ?? toolUse.name}`)
         await deferred.promise
         // Note: we want to overwrite the button block because it already exists in the stream.
-        await resultStream.overwriteResultBlock(this.#getUpdateToolConfirmResult(toolUse, true), promptBlockId)
+        await resultStream.overwriteResultBlock(
+            this.#getUpdateToolConfirmResult(toolUse, true, toolName),
+            promptBlockId
+        )
     }
 
     /**
@@ -1046,7 +1104,13 @@ export class AgenticChatController implements ChatHandlers {
                                 )
                             }
                             if (requiresAcceptance) {
-                                await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
+                                await this.waitForToolApproval(
+                                    toolUse,
+                                    chatResultStream,
+                                    cachedButtonBlockId,
+                                    session,
+                                    toolUse.name
+                                )
                             }
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
@@ -1090,7 +1154,8 @@ export class AgenticChatController implements ChatHandlers {
                                         toolUse,
                                         chatResultStream,
                                         cachedButtonBlockId,
-                                        session
+                                        session,
+                                        toolName
                                     )
                                 }
 
@@ -1222,7 +1287,7 @@ export class AgenticChatController implements ChatHandlers {
                     // Handle ToolApprovalException for any tool
                     if (err instanceof ToolApprovalException && cachedButtonBlockId) {
                         await chatResultStream.overwriteResultBlock(
-                            this.#getUpdateToolConfirmResult(toolUse, false),
+                            this.#getUpdateToolConfirmResult(toolUse, false, toolUse.name),
                             cachedButtonBlockId
                         )
                         if (err.shouldShowMessage) {
@@ -1517,8 +1582,13 @@ export class AgenticChatController implements ChatHandlers {
      * @param toolType Optional tool type for specialized handling
      * @returns ChatResult with appropriate confirmation UI
      */
-    #getUpdateToolConfirmResult(toolUse: ToolUse, isAccept: boolean, toolType?: string): ChatResult {
-        const toolName = toolType || toolUse.name
+    #getUpdateToolConfirmResult(
+        toolUse: ToolUse,
+        isAccept: boolean,
+        originalToolName: string,
+        toolType?: string
+    ): ChatResult {
+        const toolName = originalToolName ?? (toolType || toolUse.name)
 
         // Handle bash commands with special formatting
         if (toolName === 'executeBash') {
@@ -1577,7 +1647,7 @@ export class AgenticChatController implements ChatHandlers {
                 break
 
             default:
-                // Default tool (not MCP)
+                // Default tool (not only MCP)
                 return {
                     type: 'tool',
                     messageId: toolUse.toolUseId!,
@@ -1585,7 +1655,7 @@ export class AgenticChatController implements ChatHandlers {
                         content: {
                             header: {
                                 icon: 'tools',
-                                body: `${toolUse.name}`,
+                                body: `${toolName}`,
                                 status: {
                                     status: isAccept ? 'success' : 'error',
                                     icon: isAccept ? 'ok' : 'cancel',
@@ -2065,7 +2135,8 @@ export class AgenticChatController implements ChatHandlers {
                 cwsprChatHasContextList: triggerContext.documentReference?.filePaths?.length ? true : false,
                 cwsprChatFolderContextCount: triggerContext.contextInfo.contextCount.folderContextCount,
                 cwsprChatFileContextCount: triggerContext.contextInfo.contextCount.fileContextCount,
-                cwsprChatRuleContextCount: triggerContext.contextInfo.contextCount.ruleContextCount,
+                cwsprChatRuleContextCount: triggerContext.contextInfo.contextCount.activeRuleContextCount,
+                cwsprChatTotalRuleContextCount: triggerContext.contextInfo.contextCount.totalRuleContextCount,
                 cwsprChatPromptContextCount: triggerContext.contextInfo.contextCount.promptContextCount,
                 cwsprChatFileContextLength: triggerContext.contextInfo.contextLength.fileContextLength,
                 cwsprChatRuleContextLength: triggerContext.contextInfo.contextLength.ruleContextLength,
@@ -2073,6 +2144,10 @@ export class AgenticChatController implements ChatHandlers {
                 cwsprChatCodeContextCount: triggerContext.contextInfo.contextCount.codeContextCount,
                 cwsprChatCodeContextLength: triggerContext.contextInfo.contextLength.codeContextLength,
                 cwsprChatFocusFileContextLength: triggerContext.text?.length,
+                cwsprChatPinnedCodeContextCount: triggerContext.contextInfo.pinnedContextCount.codeContextCount,
+                cwsprChatPinnedFileContextCount: triggerContext.contextInfo.pinnedContextCount.fileContextCount,
+                cwsprChatPinnedFolderContextCount: triggerContext.contextInfo.pinnedContextCount.folderContextCount,
+                cwsprChatPinnedPromptContextCount: triggerContext.contextInfo.pinnedContextCount.promptContextCount,
             })
         }
         await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Succeeded')
@@ -2179,6 +2254,23 @@ export class AgenticChatController implements ChatHandlers {
                 buttons: [],
             }
             if (err.code === 'QModelResponse') {
+                // special case for throttling where we show error card instead of chat message
+                if (
+                    err.message ===
+                    `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                ) {
+                    this.#features.chat.sendChatUpdate({
+                        tabId: tabId,
+                        data: { messages: [{ messageId: 'modelUnavailable' }] },
+                    })
+                    const emptyChatResult: ChatResult = {
+                        type: 'answer',
+                        body: '',
+                        messageId: errorMessageId,
+                        buttons: [],
+                    }
+                    return emptyChatResult
+                }
                 return responseData
             }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, responseData)
@@ -2259,6 +2351,12 @@ export class AgenticChatController implements ChatHandlers {
 
     async onInlineChatResult(params: InlineChatResultParams) {
         await this.#telemetryService.emitInlineChatResultLog(params)
+    }
+
+    async onActiveEditorChanged(params: ActiveEditorChangedParams): Promise<void> {
+        if (this.#telemetryController.activeTabId) {
+            this.sendPinnedContext(this.#telemetryController.activeTabId)
+        }
     }
 
     async onCodeInsertToCursorPosition(params: InsertToCursorPositionParams) {
@@ -2427,6 +2525,10 @@ export class AgenticChatController implements ChatHandlers {
         const modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
         this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
 
+        if (!params.restoredTab) {
+            this.sendPinnedContext(params.tabId)
+        }
+
         const sessionResult = this.#chatSessionManagementService.createSession(params.tabId)
         const { data: session, success } = sessionResult
         if (!success) {
@@ -2449,12 +2551,18 @@ export class AgenticChatController implements ChatHandlers {
 
         this.#telemetryController.activeTabId = params.tabId
 
+        this.sendPinnedContext(params.tabId)
+
         this.#telemetryController.emitConversationMetric({
             name: ChatTelemetryEventName.EnterFocusConversation,
             data: {},
         })
 
         this.setPaidTierMode(params.tabId)
+    }
+
+    sendPinnedContext(tabId: string) {
+        this.#additionalContextProvider.sendPinnedContext(tabId)
     }
 
     onTabRemove(params: TabRemoveParams) {
@@ -2502,22 +2610,17 @@ export class AgenticChatController implements ChatHandlers {
                     body: HELP_MESSAGE,
                 }
 
-            // "Manage Subscription" (paid-tier user), or "Upgrade Q" (free-tier user)
-            case QuickAction.Manage:
-                this.#telemetryController.emitChatMetric({
-                    name: ChatTelemetryEventName.RunCommand,
-                    data: {
-                        cwsprChatCommandType: params.quickAction,
-                        cwsprChatCommandName: '/manage',
-                    },
-                })
-
-                void this.onManageSubscription(params.tabId)
-
-                return {}
             default:
                 return {}
         }
+    }
+
+    onPinnedContextAdd(params: PinnedContextParams) {
+        this.#additionalContextProvider.onPinnedContextAdd(params)
+    }
+
+    onPinnedContextRemove(params: PinnedContextParams) {
+        this.#additionalContextProvider.onPinnedContextRemove(params)
     }
 
     async onTabBarAction(params: TabBarActionParams) {

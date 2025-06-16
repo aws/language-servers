@@ -34,11 +34,14 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsParams,
+    ListRulesParams,
     ListMcpServersParams,
     McpServerClickParams,
     OpenTabResult,
+    PinnedContextParams,
     PromptInputOptionChangeParams,
     QuickActionParams,
+    RuleClickParams,
     SourceLinkClickParams,
     TabAddParams,
     TabBarActionParams,
@@ -100,14 +103,22 @@ export interface OutboundChatApi {
     stopChatResponse(tabId: string): void
     sendButtonClickEvent(params: ButtonClickParams): void
     onOpenSettings(settingKey: string): void
+    onRuleClick(params: RuleClickParams): void
+    listRules(params: ListRulesParams): void
+    onAddPinnedContext(params: PinnedContextParams): void
+    onRemovePinnedContext(params: PinnedContextParams): void
 }
 
 export class Messager {
     constructor(private readonly chatApi: OutboundChatApi) {}
 
-    onTabAdd = (tabId: string, triggerType?: TriggerType): void => {
-        this.chatApi.tabAdded({ tabId })
+    onTabAdd = (tabId: string, triggerType?: TriggerType, restoredTab?: boolean): void => {
+        this.chatApi.tabAdded({ tabId, restoredTab })
         this.chatApi.telemetry({ triggerType: triggerType ?? 'click', tabId, name: TAB_ADD_TELEMETRY_EVENT })
+    }
+
+    onRuleClick = (params: RuleClickParams): void => {
+        this.chatApi.onRuleClick(params)
     }
 
     onTabChange = (tabId: string): void => {
@@ -203,8 +214,8 @@ export class Messager {
         this.chatApi.onOpenTab(requestId, result)
     }
 
-    onCreatePrompt = (promptName: string): void => {
-        this.chatApi.createPrompt({ promptName })
+    onCreatePrompt = (params: CreatePromptParams): void => {
+        this.chatApi.createPrompt(params)
     }
 
     onFileClick = (params: FileClickParams): void => {
@@ -216,6 +227,10 @@ export class Messager {
         if (tabButtonClicked) {
             this.chatApi.telemetry({ triggerType: 'click', name: HISTORY_BUTTON_CLICK_TELEMETRY_EVENT })
         }
+    }
+
+    onListRules = (params: ListRulesParams): void => {
+        this.chatApi.listRules(params)
     }
 
     onConversationClick = (conversationId: string, action?: ConversationAction): void => {
@@ -256,5 +271,13 @@ export class Messager {
 
     onOpenSettings = (settingKey: string): void => {
         this.chatApi.onOpenSettings(settingKey)
+    }
+
+    onAddPinnedContext = (params: PinnedContextParams) => {
+        this.chatApi.onAddPinnedContext(params)
+    }
+
+    onRemovePinnedContext = (params: PinnedContextParams) => {
+        this.chatApi.onRemovePinnedContext(params)
     }
 }

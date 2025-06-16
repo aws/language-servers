@@ -82,7 +82,7 @@ describe('Chat', () => {
 
         assert.calledWithExactly(clientApi.postMessage.thirdCall, {
             command: TAB_ADD_NOTIFICATION_METHOD,
-            params: { tabId: initialTabId },
+            params: { tabId: initialTabId, restoredTab: undefined },
         })
 
         assert.calledWithExactly(clientApi.postMessage.lastCall, {

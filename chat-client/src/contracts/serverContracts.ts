@@ -39,6 +39,13 @@ import {
     GetSerializedChatResult,
     PROMPT_INPUT_OPTION_CHANGE_METHOD,
     BUTTON_CLICK_REQUEST_METHOD,
+    RULE_CLICK_REQUEST_METHOD,
+    RuleClickParams,
+    ListRulesParams,
+    LIST_RULES_REQUEST_METHOD,
+    PINNED_CONTEXT_ADD_NOTIFICATION_METHOD,
+    PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD,
+    PinnedContextParams,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
@@ -60,6 +67,7 @@ export type ServerMessageCommand =
     | typeof CREATE_PROMPT_NOTIFICATION_METHOD
     | typeof FILE_CLICK_NOTIFICATION_METHOD
     | typeof LIST_CONVERSATIONS_REQUEST_METHOD
+    | typeof LIST_RULES_REQUEST_METHOD
     | typeof CONVERSATION_CLICK_REQUEST_METHOD
     | typeof LIST_MCP_SERVERS_REQUEST_METHOD
     | typeof MCP_SERVER_CLICK_REQUEST_METHOD
@@ -67,6 +75,9 @@ export type ServerMessageCommand =
     | typeof GET_SERIALIZED_CHAT_REQUEST_METHOD
     | typeof PROMPT_INPUT_OPTION_CHANGE_METHOD
     | typeof BUTTON_CLICK_REQUEST_METHOD
+    | typeof RULE_CLICK_REQUEST_METHOD
+    | typeof PINNED_CONTEXT_ADD_NOTIFICATION_METHOD
+    | typeof PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD
 
 export interface ServerMessage {
     command: ServerMessageCommand
@@ -99,3 +110,6 @@ export type ServerMessageParams =
     | McpServerClickParams
     | TabBarActionParams
     | GetSerializedChatResult
+    | RuleClickParams
+    | ListRulesParams
+    | PinnedContextParams

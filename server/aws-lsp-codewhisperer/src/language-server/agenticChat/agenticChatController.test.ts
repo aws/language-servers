@@ -26,6 +26,7 @@ import {
     TextDocumentEdit,
     InlineChatResult,
     CancellationTokenSource,
+    ContextCommand,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -167,7 +168,9 @@ describe('AgenticChatController', () => {
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
     let telemetry: Telemetry
+    let chatDbInitializedStub: sinon.SinonStub
     let getMessagesStub: sinon.SinonStub
+    let addMessageStub: sinon.SinonStub
 
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
@@ -234,7 +237,13 @@ describe('AgenticChatController', () => {
         }
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
-        additionalContextProviderStub.resolves([])
+        additionalContextProviderStub.callsFake(async (triggerContext, _, context: ContextCommand[]) => {
+            // When @workspace is in the context, set hasWorkspace flag
+            if (context && context.some(item => item.command === '@workspace')) {
+                triggerContext.hasWorkspace = true
+            }
+            return []
+        })
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
             initializationOptions: {
@@ -281,7 +290,9 @@ describe('AgenticChatController', () => {
             onClientTelemetry: sinon.stub(),
         }
 
-        getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages')
+        getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages').returns([])
+        addMessageStub = sinon.stub(ChatDatabase.prototype, 'addMessage')
+        chatDbInitializedStub = sinon.stub(ChatDatabase.prototype, 'isInitialized')
 
         telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new AgenticChatController(
@@ -452,10 +463,34 @@ describe('AgenticChatController', () => {
         it('includes chat history from the database in the request input', async () => {
             // Mock chat history
             const mockHistory = [
-                { type: 'prompt', body: 'Previous question' },
+                {
+                    type: 'prompt',
+                    body: 'Previous question',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
                 { type: 'answer', body: 'Previous answer' },
             ]
+            const expectedRequestHistory = [
+                {
+                    userInputMessage: {
+                        content: 'Previous question',
+                        origin: 'IDE',
+                        userInputMessageContext: { toolResults: [] },
+                        userIntent: undefined,
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Previous answer',
+                        messageId: undefined,
+                        toolUses: [],
+                    },
+                },
+            ]
 
+            chatDbInitializedStub.returns(true)
             getMessagesStub.returns(mockHistory)
 
             // Make the request
@@ -471,7 +506,7 @@ describe('AgenticChatController', () => {
 
             // Verify that the history was passed to the request
             const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
-            assert.deepStrictEqual(requestInput.conversationState?.history, mockHistory)
+            assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
         })
 
         it('skips adding user message to history when token is cancelled', async () => {
@@ -481,12 +516,10 @@ describe('AgenticChatController', () => {
                 onCancellationRequested: () => ({ dispose: () => null }),
             }
 
-            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
-
             // Execute with cancelled token
             await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, cancelledToken)
 
-            sinon.assert.notCalled(addMessageSpy)
+            sinon.assert.notCalled(addMessageStub)
         })
 
         it('skips adding user message to history when prompt ID is no longer current', async () => {
@@ -494,13 +527,11 @@ describe('AgenticChatController', () => {
             const session = chatSessionManagementService.getSession(mockTabId).data!
             const isCurrentPromptStub = sinon.stub(session, 'isCurrentPrompt').returns(false)
 
-            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
-
             // Execute with non-current prompt ID
             await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
 
             sinon.assert.called(isCurrentPromptStub)
-            sinon.assert.notCalled(addMessageSpy)
+            sinon.assert.notCalled(addMessageStub)
         })
 
         it('handles tool use responses and makes multiple requests', async () => {
@@ -555,14 +586,22 @@ describe('AgenticChatController', () => {
                 },
             ]
 
-            getMessagesStub
-                .onFirstCall()
-                .returns([])
-                .onSecondCall()
-                .returns([
-                    { userInputMessage: { content: 'Hello with tool' } },
-                    { assistantResponseMessage: { content: 'I need to use a tool. ' } },
-                ])
+            chatDbInitializedStub.returns(true)
+            getMessagesStub.onFirstCall().returns([])
+            getMessagesStub.onSecondCall().returns([
+                {
+                    type: 'prompt',
+                    body: 'Hello with tool',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                {
+                    type: 'answer',
+                    body: 'I need to use a tool. ',
+                    toolUses: [{ toolUseId: mockToolUseId, name: mockToolName, input: { key: mockToolInput } }],
+                },
+            ])
 
             // Reset the stub and set up to return different responses on consecutive calls
             generateAssistantResponseStub.restore()
@@ -685,13 +724,24 @@ describe('AgenticChatController', () => {
                 },
             ]
 
+            chatDbInitializedStub.returns(true)
             getMessagesStub
                 .onFirstCall()
                 .returns([])
                 .onSecondCall()
                 .returns([
-                    { userInputMessage: { content: 'Hello with failing tool' } },
-                    { assistantResponseMessage: { content: 'I need to use a tool that will fail. ' } },
+                    {
+                        type: 'prompt',
+                        body: 'Hello with failing tool',
+                        userInputMessageContext: {
+                            toolResults: [],
+                        },
+                    },
+                    {
+                        type: 'answer',
+                        body: 'I need to use a tool that will fail. ',
+                        toolUses: [{ toolUseId: mockToolUseId, name: mockToolName, input: { key: mockToolInput } }],
+                    },
                 ])
 
             // Reset the stub and set up to return different responses on consecutive calls
@@ -859,15 +909,30 @@ describe('AgenticChatController', () => {
             ]
 
             const historyAfterTool1 = [
-                { userInputMessage: { content: 'Hello with multiple tools' } },
-                { assistantResponseMessage: { content: 'I need to use tool 1. ' } },
+                {
+                    type: 'prompt',
+                    body: 'Hello with multiple tools',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                {
+                    type: 'answer',
+                    body: 'I need to use tool 1. ',
+                    toolUses: [{ toolUseId: mockToolUseId1, name: mockToolName1, input: { key: mockToolInput1 } }],
+                },
             ]
             const historyAfterTool2 = [
                 ...historyAfterTool1,
-                { userInputMessage: { content: 'Hello with multiple tools' } },
-                { assistantResponseMessage: { content: 'Now I need to use tool 2. ' } },
+                { type: 'prompt', body: 'Hello with multiple tools' },
+                {
+                    type: 'answer',
+                    body: 'Now I need to use tool 2. ',
+                    toolUses: [{ toolUseId: mockToolUseId2, name: mockToolName2, input: { key: mockToolInput2 } }],
+                },
             ]
 
+            chatDbInitializedStub.returns(true)
             getMessagesStub
                 .onFirstCall()
                 .returns([])
