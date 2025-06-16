@@ -18,12 +18,15 @@
         "copy": "copyfiles --error --flat ./src/sso/authorizationCodePkce/resources/* ./out/sso/authorizationCodePkce/resources/",
         "package": "npm run compile && npm run copy",
         "test": "npm run package && npm run test-unit",
-        "test-unit": "mocha \"./out/**/*.test.js\""
+        "test-unit": "mocha \"./out/**/*.test.js\"",
+        "test-unit:coverage": "npm run compile && c8 mocha \"./out/**/*.test.js\"",
+        "test:coverage": "npm run package && npm run test-unit:coverage",
+        "coverage:report": "c8 report --reporter=html --reporter=text"
     },
     "dependencies": {
         "@aws-sdk/client-sso-oidc": "^3.616.0",
         "@aws-sdk/token-providers": "^3.744.0",
-        "@aws/language-server-runtimes": "^0.2.90",
+        "@aws/language-server-runtimes": "^0.2.96",
         "@aws/lsp-core": "^0.0.9",
         "@smithy/node-http-handler": "^3.2.5",
         "@smithy/shared-ini-file-loader": "^4.0.1",
@@ -38,6 +41,7 @@
         "@types/mocha": "^10.0.9",
         "@types/mock-fs": "^4.13.4",
         "@types/sinon": "^17.0.3",
+        "c8": "^10.1.2",
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
         "copyfiles": "^2.4.1",

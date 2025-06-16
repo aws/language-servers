@@ -15,7 +15,7 @@ import {
     RelevancyVoteType,
     isClientTelemetryEvent,
 } from './clientTelemetry'
-import { ToolUse, UserIntent } from '@amzn/codewhisperer-streaming'
+import { ToolUse, UserIntent } from '@aws/codewhisperer-streaming-client'
 import { TriggerContext } from '../contexts/triggerContext'
 
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
@@ -23,7 +23,6 @@ import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completio
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 import { getEndPositionForAcceptedSuggestion, getTelemetryReasonDesc } from '../../../shared/utils'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
-import { AgenticChatEventStatus } from '../../../client/token/codewhispererbearertokenclient'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -290,6 +289,54 @@ export class ChatTelemetryController {
                 requestIds: metric.requestIds,
             }
         )
+    }
+
+    public emitMCPConfigEvent(data?: {
+        numActiveServers?: number
+        numGlobalServers?: number
+        numProjectServers?: number
+        numToolsAlwaysAllowed?: number
+        numToolsDenied?: number
+        languageServerVersion?: string
+    }) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MCPConfig,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                languageServerVersion: data?.languageServerVersion,
+                numActiveServers: data?.numActiveServers,
+                numGlobalServers: data?.numGlobalServers,
+                numProjectServers: data?.numProjectServers,
+                numToolsAlwaysAllowed: data?.numToolsAlwaysAllowed,
+                numToolsDenied: data?.numToolsDenied,
+            },
+        })
+    }
+
+    public emitMCPServerInitializeEvent(data?: {
+        command?: string
+        enabled?: boolean
+        initializeTime?: number
+        numTools?: number
+        scope?: string
+        source?: string
+        transportType?: string
+        languageServerVersion?: string
+    }) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MCPServerInit,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                command: data?.command,
+                enabled: data?.enabled,
+                initializeTime: data?.initializeTime,
+                languageServerVersion: data?.languageServerVersion,
+                numTools: data?.numTools,
+                scope: data?.scope,
+                source: data?.source,
+                transportType: data?.transportType,
+            },
+        })
     }
 
     public emitStartConversationMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {

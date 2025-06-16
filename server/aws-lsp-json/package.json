@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-json",
-    "version": "0.1.10",
+    "version": "0.1.11",
     "description": "JSON Language Server",
     "main": "out/index.js",
     "repository": {
@@ -21,10 +21,12 @@
     "scripts": {
         "compile": "tsc --build",
         "test": "ts-mocha -b \"./src/**/*.test.ts\"",
+        "test:coverage": "c8 ts-mocha -b \"./src/**/*.test.ts\"",
+        "coverage:report": "c8 report --reporter=html --reporter=text",
         "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.90",
+        "@aws/language-server-runtimes": "^0.2.96",
         "@aws/lsp-core": "^0.0.9",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8"
@@ -38,5 +40,8 @@
         "bracketSpacing": true,
         "arrowParens": "avoid",
         "endOfLine": "lf"
+    },
+    "devDependencies": {
+        "c8": "^10.1.2"
     }
 }

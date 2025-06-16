@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.11](https://github.com/aws/language-servers/compare/lsp-json/v0.1.10...lsp-json/v0.1.11) (2025-06-10)
+
+
+### Features
+
+* add C8 test coverage support ([#1567](https://github.com/aws/language-servers/issues/1567)) ([eee5048](https://github.com/aws/language-servers/commit/eee5048c783ffc300073865d391372d5a583365c))
+* adding mcp servers feature to the language-server ([#1544](https://github.com/aws/language-servers/issues/1544)) ([f37bf5f](https://github.com/aws/language-servers/commit/f37bf5f91921d7611c124de6d54dd6ec653038c6))
+
 ## [0.1.10](https://github.com/aws/language-servers/compare/lsp-json/v0.1.9...lsp-json/v0.1.10) (2025-05-30)
 
 
@@ -100,7 +108,7 @@
 
 ### Bug Fixes
 
-* update @aws/language-server-runtimes to 0.2.48 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
+* update @aws/language-server-runtimes to 0.2.83 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
 
 ## [0.1.1](https://github.com/aws/language-servers/compare/lsp-json/v0.1.0...lsp-json/v0.1.1) (2025-03-18)
 

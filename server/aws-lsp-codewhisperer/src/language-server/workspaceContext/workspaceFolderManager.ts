@@ -43,7 +43,7 @@ export class WorkspaceFolderManager {
     private credentialsProvider: CredentialsProvider
     private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 40 seconds
     private readonly INITIAL_CONNECTION_TIMEOUT = 2 * 60 * 1000 // 2 minutes
-    private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 5 minutes
+    private readonly CONTINUOUS_MONITOR_INTERVAL = 30 * 60 * 1000 // 30 minutes
     private readonly MESSAGE_PUBLISH_INTERVAL: number = 100 // 100 milliseconds
     private continuousMonitorInterval: NodeJS.Timeout | undefined
     private optOutMonitorInterval: NodeJS.Timeout | undefined
@@ -101,9 +101,6 @@ export class WorkspaceFolderManager {
 
                     // Process the dependencies
                     await this.handleDependencyChanges(zips, addWSFolderPathInS3)
-
-                    // Clean up only after successful processing
-                    await handler.cleanupZipFiles(zips)
                 } catch (error) {
                     this.logging.warn(`Error handling dependency change: ${error}`)
                 }
@@ -117,20 +114,6 @@ export class WorkspaceFolderManager {
             remoteWorkspaceState: 'CREATION_PENDING',
             messageQueue: [],
         }
-
-        this.messageQueueConsumerInterval = setInterval(() => {
-            if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
-                const message = this.workspaceState.messageQueue[0]
-                if (message) {
-                    try {
-                        this.workspaceState.webSocketClient.send(message)
-                        this.workspaceState.messageQueue.shift()
-                    } catch (error) {
-                        this.logging.error(`Error sending message: ${error}`)
-                    }
-                }
-            }
-        }, this.MESSAGE_PUBLISH_INTERVAL)
     }
 
     /**
@@ -184,7 +167,6 @@ export class WorkspaceFolderManager {
         sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
 
         await this.uploadS3AndQueueEvents(sourceCodeMetadata)
-        this.artifactManager.cleanup(true, folders)
     }
 
     async uploadToS3(fileMetadata: FileMetadata, addWSFolderPathInS3: boolean = true): Promise<string | undefined> {
@@ -226,15 +208,16 @@ export class WorkspaceFolderManager {
             )
         } catch (e: any) {
             this.logging.warn(`Error uploading file to S3: ${e.message}`)
+            return
         }
         return s3Url
     }
 
     async clearAllWorkspaceResources() {
         this.stopContinuousMonitoring()
+        this.stopMessageQueueConsumer()
         this.resetRemoteWorkspaceId()
         this.workspaceState.webSocketClient?.destroyClient()
-        this.artifactManager.cleanup()
         this.dependencyDiscoverer.dispose()
     }
 
@@ -337,6 +320,22 @@ export class WorkspaceFolderManager {
 
     async initializeWorkspaceStatusMonitor() {
         this.logging.log(`Initializing workspace status check for workspace [${this.workspaceIdentifier}]`)
+
+        // Set up message queue consumer
+        this.messageQueueConsumerInterval = setInterval(() => {
+            if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
+                const message = this.workspaceState.messageQueue[0]
+                if (message) {
+                    try {
+                        this.workspaceState.webSocketClient.send(message)
+                        this.workspaceState.messageQueue.shift()
+                    } catch (error) {
+                        this.logging.error(`Error sending message: ${error}`)
+                    }
+                }
+            }
+        }, this.MESSAGE_PUBLISH_INTERVAL)
+
         // Perform a one-time checkRemoteWorkspaceStatusAndReact first
         // Pass skipUploads as true since it would be handled by processNewWorkspaceFolders
         await this.checkRemoteWorkspaceStatusAndReact(true)
@@ -416,14 +415,24 @@ export class WorkspaceFolderManager {
     }
 
     private async checkRemoteWorkspaceStatusAndReact(skipUploads: boolean = false) {
+        if (this.workspaceFolders.length === 0) {
+            this.logging.log(`No workspace folders added, skipping workspace status check`)
+            return
+        }
+
         this.logging.log(`Checking remote workspace status for workspace [${this.workspaceIdentifier}]`)
-        const { metadata, optOut } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
+        const { metadata, optOut, error } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
 
         if (optOut) {
             this.logging.log('User opted out, clearing all resources and starting opt-out monitor')
             this.isOptedOut = true
             await this.clearAllWorkspaceResources()
             await this.startOptOutMonitor()
+            return
+        }
+
+        if (error) {
+            // Do not do anything if we received an exception but not caused by optOut
             return
         }
 
@@ -572,6 +581,14 @@ export class WorkspaceFolderManager {
         }
     }
 
+    private stopMessageQueueConsumer() {
+        this.logging.log(`Stopping message queue consumer`)
+        if (this.messageQueueConsumerInterval) {
+            clearInterval(this.messageQueueConsumerInterval)
+            this.messageQueueConsumerInterval = undefined
+        }
+    }
+
     private async createNewWorkspace() {
         const createWorkspaceResult = await this.createWorkspace(this.workspaceIdentifier)
         const workspaceDetails = createWorkspaceResult.response
@@ -604,7 +621,7 @@ export class WorkspaceFolderManager {
 
                 if (!s3Url) {
                     this.logging.warn(
-                        `Failed to get S3 URL for file in workspaceFolder: ${fileMetadata.workspaceFolder.name}`
+                        `Failed to upload to S3 for file in workspaceFolder: ${fileMetadata.workspaceFolder.name}`
                     )
                     continue
                 }
@@ -667,14 +684,17 @@ export class WorkspaceFolderManager {
     private async listWorkspaceMetadata(workspaceRoot?: WorkspaceRoot): Promise<{
         metadata: WorkspaceMetadata | undefined | null
         optOut: boolean
+        error: any
     }> {
         let metadata: WorkspaceMetadata | undefined | null
         let optOut = false
+        let error: any
         try {
             const params = workspaceRoot ? { workspaceRoot } : {}
             const response = await this.serviceManager.getCodewhispererService().listWorkspaceMetadata(params)
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
+            error = e
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
             if (
                 e?.__type?.includes('AccessDeniedException') &&
@@ -684,7 +704,7 @@ export class WorkspaceFolderManager {
                 optOut = true
             }
         }
-        return { metadata, optOut }
+        return { metadata, optOut, error }
     }
 
     private async createWorkspace(workspaceRoot: WorkspaceRoot) {

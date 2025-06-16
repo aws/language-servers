@@ -14,6 +14,7 @@ import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/confi
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { safeGet } from '../../shared/utils'
+import { enabledMCP } from './tools/mcp/mcpUtils'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -29,7 +30,13 @@ export const QAgenticChatServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             return {
-                capabilities: {},
+                capabilities: {
+                    executeCommandProvider: {
+                        commands: [
+                            'aws/chat/manageSubscription',
+                        ],
+                    }
+                },
                 awsServerCapabilities: {
                     chatOptions: {
                         quickActions: {
@@ -39,6 +46,8 @@ export const QAgenticChatServer =
                                 },
                             ],
                         },
+                        mcpServers: enabledMCP(params),
+                        modelSelection: true,
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },
@@ -76,6 +85,10 @@ export const QAgenticChatServer =
             )
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
+        })
+
+        lsp.onExecuteCommand((params, token) => {
+            return chatController.onExecuteCommand(params, token)
         })
 
         chat.onTabAdd(params => {
@@ -135,12 +148,24 @@ export const QAgenticChatServer =
             return chatController.onConversationClick(params)
         })
 
+        chat.onListMcpServers(params => {
+            return chatController.onListMcpServers(params)
+        })
+
+        chat.onMcpServerClick(params => {
+            return chatController.onMcpServerClick(params)
+        })
+
         chat.onCreatePrompt((params) => {
             return chatController.onCreatePrompt(params)
         })
 
         chat.onFileClicked((params) => {
             return chatController.onFileClicked(params)
+        })
+
+        chat.onFollowUpClicked((params) => {
+            return chatController.onFollowUpClicked(params)
         })
 
         chat.onTabBarAction(params => {
@@ -150,6 +175,10 @@ export const QAgenticChatServer =
         chat.onPromptInputOptionChange(params => {
             return chatController.onPromptInputOptionChange(params)
         })
+
+        // ;(chat as any).onPromptInputButtonClick((params: any) => {
+        //     chatController.setPaidTierMode(params.tabId, 'paidtier')
+        // })
 
         chat.onButtonClick(params => {
             return chatController.onButtonClick(params)

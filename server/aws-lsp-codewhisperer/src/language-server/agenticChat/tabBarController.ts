@@ -21,6 +21,8 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { ChatHistoryActionType } from '../../shared/telemetry/types'
 import { CancellationError } from '@aws/lsp-core'
 
+const MaxRestoredHistoryMessages = 250
+
 /**
  * Controller for managing chat history and export functionality.
  *
@@ -285,9 +287,13 @@ export class TabBarController {
      */
     async restoreTab(selectedTab?: Tab | null) {
         if (selectedTab) {
-            const messages = selectedTab.conversations.flatMap((conv: Conversation) =>
-                conv.messages.filter(msg => msg.shouldDisplayMessage != false).flatMap(msg => messageToChatMessage(msg))
-            )
+            const messages = selectedTab.conversations
+                .flatMap((conv: Conversation) =>
+                    conv.messages
+                        .filter(msg => msg.shouldDisplayMessage != false)
+                        .flatMap(msg => messageToChatMessage(msg))
+                )
+                .slice(-MaxRestoredHistoryMessages)
 
             const { tabId } = await this.#features.chat.openTab({ newTabOptions: { data: { messages } } })
             this.#chatHistoryDb.setHistoryIdMapping(tabId, selectedTab.historyId)
