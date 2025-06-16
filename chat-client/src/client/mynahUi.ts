@@ -60,7 +60,7 @@ import {
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
-import { getModelSelectionChatItem } from './texts/modelSelection'
+import { getModelSelectionChatItem, modelUnavailableBanner } from './texts/modelSelection'
 import {
     freeTierLimitSticky,
     upgradeSuccessSticky,
@@ -877,7 +877,7 @@ export const createMynahUi = (
             return false // invalid mode
         }
 
-        tabId = !!tabId ? tabId : getOrCreateTabId()!
+        tabId = tabId ? tabId : getOrCreateTabId()!
         const store = mynahUi.getTabData(tabId).getStore() || {}
 
         // Detect if the tab is already showing the "Upgrade Q" UI.
@@ -979,6 +979,13 @@ export const createMynahUi = (
                     return
                 }
 
+                if (updatedMessage.messageId === 'modelUnavailable') {
+                    mynahUi.updateStore(tabId, {
+                        promptInputStickyCard: modelUnavailableBanner,
+                    })
+                    return
+                }
+
                 const oldMessage = chatItems.find(ci => ci.messageId === updatedMessage.messageId)
                 if (!oldMessage) return
 
@@ -995,11 +1002,9 @@ export const createMynahUi = (
      * Creates a properly formatted chat item for MCP tool summary with accordion view
      */
     const createMcpToolSummaryItem = (message: ChatMessage, isPartialResult?: boolean): Partial<ChatItem> => {
-        const muted = message.summary?.content?.header?.status !== undefined
         return {
             type: ChatItemType.ANSWER,
             messageId: message.messageId,
-            muted,
             summary: {
                 content: message.summary?.content
                     ? {
@@ -1028,7 +1033,7 @@ export const createMynahUi = (
                             : undefined,
                         fullWidth: true,
                         padding: false,
-                        muted: true,
+                        muted: false,
                         wrapCodes: item.header?.body === 'Parameters' ? true : false,
                         codeBlockActions: { copy: null, 'insert-to-cursor': null },
                     })) || [],

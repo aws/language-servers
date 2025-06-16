@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.49](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.48...lsp-codewhisperer/v0.0.49) (2025-06-13)
+
+
+### Features
+
+* **amazonq:** code edit tracker impl for next edit prediction ([#1617](https://github.com/aws/language-servers/issues/1617)) ([cae8993](https://github.com/aws/language-servers/commit/cae89938fe9b7e25d9a1b6552d573e79d29e97f3))
+* **amazonq:** cursor tracker implementation ([#1600](https://github.com/aws/language-servers/issues/1600)) ([9be5a96](https://github.com/aws/language-servers/commit/9be5a9688647d1b4fac3aae852bd0ff4b026a873))
+* **amazonq:** next edit prediction configuration and feature flag ([#1635](https://github.com/aws/language-servers/issues/1635)) ([c1a01ac](https://github.com/aws/language-servers/commit/c1a01ace6413222af3c21d19033716a343b85434))
+* **amazonq:** rejectedEditTracker impl for next edit prediction ([#1631](https://github.com/aws/language-servers/issues/1631)) ([46246f1](https://github.com/aws/language-servers/commit/46246f1ab677ad7db0f12d88d80debd6264ff3f5))
+* **amazonq:** utils for NEP(next edit prediction) ([#1615](https://github.com/aws/language-servers/issues/1615)) ([e3e582e](https://github.com/aws/language-servers/commit/e3e582e425e0b9838a81bef04c2b1917fb6cfb66))
+* apply a max 200MB total history size ([#1587](https://github.com/aws/language-servers/issues/1587)) ([62252f2](https://github.com/aws/language-servers/commit/62252f2470b4780b0f1c85558ee5f51366cc64b5))
+* language keywords detector impl for NEP ([#1614](https://github.com/aws/language-servers/issues/1614)) ([c48cd82](https://github.com/aws/language-servers/commit/c48cd824c67d42076c60a150035d8867204c198a))
+
+
+### Bug Fixes
+
+* remove /manage options from the chat prompt popup ([#1650](https://github.com/aws/language-servers/issues/1650)) ([d9de456](https://github.com/aws/language-servers/commit/d9de4565bf1848d91693f1e44b5cbb478ae75d44))
+
 ## [0.0.48](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.47...lsp-codewhisperer/v0.0.48) (2025-06-12)
 
 
