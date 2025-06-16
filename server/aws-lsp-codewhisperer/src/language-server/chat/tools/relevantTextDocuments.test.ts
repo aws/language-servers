@@ -1,6 +1,6 @@
 import { convertChunksToRelevantTextDocuments } from './relevantTextDocuments'
 import { Chunk } from 'local-indexing'
-import { RelevantTextDocument } from '@aws/codewhisperer-streaming-client'
+import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
 
 describe('relevantTextDocuments', () => {

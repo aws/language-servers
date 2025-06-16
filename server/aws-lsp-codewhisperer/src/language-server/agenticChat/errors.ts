@@ -1,4 +1,4 @@
-import { CodeWhispererStreamingServiceException } from '@aws/codewhisperer-streaming-client'
+import { CodeWhispererStreamingServiceException } from '@amzn/codewhisperer-streaming'
 
 type AgenticChatErrorCode =
     | 'QModelResponse' // generic backend error.

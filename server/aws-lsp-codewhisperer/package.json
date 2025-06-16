@@ -32,6 +32,7 @@
     },
     "dependencies": {
         "@amzn/amazon-q-developer-streaming-client": "file:../../core/q-developer-streaming-client/amzn-amazon-q-developer-streaming-client-1.0.0.tgz",
+        "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.7.tgz",
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.40",
@@ -41,6 +42,8 @@
         "@modelcontextprotocol/sdk": "^1.9.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
+        "apollo-server": "^3.13.0",
+        "apollo-server-core": "^3.13.0",
         "archiver": "^7.0.1",
         "async-mutex": "^0.5.0",
         "aws-sdk": "^2.1403.0",
@@ -53,6 +56,7 @@
         "fdir": "^6.4.3",
         "fuse.js": "^7.1.0",
         "got": "^11.8.5",
+        "graphql": "^16.8.1",
         "hpagent": "^1.2.0",
         "ignore": "^7.0.3",
         "js-md5": "^0.8.3",
@@ -98,6 +102,7 @@
         "endOfLine": "lf"
     },
     "bundleDependencies": [
+        "@amzn/codewhisperer-streaming",
         "@amzn/amazon-q-developer-streaming-client"
     ]
 }
