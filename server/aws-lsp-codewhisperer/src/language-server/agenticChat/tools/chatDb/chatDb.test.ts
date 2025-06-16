@@ -5,7 +5,7 @@
 
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
-import { ChatDatabase } from './chatDb'
+import { ChatDatabase, ToolResultValidationError } from './chatDb'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { Message } from './util'
 import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
@@ -34,6 +34,11 @@ describe('ChatDatabase', () => {
             runtime: {
                 platform: 'node',
             },
+            lsp: {
+                getClientInitializeParams: sinon.stub().returns({
+                    clientInfo: { name: 'test-client' },
+                }),
+            },
             workspace: {
                 fs: {
                     getServerDataDirPath: sinon.stub().returns('/tmp'),
@@ -61,61 +66,128 @@ describe('ChatDatabase', () => {
     describe('ensureValidMessageSequence', () => {
         it('should preserve valid alternating sequence', () => {
             const messages: Message[] = [
-                { type: 'prompt', body: 'User first message' },
+                { type: 'prompt', body: 'User first message', userInputMessageContext: {} },
                 { type: 'answer', body: 'Assistant first response' },
-                { type: 'prompt', body: 'User second message' },
+                { type: 'prompt', body: 'User second message', userInputMessageContext: {} },
                 { type: 'answer', body: 'Assistant second response' },
             ]
 
             const originalMessages = [...messages]
 
-            chatDb.ensureValidMessageSequence(messages, {
-                userInputMessage: { content: 'New message', userInputMessageContext: {} },
-            } as ChatMessage)
+            chatDb.ensureValidMessageSequence('tab-1', messages)
 
             assert.strictEqual(messages.length, 4, 'Should not modify valid sequence')
             assert.deepStrictEqual(messages, originalMessages, 'Messages should remain unchanged')
         })
 
-        it('should remove assistant messages from the beginning and end', () => {
+        it('should remove assistant messages from the beginning', () => {
             const messages: Message[] = [
                 { type: 'answer', body: 'Assistant first message' },
                 { type: 'answer', body: 'Assistant second message' },
-                { type: 'prompt', body: 'User message' },
+                { type: 'prompt', body: 'User message', userInputMessageContext: {} },
                 { type: 'answer', body: 'Assistant response' },
             ]
 
-            //  Should not be possible
-            chatDb.ensureValidMessageSequence(messages, {
-                assistantResponseMessage: { content: 'New assisstant message' },
-            } as ChatMessage)
+            chatDb.ensureValidMessageSequence('tab-1', messages)
 
-            assert.strictEqual(messages.length, 1, 'Should have removed assistant messages from the beginning and end')
-            assert.strictEqual(messages[0].type, 'prompt', 'First message should be from user')
-        })
-
-        it('should remove user message from the end', () => {
-            const messages: Message[] = [
-                { type: 'prompt', body: 'User first message' },
-                { type: 'answer', body: 'Assistant response' },
-                { type: 'prompt', body: 'User trailing message' },
-            ]
-
-            chatDb.ensureValidMessageSequence(messages, {
-                userInputMessage: { content: 'New message', userInputMessageContext: {} },
-            } as ChatMessage)
-
-            assert.strictEqual(messages.length, 2, 'Should have removed user message from the end')
+            assert.strictEqual(messages.length, 2, 'Should have removed assistant messages from the beginning')
             assert.strictEqual(messages[0].type, 'prompt', 'First message should be from user')
             assert.strictEqual(messages[1].type, 'answer', 'Last message should be from assistant')
+        })
+
+        it('should remove user messages with tool results from the beginning', () => {
+            const messages: Message[] = [
+                {
+                    type: 'prompt',
+                    body: 'User message with tool results',
+                    userInputMessageContext: {
+                        toolResults: [
+                            { toolUseId: 'tool-1', status: ToolResultStatus.SUCCESS, content: [{ text: 'result' }] },
+                        ],
+                    },
+                },
+                { type: 'answer', body: 'Assistant response' },
+                {
+                    type: 'prompt',
+                    body: 'User message without tool results',
+                    userInputMessageContext: {},
+                },
+                { type: 'answer', body: 'Assistant final response' },
+            ]
+
+            chatDb.ensureValidMessageSequence('tab-1', messages)
+
+            assert.strictEqual(messages.length, 2, 'Should have removed user-assistant pair with tool results')
+            assert.strictEqual(messages[0].type, 'prompt', 'First message should be from user')
+            assert.strictEqual(
+                messages[0].body,
+                'User message without tool results',
+                'Should be the message without tool results'
+            )
+            assert.strictEqual(messages[1].type, 'answer', 'Last message should be from assistant')
+        })
+
+        it('should remove multiple user-assistant pairs with tool results from the beginning', () => {
+            const messages: Message[] = [
+                {
+                    type: 'prompt',
+                    body: 'User message with tool results 1',
+                    userInputMessageContext: {
+                        toolResults: [
+                            { toolUseId: 'tool-1', status: ToolResultStatus.SUCCESS, content: [{ text: 'result 1' }] },
+                        ],
+                    },
+                },
+                { type: 'answer', body: 'Assistant response 1' },
+                {
+                    type: 'prompt',
+                    body: 'User message with tool results 2',
+                    userInputMessageContext: {
+                        toolResults: [
+                            { toolUseId: 'tool-2', status: ToolResultStatus.SUCCESS, content: [{ text: 'result 2' }] },
+                        ],
+                    },
+                },
+                { type: 'answer', body: 'Assistant response 2' },
+                {
+                    type: 'prompt',
+                    body: 'User message without tool results',
+                    userInputMessageContext: {},
+                },
+                { type: 'answer', body: 'Assistant final response' },
+            ]
+
+            chatDb.ensureValidMessageSequence('tab-1', messages)
+
+            assert.strictEqual(messages.length, 2, 'Should have removed all user-assistant pairs with tool results')
+            assert.strictEqual(messages[0].type, 'prompt', 'First message should be from user')
+            assert.strictEqual(
+                messages[0].body,
+                'User message without tool results',
+                'Should be the message without tool results'
+            )
+            assert.strictEqual(messages[1].type, 'answer', 'Last message should be from assistant')
+        })
+
+        it('should add a dummy response at the end', () => {
+            const messages: Message[] = [
+                { type: 'prompt', body: 'User first message', userInputMessageContext: {} },
+                { type: 'answer', body: 'Assistant response' },
+                { type: 'prompt', body: 'User trailing message', userInputMessageContext: {} },
+            ]
+
+            chatDb.ensureValidMessageSequence('tab-1', messages)
+
+            assert.strictEqual(messages.length, 4, 'Should have added a dummy response')
+            assert.strictEqual(messages[0].type, 'prompt', 'First message should be from user')
+            assert.strictEqual(messages[3].type, 'answer', 'Last message should be from assistant')
+            assert.strictEqual(messages[3].shouldDisplayMessage, false, 'The message should be hidden')
         })
 
         it('should handle empty message array', () => {
             const messages: Message[] = []
 
-            chatDb.ensureValidMessageSequence(messages, {
-                userInputMessage: { content: 'New message', userInputMessageContext: {} },
-            } as ChatMessage)
+            chatDb.ensureValidMessageSequence('tab-1', messages)
 
             assert.strictEqual(messages.length, 0, 'Empty array should remain empty')
         })
@@ -140,8 +212,9 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, false)
+            assert.throws(() => {
+                chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
+            }, ToolResultValidationError)
         })
 
         it('should handle new user message with valid tool results', () => {
@@ -172,8 +245,8 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, true)
+            // Should not throw an exception
+            chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
             assert.strictEqual(toolResults.length, 1, 'Should keep valid tool results')
@@ -202,8 +275,8 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, true)
+            // Should not throw an exception
+            chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
             assert.strictEqual(toolResults.length, 1, 'Should have added tool results')
@@ -237,8 +310,9 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, false)
+            assert.throws(() => {
+                chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
+            }, ToolResultValidationError)
         })
 
         it('should handle new user message with invalid tool results ID', () => {
@@ -265,8 +339,8 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, true)
+            // Should not throw an exception
+            chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
             assert.strictEqual(toolResults.length, 1, 'Should have only one tool results')
@@ -314,7 +388,8 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
+            // Should not throw an exception
+            chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
 
             const toolResults = newUserMessage.userInputMessage!.userInputMessageContext?.toolResults || []
             assert.strictEqual(toolResults.length, 2, 'Should have correct number of tool results')
@@ -349,8 +424,9 @@ describe('ChatDatabase', () => {
                 },
             } as ChatMessage
 
-            const isValid = chatDb.validateNewMessageToolResults(messages, newUserMessage)
-            assert.strictEqual(isValid, false)
+            assert.throws(() => {
+                chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
+            }, ToolResultValidationError)
         })
     })
 })

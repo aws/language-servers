@@ -74,6 +74,7 @@ export function toMynahContextCommand(feature?: FeatureContext): any {
 
     return {
         command: feature.value.stringValue,
+        id: feature.value.stringValue,
         description: feature.variation,
     }
 }

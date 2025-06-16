@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.17](https://github.com/aws/language-servers/compare/chat-client/v0.1.16...chat-client/v0.1.17) (2025-06-16)
+
+
+### Features
+
+* **amazonq:** model throttling message as card instead of chat message ([#1657](https://github.com/aws/language-servers/issues/1657)) ([7ee1f2a](https://github.com/aws/language-servers/commit/7ee1f2ac0bdaa9f73fb63fc6d20d0de6d7b07523))
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+* update list of models and set default to 4 ([#1659](https://github.com/aws/language-servers/issues/1659)) ([1991658](https://github.com/aws/language-servers/commit/19916584d3f46049d30f0c23b41c3857a07bc622))
+
+
+### Bug Fixes
+
+* **agenticChat:** UX fixes for MCP ([#1661](https://github.com/aws/language-servers/issues/1661)) ([bbdb4b4](https://github.com/aws/language-servers/commit/bbdb4b451352af50a914df684d7654686142a13b))
+
+## [0.1.16](https://github.com/aws/language-servers/compare/chat-client/v0.1.15...chat-client/v0.1.16) (2025-06-12)
+
+
+### Bug Fixes
+
+* mcp server list highlighting ([#1627](https://github.com/aws/language-servers/issues/1627)) ([e3c7f2c](https://github.com/aws/language-servers/commit/e3c7f2c529726b88a811c701e7ad8514a3abe4b2))
+
 ## [0.1.15](https://github.com/aws/language-servers/compare/chat-client/v0.1.14...chat-client/v0.1.15) (2025-06-11)
 
 

@@ -171,6 +171,9 @@ export class ArtifactManager {
             ...(request.EnableRazorViewTransform !== undefined && {
                 EnableRazorViewTransform: request.EnableRazorViewTransform,
             }),
+            ...(request.EnableWebFormsToBlazorTransform !== undefined && {
+                EnableWebFormsToBlazorTransform: request.EnableWebFormsToBlazorTransform,
+            }),
             Packages: packages,
         } as RequirementJson
     }
@@ -188,7 +191,7 @@ export class ArtifactManager {
         )
         if (thirdPartyPackage) {
             artifactReference.isThirdPartyPackage = true
-
+            artifactReference.packageId = thirdPartyPackage.Id
             if (thirdPartyPackage.NetCompatibleAssemblyRelativePath && thirdPartyPackage.NetCompatibleAssemblyPath) {
                 const privatePackageRelativePath = path
                     .join(
