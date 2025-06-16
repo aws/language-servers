@@ -625,8 +625,7 @@ export class McpEventHandler {
         }
 
         let configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
-        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
-
+        let personaPath = await this.#getPersonaPath()
         if (params.optionsValues['scope'] !== 'global') {
             // Get workspace folders and convert to paths
             const workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
@@ -838,10 +837,6 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.removeServer(serverName)
-            // Refresh the MCP list to show updated server list
-            await this.#handleRefreshMCPList({
-                id: params.id,
-            })
         } catch (error) {
             this.#features.logging.error(`Failed to delete MCP server: ${error}`)
         }
