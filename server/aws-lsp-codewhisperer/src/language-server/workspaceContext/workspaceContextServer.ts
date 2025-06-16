@@ -26,6 +26,7 @@ export const WorkspaceContextServer = (): Server => features => {
     let artifactManager: ArtifactManager
     let dependencyDiscoverer: DependencyDiscoverer
     let workspaceFolderManager: WorkspaceFolderManager
+    let workflowInitializationInterval: NodeJS.Timeout
     let isWorkflowInitialized: boolean = false
     let isOptedIn: boolean = false
     let abTestingEvaluated = false
@@ -236,7 +237,10 @@ export const WorkspaceContextServer = (): Server => features => {
              * of workspace folders is updated using *artifactManager.updateWorkspaceFolders(workspaceFolders)* before
              * initializing again.
              */
-            setInterval(async () => {
+            if (workflowInitializationInterval) {
+                return
+            }
+            workflowInitializationInterval = setInterval(async () => {
                 if (!isOptedIn) {
                     return
                 }
@@ -501,10 +505,13 @@ export const WorkspaceContextServer = (): Server => features => {
     logging.log('Workspace context server has been initialized')
 
     return () => {
-        workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
-            logging.warn(
-                `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
-        })
+        clearInterval(workflowInitializationInterval)
+        if (workspaceFolderManager) {
+            workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
+                logging.warn(
+                    `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
+                )
+            })
+        }
     }
 }
