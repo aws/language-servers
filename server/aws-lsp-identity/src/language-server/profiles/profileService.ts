@@ -10,6 +10,8 @@ import {
     updateProfileOptionsDefaults,
     UpdateProfileParams,
     UpdateProfileResult,
+    DeleteProfileParams,
+    DeleteProfileResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
@@ -23,6 +25,7 @@ export interface ProfileData {
 export interface ProfileStore {
     load(init?: SharedConfigInit): Promise<ProfileData>
     save(data: ProfileData, init?: SharedConfigInit): Promise<void>
+    deleteProfile(profileName: string, init?: SharedConfigInit): Promise<void>
 }
 
 export const ProfileFields = {
@@ -173,6 +176,16 @@ export class ProfileService {
             .catch(reason => {
                 throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
             })
+
+        return result
+    }
+
+    async deleteProfile(params: DeleteProfileParams, token?: CancellationToken): Promise<DeleteProfileResult> {
+        const result: DeleteProfileResult = {}
+
+        await this.profileStore.deleteProfile(params.profileName).catch(reason => {
+            throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
+        })
 
         return result
     }
