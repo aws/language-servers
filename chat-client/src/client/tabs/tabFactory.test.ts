@@ -2,6 +2,7 @@ import { ChatHistory } from '../features/history'
 import { TabFactory } from './tabFactory'
 import * as assert from 'assert'
 import { pairProgrammingPromptInput } from '../texts/pairProgramming'
+import { autoApproveEnableInput } from '../texts/autoApprove'
 import { modelSelection } from '../texts/modelSelection'
 
 describe('tabFactory', () => {
@@ -85,14 +86,18 @@ describe('tabFactory', () => {
     })
 
     describe('createTab', () => {
-        it('should include model selection when agentic mode and model selection are enabled', () => {
+        it('should include model selection, auto approve, when agentic mode and model selection are enabled', () => {
             const tabFactory = new TabFactory({})
             tabFactory.enableAgenticMode()
             tabFactory.enableModelSelection()
 
             const result = tabFactory.createTab(false)
 
-            assert.deepStrictEqual(result.promptInputOptions, [pairProgrammingPromptInput, modelSelection])
+            assert.deepStrictEqual(result.promptInputOptions, [
+                pairProgrammingPromptInput,
+                autoApproveEnableInput,
+                modelSelection,
+            ])
         })
 
         it('should not include model selection when only agentic mode is enabled', () => {
@@ -101,7 +106,7 @@ describe('tabFactory', () => {
 
             const result = tabFactory.createTab(false)
 
-            assert.deepStrictEqual(result.promptInputOptions, [pairProgrammingPromptInput])
+            assert.deepStrictEqual(result.promptInputOptions, [pairProgrammingPromptInput, autoApproveEnableInput])
         })
 
         it('should not include any prompt input options when neither agentic mode nor model selection are enabled', () => {

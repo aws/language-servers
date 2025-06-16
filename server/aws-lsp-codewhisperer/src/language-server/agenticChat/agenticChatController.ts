@@ -1036,15 +1036,26 @@ export class AgenticChatController implements ChatHandlers {
                         // const requiresAcceptance = builtInPermission || toolRequiresAcceptance
 
                         if (requiresAcceptance || toolUse.name === 'executeBash') {
+                            // get auto approve status from session
+                            const isAutoApprove = session.autoApproveEnabled
+
+                            // if auto-approve is enable, only processToolConfirmation if tool is executeBash
                             // for executeBash, we till send the confirmation message without action buttons
-                            const confirmationResult = this.#processToolConfirmation(
-                                toolUse,
-                                requiresAcceptance,
-                                warning,
-                                commandCategory
-                            )
-                            cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            if (!isAutoApprove || toolUse.name === 'executeBash') {
+                                const confirmationResult = this.#processToolConfirmation(
+                                    toolUse,
+                                    requiresAcceptance,
+                                    warning,
+                                    commandCategory
+                                )
+                                cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+                            }
+
                             const isExecuteBash = toolUse.name === 'executeBash'
+                            const isFsWrite = toolUse.name === 'fsWrite'
+                            const notReadOnlyBashExecution =
+                                isExecuteBash && commandCategory !== CommandCategory.ReadOnly
+
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -1053,8 +1064,18 @@ export class AgenticChatController implements ChatHandlers {
                                     session.getConversationType()
                                 )
                             }
+                            if (isAutoApprove && !requiresAcceptance) {
+                                // If auto-approve is enabled and no acceptance is required, we can proceed without waiting
+                                this.#log(`Auto-approving tool use: ${toolUse.name}`)
+                            }
                             if (requiresAcceptance) {
-                                await this.waitForToolApproval(toolUse, chatResultStream, cachedButtonBlockId, session)
+                                if (!isAutoApprove || isFsWrite || notReadOnlyBashExecution)
+                                    await this.waitForToolApproval(
+                                        toolUse,
+                                        chatResultStream,
+                                        cachedButtonBlockId!,
+                                        session
+                                    )
                             }
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
@@ -3062,6 +3083,7 @@ export class AgenticChatController implements ChatHandlers {
 
         session.pairProgrammingMode = params.optionsValues['pair-programmer-mode'] === 'true'
         session.modelId = params.optionsValues['model-selection']
+        session.autoApproveEnabled = params.optionsValues['auto-approve'] === 'true'
 
         this.#chatHistoryDb.setModelId(session.modelId)
     }
