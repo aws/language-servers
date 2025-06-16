@@ -26,6 +26,7 @@ import {
     TextDocumentEdit,
     InlineChatResult,
     CancellationTokenSource,
+    ContextCommand,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -236,7 +237,13 @@ describe('AgenticChatController', () => {
         }
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
-        additionalContextProviderStub.resolves([])
+        additionalContextProviderStub.callsFake(async (triggerContext, _, context: ContextCommand[]) => {
+            // When @workspace is in the context, set hasWorkspace flag
+            if (context && context.some(item => item.command === '@workspace')) {
+                triggerContext.hasWorkspace = true
+            }
+            return []
+        })
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
             initializationOptions: {

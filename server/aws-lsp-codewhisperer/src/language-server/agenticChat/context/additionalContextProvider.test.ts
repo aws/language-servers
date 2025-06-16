@@ -42,6 +42,7 @@ describe('AdditionalContextProvider', () => {
             setRules: sinon.stub(),
             addPinnedContext: sinon.stub(),
             removePinnedContext: sinon.stub(),
+            getPinnedContext: sinon.stub().returns([]),
         } as unknown as ChatDatabase
 
         provider = new AdditionalContextProvider(testFeatures, chatHistoryDb)
@@ -82,8 +83,10 @@ describe('AdditionalContextProvider', () => {
                 workspaceRulesCount: 0,
             }
 
-            fsExistsStub.resolves(true)
-            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true }])
+            fsExistsStub.callsFake((path: string) =>
+                Promise.resolve(!path.includes('README') && !path.includes('AmazonQ'))
+            )
+            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true, isDirectory: () => false }])
 
             getContextCommandPromptStub.resolves([
                 {
@@ -220,10 +223,12 @@ describe('AdditionalContextProvider', () => {
             // Mock workspace folders
             sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
 
-            fsExistsStub.resolves(true)
+            fsExistsStub.callsFake((path: string) =>
+                Promise.resolve(!path.includes('README') && !path.includes('AmazonQ'))
+            )
             fsReadDirStub.resolves([
-                { name: 'rule1.md', isFile: () => true },
-                { name: 'rule2.md', isFile: () => true },
+                { name: 'rule1.md', isFile: () => true, isDirectory: () => false },
+                { name: 'rule2.md', isFile: () => true, isDirectory: () => false },
             ])
 
             const result = await provider.collectWorkspaceRules()
@@ -233,13 +238,13 @@ describe('AdditionalContextProvider', () => {
                     workspaceFolder: '/workspace',
                     type: 'file',
                     relativePath: path.join('.amazonq', 'rules', 'rule1.md'),
-                    id: '',
+                    id: path.join(path.join('/workspace', '.amazonq', 'rules', 'rule1.md')),
                 },
                 {
                     workspaceFolder: '/workspace',
                     type: 'file',
                     relativePath: path.join('.amazonq', 'rules', 'rule2.md'),
-                    id: '',
+                    id: path.join(path.join('/workspace', '.amazonq', 'rules', 'rule2.md')),
                 },
             ])
         })
