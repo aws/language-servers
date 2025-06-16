@@ -340,29 +340,6 @@ export type MCPServerInitializeEvent = {
     transportType?: string
 }
 
-// Agentic MCP Telemetry
-export type MCPConfigEvent = {
-    credentialStartUrl?: string
-    languageServerVersion?: string
-    numActiveServers?: number
-    numGlobalServers?: number
-    numProjectServers?: number
-    numToolsAlwaysAllowed?: number
-    numToolsDenied?: number
-}
-
-export type MCPServerInitializeEvent = {
-    command?: string
-    credentialStartUrl?: string
-    enabled?: boolean
-    initializeTime?: number
-    languageServerVersion?: string
-    numTools?: number
-    scope?: string
-    source?: string
-    transportType?: string
-}
-
 export type EnterFocusChatEvent = {
     credentialStartUrl?: string
 }
