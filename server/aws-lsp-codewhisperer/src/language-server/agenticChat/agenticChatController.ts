@@ -2073,6 +2073,16 @@ export class AgenticChatController implements ChatHandlers {
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
             []
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = content
+        // don't pass in IDE context again in the followup toolUse/toolResult loop as it confuses the model and is not necessary
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.editorState =
+            {
+                ...updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!
+                    .editorState,
+                document: undefined,
+                relevantDocuments: undefined,
+                cursorState: undefined,
+                useRelevantDocuments: false,
+            }
 
         for (const toolResult of toolResults) {
             this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
