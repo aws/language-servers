@@ -1655,7 +1655,7 @@ export class AgenticChatController implements ChatHandlers {
                         content: {
                             header: {
                                 icon: 'tools',
-                                body: `${McpManager.instance.getOriginalToolNames(toolUse.name!)?.toolName}`,
+                                body: `${originalToolName ?? (toolType || toolUse.name)}`,
                                 status: {
                                     status: isAccept ? 'success' : 'error',
                                     icon: isAccept ? 'ok' : 'cancel',
