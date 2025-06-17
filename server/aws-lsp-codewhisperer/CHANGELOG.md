@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.0.52](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.51...lsp-codewhisperer/v0.0.52) (2025-06-17)
+
+
+### Bug Fixes
+
+* **amazonq:** filter languages at workspace context server onDeleteFiles ([#1684](https://github.com/aws/language-servers/issues/1684)) ([4272eec](https://github.com/aws/language-servers/commit/4272eec6ce4554560fdf8888d85d31315db2d964))
+* send AmazonQ.md as a rule, do not automatically send README.md ([#1688](https://github.com/aws/language-servers/issues/1688)) ([c7a0656](https://github.com/aws/language-servers/commit/c7a0656ae3624082062f697b1564e589e943e4a8))
+* update MCP tools implementation ([#1676](https://github.com/aws/language-servers/issues/1676)) ([51b7870](https://github.com/aws/language-servers/commit/51b7870d7144d593249a3da001b7f1047aa3b642))
+
 ## [0.0.51](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.50...lsp-codewhisperer/v0.0.51) (2025-06-17)
 
 
