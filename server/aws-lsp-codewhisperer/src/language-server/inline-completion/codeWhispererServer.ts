@@ -565,60 +565,26 @@ export const CodewhispererServerFactory =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
 
-                    if (editsEnabled) {
-                        // TODO: generateSuggestionsAndPrefetch should only apply to vscode but not other IDEs.
-                        return codeWhispererService
-                            .generateCompletionsAndEdits(
-                                textDocument,
-                                {
-                                    ...requestContext,
-                                    predictionTypes: predictionTypes.flat(),
-                                    fileContext: {
-                                        ...requestContext.fileContext,
-                                        leftFileContent: requestContext.fileContext.leftFileContent
-                                            .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                            .replaceAll('\r\n', '\n'),
-                                        rightFileContent: requestContext.fileContext.rightFileContent
-                                            .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                            .replaceAll('\r\n', '\n'),
-                                    },
-                                },
-                                { enablePrefetch: false }
-                            )
-                            .then(async suggestionResponse => {
-                                return processSuggestionResponse(
-                                    suggestionResponse,
-                                    newSession,
-                                    true,
-                                    selectionRange,
-                                    textDocument
-                                )
-                            })
-                            .catch(err => {
-                                return handleSuggestionsErrors(err, newSession)
-                            })
-                    } else {
-                        return codeWhispererService
-                            .generateSuggestions({
-                                ...requestContext,
-                                fileContext: {
-                                    ...requestContext.fileContext,
-                                    leftFileContent: requestContext.fileContext.leftFileContent
-                                        .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                        .replaceAll('\r\n', '\n'),
-                                    rightFileContent: requestContext.fileContext.rightFileContent
-                                        .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                        .replaceAll('\r\n', '\n'),
-                                },
-                                ...(workspaceId ? { workspaceId: workspaceId } : {}),
-                            })
-                            .then(async suggestionResponse => {
-                                return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
-                            })
-                            .catch(err => {
-                                return handleSuggestionsErrors(err, newSession)
-                            })
-                    }
+                    return codeWhispererService
+                        .generateSuggestions({
+                            ...requestContext,
+                            fileContext: {
+                                ...requestContext.fileContext,
+                                leftFileContent: requestContext.fileContext.leftFileContent
+                                    .slice(-CONTEXT_CHARACTERS_LIMIT)
+                                    .replaceAll('\r\n', '\n'),
+                                rightFileContent: requestContext.fileContext.rightFileContent
+                                    .slice(0, CONTEXT_CHARACTERS_LIMIT)
+                                    .replaceAll('\r\n', '\n'),
+                            },
+                            ...(workspaceId ? { workspaceId: workspaceId } : {}),
+                        })
+                        .then(async suggestionResponse => {
+                            return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
+                        })
+                        .catch(err => {
+                            return handleSuggestionsErrors(err, newSession)
+                        })
                 }
             })
         }
@@ -902,18 +868,6 @@ export const CodewhispererServerFactory =
                         enqueueCodeDiffEntry(session, acceptedSuggestion)
                     }
                 }
-            }
-
-            if (isInlineEdit && acceptedSuggestion !== undefined) {
-                // [acceptedSuggestion.insertText] will be undefined for an NEP accept
-                // Tell codewhispererService the session is accepted and ready to provide prefetch results
-                amazonQServiceManager.getCodewhispererService().acceptedSession(params.sessionId)
-            } else {
-                // Clear if it's a reject
-                logging.info(`user reject suggestion, clearning prefetched suggestion`)
-                // TODO: move to somewhere like session.close()
-                // acceptedSuggestion.insertText will be undefined if its' NEP
-                amazonQServiceManager.getCodewhispererService().clearCachedSuggestions()
             }
 
             // Handle rejected edit predictions
