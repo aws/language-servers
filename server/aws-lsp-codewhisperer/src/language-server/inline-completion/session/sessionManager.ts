@@ -9,6 +9,7 @@ import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../
 import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../../../shared/codeWhispererService'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
@@ -31,6 +32,7 @@ export interface SessionData {
     credentialStartUrl?: string
     customizationArn?: string
     supplementalMetadata?: CodeWhispererSupplementalContext
+    flareRequestId?: string // Add flareRequestId parameter
 }
 
 export class CodeWhispererSession {
@@ -73,6 +75,7 @@ export class CodeWhispererSession {
     customizationArn?: string
     includeImportsWithSuggestions?: boolean
     codewhispererSuggestionImportCount: number = 0
+    flareRequestId?: string // Add flareRequestId field
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
@@ -88,6 +91,7 @@ export class CodeWhispererSession {
         this.classifierThreshold = data.classifierThreshold
         this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
+        this.flareRequestId = data.flareRequestId // Store the flareRequestId
         this.state = 'REQUESTING'
         this.startTime = new Date().getTime()
     }
@@ -245,6 +249,7 @@ export class SessionManager {
     private currentSession?: CodeWhispererSession
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
+    streakLength: number = 0
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
 
     private constructor() {}
@@ -330,5 +335,17 @@ export class SessionManager {
         if (this.currentSession === session) {
             this.currentSession.activate()
         }
+    }
+
+    getAndUpdateStreakLength(isAccepted: boolean | undefined): number {
+        if (!isAccepted && this.streakLength != 0) {
+            const currentStreakLength = this.streakLength
+            this.streakLength = 0
+            return currentStreakLength
+        } else if (isAccepted) {
+            // increment streakLength everytime a suggestion is accepted.
+            this.streakLength = this.streakLength + 1
+        }
+        return -1
     }
 }
