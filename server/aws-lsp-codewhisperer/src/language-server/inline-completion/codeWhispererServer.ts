@@ -204,7 +204,10 @@ const emitUserTriggerDecisionTelemetry = async (
     telemetry: Telemetry,
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
-    timeSinceLastUserModification?: number
+    timeSinceLastUserModification?: number,
+    addedCharsCountForEditSuggestion?: number,
+    deletedCharsCountForEditSuggestion?: number,
+    streakLength?: number
 ) => {
     // Prevent reporting user decision if it was already sent
     if (session.reportedUserDecision) {
@@ -216,7 +219,14 @@ const emitUserTriggerDecisionTelemetry = async (
         return
     }
 
-    await emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification)
+    await emitAggregatedUserTriggerDecisionTelemetry(
+        telemetryService,
+        session,
+        timeSinceLastUserModification,
+        addedCharsCountForEditSuggestion,
+        deletedCharsCountForEditSuggestion,
+        streakLength
+    )
 
     session.reportedUserDecision = true
 }
@@ -224,7 +234,10 @@ const emitUserTriggerDecisionTelemetry = async (
 const emitAggregatedUserTriggerDecisionTelemetry = (
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
-    timeSinceLastUserModification?: number
+    timeSinceLastUserModification?: number,
+    addedCharsCountForEditSuggestion?: number,
+    deletedCharsCountForEditSuggestion?: number,
+    streakLength?: number
 ) => {
     return telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification)
 }
@@ -378,10 +391,12 @@ export const CodewhispererServerFactory =
                         position: params.position,
                         workspaceFolder: workspace.getWorkspaceFolder(textDocument.uri),
                     })
+
                     const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
                     const workspaceId = workspaceState?.webSocketClient?.isConnected()
                         ? workspaceState.workspaceId
                         : undefined
+
                     // TODO: Can we get this derived from a keyboard event in the future?
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
@@ -432,6 +447,7 @@ export const CodewhispererServerFactory =
                             ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
                             ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
                         ]
+                        console.log('[PredictionTypes] Result:' + predictionTypes)
                     }
 
                     // supplementalContext available only via token authentication
@@ -515,7 +531,10 @@ export const CodewhispererServerFactory =
                             telemetry,
                             telemetryService,
                             currentSession,
-                            timeSinceLastUserModification
+                            timeSinceLastUserModification,
+                            0,
+                            0,
+                            streakLength
                         )
                     }
 
@@ -560,6 +579,24 @@ export const CodewhispererServerFactory =
                     if (extraContext) {
                         requestContext.fileContext.leftFileContent =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
+                    }
+
+                    const generateCompletionReq = {
+                        ...requestContext,
+                        fileContext: {
+                            ...requestContext.fileContext,
+                            leftFileContent: requestContext.fileContext.leftFileContent
+                                .slice(-CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                            rightFileContent: requestContext.fileContext.rightFileContent
+                                .slice(0, CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                        },
+                        ...(workspaceId ? { workspaceId: workspaceId } : {}),
+                    }
+
+                    if (editsEnabled) {
+                        generateCompletionReq.predictionTypes = predictionTypes.flat()
                     }
 
                     return codeWhispererService
@@ -904,7 +941,15 @@ export const CodewhispererServerFactory =
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
             const streakLength = sessionManager.getAndUpdateStreakLength(isAccepted)
-            await emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
+            await emitUserTriggerDecisionTelemetry(
+                telemetry,
+                telemetryService,
+                session,
+                timeSinceLastUserModification,
+                addedCharactersForEditSuggestion.length,
+                deletedCharactersForEditSuggestion.length,
+                streakLength
+            )
         }
 
         const updateConfiguration = (updatedConfig: AmazonQWorkspaceConfig) => {
@@ -920,10 +965,10 @@ export const CodewhispererServerFactory =
                 userWrittenCodeTracker.customizationArn = customizationArn
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
-            /**
-             * The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-             *   configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-             */
+            /*
+                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+            */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
