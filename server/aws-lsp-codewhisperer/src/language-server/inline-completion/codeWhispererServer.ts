@@ -378,12 +378,10 @@ export const CodewhispererServerFactory =
                         position: params.position,
                         workspaceFolder: workspace.getWorkspaceFolder(textDocument.uri),
                     })
-
                     const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
                     const workspaceId = workspaceState?.webSocketClient?.isConnected()
                         ? workspaceState.workspaceId
                         : undefined
-
                     // TODO: Can we get this derived from a keyboard event in the future?
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
@@ -923,10 +921,10 @@ export const CodewhispererServerFactory =
                 userWrittenCodeTracker.customizationArn = customizationArn
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
-            /*
-                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-            */
+            /**
+             * The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+             *   configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+             */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
