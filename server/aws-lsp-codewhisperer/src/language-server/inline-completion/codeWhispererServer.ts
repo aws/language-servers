@@ -432,7 +432,6 @@ export const CodewhispererServerFactory =
                             ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
                             ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
                         ]
-                        console.log('[PredictionTypes] Result:' + predictionTypes)
                     }
 
                     // supplementalContext available only via token authentication
