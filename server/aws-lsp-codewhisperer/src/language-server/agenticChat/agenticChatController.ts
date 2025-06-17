@@ -189,6 +189,14 @@ export class AgenticChatController implements ChatHandlers {
     #mcpEventHandler: McpEventHandler
     #paidTierMode: PaidTierMode | undefined
 
+    // latency metrics
+    #llmRequestStartTime: number = 0
+    #toolCallLatencies: number[] = []
+    #toolStartTime: number = 0
+    #timeToFirstChunk: number = -1
+    #timeBetweenChunks: number[] = []
+    #lastChunkTime: number = 0
+
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
      * @param toolType The type of tool being used
@@ -638,6 +646,10 @@ export class AgenticChatController implements ChatHandlers {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
 
+            this.#toolCallLatencies = []
+            this.#timeToFirstChunk = -1
+            this.#timeBetweenChunks = []
+
             // Check for cancellation
             if (this.#isPromptCanceled(token, session, promptId)) {
                 this.#debug('Stopping agent loop - cancelled by user')
@@ -675,6 +687,7 @@ export class AgenticChatController implements ChatHandlers {
             const loadingMessageId = `loading-${uuid()}`
             await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
 
+            this.#llmRequestStartTime = Date.now()
             // Phase 3: Request Execution
             // Note: these logs are very noisy, but contain information redacted on the backend.
             this.#debug(`generateAssistantResponse Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
@@ -720,6 +733,8 @@ export class AgenticChatController implements ChatHandlers {
                 session,
                 documentReference
             )
+            const llmLatency = Date.now() - this.#llmRequestStartTime
+            this.#debug(`LLM Response Latency: ${llmLatency}`)
             // This is needed to handle the case where the response stream times out
             // and we want to auto-retry
             if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
@@ -777,6 +792,7 @@ export class AgenticChatController implements ChatHandlers {
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
 
             if (pendingToolUses.length === 0) {
+                this.recordChunk('agent_loop_done')
                 // No more tool uses, we're done
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
@@ -786,7 +802,10 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
-                    undefined,
+                    [llmLatency],
+                    this.#toolCallLatencies,
+                    this.#timeToFirstChunk,
+                    this.#timeBetweenChunks,
                     session.pairProgrammingMode
                 )
                 finalResult = result
@@ -803,12 +822,13 @@ export class AgenticChatController implements ChatHandlers {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                     shouldDisplayMessage = false
                 }
+                const toolCallLatency = Date.now() - this.#toolStartTime
+                this.#toolCallLatencies.push(toolCallLatency)
                 const conversationType = session.getConversationType() as ChatConversationType
                 metric.setDimension('cwsprChatConversationType', conversationType)
                 metric.setDimension('requestIds', metric.metric.requestIds)
                 const toolNames = this.#toolUseLatencies.map(item => item.toolName)
                 const toolUseIds = this.#toolUseLatencies.map(item => item.toolUseId)
-                const latency = this.#toolUseLatencies.map(item => item.latency)
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
@@ -817,7 +837,10 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseIds ?? undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
-                    latency,
+                    [llmLatency],
+                    this.#toolCallLatencies,
+                    this.#timeToFirstChunk,
+                    this.#timeBetweenChunks,
                     session.pairProgrammingMode
                 )
             } else {
@@ -835,7 +858,10 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Failed',
                     this.#features.runtime.serverInfo.version ?? '',
-                    undefined,
+                    [llmLatency],
+                    this.#toolCallLatencies,
+                    this.#timeToFirstChunk,
+                    this.#timeBetweenChunks,
                     session.pairProgrammingMode
                 )
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
@@ -980,6 +1006,9 @@ export class AgenticChatController implements ChatHandlers {
                 if (!availableToolNames.includes(toolUse.name)) {
                     throw new Error(`Tool ${toolUse.name} is not available in the current mode`)
                 }
+
+                this.recordChunk(`tool_execution_start - ${toolUse.name}`)
+                this.#toolStartTime = Date.now()
 
                 // remove progress UI
                 await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
@@ -2962,6 +2991,11 @@ export class AgenticChatController implements ChatHandlers {
                 return result
             }
 
+            // Track when chunks appear to user
+            if (chatEvent.assistantResponseEvent && result.data.chatResult.body) {
+                this.recordChunk('chunk')
+            }
+
             // make sure to save code reference events
             if (chatEvent.assistantResponseEvent || chatEvent.codeReferenceEvent) {
                 await streamWriter.write(result.data.chatResult)
@@ -3049,6 +3083,25 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return chatEventParser.getResult()
+    }
+
+    /**
+     * Calculates time to first chunk and time between chunks
+     */
+    recordChunk(chunkType: string) {
+        if (this.#timeToFirstChunk === -1) {
+            this.#timeToFirstChunk = Date.now() - this.#llmRequestStartTime
+            this.#lastChunkTime = Date.now()
+        } else {
+            const timeBetweenChunks = Date.now() - this.#lastChunkTime
+            this.#timeBetweenChunks.push(timeBetweenChunks)
+            this.#lastChunkTime = Date.now()
+            if (chunkType !== 'chunk') {
+                this.#debug(
+                    `Time between chunks [${chunkType}]: ${timeBetweenChunks}ms (total chunks: ${this.#timeBetweenChunks.length})`
+                )
+            }
+        }
     }
 
     onPromptInputOptionChange(params: PromptInputOptionChangeParams) {

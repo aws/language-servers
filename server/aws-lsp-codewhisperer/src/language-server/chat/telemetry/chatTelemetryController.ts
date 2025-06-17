@@ -178,6 +178,9 @@ export class ChatTelemetryController {
         result: string,
         languageServerVersion: string,
         latency?: number[],
+        toolCallLatency?: number[],
+        cwsprChatTimeToFirstChunk?: number,
+        cwsprChatTimeBetweenChunks?: number[],
         agenticCodingMode?: boolean
     ) {
         this.#telemetry.emitMetric({
@@ -186,11 +189,14 @@ export class ChatTelemetryController {
                 [CONVERSATION_ID_METRIC_KEY]: conversationId,
                 cwsprChatConversationType: conversationType,
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
-                cwsprToolName: toolNames?.join(','),
-                cwsprToolUseId: toolUseId?.join(','),
+                cwsprToolName: toolNames?.join(',') ?? '',
+                cwsprToolUseId: toolUseId?.join(',') ?? '',
                 result,
                 languageServerVersion: languageServerVersion,
                 latency: latency?.join(','),
+                toolCallLatency: toolCallLatency?.join(','),
+                cwsprChatTimeToFirstChunk: cwsprChatTimeToFirstChunk,
+                cwsprChatTimeBetweenChunks: cwsprChatTimeBetweenChunks?.join(','),
                 requestId,
                 enabled: agenticCodingMode,
             },
