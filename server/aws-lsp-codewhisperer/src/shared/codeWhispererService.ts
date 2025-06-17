@@ -5,14 +5,13 @@ import {
     Workspace,
     Logging,
     SDKInitializator,
-    TextDocument,
     CancellationToken,
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
-import { Request, Response } from 'aws-sdk/lib/core'
+import { Request } from 'aws-sdk/lib/core'
 import { v4 as uuidv4 } from 'uuid'
 import {
     CodeWhispererSigv4ClientConfigurationOptions,
@@ -26,10 +25,8 @@ import {
 // Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
-import { Position } from 'vscode-languageserver-textdocument'
 import { getErrorId } from './utils'
-
-import { PredictionType, GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
+import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -138,16 +135,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         return 'iam'
     }
 
-    generateCompletionsAndEdits(
-        textDocument: TextDocument,
-        request: GenerateSuggestionsRequest,
-        config: {
-            enablePrefetch: boolean
-        }
-    ): Promise<GenerateSuggestionsResponse> {
-        return this.generateSuggestions(request)
-    }
-
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
@@ -169,9 +156,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             responseContext,
         }
     }
-
-    // No effect as IAM clients don't have this functionality yet
-    clearCachedSuggestions() {}
 }
 
 /**
