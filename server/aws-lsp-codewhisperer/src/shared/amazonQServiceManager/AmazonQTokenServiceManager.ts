@@ -566,7 +566,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return this.connectionType
     }
 
-    public getActiveProfileArn() {
+    public override getActiveProfileArn() {
         return this.activeIdcProfile?.arn
     }
 
@@ -587,7 +587,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
      * @param listener Function that will be called with the new region
      * @returns Function to unregister the listener
      */
-    public onRegionChange(listener: (region: string) => void): () => void {
+    public override onRegionChange(listener: (region: string) => void): () => void {
         this.regionChangeListeners.push(listener)
         // If we already have a region, notify the listener immediately
         if (this.region) {
