@@ -3,7 +3,7 @@ import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { Chunk } from 'local-indexing'
-import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
+import { RelevantTextDocument } from '@aws/codewhisperer-streaming-client'
 import { LineInfo } from '../context/agenticChatTriggerContext'
 import path = require('path')
 
