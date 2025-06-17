@@ -5,7 +5,6 @@
 
 import * as diff from 'diff'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../shared/models/model'
-import { Position } from 'vscode-languageserver-textdocument'
 import { trimSupplementalContexts } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 
 /**
@@ -253,58 +252,5 @@ export function getAddedAndDeletedChars(unifiedDiff: string): {
     return {
         addedCharacters,
         deletedCharacters,
-    }
-}
-
-/**
- * Calculates the end position of the actual edited content by finding the last changed part
- */
-export function getEndOfEditPosition(originalCode: string, newCode: string): Position {
-    const changes = diff.diffLines(originalCode, newCode)
-    let lineOffset = 0
-
-    // Track the end position of the last added chunk
-    let lastChangeEndLine = 0
-    let lastChangeEndColumn = 0
-    let foundAddedContent = false
-
-    for (const part of changes) {
-        if (part.added) {
-            foundAddedContent = true
-
-            // Calculate lines in this added part
-            const lines = part.value.split('\n')
-            const linesCount = lines.length
-
-            // Update position to the end of this added chunk
-            lastChangeEndLine = lineOffset + linesCount - 1
-
-            // Get the length of the last line in this added chunk
-            lastChangeEndColumn = lines[linesCount - 1].length
-        }
-
-        // Update line offset (skip removed parts)
-        if (!part.removed) {
-            // Safely calculate line count from the part's value
-            const partLineCount = part.value.split('\n').length
-            lineOffset += partLineCount - 1
-        }
-    }
-
-    // If we found added content, return position at the end of the last addition
-    if (foundAddedContent) {
-        return {
-            line: lastChangeEndLine,
-            character: lastChangeEndColumn, // ?????????????????? is this correct?????????????
-        }
-        // return new vscode.Position(lastChangeEndLine, lastChangeEndColumn)
-    }
-
-    // Fallback to current cursor position if no changes were found
-    // const editor = vscode.window.activeTextEditor
-    // return editor ? editor.selection.active : new Position(0, 0)
-    return {
-        line: 0,
-        character: 0,
     }
 }
