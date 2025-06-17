@@ -2491,8 +2491,7 @@ export class AgenticChatController implements ChatHandlers {
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
-            await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
-            void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
+            this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
         } catch (error) {
             this.#log('Error initializing context commands: ' + error)
         }
