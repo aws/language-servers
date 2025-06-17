@@ -20,7 +20,7 @@ import {
     ToolUse,
     UserInputMessage,
     AssistantResponseMessage,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { activeFileCmd } from '../../context/addtionalContextProvider'
 import { ChatItemType } from '@aws/mynah-ui'

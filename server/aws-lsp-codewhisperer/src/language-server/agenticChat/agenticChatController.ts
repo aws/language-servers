@@ -17,7 +17,7 @@ import {
     ToolResultStatus,
     ToolUse,
     ToolUseEvent,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import {
     Button,
     Status,
@@ -2947,8 +2947,9 @@ export class AgenticChatController implements ChatHandlers {
         contextList?: FileList
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const abortController = new AbortController()
+        let timeoutId: NodeJS.Timeout | undefined
         const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => {
+            timeoutId = setTimeout(() => {
                 abortController.abort()
                 reject(
                     new AgenticChatError(
@@ -2969,8 +2970,11 @@ export class AgenticChatController implements ChatHandlers {
             abortController.signal
         )
         try {
-            return await Promise.race([processResponsePromise, timeoutPromise])
+            const result = await Promise.race([processResponsePromise, timeoutPromise])
+            clearTimeout(timeoutId)
+            return result
         } catch (err) {
+            clearTimeout(timeoutId)
             await streamWriter.close()
             if (err instanceof AgenticChatError && err.code === 'ResponseProcessingTimeout') {
                 return { success: false, error: err.message }
