@@ -22,7 +22,6 @@ import {
     createCodeWhispererTokenClient,
     RequestExtras,
 } from '../client/token/codewhisperer'
-// Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { getErrorId } from './utils'
