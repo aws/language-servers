@@ -179,13 +179,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
  */
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
-    private tokenSrc = new CancellationTokenSource()
-    private token: CancellationToken = this.tokenSrc.token
-    private prefetchConfig = {
-        duration: 500, // 500ms
-        maxCacheSuggestionSize: 3,
-        maxRecursiveCallDepth: 3,
-    }
     /** Debounce createSubscriptionToken by storing the current, pending promise (if any). */
     #createSubscriptionTokenPromise?: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse>
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
@@ -555,32 +548,4 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         return !!r
     }
-}
-
-// TODO: not precise
-function splitContentAtPosition(
-    content: string,
-    position: Position
-): {
-    leftContent: string
-    rightContent: string
-} {
-    // Split content into lines
-    const lines = content.split('\n')
-
-    // Normalize position
-    const targetLine = Math.max(0, Math.min(position.line, lines.length - 1))
-    const targetChar = Math.max(0, Math.min(position.character, lines[targetLine].length))
-
-    // Create left content
-    const leftLines = lines.slice(0, targetLine)
-    const leftPartOfTargetLine = lines[targetLine].substring(0, targetChar)
-    const leftContent = [...leftLines, leftPartOfTargetLine].join('\n')
-
-    // Create right content
-    const rightPartOfTargetLine = lines[targetLine].substring(targetChar)
-    const rightLines = lines.slice(targetLine + 1)
-    const rightContent = [rightPartOfTargetLine, ...rightLines].join('\n')
-
-    return { leftContent, rightContent }
 }
