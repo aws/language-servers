@@ -290,11 +290,14 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         if (this.connectionType === 'none') {
             if (newProfileArn !== null) {
-                throw new AmazonQServicePendingSigninError()
+                // During reauthentication, connection might be temporarily 'none' but user is providing a profile
+                // Set connection type to identityCenter to proceed with profile setting
+                this.connectionType = 'identityCenter'
+                this.state = 'PENDING_Q_PROFILE_UPDATE'
+            } else {
+                this.logServiceState('Received null profile while not connected, ignoring request')
+                return
             }
-
-            this.logServiceState('Received null profile while not connected, ignoring request')
-            return
         }
 
         if (this.connectionType !== 'identityCenter') {
