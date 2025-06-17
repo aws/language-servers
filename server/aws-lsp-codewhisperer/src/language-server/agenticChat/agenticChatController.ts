@@ -1688,7 +1688,7 @@ export class AgenticChatController implements ChatHandlers {
                         content: {
                             header: {
                                 icon: 'tools',
-                                body: `${toolName}`,
+                                body: `${originalToolName ?? (toolType || toolUse.name)}`,
                                 status: {
                                     status: isAccept ? 'success' : 'error',
                                     icon: isAccept ? 'ok' : 'cancel',

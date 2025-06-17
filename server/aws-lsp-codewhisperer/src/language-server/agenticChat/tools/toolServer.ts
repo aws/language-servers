@@ -18,6 +18,7 @@ import {
     getWorkspacePersonaConfigPaths,
     createNamespacedToolName,
     enabledMCP,
+    sanitizeName,
 } from './mcp/mcpUtils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
@@ -97,6 +98,10 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
 
         // 2) add new enabled tools
         for (const def of defs) {
+            // Sanitize the tool name
+            const sanitizedToolName = sanitizeName(def.toolName)
+
+            // Check if this tool name is already in use
             const namespaced = createNamespacedToolName(
                 def.serverName,
                 def.toolName,
@@ -127,7 +132,7 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
                 input => tool.invoke(input)
             )
             registered[server].push(namespaced)
-            logging.info(`MCP: registered tool ${namespaced} (original: ${def.serverName}___${def.toolName})`)
+            logging.info(`MCP: registered tool ${namespaced} (original: ${def.toolName})`)
         }
     }
 
