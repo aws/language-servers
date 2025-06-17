@@ -31,9 +31,9 @@ export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhi
     itemId: string
 }
 
-export interface GenerateSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest {
-    // TODO : This is broken due to Interface 'GenerateSuggestionsRequest' cannot simultaneously extend types 'GenerateCompletionsRequest' and 'GenerateRecommendationsRequest'.
-    //CodeWhispererSigv4Client.GenerateRecommendationsRequest {
+export interface GenerateSuggestionsRequest
+    extends CodeWhispererTokenClient.GenerateCompletionsRequest,
+        CodeWhispererSigv4Client.GenerateRecommendationsRequest {
     maxResults: number
 }
 
