@@ -227,6 +227,10 @@ export class AgenticChatController implements ChatHandlers {
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#telemetryService = telemetryService
         this.#serviceManager = serviceManager
+        this.#serviceManager?.onRegionChange(region => {
+            // @ts-ignore
+            this.#features.chat.chatOptionsUpdate({ region })
+        })
         this.#chatHistoryDb = new ChatDatabase(features)
         this.#tabBarController = new TabBarController(
             features,
@@ -2532,7 +2536,15 @@ export class AgenticChatController implements ChatHandlers {
 
         // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
         // In that case, we use the default modelId.
-        const modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
+        let modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
+
+        const region = AmazonQTokenServiceManager.getInstance().getRegion()
+        if (region === 'eu-central-1') {
+            // Only 3.7 Sonnet is available in eu-central-1 for now
+            modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
+            // @ts-ignore
+            this.#features.chat.chatOptionsUpdate({ region })
+        }
         this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
 
         if (!params.restoredTab) {
