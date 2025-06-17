@@ -19,7 +19,7 @@ const modelOptions = Object.entries(modelRecord).map(([value, { label }]) => ({
     label,
 }))
 
-export const modelSelection: ChatItemFormItem = {
+const modelSelection: ChatItemFormItem = {
     type: 'select',
     id: 'model-selection',
     options: modelOptions,
@@ -27,6 +27,14 @@ export const modelSelection: ChatItemFormItem = {
     hideMandatoryIcon: true,
     border: false,
     autoWidth: true,
+}
+
+export const modelSelectionForRegion: Record<string, ChatItemFormItem> = {
+    'us-east-1': modelSelection,
+    'eu-central-1': {
+        ...modelSelection,
+        options: modelOptions.filter(option => option.value !== BedrockModel.CLAUDE_SONNET_4_20250514_V1_0),
+    },
 }
 
 export const getModelSelectionChatItem = (modelId: string): ChatItem => ({

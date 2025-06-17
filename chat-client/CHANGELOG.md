@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.18](https://github.com/aws/language-servers/compare/chat-client/v0.1.17...chat-client/v0.1.18) (2025-06-17)
+
+
+### Features
+
+* support per region model selection ([#1683](https://github.com/aws/language-servers/issues/1683)) ([0b81b37](https://github.com/aws/language-servers/commit/0b81b37c15a8c407ec04904abb4bdccf829aa1c1))
+
 ## [0.1.17](https://github.com/aws/language-servers/compare/chat-client/v0.1.16...chat-client/v0.1.17) (2025-06-16)
 
 

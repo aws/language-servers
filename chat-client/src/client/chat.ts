@@ -107,6 +107,7 @@ import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
+import { modelSelectionForRegion } from './texts/modelSelection'
 
 const getDefaultTabConfig = (agenticMode?: boolean) => {
     return {
@@ -236,6 +237,19 @@ export const createChat = (
                             option.id === 'model-selection' ? { ...option, value: message.params.modelId } : option
                         ),
                     })
+                } else if (message.params.region) {
+                    // get all tabs and update region
+                    const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
+                    for (const tabId in allExistingTabs) {
+                        const options = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+                        mynahUi.updateStore(tabId, {
+                            promptInputOptions: options?.map(option =>
+                                option.id === 'model-selection'
+                                    ? modelSelectionForRegion[message.params.region]
+                                    : option
+                            ),
+                        })
+                    }
                 } else {
                     tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
                 }

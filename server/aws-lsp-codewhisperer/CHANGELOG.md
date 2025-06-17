@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.0.51](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.50...lsp-codewhisperer/v0.0.51) (2025-06-17)
+
+
+### Features
+
+* add packageId property to references in req.json ([#1570](https://github.com/aws/language-servers/issues/1570)) ([3b14b17](https://github.com/aws/language-servers/commit/3b14b173369936fe9bcee130a15f2ae1d39c9cb9))
+* support per region model selection ([#1683](https://github.com/aws/language-servers/issues/1683)) ([0b81b37](https://github.com/aws/language-servers/commit/0b81b37c15a8c407ec04904abb4bdccf829aa1c1))
+
+
+### Bug Fixes
+
+* add latency metrics for invokeLLM metric ([#1681](https://github.com/aws/language-servers/issues/1681)) ([0cac52c](https://github.com/aws/language-servers/commit/0cac52c3d037da8fc4403f030738256b07195e76))
+* adding normalizePathFromUri to mcpUtils to handle uri paths ([#1653](https://github.com/aws/language-servers/issues/1653)) ([20532bf](https://github.com/aws/language-servers/commit/20532bf276967c33c43a677e1c1621451c58b9a9))
+* **amazonq:** prevent workspace context server initialization workflow from overlapping ([#1668](https://github.com/aws/language-servers/issues/1668)) ([1625abd](https://github.com/aws/language-servers/commit/1625abd2a9fa969859236cfe1b57fa1cdd2dcc33))
+* clear IDE context for auto-retry requests not initiated by the user ([#1680](https://github.com/aws/language-servers/issues/1680)) ([13c9455](https://github.com/aws/language-servers/commit/13c94558706d0181c1a2d64b439be90a601e8f74))
+* timeout only works for the first time in the loop ([#1675](https://github.com/aws/language-servers/issues/1675)) ([ab50985](https://github.com/aws/language-servers/commit/ab50985eb0dac1888769f7fb703aa8d6f50c1b89))
+* use NodeHttpHandler when configuring requestHandler ([#1670](https://github.com/aws/language-servers/issues/1670)) ([7b620a8](https://github.com/aws/language-servers/commit/7b620a82b7acb4fbdbb5b88661be661dd575d152))
+* when user add a new server, it would load global persona at first time ([#1667](https://github.com/aws/language-servers/issues/1667)) ([a3cf388](https://github.com/aws/language-servers/commit/a3cf3880d178ae74f2136abb798f6a8f08fe76e2))
+
 ## [0.0.50](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.49...lsp-codewhisperer/v0.0.50) (2025-06-16)
 
 

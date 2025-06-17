@@ -403,9 +403,19 @@ export function createNamespacedToolName(
         }
     }
 
+    // Sanitize the tool name
+    const sanitizedToolName = sanitizeName(toolName)
+
+    // First try to use just the tool name if it's not already in use
+    if (!allNamespacedTools.has(sanitizedToolName)) {
+        allNamespacedTools.add(sanitizedToolName)
+        toolNameMapping.set(sanitizedToolName, { serverName, toolName })
+        return sanitizedToolName
+    }
+
+    // If tool name is already in use, then use the namespaced version with server name
     const sep = '___'
-    // If tool name alone isn't unique or is too long, try adding server prefix
-    const fullName = `${serverName}${sep}${toolName}`
+    const fullName = `${serverName}${sep}${sanitizedToolName}`
 
     // If the full name fits and is unique, use it
     if (fullName.length <= MAX_TOOL_NAME_LENGTH && !allNamespacedTools.has(fullName)) {
@@ -416,10 +426,10 @@ export function createNamespacedToolName(
 
     // If the full name is too long, truncate the server name
     if (fullName.length > MAX_TOOL_NAME_LENGTH) {
-        const maxServerLength = MAX_TOOL_NAME_LENGTH - sep.length - toolName.length
+        const maxServerLength = MAX_TOOL_NAME_LENGTH - sep.length - sanitizedToolName.length
         if (maxServerLength > 0) {
             const truncatedServer = serverName.substring(0, maxServerLength)
-            const namespacedName = `${truncatedServer}${sep}${toolName}`
+            const namespacedName = `${truncatedServer}${sep}${sanitizedToolName}`
 
             if (!allNamespacedTools.has(namespacedName)) {
                 allNamespacedTools.add(namespacedName)
@@ -435,23 +445,17 @@ export function createNamespacedToolName(
     // 3. Server truncation resulted in a duplicate
     // In all cases, fall back to numeric suffix on the tool name
 
-    // Check if the tool name is already in use with a server prefix
-    // If so, we need to use a numeric suffix instead of server prefix
-    const isToolNameWithServerPrefixInUse = Array.from(allNamespacedTools).some(
-        name => name.includes('___') && name.split('___')[1] === toolName
-    )
-
     let duplicateNum = 1
     while (true) {
         const suffix = duplicateNum.toString()
         const maxToolLength = MAX_TOOL_NAME_LENGTH - suffix.length
 
         let candidateName: string
-        if (toolName.length <= maxToolLength) {
-            candidateName = `${toolName}${suffix}`
+        if (sanitizedToolName.length <= maxToolLength) {
+            candidateName = `${sanitizedToolName}${suffix}`
         } else {
             // Truncate tool name to make room for suffix
-            const truncatedTool = toolName.substring(0, maxToolLength)
+            const truncatedTool = sanitizedToolName.substring(0, maxToolLength)
             candidateName = `${truncatedTool}${suffix}`
         }
 
