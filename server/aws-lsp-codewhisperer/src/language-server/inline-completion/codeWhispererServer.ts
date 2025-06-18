@@ -429,26 +429,6 @@ export const CodewhispererServerFactory =
                     // Get supplemental context from recent edits if available.
                     let supplementalContextFromEdits = undefined
                     let predictionTypes = [['COMPLETIONS']]
-                    // Call editPredictionAutoTrigger and log the result.
-                    if (editsEnabled) {
-                        if (recentEditTracker) {
-                            supplementalContextFromEdits =
-                                await recentEditTracker.generateEditBasedContext(textDocument)
-                        }
-                        const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
-                            fileContext: fileContext,
-                            lineNum: params.position.line,
-                            char: triggerCharacter,
-                            previousDecision: previousDecision,
-                            cursorHistory: cursorTracker,
-                            recentEdits: recentEditTracker,
-                        })
-                        predictionTypes = [
-                            ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
-                            ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
-                        ]
-                        console.log('[PredictionTypes] Result:' + predictionTypes)
-                    }
 
                     // supplementalContext available only via token authentication
                     const supplementalContextPromise =
@@ -471,18 +451,38 @@ export const CodewhispererServerFactory =
                     const supplementalContext = await supplementalContextPromise
                     // TODO: logging
                     if (codeWhispererService instanceof CodeWhispererServiceToken) {
-                        // Combine supplemental contexts from both sources if available.
+                        const supplementalContextItems = supplementalContext?.supplementalContextItems || []
+                        requestContext.supplementalContexts = [
+                            ...supplementalContextItems.map(v => ({
+                                content: v.content,
+                                filePath: v.filePath,
+                            })),
+                        ]
+
                         if (editsEnabled) {
-                            const supplementalContextItems = [...(supplementalContext?.supplementalContextItems || [])]
-                            const supplementalContextItemsForEdits = [
-                                ...(supplementalContextFromEdits?.supplementalContextItems || []),
+                            // Step 0: Determine if we have "Rcent Edit context"
+                            if (recentEditTracker) {
+                                supplementalContextFromEdits =
+                                    await recentEditTracker.generateEditBasedContext(textDocument)
+                            }
+                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
+                                fileContext: fileContext,
+                                lineNum: params.position.line,
+                                char: triggerCharacter,
+                                previousDecision: previousDecision,
+                                cursorHistory: cursorTracker,
+                                recentEdits: recentEditTracker,
+                            })
+                            predictionTypes = [
+                                ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
+                                ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
                             ]
 
-                            requestContext.supplementalContexts = [
-                                ...supplementalContextItems.map(v => ({
-                                    content: v.content,
-                                    filePath: v.filePath,
-                                })),
+                            // Step 1: Recent Edits context
+                            const supplementalContextItemsForEdits =
+                                supplementalContextFromEdits?.supplementalContextItems || []
+
+                            requestContext.supplementalContexts.push(
                                 ...supplementalContextItemsForEdits.map(v => ({
                                     content: v.content,
                                     filePath: v.filePath,
@@ -492,11 +492,13 @@ export const CodewhispererServerFactory =
                                             timeOffset: 1000,
                                         },
                                     },
-                                })),
-                            ]
+                                }))
+                            )
 
-                            // NOTE : Has been turned off to get this working
-                            // requestContext.predictionTypes = ['EDITS']
+                            // Step 2: Prediction type COMPLETION, Edits or both
+                            requestContext.predictionTypes = predictionTypes.flat()
+
+                            // Step 3: Current Editor/Cursor state
                             requestContext.editorState = {
                                 document: {
                                     relativeFilePath: textDocument.uri,
@@ -512,13 +514,6 @@ export const CodewhispererServerFactory =
                                     },
                                 },
                             }
-                        } else {
-                            requestContext.supplementalContexts = supplementalContext?.supplementalContextItems
-                                ? supplementalContext.supplementalContextItems.map(v => ({
-                                      content: v.content,
-                                      filePath: v.filePath,
-                                  }))
-                                : []
                         }
                     }
 
@@ -595,24 +590,8 @@ export const CodewhispererServerFactory =
                         ...(workspaceId ? { workspaceId: workspaceId } : {}),
                     }
 
-                    if (editsEnabled) {
-                        generateCompletionReq.predictionTypes = predictionTypes.flat()
-                    }
-
                     return codeWhispererService
-                        .generateSuggestions({
-                            ...requestContext,
-                            fileContext: {
-                                ...requestContext.fileContext,
-                                leftFileContent: requestContext.fileContext.leftFileContent
-                                    .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                    .replaceAll('\r\n', '\n'),
-                                rightFileContent: requestContext.fileContext.rightFileContent
-                                    .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                    .replaceAll('\r\n', '\n'),
-                            },
-                            ...(workspaceId ? { workspaceId: workspaceId } : {}),
-                        })
+                        .generateSuggestions(generateCompletionReq)
                         .then(async suggestionResponse => {
                             return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
                         })
