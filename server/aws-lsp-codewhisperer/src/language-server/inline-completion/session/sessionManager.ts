@@ -32,7 +32,6 @@ export interface SessionData {
     credentialStartUrl?: string
     customizationArn?: string
     supplementalMetadata?: CodeWhispererSupplementalContext
-    flareRequestId?: string // Add flareRequestId parameter
 }
 
 export class CodeWhispererSession {
@@ -75,7 +74,6 @@ export class CodeWhispererSession {
     customizationArn?: string
     includeImportsWithSuggestions?: boolean
     codewhispererSuggestionImportCount: number = 0
-    flareRequestId?: string // Add flareRequestId field
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
@@ -91,7 +89,6 @@ export class CodeWhispererSession {
         this.classifierThreshold = data.classifierThreshold
         this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
-        this.flareRequestId = data.flareRequestId // Store the flareRequestId
         this.state = 'REQUESTING'
         this.startTime = new Date().getTime()
     }
