@@ -206,6 +206,7 @@ export class McpManager {
                 command: cfg.command,
                 args: cfg.args ?? [],
                 env: mergedEnv,
+                cwd: URI.parse(this.features.workspace.getAllWorkspaceFolders()[0].uri).fsPath,
             })
             const client = new Client({
                 name: `mcp-client-${serverName}`,
