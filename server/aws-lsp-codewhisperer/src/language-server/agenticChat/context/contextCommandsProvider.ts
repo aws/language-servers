@@ -142,12 +142,27 @@ export class ContextCommandsProvider implements Disposable {
             description: 'Add a saved prompt to context',
             icon: 'magic',
         }
+
+        const imageCmdGroup: ContextCommand = {
+            command: 'image',
+            description: 'Add a image to context',
+            icon: 'image',
+            placeholder: 'Select an image file',
+        }
         const workspaceCmd = {
             command: '@workspace',
             id: '@workspace',
             description: 'Reference all code in workspace',
         }
-        const commands = [workspaceCmd, activeFileCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
+        const commands = [
+            workspaceCmd,
+            activeFileCmd,
+            folderCmdGroup,
+            fileCmdGroup,
+            codeCmdGroup,
+            promptCmdGroup,
+            imageCmdGroup,
+        ]
         const allCommands: ContextCommandGroup[] = [
             {
                 commands: commands,
