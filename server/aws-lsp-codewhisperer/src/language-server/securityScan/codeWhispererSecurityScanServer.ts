@@ -1,5 +1,6 @@
 import {
     CancellationToken,
+    CredentialsType,
     ExecuteCommandParams,
     InitializeParams,
     LSPErrorCodes,
@@ -55,7 +56,7 @@ export const SecurityScanServerToken =
                 credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
             }
             try {
-                if (!credentialsProvider.hasCredentials('bearer')) {
+                if (!credentialsProvider.hasCredentials() || credentialsProvider.getCredentialsType() !== 'bearer') {
                     throw new Error('Credentials provider does not have bearer token credentials')
                 }
 

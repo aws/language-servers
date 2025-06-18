@@ -27,6 +27,7 @@ describe('getBearerTokenFromProvider', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: mockToken }),
+            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
             onCredentialsDeleted: sinon.stub(),
@@ -38,6 +39,7 @@ describe('getBearerTokenFromProvider', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(false),
             getCredentials: sinon.stub().returns({ token: mockToken }),
+            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
             onCredentialsDeleted: sinon.stub(),
@@ -53,6 +55,7 @@ describe('getBearerTokenFromProvider', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: '' }),
+            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
             onCredentialsDeleted: sinon.stub(),
@@ -70,6 +73,7 @@ describe('getSsoConnectionType', () => {
     const mockCredsProvider: CredentialsProvider = {
         hasCredentials: sinon.stub().returns(true),
         getCredentials: sinon.stub().returns({ token: mockToken }),
+        getCredentialsType: sinon.stub().returns('bearer'),
         getConnectionMetadata: sinon.stub(),
         getConnectionType: sinon.stub(),
         onCredentialsDeleted: sinon.stub(),
@@ -78,6 +82,7 @@ describe('getSsoConnectionType', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
+            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
                     startUrl: BUILDER_ID_START_URL,
@@ -94,6 +99,7 @@ describe('getSsoConnectionType', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
+            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
                     startUrl: 'idc-url',
@@ -115,6 +121,7 @@ describe('getSsoConnectionType', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
+            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub().returns({
                 sso: undefined,
             }),
@@ -129,6 +136,7 @@ describe('getSsoConnectionType', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
+            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
                     startUrl: '',
@@ -145,6 +153,7 @@ describe('getSsoConnectionType', () => {
         const mockCredentialsProvider: CredentialsProvider = {
             hasCredentials: sinon.stub().returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
+            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
                     startUrl: undefined,

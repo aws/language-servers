@@ -43,8 +43,9 @@ describe('StreamingClientService', () => {
         clock = sinon.useFakeTimers({ now: new Date() })
         features = new TestFeatures()
 
-        features.credentialsProvider.hasCredentials.withArgs('bearer').returns(true)
-        features.credentialsProvider.getCredentials.withArgs('bearer').returns(MOCKED_TOKEN_ONE)
+        features.credentialsProvider.hasCredentials.returns(true)
+        features.credentialsProvider.getCredentials.returns(MOCKED_TOKEN_ONE)
+        features.credentialsProvider.getCredentialsType.returns('bearer')
 
         sendMessageStub = sinon
             .stub(CodeWhispererStreaming.prototype, 'sendMessage')
@@ -76,7 +77,7 @@ describe('StreamingClientService', () => {
         const firstToken = await firstTokenPromise
         expect(firstToken.token).to.deep.equal(MOCKED_TOKEN_ONE.token)
 
-        features.credentialsProvider.getCredentials.withArgs('bearer').returns(MOCKED_TOKEN_TWO)
+        features.credentialsProvider.getCredentials.returns(MOCKED_TOKEN_TWO)
 
         const secondTokenPromise = (tokenProvider as any)()
         await clock.tickAsync(TIME_TO_ADVANCE_MS)

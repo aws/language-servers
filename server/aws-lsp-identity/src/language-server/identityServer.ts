@@ -3,13 +3,16 @@ import {
     CancellationToken,
     ListProfilesParams,
     UpdateProfileParams,
+    DeleteProfileParams,
     AwsResponseError,
     AwsErrorCodes,
     GetSsoTokenParams,
     InvalidateSsoTokenParams,
+    InvalidateIamCredentialParams,
     InitializeParams,
     PartialInitializeResult,
     ShowMessageRequestParams,
+    GetIamCredentialParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
@@ -70,10 +73,26 @@ export class IdentityServer extends ServerBase {
                 })
         )
 
+        this.features.identityManagement.onGetIamCredential(
+            async (params: GetIamCredentialParams, token: CancellationToken) =>
+                await identityService.getIamCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`GetIamCredential failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
         this.features.identityManagement.onInvalidateSsoToken(
             async (params: InvalidateSsoTokenParams, token: CancellationToken) =>
                 await identityService.invalidateSsoToken(params, token).catch(reason => {
                     this.observability.logging.log(`InvalidateSsoToken failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.features.identityManagement.onInvalidateIamCredential(
+            async (params: InvalidateIamCredentialParams, token: CancellationToken) =>
+                await identityService.invalidateIamCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`InvalidateIamCredentials failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })
         )
@@ -89,6 +108,14 @@ export class IdentityServer extends ServerBase {
         this.features.identityManagement.onUpdateProfile(
             async (params: UpdateProfileParams, token: CancellationToken) =>
                 await profileService.updateProfile(params, token).catch(reason => {
+                    this.observability.logging.log(`UpdateProfile failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.features.identityManagement.onDeleteProfile(
+            async (params: DeleteProfileParams, token: CancellationToken) =>
+                await profileService.deleteProfile(params, token).catch(reason => {
                     this.observability.logging.log(`UpdateProfile failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })

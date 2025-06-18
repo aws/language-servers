@@ -289,6 +289,7 @@ export const setCredentialsForAmazonQTokenServiceManagerFactory = (getFeatures: 
         features.credentialsProvider.getCredentials.returns({
             token: 'test-token',
         })
+        features.credentialsProvider.getCredentialsType.returns('bearer')
     }
 }
 

@@ -70,6 +70,8 @@ type DidChangeConfigurationListener = (updatedConfig: AmazonQWorkspaceConfig) =>
  * `handleDidChangeConfiguration`) have to be manually triggered in your mock routines.
  *
  */
+// use resolve
+
 export abstract class BaseAmazonQServiceManager<
     C extends CodeWhispererServiceBase,
     S extends StreamingClientServiceBase,
