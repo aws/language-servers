@@ -423,7 +423,7 @@ export const WorkspaceContextServer = (): Server => features => {
 
                 const programmingLanguages = artifactManager.handleDeletedPathAndGetLanguages(file.uri, workspaceFolder)
                 if (programmingLanguages.length === 0) {
-                    logging.log(`No supported programming languages determined for: ${file.uri}`)
+                    logging.log(`No programming languages determined for: ${file.uri}`)
                     continue
                 }
 
