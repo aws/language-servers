@@ -142,6 +142,13 @@ export class ContextCommandsProvider implements Disposable {
             description: 'Add a saved prompt to context',
             icon: 'magic',
         }
+
+        const imageCmdGroup: ContextCommand = {
+            command: 'image',
+            description: 'Add a image to context',
+            icon: 'image',
+            placeholder: 'Select an image file',
+        }
         const workspaceCmd = {
             command: '@workspace',
             id: '@workspace',

@@ -39,6 +39,8 @@ import {
     MessageType,
     ExecuteCommandParams,
     FollowUpClickParams,
+    OpenFileDialogParams,
+    OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -175,7 +177,10 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
+import { ImageBlock, ImageFormat } from '@aws/codewhisperer-streaming-client'
+import { ContextCommand } from '@aws/language-server-runtimes/protocol'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
+import imageSize from 'image-size'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -442,6 +447,94 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
+        if (params.fileType === 'image') {
+            const supportedExtensions = ['jpeg', 'png', 'gif', 'webp']
+            const maxSizeBytes = 3.75 * 1024 * 1024
+            const maxDimension = 8000
+
+            // 1. Prompt user for file selection
+            const result = await this.#features.lsp.window.showOpenDialog({
+                canSelectFiles: true,
+                canSelectFolders: false,
+                canSelectMany: false,
+                filters: { 'Image Files': ['*.jpeg', '*.png', '*.gif', '*.webp'] },
+            })
+
+            if (!result.uris || result.uris.length === 0) {
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                    errorMessage: 'No file selected.',
+                }
+            }
+
+            const validFilePaths: string[] = []
+            let errorMessage: string | undefined
+            for (const filePath of result.uris) {
+                // Extract filename from the URI for error messages
+                const fileName = filePath.split('/').pop() || ''
+
+                const extension = filePath.split('.').pop()?.toLowerCase() || ''
+                // 2. File type check
+                if (!supportedExtensions.includes(extension)) {
+                    errorMessage = `${fileName}: File must be an image in JPEG, PNG, GIF, or WebP format.`
+                    continue
+                }
+                const sanitizedPath = filePath.startsWith('file://') ? filePath.substring(7) : filePath[0]
+
+                // 3. File size check
+                const size = await this.#features.workspace.fs.getFileSize(sanitizedPath)
+                if (size.size > maxSizeBytes) {
+                    errorMessage = `${fileName}: Image must be no more than 3.75MB in size.`
+                    continue
+                }
+                // 4. Image dimension check
+                const fileContent = await this.#features.workspace.fs.readFile(sanitizedPath, {
+                    encoding: 'binary',
+                })
+                const imageBuffer = Buffer.from(fileContent, 'binary')
+                const { width = 0, height = 0 } = imageSize(imageBuffer)
+                if (width > maxDimension) {
+                    errorMessage = `${fileName}: Image must be no more than 8,000px in width.`
+                    continue
+                }
+                if (height > maxDimension) {
+                    errorMessage = `${fileName}: Image must be no more than 8,000px in height.`
+                    continue
+                }
+                // Passed all checks
+                validFilePaths.push(filePath)
+            }
+
+            if (validFilePaths.length === 0) {
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                    errorMessage: errorMessage || 'No valid image selected.',
+                }
+            }
+
+            // All valid files
+            return {
+                tabId: params.tabId,
+                filePaths: validFilePaths,
+                fileType: params.fileType,
+                insertPosition: params.insertPosition,
+            }
+        }
+        return {
+            tabId: params.tabId,
+            filePaths: [],
+            fileType: params.fileType,
+            insertPosition: params.insertPosition,
+        }
+    }
+
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
         if (params.isRule) {
             let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
@@ -598,13 +691,21 @@ export class AgenticChatController implements ChatHandlers {
             // Combine additional context with active file and get file list to display at top of response
             const contextItems = [...additionalContext, ...activeFile]
             triggerContext.documentReference = this.#additionalContextProvider.getFileListFromContext(contextItems)
+            if (additionalContext.length) {
+                triggerContext.documentReference =
+                    this.#additionalContextProvider.getFileListFromContext(additionalContext)
+            }
+
+            const customContext = await this.#additionalContextProvider.getImageBlocksFromContext(params.context)
+
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
                 params,
                 session,
                 triggerContext,
                 additionalContext,
-                chatResultStream
+                chatResultStream,
+                customContext
             )
 
             // Generate a unique ID for this prompt
@@ -697,7 +798,8 @@ export class AgenticChatController implements ChatHandlers {
             this.#getTools(session),
             additionalContext,
             session.modelId,
-            this.#origin
+            this.#origin,
+            customContext
         )
         return requestInput
     }

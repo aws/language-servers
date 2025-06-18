@@ -29,7 +29,7 @@ import {
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { Features } from '../../types'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
-import { ChatMessage } from '@amzn/codewhisperer-streaming'
+import { ChatMessage, ImageBlock, ImageFormat } from '@amzn/codewhisperer-streaming'
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
@@ -397,6 +397,66 @@ export class AdditionalContextProvider {
                 showRules: workspaceUtils.getWorkspaceFolderPaths(this.features.workspace).length > 0,
             })
         }
+    }
+
+    /**
+     * Extracts image blocks from a context array, reading image files and returning them as ImageBlock objects.
+     * @param contextArr The context array to extract image blocks from.
+     */
+    public async getImageBlocksFromContext(contextArr?: ContextCommand[]): Promise<ImageBlock[]> {
+        const imageBlocks: ImageBlock[] = []
+        if (contextArr) {
+            for (const context of contextArr) {
+                if (
+                    context.label !== undefined &&
+                    context.label === 'image' &&
+                    context.route &&
+                    context.route.length > 0
+                ) {
+                    try {
+                        // sanitize the image path to remove  'file://' if it's a prefix
+                        const imagePath = context.route[0].startsWith('file://')
+                            ? context.route[0].substring(7)
+                            : context.route[0]
+                        // Read image file
+
+                        // Get image format from file extension
+                        const format = imagePath.split('.').pop()?.toLowerCase() || ''
+                        if (!['png', 'jpeg', 'gif', 'webp'].includes(format)) {
+                            this.features.logging.warn(`Unsupported image format: ${format}`)
+                            continue
+                        }
+
+                        if ('content' in context && context.content) {
+                            imageBlocks.push({
+                                format: format as ImageFormat,
+                                source: {
+                                    bytes: new Uint8Array(Object.values(context.content)),
+                                },
+                            })
+                            continue
+                        }
+
+                        const fileContent = await this.features.workspace.fs.readFile(imagePath, {
+                            encoding: 'binary',
+                        })
+                        const imageBuffer = Buffer.from(fileContent, 'binary')
+                        const imageBytes = new Uint8Array(imageBuffer)
+
+                        // Add image block
+                        imageBlocks.push({
+                            format: format as ImageFormat,
+                            source: {
+                                bytes: imageBytes,
+                            },
+                        })
+                    } catch (err) {
+                        this.features.logging.error(`Failed to read image file: ${err}`)
+                    }
+                }
+            }
+        }
+        return imageBlocks
     }
 
     async getRulesFolders(tabId: string): Promise<RulesFolder[]> {

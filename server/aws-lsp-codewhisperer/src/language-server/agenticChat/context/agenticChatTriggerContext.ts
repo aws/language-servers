@@ -13,7 +13,8 @@ import {
     ProgrammingLanguage,
     EnvState,
     Origin,
-} from '@amzn/codewhisperer-streaming'
+    ImageBlock,
+} from '@aws/codewhisperer-streaming-client'
 import {
     BedrockTools,
     ChatParams,
@@ -247,6 +248,7 @@ export class AgenticChatTriggerContext {
                         userIntent: triggerContext.userIntent,
                         origin: origin ? origin : 'IDE',
                         modelId,
+                        images: imageContext,
                     },
                 },
                 customizationArn,
