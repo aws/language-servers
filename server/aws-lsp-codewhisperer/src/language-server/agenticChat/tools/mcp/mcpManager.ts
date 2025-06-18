@@ -214,7 +214,9 @@ export class McpManager {
                     transportConfig.cwd = URI.parse(workspaceFolders[0].uri).fsPath
                 }
             } catch {
-                // No workspace folder available, continue without cwd
+                this.features.logging.debug(
+                    `MCP: No workspace folder available for server [${serverName}], continuing without cwd`
+                )
             }
 
             const transport = new StdioClientTransport(transportConfig)
