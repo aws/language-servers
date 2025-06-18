@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.0.53](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.52...lsp-codewhisperer/v0.0.53) (2025-06-18)
+
+
+### Reverts
+
+* **amazonq:** fix filter languages at workspace context server onDeleteFiles ([403c26a](https://github.com/aws/language-servers/commit/403c26a91f25d0035d92bfd21835b747a0dbafce))
+* **amazonq:** nep cherrypick codewhispererService.ts ([#1689](https://github.com/aws/language-servers/issues/1689))" ([#1692](https://github.com/aws/language-servers/issues/1692)) ([69f1071](https://github.com/aws/language-servers/commit/69f10717c2eff8d4479ffa8a18220e15c03f865d))
+
 ## [0.0.52](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.51...lsp-codewhisperer/v0.0.52) (2025-06-17)
 
 
