@@ -22,11 +22,8 @@ import {
     createCodeWhispererTokenClient,
     RequestExtras,
 } from '../client/token/codewhisperer'
-import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
-import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
-import { getErrorId } from './utils'
-import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
 
+// Define our own Suggestion interface to wrap the differences between Token and IAM Client
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
 }
@@ -45,17 +42,16 @@ export interface ResponseContext {
     nextToken?: string
 }
 
-export enum SuggestionType {
-    EDIT = 'EDIT',
-    COMPLETION = 'COMPLETION',
-}
-
 export interface GenerateSuggestionsResponse {
     suggestions: Suggestion[]
-    suggestionType?: SuggestionType
     responseContext: ResponseContext
 }
 
+import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
+import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
+import { getErrorId } from './utils'
+
+// Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion
@@ -138,6 +134,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
+
         const response = await this.client.generateRecommendations(request).promise()
         const responseContext = {
             requestId: response?.$response?.requestId,
@@ -151,7 +148,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
         return {
             suggestions: response.recommendations as Suggestion[],
-            suggestionType: SuggestionType.COMPLETION,
             responseContext,
         }
     }
@@ -176,7 +172,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         sdkInitializator: SDKInitializator
     ) {
         super(codeWhispererRegion, codeWhispererEndpoint)
-
         const options: CodeWhispererTokenClientConfigurationOptions = {
             region: this.codeWhispererRegion,
             endpoint: this.codeWhispererEndpoint,
@@ -198,23 +193,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                             throw err
                         }
                     })
-                    req.on('complete', response => {
-                        const requestStartTime = req.startTime?.getTime() || 0
-                        const requestEndTime = new Date().getTime()
-                        const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
-
-                        const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
-                        this.completeRequest(req)
-                    })
-                    req.on('error', async (error, response) => {
-                        const requestStartTime = req.startTime?.getTime() || 0
-                        const requestEndTime = new Date().getTime()
-                        const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
-
-                        const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
-                        this.completeRequest(req)
-                    })
-                    req.on('error', () => {
+                    req.on('complete', () => {
                         this.completeRequest(req)
                     })
                     req.on('error', () => {
@@ -240,40 +219,23 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
+
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
             nextToken: response.nextToken,
         }
-        return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
-    }
 
-    private mapCodeWhispererApiResponseToSuggestion(
-        apiResponse: GenerateCompletionsResponse,
-        responseContext: ResponseContext
-    ): GenerateSuggestionsResponse {
-        if (apiResponse?.predictions && apiResponse.predictions.length > 0) {
-            const suggestionType = apiResponse.predictions[0].edit ? SuggestionType.EDIT : SuggestionType.COMPLETION
-            const predictionType = suggestionType === SuggestionType.COMPLETION ? 'completion' : 'edit'
-
-            return {
-                suggestions: apiResponse.predictions.map(prediction => ({
-                    content: prediction[predictionType]?.content ?? '',
-                    references: prediction[predictionType]?.references ?? [],
-                    itemId: this.generateItemId(),
-                })),
-                suggestionType,
-                responseContext,
-            }
+        for (const recommendation of response?.completions ?? []) {
+            Object.assign(recommendation, { itemId: this.generateItemId() })
         }
+
         return {
-            suggestions: apiResponse.completions as Suggestion[],
-            suggestionType: SuggestionType.COMPLETION,
+            suggestions: response.completions as Suggestion[],
             responseContext,
         }
     }
-
     public async codeModernizerCreateUploadUrl(
         request: CodeWhispererTokenClient.CreateUploadUrlRequest
     ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {
