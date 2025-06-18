@@ -202,12 +202,22 @@ export class McpManager {
                     ? Object.fromEntries(Object.entries(cfg.env).filter(([key]) => key && key.trim() !== ''))
                     : {}),
             }
-            const transport = new StdioClientTransport({
+            const transportConfig: any = {
                 command: cfg.command,
                 args: cfg.args ?? [],
                 env: mergedEnv,
-                cwd: URI.parse(this.features.workspace.getAllWorkspaceFolders()[0].uri).fsPath,
-            })
+            }
+
+            try {
+                const workspaceFolders = this.features.workspace.getAllWorkspaceFolders()
+                if (workspaceFolders.length > 0) {
+                    transportConfig.cwd = URI.parse(workspaceFolders[0].uri).fsPath
+                }
+            } catch {
+                // No workspace folder available, continue without cwd
+            }
+
+            const transport = new StdioClientTransport(transportConfig)
             const client = new Client({
                 name: `mcp-client-${serverName}`,
                 version: '1.0.0',
