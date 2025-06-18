@@ -255,7 +255,7 @@ export class ArtifactManager {
         const programmingLanguages = new Set<CodewhispererLanguage>()
 
         // Add the file language if we can determine it, but don't return early
-        if (fileLanguage && SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(fileLanguage)) {
+        if (fileLanguage) {
             programmingLanguages.add(fileLanguage)
         }
 
