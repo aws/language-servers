@@ -37,6 +37,7 @@ import {
     ListRulesParams,
     ListMcpServersParams,
     McpServerClickParams,
+    OpenFileDialogParams,
     OpenTabResult,
     PinnedContextParams,
     PromptInputOptionChangeParams,
@@ -107,6 +108,8 @@ export interface OutboundChatApi {
     listRules(params: ListRulesParams): void
     onAddPinnedContext(params: PinnedContextParams): void
     onRemovePinnedContext(params: PinnedContextParams): void
+    onOpenFileDialogClick(params: OpenFileDialogParams): void
+    onFilesDropped(params: { tabId: string; files: FileList; insertPosition: number }): void
 }
 
 export class Messager {
@@ -279,5 +282,13 @@ export class Messager {
 
     onRemovePinnedContext = (params: PinnedContextParams) => {
         this.chatApi.onRemovePinnedContext(params)
+    }
+
+    onOpenFileDialogClick = (params: OpenFileDialogParams): void => {
+        this.chatApi.onOpenFileDialogClick(params)
+    }
+
+    onFilesDropped = (params: { tabId: string; files: FileList; insertPosition: number }): void => {
+        this.chatApi.onFilesDropped(params)
     }
 }

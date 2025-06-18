@@ -74,6 +74,8 @@ describe('MynahUI', () => {
             listRules: sinon.stub(),
             onAddPinnedContext: sinon.stub(),
             onRemovePinnedContext: sinon.stub(),
+            onOpenFileDialogClick: sinon.stub(),
+            onFilesDropped: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
