@@ -267,6 +267,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 responseContext,
             }
         }
+
+        for (const recommendation of apiResponse?.completions ?? []) {
+            Object.assign(recommendation, { itemId: this.generateItemId() })
+        }
+
         return {
             suggestions: apiResponse.completions as Suggestion[],
             suggestionType: SuggestionType.COMPLETION,
