@@ -70,6 +70,10 @@ describe('MynahUI', () => {
             stopChatResponse: sinon.stub(),
             sendButtonClickEvent: sinon.stub(),
             onOpenSettings: sinon.stub(),
+            onRuleClick: sinon.stub(),
+            listRules: sinon.stub(),
+            onAddPinnedContext: sinon.stub(),
+            onRemovePinnedContext: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
@@ -427,14 +431,14 @@ describe('MynahUI', () => {
 
             const newValues = {
                 'pair-programmer-mode': 'true',
-                'model-selection': BedrockModel.CLAUDE_3_5_SONNET_20241022_V2_0,
+                'model-selection': BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0,
             }
 
             handlePromptInputChange(mynahUi, tabId, newValues)
 
             const expectedOptions = [
                 { id: 'pair-programmer-mode', value: 'true' },
-                { id: 'model-selection', value: BedrockModel.CLAUDE_3_5_SONNET_20241022_V2_0 },
+                { id: 'model-selection', value: BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0 },
             ]
 
             sinon.assert.calledWith(updateStoreSpy, tabId, {

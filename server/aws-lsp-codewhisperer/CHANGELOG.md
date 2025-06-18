@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.0.51](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.50...lsp-codewhisperer/v0.0.51) (2025-06-17)
+
+
+### Features
+
+* add packageId property to references in req.json ([#1570](https://github.com/aws/language-servers/issues/1570)) ([3b14b17](https://github.com/aws/language-servers/commit/3b14b173369936fe9bcee130a15f2ae1d39c9cb9))
+* support per region model selection ([#1683](https://github.com/aws/language-servers/issues/1683)) ([0b81b37](https://github.com/aws/language-servers/commit/0b81b37c15a8c407ec04904abb4bdccf829aa1c1))
+
+
+### Bug Fixes
+
+* add latency metrics for invokeLLM metric ([#1681](https://github.com/aws/language-servers/issues/1681)) ([0cac52c](https://github.com/aws/language-servers/commit/0cac52c3d037da8fc4403f030738256b07195e76))
+* adding normalizePathFromUri to mcpUtils to handle uri paths ([#1653](https://github.com/aws/language-servers/issues/1653)) ([20532bf](https://github.com/aws/language-servers/commit/20532bf276967c33c43a677e1c1621451c58b9a9))
+* **amazonq:** prevent workspace context server initialization workflow from overlapping ([#1668](https://github.com/aws/language-servers/issues/1668)) ([1625abd](https://github.com/aws/language-servers/commit/1625abd2a9fa969859236cfe1b57fa1cdd2dcc33))
+* clear IDE context for auto-retry requests not initiated by the user ([#1680](https://github.com/aws/language-servers/issues/1680)) ([13c9455](https://github.com/aws/language-servers/commit/13c94558706d0181c1a2d64b439be90a601e8f74))
+* timeout only works for the first time in the loop ([#1675](https://github.com/aws/language-servers/issues/1675)) ([ab50985](https://github.com/aws/language-servers/commit/ab50985eb0dac1888769f7fb703aa8d6f50c1b89))
+* use NodeHttpHandler when configuring requestHandler ([#1670](https://github.com/aws/language-servers/issues/1670)) ([7b620a8](https://github.com/aws/language-servers/commit/7b620a82b7acb4fbdbb5b88661be661dd575d152))
+* when user add a new server, it would load global persona at first time ([#1667](https://github.com/aws/language-servers/issues/1667)) ([a3cf388](https://github.com/aws/language-servers/commit/a3cf3880d178ae74f2136abb798f6a8f08fe76e2))
+
+## [0.0.50](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.49...lsp-codewhisperer/v0.0.50) (2025-06-16)
+
+
+### Features
+
+* add EnableWebFormsToBlazorTransform flag to support WebForms to Blazor transformation ([#1577](https://github.com/aws/language-servers/issues/1577)) ([8c6e9f6](https://github.com/aws/language-servers/commit/8c6e9f6e0a6fd1a7464b26572c1b613b3864b27a))
+* **amazonq:** edit predition auto trigger ([#1662](https://github.com/aws/language-servers/issues/1662)) ([cbcd82b](https://github.com/aws/language-servers/commit/cbcd82bf6632859539e46d1fbe12ec75ab505fb4))
+* **amazonq:** model throttling message as card instead of chat message ([#1657](https://github.com/aws/language-servers/issues/1657)) ([7ee1f2a](https://github.com/aws/language-servers/commit/7ee1f2ac0bdaa9f73fb63fc6d20d0de6d7b07523))
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+* update list of models and set default to 4 ([#1659](https://github.com/aws/language-servers/issues/1659)) ([1991658](https://github.com/aws/language-servers/commit/19916584d3f46049d30f0c23b41c3857a07bc622))
+
+
+### Bug Fixes
+
+* **agenticChat:** UX fixes for MCP ([#1661](https://github.com/aws/language-servers/issues/1661)) ([bbdb4b4](https://github.com/aws/language-servers/commit/bbdb4b451352af50a914df684d7654686142a13b))
+* **amazonq:** properly deposit workspace context server resources on exit ([#1647](https://github.com/aws/language-servers/issues/1647)) ([34efb2b](https://github.com/aws/language-servers/commit/34efb2b0e4ded031b33ed1ed7b96cf41fbe8e03b))
+* increase timeout value for the streaming client ([#1654](https://github.com/aws/language-servers/issues/1654)) ([439a488](https://github.com/aws/language-servers/commit/439a488fc95683ab0da2df18a5044d66b689f4ed))
+
+## [0.0.49](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.48...lsp-codewhisperer/v0.0.49) (2025-06-13)
+
+
+### Features
+
+* **amazonq:** code edit tracker impl for next edit prediction ([#1617](https://github.com/aws/language-servers/issues/1617)) ([cae8993](https://github.com/aws/language-servers/commit/cae89938fe9b7e25d9a1b6552d573e79d29e97f3))
+* **amazonq:** cursor tracker implementation ([#1600](https://github.com/aws/language-servers/issues/1600)) ([9be5a96](https://github.com/aws/language-servers/commit/9be5a9688647d1b4fac3aae852bd0ff4b026a873))
+* **amazonq:** next edit prediction configuration and feature flag ([#1635](https://github.com/aws/language-servers/issues/1635)) ([c1a01ac](https://github.com/aws/language-servers/commit/c1a01ace6413222af3c21d19033716a343b85434))
+* **amazonq:** rejectedEditTracker impl for next edit prediction ([#1631](https://github.com/aws/language-servers/issues/1631)) ([46246f1](https://github.com/aws/language-servers/commit/46246f1ab677ad7db0f12d88d80debd6264ff3f5))
+* **amazonq:** utils for NEP(next edit prediction) ([#1615](https://github.com/aws/language-servers/issues/1615)) ([e3e582e](https://github.com/aws/language-servers/commit/e3e582e425e0b9838a81bef04c2b1917fb6cfb66))
+* apply a max 200MB total history size ([#1587](https://github.com/aws/language-servers/issues/1587)) ([62252f2](https://github.com/aws/language-servers/commit/62252f2470b4780b0f1c85558ee5f51366cc64b5))
+* language keywords detector impl for NEP ([#1614](https://github.com/aws/language-servers/issues/1614)) ([c48cd82](https://github.com/aws/language-servers/commit/c48cd824c67d42076c60a150035d8867204c198a))
+
+
+### Bug Fixes
+
+* remove /manage options from the chat prompt popup ([#1650](https://github.com/aws/language-servers/issues/1650)) ([d9de456](https://github.com/aws/language-servers/commit/d9de4565bf1848d91693f1e44b5cbb478ae75d44))
+
 ## [0.0.48](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.47...lsp-codewhisperer/v0.0.48) (2025-06-12)
 
 

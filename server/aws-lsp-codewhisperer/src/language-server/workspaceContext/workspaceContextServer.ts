@@ -26,6 +26,8 @@ export const WorkspaceContextServer = (): Server => features => {
     let artifactManager: ArtifactManager
     let dependencyDiscoverer: DependencyDiscoverer
     let workspaceFolderManager: WorkspaceFolderManager
+    let workflowInitializationInterval: NodeJS.Timeout
+    let isWorkflowInitializing: boolean = false
     let isWorkflowInitialized: boolean = false
     let isOptedIn: boolean = false
     let abTestingEvaluated = false
@@ -236,7 +238,7 @@ export const WorkspaceContextServer = (): Server => features => {
              * of workspace folders is updated using *artifactManager.updateWorkspaceFolders(workspaceFolders)* before
              * initializing again.
              */
-            setInterval(async () => {
+            const initializeWorkflow = async () => {
                 if (!isOptedIn) {
                     return
                 }
@@ -272,6 +274,23 @@ export const WorkspaceContextServer = (): Server => features => {
                         await workspaceFolderManager.clearAllWorkspaceResources()
                     }
                     isWorkflowInitialized = false
+                }
+            }
+            if (workflowInitializationInterval) {
+                return
+            }
+            workflowInitializationInterval = setInterval(async () => {
+                // Prevent multiple initializeWorkflow() execution from overlapping
+                if (isWorkflowInitializing) {
+                    return
+                }
+                isWorkflowInitializing = true
+                try {
+                    await initializeWorkflow()
+                } catch (error) {
+                    logging.error(`Error while initializing workflow: ${error}`)
+                } finally {
+                    isWorkflowInitializing = false
                 }
             }, 5000)
         } catch (error) {
@@ -404,7 +423,7 @@ export const WorkspaceContextServer = (): Server => features => {
 
                 const programmingLanguages = artifactManager.handleDeletedPathAndGetLanguages(file.uri, workspaceFolder)
                 if (programmingLanguages.length === 0) {
-                    logging.log(`No programming languages determined for: ${file.uri}`)
+                    logging.log(`No supported programming languages determined for: ${file.uri}`)
                     continue
                 }
 
@@ -501,10 +520,13 @@ export const WorkspaceContextServer = (): Server => features => {
     logging.log('Workspace context server has been initialized')
 
     return () => {
-        workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
-            logging.warn(
-                `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
-        })
+        clearInterval(workflowInitializationInterval)
+        if (workspaceFolderManager) {
+            workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
+                logging.warn(
+                    `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
+                )
+            })
+        }
     }
 }

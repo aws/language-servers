@@ -2,7 +2,7 @@ import { ChatHistory } from '../features/history'
 import { TabFactory } from './tabFactory'
 import * as assert from 'assert'
 import { pairProgrammingPromptInput } from '../texts/pairProgramming'
-import { modelSelection } from '../texts/modelSelection'
+import { modelSelectionForRegion } from '../texts/modelSelection'
 
 describe('tabFactory', () => {
     describe('getDefaultTabData', () => {
@@ -92,7 +92,10 @@ describe('tabFactory', () => {
 
             const result = tabFactory.createTab(false)
 
-            assert.deepStrictEqual(result.promptInputOptions, [pairProgrammingPromptInput, modelSelection])
+            assert.deepStrictEqual(result.promptInputOptions, [
+                pairProgrammingPromptInput,
+                modelSelectionForRegion['us-east-1'],
+            ])
         })
 
         it('should not include model selection when only agentic mode is enabled', () => {

@@ -38,6 +38,9 @@ export interface ChatEventHandler
         | 'onPromptInputOptionChange'
         | 'onPromptInputButtonClick'
         | 'onMessageDismiss'
+        | 'onPromptTopBarItemAdded'
+        | 'onPromptTopBarItemRemoved'
+        | 'onPromptTopBarButtonClick'
     > {}
 
 /**
