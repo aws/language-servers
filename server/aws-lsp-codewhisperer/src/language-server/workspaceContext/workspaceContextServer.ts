@@ -18,6 +18,35 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
+const IGNORE_PATTERNS = [
+    // Package management and git
+    '.*/node_modules/.*',
+    '.*/.git/.*',
+    // Build outputs
+    '.*/dist/.*',
+    '.*/build/.*',
+    '.*/out/.*',
+    '.*/coverage/.*',
+    // Logs and temporary files
+    '.*/logs/.*',
+    '.*/tmp/.*',
+    // Environment and configuration
+    '.*/env/.*',
+    '.*/venv/.*',
+    '.*/bin/.*',
+    // Framework specific
+    '.*/target/.*', // Maven/Gradle builds
+]
+
+function shouldIgnore(path: string): boolean {
+    // Normalize Windows paths
+    const normalizedPath = path.replace(/\\/g, '/')
+    return IGNORE_PATTERNS.some(pattern => {
+        const regex = new RegExp(pattern)
+        return regex.test(normalizedPath)
+    })
+}
+
 export const WorkspaceContextServer = (): Server => features => {
     const { credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator } = features
 
@@ -351,13 +380,17 @@ export const WorkspaceContextServer = (): Server => features => {
             if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
-            logging.log(`Received didCreateFiles event of length ${event.files.length}`)
+            logging.info(`Received didCreateFiles event of length ${event.files.length}`)
 
             const workspaceState = workspaceFolderManager.getWorkspaceState()
             for (const file of event.files) {
                 const isDir = isDirectory(file.uri)
                 const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(file.uri, workspaceFolders)
                 if (!workspaceFolder) {
+                    continue
+                }
+
+                if (shouldIgnore(file.uri)) {
                     continue
                 }
 
@@ -374,7 +407,6 @@ export const WorkspaceContextServer = (): Server => features => {
                 } else {
                     filesMetadata = [await artifactManager.processNewFile(workspaceFolder, file.uri)]
                 }
-
                 const workspaceId = await workspaceFolderManager.waitForRemoteWorkspaceId()
                 for (const fileMetadata of filesMetadata) {
                     const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
@@ -464,6 +496,10 @@ export const WorkspaceContextServer = (): Server => features => {
             for (const file of event.files) {
                 const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(file.newUri, workspaceFolders)
                 if (!workspaceFolder) {
+                    continue
+                }
+
+                if (shouldIgnore(file.newUri)) {
                     continue
                 }
 
