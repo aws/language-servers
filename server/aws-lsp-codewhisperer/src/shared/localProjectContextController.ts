@@ -391,7 +391,7 @@ export class LocalProjectContextController {
         return this._vecLib !== undefined && this._isIndexingEnabled
     }
 
-    private async processWorkspaceFolders(
+    async processWorkspaceFolders(
         workspaceFolders?: WorkspaceFolder[] | null,
         fileExtensions?: string[],
         maxFileSizeMB?: number,
