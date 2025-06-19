@@ -501,6 +501,25 @@ describe('listFilesWithGitignore', () => {
         assert.deepStrictEqual(files.sort(), expectedFiles)
     })
 
+    it('should respect patterns in common gitignore', async () => {
+        await createTestFiles({
+            'file1.txt': 'not ignored',
+            'file2.js': 'not ignored',
+            'node_modules/package.json': 'ignored',
+            '.idea/file3.txt': 'ignored',
+            'src/file4.js': 'not ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [
+            path.join(tempDir, 'file1.txt'),
+            path.join(tempDir, 'file2.js'),
+            path.join(tempDir, 'src/file4.js'),
+        ].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
     it('should respect .npmignore patterns', async () => {
         await createTestFiles({
             '.npmignore': '*.test.js\ntests/',
