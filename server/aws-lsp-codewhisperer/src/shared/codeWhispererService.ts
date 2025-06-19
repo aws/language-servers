@@ -32,6 +32,7 @@ import { Position } from 'vscode-languageserver-textdocument'
 import { getErrorId } from './utils'
 
 import { PredictionType, GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
+import { Logger } from '../language-server/inline-completion/logger'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -256,18 +257,58 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
                         const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
-                        this.completeRequest(req)
-                    })
-                    req.on('error', async (error, response) => {
-                        const requestStartTime = req.startTime?.getTime() || 0
-                        const requestEndTime = new Date().getTime()
-                        const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
-                        const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
+                        if (!requestBody.telemetryEvent) {
+                            let responseBody = {}
+                            try {
+                                if (response?.httpResponse?.body) {
+                                    responseBody = JSON.parse(response.httpResponse.body.toString())
+                                }
+
+                                // Log the completion information as JSON
+                                this.logging.debug(
+                                    '[API_INVOCATION] ' +
+                                        JSON.stringify({
+                                            event: 'RequestComplete',
+                                            operation: req.operation,
+                                            rtsRequestId: response.requestId,
+                                            filename: requestBody.fileContext?.filename,
+                                            requestBody,
+                                            responseBody,
+                                            latency,
+                                            statusCode: response?.httpResponse?.statusCode,
+                                        })
+                                )
+                            } catch (e) {
+                                this.logging.error(
+                                    `[API_INVOCATION] Error logging request completion: ${(e as Error).message}`
+                                )
+                            }
+                        }
+
                         this.completeRequest(req)
                     })
-                    req.on('error', () => {
+                    req.on('error', (error: AWSError) => {
                         this.completeRequest(req)
+                        try {
+                            const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
+                            // Log the error information as JSON
+                            this.logging.debug(
+                                '[API_INVOCATION] ' +
+                                    JSON.stringify({
+                                        event: 'RequestError',
+                                        operation: req.operation,
+                                        rtsRequestId: error.requestId,
+                                        filename: requestBody.fileContext?.filename,
+                                        requestBody,
+                                        error: error?.message,
+                                        errorCode: error?.code,
+                                        errorName: error?.name,
+                                    })
+                            )
+                        } catch (e) {
+                            this.logging.error(`[API_INVOCATION] Error logging request error: ${(e as Error).message}`)
+                        }
                     })
                     req.on('error', () => {
                         this.completeRequest(req)
@@ -301,11 +342,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             enablePrefetch: boolean
         }
     ): Promise<GenerateSuggestionsResponse> {
-        if (!config.enablePrefetch) {
-            return this.generateSuggestions(request)
-        }
+        return this.generateSuggestions(request)
+        // if (!config.enablePrefetch) {
+        //     return this.generateSuggestions(request)
+        // }
 
-        return this.generateSuggestionsAndPrefetch(textDocument, request)
+        // return this.generateSuggestionsAndPrefetch(textDocument, request)
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {

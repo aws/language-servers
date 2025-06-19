@@ -219,6 +219,7 @@ export async function fetchOpenTabsContext(
             filePath: chunk.fileName,
             content: chunk.nextContent,
             score: chunk.score,
+            type: 'workspaceContext',
         })
     }
 

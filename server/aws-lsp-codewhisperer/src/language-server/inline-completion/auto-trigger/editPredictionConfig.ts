@@ -19,27 +19,52 @@ export interface EditPredictionConfig {
     editHistoryDurationMs: number
     editAdjacentLineRange: number
 
-    // Feature flags
+    // Required condition flags
+    enableRecentEditCheck: boolean
+    enableNotInMiddleOfWordCheck: boolean
+    enablePreviousDecisionCheck: boolean
+    enableNonEmptySuffixCheck: boolean
+
+    // Optional condition flags
     enableLanguageKeywordTrigger: boolean
     enableOperatorDelimiterTrigger: boolean
     enableUserPauseTrigger: boolean
     enableLineBeginningTrigger: boolean
+
+    // Logical operation configuration
+    requireAllOptionalConditions: boolean // When true, uses AND instead of OR for optional conditions
 }
 
 /**
  * Default configuration values
  */
 export const DEFAULT_EDIT_PREDICTION_CONFIG: EditPredictionConfig = {
+    // Time thresholds
     recentEditThresholdMs: 20000, // 20 seconds
     userPauseThresholdMs: 10000, // 10 seconds
     recentRejectionThresholdMs: 30000, // 30 seconds
+
+    // Cursor update interval
     cursorUpdateIntervalMs: 250, // 250 milliseconds
+
+    // Edit tracking
     editHistoryDurationMs: 300000, // 5 minutes
-    editAdjacentLineRange: 3,
+    editAdjacentLineRange: 30,
+
+    // Required condition flags
+    enableRecentEditCheck: true,
+    enableNotInMiddleOfWordCheck: true,
+    enablePreviousDecisionCheck: true,
+    enableNonEmptySuffixCheck: true,
+
+    // Optional condition flags
     enableLanguageKeywordTrigger: true,
     enableOperatorDelimiterTrigger: true,
     enableUserPauseTrigger: true,
     enableLineBeginningTrigger: true,
+
+    // Logical operation configuration
+    requireAllOptionalConditions: false,
 }
 
 /**

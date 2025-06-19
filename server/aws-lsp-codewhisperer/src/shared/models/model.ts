@@ -24,13 +24,14 @@ export interface CodeWhispererSupplementalContext {
     contentsLength: number
     latency: number
     strategy: SupplementalContextStrategy
-    timeOffset?: number
 }
 
 export interface CodeWhispererSupplementalContextItem {
     content: string
     filePath: string
     score?: number
+    type?: 'previousEditorState' | 'workspaceContext'
+    timeOffset?: number
 }
 
 /**

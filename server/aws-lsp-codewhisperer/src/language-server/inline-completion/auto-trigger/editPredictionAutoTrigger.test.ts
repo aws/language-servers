@@ -8,7 +8,7 @@ import * as sinon from 'sinon'
 import { editPredictionAutoTrigger } from './editPredictionAutoTrigger'
 import { EditPredictionConfigManager } from './editPredictionConfig'
 import { FileContext } from '../../../shared/codeWhispererService'
-import { Position } from '@aws/language-server-runtimes/server-interface'
+import { Logger, Logging, Position } from '@aws/language-server-runtimes/server-interface'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { TestScenarios, EditTrackingScenarios, splitCodeAtPosition } from './EditPredictionAutoTriggerTestConstants'
@@ -36,6 +36,7 @@ sinon.stub(require('./languageDetector'), 'LanguageDetectorFactory').returns({
 describe('editPredictionAutoTrigger', function () {
     let mockCursorTracker: Partial<CursorTracker>
     let mockRecentEdits: Partial<RecentEditTracker>
+    let mockLogger: Partial<Logging>
 
     beforeEach(function () {
         logTest('Setting up test environment')
@@ -47,6 +48,10 @@ describe('editPredictionAutoTrigger', function () {
 
         mockRecentEdits = {
             hasRecentEditInLine: sinon.stub().returns(true),
+        }
+
+        mockLogger = {
+            debug: sinon.stub().returns(null),
         }
 
         // Reset the config manager
@@ -82,6 +87,7 @@ describe('editPredictionAutoTrigger', function () {
             previousDecision: '',
             cursorHistory: mockCursorTracker as CursorTracker,
             recentEdits: mockRecentEdits as RecentEditTracker,
+            logging: mockLogger as Logging,
         })
 
         // Assert
@@ -102,6 +108,7 @@ describe('editPredictionAutoTrigger', function () {
             previousDecision: '',
             cursorHistory: mockCursorTracker as CursorTracker,
             recentEdits: mockRecentEdits as RecentEditTracker,
+            logging: mockLogger as Logging,
         })
 
         // Assert
@@ -120,6 +127,7 @@ describe('editPredictionAutoTrigger', function () {
             previousDecision: 'Reject',
             cursorHistory: mockCursorTracker as CursorTracker,
             recentEdits: mockRecentEdits as RecentEditTracker,
+            logging: mockLogger as Logging,
         })
 
         // Assert
@@ -138,6 +146,7 @@ describe('editPredictionAutoTrigger', function () {
             previousDecision: '',
             cursorHistory: mockCursorTracker as CursorTracker,
             recentEdits: mockRecentEdits as RecentEditTracker,
+            logging: mockLogger as Logging,
         })
 
         // Assert
@@ -157,6 +166,7 @@ describe('editPredictionAutoTrigger', function () {
             previousDecision: '',
             cursorHistory: mockCursorTracker as CursorTracker,
             recentEdits: mockRecentEdits as RecentEditTracker,
+            logging: mockLogger as Logging,
         })
 
         // Assert
@@ -217,6 +227,7 @@ describe('editPredictionAutoTrigger', function () {
                                 previousDecision: '',
                                 cursorHistory: mockCursorTracker as CursorTracker,
                                 recentEdits: mockRecentEdits as RecentEditTracker,
+                                logging: mockLogger as Logging,
                             })
 
                             // Assert
@@ -232,6 +243,7 @@ describe('editPredictionAutoTrigger', function () {
                             previousDecision: '',
                             cursorHistory: mockCursorTracker as CursorTracker,
                             recentEdits: mockRecentEdits as RecentEditTracker,
+                            logging: mockLogger as Logging,
                         })
 
                         // Assert
@@ -260,6 +272,7 @@ describe('editPredictionAutoTrigger', function () {
                     previousDecision: '',
                     cursorHistory: mockCursorTracker as CursorTracker,
                     recentEdits: mockRecentEdits as RecentEditTracker,
+                    logging: mockLogger as Logging,
                 })
 
                 // Assert
@@ -371,6 +384,7 @@ describe('editPredictionAutoTrigger', function () {
                 previousDecision: '',
                 cursorHistory: mockCursorTracker as CursorTracker,
                 recentEdits: mockRecentEdits as RecentEditTracker,
+                logging: mockLogger as Logging,
             })
 
             // Assert
@@ -404,6 +418,7 @@ describe('editPredictionAutoTrigger', function () {
                 previousDecision: '',
                 cursorHistory: mockCursorTracker as CursorTracker,
                 recentEdits: mockRecentEdits as RecentEditTracker,
+                logging: mockLogger as Logging,
             })
 
             // Assert
@@ -429,6 +444,7 @@ describe('editPredictionAutoTrigger', function () {
                 previousDecision: '',
                 cursorHistory: mockCursorTracker as CursorTracker,
                 recentEdits: mockRecentEdits as RecentEditTracker,
+                logging: mockLogger as Logging,
             })
 
             // Assert

@@ -4,6 +4,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin')
 
 const baseConfig = {
     mode: 'production',
+    devtool: 'source-map', // Added source maps for debugging
     resolve: {
         extensions: ['.ts', '.tsx', '.js', '.node'],
     },
@@ -54,6 +55,7 @@ const nodeJsBearerTokenBundleConfig = {
         ...baseConfig.resolve,
     },
     target: 'node',
+    devtool: 'source-map', // Added source maps for debugging
 }
 
 const nodeJsIamBundleConfig = {
@@ -62,6 +64,7 @@ const nodeJsIamBundleConfig = {
         'aws-lsp-codewhisperer-iam-binary': path.join(__dirname, 'src/iam-standalone.ts'),
     },
     target: 'node',
+    devtool: 'source-map', // Added source maps for debugging
 }
 
 const isDevelopment = false
@@ -69,7 +72,7 @@ const isDevelopment = false
 // bundles webworker
 const webworkerConfig = {
     mode: isDevelopment ? 'development' : 'production',
-    devtool: isDevelopment ? 'inline-source-map' : undefined,
+    devtool: isDevelopment ? 'inline-source-map' : 'source-map', // Always generate source maps
     optimization: {
         minimize: !isDevelopment,
         realContentHash: false,
@@ -124,7 +127,7 @@ const webworkerConfig = {
 // bundles main web page (running webworker) and serves it on localhost
 const mainWebpageConfig = {
     mode: isDevelopment ? 'development' : 'production',
-    devtool: isDevelopment ? 'inline-source-map' : undefined,
+    devtool: isDevelopment ? 'inline-source-map' : 'source-map', // Always generate source maps
     optimization: {
         minimize: !isDevelopment,
         realContentHash: false,

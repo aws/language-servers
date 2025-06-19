@@ -91,9 +91,19 @@ export function generateDiffContexts(
     const supplementalContextItems: CodeWhispererSupplementalContextItem[] = []
     const currentTimestamp = Date.now()
 
+    // Get the oldest snapshot for each unique file path
+    const oldestSnapshots = snapshotContents.reduce((acc, snapshot) => {
+        if (!acc.has(snapshot.filePath) || acc.get(snapshot.filePath)!.timestamp > snapshot.timestamp) {
+            acc.set(snapshot.filePath, snapshot)
+        }
+        return acc
+    }, new Map<string, FileSnapshotContent>())
+
+    const oldestSnapshotContents = Array.from(oldestSnapshots.values())
+
     // Process snapshots from newest to oldest
-    for (let i = snapshotContents.length - 1; i >= 0; i--) {
-        const snapshot = snapshotContents[i]
+    for (let i = oldestSnapshotContents.length - 1; i >= 0; i--) {
+        const snapshot = oldestSnapshotContents[i]
         try {
             const unifiedDiff = generateUnifiedDiffWithTimestamps(
                 snapshot.filePath,
@@ -110,6 +120,7 @@ export function generateDiffContexts(
                     filePath: snapshot.filePath,
                     content: unifiedDiff,
                     score: 1.0, // Default score for recent edits
+                    timeOffset: currentTimestamp - snapshot.timestamp,
                 })
             }
         } catch (err) {

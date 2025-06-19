@@ -14,6 +14,7 @@ import {
     ResponseError,
     LSPErrorCodes,
     WorkspaceFolder,
+    Logging,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -62,6 +63,7 @@ import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/cod
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 import { getAddedAndDeletedChars } from './diffUtils'
+import { ConfigProvider } from './debugUtils'
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -305,6 +307,7 @@ export const CodewhispererServerFactory =
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
+        // Initialize the debug logger
         const sessionManager = SessionManager.getInstance()
 
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
@@ -318,6 +321,7 @@ export const CodewhispererServerFactory =
         })
 
         // CodePercentage and codeDiff tracker have a dependency on TelemetryService, so initialization is also delayed to `onInitialized` handler
+        let configProvider: ConfigProvider | undefined
         let codePercentageTracker: CodePercentageTracker
         let userWrittenCodeTracker: UserWrittenCodeTracker | undefined
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
@@ -448,12 +452,21 @@ export const CodewhispererServerFactory =
                             previousDecision: previousDecision,
                             cursorHistory: cursorTracker,
                             recentEdits: recentEditTracker,
+                            logging: logging,
                         })
                         predictionTypes = [
                             ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
                             ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
                         ]
-                        console.log('[PredictionTypes] Result:' + predictionTypes)
+                    }
+
+                    if (configProvider?.getConfig('predictionTypesOveride')) {
+                        predictionTypes = configProvider?.getConfig('predictionTypesOveride')
+                    }
+                    logging.debug('[PredictionTypes]:' + predictionTypes)
+
+                    if (predictionTypes.length == 0) {
+                        return EMPTY_RESULT
                     }
 
                     // supplementalContext available only via token authentication
@@ -495,7 +508,7 @@ export const CodewhispererServerFactory =
                                     type: 'PreviousEditorState',
                                     metadata: {
                                         previousEditorStateMetadata: {
-                                            timeOffset: 1000,
+                                            timeOffset: v.timeOffset,
                                         },
                                     },
                                 })),
@@ -652,30 +665,46 @@ export const CodewhispererServerFactory =
             selectionRange?: Range,
             textDocument?: TextDocument
         ): Promise<InlineCompletionListWithReferences> => {
+            logging.debug('[processSuggestionResponse] Starting to process suggestion response')
             codePercentageTracker.countInvocation(session.language)
+            logging.debug(`[processSuggestionResponse] Counted invocation for language: ${session.language}`)
 
             userWrittenCodeTracker?.recordUsageCount(session.language)
+            logging.debug('[processSuggestionResponse] Recorded usage count')
+
             session.includeImportsWithSuggestions =
                 amazonQServiceManager.getConfiguration().includeImportsWithSuggestions
+            logging.debug(
+                `[processSuggestionResponse] Set includeImportsWithSuggestions: ${session.includeImportsWithSuggestions}`
+            )
 
             if (isNewSession) {
+                logging.debug('[processSuggestionResponse] Processing new session')
                 // Populate the session with information from codewhisperer response
                 session.suggestions = suggestionResponse.suggestions
                 session.responseContext = suggestionResponse.responseContext
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
                 session.timeToFirstRecommendation = new Date().getTime() - session.startTime
+                logging.debug(
+                    `[processSuggestionResponse] New session populated with ${suggestionResponse.suggestions.length} suggestions`
+                )
             } else {
+                logging.debug('[processSuggestionResponse] Adding suggestions to existing session')
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
+                logging.debug(
+                    `[processSuggestionResponse] Total suggestions after merge: ${session.suggestions.length}`
+                )
             }
 
-            // Emit service invocation telemetry for every request sent to backend
+            logging.debug('[processSuggestionResponse] Emitting service invocation telemetry')
             emitServiceInvocationTelemetry(telemetry, session, suggestionResponse.responseContext.requestId)
 
-            // Discard previous inflight API response due to new trigger
             if (session.discardInflightSessionOnNewInvocation) {
+                logging.debug('[processSuggestionResponse] Discarding inflight session due to new trigger')
                 session.discardInflightSessionOnNewInvocation = false
                 sessionManager.discardSession(session)
                 const streakLength = sessionManager.getAndUpdateStreakLength(false)
+                logging.debug(`[processSuggestionResponse] Updated streak length: ${streakLength}`)
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
@@ -684,46 +713,53 @@ export const CodewhispererServerFactory =
                 )
             }
 
-            // session was closed by user already made decisions consequent completion request before new paginated API response was received
-            if (session.state === 'CLOSED' || session.state === 'DISCARD') {
-                return EMPTY_RESULT
-            }
+            // if (session.state === 'CLOSED' || session.state === 'DISCARD') {
+            //     logging.debug(`[processSuggestionResponse] Session already ${session.state}, returning empty result`)
+            //     return EMPTY_RESULT
+            // }
 
-            // API response was recieved, we can activate session now
+            logging.debug('[processSuggestionResponse] Activating session')
             sessionManager.activateSession(session)
 
-            // Process suggestions to apply Empty or Filter filters
+            logging.debug('[processSuggestionResponse] Starting suggestion filtering')
             const filteredSuggestions = suggestionResponse.suggestions
-                // Empty suggestion filter
                 .filter(suggestion => {
                     if (suggestion.content === '') {
+                        logging.debug(`[processSuggestionResponse] Filtering out empty suggestion ${suggestion.itemId}`)
                         session.setSuggestionState(suggestion.itemId, 'Empty')
                         return false
                     }
 
                     return true
                 })
-                // References setting filter
                 .filter(suggestion => {
-                    // State to track whether code with references should be included in
-                    // the response. No locking or concurrency controls, filtering is done
-                    // right before returning and is only guaranteed to be consistent within
-                    // the context of a single response.
                     const { includeSuggestionsWithCodeReferences } = amazonQServiceManager.getConfiguration()
+                    logging.debug(
+                        `[processSuggestionResponse] includeSuggestionsWithCodeReferences: ${includeSuggestionsWithCodeReferences}`
+                    )
+
                     if (includeSuggestionsWithCodeReferences) {
                         return true
                     }
 
                     if (suggestion.references == null || suggestion.references.length === 0) {
+                        logging.debug(
+                            `[processSuggestionResponse] Keeping suggestion ${suggestion.itemId} with no references`
+                        )
                         return true
                     }
 
-                    // Filter out suggestions that have references when includeSuggestionsWithCodeReferences setting is true
+                    logging.debug(
+                        `[processSuggestionResponse] Filtering out suggestion ${suggestion.itemId} with references`
+                    )
                     session.setSuggestionState(suggestion.itemId, 'Filter')
                     return false
                 })
 
+            logging.debug(`[processSuggestionResponse] Filtered suggestions count: ${filteredSuggestions.length}`)
+
             if (suggestionResponse.suggestionType === SuggestionType.COMPLETION) {
+                logging.debug('[processSuggestionResponse] Processing completion suggestion type')
                 const { includeImportsWithSuggestions } = amazonQServiceManager.getConfiguration()
                 const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
                     session.requestContext.fileContext.rightFileContent,
@@ -731,8 +767,10 @@ export const CodewhispererServerFactory =
                     includeImportsWithSuggestions,
                     selectionRange
                 ).filter(suggestion => {
-                    // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
                     if (suggestion.insertText === '') {
+                        logging.debug(
+                            `[processSuggestionResponse] Discarding suggestion ${suggestion.itemId} with empty insertText`
+                        )
                         session.setSuggestionState(suggestion.itemId, 'Discard')
                         return false
                     }
@@ -740,26 +778,39 @@ export const CodewhispererServerFactory =
                     return true
                 })
 
+                logging.debug(
+                    `[processSuggestionResponse] Suggestions after right context merge: ${suggestionsWithRightContext.length}`
+                )
+
                 suggestionsWithRightContext.forEach(suggestion => {
                     const cachedSuggestion = session.suggestions.find(s => s.itemId === suggestion.itemId)
-                    if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
+                    if (cachedSuggestion) {
+                        logging.debug(`[processSuggestionResponse] Updating cached suggestion ${suggestion.itemId}`)
+                        cachedSuggestion.insertText = suggestion.insertText.toString()
+                    }
                 })
 
-                // TODO: need dedupe after right context merging but I don't see one
                 session.suggestionsAfterRightContextMerge.push(...suggestionsWithRightContext)
+                logging.debug(
+                    `[processSuggestionResponse] Total suggestions after merge: ${session.suggestionsAfterRightContextMerge.length}`
+                )
 
                 session.codewhispererSuggestionImportCount =
                     session.codewhispererSuggestionImportCount +
                     suggestionsWithRightContext.reduce((total, suggestion) => {
                         return total + (suggestion.mostRelevantMissingImports?.length || 0)
                     }, 0)
+                logging.debug(
+                    `[processSuggestionResponse] Updated import count: ${session.codewhispererSuggestionImportCount}`
+                )
 
-                // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
-                // close session and return empty results
                 if (
                     session.suggestionsAfterRightContextMerge.length === 0 &&
                     !suggestionResponse.responseContext.nextToken
                 ) {
+                    logging.debug(
+                        '[processSuggestionResponse] No displayable suggestions and no next token, closing session'
+                    )
                     sessionManager.closeSession(session)
                     await emitUserTriggerDecisionTelemetry(
                         telemetry,
@@ -771,42 +822,48 @@ export const CodewhispererServerFactory =
                     return EMPTY_RESULT
                 }
 
+                logging.debug('[processSuggestionResponse] Returning completion suggestions')
                 return {
                     items: suggestionsWithRightContext,
                     sessionId: session.id,
                     partialResultToken: suggestionResponse.responseContext.nextToken,
                 }
             } else {
-                return {
-                    items: suggestionResponse.suggestions
-                        .map(suggestion => {
-                            // Check if this suggestion is similar to a previously rejected edit
-                            const isSimilarToRejected = rejectedEditTracker.isSimilarToRejected(
-                                suggestion.content,
-                                textDocument?.uri || ''
+                logging.debug('[processSuggestionResponse] Processing non-completion suggestion type')
+                const items = suggestionResponse.suggestions
+                    .map(suggestion => {
+                        const isSimilarToRejected = rejectedEditTracker.isSimilarToRejected(
+                            suggestion.content,
+                            textDocument?.uri || ''
+                        )
+
+                        if (isSimilarToRejected) {
+                            logging.debug(
+                                `[processSuggestionResponse] Found similar rejected edit for suggestion ${suggestion.itemId}`
                             )
-
-                            if (isSimilarToRejected) {
-                                // Mark as rejected in the session
-                                session.setSuggestionState(suggestion.itemId, 'Reject')
-                                logging.debug(
-                                    `[EDIT_PREDICTION] Filtered out suggestion similar to previously rejected edit`
-                                )
-                                // Return empty item that will be filtered out
-                                return {
-                                    insertText: '',
-                                    isInlineEdit: true,
-                                    itemId: suggestion.itemId,
-                                }
-                            }
-
+                            session.setSuggestionState(suggestion.itemId, 'Reject')
+                            console.debug(
+                                `[EDIT_PREDICTION] Filtered out suggestion similar to previously rejected edit`
+                            )
                             return {
-                                insertText: suggestion.content,
+                                insertText: '',
                                 isInlineEdit: true,
                                 itemId: suggestion.itemId,
                             }
-                        })
-                        .filter(item => item.insertText !== ''),
+                        }
+
+                        logging.debug(`[processSuggestionResponse] Processing edit suggestion ${suggestion.itemId}`)
+                        return {
+                            insertText: suggestion.content,
+                            isInlineEdit: true,
+                            itemId: suggestion.itemId,
+                        }
+                    })
+                    .filter(item => item.insertText !== '')
+
+                logging.debug(`[processSuggestionResponse] Returning ${items.length} edit suggestions`)
+                return {
+                    items,
                     sessionId: session.id,
                 }
             }
@@ -1000,9 +1057,9 @@ export const CodewhispererServerFactory =
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-            */
+                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -1020,6 +1077,11 @@ export const CodewhispererServerFactory =
             )
 
             logging.log(`Client initialization params: ${JSON.stringify(clientParams)}`)
+
+            if (clientParams.workspaceFolders?.[0]) {
+                configProvider = ConfigProvider.getInstance(clientParams.workspaceFolders[0].uri, logging)
+            }
+
             editsEnabled =
                 clientParams?.initializationOptions?.aws?.awsClientCapabilities?.textDocument
                     ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
@@ -1051,7 +1113,6 @@ export const CodewhispererServerFactory =
                     )
                 }
             )
-
             const periodicLoggingEnabled = process.env.LOG_EDIT_TRACKING === 'true'
             logging.log(
                 `[SERVER] Initialized telemetry-dependent components: CodePercentageTracker, CodeDiffTracker, periodicLogging=${periodicLoggingEnabled}`

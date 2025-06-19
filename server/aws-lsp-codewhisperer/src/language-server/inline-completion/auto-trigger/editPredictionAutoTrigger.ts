@@ -4,11 +4,12 @@
  */
 
 import { FileContext } from '../../../shared/codeWhispererService'
-import { Position } from '@aws/language-server-runtimes/server-interface'
+import { Logging, Position } from '@aws/language-server-runtimes/server-interface'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'
 import { LanguageDetectorFactory } from './languageDetector'
 import { EditPredictionConfigManager } from './editPredictionConfig'
+import { getRequestHash, ConfigProvider } from '../debugUtils'
 
 /**
  * Parameters for the edit prediction auto-trigger
@@ -20,6 +21,7 @@ export interface EditPredictionAutoTriggerParams {
     previousDecision: string
     cursorHistory: CursorTracker
     recentEdits: RecentEditTracker
+    logging: Logging
 }
 
 /**
@@ -35,6 +37,7 @@ export const editPredictionAutoTrigger = ({
     previousDecision,
     cursorHistory,
     recentEdits,
+    logging,
 }: EditPredictionAutoTriggerParams): {
     shouldTrigger: boolean
 } => {
@@ -46,16 +49,15 @@ export const editPredictionAutoTrigger = ({
     const rightContextLines = fileContext.rightFileContent.split(/\r?\n/)
     const currentLineContent = leftContextLines[leftContextLines.length - 1] || ''
     const position = { line: lineNum, character: currentLineContent.length }
+    const fileName = fileContext.fileUri ?? fileContext.filename
 
     // 1. Check required conditions
-    // 1.1 Recent Edit Detection [NEEDED]
-    const hasRecentEdit = recentEdits?.hasRecentEditInLine(
-        fileContext.filename,
-        lineNum,
-        config.recentEditThresholdMs,
-        config.editAdjacentLineRange
-    )
-    // 1.2 Cursor Position (not in middle of word) [DISABLE]
+    // 1.1 Recent Edit Detection
+    const hasRecentEdit =
+        config.enableRecentEditCheck &&
+        recentEdits?.hasRecentEditInLine(fileName, lineNum, config.recentEditThresholdMs, config.editAdjacentLineRange)
+
+    // 1.2 Cursor Position (not in middle of word)
     const charToLeft = currentLineContent.length > 0 ? currentLineContent[currentLineContent.length - 1] : ''
     const charToRight = rightContextLines[0]?.[0] || ''
 
@@ -63,13 +65,27 @@ export const editPredictionAutoTrigger = ({
         return char === '' || /\s/.test(char) || /[^\w\s]/.test(char)
     }
 
-    const isNotInMiddleOfWord = isWhitespaceOrSpecial(charToLeft) || isWhitespaceOrSpecial(charToRight)
+    let isNotInMiddleOfWord =
+        !config.enableNotInMiddleOfWordCheck || isWhitespaceOrSpecial(charToLeft) || isWhitespaceOrSpecial(charToRight)
+
+    if (ConfigProvider.getInstance().getConfig('isNotInMiddleOfWordOverride')) {
+        isNotInMiddleOfWord = ConfigProvider.getInstance().getConfig('isNotInMiddleOfWordOverride') as boolean
+        logging.debug(`[EDIT_PREDICTION_AUTOTRIGGER] isNotInMiddleOfWordOverride - ${isNotInMiddleOfWord}`)
+    }
 
     // 1.3 Previous User Decision
-    const isPreviousDecisionNotReject = previousDecision !== 'Reject'
+    let isPreviousDecisionNotReject = !config.enablePreviousDecisionCheck || previousDecision !== 'Reject'
 
-    // 1.4 Non-empty Suffix [NEEDED - Paramterize this]
-    const hasNonEmptySuffix = rightContextLines.length > 1 && rightContextLines[1].trim().length > 0
+    if (ConfigProvider.getInstance().getConfig('isPreviousDecisionNotRejectOverride')) {
+        isPreviousDecisionNotReject = ConfigProvider.getInstance().getConfig(
+            'isPreviousDecisionNotRejectOverride'
+        ) as boolean
+        logging.debug(`[EDIT_PREDICTION_AUTOTRIGGER] isPreviousDecisionNotReject - ${isPreviousDecisionNotReject}`)
+    }
+
+    // 1.4 Non-empty Suffix
+    const hasNonEmptySuffix =
+        !config.enableNonEmptySuffixCheck || (rightContextLines.length > 1 && rightContextLines[1].trim().length > 0)
 
     // 2. Check optional conditions
     const languageDetector = LanguageDetectorFactory.getDetector(fileContext.programmingLanguage.languageName)
@@ -90,13 +106,48 @@ export const editPredictionAutoTrigger = ({
     const isAtLineBeginning =
         config.enableLineBeginningTrigger && languageDetector.isAtLineBeginning(currentLineContent)
 
-    // TODO : Disable all OR conditions
-
     // Determine if we should trigger
     const requiredConditionsMet =
         (hasRecentEdit && isNotInMiddleOfWord && isPreviousDecisionNotReject && hasNonEmptySuffix) || false
-    const optionalConditionsMet = isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
+    const optionalConditionsMet = config.requireAllOptionalConditions
+        ? isAfterKeyword && isAfterOperatorOrDelimiter && hasUserPaused && isAtLineBeginning
+        : isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
     const shouldTrigger = (requiredConditionsMet && optionalConditionsMet) || false
+
+    logging.debug(
+        `[EDIT_PREDICTION_AUTOTRIGGER]` +
+            getRequestHash(
+                fileContext.filename,
+                fileContext.leftFileContent + fileContext.rightFileContent,
+                position.character,
+                position.line
+            ) +
+            {
+                filename: fileContext.filename,
+                lineNum,
+                shouldTrigger,
+                requiredConditions: {
+                    hasRecentEdit,
+                    isNotInMiddleOfWord,
+                    isPreviousDecisionNotReject,
+                    hasNonEmptySuffix,
+                    requiredConditionsMet,
+                },
+                optionalConditions: {
+                    isAfterKeyword,
+                    isAfterOperatorOrDelimiter,
+                    hasUserPaused,
+                    isAtLineBeginning,
+                    requireAllOptionalConditions: config.requireAllOptionalConditions,
+                    optionalConditionsMet,
+                },
+                config: {
+                    recentEditThresholdMs: config.recentEditThresholdMs,
+                    userPauseThresholdMs: config.userPauseThresholdMs,
+                    editAdjacentLineRange: config.editAdjacentLineRange,
+                },
+            }
+    )
 
     return { shouldTrigger }
 }

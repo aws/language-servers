@@ -538,7 +538,7 @@ export class RecentEditTracker implements Disposable {
     public hasRecentEditInLine(
         documentUri: string,
         lineNum: number,
-        timeThresholdMs: number = 20000,
+        timeThresholdMs: number = 30000,
         lineRange: number = 5
     ): boolean {
         // Check if we have snapshots for this document
