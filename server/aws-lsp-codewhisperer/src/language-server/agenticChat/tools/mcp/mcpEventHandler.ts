@@ -16,6 +16,7 @@ import {
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
     sanitizeName,
+    normalizePathFromUri,
 } from './mcpUtils'
 import {
     McpPermissionType,
@@ -624,8 +625,7 @@ export class McpEventHandler {
         }
 
         let configPath = getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir())
-        let personaPath = getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir())
-
+        let personaPath = await this.#getPersonaPath()
         if (params.optionsValues['scope'] !== 'global') {
             // Get workspace folders and convert to paths
             const workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
@@ -636,9 +636,7 @@ export class McpEventHandler {
             const workspaceMcpPaths = getWorkspaceMcpConfigPaths(workspacePaths)
             configPath =
                 Array.isArray(workspaceMcpPaths) && workspaceMcpPaths.length > 0
-                    ? workspaceMcpPaths[0].startsWith('file:')
-                        ? URI.parse(workspaceMcpPaths[0]).fsPath
-                        : workspaceMcpPaths[0]
+                    ? normalizePathFromUri(workspaceMcpPaths[0], this.#features.logging)
                     : configPath
 
             // Get the appropriate persona path using our helper method
@@ -839,10 +837,6 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.removeServer(serverName)
-            // Refresh the MCP list to show updated server list
-            await this.#handleRefreshMCPList({
-                id: params.id,
-            })
         } catch (error) {
             this.#features.logging.error(`Failed to delete MCP server: ${error}`)
         }
@@ -1177,10 +1171,8 @@ export class McpEventHandler {
 
             if (Array.isArray(workspacePersonaPaths) && workspacePersonaPaths.length > 0) {
                 try {
-                    // Convert URI format to filesystem path if needed
-                    const personaPath = workspacePersonaPaths[0].startsWith('file:')
-                        ? URI.parse(workspacePersonaPaths[0]).fsPath
-                        : workspacePersonaPaths[0]
+                    // Convert URI format to filesystem path if needed using the utility function
+                    const personaPath = normalizePathFromUri(workspacePersonaPaths[0], this.#features.logging)
 
                     // Check if the workspace persona path exists
                     const fileExists = await this.#features.workspace.fs.exists(personaPath)

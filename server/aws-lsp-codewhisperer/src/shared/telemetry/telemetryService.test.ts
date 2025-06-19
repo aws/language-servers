@@ -841,9 +841,14 @@ describe('TelemetryService', () => {
                     cwsprChatCodeContextCount: 2,
                     cwsprChatFileContextLength: 0,
                     cwsprChatRuleContextLength: 0,
+                    cwsprChatTotalRuleContextCount: undefined,
                     cwsprChatPromptContextLength: 0,
                     cwsprChatCodeContextLength: 500,
                     cwsprChatFocusFileContextLength: 0,
+                    cwsprChatPinnedCodeContextCount: undefined,
+                    cwsprChatPinnedFileContextCount: undefined,
+                    cwsprChatPinnedFolderContextCount: undefined,
+                    cwsprChatPinnedPromptContextCount: undefined,
                 },
             })
         })

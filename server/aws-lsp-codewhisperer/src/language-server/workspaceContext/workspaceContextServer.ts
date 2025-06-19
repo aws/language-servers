@@ -6,7 +6,7 @@ import {
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import * as crypto from 'crypto'
-import { cleanUrl, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
+import { isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
 import { ArtifactManager, FileMetadata, SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES } from './artifactManager'
 import { WorkspaceFolderManager } from './workspaceFolderManager'
 import { URI } from 'vscode-uri'
@@ -15,6 +15,7 @@ import { getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetecti
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { safeGet } from '../../shared/utils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { FileUploadJobManager, FileUploadJobType } from './fileUploadJobManager'
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
@@ -26,6 +27,9 @@ export const WorkspaceContextServer = (): Server => features => {
     let artifactManager: ArtifactManager
     let dependencyDiscoverer: DependencyDiscoverer
     let workspaceFolderManager: WorkspaceFolderManager
+    let fileUploadJobManager: FileUploadJobManager
+    let workflowInitializationInterval: NodeJS.Timeout
+    let isWorkflowInitializing: boolean = false
     let isWorkflowInitialized: boolean = false
     let isOptedIn: boolean = false
     let abTestingEvaluated = false
@@ -196,6 +200,7 @@ export const WorkspaceContextServer = (): Server => features => {
                 credentialsProvider,
                 workspaceIdentifier
             )
+            fileUploadJobManager = new FileUploadJobManager(logging, workspaceFolderManager)
             await updateConfiguration()
 
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
@@ -236,7 +241,7 @@ export const WorkspaceContextServer = (): Server => features => {
              * of workspace folders is updated using *artifactManager.updateWorkspaceFolders(workspaceFolders)* before
              * initializing again.
              */
-            setInterval(async () => {
+            const initializeWorkflow = async () => {
                 if (!isOptedIn) {
                     return
                 }
@@ -257,6 +262,7 @@ export const WorkspaceContextServer = (): Server => features => {
                         return
                     }
 
+                    fileUploadJobManager.startFileUploadJobConsumer()
                     workspaceFolderManager.initializeWorkspaceStatusMonitor().catch(error => {
                         logging.error(`Error while initializing workspace status monitoring: ${error}`)
                     })
@@ -272,6 +278,23 @@ export const WorkspaceContextServer = (): Server => features => {
                         await workspaceFolderManager.clearAllWorkspaceResources()
                     }
                     isWorkflowInitialized = false
+                }
+            }
+            if (workflowInitializationInterval) {
+                return
+            }
+            workflowInitializationInterval = setInterval(async () => {
+                // Prevent multiple initializeWorkflow() execution from overlapping
+                if (isWorkflowInitializing) {
+                    return
+                }
+                isWorkflowInitializing = true
+                try {
+                    await initializeWorkflow()
+                } catch (error) {
+                    logging.error(`Error while initializing workflow: ${error}`)
+                } finally {
+                    isWorkflowInitializing = false
                 }
             }, 5000)
         } catch (error) {
@@ -299,29 +322,14 @@ export const WorkspaceContextServer = (): Server => features => {
                 logging.log(`No workspaceFolder found for ${event.textDocument.uri} discarding the save event`)
                 return
             }
-            const workspaceId = await workspaceFolderManager.waitForRemoteWorkspaceId()
 
             const fileMetadata = await artifactManager.processNewFile(workspaceFolder, event.textDocument.uri)
-            const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
-            if (!s3Url) {
-                return
-            }
 
-            const message = JSON.stringify({
-                method: 'textDocument/didSave',
-                params: {
-                    textDocument: {
-                        uri: event.textDocument.uri,
-                    },
-                    workspaceChangeMetadata: {
-                        workspaceId: workspaceId,
-                        s3Path: cleanUrl(s3Url),
-                        programmingLanguage: programmingLanguage,
-                    },
-                },
+            fileUploadJobManager.jobQueue.push({
+                eventType: FileUploadJobType.DID_SAVE_TEXT_DOCUMENT,
+                fileMetadata: fileMetadata,
+                file: event.textDocument,
             })
-            const workspaceState = workspaceFolderManager.getWorkspaceState()
-            workspaceState.messageQueue.push(message)
         } catch (error) {
             logging.error(`Error handling save event: ${error}`)
         }
@@ -334,7 +342,6 @@ export const WorkspaceContextServer = (): Server => features => {
             }
             logging.log(`Received didCreateFiles event of length ${event.files.length}`)
 
-            const workspaceState = workspaceFolderManager.getWorkspaceState()
             for (const file of event.files) {
                 const isDir = isDirectory(file.uri)
                 const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(file.uri, workspaceFolders)
@@ -356,29 +363,12 @@ export const WorkspaceContextServer = (): Server => features => {
                     filesMetadata = [await artifactManager.processNewFile(workspaceFolder, file.uri)]
                 }
 
-                const workspaceId = await workspaceFolderManager.waitForRemoteWorkspaceId()
                 for (const fileMetadata of filesMetadata) {
-                    const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
-                    if (!s3Url) {
-                        continue
-                    }
-
-                    const message = JSON.stringify({
-                        method: 'workspace/didCreateFiles',
-                        params: {
-                            files: [
-                                {
-                                    uri: file.uri,
-                                },
-                            ],
-                            workspaceChangeMetadata: {
-                                workspaceId: workspaceId,
-                                s3Path: cleanUrl(s3Url),
-                                programmingLanguage: fileMetadata.language,
-                            },
-                        },
+                    fileUploadJobManager.jobQueue.push({
+                        eventType: FileUploadJobType.DID_CREATE_FILE,
+                        fileMetadata: fileMetadata,
+                        file: file,
                     })
-                    workspaceState.messageQueue.push(message)
                 }
             }
         } catch (error) {
@@ -398,17 +388,19 @@ export const WorkspaceContextServer = (): Server => features => {
             for (const file of event.files) {
                 const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(file.uri, workspaceFolders)
                 if (!workspaceFolder) {
-                    logging.log(`Workspace details not found for deleted file: ${file.uri}`)
                     continue
                 }
 
                 const programmingLanguages = artifactManager.handleDeletedPathAndGetLanguages(file.uri, workspaceFolder)
                 if (programmingLanguages.length === 0) {
-                    logging.log(`No programming languages determined for: ${file.uri}`)
                     continue
                 }
 
-                const workspaceId = await workspaceFolderManager.waitForRemoteWorkspaceId()
+                const workspaceId = workspaceState.workspaceId
+                if (!workspaceId) {
+                    continue
+                }
+
                 // Send notification for each programming language
                 for (const language of programmingLanguages) {
                     const message = JSON.stringify({
@@ -441,7 +433,6 @@ export const WorkspaceContextServer = (): Server => features => {
 
             logging.log(`Received didRenameFiles event of length ${event.files.length}`)
 
-            const workspaceState = workspaceFolderManager.getWorkspaceState()
             for (const file of event.files) {
                 const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(file.newUri, workspaceFolders)
                 if (!workspaceFolder) {
@@ -450,29 +441,12 @@ export const WorkspaceContextServer = (): Server => features => {
 
                 const filesMetadata = await artifactManager.handleRename(workspaceFolder, file.oldUri, file.newUri)
 
-                const workspaceId = await workspaceFolderManager.waitForRemoteWorkspaceId()
                 for (const fileMetadata of filesMetadata) {
-                    const s3Url = await workspaceFolderManager.uploadToS3(fileMetadata)
-                    if (!s3Url) {
-                        continue
-                    }
-                    const message = JSON.stringify({
-                        method: 'workspace/didRenameFiles',
-                        params: {
-                            files: [
-                                {
-                                    old_uri: file.oldUri,
-                                    new_uri: file.newUri,
-                                },
-                            ],
-                            workspaceChangeMetadata: {
-                                workspaceId: workspaceId,
-                                s3Path: cleanUrl(s3Url),
-                                programmingLanguage: fileMetadata.language,
-                            },
-                        },
+                    fileUploadJobManager.jobQueue.push({
+                        eventType: FileUploadJobType.DID_RENAME_FILE,
+                        fileMetadata: fileMetadata,
+                        file: file,
                     })
-                    workspaceState.messageQueue.push(message)
                 }
             }
         } catch (error) {
@@ -501,10 +475,16 @@ export const WorkspaceContextServer = (): Server => features => {
     logging.log('Workspace context server has been initialized')
 
     return () => {
-        workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
-            logging.warn(
-                `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
-            )
-        })
+        clearInterval(workflowInitializationInterval)
+        if (fileUploadJobManager) {
+            fileUploadJobManager.dispose()
+        }
+        if (workspaceFolderManager) {
+            workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
+                logging.warn(
+                    `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
+                )
+            })
+        }
     }
 }

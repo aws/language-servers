@@ -40,6 +40,7 @@ export interface TriggerContext extends Partial<DocumentContext> {
     triggerType?: TriggerType
     contextInfo?: ContextInfo
     documentReference?: FileList
+    hasWorkspace?: boolean
 }
 export type LineInfo = { startLine: number; endLine: number }
 
@@ -113,7 +114,7 @@ export class AgenticChatTriggerContext {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
         const defaultEditorState = { workspaceFolders }
-        const hasWorkspace = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
+        const hasWorkspace = triggerContext.hasWorkspace
 
         // prompt.prompt is what user typed in the input, should be sent to backend
         // prompt.escapedPrompt is HTML serialized string, which should only be used for UI.
@@ -242,7 +243,7 @@ export class AgenticChatTriggerContext {
         if (textDocumentIdentifier?.uri === undefined) {
             return
         }
-        const textDocument = await this.getTextDocument(textDocumentIdentifier.uri)
+        const textDocument = await this.getTextDocumentFromUri(textDocumentIdentifier.uri)
 
         return textDocument
             ? this.#documentContextExtractor.extractDocumentContext(
@@ -255,14 +256,14 @@ export class AgenticChatTriggerContext {
     }
 
     /**
-     * Fetch the current textDocument such that:
+     * Fetch the current textDocument using a URI, such that:
      * 1. If the document is synced with LSP, return the synced textDocument
      * 2. If the document is not synced with LSP, read the file from the file system
      * 3. If the file cannot be read, return undefined
      * @param uri
      * @returns
      */
-    async getTextDocument(uri: string) {
+    async getTextDocumentFromUri(uri: string) {
         // Note: version is unused, and languageId can be determined from file extension.
         const syncedTextDocument = await this.#workspace.getTextDocument(uri)
         if (syncedTextDocument) {
@@ -271,9 +272,104 @@ export class AgenticChatTriggerContext {
         try {
             const content = await this.#workspace.fs.readFile(URI.parse(uri).fsPath)
             return TextDocument.create(uri, '', 0, content)
-        } catch {
+        } catch (err) {
+            this.#logging.error(`Unable to load from ${path}: ${err}`)
             return
         }
+    }
+
+    /**
+     * Fetch the current textDocument using a filesystem path, such that:
+     * 1. If the document is synced with LSP, return the synced textDocument
+     * 2. If the document is not synced with LSP, read the file from the file system
+     * 3. If the file cannot be read, return undefined
+     * @param path - path of file to load, not in URI format
+     * @param useWorkspace - attempt to load from the LSP workspace
+     * @param useFs - attempt to load directly from the filesystem, prioritizing workspace first
+     * @returns
+     */
+    async getTextDocumentFromPath(path: string, useWorkspace: boolean, useFs: boolean) {
+        try {
+            if (useWorkspace) {
+                // fetching documents from the workspace requires a URI formatted string
+                // eg: "file:///foo/bar.txt" or "file:///C:/foo/bar.txt"
+                var uris = this.getPossiblePathUris(path)
+
+                for (const uriStr of uris) {
+                    // Note: version is unused, and languageId can be determined from file extension.
+                    const wsTextDocument = await this.#workspace.getTextDocument(uriStr)
+                    if (wsTextDocument) {
+                        return wsTextDocument
+                    }
+                }
+
+                // If we get here, one of the following is possible:
+                // - the document exists, but we did not have the right lookup key
+                // - the document exists, but is not open in the editor
+                // - the document does not exist
+            }
+
+            if (useFs) {
+                const content = await this.#workspace.fs.readFile(path)
+                return TextDocument.create(path, '', 0, content)
+            }
+        } catch (err) {
+            this.#logging.error(`Unable to load from ${path}: ${err}`)
+            return
+        }
+    }
+
+    /**
+     * Given a path, return a set of the possible uri strings that could be used
+     * to represent the file in the workspace.
+     *
+     * This solves a problem where URI-parsing a windows path
+     * like C:\Foo\bar.txt creates a uri string of
+     *  file:///c%3A/Foo/bar.txt, but the workspace stores the file as
+     *  file:///C:/Foo/bar.txt or file:///c:/Foo/bar.txt
+     *
+     * The reason for this is the vscode-languageserver implementation used
+     * an implementation of URI that preserved colons, however the vscode-uri
+     * implementation of URI uses a "more correct" version that encodes the colons.
+     *
+     * Some of this function's implementation was inspired by the vscode-uri
+     * implementation of uriToFsPath
+     * https://github.com/microsoft/vscode-uri/blob/edfdccd976efaf4bb8fdeca87e97c47257721729/src/uri.ts#L564
+     */
+    getPossiblePathUris(path: string): string[] {
+        const uris = new Set<string>()
+
+        const uriStr = URI.file(path).toString()
+        uris.add(uriStr)
+
+        // On Windows the tool-generated path can have a different drive letter case
+        // from the URI stored in the lsp workspace. So we need to try
+        // lowercase and uppercase drive letters.
+        if (
+            process.platform === 'win32' &&
+            uriStr.startsWith('file:///') &&
+            uriStr.substring(9, 12).toLowerCase() == '%3a'
+        ) {
+            const driveLower = uriStr[8].toLowerCase()
+            const driveUpper = uriStr[8].toUpperCase()
+            const leadingPath = uriStr.substring(0, 8) // "file:///"
+            const encodedColonTrailingPath = uriStr.substring(9) // "%3A/Foo/bar.txt"
+            const colonTrailingPath = ':' + uriStr.substring(12) // ":/Foo/bar.txt"
+
+            // Some IDEs (eg: VS Code) index the workspace files using encoded paths.
+            // file:///c%3A/Foo/bar.txt
+            uris.add(leadingPath + driveLower + encodedColonTrailingPath)
+            // file:///C%3A/Foo/bar.txt
+            uris.add(leadingPath + driveUpper + encodedColonTrailingPath)
+
+            // Some IDEs (eg: VS) index the workspace files using paths containing colons.
+            // file:///c:/Foo/bar.txt
+            uris.add(leadingPath + driveLower + colonTrailingPath)
+            // file:///C:/Foo/bar.txt
+            uris.add(leadingPath + driveUpper + colonTrailingPath)
+        }
+
+        return [...uris]
     }
 
     async #getRelevantDocuments(

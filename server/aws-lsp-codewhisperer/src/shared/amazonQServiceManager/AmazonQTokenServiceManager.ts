@@ -70,6 +70,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     private profileChangeTokenSource: CancellationTokenSource | undefined
     private region?: string
     private endpoint?: string
+    private regionChangeListeners: Array<(region: string) => void> = []
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
      * Supported states:
@@ -289,11 +290,14 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         if (this.connectionType === 'none') {
             if (newProfileArn !== null) {
-                throw new AmazonQServicePendingSigninError()
+                // During reauthentication, connection might be temporarily 'none' but user is providing a profile
+                // Set connection type to identityCenter to proceed with profile setting
+                this.connectionType = 'identityCenter'
+                this.state = 'PENDING_Q_PROFILE_UPDATE'
+            } else {
+                this.logServiceState('Received null profile while not connected, ignoring request')
+                return
             }
-
-            this.logServiceState('Received null profile while not connected, ignoring request')
-            return
         }
 
         if (this.connectionType !== 'identityCenter') {
@@ -391,6 +395,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
 
         this.log(`Switching service client region from ${oldRegion} to ${newRegion}`)
+        this.notifyRegionChangeListeners(newRegion)
 
         this.handleTokenCancellationRequest(token)
 
@@ -575,6 +580,43 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     public getEnableDeveloperProfileSupport(): boolean {
         return this.enableDeveloperProfileSupport === undefined ? false : this.enableDeveloperProfileSupport
+    }
+
+    /**
+     * Registers a listener that will be called when the region changes
+     * @param listener Function that will be called with the new region
+     * @returns Function to unregister the listener
+     */
+    public onRegionChange(listener: (region: string) => void): () => void {
+        this.regionChangeListeners.push(listener)
+        // If we already have a region, notify the listener immediately
+        if (this.region) {
+            try {
+                listener(this.region)
+            } catch (error) {
+                this.logging.error(`Error in region change listener: ${error}`)
+            }
+        }
+        return () => {
+            this.regionChangeListeners = this.regionChangeListeners.filter(l => l !== listener)
+        }
+    }
+
+    private notifyRegionChangeListeners(region: string): void {
+        this.logging.debug(
+            `Notifying ${this.regionChangeListeners.length} region change listeners of region: ${region}`
+        )
+        this.regionChangeListeners.forEach(listener => {
+            try {
+                listener(region)
+            } catch (error) {
+                this.logging.error(`Error in region change listener: ${error}`)
+            }
+        })
+    }
+
+    public getRegion(): string | undefined {
+        return this.region
     }
 }
 

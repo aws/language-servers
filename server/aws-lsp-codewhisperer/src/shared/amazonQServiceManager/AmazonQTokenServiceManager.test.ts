@@ -838,27 +838,45 @@ describe('AmazonQTokenServiceManager', () => {
     })
 
     describe('Connection types with no Developer Profiles support', () => {
-        it('returns error when profile update is requested and connection type is none', async () => {
+        it('handles reauthentication scenario when connection type is none but profile ARN is provided', async () => {
             setupServiceManager(true)
             clearCredentials()
 
             assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+            assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'none')
 
-            await assert.rejects(
-                amazonQTokenServiceManager.handleOnUpdateConfiguration(
-                    {
-                        section: 'aws.q',
-                        settings: {
-                            profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
-                        },
+            await amazonQTokenServiceManager.handleOnUpdateConfiguration(
+                {
+                    section: 'aws.q',
+                    settings: {
+                        profileArn: 'arn:aws:testprofilearn:us-east-1:11111111111111:profile/QQQQQQQQQQQQ',
                     },
-                    {} as CancellationToken
-                ),
-                new ResponseError(LSPErrorCodes.RequestFailed, 'Amazon Q service is not signed in', {
-                    awsErrorCode: 'E_AMAZON_Q_PENDING_CONNECTION',
-                })
+                },
+                {} as CancellationToken
             )
 
+            assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'identityCenter')
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'INITIALIZED')
+        })
+
+        it('ignores null profile when connection type is none', async () => {
+            setupServiceManager(true)
+            clearCredentials()
+
+            assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
+            assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'none')
+
+            await amazonQTokenServiceManager.handleOnUpdateConfiguration(
+                {
+                    section: 'aws.q',
+                    settings: {
+                        profileArn: null,
+                    },
+                },
+                {} as CancellationToken
+            )
+
+            assert.strictEqual(amazonQTokenServiceManager.getConnectionType(), 'none')
             assert.strictEqual(amazonQTokenServiceManager.getState(), 'PENDING_CONNECTION')
         })
 
