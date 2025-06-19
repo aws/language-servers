@@ -13,7 +13,7 @@ import type {
     VectorLibAPI,
 } from 'local-indexing'
 import { URI } from 'vscode-uri'
-import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
+import { sleep, waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 import * as fs from 'fs'
 import * as path from 'path'
@@ -433,6 +433,8 @@ export class LocalProjectContextController {
                                 return [...uniqueFilesToIndex]
                             }
                         }
+                        // yeild event loop for other tasks like network I/O
+                        await sleep(1)
                     } catch (error) {
                         this.log.error(`Failed to include file in index. ${file}`)
                     }
