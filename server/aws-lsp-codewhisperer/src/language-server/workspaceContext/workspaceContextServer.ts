@@ -6,8 +6,13 @@ import {
     WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import * as crypto from 'crypto'
-import { isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
-import { ArtifactManager, FileMetadata, SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES } from './artifactManager'
+import { getRelativePath, isDirectory, isEmptyDirectory, isLoggedInUsingBearerToken } from './util'
+import {
+    ArtifactManager,
+    FileMetadata,
+    IGNORE_PATTERNS,
+    SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES,
+} from './artifactManager'
 import { WorkspaceFolderManager } from './workspaceFolderManager'
 import { URI } from 'vscode-uri'
 import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
@@ -16,36 +21,15 @@ import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { safeGet } from '../../shared/utils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { FileUploadJobManager, FileUploadJobType } from './fileUploadJobManager'
+import ignore = require('ignore')
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
-const IGNORE_PATTERNS = [
-    // Package management and git
-    '.*/node_modules/.*',
-    '.*/.git/.*',
-    // Build outputs
-    '.*/dist/.*',
-    '.*/build/.*',
-    '.*/out/.*',
-    '.*/coverage/.*',
-    // Logs and temporary files
-    '.*/logs/.*',
-    '.*/tmp/.*',
-    // Environment and configuration
-    '.*/env/.*',
-    '.*/venv/.*',
-    '.*/bin/.*',
-    // Framework specific
-    '.*/target/.*', // Maven/Gradle builds
-]
+const ig = ignore().add(IGNORE_PATTERNS)
 
-function shouldIgnore(path: string): boolean {
-    // Normalize Windows paths
-    const normalizedPath = path.replace(/\\/g, '/')
-    return IGNORE_PATTERNS.some(pattern => {
-        const regex = new RegExp(pattern)
-        return regex.test(normalizedPath)
-    })
+function shouldIgnoreFile(workspaceFolder: WorkspaceFolder, fileUri: string): boolean {
+    const relativePath = getRelativePath(workspaceFolder, fileUri).replace(/\\/g, '/') // normalize for cross-platform
+    return ig.ignores(relativePath)
 }
 
 export const WorkspaceContextServer = (): Server => features => {
@@ -339,16 +323,19 @@ export const WorkspaceContextServer = (): Server => features => {
                 return
             }
 
+            logging.log(`Received didSave event for ${event.textDocument.uri}`)
+
             const programmingLanguage = getCodeWhispererLanguageIdFromPath(event.textDocument.uri)
             if (!programmingLanguage || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(programmingLanguage)) {
                 return
             }
 
-            logging.log(`Received didSave event for ${event.textDocument.uri}`)
-
             const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(event.textDocument.uri, workspaceFolders)
             if (!workspaceFolder) {
-                logging.log(`No workspaceFolder found for ${event.textDocument.uri} discarding the save event`)
+                return
+            }
+
+            if (shouldIgnoreFile(workspaceFolder, event.textDocument.uri)) {
                 return
             }
 
@@ -369,7 +356,7 @@ export const WorkspaceContextServer = (): Server => features => {
             if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
-            logging.info(`Received didCreateFiles event of length ${event.files.length}`)
+            logging.log(`Received didCreateFiles event of length ${event.files.length}`)
 
             for (const file of event.files) {
                 const isDir = isDirectory(file.uri)
@@ -378,7 +365,7 @@ export const WorkspaceContextServer = (): Server => features => {
                     continue
                 }
 
-                if (shouldIgnore(file.uri)) {
+                if (shouldIgnoreFile(workspaceFolder, file.uri)) {
                     continue
                 }
 
@@ -472,7 +459,7 @@ export const WorkspaceContextServer = (): Server => features => {
                     continue
                 }
 
-                if (shouldIgnore(file.newUri)) {
+                if (shouldIgnoreFile(workspaceFolder, file.newUri)) {
                     continue
                 }
 
