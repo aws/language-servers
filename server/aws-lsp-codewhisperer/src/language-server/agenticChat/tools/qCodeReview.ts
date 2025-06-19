@@ -73,7 +73,7 @@ export class QCodeReview {
 
             // Step 2: Get a pre-signed URL for uploading the code
             const scanName = 'Standard-' + randomUUID()
-            this.logging.info(`Creating code scan with name: ${scanName}`)
+            this.logging.info(`Agentic scan name: ${scanName}`)
 
             // Determine upload intent based on input
             const uploadIntent = 'AGENTIC_CODE_REVIEW'
@@ -209,61 +209,6 @@ export class QCodeReview {
     }
 
     /**
-     * Determine the primary programming language from folder content
-     * @param folderPath Path to the folder to analyze
-     * @returns The determined programming language or null if can't be determined
-     */
-    private async determineLanguageFromFolderContent(folderPath: string): Promise<string | null> {
-        if (!folderPath) {
-            return null
-        }
-
-        try {
-            // eslint-disable-next-line import/no-nodejs-modules
-            const path = require('path')
-            const fs = this.workspace.fs
-
-            // Get all files in the directory (non-recursive)
-            const items = await fs.readdir(folderPath)
-
-            // Count file extensions to determine the most common language
-            const extensionCounts: Record<string, number> = {}
-
-            for (const item of items) {
-                // Only process files, not directories
-                if (item.isFile()) {
-                    const fileName = item.name || item.toString()
-                    const ext = path.extname(fileName).toLowerCase()
-                    if (ext) {
-                        extensionCounts[ext] = (extensionCounts[ext] || 0) + 1
-                    }
-                }
-            }
-
-            // Find the most common extension
-            let mostCommonExt = ''
-            let highestCount = 0
-
-            for (const [ext, count] of Object.entries(extensionCounts)) {
-                if (count > highestCount && EXTENSION_TO_LANGUAGE[ext]) {
-                    highestCount = count
-                    mostCommonExt = ext
-                }
-            }
-
-            if (mostCommonExt && EXTENSION_TO_LANGUAGE[mostCommonExt]) {
-                return EXTENSION_TO_LANGUAGE[mostCommonExt]
-            }
-
-            // If no language could be determined, default to JavaScript as a fallback
-            return 'javascript'
-        } catch (error) {
-            this.logging.error(`Error determining language from folder: ${error}`)
-            return null
-        }
-    }
-
-    /**
      * Create a zip archive of the files and folders to be scanned and calculate MD5 hash
      * @param fileArtifacts Array of file artifacts containing path and programming language
      * @param folderArtifacts Array of folder artifacts containing path
@@ -304,10 +249,8 @@ export class QCodeReview {
                     // Read file content using workspace fs API
                     const fileContent = await fs.readFile(filePath)
 
-                    // Add file to zip with relative path to maintain directory structure
-                    // Use the basename to avoid absolute paths in the zip
-                    const fileName = path.basename(filePath)
-                    customerCodeZip.file(`${customerCodeBasePath}/${fileName}`, fileContent)
+                    // Add file to zip with absolute path to maintain directory structure
+                    customerCodeZip.file(`${customerCodeBasePath}${filePath}`, fileContent)
 
                     // Get git diff of this filePath and append it to codeDiff
                     if (isCodeDiffScan) {
@@ -358,6 +301,13 @@ export class QCodeReview {
                 compressionOptions: { level: 9 }, // Maximum compression
             })
 
+            // Display tree structure of files & folders present in customerCodeZip
+            this.logging.info('Customer code zip structure:')
+            const customerCodeZipFiles = Object.keys(customerCodeZip.files)
+            customerCodeZipFiles.forEach(filePath => {
+                this.logging.info(`  ${filePath}`)
+            })
+
             // Add customer code zip to the main artifact zip
             codeArtifactZip.file('code_artifact/customerCode.zip', customerCodeBuffer)
 
@@ -372,6 +322,13 @@ export class QCodeReview {
                 type: 'nodebuffer',
                 compression: 'DEFLATE',
                 compressionOptions: { level: 9 }, // Maximum compression
+            })
+
+            // Display tree structure of files & folders present in codeArtifactZip
+            this.logging.info('Code artifact zip structure:')
+            const codeArtifactZipFiles = Object.keys(codeArtifactZip.files)
+            codeArtifactZipFiles.forEach(filePath => {
+                this.logging.info(`  ${filePath}`)
             })
 
             // Calculate MD5 hash of the zip buffer
@@ -459,27 +416,24 @@ export class QCodeReview {
 
             for (const entry of entries) {
                 const name = entry.name
-                const fullPath = path.join(folderPath, name)
-                const zipEntryPath = zipPath ? path.join(zipPath, name) : name
+                const fullPath = path.join(entry.parentPath, name)
 
                 if (entry.isFile()) {
-                    // File
                     // Skip hidden files and common non-code files
                     if (name.startsWith('.') || QCodeReviewUtils.shouldSkipFile(name)) {
                         continue
                     }
 
                     const content = await fs.readFile(fullPath)
-                    zip.file(zipEntryPath, content)
+                    zip.file(`${zipPath}${fullPath}`, content)
                 } else if (entry.isDirectory()) {
-                    // Directory
                     // Skip common directories to exclude
                     if (QCodeReviewUtils.shouldSkipDirectory(name)) {
                         continue
                     }
 
                     // Recursively add subdirectory
-                    await this.addFolderToZip(zip, fullPath, zipEntryPath)
+                    await this.addFolderToZip(zip, fullPath, zipPath)
                 }
             }
         } catch (error) {

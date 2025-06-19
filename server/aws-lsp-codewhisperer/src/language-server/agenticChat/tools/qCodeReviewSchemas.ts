@@ -108,12 +108,13 @@ export const Q_FINDING_SCHEMA = z.object({
     remediation: z.object({
         recommendation: z.object({
             text: z.string(),
-            url: z.string().optional(),
+            url: z.string().nullable().optional(),
         }),
     }),
     severity: z.enum(FINDING_SEVERITY as [string, ...string[]]),
     startLine: z.number(),
     title: z.string(),
+    findingContext: z.string().nullable().optional(),
 })
 
 /**
