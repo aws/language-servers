@@ -20,6 +20,7 @@ import {
     enabledMCP,
     sanitizeName,
 } from './mcp/mcpUtils'
+import { FsReplace, FsReplaceParams } from './fsReplace'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -27,6 +28,7 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
     const fileSearchTool = new FileSearch({ workspace, lsp, logging })
     const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
+    const fsReplaceTool = new FsReplace({ workspace, lsp, logging })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         await fsReadTool.validate(input)
@@ -36,6 +38,11 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     agent.addTool(fsWriteTool.getSpec(), async (input: FsWriteParams) => {
         await fsWriteTool.validate(input)
         return await fsWriteTool.invoke(input)
+    })
+
+    agent.addTool(fsReplaceTool.getSpec(), async (input: FsReplaceParams) => {
+        await fsReplaceTool.validate(input)
+        return await fsReplaceTool.invoke(input)
     })
 
     agent.addTool(listDirectoryTool.getSpec(), async (input: ListDirectoryParams, token?: CancellationToken) => {
