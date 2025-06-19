@@ -13,7 +13,7 @@ import {
     ContentType,
     ProgrammingLanguage,
     EnvState,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import {
     BedrockTools,
     ChatParams,
@@ -29,7 +29,7 @@ import { workspaceUtils } from '@aws/lsp-core'
 import { URI } from 'vscode-uri'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import * as path from 'path'
-import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
+import { RelevantTextDocument } from '@aws/codewhisperer-streaming-client'
 import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
@@ -40,6 +40,7 @@ export interface TriggerContext extends Partial<DocumentContext> {
     triggerType?: TriggerType
     contextInfo?: ContextInfo
     documentReference?: FileList
+    hasWorkspace?: boolean
 }
 export type LineInfo = { startLine: number; endLine: number }
 
@@ -113,7 +114,7 @@ export class AgenticChatTriggerContext {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
         const defaultEditorState = { workspaceFolders }
-        const hasWorkspace = 'context' in params ? params.context?.some(c => c.command === '@workspace') : false
+        const hasWorkspace = triggerContext.hasWorkspace
 
         // prompt.prompt is what user typed in the input, should be sent to backend
         // prompt.escapedPrompt is HTML serialized string, which should only be used for UI.

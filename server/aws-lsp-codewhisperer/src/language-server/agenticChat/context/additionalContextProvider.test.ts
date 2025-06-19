@@ -8,10 +8,12 @@ import { AdditionalContextProvider } from './addtionalContextProvider'
 import { getUserPromptsDirectory } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { workspaceUtils } from '@aws/lsp-core'
+import { ChatDatabase } from '../tools/chatDb/chatDb'
 
 describe('AdditionalContextProvider', () => {
     let provider: AdditionalContextProvider
     let testFeatures: TestFeatures
+    let chatHistoryDb: ChatDatabase
     let fsExistsStub: sinon.SinonStub
     let getContextCommandPromptStub: sinon.SinonStub
     let fsReadDirStub: sinon.SinonStub
@@ -23,8 +25,27 @@ describe('AdditionalContextProvider', () => {
         fsReadDirStub = sinon.stub()
         testFeatures.workspace.fs.exists = fsExistsStub
         testFeatures.workspace.fs.readdir = fsReadDirStub
+        testFeatures.chat.sendPinnedContext = sinon.stub()
         getContextCommandPromptStub = sinon.stub()
-        provider = new AdditionalContextProvider(testFeatures.workspace)
+        chatHistoryDb = {
+            getHistory: sinon.stub().returns([]),
+            searchMessages: sinon.stub().returns([]),
+            getOpenTabId: sinon.stub(),
+            getTab: sinon.stub(),
+            deleteHistory: sinon.stub(),
+            setHistoryIdMapping: sinon.stub(),
+            getOpenTabs: sinon.stub().returns([]),
+            updateTabOpenState: sinon.stub(),
+            getDatabaseFileSize: sinon.stub(),
+            getLoadTime: sinon.stub(),
+            getRules: sinon.stub(),
+            setRules: sinon.stub(),
+            addPinnedContext: sinon.stub(),
+            removePinnedContext: sinon.stub(),
+            getPinnedContext: sinon.stub().returns([]),
+        } as unknown as ChatDatabase
+
+        provider = new AdditionalContextProvider(testFeatures, chatHistoryDb)
         localProjectContextControllerInstanceStub = sinon.stub(LocalProjectContextController, 'getInstance').resolves({
             getContextCommandPrompt: getContextCommandPromptStub,
         } as unknown as LocalProjectContextController)
@@ -45,7 +66,7 @@ describe('AdditionalContextProvider', () => {
             fsExistsStub.resolves(false)
             getContextCommandPromptStub.resolves([])
 
-            const result = await provider.getAdditionalContext(triggerContext)
+            const result = await provider.getAdditionalContext(triggerContext, '')
 
             assert.deepStrictEqual(result, [])
         })
@@ -62,8 +83,10 @@ describe('AdditionalContextProvider', () => {
                 workspaceRulesCount: 0,
             }
 
-            fsExistsStub.resolves(true)
-            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true }])
+            fsExistsStub.callsFake((path: string) =>
+                Promise.resolve(!path.includes('README') && !path.includes('AmazonQ'))
+            )
+            fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true, isDirectory: () => false }])
 
             getContextCommandPromptStub.resolves([
                 {
@@ -77,7 +100,7 @@ describe('AdditionalContextProvider', () => {
                 },
             ])
 
-            const result = await provider.getAdditionalContext(triggerContext)
+            const result = await provider.getAdditionalContext(triggerContext, '')
 
             assert.strictEqual(result.length, 1)
             assert.strictEqual(result[0].name, 'Test Rule')
@@ -200,10 +223,12 @@ describe('AdditionalContextProvider', () => {
             // Mock workspace folders
             sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
 
-            fsExistsStub.resolves(true)
+            fsExistsStub.callsFake((path: string) =>
+                Promise.resolve(!path.includes('README') && !path.includes('AmazonQ'))
+            )
             fsReadDirStub.resolves([
-                { name: 'rule1.md', isFile: () => true },
-                { name: 'rule2.md', isFile: () => true },
+                { name: 'rule1.md', isFile: () => true, isDirectory: () => false },
+                { name: 'rule2.md', isFile: () => true, isDirectory: () => false },
             ])
 
             const result = await provider.collectWorkspaceRules()
@@ -213,13 +238,13 @@ describe('AdditionalContextProvider', () => {
                     workspaceFolder: '/workspace',
                     type: 'file',
                     relativePath: path.join('.amazonq', 'rules', 'rule1.md'),
-                    id: '',
+                    id: path.join(path.join('/workspace', '.amazonq', 'rules', 'rule1.md')),
                 },
                 {
                     workspaceFolder: '/workspace',
                     type: 'file',
                     relativePath: path.join('.amazonq', 'rules', 'rule2.md'),
-                    id: '',
+                    id: path.join(path.join('/workspace', '.amazonq', 'rules', 'rule2.md')),
                 },
             ])
         })

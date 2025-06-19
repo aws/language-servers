@@ -5,18 +5,30 @@ import { ListDirectory, ListDirectoryParams } from './listDirectory'
 import { ExecuteBash, ExecuteBashParams } from './executeBash'
 import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
-import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
-import { McpManager } from './mcp/mcpManager'
+import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
+import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
-import { FuzzySearch, FuzzySearchParams } from './fuzzySearch'
-import { GrepSearch, GrepSearchParams } from './grepSearch'
+import { FileSearch, FileSearchParams } from './fileSearch'
+import { GrepSearch } from './grepSearch'
+import { McpToolDefinition } from './mcp/mcpTypes'
+import {
+    getGlobalMcpConfigPath,
+    getGlobalPersonaConfigPath,
+    getWorkspaceMcpConfigPaths,
+    getWorkspacePersonaConfigPaths,
+    createNamespacedToolName,
+    enabledMCP,
+    sanitizeName,
+} from './mcp/mcpUtils'
+import { FsReplace, FsReplaceParams } from './fsReplace'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
     const fsWriteTool = new FsWrite({ workspace, lsp, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
-    const fuzzySearchTool = new FuzzySearch({ workspace, lsp, logging })
+    const fileSearchTool = new FileSearch({ workspace, lsp, logging })
     const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
+    const fsReplaceTool = new FsReplace({ workspace, lsp, logging })
 
     agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
         await fsReadTool.validate(input)
@@ -28,20 +40,26 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
         return await fsWriteTool.invoke(input)
     })
 
+    agent.addTool(fsReplaceTool.getSpec(), async (input: FsReplaceParams) => {
+        await fsReplaceTool.validate(input)
+        return await fsReplaceTool.invoke(input)
+    })
+
     agent.addTool(listDirectoryTool.getSpec(), async (input: ListDirectoryParams, token?: CancellationToken) => {
         await listDirectoryTool.validate(input)
         return await listDirectoryTool.invoke(input, token)
     })
 
-    agent.addTool(fuzzySearchTool.getSpec(), async (input: FuzzySearchParams, token?: CancellationToken) => {
-        await fuzzySearchTool.validate(input)
-        return await fuzzySearchTool.invoke(input, token)
+    agent.addTool(fileSearchTool.getSpec(), async (input: FileSearchParams, token?: CancellationToken) => {
+        await fileSearchTool.validate(input)
+        return await fileSearchTool.invoke(input, token)
     })
 
-    agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
-        await grepSearchTool.validate(input)
-        return await grepSearchTool.invoke(input, token)
-    })
+    // Temporarily disable grep search
+    // agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
+    //     await grepSearchTool.validate(input)
+    //     return await grepSearchTool.invoke(input, token)
+    // })
 
     return () => {}
 }
@@ -72,28 +90,98 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     return () => {}
 }
 
-export const McpToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
-    lsp.onInitialized(async () => {
-        // todo: move to constants
-        var workspaceFolders = workspace.getAllWorkspaceFolders()
-        const wsUris = workspaceFolders?.map(f => f.uri) ?? []
-        const wsConfigPaths = wsUris.map(uri => `${uri}/.amazonq/mcp.json`)
-        const globalConfigPath = `${workspace.fs.getUserHomeDir()}/.aws/amazonq/mcp.json`
-        const allPaths = [...wsConfigPaths, globalConfigPath]
+export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging, lsp, agent, telemetry, runtime }) => {
+    const registered: Record<string, string[]> = {}
 
-        const mgr = await McpManager.init(allPaths, { logging, workspace, lsp })
+    const allNamespacedTools = new Set<string>()
 
-        for (const def of mgr.getAllTools()) {
-            const baseSpec = def
-            const namespaced = `${def.serverName}_${def.toolName}`
+    function registerServerTools(server: string, defs: McpToolDefinition[]) {
+        // 1) remove old tools
+        for (const name of registered[server] ?? []) {
+            agent.removeTool(name)
+            allNamespacedTools.delete(name)
+        }
+        registered[server] = []
+
+        // 2) add new enabled tools
+        for (const def of defs) {
+            // Sanitize the tool name
+            const sanitizedToolName = sanitizeName(def.toolName)
+
+            // Check if this tool name is already in use
+            const namespaced = createNamespacedToolName(
+                def.serverName,
+                def.toolName,
+                allNamespacedTools,
+                McpManager.instance.getToolNameMapping()
+            )
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
+            // Add explanation field to input schema
+            const inputSchemaWithExplanation = {
+                ...def.inputSchema,
+                properties: {
+                    ...def.inputSchema.properties,
+                    explanation: {
+                        type: 'string',
+                        description:
+                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
+                    },
+                },
+            }
+
             agent.addTool(
-                { name: namespaced, description: baseSpec.description, inputSchema: baseSpec.inputSchema },
-                (input: any) => tool.invoke(input)
+                {
+                    name: namespaced,
+                    description: def.description?.trim() || 'undefined',
+                    inputSchema: inputSchemaWithExplanation,
+                },
+                input => tool.invoke(input)
             )
-            logging.info(`MCP: registered tool ${namespaced}`)
+            registered[server].push(namespaced)
+            logging.info(`MCP: registered tool ${namespaced} (original: ${def.toolName})`)
         }
+    }
+
+    lsp.onInitialized(async () => {
+        if (!enabledMCP(lsp.getClientInitializeParams())) {
+            logging.warn('MCP is currently not supported')
+            return
+        }
+
+        const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
+        const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
+        const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
+        const allConfigPaths = [...wsConfigPaths, globalConfigPath]
+
+        const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
+        const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
+        const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
+
+        const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, {
+            logging,
+            workspace,
+            lsp,
+            telemetry,
+            credentialsProvider,
+            runtime,
+        })
+
+        // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
+        McpManager.instance.clearToolNameMapping()
+
+        const byServer: Record<string, McpToolDefinition[]> = {}
+        // only register enabled tools
+        for (const d of mgr.getEnabledTools()) {
+            ;(byServer[d.serverName] ||= []).push(d)
+        }
+        for (const [server, defs] of Object.entries(byServer)) {
+            registerServerTools(server, defs)
+        }
+
+        mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
+            registerServerTools(server, defs)
+        })
     })
 
     return async () => {

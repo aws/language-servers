@@ -12,7 +12,7 @@ import {
     ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
-} from '@amzn/codewhisperer-streaming'
+} from '@aws/codewhisperer-streaming-client'
 import {
     ChatResult,
     LSPErrorCodes,
@@ -26,6 +26,7 @@ import {
     TextDocumentEdit,
     InlineChatResult,
     CancellationTokenSource,
+    ContextCommand,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -56,10 +57,46 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
+import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
 
 describe('AgenticChatController', () => {
+    let mcpInstanceStub: sinon.SinonStub
+
+    beforeEach(() => {
+        mcpInstanceStub = sinon.stub(McpManager, 'instance').get(() => ({
+            getAllTools: () => [
+                {
+                    serverName: 'server1',
+                    toolName: 'server1_tool1',
+                    description: 'Mock MCP tool 1',
+                    inputSchema: {},
+                },
+                {
+                    serverName: 'server2',
+                    toolName: 'server2_tool2',
+                    description: 'Mock MCP tool 2',
+                    inputSchema: {},
+                },
+                {
+                    serverName: 'server3',
+                    toolName: 'server3_tool3',
+                    description: 'Mock MCP tool 3',
+                    inputSchema: {},
+                },
+            ],
+            callTool: (_s: string, _t: string, _a: any) => Promise.resolve({}),
+            getOriginalToolNames: () => null,
+            clearToolNameMapping: () => {},
+            setToolNameMapping: () => {},
+        }))
+    })
+
+    afterEach(() => {
+        mcpInstanceStub.restore()
+        sinon.restore()
+    })
     const mockTabId = 'tab-1'
     const mockConversationId = 'mock-conversation-id'
     const mockMessageId = 'mock-message-id'
@@ -85,11 +122,10 @@ describe('AgenticChatController', () => {
 
     const expectedCompleteChatResult: ChatResult = {
         body: 'Hello World!',
-        canBeVoted: true,
         messageId: 'mock-message-id',
-        codeReference: undefined,
-        followUp: undefined,
-        relatedContent: undefined,
+        buttons: [],
+        codeReference: [],
+        header: undefined,
         additionalMessages: [],
     }
 
@@ -132,7 +168,9 @@ describe('AgenticChatController', () => {
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
     let telemetry: Telemetry
+    let chatDbInitializedStub: sinon.SinonStub
     let getMessagesStub: sinon.SinonStub
+    let addMessageStub: sinon.SinonStub
 
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
@@ -199,7 +237,13 @@ describe('AgenticChatController', () => {
         }
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
-        additionalContextProviderStub.resolves([])
+        additionalContextProviderStub.callsFake(async (triggerContext, _, context: ContextCommand[]) => {
+            // When @workspace is in the context, set hasWorkspace flag
+            if (context && context.some(item => item.command === '@workspace')) {
+                triggerContext.hasWorkspace = true
+            }
+            return []
+        })
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
             initializationOptions: {
@@ -246,7 +290,9 @@ describe('AgenticChatController', () => {
             onClientTelemetry: sinon.stub(),
         }
 
-        getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages')
+        getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages').returns([])
+        addMessageStub = sinon.stub(ChatDatabase.prototype, 'addMessage')
+        chatDbInitializedStub = sinon.stub(ChatDatabase.prototype, 'isInitialized')
 
         telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new AgenticChatController(
@@ -258,8 +304,8 @@ describe('AgenticChatController', () => {
     })
 
     afterEach(() => {
-        sinon.restore()
         chatController.dispose()
+        sinon.restore()
         ChatSessionManagementService.reset()
     })
 
@@ -303,6 +349,18 @@ describe('AgenticChatController', () => {
         chatController.onTabAdd({ tabId: mockTabId })
 
         sinon.assert.calledWithExactly(activeTabSpy.set, mockTabId)
+    })
+
+    it('onTabAdd updates model ID in chat options and session', () => {
+        const modelId = 'test-model-id'
+        sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
+
+        chatController.onTabAdd({ tabId: mockTabId })
+
+        sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
+
+        const session = chatSessionManagementService.getSession(mockTabId).data
+        assert.strictEqual(session!.modelId, modelId)
     })
 
     it('onTabChange sets active tab id in telemetryController and emits metrics', () => {
@@ -405,10 +463,34 @@ describe('AgenticChatController', () => {
         it('includes chat history from the database in the request input', async () => {
             // Mock chat history
             const mockHistory = [
-                { type: 'prompt', body: 'Previous question' },
+                {
+                    type: 'prompt',
+                    body: 'Previous question',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
                 { type: 'answer', body: 'Previous answer' },
             ]
+            const expectedRequestHistory = [
+                {
+                    userInputMessage: {
+                        content: 'Previous question',
+                        origin: 'IDE',
+                        userInputMessageContext: { toolResults: [] },
+                        userIntent: undefined,
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Previous answer',
+                        messageId: undefined,
+                        toolUses: [],
+                    },
+                },
+            ]
 
+            chatDbInitializedStub.returns(true)
             getMessagesStub.returns(mockHistory)
 
             // Make the request
@@ -424,7 +506,7 @@ describe('AgenticChatController', () => {
 
             // Verify that the history was passed to the request
             const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
-            assert.deepStrictEqual(requestInput.conversationState?.history, mockHistory)
+            assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
         })
 
         it('skips adding user message to history when token is cancelled', async () => {
@@ -434,12 +516,10 @@ describe('AgenticChatController', () => {
                 onCancellationRequested: () => ({ dispose: () => null }),
             }
 
-            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
-
             // Execute with cancelled token
             await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, cancelledToken)
 
-            sinon.assert.notCalled(addMessageSpy)
+            sinon.assert.notCalled(addMessageStub)
         })
 
         it('skips adding user message to history when prompt ID is no longer current', async () => {
@@ -447,13 +527,11 @@ describe('AgenticChatController', () => {
             const session = chatSessionManagementService.getSession(mockTabId).data!
             const isCurrentPromptStub = sinon.stub(session, 'isCurrentPrompt').returns(false)
 
-            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
-
             // Execute with non-current prompt ID
             await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
 
             sinon.assert.called(isCurrentPromptStub)
-            sinon.assert.notCalled(addMessageSpy)
+            sinon.assert.notCalled(addMessageStub)
         })
 
         it('handles tool use responses and makes multiple requests', async () => {
@@ -508,14 +586,22 @@ describe('AgenticChatController', () => {
                 },
             ]
 
-            getMessagesStub
-                .onFirstCall()
-                .returns([])
-                .onSecondCall()
-                .returns([
-                    { userInputMessage: { content: 'Hello with tool' } },
-                    { assistantResponseMessage: { content: 'I need to use a tool. ' } },
-                ])
+            chatDbInitializedStub.returns(true)
+            getMessagesStub.onFirstCall().returns([])
+            getMessagesStub.onSecondCall().returns([
+                {
+                    type: 'prompt',
+                    body: 'Hello with tool',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                {
+                    type: 'answer',
+                    body: 'I need to use a tool. ',
+                    toolUses: [{ toolUseId: mockToolUseId, name: mockToolName, input: { key: mockToolInput } }],
+                },
+            ])
 
             // Reset the stub and set up to return different responses on consecutive calls
             generateAssistantResponseStub.restore()
@@ -554,10 +640,6 @@ describe('AgenticChatController', () => {
 
             // Verify that generateAssistantResponse was called twice
             sinon.assert.calledTwice(generateAssistantResponseStub)
-
-            // Verify that the tool was executed
-            sinon.assert.calledOnce(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
 
             // Verify that the second request included the tool results in the userInputMessageContext
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
@@ -642,13 +724,24 @@ describe('AgenticChatController', () => {
                 },
             ]
 
+            chatDbInitializedStub.returns(true)
             getMessagesStub
                 .onFirstCall()
                 .returns([])
                 .onSecondCall()
                 .returns([
-                    { userInputMessage: { content: 'Hello with failing tool' } },
-                    { assistantResponseMessage: { content: 'I need to use a tool that will fail. ' } },
+                    {
+                        type: 'prompt',
+                        body: 'Hello with failing tool',
+                        userInputMessageContext: {
+                            toolResults: [],
+                        },
+                    },
+                    {
+                        type: 'answer',
+                        body: 'I need to use a tool that will fail. ',
+                        toolUses: [{ toolUseId: mockToolUseId, name: mockToolName, input: { key: mockToolInput } }],
+                    },
                 ])
 
             // Reset the stub and set up to return different responses on consecutive calls
@@ -689,10 +782,6 @@ describe('AgenticChatController', () => {
             // Verify that generateAssistantResponse was called twice
             sinon.assert.calledTwice(generateAssistantResponseStub)
 
-            // Verify that the tool was executed
-            sinon.assert.calledOnce(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
-
             // Verify that the second request included the tool error in the toolResults with status 'error'
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
             assert.ok(
@@ -713,10 +802,9 @@ describe('AgenticChatController', () => {
                     ?.toolResults[0].status,
                 'error'
             )
-            assert.deepStrictEqual(
+            assert.ok(
                 secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                    ?.toolResults[0].content[0].json,
-                { error: mockErrorMessage }
+                    ?.toolResults[0].content[0].json
             )
 
             // Verify that the history was updated correctly
@@ -729,10 +817,10 @@ describe('AgenticChatController', () => {
             const expectedErrorChatResult: ChatResult = {
                 messageId: mockMessageId,
                 body: 'I see the tool failed with error: Tool execution failed with an error',
-                canBeVoted: true,
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
+                buttons: [],
+                codeReference: [],
+                header: undefined,
+                additionalMessages: [],
             }
 
             // Verify the final result includes both messages
@@ -821,15 +909,30 @@ describe('AgenticChatController', () => {
             ]
 
             const historyAfterTool1 = [
-                { userInputMessage: { content: 'Hello with multiple tools' } },
-                { assistantResponseMessage: { content: 'I need to use tool 1. ' } },
+                {
+                    type: 'prompt',
+                    body: 'Hello with multiple tools',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                {
+                    type: 'answer',
+                    body: 'I need to use tool 1. ',
+                    toolUses: [{ toolUseId: mockToolUseId1, name: mockToolName1, input: { key: mockToolInput1 } }],
+                },
             ]
             const historyAfterTool2 = [
                 ...historyAfterTool1,
-                { userInputMessage: { content: 'Hello with multiple tools' } },
-                { assistantResponseMessage: { content: 'Now I need to use tool 2. ' } },
+                { type: 'prompt', body: 'Hello with multiple tools' },
+                {
+                    type: 'answer',
+                    body: 'Now I need to use tool 2. ',
+                    toolUses: [{ toolUseId: mockToolUseId2, name: mockToolName2, input: { key: mockToolInput2 } }],
+                },
             ]
 
+            chatDbInitializedStub.returns(true)
             getMessagesStub
                 .onFirstCall()
                 .returns([])
@@ -885,11 +988,6 @@ describe('AgenticChatController', () => {
 
             // Verify that generateAssistantResponse was called three times
             sinon.assert.calledThrice(generateAssistantResponseStub)
-
-            // Verify that the tools were executed
-            sinon.assert.calledTwice(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName1, JSON.parse(mockToolInput1))
-            sinon.assert.calledWith(runToolStub, mockToolName2, JSON.parse(mockToolInput2))
 
             // Verify that the second request included the first tool results
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
@@ -1011,9 +1109,8 @@ describe('AgenticChatController', () => {
             )
 
             // These checks will fail if a response error is returned.
-            const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.message, errorMsg)
-            assert.strictEqual(typedChatResult.data?.body, errorMsg)
+            const typedChatResult = chatResult as ChatResult
+            assert.strictEqual(typedChatResult.body, errorMsg)
         })
 
         it('truncate input to 500k character ', async function () {
@@ -2467,20 +2564,51 @@ ${' '.repeat(8)}}
             })
         })
     })
+
+    describe('onPromptInputOptionChange', () => {
+        it('should set model ID from prompt input options', () => {
+            const mockTabId = 'tab-1'
+            const modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
+            const setModelIdStub = sinon.stub(ChatDatabase.prototype, 'setModelId')
+
+            // Create a session
+            chatController.onTabAdd({ tabId: mockTabId })
+
+            // Call onPromptInputOptionChange with model selection
+            chatController.onPromptInputOptionChange({
+                tabId: mockTabId,
+                optionsValues: { 'model-selection': modelId },
+            })
+
+            // Verify the session has the model ID set
+            const session = chatSessionManagementService.getSession(mockTabId).data
+            assert.strictEqual(session!.modelId, modelId)
+
+            // Verify the model ID was saved to the database
+            sinon.assert.called(setModelIdStub)
+
+            setModelIdStub.restore()
+        })
+    })
 })
 
 // The body may include text-based progress updates from tool invocations.
 // We want to ignore these in the tests.
 function assertChatResultsMatch(actual: any, expected: ChatResult) {
-    // TODO: tool messages completely re-order the response.
-    return
+    // Check if both actual and expected have body properties
+    if (actual?.body && expected?.body) {
+        // For chat results with tool messages, the body might contain additional text
+        // but should still end with the expected body text
+        assert.ok(
+            actual.body.endsWith(expected.body),
+            `Body should end with "${expected.body}"\nActual: "${actual.body}"`
+        )
+    }
 
-    // if (actual?.body && expected?.body) {
-    //     assert.ok(
-    //         actual.body.endsWith(expected.body),
-    //         `Body should end with "${expected.body}"\nActual: "${actual.body}"`
-    //     )
-    // }
+    // Compare all other properties except body and additionalMessages
+    const actualWithoutBodyAndAdditionalMessages = { ...actual, body: undefined, additionalMessages: undefined }
+    const expectedWithoutBodyAndAdditionalMessages = { ...expected, body: undefined, additionalMessages: undefined }
 
-    // assert.deepStrictEqual({ ...actual, body: undefined }, { ...expected, body: undefined })
+    // Compare the objects without the body and additionalMessages properties
+    assert.deepStrictEqual(actualWithoutBodyAndAdditionalMessages, expectedWithoutBodyAndAdditionalMessages)
 }

@@ -10,16 +10,19 @@ import { disclaimerCard } from '../texts/disclaimer'
 import { ChatMessage } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from '../features/history'
 import { pairProgrammingPromptInput, programmerModeCard } from '../texts/pairProgramming'
-import { modelSelection } from '../texts/modelSelection'
+import { modelSelectionForRegion } from '../texts/modelSelection'
 
 export type DefaultTabData = MynahUIDataModel
 
 export const ExportTabBarButtonId = 'export'
 
+export const McpServerTabButtonId = 'mcp_init'
+
 export class TabFactory {
     private history: boolean = false
     private export: boolean = false
     private agenticMode: boolean = false
+    private mcp: boolean = false
     private modelSelectionEnabled: boolean = false
     initialTabId: string
 
@@ -43,7 +46,10 @@ export class TabFactory {
             ...this.getDefaultTabData(),
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             promptInputOptions: this.agenticMode
-                ? [pairProgrammingPromptInput, ...(this.modelSelectionEnabled ? [modelSelection] : [])]
+                ? [
+                      pairProgrammingPromptInput,
+                      ...(this.modelSelectionEnabled ? [modelSelectionForRegion['us-east-1']] : []),
+                  ]
                 : [],
             cancelButtonWhenLoading: this.agenticMode, // supported for agentic chat only
         }
@@ -97,6 +103,10 @@ export class TabFactory {
         this.agenticMode = true
     }
 
+    public enableMcp() {
+        this.mcp = true
+    }
+
     public enableModelSelection() {
         this.modelSelectionEnabled = true
     }
@@ -131,6 +141,14 @@ export class TabFactory {
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {
         const tabBarButtons = [...(this.defaultTabData.tabBarButtons ?? [])]
+
+        if (this.mcp) {
+            tabBarButtons.push({
+                id: McpServerTabButtonId,
+                icon: MynahIcons.TOOLS,
+                description: 'Configure MCP servers',
+            })
+        }
 
         if (this.history) {
             tabBarButtons.push({

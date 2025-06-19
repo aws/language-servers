@@ -7,6 +7,7 @@ import { getUserPromptsDirectory, promptFileExtension } from './contextUtils'
 import { ContextCommandItem } from 'local-indexing'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
+import { activeFileCmd } from './addtionalContextProvider'
 
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
@@ -143,9 +144,10 @@ export class ContextCommandsProvider implements Disposable {
         }
         const workspaceCmd = {
             command: '@workspace',
-            description: 'Reference all code in workspace.',
+            id: '@workspace',
+            description: 'Reference all code in workspace',
         }
-        const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
+        const commands = [workspaceCmd, activeFileCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
         const allCommands: ContextCommandGroup[] = [
             {
                 commands: commands,

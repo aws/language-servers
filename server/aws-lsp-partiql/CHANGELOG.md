@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.13](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.12...lsp-partiql/v0.0.13) (2025-06-16)
+
+
+### Features
+
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+
+## [0.0.12](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.11...lsp-partiql/v0.0.12) (2025-06-10)
+
+
+### Features
+
+* adding mcp servers feature to the language-server ([#1544](https://github.com/aws/language-servers/issues/1544)) ([f37bf5f](https://github.com/aws/language-servers/commit/f37bf5f91921d7611c124de6d54dd6ec653038c6))
+
 ## [0.0.11](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.10...lsp-partiql/v0.0.11) (2025-05-30)
 
 
@@ -45,7 +59,7 @@
 
 ### Bug Fixes
 
-* update @aws/language-server-runtimes to 0.2.48 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
+* update @aws/language-server-runtimes to 0.2.83 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
 
 ## [0.0.5](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.4...lsp-partiql/v0.0.5) (2025-03-18)
 

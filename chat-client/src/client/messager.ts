@@ -34,9 +34,14 @@ import {
     InfoLinkClickParams,
     LinkClickParams,
     ListConversationsParams,
+    ListRulesParams,
+    ListMcpServersParams,
+    McpServerClickParams,
     OpenTabResult,
+    PinnedContextParams,
     PromptInputOptionChangeParams,
     QuickActionParams,
+    RuleClickParams,
     SourceLinkClickParams,
     TabAddParams,
     TabBarActionParams,
@@ -89,20 +94,31 @@ export interface OutboundChatApi {
     fileClick(params: FileClickParams): void
     listConversations(params: ListConversationsParams): void
     conversationClick(params: ConversationClickParams): void
+    mcpServerClick(params: McpServerClickParams): void
+    listMcpServers(params: ListMcpServersParams): void
     tabBarAction(params: TabBarActionParams): void
     onGetSerializedChat(requestId: string, result: GetSerializedChatResult | ErrorResult): void
     promptInputOptionChange(params: PromptInputOptionChangeParams): void
+    promptInputButtonClick(params: ButtonClickParams): void
     stopChatResponse(tabId: string): void
     sendButtonClickEvent(params: ButtonClickParams): void
     onOpenSettings(settingKey: string): void
+    onRuleClick(params: RuleClickParams): void
+    listRules(params: ListRulesParams): void
+    onAddPinnedContext(params: PinnedContextParams): void
+    onRemovePinnedContext(params: PinnedContextParams): void
 }
 
 export class Messager {
     constructor(private readonly chatApi: OutboundChatApi) {}
 
-    onTabAdd = (tabId: string, triggerType?: TriggerType): void => {
-        this.chatApi.tabAdded({ tabId })
+    onTabAdd = (tabId: string, triggerType?: TriggerType, restoredTab?: boolean): void => {
+        this.chatApi.tabAdded({ tabId, restoredTab })
         this.chatApi.telemetry({ triggerType: triggerType ?? 'click', tabId, name: TAB_ADD_TELEMETRY_EVENT })
+    }
+
+    onRuleClick = (params: RuleClickParams): void => {
+        this.chatApi.onRuleClick(params)
     }
 
     onTabChange = (tabId: string): void => {
@@ -198,8 +214,8 @@ export class Messager {
         this.chatApi.onOpenTab(requestId, result)
     }
 
-    onCreatePrompt = (promptName: string): void => {
-        this.chatApi.createPrompt({ promptName })
+    onCreatePrompt = (params: CreatePromptParams): void => {
+        this.chatApi.createPrompt(params)
     }
 
     onFileClick = (params: FileClickParams): void => {
@@ -213,8 +229,20 @@ export class Messager {
         }
     }
 
+    onListRules = (params: ListRulesParams): void => {
+        this.chatApi.listRules(params)
+    }
+
     onConversationClick = (conversationId: string, action?: ConversationAction): void => {
         this.chatApi.conversationClick({ id: conversationId, action })
+    }
+
+    onListMcpServers = (filter?: Record<string, FilterValue>): void => {
+        this.chatApi.listMcpServers({ filter })
+    }
+
+    onMcpServerClick = (id: string, title?: string, options?: Record<string, string>): void => {
+        this.chatApi.mcpServerClick({ id: id, title: title, optionsValues: options })
     }
 
     onTabBarAction = (params: TabBarActionParams): void => {
@@ -229,6 +257,10 @@ export class Messager {
         this.chatApi.promptInputOptionChange(params)
     }
 
+    onPromptInputButtonClick = (params: ButtonClickParams): void => {
+        this.chatApi.promptInputButtonClick(params)
+    }
+
     onStopChatResponse = (tabId: string): void => {
         this.chatApi.stopChatResponse(tabId)
     }
@@ -239,5 +271,13 @@ export class Messager {
 
     onOpenSettings = (settingKey: string): void => {
         this.chatApi.onOpenSettings(settingKey)
+    }
+
+    onAddPinnedContext = (params: PinnedContextParams) => {
+        this.chatApi.onAddPinnedContext(params)
+    }
+
+    onRemovePinnedContext = (params: PinnedContextParams) => {
+        this.chatApi.onRemovePinnedContext(params)
     }
 }

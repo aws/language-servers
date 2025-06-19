@@ -1,4 +1,4 @@
-// FuzzySearch tool based on ListDirectory implementation
+// FileSearch tool based on ListDirectory implementation
 import { CommandValidation, InvokeOutput, requiresPathAcceptance, validatePath } from './toolShared'
 import { workspaceUtils } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
@@ -7,7 +7,7 @@ import { DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_FILES } from '../../chat/constant
 import { CancellationToken } from '@aws/language-server-runtimes/protocol'
 const Fuse = require('fuse.js')
 
-export interface FuzzySearchParams {
+export interface FileSearchParams {
     path: string
     queryName: string
     maxDepth?: number
@@ -15,7 +15,7 @@ export interface FuzzySearchParams {
     threshold?: number
 }
 
-export class FuzzySearch {
+export class FileSearch {
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
     private readonly lsp: Features['lsp']
@@ -26,7 +26,7 @@ export class FuzzySearch {
         this.lsp = features.lsp
     }
 
-    public async validate(params: FuzzySearchParams): Promise<void> {
+    public async validate(params: FileSearchParams): Promise<void> {
         if (params.maxDepth !== undefined && params.maxDepth < 0) {
             throw new Error('MaxDepth cannot be negative.')
         }
@@ -43,19 +43,16 @@ export class FuzzySearch {
         }
     }
 
-    public async queueDescription(params: FuzzySearchParams, updates: WritableStream, requiresAcceptance: boolean) {
+    public async queueDescription(params: FileSearchParams, updates: WritableStream, requiresAcceptance: boolean) {
         // deprecated, no-op
         return
     }
 
-    public async requiresAcceptance(
-        params: FuzzySearchParams,
-        approvedPaths?: Set<string>
-    ): Promise<CommandValidation> {
+    public async requiresAcceptance(params: FileSearchParams, approvedPaths?: Set<string>): Promise<CommandValidation> {
         return requiresPathAcceptance(params.path, this.workspace, this.logging, approvedPaths)
     }
 
-    public async invoke(params: FuzzySearchParams, token?: CancellationToken): Promise<InvokeOutput> {
+    public async invoke(params: FileSearchParams, token?: CancellationToken): Promise<InvokeOutput> {
         const path = sanitize(params.path)
         try {
             // Get all files and directories
@@ -109,7 +106,7 @@ export class FuzzySearch {
 
     public getSpec() {
         return {
-            name: 'fuzzySearch',
+            name: 'fileSearch',
             description:
                 'Search for files and directories in a target path using fuzzy name matching.\n\n' +
                 '## Overview\n' +
@@ -117,7 +114,7 @@ export class FuzzySearch {
                 'It ignores common build and dependency directories.\n\n' +
                 '## When to use\n' +
                 '- When you need to locate files or folders by approximate names\n' +
-                "- When you don't know exact names\n" +
+                "- When you don't know exact names of files or directories\n" +
                 '- When you want to skip a listDirectory step\n\n' +
                 '## When not to use\n' +
                 '- When you need to search file contents\n' +

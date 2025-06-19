@@ -1,4 +1,4 @@
-import { ChatTriggerType } from '@amzn/codewhisperer-streaming'
+import { ChatTriggerType } from '@aws/codewhisperer-streaming-client'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -13,6 +13,11 @@ import {
     PromptInputOptionChangeParams,
     ButtonClickParams,
     ButtonClickResult,
+    ListMcpServersParams,
+    ListMcpServersResult,
+    McpServerClickParams,
+    McpServerClickResult,
+    RequestHandler,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -64,11 +69,19 @@ type ChatHandlers = Omit<
     | 'onCreatePrompt'
     | 'onListConversations'
     | 'onConversationClick'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
     | 'getSerializedChat'
     | 'onTabBarAction'
     | 'chatOptionsUpdate'
     | 'onListMcpServers'
     | 'onMcpServerClick'
+    | 'onRuleClick'
+    | 'onListRules'
+    | 'sendPinnedContext'
+    | 'onActiveEditorChanged'
+    | 'onPinnedContextAdd'
+    | 'onPinnedContextRemove'
 >
 
 export class ChatController implements ChatHandlers {

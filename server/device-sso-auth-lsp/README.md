@@ -8,6 +8,20 @@ It is port of [SSO flow implementation in VSCode sample client](../../client/vsc
 
 Supports only [`standalone`](https://github.com/aws/language-server-runtimes/blob/main/runtimes/runtimes/standalone.ts) AWS Server Runtime, as it requires NodeJS `fs` access.
 
+## Configuration
+
+Configure Auth language server by passing `configurationOptions` at LSP Initialize handshake from LSP client. Capability supports next `configurationOptions`:
+
+```typescript
+interface InitializeParams {
+    initializationOptions: {
+        // Path to writable directory to store SSO auth and refresh token cache
+        // Default: $HOMEDIR/.aws/device-sso-lsp/cache
+        tokenCacheLocation?: string
+    }
+}
+```
+
 ## Supported features
 
 ### Custom commands

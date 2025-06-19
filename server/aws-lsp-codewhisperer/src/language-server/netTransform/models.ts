@@ -22,6 +22,7 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     ProjectMetadata: TransformProjectMetadata[]
     TransformNetStandardProjects: boolean
     EnableRazorViewTransform: boolean
+    EnableWebFormsToBlazorTransform: boolean
     PackageReferences?: PackageReferenceMetadata[]
 }
 
@@ -102,6 +103,7 @@ export interface RequirementJson {
     Projects: Project[]
     TransformNetStandardProjects: boolean
     EnableRazorViewTransform: boolean
+    EnableWebFormsToBlazorTransform: boolean
 }
 
 export interface ExternalReference {
@@ -139,6 +141,7 @@ export interface References {
     isThirdPartyPackage: boolean
     netCompatibleRelativePath?: string
     netCompatibleVersion?: string
+    packageId?: string
 }
 
 export interface PackageReferenceMetadata {
@@ -148,4 +151,6 @@ export interface PackageReferenceMetadata {
     NetCompatiblePackageVersion?: string
     NetCompatibleAssemblyPath?: string
     NetCompatibleAssemblyRelativePath?: string
+    NetCompatiblePackageFilePath?: string
+    CurrentVersionAssemblyPath?: string
 }
