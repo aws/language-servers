@@ -88,6 +88,7 @@ const webworkerConfig = {
             net: false,
             tls: false,
             http2: false,
+            constants: false,
         },
         extensions: ['.ts', '.tsx', '.js', '.jsx'],
     },
