@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.56](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.55...lsp-codewhisperer/v0.0.56) (2025-06-19)
+
+
+### Bug Fixes
+
+* **amazonq:** add ignore pattern for file events from workspace context server ([#1703](https://github.com/aws/language-servers/issues/1703)) ([7a0dd88](https://github.com/aws/language-servers/commit/7a0dd88a2f5251af8018084c55406cd8b9eaf51a))
+
 ## [0.0.55](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.54...lsp-codewhisperer/v0.0.55) (2025-06-19)
 
 
