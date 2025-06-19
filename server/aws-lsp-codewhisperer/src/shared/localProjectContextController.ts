@@ -413,7 +413,7 @@ export class LocalProjectContextController {
         }
 
         const uniqueFilesToIndex = new Set<string>()
-
+        let filesExceedingMaxSize = 0
         for (const folder of workspaceFolders) {
             const absoluteFolderPath = path.resolve(URI.parse(folder.uri).fsPath)
             const filesUnderFolder = await listFilesWithGitignore(absoluteFolderPath)
@@ -428,10 +428,12 @@ export class LocalProjectContextController {
                                 sizeConstraints.remainingIndexSize = sizeConstraints.remainingIndexSize - fileSize
                             } else {
                                 this.log.info(
-                                    `Reaching max file collection size limit ${this.maxIndexSizeMB} MB. ${uniqueFilesToIndex.size} files found. `
+                                    `Reaching max file collection size limit ${this.maxIndexSizeMB} MB. ${uniqueFilesToIndex.size} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB `
                                 )
                                 return [...uniqueFilesToIndex]
                             }
+                        } else {
+                            filesExceedingMaxSize += 1
                         }
                         // yeild event loop for other tasks like network I/O
                         await sleep(1)
@@ -442,7 +444,9 @@ export class LocalProjectContextController {
             }
         }
 
-        this.log.info(`ProcessWorkspaceFolders complete. ${uniqueFilesToIndex.size} files found.`)
+        this.log.info(
+            `ProcessWorkspaceFolders complete. ${uniqueFilesToIndex.size} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB`
+        )
         return [...uniqueFilesToIndex]
     }
 

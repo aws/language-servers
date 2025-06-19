@@ -25,7 +25,7 @@ import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
 import * as ignore from 'ignore'
 import * as fg from 'fast-glob'
-import * as fs from 'fs-extra'
+import * as fs from 'fs'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
@@ -506,7 +506,7 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
     for (const filePath of allFiles) {
         if (path.basename(filePath) === '.gitignore') {
             const ignoreFilePath = path.join(directory, filePath)
-            const gitignoreContent = await fs.readFile(ignoreFilePath, 'utf-8')
+            const gitignoreContent = fs.readFileSync(ignoreFilePath, 'utf-8')
             let localIgnore = ignore().add(gitignoreContent)
             folderLevelGitIgnores.push({
                 localIgnore: localIgnore,
