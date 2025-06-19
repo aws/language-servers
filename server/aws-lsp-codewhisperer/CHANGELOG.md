@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.0.56](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.55...lsp-codewhisperer/v0.0.56) (2025-06-19)
+
+
+### Bug Fixes
+
+* **amazonq:** add ignore pattern for file events from workspace context server ([#1703](https://github.com/aws/language-servers/issues/1703)) ([7a0dd88](https://github.com/aws/language-servers/commit/7a0dd88a2f5251af8018084c55406cd8b9eaf51a))
+
+## [0.0.55](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.54...lsp-codewhisperer/v0.0.55) (2025-06-19)
+
+
+### Bug Fixes
+
+* **amazonq:** serialize S3 uploads for file events from workspace context server ([#1700](https://github.com/aws/language-servers/issues/1700)) ([1884c57](https://github.com/aws/language-servers/commit/1884c5793d46227d871e8cf25c940f7a87795f04))
+
+## [0.0.54](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.53...lsp-codewhisperer/v0.0.54) (2025-06-19)
+
+
+### Features
+
+* adding current working directory to the stdio transport for mcp… ([#1691](https://github.com/aws/language-servers/issues/1691)) ([02c4d64](https://github.com/aws/language-servers/commit/02c4d645a8c2778deab7af9f5377c26e99d01f20))
+
+
+### Bug Fixes
+
+* add fsReplace tool to batch edits ([#1533](https://github.com/aws/language-servers/issues/1533)) ([4125134](https://github.com/aws/language-servers/commit/4125134f6e7eee8276d6146a507834b3309c2ec5))
+* **amazonq:** itemid was accidentally removed by [#1689](https://github.com/aws/language-servers/issues/1689) ([#1698](https://github.com/aws/language-servers/issues/1698)) ([33524c0](https://github.com/aws/language-servers/commit/33524c092af8088705a3cbae09c6249ad5940ce6))
+* **amazonq:** profile is not set after re-auth ([#1690](https://github.com/aws/language-servers/issues/1690)) ([2a445ee](https://github.com/aws/language-servers/commit/2a445eef4cc2a70471fd1fc49e6ca4e301051442))
+* diff reports no lines added or removed ([#1549](https://github.com/aws/language-servers/issues/1549)) ([562f13e](https://github.com/aws/language-servers/commit/562f13e0223a8a01fefc9ca449aad02da9734709))
+* thinking doesn't get removed if response is empty ([#1699](https://github.com/aws/language-servers/issues/1699)) ([9a63c99](https://github.com/aws/language-servers/commit/9a63c99b3195c9da0f537980324998138f25a3fa))
+
+
+### Reverts
+
+* **amazonq:** bring back [#1684](https://github.com/aws/language-servers/issues/1684) ([#1697](https://github.com/aws/language-servers/issues/1697)) ([5e7aa76](https://github.com/aws/language-servers/commit/5e7aa76b6ebcf8e0a7489d3574cc14ed3d0ceebe))
+* **amazonq:** bring back [#1689](https://github.com/aws/language-servers/issues/1689) ([5b84b0e](https://github.com/aws/language-servers/commit/5b84b0e4c42c344d91ef9c99a04d3a2671221aa1))
+
 ## [0.0.53](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.52...lsp-codewhisperer/v0.0.53) (2025-06-18)
 
 

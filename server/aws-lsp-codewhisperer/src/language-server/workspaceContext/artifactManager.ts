@@ -24,7 +24,7 @@ export const SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES: CodewhispererLanguage[] = [
     'typescript',
     'java',
 ]
-const IGNORE_PATTERNS = [
+export const IGNORE_PATTERNS = [
     // Package management and git
     '**/node_modules/**',
     '**/.git/**',
@@ -255,7 +255,7 @@ export class ArtifactManager {
         const programmingLanguages = new Set<CodewhispererLanguage>()
 
         // Add the file language if we can determine it, but don't return early
-        if (fileLanguage) {
+        if (fileLanguage && SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(fileLanguage)) {
             programmingLanguages.add(fileLanguage)
         }
 

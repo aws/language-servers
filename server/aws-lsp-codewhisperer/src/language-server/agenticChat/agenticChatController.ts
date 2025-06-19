@@ -183,6 +183,7 @@ type ChatHandlers = Omit<
     | 'onActiveEditorChanged'
     | 'onPinnedContextAdd'
     | 'onPinnedContextRemove'
+    | 'onOpenFileDialog'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -1210,7 +1211,8 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') {
                     const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
-                    const document = await this.#triggerContext.getTextDocument(input.path)
+                    const document = await this.#triggerContext.getTextDocumentFromPath(input.path, true, true)
+
                     session.toolUseLookup.set(toolUse.toolUseId, {
                         ...toolUse,
                         fileChange: { before: document?.getText() },
@@ -1266,7 +1268,13 @@ export class AgenticChatController implements ChatHandlers {
                     case 'fsReplace':
                     case 'fsWrite':
                         const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
-                        const doc = await this.#triggerContext.getTextDocument(input.path)
+                        // Load from the filesystem instead of workspace.
+                        // Workspace is likely out of date - when files
+                        // are modified external to the IDE, many IDEs
+                        // will only update their file contents (which
+                        // then propagates to the LSP) if/when that
+                        // document receives focus.
+                        const doc = await this.#triggerContext.getTextDocumentFromPath(input.path, false, true)
                         const chatResult = await this.#getFsWriteChatResult(toolUse, doc, session)
                         const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
                         if (cachedToolUse) {
@@ -3112,7 +3120,9 @@ export class AgenticChatController implements ChatHandlers {
 
         const toolUseStartTimes: Record<string, number> = {}
         const toolUseLoadingTimeouts: Record<string, NodeJS.Timeout> = {}
+        let isEmptyResponse = true
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
+            isEmptyResponse = false
             if (abortSignal?.aborted) {
                 throw new Error('Operation was aborted')
             }
@@ -3146,6 +3156,10 @@ export class AgenticChatController implements ChatHandlers {
                 )
                 await this.#showToolUseIntermediateResult(result.data, chatResultStream, streamWriter)
             }
+        }
+        if (isEmptyResponse) {
+            // If the response is empty, we need to send an empty answer message to remove the Thinking... indicator
+            await streamWriter.write({ type: 'answer', body: '', messageId: uuid() })
         }
         await streamWriter.close()
 
