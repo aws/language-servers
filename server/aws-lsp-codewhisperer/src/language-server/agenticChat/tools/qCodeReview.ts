@@ -13,6 +13,8 @@ import {
 } from './qCodeReviewConstants'
 import { QCodeReviewUtils } from './qCodeReviewUtils'
 import { INPUT_SCHEMA, Z_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
+// eslint-disable-next-line import/no-nodejs-modules
+import { randomUUID } from 'crypto'
 
 export class QCodeReview {
     private readonly logging: Features['logging']
@@ -70,7 +72,7 @@ export class QCodeReview {
             )
 
             // Step 2: Get a pre-signed URL for uploading the code
-            const scanName = 'q-agentic-code-review-' + Date.now().toString()
+            const scanName = 'Standard-' + randomUUID()
             this.logging.info(`Creating code scan with name: ${scanName}`)
 
             // Determine upload intent based on input
