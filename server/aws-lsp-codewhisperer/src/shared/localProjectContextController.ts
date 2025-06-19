@@ -422,13 +422,16 @@ export class LocalProjectContextController {
                 if (!uniqueFilesToIndex.has(file) && fileExtensions?.includes(fileExtName)) {
                     try {
                         const fileSize = fs.statSync(file).size
-                        if (fileSize < sizeConstraints.maxFileSize && sizeConstraints.remainingIndexSize > fileSize) {
-                            uniqueFilesToIndex.add(file)
-                            sizeConstraints.remainingIndexSize = sizeConstraints.remainingIndexSize - fileSize
-                        }
-                        if (sizeConstraints.remainingIndexSize <= fileSize) {
-                            this.log.info(`ProcessWorkspaceFolders complete: found ${uniqueFilesToIndex.size} files.`)
-                            return [...uniqueFilesToIndex]
+                        if (fileSize < sizeConstraints.maxFileSize) {
+                            if (sizeConstraints.remainingIndexSize > fileSize) {
+                                uniqueFilesToIndex.add(file)
+                                sizeConstraints.remainingIndexSize = sizeConstraints.remainingIndexSize - fileSize
+                            } else {
+                                this.log.info(
+                                    `Reaching max file collection size limit ${this.maxIndexSizeMB} MB. ${uniqueFilesToIndex.size} files found. `
+                                )
+                                return [...uniqueFilesToIndex]
+                            }
                         }
                     } catch (error) {
                         this.log.error(`Failed to include file in index. ${file}`)
@@ -437,7 +440,7 @@ export class LocalProjectContextController {
             }
         }
 
-        this.log.info(`ProcessWorkspaceFolders complete: found ${uniqueFilesToIndex.size} files.`)
+        this.log.info(`ProcessWorkspaceFolders complete. ${uniqueFilesToIndex.size} files found.`)
         return [...uniqueFilesToIndex]
     }
 
