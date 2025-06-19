@@ -558,7 +558,7 @@ describe('listFilesWithGitignore', () => {
         await createTestFiles({
             '.gitignore': '*.log',
             'src/.npmignore': 'test/',
-            'src/lib/.ignorefile': '*.tmp',
+            'src/lib/.gitignore': '*.tmp',
             'app.log': 'ignored',
             'src/index.js': 'not ignored',
             'src/test/test.js': 'ignored',
@@ -570,7 +570,7 @@ describe('listFilesWithGitignore', () => {
         const expectedFiles = [
             path.join(tempDir, '.gitignore'),
             path.join(tempDir, 'src/.npmignore'),
-            path.join(tempDir, 'src/lib/.ignorefile'),
+            path.join(tempDir, 'src/lib/.gitignore'),
             path.join(tempDir, 'src/index.js'),
             path.join(tempDir, 'src/lib/main.js'),
         ].sort()
