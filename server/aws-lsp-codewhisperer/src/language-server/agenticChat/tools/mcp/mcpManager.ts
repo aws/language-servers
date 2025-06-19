@@ -669,7 +669,8 @@ export class McpManager {
                     throw new Error('Server disabled state must be explicitly set')
                 }
 
-                const unsanitizedServerName = this.serverNameMapping.get(serverName)!
+                let unsanitizedServerName = this.serverNameMapping.get(serverName)!
+                if (serverName === 'Built-in') unsanitizedServerName = serverName
 
                 // disable whole server
                 if (!perm.enabled) {
@@ -698,16 +699,18 @@ export class McpManager {
             this.mcpServerPermissions = permissionMap
 
             // enable/disable server
-            if (this.isServerDisabled(serverName)) {
-                const client = this.clients.get(serverName)
-                if (client) {
-                    await client.close()
-                    this.clients.delete(serverName)
-                }
-                this.setState(serverName, McpServerStatus.DISABLED, 0)
-            } else {
-                if (!this.clients.has(serverName)) {
-                    await this.initOneServer(serverName, this.mcpServers.get(serverName)!)
+            if (serverName !== 'Built-in') {
+                if (this.isServerDisabled(serverName)) {
+                    const client = this.clients.get(serverName)
+                    if (client) {
+                        await client.close()
+                        this.clients.delete(serverName)
+                    }
+                    this.setState(serverName, McpServerStatus.DISABLED, 0)
+                } else {
+                    if (!this.clients.has(serverName)) {
+                        await this.initOneServer(serverName, this.mcpServers.get(serverName)!)
+                    }
                 }
             }
             this.features.logging.info(`Permissions updated for '${serverName}' in ${personaPath}`)
