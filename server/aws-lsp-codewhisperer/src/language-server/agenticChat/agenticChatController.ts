@@ -3151,7 +3151,7 @@ export class AgenticChatController implements ChatHandlers {
         }
         if (isEmptyResponse) {
             // If the response is empty, we need to send an empty answer message to remove the Thinking... indicator
-            streamWriter.write({ type: 'answer', body: '', messageId: uuid() })
+            await streamWriter.write({ type: 'answer', body: '', messageId: uuid() })
         }
         await streamWriter.close()
 
