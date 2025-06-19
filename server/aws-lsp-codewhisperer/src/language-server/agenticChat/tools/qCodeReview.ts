@@ -73,8 +73,8 @@ export class QCodeReview {
             const scanName = 'q-agentic-code-review-' + Date.now().toString()
             this.logging.info(`Creating code scan with name: ${scanName}`)
 
-            // Determine upload intent based on input, setting 'FULL_PROJECT_SECURITY_SCAN' by default
-            const uploadIntent = 'FULL_PROJECT_SECURITY_SCAN'
+            // Determine upload intent based on input
+            const uploadIntent = 'AGENTIC_CODE_REVIEW'
 
             const uploadUrlResponse = await codeWhispererClient.createUploadUrl({
                 contentLength: zipBuffer.length,
@@ -106,8 +106,8 @@ export class QCodeReview {
                 SourceCode: uploadUrlResponse.uploadId,
             }
 
-            // Determine scan scope based on input, setting it always to Project for now
-            const scanScope = 'PROJECT'
+            // Determine scan scope based on input
+            const scanScope = 'AGENTIC'
 
             const createResponse = await codeWhispererClient.startCodeAnalysis({
                 artifacts: artifactMap,
@@ -115,6 +115,7 @@ export class QCodeReview {
                 clientToken: QCodeReviewUtils.generateClientToken(),
                 codeScanName: scanName,
                 scope: scanScope,
+                codeDiffMetadata: isCodeDiffScan ? { codeDiffPath: '/code_artifact/codeDiff/' } : undefined,
             })
 
             const jobId = createResponse.jobId

@@ -1160,9 +1160,6 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
-                    case 'codeSearch':
-                        // no need to write tool message for code search.
-                        break
                     case QCodeReview.toolName:
                         // no need to write tool message for code review
                         break
