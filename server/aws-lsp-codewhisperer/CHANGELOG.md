@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.55](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.54...lsp-codewhisperer/v0.0.55) (2025-06-19)
+
+
+### Bug Fixes
+
+* **amazonq:** serialize S3 uploads for file events from workspace context server ([#1700](https://github.com/aws/language-servers/issues/1700)) ([1884c57](https://github.com/aws/language-servers/commit/1884c5793d46227d871e8cf25c940f7a87795f04))
+
 ## [0.0.54](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.53...lsp-codewhisperer/v0.0.54) (2025-06-19)
 
 
