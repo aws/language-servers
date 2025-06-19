@@ -23,10 +23,9 @@ import {
 } from '@aws/codewhisperer-streaming-client'
 import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
-import * as ignore from 'ignore'
-import * as fg from 'fast-glob'
-import * as fs from 'fs'
+import * as ignoreWalk from 'ignore-walk'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
+import ignore = require('ignore')
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -479,64 +478,34 @@ export function hasConnectionExpired(error: any) {
   @returns A promise that resolves to an array of absolute file paths.
  */
 export async function listFilesWithGitignore(directory: string): Promise<string[]> {
-    // Use fast-glob to get all files
-    // fg.stream does not block node js event loop
-    let allFilesStream = await fg.stream(['**'], {
-        cwd: directory,
-        dot: true,
-        onlyFiles: true,
-        followSymbolicLinks: false,
-        ignore: COMMON_GITIGNORE_PATTERNS,
-        absolute: false, // Keep relative paths for gitignore checking
-    })
-    let allFiles: string[] = []
-    // Only include first 1 million files
-    // as over 1m files will likely exceed node js heap limit of default 4GB, resulted in crash
-    // in extreme cases we want this for loop to break when the workspace is an entire file system root
-    for await (const file of allFilesStream) {
-        if (allFiles.length < 1_000_000) {
-            allFiles.push(file.toString())
-        } else {
-            break
-        }
+    const commonIgnore = ignore().add(COMMON_GITIGNORE_PATTERNS)
+
+    try {
+        let ignoreWalkFiles = await ignoreWalk({
+            path: directory,
+            // Use multiple ignore files
+            ignoreFiles: [
+                '.gitignore',
+                '.npmignore',
+                '.ignorefile', // custom ignore file
+            ],
+            // Additional options
+            follow: false, // follow symlinks
+            includeEmpty: false, // exclude empty directories
+        })
+        // hard limit of 500k files to avoid hitting memory limit
+        ignoreWalkFiles = ignoreWalkFiles.slice(0, 500_000)
+
+        // apply common gitignore in case some build system like Brazil
+        // generates a lot of temp files that is not in Gitignore.
+        ignoreWalkFiles = commonIgnore.filter(ignoreWalkFiles)
+
+        const absolutePaths = ignoreWalkFiles.map(file => path.join(directory, file))
+        return absolutePaths
+    } catch (error) {
+        console.error('Error gathering files:', error)
+        return []
     }
-
-    // Collect gitignores of the user's workspace
-    const folderLevelGitIgnores: { localIgnore: ignore.Ignore; folder: string }[] = []
-    for (const filePath of allFiles) {
-        if (path.basename(filePath) === '.gitignore') {
-            const ignoreFilePath = path.join(directory, filePath)
-            const gitignoreContent = fs.readFileSync(ignoreFilePath, 'utf-8')
-            let localIgnore = ignore().add(gitignoreContent)
-            folderLevelGitIgnores.push({
-                localIgnore: localIgnore,
-                folder: path.dirname(ignoreFilePath),
-            })
-        }
-    }
-
-    folderLevelGitIgnores.sort((a, b) => {
-        const aSegments = a.folder.split(path.sep)
-        const bSegments = b.folder.split(path.sep)
-        return bSegments.length - aSegments.length
-    })
-
-    const findDeepestGitignore = (filePath: string) => {
-        for (const folderLevelGitIgnore of folderLevelGitIgnores) {
-            if (filePath.startsWith(folderLevelGitIgnore.folder)) {
-                return folderLevelGitIgnore
-            }
-        }
-        return undefined
-    }
-
-    const shouldIgnoreFile = (filePath: string) => {
-        const gitIgnoreFile = findDeepestGitignore(path.join(directory, filePath))
-        return gitIgnoreFile?.localIgnore.ignores(filePath) ?? false
-    }
-
-    // Filter out ignored files and convert to absolute paths
-    return allFiles.filter(filePath => !shouldIgnoreFile(filePath)).map(filePath => path.resolve(directory, filePath))
 }
 
 export function getFileExtensionName(filepath: string): string {
