@@ -3119,7 +3119,9 @@ export class AgenticChatController implements ChatHandlers {
 
         const toolUseStartTimes: Record<string, number> = {}
         const toolUseLoadingTimeouts: Record<string, NodeJS.Timeout> = {}
+        let isEmptyResponse = true
         for await (const chatEvent of response.generateAssistantResponseResponse!) {
+            isEmptyResponse = false
             if (abortSignal?.aborted) {
                 throw new Error('Operation was aborted')
             }
@@ -3153,6 +3155,10 @@ export class AgenticChatController implements ChatHandlers {
                 )
                 await this.#showToolUseIntermediateResult(result.data, chatResultStream, streamWriter)
             }
+        }
+        if (isEmptyResponse) {
+            // If the response is empty, we need to send an empty answer message to remove the Thinking... indicator
+            await streamWriter.write({ type: 'answer', body: '', messageId: uuid() })
         }
         await streamWriter.close()
 
