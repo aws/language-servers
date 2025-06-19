@@ -8,14 +8,24 @@ import { AWSError } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
-import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING_BEARER_TOKEN_ERROR } from './constants'
+import {
+    BUILDER_ID_START_URL,
+    COMMON_GITIGNORE_PATTERNS,
+    crashMonitoringDirName,
+    driveLetterRegex,
+    MISSING_BEARER_TOKEN_ERROR,
+} from './constants'
 import {
     CodeWhispererStreamingServiceException,
     ServiceQuotaExceededException,
     ThrottlingException,
     ThrottlingExceptionReason,
 } from '@aws/codewhisperer-streaming-client'
+import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
+import * as ignore from 'ignore'
+import * as fg from 'fast-glob'
+import * as fs from 'fs-extra'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
@@ -460,4 +470,90 @@ export function hasConnectionExpired(error: any) {
         return authFollowType == 're-auth'
     }
     return false
+}
+
+/**
+  Lists files in a directory while respecting .gitignore.
+  @param directory The absolute path of root directory.
+  @param limit The maximum number of files to return.
+  @returns A promise that resolves to an array of absolute file paths.
+ */
+export async function listFilesWithGitignore(directory: string): Promise<string[]> {
+    // Use fast-glob to get all files
+    // fg.stream does not block node js event loop
+    let allFilesStream = await fg.stream(['**'], {
+        cwd: directory,
+        dot: true,
+        onlyFiles: true,
+        followSymbolicLinks: false,
+        ignore: COMMON_GITIGNORE_PATTERNS,
+        absolute: false, // Keep relative paths for gitignore checking
+    })
+    let allFiles: string[] = []
+    // Only include first 1 million files
+    // as over 1m files will likely exceed node js heap limit of default 4GB, resulted in crash
+    // in extreme cases we want this for loop to break when the workspace is an entire file system root
+    for await (const file of allFilesStream) {
+        if (allFiles.length < 1_000_000) {
+            allFiles.push(file.toString())
+        } else {
+            break
+        }
+    }
+
+    // Collect gitignores of the user's workspace
+    const folderLevelGitIgnores: { localIgnore: ignore.Ignore; folder: string }[] = []
+    for (const filePath of allFiles) {
+        if (path.basename(filePath) === '.gitignore') {
+            const ignoreFilePath = path.join(directory, filePath)
+            const gitignoreContent = await fs.readFile(ignoreFilePath, 'utf-8')
+            let localIgnore = ignore().add(gitignoreContent)
+            folderLevelGitIgnores.push({
+                localIgnore: localIgnore,
+                folder: path.dirname(ignoreFilePath),
+            })
+        }
+    }
+
+    folderLevelGitIgnores.sort((a, b) => {
+        const aSegments = a.folder.split(path.sep)
+        const bSegments = b.folder.split(path.sep)
+        return bSegments.length - aSegments.length
+    })
+
+    const findDeepestGitignore = (filePath: string) => {
+        for (const folderLevelGitIgnore of folderLevelGitIgnores) {
+            if (filePath.startsWith(folderLevelGitIgnore.folder)) {
+                return folderLevelGitIgnore
+            }
+        }
+        return undefined
+    }
+
+    const shouldIgnoreFile = (filePath: string) => {
+        const gitIgnoreFile = findDeepestGitignore(path.join(directory, filePath))
+        return gitIgnoreFile?.localIgnore.ignores(filePath) ?? false
+    }
+
+    // Filter out ignored files and convert to absolute paths
+    return allFiles.filter(filePath => !shouldIgnoreFile(filePath)).map(filePath => path.resolve(directory, filePath))
+}
+
+export function getFileExtensionName(filepath: string): string {
+    // Handle null/undefined
+    if (!filepath) {
+        return ''
+    }
+
+    // Handle no dots or file ending with dot
+    if (!filepath.includes('.') || filepath.endsWith('.')) {
+        return ''
+    }
+
+    // Handle hidden files (optional, depending on your needs)
+    if (filepath.startsWith('.') && filepath.indexOf('.', 1) === -1) {
+        return ''
+    }
+
+    return filepath.substring(filepath.lastIndexOf('.') + 1).toLowerCase()
 }
