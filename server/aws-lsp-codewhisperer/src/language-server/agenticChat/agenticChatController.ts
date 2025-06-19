@@ -184,6 +184,7 @@ type ChatHandlers = Omit<
     | 'onActiveEditorChanged'
     | 'onPinnedContextAdd'
     | 'onPinnedContextRemove'
+    | 'onOpenFileDialog'
 >
 
 export class AgenticChatController implements ChatHandlers {

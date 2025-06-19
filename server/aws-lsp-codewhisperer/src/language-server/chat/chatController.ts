@@ -82,6 +82,7 @@ type ChatHandlers = Omit<
     | 'onActiveEditorChanged'
     | 'onPinnedContextAdd'
     | 'onPinnedContextRemove'
+    | 'onOpenFileDialog'
 >
 
 export class ChatController implements ChatHandlers {

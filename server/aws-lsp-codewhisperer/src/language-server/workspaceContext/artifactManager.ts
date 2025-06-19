@@ -24,7 +24,7 @@ export const SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES: CodewhispererLanguage[] = [
     'typescript',
     'java',
 ]
-const IGNORE_PATTERNS = [
+export const IGNORE_PATTERNS = [
     // Package management and git
     '**/node_modules/**',
     '**/.git/**',
