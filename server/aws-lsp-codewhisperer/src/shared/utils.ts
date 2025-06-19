@@ -484,11 +484,7 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
         let ignoreWalkFiles = await ignoreWalk({
             path: directory,
             // Use multiple ignore files
-            ignoreFiles: [
-                '.gitignore',
-                '.npmignore',
-                '.ignorefile', // custom ignore file
-            ],
+            ignoreFiles: ['.gitignore', '.npmignore'],
             // Additional options
             follow: false, // follow symlinks
             includeEmpty: false, // exclude empty directories
