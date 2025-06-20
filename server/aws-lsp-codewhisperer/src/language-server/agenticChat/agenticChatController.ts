@@ -1792,11 +1792,11 @@ export class AgenticChatController implements ChatHandlers {
                 buttons =
                     builtInPermission || (requiresAcceptance && commandCategory !== CommandCategory.ReadOnly)
                         ? [
-                              { id: 'run-shell-command', text: 'Run', icon: 'play' },
+                              { id: 'run-shell-command', text: 'Allow', icon: 'play' },
                               {
                                   id: 'reject-shell-command',
                                   status: 'dimmed-clear' as Status,
-                                  text: 'Reject',
+                                  text: 'Deny',
                                   icon: 'cancel',
                               },
                           ]

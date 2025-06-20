@@ -985,14 +985,14 @@ export class McpEventHandler {
 
         if (currentPermission !== 'alwaysAllow') {
             permissionOptions.push({
-                label: 'Always run',
+                label: 'Always Allow',
                 value: 'alwaysAllow',
             })
         }
 
         if (currentPermission !== 'ask') {
             permissionOptions.push({
-                label: 'Ask to run',
+                label: 'Ask',
                 value: 'ask',
             })
         }
