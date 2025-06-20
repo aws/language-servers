@@ -196,10 +196,10 @@ describe('makeUserContextObject', () => {
                 case 'Amazon Q For JetBrains':
                     assert.strictEqual(result?.ideCategory, 'JETBRAINS')
                     break
-                case 'AmazonQ-For-Eclipse':
+                case 'Amazon Q For Eclipse':
                     assert.strictEqual(result?.ideCategory, 'ECLIPSE')
                     break
-                case 'AWS-Toolkit-For-VisualStudio':
+                case 'AWS Toolkit For VisualStudio':
                     assert.strictEqual(result?.ideCategory, 'VISUAL_STUDIO')
                     break
                 default:
