@@ -106,6 +106,7 @@ class HelloWorld
                         discarded: false,
                     },
                 },
+                isInlineEdit: false,
             })
 
             const totalInsertCharacters = SOME_TYPING.length + EXPECTED_SUGGESTION[0].content.length
