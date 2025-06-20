@@ -26,6 +26,12 @@ import {
 } from './utils'
 import { promises as fsPromises } from 'fs'
 
+// Handle unhandled promise rejections
+process.on('unhandledRejection', err => {
+    console.error('Unhandled rejection:', err)
+    process.exit(1)
+})
+
 describe('getBearerTokenFromProvider', () => {
     const mockToken = 'mockToken'
     it('returns the bearer token from the provider', () => {
