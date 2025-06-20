@@ -12,7 +12,7 @@ import {
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
-import { Request, Response } from 'aws-sdk/lib/core'
+import { Request } from 'aws-sdk/lib/core'
 import { v4 as uuidv4 } from 'uuid'
 import {
     CodeWhispererSigv4ClientConfigurationOptions,
@@ -27,11 +27,10 @@ import {
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inline-completion/diffUtils'
-import { CodewhispererLanguage, getSupportedLanguageId } from './languageDetection'
 import { Position } from 'vscode-languageserver-textdocument'
 import { getErrorId } from './utils'
 
-import { PredictionType, GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
+import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -551,6 +550,11 @@ ${response.suggestions[0].content}`)
                 responseContext,
             }
         }
+
+        for (const recommendation of apiResponse?.completions ?? []) {
+            Object.assign(recommendation, { itemId: this.generateItemId() })
+        }
+
         return {
             suggestions: apiResponse.completions as Suggestion[],
             suggestionType: SuggestionType.COMPLETION,

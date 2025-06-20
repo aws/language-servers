@@ -105,18 +105,6 @@ export class AdditionalContextProvider {
                 await this.collectMarkdownFilesRecursively(workspaceFolder, rulesPath, rulesFiles)
             }
 
-            // Check for README.md in workspace root
-            const readmePath = path.join(workspaceFolder, 'README.md')
-            const readmeExists = await this.features.workspace.fs.exists(readmePath)
-            if (readmeExists) {
-                rulesFiles.push({
-                    workspaceFolder: workspaceFolder,
-                    type: 'file',
-                    relativePath: 'README.md',
-                    id: readmePath,
-                })
-            }
-
             // Check for AmazonQ.md in workspace root
             const amazonQPath = path.join(workspaceFolder, 'AmazonQ.md')
             const amazonQExists = await this.features.workspace.fs.exists(amazonQPath)
@@ -170,7 +158,10 @@ export class AdditionalContextProvider {
             return 'code'
         }
         if (prompt.filePath.endsWith(promptFileExtension)) {
-            if (pathUtils.isInDirectory(path.join('.amazonq', 'rules'), prompt.relativePath)) {
+            if (
+                pathUtils.isInDirectory(path.join('.amazonq', 'rules'), prompt.relativePath) ||
+                path.basename(prompt.relativePath) === 'AmazonQ.md'
+            ) {
                 return 'rule'
             } else if (pathUtils.isInDirectory(getUserPromptsDirectory(), prompt.filePath)) {
                 return 'prompt'
