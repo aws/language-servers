@@ -1313,13 +1313,20 @@ export class McpEventHandler {
      */
     #setupFileWatchers(): void {
         const wsUris = this.#features.workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
+        let homeDir: string | undefined
+        try {
+            homeDir = this.#features.workspace.fs.getUserHomeDir?.()
+        } catch (e) {
+            this.#features.logging.warn(`Failed to get user home directory: ${e}`)
+        }
+
         const configPaths = [
             ...getWorkspaceMcpConfigPaths(wsUris),
-            getGlobalMcpConfigPath(this.#features.workspace.fs.getUserHomeDir()),
+            ...(homeDir ? [getGlobalMcpConfigPath(homeDir)] : []),
         ]
         const personaPaths = [
             ...getWorkspacePersonaConfigPaths(wsUris),
-            getGlobalPersonaConfigPath(this.#features.workspace.fs.getUserHomeDir()),
+            ...(homeDir ? [getGlobalPersonaConfigPath(homeDir)] : []),
         ]
 
         const allPaths = [...configPaths, ...personaPaths]
