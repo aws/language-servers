@@ -19,11 +19,13 @@ export interface LanguageDetector {
  */
 export class LanguageDetectorFactory {
     private static detectors: Map<string, LanguageDetector> = new Map()
+
     /**
      * Get a language detector for the specified language
      */
     public static getDetector(language: string): LanguageDetector {
         const normalizedLanguage = language.toLowerCase()
+
         if (!this.detectors.has(normalizedLanguage)) {
             switch (normalizedLanguage) {
                 case 'java':
@@ -41,6 +43,7 @@ export class LanguageDetectorFactory {
                     this.detectors.set(normalizedLanguage, new GenericLanguageDetector())
             }
         }
+
         return this.detectors.get(normalizedLanguage)!
     }
 }
@@ -51,6 +54,7 @@ export class LanguageDetectorFactory {
 abstract class BaseLanguageDetector implements LanguageDetector {
     abstract getKeywords(): string[]
     abstract getOperatorsAndDelimiters(): string[]
+
     public isAfterKeyword(lineContent: string): boolean {
         const trimmedContent = lineContent.trim()
         const words = trimmedContent.split(/\s+/)
