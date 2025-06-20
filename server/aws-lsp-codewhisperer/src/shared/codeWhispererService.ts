@@ -23,13 +23,11 @@ import {
     createCodeWhispererTokenClient,
     RequestExtras,
 } from '../client/token/codewhisperer'
-// Right now the only difference between the token client and the IAM client for codewhisperer is the difference in function name
 import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inline-completion/diffUtils'
 import { Position } from 'vscode-languageserver-textdocument'
 import { getErrorId } from './utils'
-
 import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
@@ -263,15 +261,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
 
                         const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
-                        this.completeRequest(req)
-                    })
-                    req.on('error', () => {
-                        this.completeRequest(req)
-                    })
-                    req.on('error', () => {
-                        this.completeRequest(req)
-                    })
-                    req.on('error', () => {
                         this.completeRequest(req)
                     })
                 },

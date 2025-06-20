@@ -117,24 +117,11 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             )
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
-            // Add explanation field to input schema
-            const inputSchemaWithExplanation = {
-                ...def.inputSchema,
-                properties: {
-                    ...def.inputSchema.properties,
-                    explanation: {
-                        type: 'string',
-                        description:
-                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
-                    },
-                },
-            }
-
             agent.addTool(
                 {
                     name: namespaced,
                     description: def.description?.trim() || 'undefined',
-                    inputSchema: inputSchemaWithExplanation,
+                    inputSchema: def.inputSchema,
                 },
                 input => tool.invoke(input)
             )

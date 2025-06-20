@@ -46,7 +46,10 @@ import {
     AmazonQServiceConnectionExpiredError,
     AmazonQServiceInitializationError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import {
+    AmazonQBaseServiceManager,
+    QServiceManagerFeatures,
+} from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { hasConnectionExpired } from '../../shared/utils'
@@ -579,60 +582,28 @@ export const CodewhispererServerFactory =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
 
-                    if (editsEnabled) {
-                        // TODO: generateSuggestionsAndPrefetch should only apply to vscode but not other IDEs.
-                        return codeWhispererService
-                            .generateCompletionsAndEdits(
-                                textDocument,
-                                {
-                                    ...requestContext,
-                                    predictionTypes: predictionTypes.flat(),
-                                    fileContext: {
-                                        ...requestContext.fileContext,
-                                        leftFileContent: requestContext.fileContext.leftFileContent
-                                            .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                            .replaceAll('\r\n', '\n'),
-                                        rightFileContent: requestContext.fileContext.rightFileContent
-                                            .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                            .replaceAll('\r\n', '\n'),
-                                    },
-                                },
-                                { enablePrefetch: false }
-                            )
-                            .then(async suggestionResponse => {
-                                return processSuggestionResponse(
-                                    suggestionResponse,
-                                    newSession,
-                                    true,
-                                    selectionRange,
-                                    textDocument
-                                )
-                            })
-                            .catch(err => {
-                                return handleSuggestionsErrors(err, newSession)
-                            })
-                    } else {
-                        return codeWhispererService
-                            .generateSuggestions({
-                                ...requestContext,
-                                fileContext: {
-                                    ...requestContext.fileContext,
-                                    leftFileContent: requestContext.fileContext.leftFileContent
-                                        .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                        .replaceAll('\r\n', '\n'),
-                                    rightFileContent: requestContext.fileContext.rightFileContent
-                                        .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                        .replaceAll('\r\n', '\n'),
-                                },
-                                ...(workspaceId ? { workspaceId: workspaceId } : {}),
-                            })
-                            .then(async suggestionResponse => {
-                                return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
-                            })
-                            .catch(err => {
-                                return handleSuggestionsErrors(err, newSession)
-                            })
+                    const generateCompletionReq = {
+                        ...requestContext,
+                        fileContext: {
+                            ...requestContext.fileContext,
+                            leftFileContent: requestContext.fileContext.leftFileContent
+                                .slice(-CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                            rightFileContent: requestContext.fileContext.rightFileContent
+                                .slice(0, CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                        },
+                        ...(workspaceId ? { workspaceId: workspaceId } : {}),
                     }
+
+                    return codeWhispererService
+                        .generateSuggestions(generateCompletionReq)
+                        .then(async suggestionResponse => {
+                            return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
+                        })
+                        .catch(err => {
+                            return handleSuggestionsErrors(err, newSession)
+                        })
                 }
             })
         }
