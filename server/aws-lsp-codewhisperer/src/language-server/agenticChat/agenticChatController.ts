@@ -9,6 +9,7 @@ import {
     ChatTriggerType,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
+    Origin,
     SendMessageCommandInput,
     SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
     SendMessageCommandOutput,
@@ -204,6 +205,7 @@ export class AgenticChatController implements ChatHandlers {
     #toolUseLatencies: Array<{ toolName: string; toolUseId: string; latency: number }> = []
     #mcpEventHandler: McpEventHandler
     #paidTierMode: PaidTierMode | undefined
+    #origin: Origin
 
     // latency metrics
     #llmRequestStartTime: number = 0
@@ -257,6 +259,10 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.lsp
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
+        this.#origin = 'IDE'
+        if (this.#features.lsp.getClientInitializeParams()?.clientInfo?.name.startsWith('Your Extension Name HERE')) {
+            this.#origin = 'UNKNOWN' //TODO, your origin here
+        }
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -663,6 +669,7 @@ export class AgenticChatController implements ChatHandlers {
             triggerContext,
             ChatTriggerType.MANUAL,
             this.#customizationArn,
+            this.#origin,
             chatResultStream,
             profileArn,
             [],
@@ -2355,7 +2362,8 @@ export class AgenticChatController implements ChatHandlers {
                 params,
                 triggerContext,
                 ChatTriggerType.INLINE_CHAT,
-                this.#customizationArn
+                this.#customizationArn,
+                this.#origin
             )
 
             if (!this.#serviceManager) {
