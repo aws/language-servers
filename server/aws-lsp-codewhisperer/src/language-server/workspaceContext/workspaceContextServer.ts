@@ -21,6 +21,7 @@ import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { safeGet } from '../../shared/utils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { FileUploadJobManager, FileUploadJobType } from './fileUploadJobManager'
+import { DependencyEventBundler } from './dependency/dependencyEventBundler'
 import ignore = require('ignore')
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
@@ -41,6 +42,7 @@ export const WorkspaceContextServer = (): Server => features => {
     let dependencyDiscoverer: DependencyDiscoverer
     let workspaceFolderManager: WorkspaceFolderManager
     let fileUploadJobManager: FileUploadJobManager
+    let dependencyEventBundler: DependencyEventBundler
     let workflowInitializationInterval: NodeJS.Timeout
     let isWorkflowInitializing: boolean = false
     let isWorkflowInitialized: boolean = false
@@ -214,6 +216,7 @@ export const WorkspaceContextServer = (): Server => features => {
                 workspaceIdentifier
             )
             fileUploadJobManager = new FileUploadJobManager(logging, workspaceFolderManager)
+            dependencyEventBundler = new DependencyEventBundler(logging, dependencyDiscoverer)
             await updateConfiguration()
 
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
@@ -276,6 +279,7 @@ export const WorkspaceContextServer = (): Server => features => {
                     }
 
                     fileUploadJobManager.startFileUploadJobConsumer()
+                    dependencyEventBundler.startDependencyEventBundler()
                     workspaceFolderManager.initializeWorkspaceStatusMonitor().catch(error => {
                         logging.error(`Error while initializing workspace status monitoring: ${error}`)
                     })
@@ -486,11 +490,11 @@ export const WorkspaceContextServer = (): Server => features => {
             logging.log(`Received onDidChangeDependencyPaths event for ${params.moduleName}`)
 
             const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(params.moduleName)
-            await dependencyDiscoverer.handleDependencyUpdateFromLSP(
-                params.runtimeLanguage,
-                params.paths,
-                workspaceFolder
-            )
+            dependencyEventBundler.eventQueue.push({
+                language: params.runtimeLanguage,
+                paths: params.paths,
+                workspaceFolder: workspaceFolder,
+            })
         } catch (error) {
             logging.error(`Error handling didChangeDependencyPaths event: ${error}`)
         }
@@ -502,6 +506,9 @@ export const WorkspaceContextServer = (): Server => features => {
         clearInterval(workflowInitializationInterval)
         if (fileUploadJobManager) {
             fileUploadJobManager.dispose()
+        }
+        if (dependencyEventBundler) {
+            dependencyEventBundler.dispose()
         }
         if (workspaceFolderManager) {
             workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
