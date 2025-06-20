@@ -15,6 +15,7 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import * as https from 'https'
 import * as JSZip from 'jszip'
+import { existsSync, statSync, readFileSync } from 'fs'
 
 export class QCodeReview {
     private readonly logging: Features['logging']
@@ -166,15 +167,48 @@ export class QCodeReview {
                     jobId,
                     codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
                 })
+                type ValidatedFinding = {
+                    startLine: number
+                    endLine: number
+                    comment: string
+                    title: string
+                    description: { markdown: string; text: string }
+                    detectorId?: string
+                    detectorName?: string
+                    findingId: string
+                    ruleId?: string
+                    relatedVulnerabilities: (string | undefined)[]
+                    severity: string
+                    recommendation: { text: string; url?: string | null }
+                    suggestedFixes?: (string | undefined)[]
+                    scanJobId: string
+                    language: string
+                    autoDetected: false
+                    filePath: string
+                }
 
-                let validatedFindings: any[] = []
+                let aggregatedCodeScanIssueList: { filePath: string; issues: ValidatedFinding[] }[] = []
+
+                let findingsResponseJSON: any = undefined
+
+                try {
+                    findingsResponseJSON = JSON.parse(findingsResponse.codeAnalysisFindings)
+                } catch (e) {
+                    this.logging.error(`Error parsing findings response: ${e}`)
+                    throw new Error('Error parsing findings response')
+                }
+
+                for (let i = 0; i < findingsResponseJSON.length; i++) {
+                    if (findingsResponseJSON[i]['ruleId'] == null) {
+                        findingsResponseJSON[i]['ruleId'] = undefined
+                    }
+                }
+
                 if (findingsResponse.codeAnalysisFindings) {
-                    const intermediateFindings = Q_FINDINGS_SCHEMA.parse(
-                        JSON.parse(findingsResponse.codeAnalysisFindings)
-                    )
-
-                    validatedFindings = intermediateFindings.map((issue: any) => {
-                        return {
+                    const intermediateFindings = Q_FINDINGS_SCHEMA.parse(findingsResponseJSON)
+                    let aggregatedCodeScanIssueMap = new Map<string, ValidatedFinding[]>()
+                    for (const issue of intermediateFindings) {
+                        const validatedFinding: ValidatedFinding = {
                             startLine: issue.startLine - 1 >= 0 ? issue.startLine - 1 : 0,
                             endLine: issue.endLine,
                             comment: `${issue.title.trim()}: ${issue.description.text.trim()}`,
@@ -183,27 +217,74 @@ export class QCodeReview {
                             detectorId: issue.detectorId,
                             detectorName: issue.detectorName,
                             findingId: issue.findingId,
-                            ruleId: issue.ruleId,
+                            ruleId: issue.ruleId != null ? issue.ruleId : undefined,
                             relatedVulnerabilities: issue.relatedVulnerabilities,
                             severity: issue.severity,
                             recommendation: issue.remediation.recommendation,
-                            suggestedFixes: issue.remediation.suggestedFixes,
+                            suggestedFixes: issue.suggestedFixes != undefined ? issue.suggestedFixes : [],
                             scanJobId: jobId,
                             language: programmingLanguage,
                             autoDetected: false,
                             filePath: issue.filePath,
                         }
-                    })
+                        let foundInArtifacts = false
+                        for (const fileArtifact of fileArtifacts) {
+                            if (fileArtifact.path.endsWith(validatedFinding.filePath)) {
+                                if (aggregatedCodeScanIssueMap.has(fileArtifact.path)) {
+                                    aggregatedCodeScanIssueMap.get(fileArtifact.path)?.push(validatedFinding)
+                                } else {
+                                    aggregatedCodeScanIssueMap.set(fileArtifact.path, [validatedFinding])
+                                }
+                                foundInArtifacts = true
+                                break
+                            }
+                        }
+                        if (!foundInArtifacts) {
+                            for (const folderArtifact of folderArtifacts) {
+                                const filePath = path.join(folderArtifact.path, validatedFinding.filePath)
+                                if (existsSync(filePath) && statSync(filePath).isFile()) {
+                                    if (aggregatedCodeScanIssueMap.has(filePath)) {
+                                        aggregatedCodeScanIssueMap.get(filePath)?.push(validatedFinding)
+                                    } else {
+                                        aggregatedCodeScanIssueMap.set(filePath, [validatedFinding])
+                                    }
+                                    foundInArtifacts = true
+                                    break
+                                }
+                            }
+                        }
+
+                        if (!foundInArtifacts) {
+                            const maybeAbsolutePath = `/${validatedFinding.filePath}`
+                            if (existsSync(maybeAbsolutePath) && statSync(maybeAbsolutePath).isFile()) {
+                                if (aggregatedCodeScanIssueMap.has(maybeAbsolutePath)) {
+                                    aggregatedCodeScanIssueMap.get(maybeAbsolutePath)?.push(validatedFinding)
+                                } else {
+                                    aggregatedCodeScanIssueMap.set(maybeAbsolutePath, [validatedFinding])
+                                }
+                            }
+                        }
+                    }
+
+                    for (const key of aggregatedCodeScanIssueMap.keys()) {
+                        const value = aggregatedCodeScanIssueMap.get(key)
+                        if (value != undefined) {
+                            aggregatedCodeScanIssueList.push({
+                                filePath: key,
+                                issues: value,
+                            })
+                        }
+                    }
                 }
 
-                this.logging.info(`Parsed findings: ${JSON.stringify(validatedFindings)}`)
+                this.logging.info(`Parsed findings: ${JSON.stringify(aggregatedCodeScanIssueList)}`)
 
                 return {
                     jobId,
                     status,
                     result: {
                         message: 'Q Code review tool completed successfully with attached findings.',
-                        findings: JSON.stringify(validatedFindings),
+                        findings: JSON.stringify(aggregatedCodeScanIssueList),
                     },
                 }
             }
