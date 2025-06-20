@@ -1,4 +1,6 @@
+// eslint-disable-next-line import/no-nodejs-modules
 import * as fs from 'fs'
+// eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'

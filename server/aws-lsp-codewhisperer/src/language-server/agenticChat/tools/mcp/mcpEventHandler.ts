@@ -2,6 +2,7 @@ import { Features } from '../../../types'
 import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
 import { FileWatcher } from './fileWatcher'
+// eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path'
 import {
     DetailedListGroup,
@@ -651,7 +652,7 @@ export class McpEventHandler {
 
         // needs to false BEFORE changing any server state, to prevent going to list servers page after clicking save button
         this.#shouldDisplayListMCPServers = false
-        
+
         // Set flag to ignore file changes during server operations
         this.#isProgrammaticChange = true
 
@@ -805,7 +806,7 @@ export class McpEventHandler {
 
         // Set flag to ignore file changes during permission update
         this.#isProgrammaticChange = true
-        
+
         try {
             await McpManager.instance.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
@@ -838,7 +839,7 @@ export class McpEventHandler {
 
         // Set flag to ignore file changes during permission update
         this.#isProgrammaticChange = true
-        
+
         try {
             await McpManager.instance.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
@@ -863,7 +864,7 @@ export class McpEventHandler {
 
         // Set flag to ignore file changes during server deletion
         this.#isProgrammaticChange = true
-        
+
         try {
             await McpManager.instance.removeServer(serverName)
         } catch (error) {
@@ -1069,7 +1070,7 @@ export class McpEventHandler {
 
         // Set flag to ignore file changes during permission update
         this.#isProgrammaticChange = true
-        
+
         try {
             const { serverName, permission } = this.#pendingPermissionConfig
 
@@ -1176,26 +1177,26 @@ export class McpEventHandler {
      */
     async #handleRefreshMCPList(params: McpServerClickParams, isProgrammatic: boolean = false) {
         this.#shouldDisplayListMCPServers = true
-        
+
         // Set flag to ignore file changes during reinitialization if this is a programmatic change
         this.#isProgrammaticChange = isProgrammatic
-        
+
         try {
             await McpManager.instance.reinitializeMcpServers()
             this.#emitMCPConfigEvent()
-            
+
             // Reset flag after reinitialization
             this.#isProgrammaticChange = false
-            
+
             return {
                 id: params.id,
             }
         } catch (err) {
             this.#features.logging.error(`Failed to reinitialize MCP servers: ${err}`)
-            
+
             // Reset flag in case of error
             this.#isProgrammaticChange = false
-            
+
             return {
                 id: params.id,
             }
@@ -1338,7 +1339,7 @@ export class McpEventHandler {
                                 this.#features.logging.debug(`Ignoring programmatic change to: ${filePath}`)
                                 return
                             }
-                            
+
                             this.#features.logging.info(`MCP config file changed: ${filePath}, triggering refresh`)
                             await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
                         })
@@ -1353,10 +1354,12 @@ export class McpEventHandler {
                                     if (nowExists) {
                                         // Skip if this is a programmatic change
                                         if (this.#isProgrammaticChange) {
-                                            this.#features.logging.debug(`Ignoring programmatic file creation: ${filePath}`)
+                                            this.#features.logging.debug(
+                                                `Ignoring programmatic file creation: ${filePath}`
+                                            )
                                             return
                                         }
-                                        
+
                                         this.#features.logging.info(
                                             `MCP config file created: ${filePath}, triggering refresh`
                                         )
@@ -1366,10 +1369,12 @@ export class McpEventHandler {
                                         this.#fileWatcher.watchFile(filePath, async () => {
                                             // Skip if this is a programmatic change
                                             if (this.#isProgrammaticChange) {
-                                                this.#features.logging.debug(`Ignoring programmatic change to: ${filePath}`)
+                                                this.#features.logging.debug(
+                                                    `Ignoring programmatic change to: ${filePath}`
+                                                )
                                                 return
                                             }
-                                            
+
                                             this.#features.logging.info(
                                                 `MCP config file changed: ${filePath}, triggering refresh`
                                             )
