@@ -94,7 +94,7 @@ import {
     isUsageLimitError,
     isNullish,
 } from '../../shared/utils'
-import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
+import { HELP_MESSAGE, loadingMessage, findingsSuffix } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
     AmazonQError,
@@ -1301,7 +1301,7 @@ export class AgenticChatController implements ChatHandlers {
                         const qCodeReviewJson = JSON.parse(JSON.stringify(result))
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
-                            messageId: toolUse.toolUseId + '_findings',
+                            messageId: toolUse.toolUseId + findingsSuffix,
                             body: qCodeReviewJson['result']['findings'],
                         })
                         break
