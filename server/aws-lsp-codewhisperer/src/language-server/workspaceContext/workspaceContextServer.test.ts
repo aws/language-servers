@@ -39,6 +39,10 @@ describe('WorkspaceContext Server', () => {
                 },
             } as InitializeParams)
 
+            // Create a stub for the static getInstance method
+            const getInstanceStub = sinon.stub(AmazonQTokenServiceManager, 'getInstance')
+            getInstanceStub.throws(new Error('Deliberate error to exit the test at onInitialized'))
+
             await features.initialize(server)
 
             // Verify that a warning was logged (indicating the workspaceIdentifier was generated)

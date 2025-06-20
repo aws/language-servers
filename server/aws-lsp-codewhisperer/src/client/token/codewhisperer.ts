@@ -1,4 +1,4 @@
-import { AWSError, Request, Service } from 'aws-sdk'
+import { AWSError, Request, Service, Endpoint } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 const apiConfig = require('./bearer-token-service.json')
 import CodeWhispererClient = require('./codewhispererbearertokenclient')
@@ -37,13 +37,15 @@ function createService(
     const opt = { ...options }
     delete opt.onRequestSetup
     logging.log(`Passing client for class Service to sdkInitializator (v2) for additional setup (e.g. proxy)`)
-    const client = sdkInitializator.v2(Service, { apiConfig, ...options } as any)
+    const client = sdkInitializator.v2(Service, { apiConfig, ...options, paramValidation: false } as any)
     const originalClient = client.setupRequestListeners.bind(client)
 
     client.setupRequestListeners = (request: Request<any, AWSError>) => {
         originalClient(request)
         listeners.forEach(l => l(request as AWS.Request<any, AWSError> & RequestExtras))
     }
+
+    client.endpoint = new Endpoint('https://rts.gamma-us-east-1.codewhisperer.ai.aws.dev/')
 
     return client
 }

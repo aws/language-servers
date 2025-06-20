@@ -889,6 +889,18 @@ export const CodewhispererServerFactory =
                 }
             }
 
+            // For prefetch
+            if (isInlineEdit && acceptedSuggestion !== undefined) {
+                // [acceptedSuggestion.insertText] will be undefined for an NEP accept
+                // TODO: Tell codewhispererService the session is accepted and ready to provide prefetch results
+            } else {
+                // Clear if it's a reject
+                logging.info(`user reject suggestion, clearning prefetched suggestion`)
+                // acceptedSuggestion.insertText will be undefined if its' NEP
+                // TODO: move to somewhere like session.close()
+                amazonQServiceManager.getCodewhispererService().clearCachedSuggestions()
+            }
+
             // Handle rejected edit predictions
             if (isInlineEdit && !isAccepted) {
                 // Find all rejected suggestions in this session
