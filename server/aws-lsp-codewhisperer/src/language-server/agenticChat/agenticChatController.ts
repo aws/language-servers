@@ -1789,17 +1789,18 @@ export class AgenticChatController implements ChatHandlers {
         switch (toolName) {
             case 'executeBash': {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                buttons = requiresAcceptance
-                    ? [
-                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
-                          {
-                              id: 'reject-shell-command',
-                              status: 'dimmed-clear' as Status,
-                              text: 'Reject',
-                              icon: 'cancel',
-                          },
-                      ]
-                    : []
+                buttons =
+                    builtInPermission || (requiresAcceptance && commandCategory !== CommandCategory.ReadOnly)
+                        ? [
+                              { id: 'run-shell-command', text: 'Run', icon: 'play' },
+                              {
+                                  id: 'reject-shell-command',
+                                  status: 'dimmed-clear' as Status,
+                                  text: 'Reject',
+                                  icon: 'cancel',
+                              },
+                          ]
+                        : []
 
                 const statusIcon =
                     commandCategory === CommandCategory.Destructive
@@ -1815,16 +1816,17 @@ export class AgenticChatController implements ChatHandlers {
                           : undefined
 
                 header = {
-                    status: requiresAcceptance
-                        ? {
-                              icon: statusIcon,
-                              status: statusType,
-                              position: 'left',
-                              description: this.#getCommandCategoryDescription(
-                                  commandCategory ?? CommandCategory.ReadOnly
-                              ),
-                          }
-                        : {},
+                    status:
+                        builtInPermission || (requiresAcceptance && commandCategory !== CommandCategory.ReadOnly)
+                            ? {
+                                  icon: statusIcon,
+                                  status: statusType,
+                                  position: 'left',
+                                  description: this.#getCommandCategoryDescription(
+                                      commandCategory ?? CommandCategory.ReadOnly
+                                  ),
+                              }
+                            : {},
                     body: 'shell',
                     buttons,
                 }
