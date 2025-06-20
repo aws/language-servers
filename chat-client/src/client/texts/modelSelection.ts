@@ -51,6 +51,6 @@ export const modelUnavailableBanner: Partial<ChatItem> = {
         iconStatus: 'warning',
         body: '### Model Unavailable',
     },
-    body: `The model you selected is temporarily unavailable. Please switch to a different model and try again.`,
+    body: `The model you've selected is experiencing high load. Please switch to another model and try again.`,
     canBeDismissed: true,
 }
