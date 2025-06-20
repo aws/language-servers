@@ -1,6 +1,6 @@
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { SsoCache, SsoClientRegistration } from './ssoCache'
-import { AwsErrorCodes, SsoSession, CredentialChangedKind } from '@aws/language-server-runtimes/server-interface'
+import { AwsErrorCodes, SsoSession, SsoTokenChangedKind } from '@aws/language-server-runtimes/server-interface'
 import {
     getSsoOidc,
     throwOnInvalidSsoSession,
@@ -190,7 +190,7 @@ export class RefreshingSsoCache implements SsoCache {
         await this.setSsoToken(clientName, ssoSession, ssoToken)
 
         this.observability.logging.log('Notifying client SSO token was refreshed.')
-        this.raiseSsoTokenChanged({ kind: CredentialChangedKind.Refreshed, ssoTokenId: ssoSession.name })
+        this.raiseSsoTokenChanged({ kind: SsoTokenChangedKind.Refreshed, ssoTokenId: ssoSession.name })
 
         return ssoToken
     }
