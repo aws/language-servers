@@ -3,23 +3,33 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/* eslint-disable import/no-nodejs-modules */
+
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import {
-    EXTENSION_TO_LANGUAGE,
-    PROGRAMMING_LANGUAGES_LOWERCASE,
-    TOOL_NAME,
-    TOOL_DESCRIPTION,
-} from './qCodeReviewConstants'
+import { PROGRAMMING_LANGUAGES_LOWERCASE, TOOL_NAME, TOOL_DESCRIPTION } from './qCodeReviewConstants'
 import { QCodeReviewUtils } from './qCodeReviewUtils'
 import { INPUT_SCHEMA, Z_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
-// eslint-disable-next-line import/no-nodejs-modules
 import { randomUUID } from 'crypto'
+import * as crypto from 'crypto'
+import * as path from 'path'
+import * as https from 'https'
+import * as JSZip from 'jszip'
 
 export class QCodeReview {
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
     private readonly lsp: Features['lsp']
+
+    private static readonly CUSTOMER_CODE_BASE_PATH = 'customerCodeBaseFolder'
+    private static readonly CODE_ARTIFACT_PATH = 'code_artifact'
+    private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
+    private static readonly CODE_DIFF_PATH = 'code_artifact/codeDiff/customerCodeDiff.diff'
+    private static readonly ZIP_COMPRESSION_OPTIONS = {
+        type: 'nodebuffer' as const,
+        compression: 'DEFLATE' as const,
+        compressionOptions: { level: 9 },
+    }
 
     constructor(features: Pick<Features, 'workspace' | 'logging' | 'lsp'> & Partial<Features>) {
         this.logging = features.logging
@@ -220,15 +230,6 @@ export class QCodeReview {
         folderArtifacts: Array<{ path: string }>,
         isCodeDiffScan: boolean
     ): Promise<{ zipBuffer: Buffer; md5Hash: string }> {
-        const JSZip = require('jszip')
-        // eslint-disable-next-line import/no-nodejs-modules
-        const crypto = require('crypto')
-        // eslint-disable-next-line import/no-nodejs-modules
-        const path = require('path')
-        // eslint-disable-next-line import/no-nodejs-modules
-        const { execFile } = require('child_process')
-        const fs = this.workspace.fs
-
         try {
             this.logging.info(
                 `Preparing ${fileArtifacts.length} files and ${folderArtifacts.length} folders for upload`
@@ -237,167 +238,114 @@ export class QCodeReview {
             const codeArtifactZip = new JSZip()
             const customerCodeZip = new JSZip()
 
-            let codeDiff = ''
-            const customerCodeBasePath = 'customerCodeBaseFolder'
-
-            // Add individual files to the zip archive
-            for (const artifact of fileArtifacts) {
-                const filePath = artifact.path
-                this.logging.info(`Adding file to zip: ${filePath}`)
-
-                try {
-                    // Read file content using workspace fs API
-                    const fileContent = await fs.readFile(filePath)
-
-                    // Add file to zip with absolute path to maintain directory structure
-                    customerCodeZip.file(`${customerCodeBasePath}${filePath}`, fileContent)
-
-                    // Get git diff of this filePath and append it to codeDiff
-                    if (isCodeDiffScan) {
-                        try {
-                            const diff = await this.getGitDiff(filePath)
-                            if (diff) {
-                                codeDiff += `\n${diff}\n`
-                            }
-                        } catch (diffError) {
-                            this.logging.warn(`Failed to get git diff for ${filePath}: ${diffError}`)
-                        }
-                    }
-                } catch (error) {
-                    this.logging.error(`Failed to read file ${filePath}: ${error}`)
-                    throw new Error(`Failed to read file ${filePath}: ${error}`)
-                }
-            }
-
-            // Add folders (recursively) to the zip archive
-            for (const folderArtifact of folderArtifacts) {
-                const folderPath = folderArtifact.path
-                this.logging.info(`Adding folder to zip: ${folderPath}`)
-
-                try {
-                    await this.addFolderToZip(customerCodeZip, folderPath, customerCodeBasePath)
-
-                    // Get git diff of this folderPath and append it to codeDiff
-                    if (isCodeDiffScan) {
-                        try {
-                            const diff = await this.getGitDiff(folderPath)
-                            if (diff) {
-                                codeDiff += `\n${diff}\n`
-                            }
-                        } catch (diffError) {
-                            this.logging.warn(`Failed to get git diff for ${folderPath}: ${diffError}`)
-                        }
-                    }
-                } catch (error) {
-                    this.logging.error(`Failed to add folder ${folderPath}: ${error}`)
-                    throw new Error(`Failed to add folder ${folderPath}: ${error}`)
-                }
-            }
+            // Process files and folders
+            const codeDiff = await this.processArtifacts(
+                fileArtifacts,
+                folderArtifacts,
+                customerCodeZip,
+                isCodeDiffScan
+            )
 
             // Generate customer code zip buffer
-            const customerCodeBuffer = await customerCodeZip.generateAsync({
-                type: 'nodebuffer',
-                compression: 'DEFLATE',
-                compressionOptions: { level: 9 }, // Maximum compression
-            })
-
-            // Display tree structure of files & folders present in customerCodeZip
-            this.logging.info('Customer code zip structure:')
-            const customerCodeZipFiles = Object.keys(customerCodeZip.files)
-            customerCodeZipFiles.forEach(filePath => {
-                this.logging.info(`  ${filePath}`)
-            })
+            const customerCodeBuffer = await QCodeReviewUtils.generateZipBuffer(customerCodeZip)
+            QCodeReviewUtils.logZipStructure(customerCodeZip, 'Customer code', this.logging)
 
             // Add customer code zip to the main artifact zip
-            codeArtifactZip.file('code_artifact/customerCode.zip', customerCodeBuffer)
+            codeArtifactZip.file(
+                `${QCodeReview.CODE_ARTIFACT_PATH}/${QCodeReview.CUSTOMER_CODE_ZIP_NAME}`,
+                customerCodeBuffer
+            )
 
             // Add code diff file if we have any diffs
-            if (isCodeDiffScan && !!codeDiff && codeDiff.trim() !== '') {
+            if (isCodeDiffScan && codeDiff.trim()) {
                 this.logging.info(`Adding code diff to zip: ${codeDiff}`)
-                codeArtifactZip.file('code_artifact/codeDiff/customerCodeDiff.diff', codeDiff)
+                codeArtifactZip.file(QCodeReview.CODE_DIFF_PATH, codeDiff)
             }
 
             // Generate the final code artifact zip
-            const zipBuffer = await codeArtifactZip.generateAsync({
-                type: 'nodebuffer',
-                compression: 'DEFLATE',
-                compressionOptions: { level: 9 }, // Maximum compression
-            })
-
-            // Display tree structure of files & folders present in codeArtifactZip
-            this.logging.info('Code artifact zip structure:')
-            const codeArtifactZipFiles = Object.keys(codeArtifactZip.files)
-            codeArtifactZipFiles.forEach(filePath => {
-                this.logging.info(`  ${filePath}`)
-            })
+            const zipBuffer = await QCodeReviewUtils.generateZipBuffer(codeArtifactZip)
+            QCodeReviewUtils.logZipStructure(codeArtifactZip, 'Code artifact', this.logging)
 
             // Calculate MD5 hash of the zip buffer
             const md5Hash = crypto.createHash('md5').update(zipBuffer).digest('hex')
 
             this.logging.info(`Created zip archive, size: ${zipBuffer.length} bytes, MD5: ${md5Hash}`)
 
-            return {
-                zipBuffer,
-                md5Hash,
-            }
+            QCodeReviewUtils.saveZipToDownloads(zipBuffer, this.logging)
+
+            return { zipBuffer, md5Hash }
         } catch (error) {
             this.logging.error(`Error preparing files for upload: ${error}`)
             throw error
         }
     }
 
-    /**
-     * Get git diff for a file or folder
-     * @param artifactPath Path to the file or folder
-     * @returns Git diff output as string or null if not in a git repository
-     */
-    private async getGitDiff(artifactPath: string): Promise<string | null> {
-        // eslint-disable-next-line import/no-nodejs-modules
-        const { exec } = require('child_process')
-        // eslint-disable-next-line import/no-nodejs-modules
-        const path = require('path')
+    private async processArtifacts(
+        fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
+        folderArtifacts: Array<{ path: string }>,
+        customerCodeZip: JSZip,
+        isCodeDiffScan: boolean
+    ): Promise<string> {
+        let codeDiff = ''
 
-        this.logging.info(`Get git diff for path - ${artifactPath}`)
+        // Process files
+        codeDiff += await this.processFileArtifacts(fileArtifacts, customerCodeZip, isCodeDiffScan)
 
-        const directoryPath = QCodeReviewUtils.getFolderPath(artifactPath)
+        // Process folders
+        codeDiff += await this.processFolderArtifacts(folderArtifacts, customerCodeZip, isCodeDiffScan)
 
-        const gitDiffCommandUnstaged = `cd ${directoryPath} && git diff ${artifactPath}`
-        const gitDiffCommandStaged = `cd ${directoryPath} && git diff --staged ${artifactPath}`
+        return codeDiff
+    }
 
-        this.logging.info(`Running git commands - ${gitDiffCommandUnstaged} and ${gitDiffCommandStaged}`)
+    private async processFileArtifacts(
+        fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
+        customerCodeZip: JSZip,
+        isCodeDiffScan: boolean
+    ): Promise<string> {
+        let codeDiff = ''
 
-        try {
-            // Get unstaged changes
-            const unstagedDiff = await new Promise<string>((resolve, reject) => {
-                exec(gitDiffCommandUnstaged, (error: any, stdout: string, stderr: string) => {
-                    if (error) {
-                        this.logging.warn(`Git diff failed for unstaged: ${stderr || error.message}`)
-                        resolve('') // Resolve with empty string on error
-                    } else {
-                        resolve(stdout.trim())
-                    }
-                })
-            })
+        for (const artifact of fileArtifacts) {
+            this.logging.info(`Adding file to zip: ${artifact.path}`)
 
-            // Get staged changes
-            const stagedDiff = await new Promise<string>((resolve, reject) => {
-                exec(gitDiffCommandStaged, (error: any, stdout: string, stderr: string) => {
-                    if (error) {
-                        this.logging.warn(`Git diff failed for staged: ${stderr || error.message}`)
-                        resolve('') // Resolve with empty string on error
-                    } else {
-                        resolve(stdout.trim())
-                    }
-                })
-            })
+            await QCodeReviewUtils.withErrorHandling(
+                async () => {
+                    const fileContent = await this.workspace.fs.readFile(artifact.path)
+                    customerCodeZip.file(`${QCodeReview.CUSTOMER_CODE_BASE_PATH}${artifact.path}`, fileContent)
+                },
+                'Failed to read file',
+                this.logging,
+                artifact.path
+            )
 
-            // Combine the diffs
-            const combinedDiff = [unstagedDiff, stagedDiff].filter(Boolean).join('\n\n')
-            return combinedDiff || null
-        } catch (error) {
-            this.logging.error(`Error getting git diff: ${error}`)
-            return null
+            codeDiff += await QCodeReviewUtils.processArtifactWithDiff(artifact, isCodeDiffScan, this.logging)
         }
+
+        return codeDiff
+    }
+
+    private async processFolderArtifacts(
+        folderArtifacts: Array<{ path: string }>,
+        customerCodeZip: JSZip,
+        isCodeDiffScan: boolean
+    ): Promise<string> {
+        let codeDiff = ''
+
+        for (const folderArtifact of folderArtifacts) {
+            this.logging.info(`Adding folder to zip: ${folderArtifact.path}`)
+
+            await QCodeReviewUtils.withErrorHandling(
+                async () => {
+                    await this.addFolderToZip(customerCodeZip, folderArtifact.path, QCodeReview.CUSTOMER_CODE_BASE_PATH)
+                },
+                'Failed to add folder',
+                this.logging,
+                folderArtifact.path
+            )
+
+            codeDiff += await QCodeReviewUtils.processArtifactWithDiff(folderArtifact, isCodeDiffScan, this.logging)
+        }
+
+        return codeDiff
     }
 
     /**
@@ -406,33 +354,26 @@ export class QCodeReview {
      * @param folderPath Path to the folder to add
      * @param zipPath Relative path within the zip archive
      */
-    private async addFolderToZip(zip: any, folderPath: string, zipPath: string): Promise<void> {
-        // eslint-disable-next-line import/no-nodejs-modules
-        const path = require('path')
-        const fs = this.workspace.fs
-
+    private async addFolderToZip(zip: JSZip, folderPath: string, zipPath: string): Promise<void> {
         try {
-            const entries = await fs.readdir(folderPath)
+            const entries = await this.workspace.fs.readdir(folderPath)
 
             for (const entry of entries) {
                 const name = entry.name
                 const fullPath = path.join(entry.parentPath, name)
 
                 if (entry.isFile()) {
-                    // Skip hidden files and common non-code files
                     if (name.startsWith('.') || QCodeReviewUtils.shouldSkipFile(name)) {
                         continue
                     }
 
-                    const content = await fs.readFile(fullPath)
+                    const content = await this.workspace.fs.readFile(fullPath)
                     zip.file(`${zipPath}${fullPath}`, content)
                 } else if (entry.isDirectory()) {
-                    // Skip common directories to exclude
                     if (QCodeReviewUtils.shouldSkipDirectory(name)) {
                         continue
                     }
 
-                    // Recursively add subdirectory
                     await this.addFolderToZip(zip, fullPath, zipPath)
                 }
             }
@@ -453,8 +394,6 @@ export class QCodeReview {
         fileContent: Buffer,
         requestHeaders: Record<string, string>
     ): Promise<void> {
-        // eslint-disable-next-line import/no-nodejs-modules
-        const https = require('https')
         return new Promise((resolve, reject) => {
             const url = new URL(uploadUrl)
 

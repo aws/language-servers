@@ -3,9 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+/* eslint-disable import/no-nodejs-modules */
+
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { SKIP_FILE_EXTENSIONS, SKIP_DIRECTORIES } from './qCodeReviewConstants'
 import JSZip = require('jszip')
+import { exec } from 'child_process'
+import * as path from 'path'
+import * as fs from 'fs'
+import * as os from 'os'
 
 /**
  * Utility functions for QCodeReview
@@ -78,5 +84,148 @@ export class QCodeReviewUtils {
      */
     public static generateClientToken(): string {
         return `code-scan-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`
+    }
+
+    /**
+     * Execute git command and return output
+     * @param command Git command to execute
+     * @param type Type of command for logging
+     * @param logging Logging interface
+     * @returns Promise resolving to command output
+     */
+    public static async executeGitCommand(
+        command: string,
+        type: string,
+        logging: Features['logging']
+    ): Promise<string> {
+        return new Promise<string>(resolve => {
+            exec(command, (error: any, stdout: string, stderr: string) => {
+                if (error) {
+                    logging.warn(`Git diff failed for ${type}: ${stderr || error.message}`)
+                    resolve('')
+                } else {
+                    resolve(stdout.trim())
+                }
+            })
+        })
+    }
+
+    /**
+     * Get git diff for a file or folder
+     * @param artifactPath Path to the file or folder
+     * @param logging Logging interface
+     * @returns Git diff output as string or null if not in a git repository
+     */
+    public static async getGitDiff(artifactPath: string, logging: Features['logging']): Promise<string | null> {
+        logging.info(`Get git diff for path - ${artifactPath}`)
+
+        const directoryPath = QCodeReviewUtils.getFolderPath(artifactPath)
+        const gitDiffCommandUnstaged = `cd ${directoryPath} && git diff ${artifactPath}`
+        const gitDiffCommandStaged = `cd ${directoryPath} && git diff --staged ${artifactPath}`
+
+        logging.info(`Running git commands - ${gitDiffCommandUnstaged} and ${gitDiffCommandStaged}`)
+
+        try {
+            const [unstagedDiff, stagedDiff] = await Promise.all([
+                QCodeReviewUtils.executeGitCommand(gitDiffCommandUnstaged, 'unstaged', logging),
+                QCodeReviewUtils.executeGitCommand(gitDiffCommandStaged, 'staged', logging),
+            ])
+
+            const combinedDiff = [unstagedDiff, stagedDiff].filter(Boolean).join('\n\n')
+            return combinedDiff || null
+        } catch (error) {
+            logging.error(`Error getting git diff: ${error}`)
+            return null
+        }
+    }
+
+    /**
+     * Log zip structure
+     * @param zip JSZip instance
+     * @param zipName Name of the zip for logging
+     * @param logging Logging interface
+     */
+    public static logZipStructure(zip: JSZip, zipName: string, logging: Features['logging']): void {
+        logging.info(`${zipName} zip structure:`)
+        Object.keys(zip.files).forEach(filePath => {
+            logging.info(`  ${filePath}`)
+        })
+    }
+
+    /**
+     * Generate zip buffer with compression
+     * @param zip JSZip instance
+     * @returns Promise resolving to compressed buffer
+     */
+    public static async generateZipBuffer(zip: JSZip): Promise<Buffer> {
+        return zip.generateAsync({
+            type: 'nodebuffer',
+            compression: 'DEFLATE',
+            compressionOptions: { level: 9 },
+        })
+    }
+
+    /**
+     * Save zip buffer to Downloads folder
+     * @param zipBuffer Buffer to save
+     * @param logging Logging interface
+     */
+    public static saveZipToDownloads(zipBuffer: Buffer, logging: Features['logging']): void {
+        try {
+            const downloadsPath = path.join(os.homedir(), 'Downloads')
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+            const zipFilePath = path.join(downloadsPath, `codeArtifact-${timestamp}.zip`)
+
+            fs.writeFileSync(zipFilePath, zipBuffer)
+            logging.info(`Saved code artifact zip to: ${zipFilePath}`)
+        } catch (saveError) {
+            logging.error(`Failed to save zip file to Downloads folder: ${saveError}`)
+        }
+    }
+
+    /**
+     * Process artifact with git diff
+     * @param artifact Artifact with path
+     * @param isCodeDiffScan Whether to scan for code diff
+     * @param logging Logging interface
+     * @returns Promise resolving to diff string
+     */
+    public static async processArtifactWithDiff(
+        artifact: { path: string },
+        isCodeDiffScan: boolean,
+        logging: Features['logging']
+    ): Promise<string> {
+        if (!isCodeDiffScan) return ''
+
+        try {
+            const diff = await QCodeReviewUtils.getGitDiff(artifact.path, logging)
+            return diff ? `${diff}\n` : ''
+        } catch (diffError) {
+            logging.warn(`Failed to get git diff for ${artifact.path}: ${diffError}`)
+            return ''
+        }
+    }
+
+    /**
+     * Error handling wrapper
+     * @param operation Operation to execute
+     * @param errorMessage Error message prefix
+     * @param logging Logging interface
+     * @param path Optional path for error context
+     * @returns Promise resolving to operation result
+     */
+    public static async withErrorHandling<T>(
+        operation: () => Promise<T>,
+        errorMessage: string,
+        logging: Features['logging'],
+        path?: string
+    ): Promise<T> {
+        try {
+            return await operation()
+        } catch (error) {
+            const fullMessage = path ? `${errorMessage} ${path}: ${error}` : `${errorMessage}: ${error}`
+            logging.error(fullMessage)
+            throw new Error(fullMessage)
+        }
     }
 }
