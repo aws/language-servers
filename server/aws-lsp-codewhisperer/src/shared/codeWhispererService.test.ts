@@ -4,7 +4,6 @@
  */
 
 import {
-    BearerCredentials,
     CredentialsProvider,
     CredentialsType,
     Workspace,
@@ -14,7 +13,7 @@ import {
     CancellationToken,
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
-import { AWSError, ConfigurationOptions } from 'aws-sdk'
+import { ConfigurationOptions } from 'aws-sdk'
 import * as sinon from 'sinon'
 import * as assert from 'assert'
 import {
@@ -23,9 +22,7 @@ import {
     CodeWhispererServiceIAM,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
-    Suggestion,
     SuggestionType,
-    ResponseContext,
 } from './codeWhispererService'
 
 describe('CodeWhispererService', function () {

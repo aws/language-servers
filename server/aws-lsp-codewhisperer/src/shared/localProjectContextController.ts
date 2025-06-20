@@ -13,14 +13,13 @@ import type {
     VectorLibAPI,
 } from 'local-indexing'
 import { URI } from 'vscode-uri'
-import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
+import { sleep, waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 import * as fs from 'fs'
 import * as path from 'path'
 
-import * as ignore from 'ignore'
-import { fdir } from 'fdir'
 import { pathToFileURL } from 'url'
+import { getFileExtensionName, listFilesWithGitignore } from './utils'
 
 const LIBRARY_DIR = (() => {
     if (require.main?.filename) {
@@ -59,7 +58,7 @@ export class LocalProjectContextController {
     private readonly clientName: string
     private readonly log: Logging
     private _isIndexingEnabled: boolean = false
-
+    private _isIndexingInProgress: boolean = false
     private ignoreFilePatterns?: string[]
     private includeSymlinks?: boolean
     private maxFileSizeMB?: number
@@ -210,7 +209,11 @@ export class LocalProjectContextController {
 
     // public for test
     async buildIndex(indexingType: string): Promise<void> {
+        if (this._isIndexingInProgress) {
+            return
+        }
         try {
+            this._isIndexingInProgress = true
             if (this._vecLib) {
                 if (!this.workspaceFolders.length) {
                     this.log.info('skip building index because no workspace folder found')
@@ -218,9 +221,6 @@ export class LocalProjectContextController {
                 }
                 const sourceFiles = await this.processWorkspaceFolders(
                     this.workspaceFolders,
-                    this.ignoreFilePatterns,
-                    this.respectUserGitIgnores,
-                    this.includeSymlinks,
                     this.fileExtensions,
                     this.maxFileSizeMB,
                     this.maxIndexSizeMB
@@ -232,6 +232,8 @@ export class LocalProjectContextController {
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)
+        } finally {
+            this._isIndexingInProgress = false
         }
     }
 
@@ -389,29 +391,8 @@ export class LocalProjectContextController {
         return this._vecLib !== undefined && this._isIndexingEnabled
     }
 
-    private fileMeetsFileSizeConstraints(filePath: string, sizeConstraints: SizeConstraints): boolean {
-        let fileSize
-
-        try {
-            fileSize = fs.statSync(filePath).size
-        } catch (error) {
-            this.log.error(`Error reading file size for ${filePath}: ${error}`)
-            return false
-        }
-
-        if (fileSize > sizeConstraints.maxFileSize || fileSize > sizeConstraints.remainingIndexSize) {
-            return false
-        }
-
-        sizeConstraints.remainingIndexSize -= fileSize
-        return true
-    }
-
-    private async processWorkspaceFolders(
+    async processWorkspaceFolders(
         workspaceFolders?: WorkspaceFolder[] | null,
-        ignoreFilePatterns?: string[],
-        respectUserGitIgnores?: boolean,
-        includeSymLinks?: boolean,
         fileExtensions?: string[],
         maxFileSizeMB?: number,
         maxIndexSizeMB?: number
@@ -421,9 +402,7 @@ export class LocalProjectContextController {
             return []
         }
 
-        this.log.info(`Indexing ${workspaceFolders.length} workspace folders...`)
-
-        const filter = ignore().add(ignoreFilePatterns ?? [])
+        this.log.info(`Processing ${workspaceFolders.length} workspace folders...`)
 
         maxFileSizeMB = Math.min(maxFileSizeMB ?? Infinity, this.DEFAULT_MAX_FILE_SIZE_MB)
         maxIndexSizeMB = Math.min(maxIndexSizeMB ?? Infinity, this.DEFAULT_MAX_INDEX_SIZE_MB)
@@ -433,89 +412,42 @@ export class LocalProjectContextController {
             remainingIndexSize: maxIndexSizeMB * this.MB_TO_BYTES,
         }
 
-        const controller = new AbortController()
-
-        const workspaceSourceFiles = await Promise.all(
-            workspaceFolders.map(async (folder: WorkspaceFolder) => {
-                const absolutePath = path.resolve(URI.parse(folder.uri).fsPath)
-                const localGitIgnoreFiles: string[] = []
-
-                const crawler = new fdir()
-                    .withSymlinks({ resolvePaths: !includeSymLinks })
-                    .withAbortSignal(controller.signal)
-                    .exclude((dirName: string, dirPath: string) => {
-                        const relativePath = path.relative(absolutePath, dirPath)
-                        return relativePath.startsWith('..') || filter.ignores(relativePath)
-                    })
-                    .glob(...(fileExtensions?.map(ext => `**/*${ext}`) ?? []), '**/.gitignore')
-                    .filter((filePath: string, isDirectory: boolean) => {
-                        const relativePath = path.relative(absolutePath, filePath)
-
-                        if (isDirectory || relativePath.startsWith('..') || filter.ignores(relativePath)) {
-                            return false
-                        }
-
-                        if (!respectUserGitIgnores && sizeConstraints.remainingIndexSize <= 0) {
-                            controller.abort()
-                            return false
-                        }
-
-                        if (path.basename(filePath) === '.gitignore') {
-                            localGitIgnoreFiles.push(filePath)
-                            return false
-                        }
-
-                        return respectUserGitIgnores || this.fileMeetsFileSizeConstraints(filePath, sizeConstraints)
-                    })
-
-                return crawler
-                    .crawl(absolutePath)
-                    .withPromise()
-                    .then(async (sourceFiles: string[]) => {
-                        if (!respectUserGitIgnores) {
-                            return sourceFiles
-                        }
-
-                        const userGitIgnoreFilterByFile = new Map(
-                            await Promise.all(
-                                localGitIgnoreFiles.map(async filePath => {
-                                    const filter = ignore()
-                                    try {
-                                        filter.add((await fs.promises.readFile(filePath)).toString())
-                                    } catch (error) {
-                                        this.log.error(`Error reading .gitignore file ${filePath}: ${error}`)
-                                    }
-                                    return [filePath, filter] as const
-                                })
-                            )
-                        )
-
-                        return sourceFiles.reduce((filteredSourceFiles, filePath) => {
-                            if (sizeConstraints.remainingIndexSize <= 0) {
-                                return filteredSourceFiles
+        const uniqueFilesToIndex = new Set<string>()
+        let filesExceedingMaxSize = 0
+        for (const folder of workspaceFolders) {
+            const absoluteFolderPath = path.resolve(URI.parse(folder.uri).fsPath)
+            const filesUnderFolder = await listFilesWithGitignore(absoluteFolderPath)
+            for (const file of filesUnderFolder) {
+                const fileExtName = '.' + getFileExtensionName(file)
+                if (!uniqueFilesToIndex.has(file) && fileExtensions?.includes(fileExtName)) {
+                    try {
+                        const fileSize = fs.statSync(file).size
+                        if (fileSize < sizeConstraints.maxFileSize) {
+                            if (sizeConstraints.remainingIndexSize > fileSize) {
+                                uniqueFilesToIndex.add(file)
+                                sizeConstraints.remainingIndexSize = sizeConstraints.remainingIndexSize - fileSize
+                            } else {
+                                this.log.info(
+                                    `Reaching max file collection size limit ${this.maxIndexSizeMB} MB. ${uniqueFilesToIndex.size} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB `
+                                )
+                                return [...uniqueFilesToIndex]
                             }
+                        } else {
+                            filesExceedingMaxSize += 1
+                        }
+                        // yeild event loop for other tasks like network I/O
+                        await sleep(1)
+                    } catch (error) {
+                        this.log.error(`Failed to include file in index. ${file}`)
+                    }
+                }
+            }
+        }
 
-                            const isIgnored = [...userGitIgnoreFilterByFile].some(
-                                ([gitIgnorePath, filter]: [string, any]) => {
-                                    const gitIgnoreDir = path.dirname(path.resolve(gitIgnorePath))
-                                    const relativePath = path.relative(gitIgnoreDir, filePath)
-
-                                    return !relativePath.startsWith('..') && filter.ignores(relativePath)
-                                }
-                            )
-
-                            if (!isIgnored && this.fileMeetsFileSizeConstraints(filePath, sizeConstraints)) {
-                                filteredSourceFiles.push(filePath)
-                            }
-
-                            return filteredSourceFiles
-                        }, [] as string[])
-                    })
-            })
-        ).then((nestedFilePaths: string[][]) => nestedFilePaths.flat())
-
-        this.log.info(`Indexing complete: found ${workspaceSourceFiles.length} files.`)
-        return workspaceSourceFiles
+        this.log.info(
+            `ProcessWorkspaceFolders complete. ${uniqueFilesToIndex.size} files found. ${filesExceedingMaxSize} files exceeded ${maxFileSizeMB} MB`
+        )
+        return [...uniqueFilesToIndex]
     }
 
     private areWorkspaceFoldersEqual(a: WorkspaceFolder, b: WorkspaceFolder): boolean {

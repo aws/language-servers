@@ -18,6 +18,7 @@ import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { clientTimeoutMs } from '../language-server/agenticChat/constants'
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -78,10 +79,9 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             endpoint,
             token: tokenProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
-            requestHandler: {
-                keepAlive: true,
+            requestHandler: new NodeHttpHandler({
                 requestTimeout: clientTimeoutMs,
-            },
+            }),
             customUserAgent: customUserAgent,
         })
     }

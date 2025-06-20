@@ -8,15 +8,24 @@ import { AWSError } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
-import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING_BEARER_TOKEN_ERROR } from './constants'
+import {
+    BUILDER_ID_START_URL,
+    COMMON_GITIGNORE_PATTERNS,
+    crashMonitoringDirName,
+    driveLetterRegex,
+    MISSING_BEARER_TOKEN_ERROR,
+} from './constants'
 import {
     CodeWhispererStreamingServiceException,
     ServiceQuotaExceededException,
     ThrottlingException,
     ThrottlingExceptionReason,
 } from '@aws/codewhisperer-streaming-client'
+import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
+import * as ignoreWalk from 'ignore-walk'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
+import ignore = require('ignore')
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -460,4 +469,56 @@ export function hasConnectionExpired(error: any) {
         return authFollowType == 're-auth'
     }
     return false
+}
+
+/**
+  Lists files in a directory while respecting .gitignore.
+  @param directory The absolute path of root directory.
+  @param limit The maximum number of files to return.
+  @returns A promise that resolves to an array of absolute file paths.
+ */
+export async function listFilesWithGitignore(directory: string): Promise<string[]> {
+    const commonIgnore = ignore().add(COMMON_GITIGNORE_PATTERNS)
+
+    try {
+        let ignoreWalkFiles = await ignoreWalk({
+            path: directory,
+            // Use multiple ignore files
+            ignoreFiles: ['.gitignore', '.npmignore'],
+            // Additional options
+            follow: false, // follow symlinks
+            includeEmpty: false, // exclude empty directories
+        })
+        // hard limit of 500k files to avoid hitting memory limit
+        ignoreWalkFiles = ignoreWalkFiles.slice(0, 500_000)
+
+        // apply common gitignore in case some build system like Brazil
+        // generates a lot of temp files that is not in Gitignore.
+        ignoreWalkFiles = commonIgnore.filter(ignoreWalkFiles)
+
+        const absolutePaths = ignoreWalkFiles.map(file => path.join(directory, file))
+        return absolutePaths
+    } catch (error) {
+        console.error('Error gathering files:', error)
+        return []
+    }
+}
+
+export function getFileExtensionName(filepath: string): string {
+    // Handle null/undefined
+    if (!filepath) {
+        return ''
+    }
+
+    // Handle no dots or file ending with dot
+    if (!filepath.includes('.') || filepath.endsWith('.')) {
+        return ''
+    }
+
+    // Handle hidden files (optional, depending on your needs)
+    if (filepath.startsWith('.') && filepath.indexOf('.', 1) === -1) {
+        return ''
+    }
+
+    return filepath.substring(filepath.lastIndexOf('.') + 1).toLowerCase()
 }

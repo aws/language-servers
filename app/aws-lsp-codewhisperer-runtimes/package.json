@@ -15,7 +15,7 @@
         "local-build": "node scripts/local-build.js"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.97",
+        "@aws/language-server-runtimes": "^0.2.98",
         "@aws/lsp-codewhisperer": "*",
         "@aws/lsp-codewhisperer-runtimes": "file:",
         "copyfiles": "^2.4.1",
@@ -30,7 +30,8 @@
         "stream-http": "^3.2.0",
         "vscode-languageserver": "^9.0.1",
         "wdio": "^6.0.1",
-        "webpack-dev-server": "^5.2.0"
+        "webpack-dev-server": "^5.2.0",
+        "ignore-walk": "^7.0.0"
     },
     "devDependencies": {
         "@wdio/cli": "^9.12.2",
