@@ -13,6 +13,7 @@ import {
     ContentType,
     ProgrammingLanguage,
     EnvState,
+    ImageBlock,
 } from '@aws/codewhisperer-streaming-client'
 import {
     BedrockTools,
@@ -109,7 +110,8 @@ export class AgenticChatTriggerContext {
         history: ChatMessage[] = [],
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[],
-        modelId?: string
+        modelId?: string,
+        customContext?: ImageBlock[]
     ): Promise<GenerateAssistantResponseCommandInput> {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
@@ -149,6 +151,12 @@ export class AgenticChatTriggerContext {
         triggerContext.documentReference = triggerContext.documentReference
             ? mergeFileLists(triggerContext.documentReference, workspaceFileList)
             : workspaceFileList
+
+        let imageContext: ImageBlock[] = []
+        if (customContext && customContext.length > 0) {
+            imageContext = customContext
+        }
+
         // Process additionalContent items if present
         if (additionalContent) {
             for (const item of additionalContent) {
@@ -223,6 +231,7 @@ export class AgenticChatTriggerContext {
                         userIntent: triggerContext.userIntent,
                         origin: 'IDE',
                         modelId,
+                        images: imageContext,
                     },
                 },
                 customizationArn,
