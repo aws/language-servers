@@ -108,8 +108,17 @@ export function getWorkspaceFolderPaths(workspace: Features['workspace']): strin
 }
 
 export function isParentFolder(parentPath: string, childPath: string): boolean {
-    const normalizedParentPath = path.normalize(parentPath)
-    const normalizedChildPath = path.normalize(childPath)
+    let normalizedParentPath = path.normalize(parentPath)
+    let normalizedChildPath = path.normalize(childPath)
+
+    // Make case-insensitive ONLY on case-insensitive file systems
+    // Mac is case in sensitive by default, so we are using that as a precedent here.
+    // There is a small chance that a user can reformat their macOS and make it case
+    // sensitive, its very rare but leaving this comment for when that happens.
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+        normalizedParentPath = normalizedParentPath.toLowerCase()
+        normalizedChildPath = normalizedChildPath.toLowerCase()
+    }
 
     const relative = path.relative(normalizedParentPath, normalizedChildPath)
     return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
