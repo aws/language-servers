@@ -180,8 +180,8 @@ describe('makeUserContextObject', () => {
         const clientNames = [
             'AmazonQ-For-VSCode',
             'Amazon Q For JetBrains',
-            'AmazonQ-For-Eclipse',
-            'AWS-Toolkit-For-VisualStudio',
+            'Amazon Q For Eclipse',
+            'AWS Toolkit For VisualStudio',
         ]
 
         clientNames.forEach(clientName => {
