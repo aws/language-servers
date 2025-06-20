@@ -50,8 +50,8 @@ const IDE_CATEGORY_MAP: { [key: string]: IdeCategory } = {
     // TODO: VSCode key needs to change for getting the correct coefficient value for inline
     'AmazonQ-For-VSCode': 'VSCODE',
     'Amazon Q For JetBrains': 'JETBRAINS',
-    'AmazonQ-For-Eclipse': 'ECLIPSE',
-    'AWS-Toolkit-For-VisualStudio': 'VISUAL_STUDIO',
+    'Amazon Q For Eclipse': 'ECLIPSE',
+    'AWS Toolkit For VisualStudio': 'VISUAL_STUDIO',
 }
 
 const mapClientNameToIdeCategory = (clientName: string): string | undefined => {
