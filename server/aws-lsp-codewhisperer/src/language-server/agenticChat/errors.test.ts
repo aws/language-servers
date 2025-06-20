@@ -19,7 +19,7 @@ import {
 
 describe('errors', () => {
     describe('FileOperationError classes', () => {
-        test('creates error classes with correct customer messages', () => {
+        it('creates error classes with correct customer messages', () => {
             const directoryError = new DirectoryNotFoundError('ENOENT: no such file or directory')
             expect(directoryError.message).toBe('ENOENT: no such file or directory')
             expect(directoryError.customerMessage).toBe(
@@ -40,7 +40,7 @@ describe('errors', () => {
     })
 
     describe('createFileOperationError', () => {
-        test('maps common file system errors', () => {
+        it('maps common file system errors', () => {
             const error1 = createFileOperationError(new Error('ENOENT: no such file or directory'))
             expect(error1).toBeInstanceOf(DirectoryNotFoundError)
             expect(error1.customerMessage).toBe('The directory does not exist. Please create the directory first.')
@@ -58,7 +58,7 @@ describe('errors', () => {
             expect(error5).toBeInstanceOf(TooManyOpenFilesError)
         })
 
-        test('maps fsWrite specific errors', () => {
+        it('maps fsWrite specific errors', () => {
             const error1 = createFileOperationError(new Error('Path must not be empty'))
             expect(error1).toBeInstanceOf(EmptyPathError)
 
@@ -72,7 +72,7 @@ describe('errors', () => {
             expect(error4).toBeInstanceOf(EmptyAppendContentError)
         })
 
-        test('maps fsReplace specific errors', () => {
+        it('maps fsReplace specific errors', () => {
             const error1 = createFileOperationError(new Error('Diffs must not be empty'))
             expect(error1).toBeInstanceOf(EmptyDiffsError)
 
@@ -90,7 +90,7 @@ describe('errors', () => {
             expect(error4).toBeInstanceOf(MultipleMatchesError)
         })
 
-        test('returns generic FileOperationError for unknown errors', () => {
+        it('returns generic FileOperationError for unknown errors', () => {
             const unknownError = new Error('Some unknown error occurred')
             const result = createFileOperationError(unknownError)
             expect(result).toBeInstanceOf(FileOperationError)
@@ -100,21 +100,21 @@ describe('errors', () => {
     })
 
     describe('getCustomerFacingErrorMessage', () => {
-        test('returns customer message from FileOperationError', () => {
+        it('returns customer message from FileOperationError', () => {
             const error = new EmptyPathError()
             expect(getCustomerFacingErrorMessage(error)).toBe(
                 'The file path cannot be empty. Please provide a valid file path.'
             )
         })
 
-        test('creates and returns customer message from standard Error', () => {
+        it('creates and returns customer message from standard Error', () => {
             const error = new Error('ENOENT: no such file or directory')
             expect(getCustomerFacingErrorMessage(error)).toBe(
                 'The directory does not exist. Please create the directory first.'
             )
         })
 
-        test('handles non-Error objects', () => {
+        it('handles non-Error objects', () => {
             expect(getCustomerFacingErrorMessage('string error')).toBe('string error')
             expect(getCustomerFacingErrorMessage(null)).toBe('null')
             expect(getCustomerFacingErrorMessage(undefined)).toBe('undefined')

@@ -88,13 +88,13 @@ export class FileOperationError extends Error {
 // Common file system errors
 export class DirectoryNotFoundError extends FileOperationError {
     constructor(message: string) {
-        super(message, 'The directory does not exist. Please create the directory first.')
+        super(message, 'The directory does not exist.')
     }
 }
 
 export class PermissionDeniedError extends FileOperationError {
     constructor(message: string) {
-        super(message, 'Permission denied. You do not have sufficient permissions to modify this file.')
+        super(message, 'Permission denied.')
     }
 }
 
@@ -106,29 +106,26 @@ export class IsDirectoryError extends FileOperationError {
 
 export class NoSpaceError extends FileOperationError {
     constructor(message: string) {
-        super(message, 'No space left on device. Please free up some disk space.')
+        super(message, 'No space left on device.')
     }
 }
 
 export class TooManyOpenFilesError extends FileOperationError {
     constructor(message: string) {
-        super(message, 'Too many open files. Please close some files and try again.')
+        super(message, 'Too many open files.')
     }
 }
 
 // fsWrite specific errors
 export class EmptyPathError extends FileOperationError {
     constructor() {
-        super('Path must not be empty', 'The file path cannot be empty. Please provide a valid file path.')
+        super('Path must not be empty', 'The file path cannot be empty.')
     }
 }
 
 export class MissingContentError extends FileOperationError {
     constructor() {
-        super(
-            'fileText must be provided for create command',
-            'No content provided for the file. Please specify the content to write.'
-        )
+        super('fileText must be provided for create command', 'No content provided for the file.')
     }
 }
 
@@ -143,35 +140,26 @@ export class FileExistsWithSameContentError extends FileOperationError {
 
 export class EmptyAppendContentError extends FileOperationError {
     constructor() {
-        super(
-            'Content to append must not be empty',
-            'No content provided to append. Please specify the content to add to the file.'
-        )
+        super('Content to append must not be empty', 'No content provided to append.')
     }
 }
 
 // fsReplace specific errors
 export class EmptyDiffsError extends FileOperationError {
     constructor() {
-        super('Diffs must not be empty', 'No changes specified. Please provide the content to replace.')
+        super('Diffs must not be empty', 'No changes specified.')
     }
 }
 
 export class FileNotExistsError extends FileOperationError {
     constructor() {
-        super(
-            'The provided path must exist in order to replace contents into it',
-            'The file does not exist. Please create the file first or check the path.'
-        )
+        super('The provided path must exist in order to replace contents into it', 'The file does not exist.')
     }
 }
 
 export class TextNotFoundError extends FileOperationError {
     constructor(text: string) {
-        super(
-            `No occurrences of "${text}" were found`,
-            'The text to replace was not found in the file. Please check your input.'
-        )
+        super(`No occurrences of "${text}" were found`, 'The text to replace was not found in the file.')
     }
 }
 
@@ -179,7 +167,7 @@ export class MultipleMatchesError extends FileOperationError {
     constructor(text: string) {
         super(
             `Multiple occurrences of "${text}" were found when only 1 is expected`,
-            'Multiple instances of the text to replace were found. Please provide more context to identify the specific text to replace.'
+            'Multiple instances of the text to replace were found.'
         )
     }
 }
