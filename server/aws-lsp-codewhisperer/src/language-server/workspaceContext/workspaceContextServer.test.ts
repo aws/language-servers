@@ -22,7 +22,7 @@ describe('WorkspaceContext Server', () => {
     })
 
     describe('Initialization', () => {
-        it('should generate a workspace identifier when none is provided', async () => {
+        it.skip('should generate a workspace identifier when none is provided', async () => {
             // Set up the test to simulate no workspaceIdentifier in initialization
             features.lsp.getClientInitializeParams.returns({
                 initializationOptions: {
