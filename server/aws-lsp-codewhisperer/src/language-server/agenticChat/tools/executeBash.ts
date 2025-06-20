@@ -666,9 +666,7 @@ export class ExecuteBash {
                 '## Windows Commands\n' +
                 "- ONLY use Windows-specific commands like 'dir', 'type', 'copy', 'move', 'del', 'mkdir'.\n" +
                 "- DO NOT use -p flag with mkdir. Use 'mkdir dir1 && mkdir dir2' for multiple directories.\n" +
-                "- Special characters (& | < > ^ %) must be escaped with ^ (e.g., 'echo This ^& That' not 'echo This & That').\n" +
-                "- For multiple directories, use multiple commands with && (e.g., 'mkdir main && mkdir main\\src && mkdir main\\test').\n" +
-                '- Windows built-in commands can be executed directly.\n\n' +
+                "- For multiple directories, use multiple commands with && (e.g., 'mkdir main && mkdir main\\src && mkdir main\\test').\n\n" +
                 '## When to use\n' +
                 "- When you need to run Windows system commands that aren't covered by specialized tools.\n" +
                 '- When you need to interact with Windows applications or utilities.\n' +
@@ -706,17 +704,15 @@ export class ExecuteBash {
         return {
             name: 'executeBash',
             description:
-                'Execute the specified command on the macOS/Unix shell (bash/zsh).\n\n' +
+                'Execute the specified command on the macOS/Unix shell (bash).\n\n' +
                 '## Overview\n' +
                 'This tool executes commands on macOS/Unix shell and returns the output.\n\n' +
                 '## macOS/Unix Commands\n' +
-                "- Use Unix commands like 'ls', 'cat', 'cp', 'mv', 'rm', 'mkdir -p', 'grep', 'find'.\n" +
-                '- Shell scripting features like pipes (|), redirects (>, >>), and command substitution ($()) are supported.\n' +
-                "- macOS-specific commands like 'open', 'pbcopy', 'pbpaste' are available.\n\n" +
+                "- Use Unix commands like 'ls', 'cat', 'cp', 'mv', 'rm', 'mkdir -p', 'grep', 'find'.\n\n" +
                 '## When to use\n' +
                 "- When you need to run Unix/macOS system commands that aren't covered by specialized tools.\n" +
-                '- When you need to interact with Unix applications or utilities.\n' +
-                '- When you need to perform shell operations with pipes and redirects.\n\n' +
+                '- When you need to interact with installed applications or utilities.\n' +
+                '- When you need to perform operations that require shell capabilities.\n\n' +
                 '## When not to use\n' +
                 '- When specialized tools would be more appropriate for the task.\n' +
                 '- When you need to perform file operations (use dedicated file tools instead).\n' +
@@ -733,8 +729,7 @@ export class ExecuteBash {
                     },
                     command: {
                         type: 'string',
-                        description:
-                            'Unix/macOS command to execute in bash/zsh. Use Unix-specific syntax and commands.',
+                        description: 'Unix/macOS command to execute in bash. Use Unix-specific syntax and commands.',
                     },
                     cwd: {
                         type: 'string',
