@@ -1369,32 +1369,35 @@ export class AgenticChatController implements ChatHandlers {
                 if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
                     const fsParam = toolUse.input as unknown as FsWriteParams | FsReplaceParams
-                    const fileName = path.basename(fsParam.path)
-                    const customerFacingError = getCustomerFacingErrorMessage(err)
-                    const errorResult = {
-                        type: 'tool',
-                        messageId: toolUse.toolUseId,
-                        header: {
-                            fileList: {
-                                filePaths: [fileName],
-                                details: {
-                                    [fileName]: {
-                                        description: fsParam.path,
+                    if (fsParam.path) {
+                        const fileName = path.basename(fsParam.path)
+                        const customerFacingError = getCustomerFacingErrorMessage(err)
+                        const errorResult = {
+                            type: 'tool',
+                            messageId: toolUse.toolUseId,
+                            header: {
+                                fileList: {
+                                    filePaths: [fileName],
+                                    details: {
+                                        [fileName]: {
+                                            description: fsParam.path,
+                                        },
                                     },
                                 },
+                                status: {
+                                    status: 'error',
+                                    icon: 'error',
+                                    text: 'Error',
+                                    description: customerFacingError,
+                                },
                             },
-                            status: {
-                                status: 'error',
-                                icon: 'error',
-                                text: 'Error',
-                                description: customerFacingError,
-                            },
-                        },
-                    } as ChatResult
-                    if (existingCard) {
-                        await chatResultStream.overwriteResultBlock(errorResult, existingCard)
-                    } else {
-                        await chatResultStream.writeResultBlock(errorResult)
+                        } as ChatResult
+
+                        if (existingCard) {
+                            await chatResultStream.overwriteResultBlock(errorResult, existingCard)
+                        } else {
+                            await chatResultStream.writeResultBlock(errorResult)
+                        }
                     }
                 } else if (toolUse.name === 'executeBash' && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
