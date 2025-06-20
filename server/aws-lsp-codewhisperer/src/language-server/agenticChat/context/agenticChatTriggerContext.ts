@@ -13,6 +13,7 @@ import {
     ContentType,
     ProgrammingLanguage,
     EnvState,
+    Origin,
 } from '@aws/codewhisperer-streaming-client'
 import {
     BedrockTools,
@@ -104,6 +105,7 @@ export class AgenticChatTriggerContext {
         triggerContext: TriggerContext,
         chatTriggerType: ChatTriggerType,
         customizationArn?: string,
+        origin?: Origin,
         chatResultStream?: AgenticChatResultStream,
         profileArn?: string,
         history: ChatMessage[] = [],
@@ -221,7 +223,7 @@ export class AgenticChatTriggerContext {
                                       envState: this.#mapPlatformToEnvState(process.platform),
                                   },
                         userIntent: triggerContext.userIntent,
-                        origin: 'IDE',
+                        origin: origin ? origin : 'IDE',
                         modelId,
                     },
                 },
