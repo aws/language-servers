@@ -58,7 +58,6 @@ import {
 import {
     CancellationToken,
     Chat,
-    ChatParams,
     ChatResult,
     FileList,
     EndChatParams,
@@ -70,6 +69,7 @@ import {
     TabChangeParams,
     InlineChatResult,
 } from '@aws/language-server-runtimes/server-interface'
+import { ChatParams } from '@aws/language-server-runtimes-types'
 import { v4 as uuid } from 'uuid'
 import {
     AddMessageEvent,
@@ -164,6 +164,7 @@ import {
     qProName,
 } from '../paidTier/paidTier'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
+import { LoadFindings } from './tools/loadFindings'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -596,7 +597,8 @@ export class AgenticChatController implements ChatHandlers {
                 promptId,
                 session.conversationId,
                 token,
-                triggerContext.documentReference
+                triggerContext.documentReference,
+                params.findingsPath
             )
 
             // Phase 5: Result Handling - This happens only once
@@ -687,7 +689,8 @@ export class AgenticChatController implements ChatHandlers {
         promptId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
-        documentReference?: FileList
+        documentReference?: FileList,
+        findingsPath?: string
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
@@ -870,7 +873,14 @@ export class AgenticChatController implements ChatHandlers {
             session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
-                toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+                toolResults = await this.#processToolUses(
+                    pendingToolUses,
+                    chatResultStream,
+                    session,
+                    tabId,
+                    token,
+                    findingsPath
+                )
                 if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                     shouldDisplayMessage = false
@@ -1042,7 +1052,8 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
         tabId: string,
-        token?: CancellationToken
+        token?: CancellationToken,
+        findingsPath?: string
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
 
@@ -1163,6 +1174,14 @@ export class AgenticChatController implements ChatHandlers {
                     }
                     case QCodeReview.toolName:
                         // no need to write tool message for code review
+                        break
+                    case LoadFindings.toolName:
+                        // no need to write tool message for load findings
+                        let initialInput = JSON.parse(JSON.stringify(toolUse.input))
+                        if (findingsPath != undefined) {
+                            initialInput['findingsPath'] = findingsPath
+                        }
+                        toolUse.input = initialInput
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:

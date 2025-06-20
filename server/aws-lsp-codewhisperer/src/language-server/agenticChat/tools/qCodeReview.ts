@@ -8,7 +8,7 @@
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { PROGRAMMING_LANGUAGES_LOWERCASE, TOOL_NAME, TOOL_DESCRIPTION } from './qCodeReviewConstants'
-import { QCodeReviewUtils } from './qCodeReviewUtils'
+import { QCodeReviewUtils, AggregatedCodeScanIssue, ValidatedFinding } from './qCodeReviewUtils'
 import { INPUT_SCHEMA, Z_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
 import { randomUUID } from 'crypto'
 import * as crypto from 'crypto'
@@ -167,27 +167,8 @@ export class QCodeReview {
                     jobId,
                     codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
                 })
-                type ValidatedFinding = {
-                    startLine: number
-                    endLine: number
-                    comment: string
-                    title: string
-                    description: { markdown: string; text: string }
-                    detectorId?: string
-                    detectorName?: string
-                    findingId: string
-                    ruleId?: string
-                    relatedVulnerabilities: (string | undefined)[]
-                    severity: string
-                    recommendation: { text: string; url?: string | null }
-                    suggestedFixes?: (string | undefined)[]
-                    scanJobId: string
-                    language: string
-                    autoDetected: false
-                    filePath: string
-                }
 
-                let aggregatedCodeScanIssueList: { filePath: string; issues: ValidatedFinding[] }[] = []
+                let aggregatedCodeScanIssueList: AggregatedCodeScanIssue[] = []
 
                 let findingsResponseJSON: any = undefined
 

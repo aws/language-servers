@@ -20,7 +20,8 @@ export const INPUT_SCHEMA = {
                 'in their code. Look for phrases which are similar in meaning to: "review my uncommitted changes" or "code review for my pending changes" or ' +
                 '"review the changes I haven\'t committed yet" or "look at my git diff" or "review my staged/unstaged changes" or ' +
                 '"scan/review the new changes" or "scan/review changed lines of code". ' +
-                'If you detect such a request, respond with "true" else "false".',
+                'If you detect such a request, respond with "true" else "false". ' +
+                'This tool should only be used when the agent is confident that the LoadFindings tool should not be used.',
         },
         fileLevelArtifacts: {
             type: <const>'array',

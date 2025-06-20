@@ -229,3 +229,25 @@ export class QCodeReviewUtils {
         }
     }
 }
+
+export type ValidatedFinding = {
+    startLine: number
+    endLine: number
+    comment: string
+    title: string
+    description: { markdown: string; text: string }
+    detectorId?: string
+    detectorName?: string
+    findingId: string
+    ruleId?: string
+    relatedVulnerabilities: (string | undefined)[]
+    severity: string
+    recommendation: { text: string; url?: string | null }
+    suggestedFixes?: (string | undefined)[]
+    scanJobId: string
+    language: string
+    autoDetected: false
+    filePath: string
+}
+
+export type AggregatedCodeScanIssue = { filePath: string; issues: ValidatedFinding[] }
