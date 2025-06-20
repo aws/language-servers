@@ -76,18 +76,6 @@ export abstract class CodeWhispererServiceBase {
 
     abstract clearCachedSuggestions(): void
 
-    // Ensure the returned cached suggestion belong the correct session
-    acceptedSession(sessionId: string) {
-        // if (this.prefetchSuggestions.length) {
-        // TODO: not work as expected, comment out to unblock
-        // this.prefetchSuggestions = this.prefetchSuggestions.filter(s => s.id === sessionId)
-        // const afterLen = this.prefetchSuggestions.length
-        // if (afterLen > 0) {
-        //     console.error(`[NEP]: inconsistent prefetched suggestions with different session id lived in cache`)
-        // }
-        // }
-    }
-
     abortInflightRequests() {
         this.inflightRequests.forEach(request => {
             request.abort()
@@ -204,8 +192,8 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
  */
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
-    private tokenSrc = new CancellationTokenSource()
-    private token: CancellationToken = this.tokenSrc.token
+    private prefetchCancelSource = new CancellationTokenSource()
+    private prefetchCancelToken: CancellationToken = this.prefetchCancelSource.token
     private prefetchConfig = {
         duration: 500, // 500ms
         maxCacheSuggestionSize: 3,
@@ -365,7 +353,7 @@ ${r.response.suggestions[0]?.content ?? 'no suggestion'}`
             return r.response
         } else {
             this.clearCachedSuggestions()
-            this.token = this.tokenSrc.token
+            this.prefetchCancelToken = this.prefetchCancelSource.token
             const coldStartResponse = await this.generateSuggestions(originalRequest)
             if (coldStartResponse.suggestions.length > 0) {
                 setTimeout(() => {
@@ -374,7 +362,7 @@ ${r.response.suggestions[0]?.content ?? 'no suggestion'}`
                         originalRequest,
                         coldStartResponse,
                         textDocument,
-                        this.token,
+                        this.prefetchCancelToken,
                         0
                     ).catch(e => {})
                     this.isPrefetchInProgress = false
