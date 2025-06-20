@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.57](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.56...lsp-codewhisperer/v0.0.57) (2025-06-20)
+
+
+### Features
+
+* **amazonq:** bundle dependency events from workspace context server ([#1712](https://github.com/aws/language-servers/issues/1712)) ([587da41](https://github.com/aws/language-servers/commit/587da4152ed1273117fc549f49d0b81eef7d98a9))
+
+
+### Bug Fixes
+
+* **amazonq:** removed explanation field for mcp servers ([#1717](https://github.com/aws/language-servers/issues/1717)) ([cfc6831](https://github.com/aws/language-servers/commit/cfc683111307dc25c619177e0267860c096fcfe1))
+* make file collection for indexing non blocking ([#1701](https://github.com/aws/language-servers/issues/1701)) ([036efde](https://github.com/aws/language-servers/commit/036efdead9c68c4ee6e6590ee2e877ace4cabce6))
+* undefined path causing the loop to break ([#1718](https://github.com/aws/language-servers/issues/1718)) ([8e48b86](https://github.com/aws/language-servers/commit/8e48b866221c70c79156b714f036413816748b6c))
+
 ## [0.0.56](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.55...lsp-codewhisperer/v0.0.56) (2025-06-19)
 
 
