@@ -146,7 +146,13 @@ import {
     responseTimeoutPartialMsg,
     defaultModelId,
 } from './constants'
-import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
+import {
+    AgenticChatError,
+    customerFacingErrorCodes,
+    isRequestAbortedError,
+    unactionableErrorCodes,
+    getCustomerFacingErrorMessage,
+} from './errors'
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
@@ -1364,6 +1370,7 @@ export class AgenticChatController implements ChatHandlers {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
                     const fsParam = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                     const fileName = path.basename(fsParam.path)
+                    const customerFacingError = getCustomerFacingErrorMessage(err)
                     const errorResult = {
                         type: 'tool',
                         messageId: toolUse.toolUseId,
@@ -1380,6 +1387,7 @@ export class AgenticChatController implements ChatHandlers {
                                 status: 'error',
                                 icon: 'error',
                                 text: 'Error',
+                                description: customerFacingError,
                             },
                         },
                     } as ChatResult

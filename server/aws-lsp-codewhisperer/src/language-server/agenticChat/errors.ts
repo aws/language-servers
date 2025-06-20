@@ -71,3 +71,194 @@ export function isRequestAbortedError(error: unknown): boolean {
 
     return false
 }
+
+/**
+ * Base class for file operation errors with customer-facing messages
+ */
+export class FileOperationError extends Error {
+    constructor(
+        message: string,
+        public readonly customerMessage: string
+    ) {
+        super(message)
+        this.name = this.constructor.name
+    }
+}
+
+// Common file system errors
+export class DirectoryNotFoundError extends FileOperationError {
+    constructor(message: string) {
+        super(message, 'The directory does not exist. Please create the directory first.')
+    }
+}
+
+export class PermissionDeniedError extends FileOperationError {
+    constructor(message: string) {
+        super(message, 'Permission denied. You do not have sufficient permissions to modify this file.')
+    }
+}
+
+export class IsDirectoryError extends FileOperationError {
+    constructor(message: string) {
+        super(message, 'The specified path is a directory, not a file.')
+    }
+}
+
+export class NoSpaceError extends FileOperationError {
+    constructor(message: string) {
+        super(message, 'No space left on device. Please free up some disk space.')
+    }
+}
+
+export class TooManyOpenFilesError extends FileOperationError {
+    constructor(message: string) {
+        super(message, 'Too many open files. Please close some files and try again.')
+    }
+}
+
+// fsWrite specific errors
+export class EmptyPathError extends FileOperationError {
+    constructor() {
+        super('Path must not be empty', 'The file path cannot be empty. Please provide a valid file path.')
+    }
+}
+
+export class MissingContentError extends FileOperationError {
+    constructor() {
+        super(
+            'fileText must be provided for create command',
+            'No content provided for the file. Please specify the content to write.'
+        )
+    }
+}
+
+export class FileExistsWithSameContentError extends FileOperationError {
+    constructor() {
+        super(
+            'The file already exists with the same content',
+            'The file already exists with identical content. No changes were made.'
+        )
+    }
+}
+
+export class EmptyAppendContentError extends FileOperationError {
+    constructor() {
+        super(
+            'Content to append must not be empty',
+            'No content provided to append. Please specify the content to add to the file.'
+        )
+    }
+}
+
+// fsReplace specific errors
+export class EmptyDiffsError extends FileOperationError {
+    constructor() {
+        super('Diffs must not be empty', 'No changes specified. Please provide the content to replace.')
+    }
+}
+
+export class FileNotExistsError extends FileOperationError {
+    constructor() {
+        super(
+            'The provided path must exist in order to replace contents into it',
+            'The file does not exist. Please create the file first or check the path.'
+        )
+    }
+}
+
+export class TextNotFoundError extends FileOperationError {
+    constructor(text: string) {
+        super(
+            `No occurrences of "${text}" were found`,
+            'The text to replace was not found in the file. Please check your input.'
+        )
+    }
+}
+
+export class MultipleMatchesError extends FileOperationError {
+    constructor(text: string) {
+        super(
+            `Multiple occurrences of "${text}" were found when only 1 is expected`,
+            'Multiple instances of the text to replace were found. Please provide more context to identify the specific text to replace.'
+        )
+    }
+}
+
+/**
+ * Maps a standard Error to the appropriate FileOperationError type
+ * @param error The original error
+ * @returns A FileOperationError with customer-facing message
+ */
+export function createFileOperationError(error: Error): FileOperationError {
+    const message = error.message
+
+    // Common file system errors
+    if (message.includes('ENOENT') || message.includes('no such file or directory')) {
+        return new DirectoryNotFoundError(message)
+    }
+    if (message.includes('EACCES') || message.includes('permission denied')) {
+        return new PermissionDeniedError(message)
+    }
+    if (message.includes('EISDIR')) {
+        return new IsDirectoryError(message)
+    }
+    if (message.includes('ENOSPC')) {
+        return new NoSpaceError(message)
+    }
+    if (message.includes('EMFILE') || message.includes('ENFILE')) {
+        return new TooManyOpenFilesError(message)
+    }
+
+    // fsWrite specific errors
+    if (message === 'Path must not be empty') {
+        return new EmptyPathError()
+    }
+    if (message === 'fileText must be provided for create command') {
+        return new MissingContentError()
+    }
+    if (message === 'The file already exists with the same content') {
+        return new FileExistsWithSameContentError()
+    }
+    if (message === 'Content to append must not be empty') {
+        return new EmptyAppendContentError()
+    }
+
+    // fsReplace specific errors
+    if (message === 'Diffs must not be empty') {
+        return new EmptyDiffsError()
+    }
+    if (message === 'The provided path must exist in order to replace contents into it') {
+        return new FileNotExistsError()
+    }
+
+    // Pattern matching for errors with dynamic content
+    const noOccurrencesMatch = message.match(/No occurrences of "(.+)" were found/)
+    if (noOccurrencesMatch) {
+        return new TextNotFoundError(noOccurrencesMatch[1])
+    }
+
+    const multipleOccurrencesMatch = message.match(/Multiple occurrences of "(.+)" were found/)
+    if (multipleOccurrencesMatch) {
+        return new MultipleMatchesError(multipleOccurrencesMatch[1])
+    }
+
+    // Default fallback - wrap the original error with the same message
+    return new FileOperationError(message, message)
+}
+
+/**
+ * Maps an error to a customer-facing message
+ * @param error The original error (can be any type)
+ * @returns A customer-facing error message
+ */
+export function getCustomerFacingErrorMessage(error: unknown): string {
+    if (error instanceof FileOperationError) {
+        return error.customerMessage
+    }
+
+    if (error instanceof Error) {
+        return createFileOperationError(error).customerMessage
+    }
+
+    return String(error)
+}
