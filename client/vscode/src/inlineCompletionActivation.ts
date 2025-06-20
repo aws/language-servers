@@ -21,11 +21,9 @@ import {
     inlineCompletionWithReferencesRequestType,
 } from '@aws/language-server-runtimes/protocol'
 import { applyPatch } from 'diff'
-import * as DiffMatchPatch from 'diff-match-patch'
 
 /**
  * Apply a unified diff to a document text
- * This function uses diff-match-patch for more robust patch application
  */
 function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
     try {
@@ -35,13 +33,8 @@ function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
             if (result !== false) {
                 return result
             }
-            console.log('DEBUG-NEP: Standard diff package returned false, trying diff-match-patch')
-        } catch (error) {
-            console.log('DEBUG-NEP: Standard diff package failed, trying diff-match-patch')
-        }
-
-        // If that fails, use diff-match-patch which is more robust
-        const dmp = new DiffMatchPatch.diff_match_patch()
+            // eslint-disable-next-line no-empty
+        } catch (error) {}
 
         // Parse the unified diff to extract the changes
         const diffLines = unifiedDiff.split('\n')

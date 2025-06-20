@@ -353,7 +353,6 @@
     },
     "dependencies": {
         "awsdocuments-ls-client": "file:",
-        "diff-match-patch": "^1.0.5",
         "patch-package": "^8.0.0"
     },
     "enabledApiProposals": [
