@@ -239,7 +239,13 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
     deletedCharsCountForEditSuggestion?: number,
     streakLength?: number
 ) => {
-    return telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification)
+    return telemetryService.emitUserTriggerDecision(
+        session,
+        timeSinceLastUserModification,
+        addedCharsCountForEditSuggestion,
+        deletedCharsCountForEditSuggestion,
+        streakLength
+    )
 }
 
 const mergeSuggestionsWithRightContext = (
