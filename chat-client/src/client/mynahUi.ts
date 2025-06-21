@@ -1135,7 +1135,7 @@ export const createMynahUi = (
             buttons: processedButtons,
             fileList,
             // file diffs in the header need space
-            fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
+            fullWidth: message.type === 'tool' && includeHeader ? true : undefined,
             padding,
             contentHorizontalAlignment,
             wrapCodes: message.type === 'tool',
