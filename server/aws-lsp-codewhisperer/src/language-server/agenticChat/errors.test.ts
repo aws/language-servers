@@ -1,5 +1,6 @@
 import * as assert from 'assert'
 import {
+    AgenticChatError,
     DirectoryNotFoundError,
     EmptyAppendContentError,
     EmptyDiffsError,
@@ -16,6 +17,7 @@ import {
     TooManyOpenFilesError,
     createFileOperationError,
     getCustomerFacingErrorMessage,
+    isThrottlingRelated,
 } from './errors'
 
 describe('errors', () => {
@@ -109,6 +111,58 @@ describe('errors', () => {
             assert.strictEqual(getCustomerFacingErrorMessage('string error'), 'string error')
             assert.strictEqual(getCustomerFacingErrorMessage(null), 'null')
             assert.strictEqual(getCustomerFacingErrorMessage(undefined), 'undefined')
+        })
+    })
+
+    describe('isThrottlingRelated', () => {
+        it('should return true for AgenticChatError with RequestThrottled code', () => {
+            const error = new AgenticChatError('Request was throttled', 'RequestThrottled')
+            assert.strictEqual(isThrottlingRelated(error), true)
+        })
+
+        it('should return true for ServiceUnavailableException with OperationMaxRequestsHandler in stack', () => {
+            const error = new Error('Service Unavailable')
+            error.name = 'ServiceUnavailableException'
+            error.stack = 'Error: Service Unavailable\n    at OperationMaxRequestsHandler.handle'
+
+            assert.strictEqual(isThrottlingRelated(error), true)
+        })
+
+        it('should return false for ServiceUnavailableException without OperationMaxRequestsHandler in stack', () => {
+            const error = new Error('Service Unavailable')
+            error.name = 'ServiceUnavailableException'
+            error.stack = 'Error: Service Unavailable\n    at SomeOtherHandler.handle'
+
+            assert.strictEqual(isThrottlingRelated(error), false)
+        })
+
+        it('should return false for ServiceUnavailableException with null stack', () => {
+            const error = new Error('Service Unavailable')
+            error.name = 'ServiceUnavailableException'
+            error.stack = null as unknown as string
+
+            assert.strictEqual(isThrottlingRelated(error), false)
+        })
+
+        it('should return false for ServiceUnavailableException with undefined stack', () => {
+            const error = new Error('Service Unavailable')
+            error.name = 'ServiceUnavailableException'
+            error.stack = undefined as unknown as string
+
+            assert.strictEqual(isThrottlingRelated(error), false)
+        })
+
+        it('should return false for non-throttling related errors', () => {
+            const error = new Error('Some other error')
+            assert.strictEqual(isThrottlingRelated(error), false)
+        })
+
+        it('should return false for non-Error objects', () => {
+            assert.strictEqual(isThrottlingRelated('not an error'), false)
+            assert.strictEqual(isThrottlingRelated(null), false)
+            assert.strictEqual(isThrottlingRelated(undefined), false)
+            assert.strictEqual(isThrottlingRelated({}), false)
+            assert.strictEqual(isThrottlingRelated(42), false)
         })
     })
 })
