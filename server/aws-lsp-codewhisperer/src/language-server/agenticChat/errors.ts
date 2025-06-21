@@ -261,14 +261,9 @@ export function isThrottlingRelated(error: unknown): boolean {
         //  This is fragile (breaks if the backend changes their error message wording)
         return (
             error.name === 'ServiceUnavailableException' &&
-            !isNullish(error.stack) &&
+            !(error.stack == null) &&
             error.stack.includes('OperationMaxRequestsHandler')
         )
     }
-
     return false
-}
-
-function isNullish(value: unknown) {
-    return value === null || value === undefined
 }
