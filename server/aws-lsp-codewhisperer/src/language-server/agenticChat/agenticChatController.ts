@@ -3319,7 +3319,7 @@ export class AgenticChatController implements ChatHandlers {
         )
 
         McpManager.instance.setToolNameMapping(tempMapping)
-        const writeToolNames = new Set(['fsWrite', 'executeBash'])
+        const writeToolNames = new Set(['fsWrite', 'executeBash', 'fsReplace'])
         const restrictedToolNames = new Set([...mcpToolSpecNames, ...writeToolNames])
 
         const readOnlyTools = allTools.filter(tool => {
