@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.19](https://github.com/aws/language-servers/compare/chat-client/v0.1.18...chat-client/v0.1.19) (2025-06-21)
+
+
+### Bug Fixes
+
+* change model unavailable message ([#1711](https://github.com/aws/language-servers/issues/1711)) ([d4e1298](https://github.com/aws/language-servers/commit/d4e1298a5e00b2c3466ba1378aaaa28b89d75fb9))
+
 ## [0.1.18](https://github.com/aws/language-servers/compare/chat-client/v0.1.17...chat-client/v0.1.18) (2025-06-17)
 
 
