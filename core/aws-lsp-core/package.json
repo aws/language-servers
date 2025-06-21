@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-core",
-    "version": "0.0.9",
+    "version": "0.0.10",
     "description": "Core library, contains common code and utilities",
     "main": "out/index.js",
     "repository": {
