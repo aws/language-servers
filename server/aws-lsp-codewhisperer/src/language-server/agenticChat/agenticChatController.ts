@@ -1305,6 +1305,7 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     case QCodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
+                        // Push result in message so that it is picked by IDE plugin to show in issues panel
                         const qCodeReviewJson = JSON.parse(JSON.stringify(result))
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
@@ -1914,7 +1915,8 @@ export class AgenticChatController implements ChatHandlers {
 
         // Determine if this is a built-in tool or MCP tool
         const isStandardTool =
-            toolName !== undefined && ['executeBash', 'fsWrite', 'fsRead', 'listDirectory'].includes(toolName)
+            toolName !== undefined &&
+            ['executeBash', 'fsWrite', 'fsRead', 'listDirectory', QCodeReview.toolName].includes(toolName)
 
         if (isStandardTool) {
             return {
