@@ -559,22 +559,50 @@ export class QCodeReview {
         fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
         folderArtifacts: Array<{ path: string }>
     ): string | null {
-        // Check file artifacts
+        // 1. Check if finding path matches one of the file artifacts
         for (const fileArtifact of fileArtifacts) {
             if (fileArtifact.path.endsWith(findingPath)) {
                 return fileArtifact.path
             }
         }
 
-        // Check folder artifacts
+        // 2. Check if finding path falls under one of the folder artifacts
         for (const folderArtifact of folderArtifacts) {
+            const normalizedFolderPath = path.normalize(folderArtifact.path)
+            const normalizedFindingPath = path.normalize(findingPath)
+
+            // 2.1. Check if finding path falls under one of the subdirectories in folder artifact path
+            const folderSegments = normalizedFolderPath.split(path.sep)
+            const findingSegments = normalizedFindingPath.split(path.sep)
+
+            // Find common suffix between folder path and finding path
+            let matchIndex = -1
+            for (let i = folderSegments.length - 1; i >= 0; i--) {
+                const folderSuffix = folderSegments.slice(i).join(path.sep)
+                if (normalizedFindingPath.startsWith(folderSuffix + path.sep)) {
+                    matchIndex = i
+                    break
+                }
+            }
+
+            if (matchIndex !== -1) {
+                const remainingPath = normalizedFindingPath.substring(
+                    folderSegments.slice(matchIndex).join(path.sep).length + 1
+                )
+                const absolutePath = path.join(normalizedFolderPath, remainingPath)
+                if (existsSync(absolutePath) && statSync(absolutePath).isFile()) {
+                    return absolutePath
+                }
+            }
+
+            // 2.2. Check if folder path + finding path gives the absolute file path
             const filePath = path.join(folderArtifact.path, findingPath)
             if (existsSync(filePath) && statSync(filePath).isFile()) {
                 return filePath
             }
         }
 
-        // Check absolute path
+        // 3. Check if finding already has absolute file path
         const maybeAbsolutePath = `${findingPath}`
         if (existsSync(maybeAbsolutePath) && statSync(maybeAbsolutePath).isFile()) {
             return maybeAbsolutePath
