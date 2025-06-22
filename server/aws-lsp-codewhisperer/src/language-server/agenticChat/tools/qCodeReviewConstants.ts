@@ -164,3 +164,5 @@ export const SKIP_DIRECTORIES = [
     'tmp',
     'temp',
 ]
+
+export const FINDINGS_MESSAGE_SUFFIX = '_qCodeReviewFindings'

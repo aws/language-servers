@@ -83,5 +83,3 @@ export const loadingMessage: ChatMessage = {
     // TODO: Add this to runtimes
     type: 'answer-stream',
 }
-
-export const findingsSuffix = '_qCodeScanFindings'

@@ -94,7 +94,7 @@ import {
     isUsageLimitError,
     isNullish,
 } from '../../shared/utils'
-import { HELP_MESSAGE, loadingMessage, findingsSuffix } from '../chat/constants'
+import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
     AmazonQError,
@@ -157,6 +157,7 @@ import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { QCodeReview } from './tools/qCodeReview'
+import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -1307,7 +1308,7 @@ export class AgenticChatController implements ChatHandlers {
                         const qCodeReviewJson = JSON.parse(JSON.stringify(result))
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
-                            messageId: toolUse.toolUseId + findingsSuffix,
+                            messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
                             body: qCodeReviewJson['result']['findings'],
                         })
                         break
