@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.13](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.12...lsp-yaml/v0.1.13) (2025-06-23)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.9 to ^0.0.10
+
 ## [0.1.12](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.11...lsp-yaml/v0.1.12) (2025-06-16)
 
 
