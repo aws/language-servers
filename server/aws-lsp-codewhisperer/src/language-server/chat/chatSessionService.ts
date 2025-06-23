@@ -194,7 +194,7 @@ export class ChatSessionService {
                     error.message ===
                         'Encountered unexpectedly high load when processing the request, please try again.'
                 ) {
-                    error.message = `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                    error.message = `I am experiencing high traffic, please try again shortly.`
                 }
                 throw error
             }

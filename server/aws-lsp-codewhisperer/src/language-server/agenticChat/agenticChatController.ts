@@ -2311,10 +2311,7 @@ export class AgenticChatController implements ChatHandlers {
             }
             if (err.code === 'QModelResponse') {
                 // special case for throttling where we show error card instead of chat message
-                if (
-                    err.message ===
-                    `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
-                ) {
+                if (err.message === `I am experiencing high traffic, please try again shortly.`) {
                     this.#features.chat.sendChatUpdate({
                         tabId: tabId,
                         data: { messages: [{ messageId: 'modelUnavailable' }] },
