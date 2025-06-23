@@ -13,6 +13,12 @@ import { rejects } from 'assert'
 
 const TIME_TO_ADVANCE_MS = 100
 
+// Handle unhandled promise rejections
+process.on('unhandledRejection', err => {
+    console.error('Unhandled rejection:', err)
+    process.exit(1)
+})
+
 describe('StreamingClientService', () => {
     let streamingClientService: StreamingClientServiceToken
     let features: TestFeatures
