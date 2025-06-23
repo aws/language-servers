@@ -156,13 +156,7 @@ export class ChatSessionService {
 
         if (client instanceof StreamingClientServiceToken) {
             try {
-                // return await client.generateAssistantResponse(request, this.#abortController)
-                throw new ThrottlingException({
-                    message: 'Encountered unexpectedly high load when processing the request, please try again.',
-                    $metadata: {
-                        httpStatusCode: 500,
-                    },
-                })
+                return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {
                 // Log the error using the logging property if available, otherwise fall back to console.error
                 if (this.#logging) {
