@@ -93,8 +93,8 @@ import {
     getSsoConnectionType,
     isUsageLimitError,
     isNullish,
+    enabledModelSelection,
 } from '../../shared/utils'
-import { defaultModelId } from './qAgenticChatServer'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -2588,6 +2588,11 @@ export class AgenticChatController implements ChatHandlers {
 
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
+
+        // Get model selection capability from initialization params
+        const initParams = this.#features.lsp.getClientInitializeParams()
+        const modelSelectionEnabled = enabledModelSelection(initParams)
+        const defaultModelId = modelSelectionEnabled ? 'CLAUDE_SONNET_4_20250514_V1_0' : undefined
 
         // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
         // In that case, we use the default modelId.

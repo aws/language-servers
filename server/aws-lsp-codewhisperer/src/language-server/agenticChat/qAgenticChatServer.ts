@@ -13,17 +13,8 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
-import { safeGet } from '../../shared/utils'
+import { enabledModelSelection, safeGet } from '../../shared/utils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
-
-let _modelSelectionEnabled = false
-
-export let defaultModelId: string | undefined = undefined
-
-export const setModelSelectionEnabled = (enabled: boolean | undefined) => {
-    _modelSelectionEnabled = enabled ?? false
-    defaultModelId = _modelSelectionEnabled ? 'CLAUDE_SONNET_4_20250514_V1_0' : undefined
-}
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -38,8 +29,6 @@ export const QAgenticChatServer =
         let chatSessionManagementService: ChatSessionManagementService
 
         lsp.addInitializer((params: InitializeParams) => {
-            let modelSelectionEnabled = params?.initializationOptions?.aws?.awsClientCapabilities?.q?.modelSelection
-            setModelSelectionEnabled(modelSelectionEnabled)
             return {
                 capabilities: {
                     executeCommandProvider: {
@@ -58,7 +47,7 @@ export const QAgenticChatServer =
                             ],
                         },
                         mcpServers: enabledMCP(params),
-                        modelSelection: modelSelectionEnabled,
+                        modelSelection: enabledModelSelection(params),
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },

@@ -156,7 +156,13 @@ export class ChatSessionService {
 
         if (client instanceof StreamingClientServiceToken) {
             try {
-                return await client.generateAssistantResponse(request, this.#abortController)
+                // return await client.generateAssistantResponse(request, this.#abortController)
+                throw new ThrottlingException({
+                    message: 'Encountered unexpectedly high load when processing the request, please try again.',
+                    $metadata: {
+                        httpStatusCode: 500,
+                    },
+                })
             } catch (e) {
                 // Log the error using the logging property if available, otherwise fall back to console.error
                 if (this.#logging) {
@@ -190,19 +196,15 @@ export class ChatSessionService {
                 }
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
-                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
                     (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
                     error.message ===
                         'Encountered unexpectedly high load when processing the request, please try again.'
                 ) {
-                    error.message = `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
-                } else if (
-                    request.conversationState?.currentMessage?.userInputMessage?.modelId == undefined &&
-                    (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
-                    error.message ===
-                        'Encountered unexpectedly high load when processing the request, please try again.'
-                ) {
-                    error.message = `I am experiencing high traffic, please try again shortly.`
+                    const hasModelId =
+                        request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined
+                    error.message = hasModelId
+                        ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                        : `I am experiencing high traffic, please try again shortly.`
                 }
                 throw error
             }
