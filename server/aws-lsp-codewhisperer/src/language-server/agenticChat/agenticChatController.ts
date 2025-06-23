@@ -2590,14 +2590,9 @@ export class AgenticChatController implements ChatHandlers {
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
-        // Get model selection capability from initialization params
-        const initParams = this.#features.lsp.getClientInitializeParams()
-        const modelSelectionEnabled = enabledModelSelection(initParams)
-        const defaultModelSelected = modelSelectionEnabled ? defaultModelId : undefined
-
         // When model selection is enabled, use the stored model ID from chat history or fall back to default.
         // When model selection is disabled, modelId should always be undefined regardless of chat history.
-        let modelId = modelSelectionEnabled ? (this.#chatHistoryDb.getModelId() ?? defaultModelSelected) : undefined
+        let modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
 
         const region = AmazonQTokenServiceManager.getInstance().getRegion()
         if (region === 'eu-central-1') {

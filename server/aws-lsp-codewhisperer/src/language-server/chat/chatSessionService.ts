@@ -190,15 +190,12 @@ export class ChatSessionService {
                 }
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
+                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
                     (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
                     error.message ===
                         'Encountered unexpectedly high load when processing the request, please try again.'
                 ) {
-                    const hasModelId =
-                        request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined
-                    error.message = hasModelId
-                        ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
-                        : `I am experiencing high traffic, please try again shortly.`
+                    error.message = `I am experiencing high traffic, please try again shortly.`
                 }
                 throw error
             }
