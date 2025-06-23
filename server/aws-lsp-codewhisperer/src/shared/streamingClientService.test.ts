@@ -24,6 +24,7 @@ describe('StreamingClientService', () => {
     let features: TestFeatures
     let clock: sinon.SinonFakeTimers
     let sendMessageStub: sinon.SinonStub
+    let generateAssistantResponseStub: sinon.SinonStub
     let abortStub: sinon.SinonStub
 
     const MOCKED_TOKEN_ONE: BearerCredentials = { token: 'some-fake-token' }
@@ -45,6 +46,13 @@ describe('StreamingClientService', () => {
         sendMessageResponse: undefined,
     }
 
+    const MOCKED_GENERATE_RESPONSE_RESPONSE = {
+        generateAssistantResponse: {
+            conversationId: 'some-conversation-id',
+            generateAssistantResponseResponse: undefined,
+        },
+    }
+
     beforeEach(() => {
         clock = sinon.useFakeTimers({ now: new Date() })
         features = new TestFeatures()
@@ -55,6 +63,9 @@ describe('StreamingClientService', () => {
         sendMessageStub = sinon
             .stub(CodeWhispererStreaming.prototype, 'sendMessage')
             .callsFake(() => Promise.resolve(MOCKED_SEND_MESSAGE_RESPONSE))
+        generateAssistantResponseStub = sinon
+            .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
+            .callsFake(() => Promise.resolve(MOCKED_GENERATE_RESPONSE_RESPONSE))
         streamingClientService = new StreamingClientServiceToken(
             features.credentialsProvider,
             features.sdkInitializator,
@@ -68,7 +79,6 @@ describe('StreamingClientService', () => {
     })
 
     afterEach(() => {
-        streamingClientService.abortInflightRequests()
         clock.restore()
         sinon.restore()
     })
@@ -130,18 +140,7 @@ describe('StreamingClientService', () => {
             },
         }
 
-        const MOCKED_GENERATE_RESPONSE_RESPONSE = {
-            generateAssistantResponse: {
-                conversationId: 'some-conversation-id',
-                generateAssistantResponseResponse: undefined,
-            },
-        }
-
         it('calls generate assistant response with correct parameters', async () => {
-            const generateAssistantResponseStub = sinon
-                .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
-                .callsFake(() => Promise.resolve(MOCKED_GENERATE_RESPONSE_RESPONSE))
-
             const promise = streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
 
             await clock.tickAsync(TIME_TO_ADVANCE_MS)
@@ -153,10 +152,6 @@ describe('StreamingClientService', () => {
 
         it('attaches known profileArn to generate assistant response request', async () => {
             const mockedProfileArn = 'some-profile-arn'
-            const generateAssistantResponseStub = sinon
-                .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
-                .callsFake(() => Promise.resolve(MOCKED_GENERATE_RESPONSE_RESPONSE))
-
             streamingClientService.profileArn = mockedProfileArn
             const expectedRequest = {
                 ...MOCKED_GENERATE_RESPONSE_REQUEST,
@@ -172,10 +167,6 @@ describe('StreamingClientService', () => {
         })
 
         it('aborts in flight generate assistant response requests', async () => {
-            const generateAssistantResponseStub = sinon
-                .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
-                .callsFake(() => Promise.resolve(MOCKED_GENERATE_RESPONSE_RESPONSE))
-
             streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
             streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
 
