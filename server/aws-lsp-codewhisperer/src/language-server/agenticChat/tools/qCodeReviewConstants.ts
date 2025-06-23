@@ -65,12 +65,12 @@ export const PROGRAMMING_LANGUAGES_LOWERCASE = PROGRAMMING_LANGUAGES_CAPS.map(la
 /**
  * Tool name for QCodeReview
  */
-export const TOOL_NAME = 'qCodeReview'
+export const Q_CODE_REVIEW_TOOL_NAME = 'qCodeReview'
 
 /**
  * Tool description for QCodeReview
  */
-export const TOOL_DESCRIPTION = [
+export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     'A tool for scanning code for security vulnerabilities and code quality issues. It can be used to scan code present in a file or multiple files or a folder or multiple folders.',
     '',
     'Amazon Q Review provides comprehensive code analysis with:',

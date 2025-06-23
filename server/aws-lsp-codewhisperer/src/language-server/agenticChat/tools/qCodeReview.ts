@@ -7,9 +7,13 @@
 
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { PROGRAMMING_LANGUAGES_LOWERCASE, TOOL_NAME, TOOL_DESCRIPTION } from './qCodeReviewConstants'
+import {
+    PROGRAMMING_LANGUAGES_LOWERCASE,
+    Q_CODE_REVIEW_TOOL_NAME,
+    Q_CODE_REVIEW_TOOL_DESCRIPTION,
+} from './qCodeReviewConstants'
 import { QCodeReviewUtils } from './qCodeReviewUtils'
-import { INPUT_SCHEMA, Z_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
+import { Q_CODE_REVIEW_INPUT_SCHEMA, Z_Q_CODE_REVIEW_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
 import { randomUUID } from 'crypto'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -38,15 +42,15 @@ export class QCodeReview {
         this.lsp = features.lsp
     }
 
-    static readonly toolName = TOOL_NAME
+    static readonly toolName = Q_CODE_REVIEW_TOOL_NAME
 
-    static readonly toolDescription = TOOL_DESCRIPTION
+    static readonly toolDescription = Q_CODE_REVIEW_TOOL_DESCRIPTION
 
-    static readonly inputSchema = INPUT_SCHEMA
+    static readonly inputSchema = Q_CODE_REVIEW_INPUT_SCHEMA
 
     public async execute(input: any, context: any) {
         try {
-            this.logging.info(`Executing ${TOOL_NAME}: ${JSON.stringify(input)}`)
+            this.logging.info(`Executing ${Q_CODE_REVIEW_TOOL_NAME}: ${JSON.stringify(input)}`)
 
             // Step 0: Validate input
             // Get the CodeWhisperer client from the context
@@ -56,7 +60,7 @@ export class QCodeReview {
             }
 
             // Parse and validate input using zod schema for file/folder level
-            const validatedInput = Z_INPUT_SCHEMA.parse(input)
+            const validatedInput = Z_Q_CODE_REVIEW_INPUT_SCHEMA.parse(input)
 
             // Prepare artifacts for processing
             const fileArtifacts = validatedInput.fileLevelArtifacts || []
@@ -152,8 +156,8 @@ export class QCodeReview {
 
                 if (statusResponse.errorMessage) {
                     return {
-                        jobId,
-                        status,
+                        codeReviewId: jobId,
+                        status: status,
                         errorMessage: statusResponse.errorMessage,
                     }
                 }
@@ -163,39 +167,49 @@ export class QCodeReview {
 
             // Step 6: If the scan completed successfully, get the findings
             if (status === 'Completed') {
-                const findingsResponse = await codeWhispererClient.listCodeAnalysisFindings({
-                    jobId,
-                    codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
-                })
+                let totalFindings: any[] = []
+                let nextFindingToken = undefined
+                do {
+                    this.logging.info(`Getting findings for job ID: ${jobId}, next token: ${nextFindingToken}`)
+                    const findingsResponse = await codeWhispererClient.listCodeAnalysisFindings({
+                        jobId: jobId,
+                        nextToken: nextFindingToken,
+                        codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
+                    })
+                    nextFindingToken = findingsResponse.nextToken
+                    totalFindings = totalFindings.concat(this.parseFindings(findingsResponse.codeAnalysisFindings))
+                } while (nextFindingToken !== undefined && nextFindingToken !== null)
+
+                this.logging.info(`Total findings: ${totalFindings.length}`)
 
                 const aggregatedCodeScanIssueList = await this.processFindings(
-                    findingsResponse.codeAnalysisFindings,
+                    totalFindings,
                     jobId,
                     programmingLanguage,
                     fileArtifacts,
                     folderArtifacts
                 )
 
-                this.logging.info(`Parsed findings: ${JSON.stringify(aggregatedCodeScanIssueList)}`)
+                this.logging.info(`Parsed findings successfully.`)
 
                 return {
-                    jobId,
-                    status,
+                    codeReviewId: jobId,
+                    status: status,
                     result: {
-                        message: 'Q Code review tool completed successfully with attached findings.',
-                        findings: JSON.stringify(aggregatedCodeScanIssueList),
+                        message: 'Q Code Review tool completed successfully with attached findings.',
+                        findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
                     },
                 }
             }
 
             // If the scan failed or had another status
             return {
-                jobId,
-                status,
+                codeReviewId: jobId,
+                status: status,
                 errorMessage: status === 'Failed' ? 'Code scan failed' : `Unexpected status: ${status}`,
             }
         } catch (error) {
-            this.logging.error(`Error in ${TOOL_NAME} - ${error}`)
+            this.logging.error(`Error in ${Q_CODE_REVIEW_TOOL_NAME} - ${error}`)
             throw error
         }
     }
@@ -448,14 +462,13 @@ export class QCodeReview {
      * @returns Array of findings grouped by file path
      */
     private async processFindings(
-        findingsJson: string,
+        findings: any[],
         jobId: string,
         programmingLanguage: string,
         fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
         folderArtifacts: Array<{ path: string }>
     ): Promise<{ filePath: string; issues: ValidatedFinding[] }[]> {
-        const parsedFindings = this.parseFindings(findingsJson)
-        const validatedFindings = this.convertToValidatedFindings(parsedFindings, jobId, programmingLanguage)
+        const validatedFindings = this.convertToValidatedFindings(findings, jobId, programmingLanguage)
         return this.aggregateFindingsByFile(validatedFindings, fileArtifacts, folderArtifacts)
     }
 
@@ -538,6 +551,8 @@ export class QCodeReview {
                 } else {
                     aggregatedCodeScanIssueMap.set(resolvedPath, [finding])
                 }
+            } else {
+                this.logging.warn(`Could not resolve finding file path: ${finding.filePath}`)
             }
         }
 
@@ -613,6 +628,7 @@ export class QCodeReview {
 }
 
 type ValidatedFinding = {
+    filePath: string
     startLine: number
     endLine: number
     comment: string
@@ -624,10 +640,9 @@ type ValidatedFinding = {
     ruleId?: string
     relatedVulnerabilities: (string | undefined)[]
     severity: string
-    recommendation: { text: string; url?: string | null }
     suggestedFixes?: (string | undefined)[]
+    recommendation: { text: string; url?: string | null }
     scanJobId: string
     language: string
     autoDetected: false
-    filePath: string
 }

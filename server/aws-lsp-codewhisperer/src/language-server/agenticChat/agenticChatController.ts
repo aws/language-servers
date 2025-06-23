@@ -1311,7 +1311,7 @@ export class AgenticChatController implements ChatHandlers {
                         await chatResultStream.writeResultBlock({
                             type: 'tool',
                             messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
-                            body: qCodeReviewJson['result']['findings'],
+                            body: qCodeReviewJson['result']['findingsByFile'],
                         })
                         break
                     // — DEFAULT ⇒ MCP tools

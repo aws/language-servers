@@ -7,9 +7,9 @@ import { z } from 'zod'
 import { FINDING_SEVERITY, PROGRAMMING_LANGUAGES_CAPS } from './qCodeReviewConstants'
 
 /**
- * Input schema for QCodeReview tool - used to send input schema info to model
+ * Input schema for QCodeReview tool
  */
-export const INPUT_SCHEMA = {
+export const Q_CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
     description: 'Contains either file level or folder level artifacts to perform code review',
     properties: {
@@ -72,9 +72,9 @@ export const INPUT_SCHEMA = {
 }
 
 /**
- * Zod schema for input validation during execution
+ * Zod schema for input validation during execution of Q Code Review tool
  */
-export const Z_INPUT_SCHEMA = z.object({
+export const Z_Q_CODE_REVIEW_INPUT_SCHEMA = z.object({
     isCodeDiffScan: z.boolean(),
     fileLevelArtifacts: z
         .array(
