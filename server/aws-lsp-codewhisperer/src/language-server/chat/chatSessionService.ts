@@ -11,7 +11,13 @@ import {
     SendMessageCommandOutput,
 } from '../../shared/streamingClientService'
 import { ChatResult } from '@aws/language-server-runtimes/server-interface'
-import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapErrorWithCode } from '../agenticChat/errors'
+import {
+    AgenticChatError,
+    isInputTooLongError,
+    isRequestAbortedError,
+    isThrottlingRelated,
+    wrapErrorWithCode,
+} from '../agenticChat/errors'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
@@ -183,6 +189,14 @@ export class ChatSessionService {
                     throw new AgenticChatError(
                         'Too much context loaded. I have cleared the conversation history. Please retry your request with smaller input.',
                         'InputTooLong',
+                        e instanceof Error ? e : undefined,
+                        requestId
+                    )
+                }
+                if (isThrottlingRelated(e)) {
+                    throw new AgenticChatError(
+                        'Service is currently experiencing high traffic. Please try again later.',
+                        'RequestThrottled',
                         e instanceof Error ? e : undefined,
                         requestId
                     )
