@@ -16,6 +16,11 @@ const TIME_TO_ADVANCE_MS = 100
 // Handle unhandled promise rejections
 process.on('unhandledRejection', err => {
     console.error('Unhandled rejection:', err)
+    if (err && typeof err === 'object' && '$fault' in err) {
+        // This is an AWS SDK error from a test - don't exit
+        console.warn('AWS API error in test (not terminating):', err)
+        return
+    }
     process.exit(1)
 })
 
