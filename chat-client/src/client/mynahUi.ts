@@ -536,7 +536,7 @@ export const createMynahUi = (
             }
         },
         onContextSelected: (contextItem, tabId) => {
-            if (contextItem.command === 'image') {
+            if (contextItem.command === 'Image') {
                 const imageContext = getImageContextCount(tabId)
                 if (imageContext >= 20) {
                     mynahUi.notify({
@@ -547,7 +547,7 @@ export const createMynahUi = (
                 }
                 const payload: OpenFileDialogParams = {
                     tabId,
-                    fileType: contextItem.command as 'image' | '',
+                    fileType: contextItem.command.toLowerCase() as 'image' | '',
                 }
                 messager.onOpenFileDialogClick(payload)
                 return false
