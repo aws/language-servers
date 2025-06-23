@@ -145,6 +145,7 @@ import {
     outputLimitExceedsPartialMsg,
     responseTimeoutMs,
     responseTimeoutPartialMsg,
+    defaultModelId,
 } from './constants'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { URI } from 'vscode-uri'
@@ -2592,13 +2593,11 @@ export class AgenticChatController implements ChatHandlers {
         // Get model selection capability from initialization params
         const initParams = this.#features.lsp.getClientInitializeParams()
         const modelSelectionEnabled = enabledModelSelection(initParams)
-        const defaultModelId = modelSelectionEnabled ? 'CLAUDE_SONNET_4_20250514_V1_0' : undefined
+        const defaultModelSelected = modelSelectionEnabled ? defaultModelId : undefined
 
-        // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
-        // In that case, we use the default modelId.
-        // defaultModelId is undefined only when the clients does not enable model selection, even the
-        // chat history has model id(the case should not exist), we still need the modelId to be undefined
-        let modelId = defaultModelId === undefined ? undefined : (this.#chatHistoryDb.getModelId() ?? defaultModelId)
+        // When model selection is enabled, use the stored model ID from chat history or fall back to default.
+        // When model selection is disabled, modelId should always be undefined regardless of chat history.
+        let modelId = modelSelectionEnabled ? (this.#chatHistoryDb.getModelId() ?? defaultModelSelected) : undefined
 
         const region = AmazonQTokenServiceManager.getInstance().getRegion()
         if (region === 'eu-central-1') {

@@ -354,14 +354,14 @@ describe('AgenticChatController', () => {
     it('onTabAdd updates model ID in chat options and session', () => {
         const modelId = 'test-model-id'
         sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
-        const defaultModelIdStub = sinon.stub(require('./qAgenticChatServer'), 'defaultModelId').value('default-model')
+        // Make sure modelSelectionEnabled returns true
+        sinon.stub(require('../../shared/utils'), 'enabledModelSelection').returns(true)
         chatController.onTabAdd({ tabId: mockTabId })
 
         sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
 
         const session = chatSessionManagementService.getSession(mockTabId).data
         assert.strictEqual(session!.modelId, modelId)
-        defaultModelIdStub.restore()
     })
 
     it('onTabChange sets active tab id in telemetryController and emits metrics', () => {

@@ -47,7 +47,8 @@ export const QAgenticChatServer =
                             ],
                         },
                         mcpServers: enabledMCP(params),
-                        modelSelection: enabledModelSelection(params),
+                        // we should set it as true for current VSC and VS clients
+                        modelSelection: true,
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },
