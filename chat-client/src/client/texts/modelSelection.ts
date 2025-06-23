@@ -1,5 +1,6 @@
 import { ChatItem, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
 
+
 export enum BedrockModel {
     CLAUDE_SONNET_4_20250514_V1_0 = 'CLAUDE_SONNET_4_20250514_V1_0',
     CLAUDE_3_7_SONNET_20250219_V1_0 = 'CLAUDE_3_7_SONNET_20250219_V1_0',
@@ -44,8 +45,7 @@ export const getModelSelectionChatItem = (modelId: string): ChatItem => ({
     body: `Switched model to ${modelRecord[modelId as BedrockModel].label}`,
 })
 
-// Todo: after toolkit passing modelSelection flag in qcapabilities, add a separte card name and
-// change the body back to The model you selected is temporarily unavailable. Please switch to a different model and try again.
+
 export const modelUnavailableBanner: Partial<ChatItem> = {
     messageId: 'model-unavailable-banner',
     header: {
@@ -53,6 +53,17 @@ export const modelUnavailableBanner: Partial<ChatItem> = {
         iconStatus: 'warning',
         body: '### Model Unavailable',
     },
-    body: `I am experiencing high traffic, please try again shortly`,
+    body: `The model you selected is temporarily unavailable. Please switch to a different model and try again.`,
+    canBeDismissed: true,
+}
+
+export const modelThrottledBanner: Partial<ChatItem> = {
+    messageId: 'model-throttled-banner',
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: '### Model Unavailable',
+    },
+    body: `I am experiencing high traffic, please try again shortly.`,
     canBeDismissed: true,
 }

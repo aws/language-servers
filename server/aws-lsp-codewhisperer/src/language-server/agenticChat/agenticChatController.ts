@@ -94,6 +94,7 @@ import {
     isUsageLimitError,
     isNullish,
 } from '../../shared/utils'
+import { defaultModelId } from './qAgenticChatServer'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import {
@@ -144,7 +145,6 @@ import {
     outputLimitExceedsPartialMsg,
     responseTimeoutMs,
     responseTimeoutPartialMsg,
-    defaultModelId,
 } from './constants'
 import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
 import { URI } from 'vscode-uri'
@@ -2311,10 +2311,26 @@ export class AgenticChatController implements ChatHandlers {
             }
             if (err.code === 'QModelResponse') {
                 // special case for throttling where we show error card instead of chat message
-                if (err.message === `I am experiencing high traffic, please try again shortly.`) {
+                if (
+                    err.message ===
+                    `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                ) {
                     this.#features.chat.sendChatUpdate({
                         tabId: tabId,
                         data: { messages: [{ messageId: 'modelUnavailable' }] },
+                    })
+                    const emptyChatResult: ChatResult = {
+                        type: 'answer',
+                        body: '',
+                        messageId: errorMessageId,
+                        buttons: [],
+                    }
+                    return emptyChatResult
+                }
+                if (err.message === `I am experiencing high traffic, please try again shortly.`) {
+                    this.#features.chat.sendChatUpdate({
+                        tabId: tabId,
+                        data: { messages: [{ messageId: 'modelThrottled' }] },
                     })
                     const emptyChatResult: ChatResult = {
                         type: 'answer',
@@ -2575,7 +2591,9 @@ export class AgenticChatController implements ChatHandlers {
 
         // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
         // In that case, we use the default modelId.
-        let modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
+        // defaultModelId is undefined only when the clients does not enable model selection, even the
+        // chat history has model id(the case should not exist), we still need the modelId to be undefined
+        let modelId = defaultModelId === undefined ? undefined : (this.#chatHistoryDb.getModelId() ?? defaultModelId)
 
         const region = AmazonQTokenServiceManager.getInstance().getRegion()
         if (region === 'eu-central-1') {

@@ -16,6 +16,15 @@ import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceMa
 import { safeGet } from '../../shared/utils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
 
+let _modelSelectionEnabled = false
+
+export let defaultModelId: string | undefined = undefined
+
+export const setModelSelectionEnabled = (enabled: boolean | undefined) => {
+    _modelSelectionEnabled = enabled ?? false
+    defaultModelId = _modelSelectionEnabled ? 'CLAUDE_SONNET_4_20250514_V1_0' : undefined
+}
+
 export const QAgenticChatServer =
     // prettier-ignore
     (): Server => features => {
@@ -29,6 +38,8 @@ export const QAgenticChatServer =
         let chatSessionManagementService: ChatSessionManagementService
 
         lsp.addInitializer((params: InitializeParams) => {
+            let modelSelectionEnabled = params?.initializationOptions?.aws?.awsClientCapabilities?.q?.modelSelection
+            setModelSelectionEnabled(modelSelectionEnabled)
             return {
                 capabilities: {
                     executeCommandProvider: {
@@ -47,7 +58,7 @@ export const QAgenticChatServer =
                             ],
                         },
                         mcpServers: enabledMCP(params),
-                        modelSelection: true,
+                        modelSelection: modelSelectionEnabled,
                         history: true,
                         export: TabBarController.enableChatExport(params)
                     },
@@ -144,7 +155,7 @@ export const QAgenticChatServer =
             return chatController.onListConversations(params)
         })
 
-         chat.onListRules(params => {
+        chat.onListRules(params => {
             return chatController.onListRules(params)
         })
 

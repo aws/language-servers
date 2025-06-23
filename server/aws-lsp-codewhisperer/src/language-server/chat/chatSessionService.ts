@@ -16,6 +16,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { getRequestID, isUsageLimitError } from '../../shared/utils'
+import { ThrottlingException } from '@aws/codewhisperer-streaming-client'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -190,6 +191,13 @@ export class ChatSessionService {
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
                     request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
+                    (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
+                    error.message ===
+                        'Encountered unexpectedly high load when processing the request, please try again.'
+                ) {
+                    error.message = `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                } else if (
+                    request.conversationState?.currentMessage?.userInputMessage?.modelId == undefined &&
                     (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
                     error.message ===
                         'Encountered unexpectedly high load when processing the request, please try again.'
