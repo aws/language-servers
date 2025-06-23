@@ -152,10 +152,9 @@ export const generateSingletonInitializationTests = <
         SingletonServiceManager.resetInstance()
     })
 
-    it('should throw when initInstance is called more than once', () => {
-        SingletonServiceManager.initInstance(testFeatures)
-
-        throws(() => SingletonServiceManager.initInstance(testFeatures), AmazonQServiceAlreadyInitializedError)
+    it('should return the same object when initInstance is called more than once', () => {
+        const instance = SingletonServiceManager.initInstance(testFeatures)
+        deepStrictEqual(SingletonServiceManager.initInstance(testFeatures), instance)
     })
 
     it('should throw when getInstance is called before initInstance', () => {

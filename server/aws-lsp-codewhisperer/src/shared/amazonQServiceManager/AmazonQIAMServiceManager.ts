@@ -35,7 +35,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
             return AmazonQIAMServiceManager.instance
         }
 
-        throw new AmazonQServiceAlreadyInitializedError()
+        return AmazonQIAMServiceManager.instance
     }
 
     public static getInstance(): AmazonQIAMServiceManager {
