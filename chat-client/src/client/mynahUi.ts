@@ -548,7 +548,6 @@ export const createMynahUi = (
                 const payload: OpenFileDialogParams = {
                     tabId,
                     fileType: contextItem.command as 'image' | '',
-                    insertPosition: 0,
                 }
                 messager.onOpenFileDialogClick(payload)
                 return false
