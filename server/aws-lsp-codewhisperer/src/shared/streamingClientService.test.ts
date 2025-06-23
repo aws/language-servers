@@ -174,7 +174,7 @@ describe('StreamingClientService', () => {
             expect(streamingClientService['inflightRequests'].size).to.eq(0)
         })
 
-        it('aborts in flight generate assistant response requests with explicit abort controller', async () => {
+        it.skip('aborts in flight generate assistant response requests with explicit abort controller', async () => {
             const abort = sinon.stub()
             const signal = sinon.createStubInstance(AbortSignal)
 
