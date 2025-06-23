@@ -18,6 +18,7 @@ import {
     CodeWhispererServiceToken,
     ResponseContext,
     Suggestion,
+    SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 import {
@@ -128,6 +129,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -415,6 +417,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -447,6 +450,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
             // Expected result is the deleted line + new line + 4 spaces
@@ -537,6 +541,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
             const EXPECTED_RESULT = {
@@ -571,6 +576,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
             const EXPECTED_RESULT = {
@@ -621,6 +627,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: { ...EXPECTED_RESPONSE_CONTEXT, nextToken: EXPECTED_NEXT_TOKEN },
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -870,6 +877,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -909,6 +917,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -933,6 +942,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1059,6 +1069,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1127,6 +1138,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1188,6 +1200,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1216,6 +1229,7 @@ describe('CodeWhisperer Server', () => {
                     Promise.resolve({
                         suggestions: EXPECTED_SUGGESTION_WITH_REFERENCES,
                         responseContext: EXPECTED_RESPONSE_CONTEXT,
+                        suggestionType: SuggestionType.COMPLETION,
                     })
                 )
                 features.lsp.workspace.getConfiguration.returns(
@@ -1262,6 +1276,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1514,6 +1529,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
             // Initialize the features, but don't start server yet
@@ -1590,6 +1606,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTIONS,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1987,6 +2004,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -2168,6 +2186,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: [],
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -2237,6 +2256,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
