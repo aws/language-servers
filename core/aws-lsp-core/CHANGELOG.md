@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.10](https://github.com/aws/language-servers/compare/lsp-core/v0.0.9...lsp-core/v0.0.10) (2025-06-23)
+
+
+### Bug Fixes
+
+* **amazonq:** workspace files being tagged as out of workspace issue ([#1726](https://github.com/aws/language-servers/issues/1726)) ([4bd9aea](https://github.com/aws/language-servers/commit/4bd9aeab439d15dc425634b14470fd3c67986c4a))
+
 ## [0.0.9](https://github.com/aws/language-servers/compare/lsp-core/v0.0.8...lsp-core/v0.0.9) (2025-05-22)
 
 
