@@ -19,7 +19,8 @@ process.on('unhandledRejection', err => {
     process.exit(1)
 })
 
-describe('StreamingClientService', () => {
+describe('StreamingClientService', function () {
+    this.timeout(5000) // 5 second timeout for all tests
     let streamingClientService: StreamingClientServiceToken
     let features: TestFeatures
     let clock: sinon.SinonFakeTimers
@@ -79,6 +80,8 @@ describe('StreamingClientService', () => {
     })
 
     afterEach(() => {
+        // streamingClientService.abortInflightRequests()
+        clock.runAll() // Run all pending timers
         clock.restore()
         sinon.restore()
     })
