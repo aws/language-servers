@@ -11,11 +11,15 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { QAgenticChatServer } from './qAgenticChatServer'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { Features } from '../types'
 
 describe('QAgenticChatServer', () => {
     const mockTabId = 'mockTabId'
     let disposeStub: sinon.SinonStub
-    let withAmazonQServiceSpy: sinon.SinonSpy<[amazonQService: AmazonQBaseServiceManager], ChatSessionManagementService>
+    let withAmazonQServiceSpy: sinon.SinonSpy<
+        [serviceManager: AmazonQBaseServiceManager, features?: Features | undefined],
+        ChatSessionManagementService
+    >
     let testFeatures: TestFeatures
     let amazonQServiceManager: AmazonQTokenServiceManager
     let disposeServer: () => void
@@ -72,7 +76,7 @@ describe('QAgenticChatServer', () => {
     })
 
     it('should initialize ChatSessionManagementService with AmazonQTokenServiceManager instance', () => {
-        sinon.assert.calledOnceWithExactly(withAmazonQServiceSpy, amazonQServiceManager)
+        sinon.assert.calledOnceWithExactly(withAmazonQServiceSpy, amazonQServiceManager, testFeatures)
     })
 
     it('dispose should dispose all chat session services', () => {

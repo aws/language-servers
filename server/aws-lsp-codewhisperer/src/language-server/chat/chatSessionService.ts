@@ -15,8 +15,10 @@ import { AgenticChatError, isInputTooLongError, isRequestAbortedError, wrapError
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { Features } from '../types'
 import { getRequestID, isUsageLimitError } from '../../shared/utils'
 import { ThrottlingException } from '@aws/codewhisperer-streaming-client'
+import { enabledModelSelection } from '../../shared/utils'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
 type FileChange = { before?: string; after?: string }
@@ -30,6 +32,7 @@ export class ChatSessionService {
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
     public modelId: string | undefined
+    #features?: Features
     #abortController?: AbortController
     #currentPromptId?: string
     #conversationId?: string
@@ -116,8 +119,9 @@ export class ChatSessionService {
         this.#approvedPaths.add(normalizedPath)
     }
 
-    constructor(serviceManager?: AmazonQBaseServiceManager, logging?: Logging) {
+    constructor(serviceManager?: AmazonQBaseServiceManager, features?: Features, logging?: Logging) {
         this.#serviceManager = serviceManager
+        this.#features = features
         this.#logging = logging
     }
 
@@ -137,6 +141,10 @@ export class ChatSessionService {
         const response = await client.sendMessage(request, this.#abortController)
 
         return response
+    }
+
+    public isModelSelectionEnabled(): boolean {
+        return enabledModelSelection(this.#features?.lsp?.getClientInitializeParams())
     }
 
     public async generateAssistantResponse(
@@ -195,8 +203,11 @@ export class ChatSessionService {
                     error.message ===
                         'Encountered unexpectedly high load when processing the request, please try again.'
                 ) {
-                    error.message = `I am experiencing high traffic, please try again shortly.`
+                    error.message = this.isModelSelectionEnabled()
+                        ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                        : `I am experiencing high traffic, please try again shortly.`
                 }
+
                 throw error
             }
         } else {
