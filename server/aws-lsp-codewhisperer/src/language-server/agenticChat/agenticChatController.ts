@@ -696,7 +696,10 @@ export class AgenticChatController implements ChatHandlers {
                     this.#additionalContextProvider.getFileListFromContext(additionalContext)
             }
 
-            const customContext = await this.#additionalContextProvider.getImageBlocksFromContext(params.context)
+            const customContext = await this.#additionalContextProvider.getImageBlocksFromContext(
+                params.context,
+                params.tabId
+            )
 
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
@@ -782,9 +785,12 @@ export class AgenticChatController implements ChatHandlers {
         session: ChatSessionService,
         triggerContext: TriggerContext,
         additionalContext: AdditionalContentEntryAddition[],
-        chatResultStream: AgenticChatResultStream
+        chatResultStream: AgenticChatResultStream,
+        customContext: ImageBlock[]
     ): Promise<ChatCommandInput> {
         this.#debug('Preparing request input')
+        const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+
         // Get profileArn from the service manager if available
         const profileArn = this.#serviceManager?.getActiveProfileArn()
         const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
