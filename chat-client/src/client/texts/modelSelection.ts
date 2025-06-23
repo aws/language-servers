@@ -1,6 +1,5 @@
 import { ChatItem, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
 
-
 export enum BedrockModel {
     CLAUDE_SONNET_4_20250514_V1_0 = 'CLAUDE_SONNET_4_20250514_V1_0',
     CLAUDE_3_7_SONNET_20250219_V1_0 = 'CLAUDE_3_7_SONNET_20250219_V1_0',
@@ -44,7 +43,6 @@ export const getModelSelectionChatItem = (modelId: string): ChatItem => ({
     fullWidth: true,
     body: `Switched model to ${modelRecord[modelId as BedrockModel].label}`,
 })
-
 
 export const modelUnavailableBanner: Partial<ChatItem> = {
     messageId: 'model-unavailable-banner',
