@@ -141,7 +141,9 @@ describe('StreamingClientService', () => {
                 .stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
                 .callsFake(() => Promise.resolve(MOCKED_GENERATE_RESPONSE_RESPONSE))
 
-            const promise = streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
+            const promise = streamingClientService
+                .generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
+                .catch(() => {})
 
             await clock.tickAsync(TIME_TO_ADVANCE_MS)
             await promise
@@ -161,7 +163,9 @@ describe('StreamingClientService', () => {
                 ...MOCKED_GENERATE_RESPONSE_REQUEST,
                 profileArn: mockedProfileArn,
             }
-            const promise = streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
+            const promise = streamingClientService
+                .generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
+                .catch(() => {})
 
             await clock.tickAsync(TIME_TO_ADVANCE_MS)
             await promise
@@ -171,8 +175,8 @@ describe('StreamingClientService', () => {
         })
 
         it('aborts in flight generate assistant response requests', async () => {
-            streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
-            streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST)
+            streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST).catch(() => {})
+            streamingClientService.generateAssistantResponse(MOCKED_GENERATE_RESPONSE_REQUEST).catch(() => {})
 
             streamingClientService.abortInflightRequests()
 
