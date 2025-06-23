@@ -149,9 +149,10 @@ import {
 import {
     AgenticChatError,
     customerFacingErrorCodes,
-    isRequestAbortedError,
-    unactionableErrorCodes,
     getCustomerFacingErrorMessage,
+    isRequestAbortedError,
+    isThrottlingRelated,
+    unactionableErrorCodes,
 } from './errors'
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
@@ -2276,6 +2277,22 @@ export class AgenticChatController implements ChatHandlers {
                 type: 'answer',
                 body: `AmazonQUsageLimitError: Monthly limit reached. ${requestID ? `\n\nRequest ID: ${requestID}` : ''}`,
                 messageId: 'monthly-usage-limit',
+                buttons: [],
+            })
+        }
+
+        if (isThrottlingRelated(err)) {
+            this.#telemetryController.emitMessageResponseError(
+                tabId,
+                metric.metric,
+                requestID,
+                err.message,
+                agenticCodingMode
+            )
+            new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
+                type: 'answer',
+                body: requestID ? `${err.message} \n\nRequest ID: ${requestID}` : err.message,
+                messageId: errorMessageId,
                 buttons: [],
             })
         }

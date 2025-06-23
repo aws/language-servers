@@ -12,6 +12,7 @@ type AgenticChatErrorCode =
     | 'MCPToolExecTimeout' // mcp tool call failed to complete within allowed time
     | 'MCPServerConnectionFailed' // mcp server failed to connect
     | 'RequestAborted' // request was aborted by the user
+    | 'RequestThrottled' // request was aborted by the user
 
 export const customerFacingErrorCodes: AgenticChatErrorCode[] = [
     'QModelResponse',
@@ -249,4 +250,20 @@ export function getCustomerFacingErrorMessage(error: unknown): string {
     }
 
     return String(error)
+}
+
+export function isThrottlingRelated(error: unknown): boolean {
+    if (error instanceof AgenticChatError && error.code === 'RequestThrottled') {
+        return true
+    }
+
+    if (error instanceof Error) {
+        //  This is fragile (breaks if the backend changes their error message wording)
+        return (
+            error.name === 'ServiceUnavailableException' &&
+            !(error.stack == null) &&
+            error.stack.includes('OperationMaxRequestsHandler')
+        )
+    }
+    return false
 }
