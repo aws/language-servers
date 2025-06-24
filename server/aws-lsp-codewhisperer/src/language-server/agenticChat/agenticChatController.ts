@@ -93,6 +93,7 @@ import {
     getSsoConnectionType,
     isUsageLimitError,
     isNullish,
+    enabledModelSelection,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -2359,6 +2360,19 @@ export class AgenticChatController implements ChatHandlers {
                     this.#features.chat.sendChatUpdate({
                         tabId: tabId,
                         data: { messages: [{ messageId: 'modelUnavailable' }] },
+                    })
+                    const emptyChatResult: ChatResult = {
+                        type: 'answer',
+                        body: '',
+                        messageId: errorMessageId,
+                        buttons: [],
+                    }
+                    return emptyChatResult
+                }
+                if (err.message === `I am experiencing high traffic, please try again shortly.`) {
+                    this.#features.chat.sendChatUpdate({
+                        tabId: tabId,
+                        data: { messages: [{ messageId: 'modelThrottled' }] },
                     })
                     const emptyChatResult: ChatResult = {
                         type: 'answer',

@@ -64,7 +64,7 @@ import {
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 import { ContextRule, RulesList } from './features/rules'
-import { getModelSelectionChatItem, modelUnavailableBanner } from './texts/modelSelection'
+import { getModelSelectionChatItem, modelUnavailableBanner, modelThrottledBanner } from './texts/modelSelection'
 import {
     freeTierLimitSticky,
     upgradeSuccessSticky,
@@ -1012,6 +1012,13 @@ export const createMynahUi = (
                 if (updatedMessage.messageId === 'modelUnavailable') {
                     mynahUi.updateStore(tabId, {
                         promptInputStickyCard: modelUnavailableBanner,
+                    })
+                    return
+                }
+
+                if (updatedMessage.messageId === 'modelThrottled') {
+                    mynahUi.updateStore(tabId, {
+                        promptInputStickyCard: modelThrottledBanner,
                     })
                     return
                 }

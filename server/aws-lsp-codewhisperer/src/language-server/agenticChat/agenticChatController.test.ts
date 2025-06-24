@@ -354,7 +354,6 @@ describe('AgenticChatController', () => {
     it('onTabAdd updates model ID in chat options and session', () => {
         const modelId = 'test-model-id'
         sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
-
         chatController.onTabAdd({ tabId: mockTabId })
 
         sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })

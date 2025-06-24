@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.19](https://github.com/aws/language-servers/compare/chat-client/v0.1.18...chat-client/v0.1.19) (2025-06-23)
+
+
+### Bug Fixes
+
+* change model unavailable message ([#1711](https://github.com/aws/language-servers/issues/1711)) ([d4e1298](https://github.com/aws/language-servers/commit/d4e1298a5e00b2c3466ba1378aaaa28b89d75fb9))
+* intermediate file card does not have border ([#1734](https://github.com/aws/language-servers/issues/1734)) ([24e0497](https://github.com/aws/language-servers/commit/24e049705ce4ab982700839d012afb35786d8e4f))
+
 ## [0.1.18](https://github.com/aws/language-servers/compare/chat-client/v0.1.17...chat-client/v0.1.18) (2025-06-17)
 
 

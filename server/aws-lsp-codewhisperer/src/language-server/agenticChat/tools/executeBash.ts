@@ -557,7 +557,10 @@ export class ExecuteBash {
 
     private static handleChunk(chunk: string, buffer: string[], writer?: WritableStreamDefaultWriter<any>) {
         try {
-            void writer?.write(chunk)
+            // Trim trailing newlines from the chunk before writing
+            const trimmedChunk = chunk.replace(/\r?\n$/, '')
+            void writer?.write(trimmedChunk)
+
             const lines = chunk.split(/\r?\n/)
             for (const line of lines) {
                 buffer.push(line)

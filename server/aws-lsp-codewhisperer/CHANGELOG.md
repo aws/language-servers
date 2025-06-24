@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.0.58](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.57...lsp-codewhisperer/v0.0.58) (2025-06-23)
+
+
+### Features
+
+* surface file operation errors in tooltip ([#1713](https://github.com/aws/language-servers/issues/1713)) ([8d80e06](https://github.com/aws/language-servers/commit/8d80e06a18e89c1ae33430676ba461b2d7acd314))
+
+
+### Bug Fixes
+
+* **amazonq:** Handle throttling errors gracefully and give correct error message([#1733](https://github.com/aws/language-servers/issues/1733)) ([232e7ea](https://github.com/aws/language-servers/commit/232e7eac9556af3ab5e8cc86185b0c90b144cdd7))
+* fsReplace still available when agentic mode off ([#1731](https://github.com/aws/language-servers/issues/1731)) ([7904ea1](https://github.com/aws/language-servers/commit/7904ea18849bb5b9aa6c0e1eb4c6491f3d1598f4))
+* ide mapping for VS/Eclipse for send telemetry API ([#1724](https://github.com/aws/language-servers/issues/1724)) ([84373c5](https://github.com/aws/language-servers/commit/84373c537087492445dbf1d3c9d7b86254603ceb))
+* separate executeBash toolspec for mac and windows ([#1727](https://github.com/aws/language-servers/issues/1727)) ([33e0e4b](https://github.com/aws/language-servers/commit/33e0e4b2347e858ccb0c82c333aeaa8938b24c22))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.9 to ^0.0.10
+
 ## [0.0.57](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.56...lsp-codewhisperer/v0.0.57) (2025-06-20)
 
 
