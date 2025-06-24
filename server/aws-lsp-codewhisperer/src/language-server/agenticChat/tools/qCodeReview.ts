@@ -177,7 +177,13 @@ export class QCodeReview {
                         codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
                     })
                     nextFindingToken = findingsResponse.nextToken
-                    totalFindings = totalFindings.concat(this.parseFindings(findingsResponse.codeAnalysisFindings))
+
+                    // If isCodeDiffScan is true, filter findings to include only those with findingContext == "CodeDiff"
+                    const parsedFindings = this.parseFindings(findingsResponse.codeAnalysisFindings) || []
+                    const filteredFindings = isCodeDiffScan
+                        ? parsedFindings.filter(finding => finding?.findingContext === 'CodeDiff')
+                        : parsedFindings
+                    totalFindings = totalFindings.concat(filteredFindings)
                 } while (nextFindingToken !== undefined && nextFindingToken !== null)
 
                 this.logging.info(`Total findings: ${totalFindings.length}`)
