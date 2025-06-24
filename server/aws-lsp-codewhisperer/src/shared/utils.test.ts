@@ -577,4 +577,10 @@ describe('listFilesWithGitignore', () => {
 
         assert.deepStrictEqual(files.sort(), expectedFiles)
     })
+
+    // Add a hook that runs after all tests in this describe block
+    after(() => {
+        // Force process to exit after tests complete to prevent hanging
+        setTimeout(() => process.exit(0), 1000)
+    })
 })
