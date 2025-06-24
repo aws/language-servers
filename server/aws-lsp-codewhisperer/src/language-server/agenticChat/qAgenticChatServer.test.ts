@@ -17,7 +17,7 @@ describe('QAgenticChatServer', () => {
     const mockTabId = 'mockTabId'
     let disposeStub: sinon.SinonStub
     let withAmazonQServiceSpy: sinon.SinonSpy<
-        [serviceManager: AmazonQBaseServiceManager, features?: Features | undefined],
+        [serviceManager: AmazonQBaseServiceManager, lsp?: Features['lsp'] | undefined],
         ChatSessionManagementService
     >
     let testFeatures: TestFeatures
@@ -76,7 +76,7 @@ describe('QAgenticChatServer', () => {
     })
 
     it('should initialize ChatSessionManagementService with AmazonQTokenServiceManager instance', () => {
-        sinon.assert.calledOnceWithExactly(withAmazonQServiceSpy, amazonQServiceManager, testFeatures)
+        sinon.assert.calledOnceWithExactly(withAmazonQServiceSpy, amazonQServiceManager, testFeatures.lsp)
     })
 
     it('dispose should dispose all chat session services', () => {

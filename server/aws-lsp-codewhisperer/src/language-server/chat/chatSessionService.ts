@@ -17,7 +17,6 @@ import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
 import { getRequestID, isUsageLimitError } from '../../shared/utils'
-import { ThrottlingException } from '@aws/codewhisperer-streaming-client'
 import { enabledModelSelection } from '../../shared/utils'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
@@ -32,7 +31,7 @@ export class ChatSessionService {
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
     public modelId: string | undefined
-    #features?: Features
+    #lsp?: Features['lsp']
     #abortController?: AbortController
     #currentPromptId?: string
     #conversationId?: string
@@ -119,9 +118,9 @@ export class ChatSessionService {
         this.#approvedPaths.add(normalizedPath)
     }
 
-    constructor(serviceManager?: AmazonQBaseServiceManager, features?: Features, logging?: Logging) {
+    constructor(serviceManager?: AmazonQBaseServiceManager, lsp?: Features['lsp'], logging?: Logging) {
         this.#serviceManager = serviceManager
-        this.#features = features
+        this.#lsp = lsp
         this.#logging = logging
     }
 
@@ -143,8 +142,8 @@ export class ChatSessionService {
         return response
     }
 
-    public isModelSelectionEnabled(): boolean {
-        return enabledModelSelection(this.#features?.lsp?.getClientInitializeParams())
+    private isModelSelectionEnabled(): boolean {
+        return enabledModelSelection(this.#lsp?.getClientInitializeParams())
     }
 
     public async generateAssistantResponse(

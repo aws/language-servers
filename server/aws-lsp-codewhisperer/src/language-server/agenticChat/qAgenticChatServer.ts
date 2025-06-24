@@ -65,7 +65,7 @@ export const QAgenticChatServer =
             // Get initialized service manager and inject it to chatSessionManagementService to pass it down
             amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
             chatSessionManagementService =
-                ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager, features)
+                ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager, features.lsp)
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
