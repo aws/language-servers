@@ -28,6 +28,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         this.endpoint = amazonQRegionAndEndpoint.endpoint
     }
 
+    // merged
     public static initInstance(features: QServiceManagerFeatures): AmazonQIAMServiceManager {
         if (!AmazonQIAMServiceManager.instance) {
             AmazonQIAMServiceManager.instance = new AmazonQIAMServiceManager(features)
@@ -38,6 +39,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         throw new AmazonQServiceAlreadyInitializedError()
     }
 
+    // merged
     public static getInstance(): AmazonQIAMServiceManager {
         if (!AmazonQIAMServiceManager.instance) {
             throw new AmazonQServiceInitializationError(
@@ -48,6 +50,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         return AmazonQIAMServiceManager.instance
     }
 
+    // merged
     public getCodewhispererService() {
         if (!this.cachedCodewhispererService) {
             this.cachedCodewhispererService = new CodeWhispererServiceIAM(
@@ -65,6 +68,7 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         return this.cachedCodewhispererService
     }
 
+    // merged
     public getStreamingClient() {
         if (!this.cachedStreamingClient) {
             this.cachedStreamingClient = new StreamingClientServiceIAM(
@@ -78,10 +82,12 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
         return this.cachedStreamingClient
     }
 
+    //merged
     public handleOnCredentialsDeleted(_type: CredentialsType): void {
         return
     }
 
+    // merged
     public override handleOnUpdateConfiguration(
         _params: UpdateConfigurationParams,
         _token: CancellationToken
@@ -95,7 +101,9 @@ export class AmazonQIAMServiceManager extends BaseAmazonQServiceManager<
     }
 }
 
+// merged
 export const initBaseIAMServiceManager = (features: QServiceManagerFeatures) =>
     AmazonQIAMServiceManager.initInstance(features)
 
+// merged
 export const getOrThrowBaseIAMServiceManager = (): AmazonQBaseServiceManager => AmazonQIAMServiceManager.getInstance()

@@ -112,7 +112,7 @@ export class ProfileService {
         this.throwOnInvalidProfile(
             !profile.kinds.includes(ProfileKind.SsoTokenProfile) &&
                 !profile.kinds.includes(ProfileKind.IamCredentialProfile),
-            'Profile must be non-legacy sso-session type.'
+            'Profile must be non-legacy sso-session or iam-credentials type.'
         )
         this.throwOnInvalidProfile(!profile.name, 'Profile name required.')
         this.throwOnInvalidProfile(!profile.settings, 'Settings required on profile.')

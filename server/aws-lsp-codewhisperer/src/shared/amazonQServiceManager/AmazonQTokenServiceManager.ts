@@ -73,7 +73,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
      * Supported states:
-     * PENDING_CONNECTION - Waiting for Bearer Token and StartURL to be passed
+     * PENDING_CONNECTION - Waiting for (Bearer Token and StartURL) or (Access Key and Secret Key) to be passed
      * PENDING_Q_PROFILE - (only for identityCenter connection) waiting for setting Developer Profile
      * PENDING_Q_PROFILE_UPDATE (only for identityCenter connection) waiting for Developer Profile to complete
      * INITIALIZED - Service is initialized
@@ -183,6 +183,42 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 this.profileChangeTokenSource.dispose()
                 this.profileChangeTokenSource = undefined
             }
+        }
+    }
+
+    private handleConnectionChange() {
+        const credentialsType = this.features.credentialsProvider.getCredentialsType()
+
+        if (credentialsType === 'iam') {
+            if (!this.cachedStreamingClient) {
+                const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(
+                    this.features.runtime,
+                    this.features.logging
+                )
+                this.region = amazonQRegionAndEndpoint.region
+                this.endpoint = amazonQRegionAndEndpoint.endpoint
+                this.cachedCodewhispererService = new CodeWhispererServiceToken(
+                    this.features.credentialsProvider,
+                    this.features.workspace,
+                    this.features.logging,
+                    this.region,
+                    this.endpoint,
+                    this.features.sdkInitializator
+                )
+                this.updateCachedServiceConfig()
+            }
+            this.state = 'INITIALIZED'
+            return
+        } else if (credentialsType === 'bearer') {
+            this.handleSsoConnectionChange()
+            return
+        } else {
+            this.log(`Unknown connection type: ${credentialsType}`)
+            this.resetCodewhispererService()
+            this.connectionType = 'none'
+            this.state = 'PENDING_CONNECTION'
+
+            return
         }
     }
 
@@ -411,7 +447,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             throw new AmazonQServicePendingProfileUpdateError()
         }
 
-        this.handleSsoConnectionChange()
+        this.handleConnectionChange()
 
         if (this.state === 'INITIALIZED' && this.cachedCodewhispererService) {
             return this.cachedCodewhispererService
@@ -524,7 +560,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             endpoint,
             this.getCustomUserAgent()
         )
-        streamingClient.profileArn = this.activeIdcProfile?.arn
+
+        if (this.features.credentialsProvider.getCredentialsType() == 'bearer') {
+            streamingClient.profileArn = this.activeIdcProfile?.arn
+        }
 
         this.logging.debug(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
         return streamingClient
