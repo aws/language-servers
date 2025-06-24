@@ -22,7 +22,7 @@ import {
     AssistantResponseMessage,
 } from '@aws/codewhisperer-streaming-client'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
-import { activeFileCmd } from '../../context/addtionalContextProvider'
+import { activeFileCmd } from '../../context/additionalContextProvider'
 import { ChatItemType } from '@aws/mynah-ui'
 import { PriorityQueue } from 'typescript-collections'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'

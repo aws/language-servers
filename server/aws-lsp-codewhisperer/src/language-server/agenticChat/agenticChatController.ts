@@ -117,7 +117,7 @@ import {
     AgenticChatTriggerContext,
     TriggerContext,
 } from './context/agenticChatTriggerContext'
-import { AdditionalContextProvider } from './context/addtionalContextProvider'
+import { AdditionalContextProvider } from './context/additionalContextProvider'
 import {
     getNewPromptFilePath,
     getNewRuleFilePath,
