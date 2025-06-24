@@ -65,7 +65,6 @@ export class QCodeReview {
             // Prepare artifacts for processing
             const fileArtifacts = validatedInput.fileLevelArtifacts || []
             const folderArtifacts = validatedInput.folderLevelArtifacts || []
-            const isCodeDiffScan = validatedInput.isCodeDiffScan || false
 
             if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
                 throw new Error('No files or folders provided for code review')
@@ -80,10 +79,9 @@ export class QCodeReview {
             }
 
             // Step 1: Prepare the files for upload - create zip and calculate MD5
-            const { zipBuffer, md5Hash } = await this.prepareFilesAndFoldersForUpload(
+            const { zipBuffer, md5Hash, isCodeDiffPresent } = await this.prepareFilesAndFoldersForUpload(
                 fileArtifacts,
-                folderArtifacts,
-                isCodeDiffScan
+                folderArtifacts
             )
 
             // Step 2: Get a pre-signed URL for uploading the code
@@ -132,7 +130,7 @@ export class QCodeReview {
                 clientToken: QCodeReviewUtils.generateClientToken(),
                 codeScanName: scanName,
                 scope: scanScope,
-                codeDiffMetadata: isCodeDiffScan ? { codeDiffPath: '/code_artifact/codeDiff/' } : undefined,
+                codeDiffMetadata: isCodeDiffPresent ? { codeDiffPath: '/code_artifact/codeDiff/' } : undefined,
             })
 
             const jobId = createResponse.jobId
@@ -180,7 +178,7 @@ export class QCodeReview {
 
                     // If isCodeDiffScan is true, filter findings to include only those with findingContext == "CodeDiff"
                     const parsedFindings = this.parseFindings(findingsResponse.codeAnalysisFindings) || []
-                    const filteredFindings = isCodeDiffScan
+                    const filteredFindings = isCodeDiffPresent
                         ? parsedFindings.filter(finding => finding?.findingContext === 'CodeDiff')
                         : parsedFindings
                     totalFindings = totalFindings.concat(filteredFindings)
@@ -246,14 +244,12 @@ export class QCodeReview {
      * Create a zip archive of the files and folders to be scanned and calculate MD5 hash
      * @param fileArtifacts Array of file artifacts containing path and programming language
      * @param folderArtifacts Array of folder artifacts containing path
-     * @param isCodeDiffScan Did customer request for a scan of only code diff
      * @returns An object containing the zip file buffer and its MD5 hash
      */
     private async prepareFilesAndFoldersForUpload(
         fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
-        folderArtifacts: Array<{ path: string }>,
-        isCodeDiffScan: boolean
-    ): Promise<{ zipBuffer: Buffer; md5Hash: string }> {
+        folderArtifacts: Array<{ path: string }>
+    ): Promise<{ zipBuffer: Buffer; md5Hash: string; isCodeDiffPresent: boolean }> {
         try {
             this.logging.info(
                 `Preparing ${fileArtifacts.length} files and ${folderArtifacts.length} folders for upload`
@@ -263,12 +259,7 @@ export class QCodeReview {
             const customerCodeZip = new JSZip()
 
             // Process files and folders
-            const codeDiff = await this.processArtifacts(
-                fileArtifacts,
-                folderArtifacts,
-                customerCodeZip,
-                isCodeDiffScan
-            )
+            const codeDiff = await this.processArtifacts(fileArtifacts, folderArtifacts, customerCodeZip, true)
 
             // Generate customer code zip buffer
             const customerCodeBuffer = await QCodeReviewUtils.generateZipBuffer(customerCodeZip)
@@ -280,9 +271,12 @@ export class QCodeReview {
                 customerCodeBuffer
             )
 
+            let isCodeDiffPresent = false
+
             // Add code diff file if we have any diffs
-            if (isCodeDiffScan && codeDiff.trim()) {
+            if (codeDiff.trim()) {
                 this.logging.info(`Adding code diff to zip: ${codeDiff}`)
+                isCodeDiffPresent = true
                 codeArtifactZip.file(QCodeReview.CODE_DIFF_PATH, codeDiff)
             }
 
@@ -297,7 +291,7 @@ export class QCodeReview {
 
             QCodeReviewUtils.saveZipToDownloads(zipBuffer, this.logging)
 
-            return { zipBuffer, md5Hash }
+            return { zipBuffer, md5Hash, isCodeDiffPresent }
         } catch (error) {
             this.logging.error(`Error preparing files for upload: ${error}`)
             throw error

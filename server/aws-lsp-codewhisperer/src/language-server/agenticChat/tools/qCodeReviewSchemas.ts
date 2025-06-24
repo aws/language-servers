@@ -13,15 +13,6 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
     description: 'Contains either file level or folder level artifacts to perform code review',
     properties: {
-        isCodeDiffScan: {
-            type: <const>'boolean',
-            description:
-                "When a user asks for a code review, determine if they're specifically requesting a review of uncommitted changes " +
-                'in their code. Look for phrases which are similar in meaning to: "review my uncommitted changes" or "code review for my pending changes" or ' +
-                '"review the changes I haven\'t committed yet" or "look at my git diff" or "review my staged/unstaged changes" or ' +
-                '"scan/review the new changes" or "scan/review changed lines of code". ' +
-                'If you detect such a request, respond with "true" else "false".',
-        },
         fileLevelArtifacts: {
             type: <const>'array',
             description:
@@ -68,14 +59,12 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
             },
         },
     },
-    required: ['isCodeDiffScan'] as const,
 }
 
 /**
  * Zod schema for input validation during execution of Q Code Review tool
  */
 export const Z_Q_CODE_REVIEW_INPUT_SCHEMA = z.object({
-    isCodeDiffScan: z.boolean(),
     fileLevelArtifacts: z
         .array(
             z.object({
