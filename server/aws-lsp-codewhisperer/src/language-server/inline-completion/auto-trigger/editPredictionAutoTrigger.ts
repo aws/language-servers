@@ -50,7 +50,7 @@ export const editPredictionAutoTrigger = ({
     // 1. Check required conditions
     // 1.1 Recent Edit Detection [NEEDED]
     const hasRecentEdit = recentEdits?.hasRecentEditInLine(
-        fileContext.filename,
+        fileContext.fileUri,
         lineNum,
         config.recentEditThresholdMs,
         config.editAdjacentLineRange
