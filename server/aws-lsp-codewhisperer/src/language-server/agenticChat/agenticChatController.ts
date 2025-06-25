@@ -1172,6 +1172,19 @@ export class AgenticChatController implements ChatHandlers {
                     default:
                         // Get original server and tool names from the mapping
                         const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+
+                        // Remove explanation field from toolUse.input for MCP tools
+                        // many MCP servers do not support explanation field and it will break the tool if this is altered
+                        if (
+                            originalNames &&
+                            toolUse.input &&
+                            typeof toolUse.input === 'object' &&
+                            'explanation' in toolUse.input
+                        ) {
+                            const { explanation, ...inputWithoutExplanation } = toolUse.input as any
+                            toolUse.input = inputWithoutExplanation
+                        }
+
                         if (originalNames) {
                             const { serverName, toolName } = originalNames
                             const def = McpManager.instance
