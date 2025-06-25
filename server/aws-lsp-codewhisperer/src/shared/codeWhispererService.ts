@@ -232,7 +232,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
             return options
         } else {
-            throw new Error('invalid credentialsType')
+            throw new Error('invalid credentialsType for CreateCodeWhispererConfigurationOptions')
         }
     }
 
@@ -242,7 +242,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         sdkInitializator: SDKInitializator,
         logging: Logging
     ): CodeWhispererClient {
-        const credentialsType = this.credentialsProvider.getCredentialsType()
+        const credentialsType = credentialsProvider.getCredentialsType()
 
         if (credentialsType === 'bearer') {
             return createCodeWhispererTokenClient(options, sdkInitializator, logging)
@@ -255,8 +255,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 }
                 request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
             }
+            return client
         }
-        throw new Error('invalid credentialsType')
+        throw new Error('invalid credentialsType for createAppropriateClient')
     }
 
     getCredentialsType(): CredentialsType {
@@ -309,7 +310,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 responseContext,
             }
         } else {
-            throw new Error('invalid credentialsType')
+            throw new Error('invalid credentialsType for generateSuggestions')
         }
     }
 

@@ -12,7 +12,13 @@ import {
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
-import { CredentialsProvider, SDKInitializator, Logging, CredentialsType, BearerCredentials } from '@aws/language-server-runtimes/server-interface'
+import {
+    CredentialsProvider,
+    SDKInitializator,
+    Logging,
+    CredentialsType,
+    BearerCredentials,
+} from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -90,8 +96,7 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
                 },
                 customUserAgent: customUserAgent,
             }) as CodeWhispererStreaming
-        }
-        else if (credentialsProvider.getCredentialsType() === 'iam') {
+        } else if (credentialsProvider.getCredentialsType() === 'iam') {
             this.client = sdkInitializator(QDeveloperStreaming, {
                 region: region,
                 endpoint: endpoint,
@@ -100,8 +105,7 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
                 ]),
                 retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
             }) as QDeveloperStreaming
-        }
-        else {
+        } else {
             throw new Error('invalid credentialsType in constructor')
         }
     }
@@ -111,7 +115,7 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             const client = this.client as CodeWhispererStreaming
             return client.config.token
         }
-        return undefined; // or throw an error if this should never happen
+        return undefined // or throw an error if this should never happen
     }
 
     getCredentialsType(): CredentialsType {
@@ -119,23 +123,24 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
     }
 
     public async sendMessage(
-        request: SendMessageCommandInputCodeWhispererStreaming,
+        request: SendMessageCommandInput,
         abortController?: AbortController
-    ): Promise<SendMessageCommandOutputCodeWhispererStreaming> {
+    ): Promise<SendMessageCommandOutput> {
         const controller: AbortController = abortController ?? new AbortController()
 
         this.inflightRequests.add(controller)
 
         if (this.getCredentialsType() === 'bearer') {
+            const client = this.client as CodeWhispererStreaming
             try {
-                const response = await this.client.sendMessage(
-                    { ...request, profileArn: this.profileArn },
+                const response = await client.sendMessage(
+                    { ...request, profileArn: this.profileArn } as SendMessageCommandInputCodeWhispererStreaming,
                     {
                         abortSignal: controller.signal,
                     }
                 )
 
-                return response
+                return response as SendMessageCommandOutputCodeWhispererStreaming
             } catch (e) {
                 if (isUsageLimitError(e)) {
                     throw new AmazonQUsageLimitError(e)
@@ -144,17 +149,16 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             } finally {
                 this.inflightRequests.delete(controller)
             }
-        }
-        else if (this.getCredentialsType() === 'iam') {
-            const response = await this.client.sendMessage(request, {
+        } else if (this.getCredentialsType() === 'iam') {
+            const client = this.client as QDeveloperStreaming
+            const response = await client.sendMessage(request as SendMessageCommandInputQDeveloperStreaming, {
                 abortSignal: controller.signal,
             })
 
             this.inflightRequests.delete(controller)
 
-            return response
-        }
-        else {
+            return response as SendMessageCommandOutputQDeveloperStreaming
+        } else {
             throw new Error('invalid credentialsType in sendMessage')
         }
     }
