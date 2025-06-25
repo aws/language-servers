@@ -9,6 +9,9 @@ import {
     Workspace,
     Logging,
     SDKInitializator,
+    TextDocument,
+    CancellationToken,
+    CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { ConfigurationOptions } from 'aws-sdk'
 import * as sinon from 'sinon'
@@ -19,6 +22,7 @@ import {
     CodeWhispererServiceIAM,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
+    SuggestionType,
 } from './codeWhispererService'
 
 describe('CodeWhispererService', function () {
@@ -83,6 +87,7 @@ describe('CodeWhispererService', function () {
                 async generateCompletionsAndEdits(): Promise<GenerateSuggestionsResponse> {
                     return {
                         suggestions: [],
+                        suggestionType: SuggestionType.COMPLETION,
                         responseContext: { requestId: 'test', codewhispererSessionId: 'test' },
                     }
                 }
@@ -90,6 +95,7 @@ describe('CodeWhispererService', function () {
                 async generateSuggestions(): Promise<GenerateSuggestionsResponse> {
                     return {
                         suggestions: [],
+                        suggestionType: SuggestionType.COMPLETION,
                         responseContext: { requestId: 'test', codewhispererSessionId: 'test' },
                     }
                 }
@@ -239,6 +245,46 @@ describe('CodeWhispererService', function () {
             })
         })
 
+        describe('generateCompletionsAndEdits', function () {
+            it('should delegate to generateSuggestions', async function () {
+                const mockRequest: GenerateSuggestionsRequest = {
+                    fileContext: {
+                        filename: 'test.js',
+                        programmingLanguage: { languageName: 'javascript' },
+                        leftFileContent: 'const x = ',
+                        rightFileContent: '',
+                    },
+                    maxResults: 5,
+                }
+
+                const mockTextDocument: TextDocument = {
+                    uri: 'file:///test.js',
+                    languageId: 'javascript',
+                    version: 1,
+                    getText: () => 'const x = ',
+                    positionAt: sandbox.stub(),
+                    offsetAt: sandbox.stub(),
+                    lineCount: 1,
+                }
+
+                // Mock the generateSuggestions method
+                const generateSuggestionsStub = sandbox.stub(service, 'generateSuggestions')
+                const expectedResponse: GenerateSuggestionsResponse = {
+                    suggestions: [],
+                    suggestionType: SuggestionType.COMPLETION,
+                    responseContext: { requestId: 'test', codewhispererSessionId: 'test' },
+                }
+                generateSuggestionsStub.resolves(expectedResponse)
+
+                const result = await service.generateCompletionsAndEdits(mockTextDocument, mockRequest, {
+                    enablePrefetch: false,
+                })
+
+                assert.strictEqual(generateSuggestionsStub.calledOnceWith(mockRequest), true)
+                assert.deepStrictEqual(result, expectedResponse)
+            })
+        })
+
         describe('generateSuggestions', function () {
             it('should call client.generateRecommendations and process response', async function () {
                 const mockRequest: GenerateSuggestionsRequest = {
@@ -253,6 +299,7 @@ describe('CodeWhispererService', function () {
 
                 const result = await service.generateSuggestions(mockRequest)
 
+                assert.strictEqual(result.suggestionType, SuggestionType.COMPLETION)
                 assert.strictEqual(Array.isArray(result.suggestions), true)
                 assert.strictEqual(typeof result.responseContext.requestId, 'string')
                 assert.strictEqual(typeof result.responseContext.codewhispererSessionId, 'string')
@@ -276,6 +323,14 @@ describe('CodeWhispererService', function () {
                 // Verify that the client was called with the customizationArn
                 const clientCall = (service.client.generateRecommendations as sinon.SinonStub).getCall(0)
                 assert.strictEqual(clientCall.args[0].customizationArn, 'test-arn')
+            })
+        })
+
+        describe('clearCachedSuggestions', function () {
+            it('should not throw error (no-op for IAM)', function () {
+                assert.doesNotThrow(() => {
+                    service.clearCachedSuggestions()
+                })
             })
         })
     })
@@ -336,6 +391,88 @@ describe('CodeWhispererService', function () {
             })
         })
 
+        describe('generateCompletionsAndEdits', function () {
+            it('should call generateSuggestions when prefetch is disabled', async function () {
+                const mockRequest: GenerateSuggestionsRequest = {
+                    fileContext: {
+                        filename: 'test.js',
+                        programmingLanguage: { languageName: 'javascript' },
+                        leftFileContent: 'const x = ',
+                        rightFileContent: '',
+                    },
+                    maxResults: 5,
+                }
+
+                const mockTextDocument: TextDocument = {
+                    uri: 'file:///test.js',
+                    languageId: 'javascript',
+                    version: 1,
+                    getText: () => 'const x = ',
+                    positionAt: sandbox.stub(),
+                    offsetAt: sandbox.stub(),
+                    lineCount: 1,
+                }
+
+                const generateSuggestionsStub = sandbox.stub(service, 'generateSuggestions')
+                const expectedResponse: GenerateSuggestionsResponse = {
+                    suggestions: [],
+                    suggestionType: SuggestionType.COMPLETION,
+                    responseContext: { requestId: 'test', codewhispererSessionId: 'test' },
+                }
+                generateSuggestionsStub.resolves(expectedResponse)
+
+                const result = await service.generateCompletionsAndEdits(mockTextDocument, mockRequest, {
+                    enablePrefetch: false,
+                })
+
+                assert.strictEqual(generateSuggestionsStub.calledOnceWith(mockRequest), true)
+                assert.deepStrictEqual(result, expectedResponse)
+            })
+
+            it('should call generateSuggestionsAndPrefetch when prefetch is enabled', async function () {
+                const mockRequest: GenerateSuggestionsRequest = {
+                    fileContext: {
+                        filename: 'test.js',
+                        programmingLanguage: { languageName: 'javascript' },
+                        leftFileContent: 'const x = ',
+                        rightFileContent: '',
+                    },
+                    maxResults: 5,
+                }
+
+                const mockTextDocument: TextDocument = {
+                    uri: 'file:///test.js',
+                    languageId: 'javascript',
+                    version: 1,
+                    getText: () => 'const x = ',
+                    positionAt: sandbox.stub(),
+                    offsetAt: sandbox.stub(),
+                    lineCount: 1,
+                }
+
+                const generateSuggestionsAndPrefetchStub = sandbox.stub(
+                    service,
+                    'generateSuggestionsAndPrefetch' as any
+                )
+                const expectedResponse: GenerateSuggestionsResponse = {
+                    suggestions: [],
+                    suggestionType: SuggestionType.COMPLETION,
+                    responseContext: { requestId: 'test', codewhispererSessionId: 'test' },
+                }
+                generateSuggestionsAndPrefetchStub.resolves(expectedResponse)
+
+                const result = await service.generateCompletionsAndEdits(mockTextDocument, mockRequest, {
+                    enablePrefetch: true,
+                })
+
+                assert.strictEqual(
+                    generateSuggestionsAndPrefetchStub.calledOnceWith(mockTextDocument, mockRequest),
+                    true
+                )
+                assert.deepStrictEqual(result, expectedResponse)
+            })
+        })
+
         describe('generateSuggestions', function () {
             it('should call client.generateCompletions and process response', async function () {
                 const mockRequest: GenerateSuggestionsRequest = {
@@ -351,6 +488,7 @@ describe('CodeWhispererService', function () {
                 const result = await service.generateSuggestions(mockRequest)
 
                 assert.strictEqual(mockClient.generateCompletions.calledOnce, true)
+                assert.strictEqual(result.suggestionType, SuggestionType.COMPLETION)
                 assert.strictEqual(Array.isArray(result.suggestions), true)
                 assert.strictEqual(typeof result.responseContext.requestId, 'string')
                 assert.strictEqual(typeof result.responseContext.codewhispererSessionId, 'string')
@@ -392,6 +530,43 @@ describe('CodeWhispererService', function () {
                 await service.generateSuggestions(mockRequest)
 
                 assert.strictEqual(withProfileArnStub.calledOnceWith(mockRequest), true)
+            })
+        })
+
+        describe('clearCachedSuggestions', function () {
+            it('should clear prefetch suggestions', function () {
+                // Add some mock suggestions to clear
+                ;(service as any).prefetchSuggestions = [{ id: 'test' }]
+
+                service.clearCachedSuggestions()
+
+                assert.strictEqual((service as any).prefetchSuggestions.length, 0)
+            })
+        })
+
+        describe('cancellation handling', function () {
+            it('should handle token cancellation', function () {
+                const tokenSrc = (service as any).tokenSrc as CancellationTokenSource
+                const token = (service as any).token as CancellationToken
+
+                assert.strictEqual(token.isCancellationRequested, false)
+
+                tokenSrc.cancel()
+
+                assert.strictEqual(token.isCancellationRequested, true)
+            })
+        })
+
+        describe('prefetch configuration', function () {
+            it('should have default prefetch configuration', function () {
+                const config = (service as any).prefetchConfig
+
+                assert.strictEqual(typeof config.duration, 'number')
+                assert.strictEqual(typeof config.maxCacheSuggestionSize, 'number')
+                assert.strictEqual(typeof config.maxRecursiveCallDepth, 'number')
+                assert.strictEqual(config.duration, 100)
+                assert.strictEqual(config.maxCacheSuggestionSize, 3)
+                assert.strictEqual(config.maxRecursiveCallDepth, 5)
             })
         })
     })

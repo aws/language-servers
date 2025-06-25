@@ -24,6 +24,7 @@ export interface CodeWhispererSupplementalContext {
     contentsLength: number
     latency: number
     strategy: SupplementalContextStrategy
+    timeOffset?: number
 }
 
 export interface CodeWhispererSupplementalContextItem {
