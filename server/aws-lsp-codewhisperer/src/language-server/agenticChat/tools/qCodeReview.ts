@@ -298,8 +298,6 @@ export class QCodeReview {
 
             this.logging.info(`Created zip archive, size: ${zipBuffer.length} bytes, MD5: ${md5Hash}`)
 
-            QCodeReviewUtils.saveZipToDownloads(zipBuffer, this.logging)
-
             return { zipBuffer, md5Hash, isCodeDiffPresent }
         } catch (error) {
             this.logging.error(`Error preparing files for upload: ${error}`)
