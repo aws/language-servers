@@ -158,7 +158,7 @@ export const handleChatPrompt = (
         mynahUi.addChatItem(tabId, {
             type: ChatItemType.DIRECTIVE,
             messageId: 'stopped' + Date.now(),
-            body: 'You stopped your current work, please provide additional examples or ask another question.',
+            body: 'Earlier request was cancelled. Processing your new request below instead.',
         })
 
         // Reset loading state
