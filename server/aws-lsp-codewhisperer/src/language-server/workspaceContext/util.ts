@@ -80,3 +80,20 @@ export const getRelativePath = (workspaceFolder: WorkspaceFolder, filePath: stri
     const fileUri = URI.parse(filePath)
     return path.relative(workspaceUri.path, fileUri.path)
 }
+
+export const getRelativePathWithUri = (uri: string, workspaceFolder?: WorkspaceFolder | null): string => {
+    const documentUri = URI.parse(uri)
+    const workspaceUri = workspaceFolder?.uri
+    const workspaceRoot = workspaceUri ? URI.parse(workspaceUri).fsPath : process.cwd()
+    const absolutePath = documentUri.fsPath
+    return path.relative(workspaceRoot, absolutePath)
+}
+
+// Include workspace folder name to disambiguate files when there are multiple workspace folders
+export const getRelativePathWithWorkspaceFolder = (workspaceFolder: WorkspaceFolder, filePath: string): string => {
+    const workspaceUri = URI.parse(workspaceFolder.uri)
+    const fileUri = URI.parse(filePath)
+    const relativePath = path.relative(workspaceUri.path, fileUri.path)
+    const workspaceFolderName = path.basename(workspaceUri.path)
+    return path.join(workspaceFolderName, relativePath)
+}
