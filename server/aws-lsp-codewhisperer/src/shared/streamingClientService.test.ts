@@ -68,7 +68,7 @@ describe('StreamingClientService', () => {
     })
 
     it('provides the lastest token present in the credentials provider', async () => {
-        const tokenProvider = streamingClientService.client.config.token
+        const tokenProvider = streamingClientService.getConfigToken()
         expect(tokenProvider).not.to.be.undefined
 
         const firstTokenPromise = (tokenProvider as any)()

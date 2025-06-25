@@ -12,12 +12,13 @@ import {
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
-import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, SDKInitializator, Logging, CredentialsType, BearerCredentials } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { clientTimeoutMs } from '../language-server/agenticChat/constants'
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
+import { TokenIdentityProvider } from '@smithy/types'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -26,13 +27,15 @@ export type SendMessageCommandOutput =
     | SendMessageCommandOutputCodeWhispererStreaming
     | SendMessageCommandOutputQDeveloperStreaming
 
+type StreamingClient = CodeWhispererStreaming | QDeveloperStreaming
+
 export abstract class StreamingClientServiceBase {
     protected readonly region
     protected readonly endpoint
 
     inflightRequests: Set<AbortController> = new Set()
 
-    abstract client: CodeWhispererStreaming | QDeveloperStreaming
+    abstract client: StreamingClient
 
     constructor(region: string, endpoint: string) {
         this.region = region
@@ -53,37 +56,66 @@ export abstract class StreamingClientServiceBase {
 }
 
 export class StreamingClientServiceToken extends StreamingClientServiceBase {
-    client: CodeWhispererStreaming
+    client: StreamingClient
     public profileArn?: string
     constructor(
-        credentialsProvider: CredentialsProvider,
+        private credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
         logging: Logging,
         region: string,
         endpoint: string,
-        customUserAgent: string
+        customUserAgent?: string
     ) {
         super(region, endpoint)
-        const tokenProvider = async () => {
-            const token = getBearerTokenFromProvider(credentialsProvider)
-            // without setting expiration, the tokenProvider will only be called once
-            return { token, expiration: new Date() }
-        }
 
         logging.log(
             `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
-        this.client = sdkInitializator(CodeWhispererStreaming, {
-            region,
-            endpoint,
-            token: tokenProvider,
-            retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
-            requestHandler: {
-                keepAlive: true,
-                requestTimeout: clientTimeoutMs,
-            },
-            customUserAgent: customUserAgent,
-        })
+
+        if (credentialsProvider.getCredentialsType() === 'bearer') {
+            const tokenProvider = async () => {
+                const creds = credentialsProvider.getCredentials() as BearerCredentials
+                const token = creds.token
+                // without setting expiration, the tokenProvider will only be called once
+                return { token, expiration: new Date() }
+            }
+            this.client = sdkInitializator(CodeWhispererStreaming, {
+                region,
+                endpoint,
+                token: tokenProvider,
+                retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+                requestHandler: {
+                    keepAlive: true,
+                    requestTimeout: clientTimeoutMs,
+                },
+                customUserAgent: customUserAgent,
+            }) as CodeWhispererStreaming
+        }
+        else if (credentialsProvider.getCredentialsType() === 'iam') {
+            this.client = sdkInitializator(QDeveloperStreaming, {
+                region: region,
+                endpoint: endpoint,
+                credentialProvider: new CredentialProviderChain([
+                    () => credentialsProvider.getCredentials() as Credentials,
+                ]),
+                retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            }) as QDeveloperStreaming
+        }
+        else {
+            throw new Error('invalid credentialsType in constructor')
+        }
+    }
+
+    getConfigToken(): TokenIdentityProvider | undefined {
+        if (this.getCredentialsType() === 'bearer') {
+            const client = this.client as CodeWhispererStreaming
+            return client.config.token
+        }
+        return undefined; // or throw an error if this should never happen
+    }
+
+    getCredentialsType(): CredentialsType {
+        return this.credentialsProvider.getCredentialsType()
     }
 
     public async sendMessage(
@@ -94,22 +126,36 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
 
         this.inflightRequests.add(controller)
 
-        try {
-            const response = await this.client.sendMessage(
-                { ...request, profileArn: this.profileArn },
-                {
-                    abortSignal: controller.signal,
+        if (this.getCredentialsType() === 'bearer') {
+            try {
+                const response = await this.client.sendMessage(
+                    { ...request, profileArn: this.profileArn },
+                    {
+                        abortSignal: controller.signal,
+                    }
+                )
+
+                return response
+            } catch (e) {
+                if (isUsageLimitError(e)) {
+                    throw new AmazonQUsageLimitError(e)
                 }
-            )
+                throw e
+            } finally {
+                this.inflightRequests.delete(controller)
+            }
+        }
+        else if (this.getCredentialsType() === 'iam') {
+            const response = await this.client.sendMessage(request, {
+                abortSignal: controller.signal,
+            })
+
+            this.inflightRequests.delete(controller)
 
             return response
-        } catch (e) {
-            if (isUsageLimitError(e)) {
-                throw new AmazonQUsageLimitError(e)
-            }
-            throw e
-        } finally {
-            this.inflightRequests.delete(controller)
+        }
+        else {
+            throw new Error('invalid credentialsType in sendMessage')
         }
     }
 
@@ -117,12 +163,17 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         request: GenerateAssistantResponseCommandInputCodeWhispererStreaming,
         abortController?: AbortController
     ): Promise<GenerateAssistantResponseCommandOutputCodeWhispererStreaming> {
+        if (this.getCredentialsType() === 'iam') {
+            throw new Error('generateAssistantResponse is not supported for iam credentials')
+        }
+
+        const tokenClient = this.client as CodeWhispererStreaming
         const controller: AbortController = abortController ?? new AbortController()
 
         this.inflightRequests.add(controller)
 
         try {
-            const response = await this.client.generateAssistantResponse(
+            const response = await tokenClient.generateAssistantResponse(
                 { ...request, profileArn: this.profileArn },
                 {
                     abortSignal: controller.signal,
@@ -145,9 +196,14 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
         request: ExportResultArchiveCommandInputCodeWhispererStreaming,
         abortController?: AbortController
     ): Promise<ExportResultArchiveCommandOutputCodeWhispererStreaming> {
+        if (this.getCredentialsType() === 'iam') {
+            throw new Error('generateAssistantResponse is not supported for iam credentials')
+        }
+
+        const tokenClient = this.client as CodeWhispererStreaming
         const controller: AbortController = abortController ?? new AbortController()
         this.inflightRequests.add(controller)
-        const response = await this.client.exportResultArchive(
+        const response = await tokenClient.exportResultArchive(
             this.profileArn ? { ...request, profileArn: this.profileArn } : request
         )
         this.inflightRequests.delete(controller)
