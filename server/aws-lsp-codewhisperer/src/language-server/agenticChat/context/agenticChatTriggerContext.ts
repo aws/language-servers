@@ -39,6 +39,9 @@ export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
     triggerType?: TriggerType
     contextInfo?: ContextInfo
+    /**
+     * Represents the context transparency list displayed at the top of the assistant response.
+     */
     documentReference?: FileList
     hasWorkspace?: boolean
 }
@@ -48,6 +51,7 @@ export type AdditionalContentEntryAddition = AdditionalContentEntry & {
     type: string
     relativePath: string
     path: string
+    pinned?: boolean
 } & LineInfo
 
 export type RelevantTextDocumentAddition = RelevantTextDocument & LineInfo & { path: string }
@@ -149,9 +153,9 @@ export class AgenticChatTriggerContext {
         triggerContext.documentReference = triggerContext.documentReference
             ? mergeFileLists(triggerContext.documentReference, workspaceFileList)
             : workspaceFileList
-        // Process additionalContent items if present
+        // Add @context in prompt to relevantDocuments
         if (additionalContent) {
-            for (const item of additionalContent) {
+            for (const item of additionalContent.filter(item => !item.pinned)) {
                 // Determine programming language from file extension or type
                 let programmingLanguage: ProgrammingLanguage | undefined = undefined
 

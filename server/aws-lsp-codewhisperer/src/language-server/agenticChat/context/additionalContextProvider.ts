@@ -28,6 +28,7 @@ import {
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { Features } from '../../types'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
+import { ChatMessage } from '@aws/codewhisperer-streaming-client'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
@@ -105,6 +106,18 @@ export class AdditionalContextProvider {
                 await this.collectMarkdownFilesRecursively(workspaceFolder, rulesPath, rulesFiles)
             }
 
+            // Check for README.md in workspace root
+            const readmePath = path.join(workspaceFolder, 'README.md')
+            const readmeExists = await this.features.workspace.fs.exists(readmePath)
+            if (readmeExists) {
+                rulesFiles.push({
+                    workspaceFolder: workspaceFolder,
+                    type: 'file',
+                    relativePath: 'README.md',
+                    id: readmePath,
+                })
+            }
+
             // Check for AmazonQ.md in workspace root
             const amazonQPath = path.join(workspaceFolder, 'AmazonQ.md')
             const amazonQExists = await this.features.workspace.fs.exists(amazonQPath)
@@ -170,6 +183,13 @@ export class AdditionalContextProvider {
         return 'file'
     }
 
+    /**
+     * Retrieves and processes additional context for Amazon Q chat sessions.
+     *
+     * This method combines various types of context including workspace rules, pinned context,
+     * and explicit user-specified context (@-mentions) to send in GenerateAssistantResponse API.
+     *
+     */
     async getAdditionalContext(
         triggerContext: TriggerContext,
         tabId: string,
@@ -177,14 +197,24 @@ export class AdditionalContextProvider {
     ): Promise<AdditionalContentEntryAddition[]> {
         triggerContext.contextInfo = getInitialContextInfo()
 
-        const additionalContextCommands: ContextCommandItem[] = []
+        /**
+         * Explicit context specified by user in a prompt (using `@`)
+         * Sent in GenerateAssistantResponse request: conversationState.currentMessage.userInputMessageContext.editorState.relevantDocuments
+         */
+        const promptContextCommands: ContextCommandItem[] = []
+        /**
+         * Non message-specific context, such as pinned context and workspace rules
+         * Sent in  GenerateAssistantResponse request: conversationState.history[0]
+         */
+        const pinnedContextCommands: ContextCommandItem[] = []
+
         const workspaceRules = await this.collectWorkspaceRules(tabId)
         let workspaceFolderPath = triggerContext.workspaceFolder?.uri
             ? URI.parse(triggerContext.workspaceFolder.uri).fsPath
             : workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)[0]
 
         if (workspaceRules.length > 0) {
-            additionalContextCommands.push(...workspaceRules)
+            pinnedContextCommands.push(...workspaceRules)
         }
 
         // Merge pinned context with context added to prompt, avoiding duplicates
@@ -209,7 +239,20 @@ export class AdditionalContextProvider {
 
         const contextCounts = getInitialContextInfo()
 
-        additionalContextCommands.push(...this.mapToContextCommandItems(contextInfo, workspaceFolderPath))
+        promptContextCommands.push(
+            ...this.mapToContextCommandItems(
+                contextInfo.filter(item => !item.pinned),
+                workspaceFolderPath
+            )
+        )
+
+        pinnedContextCommands.push(
+            ...this.mapToContextCommandItems(
+                contextInfo.filter(item => item.pinned),
+                workspaceFolderPath
+            )
+        )
+
         for (const c of contextInfo) {
             if (c.id === 'prompt') {
                 c.pinned
@@ -240,14 +283,16 @@ export class AdditionalContextProvider {
             pinnedContextCount: contextCounts.pinnedContextCount,
         }
 
-        if (additionalContextCommands.length === 0) {
+        if (promptContextCommands.length === 0 && pinnedContextCommands.length === 0) {
             return []
         }
 
-        let prompts: AdditionalContextPrompt[] = []
+        let promptContextPrompts: AdditionalContextPrompt[] = []
+        let pinnedContextPrompts: AdditionalContextPrompt[] = []
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
-            prompts = await localProjectContextController.getContextCommandPrompt(additionalContextCommands)
+            promptContextPrompts = await localProjectContextController.getContextCommandPrompt(promptContextCommands)
+            pinnedContextPrompts = await localProjectContextController.getContextCommandPrompt(pinnedContextCommands)
         } catch (error) {
             // do nothing
         }
@@ -257,25 +302,25 @@ export class AdditionalContextProvider {
         let fileContextLength = 0
         let promptContextLength = 0
         let codeContextLength = 0
-        for (const prompt of prompts.slice(0, additionalContextMaxLength)) {
+        for (const prompt of promptContextPrompts
+            .map(item => ({ ...item, pinned: false }))
+            .concat(pinnedContextPrompts.map(item => ({ ...item, pinned: true })))
+            .slice(0, additionalContextMaxLength)) {
             const contextType = this.getContextType(prompt)
-            const description =
-                contextType === 'rule' || contextType === 'prompt'
-                    ? `You must follow the instructions in ${prompt.relativePath}. Below are lines ${prompt.startLine}-${prompt.endLine} of this file:\n`
-                    : prompt.description
 
             const relativePath = prompt.filePath.startsWith(getUserPromptsDirectory())
                 ? path.basename(prompt.filePath)
                 : path.relative(workspaceFolderPath, prompt.filePath)
             const entry = {
                 name: prompt.name.substring(0, additionalContentNameLimit),
-                description: description.substring(0, additionalContentNameLimit),
+                description: '',
                 innerContext: prompt.content.substring(0, workspaceChunkMaxSize),
                 type: contextType,
                 path: prompt.filePath,
                 relativePath: relativePath,
                 startLine: prompt.startLine,
                 endLine: prompt.endLine,
+                pinned: prompt.pinned,
             }
             contextEntry.push(entry)
 
@@ -535,5 +580,67 @@ export class AdditionalContextProvider {
         })
 
         return rulesFolders
+    }
+
+    /**
+     * Converts pinned context entries into a fake user/assistant message pair for chat history.
+     *
+     * This utility method takes pinned context entries and formats them into XML structure
+     * with appropriate tags based on context type, creating a fake conversation pair that
+     * can be prepended to chat history. This allows the assistant to have access to relevant
+     * context information throughout the conversation.
+     *
+     * @param pinnedContext - Array of pinned context entries to convert to chat messages
+     * @returns Promise resolving to an array containing the fake user/assistant message pair,
+     *          or an empty array if no context is provided
+     *
+     * The method creates XML-structured content with the following tags:
+     * - `<promptInstruction>` - For rules and prompt instructions that must be followed
+     * - `<fileContext>` - For file content and documentation
+     * - `<codeContext>` - For code symbols, functions, and code snippets
+     *
+     * The returned fake message pair consists of:
+     * 1. User message containing all pinned context wrapped in `<pinnedContext>` XML tags
+     * 2. Assistant response message (empty content). API and Model requires every user message to be followed by an assistant response message.
+     *
+     */
+    public async convertPinnedContextToChatMessages(
+        pinnedContext?: AdditionalContentEntryAddition[]
+    ): Promise<ChatMessage[]> {
+        if (!pinnedContext || pinnedContext.length === 0) {
+            return []
+        }
+
+        // Build the pinned context XML content
+        let pinnedContextXml = '<pinnedContext>\n'
+
+        for (const prompt of pinnedContext) {
+            const { type, innerContext, relativePath } = prompt
+            if (type === 'rule' || type === 'prompt') {
+                pinnedContextXml += `<promptInstruction>\n<relativeFilePath>\n${relativePath}\n</relativeFilePath>\n<text>\n${innerContext}\n</text>\n</promptInstruction>\n`
+            } else if (type === 'file') {
+                pinnedContextXml += `<fileContext>\n<relativeFilePath>\n${relativePath}\n</relativeFilePath>\n<text>\n${innerContext}\n</text>\n</fileContext>\n`
+            } else if (type === 'code') {
+                pinnedContextXml += `<codeContext>\n<relativeFilePath>\n${relativePath}\n</relativeFilePath>\n<text>\n${innerContext}\n</text>\n</codeContext>\n`
+            }
+        }
+
+        pinnedContextXml += '</pinnedContext>'
+
+        // Create fake user message with pinned context
+        const userMessage: ChatMessage = {
+            userInputMessage: {
+                content: pinnedContextXml,
+            },
+        }
+
+        // Create fake assistant response
+        const assistantMessage: ChatMessage = {
+            assistantResponseMessage: {
+                content: '',
+            },
+        }
+
+        return [userMessage, assistantMessage]
     }
 }

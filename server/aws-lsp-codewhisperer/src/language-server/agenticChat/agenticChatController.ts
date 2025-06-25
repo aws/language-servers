@@ -575,10 +575,25 @@ export class AgenticChatController implements ChatHandlers {
                 params.tabId,
                 params.context
             )
-            if (additionalContext.length) {
-                triggerContext.documentReference =
-                    this.#additionalContextProvider.getFileListFromContext(additionalContext)
-            }
+            // Add explicit context, pinned context, and active file to context transparency list
+            triggerContext.documentReference = this.#additionalContextProvider.getFileListFromContext(
+                additionalContext.concat(
+                    triggerContext.text && triggerContext.relativeFilePath
+                        ? [
+                              {
+                                  name: path.basename(triggerContext.relativeFilePath),
+                                  description: '',
+                                  type: 'file',
+                                  relativePath: triggerContext.relativeFilePath,
+                                  path: triggerContext.path || '',
+                                  startLine: -1,
+                                  endLine: -1,
+                              },
+                          ]
+                        : []
+                )
+            )
+
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
                 params,
@@ -602,7 +617,8 @@ export class AgenticChatController implements ChatHandlers {
                 promptId,
                 session.conversationId,
                 token,
-                triggerContext.documentReference
+                triggerContext.documentReference,
+                additionalContext.filter(item => item.pinned)
             )
 
             // Phase 5: Result Handling - This happens only once
@@ -693,7 +709,8 @@ export class AgenticChatController implements ChatHandlers {
         promptId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
-        documentReference?: FileList
+        documentReference?: FileList,
+        pinnedContext?: AdditionalContentEntryAddition[]
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
@@ -722,7 +739,10 @@ export class AgenticChatController implements ChatHandlers {
                     `Warning: ${!currentMessage ? 'currentMessage' : ''}${!currentMessage && !conversationId ? ' and ' : ''}${!conversationId ? 'conversationIdentifier' : ''} is empty in agent loop iteration ${iterationCount}.`
                 )
             }
-            const remainingCharacterBudget = this.truncateRequest(currentRequestInput)
+            let remainingCharacterBudget = this.truncateRequest(currentRequestInput)
+
+            remainingCharacterBudget = this.truncatePinnedContext(remainingCharacterBudget, pinnedContext)
+
             let messages: DbMessage[] = []
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
@@ -741,6 +761,18 @@ export class AgenticChatController implements ChatHandlers {
                 ?.userInputMessage?.userIntent
                 ? []
                 : messages.map(msg => messageToStreamingMessage(msg))
+
+            // Prepend pinned context to history as a fake message pair
+            // This ensures pinned context doesn't get added to history file, and fulfills API contract requiring message pairs.
+            let pinnedContextChatMessages =
+                await this.#additionalContextProvider.convertPinnedContextToChatMessages(pinnedContext)
+
+            if (pinnedContextChatMessages.length === 2) {
+                currentRequestInput.conversationState!.history = [
+                    ...pinnedContextChatMessages,
+                    ...currentRequestInput.conversationState!.history,
+                ]
+            }
 
             // Add loading message before making the request
             const loadingMessageId = `loading-${uuid()}`
@@ -945,6 +977,26 @@ export class AgenticChatController implements ChatHandlers {
                 data: { chatResult: {}, toolUses: {} },
             }
         )
+    }
+
+    truncatePinnedContext(remainingCharacterBudget: number, pinnedContext?: AdditionalContentEntryAddition[]): number {
+        if (!pinnedContext) {
+            return remainingCharacterBudget
+        }
+
+        for (const [i, pinnedContextEntry] of pinnedContext.entries()) {
+            const pinnedContextEntryLength = pinnedContextEntry.innerContext?.length || 0
+            if (remainingCharacterBudget >= pinnedContextEntryLength) {
+                remainingCharacterBudget -= pinnedContextEntryLength
+            } else {
+                // Budget exceeded, truncate the array at this point
+                pinnedContext.splice(i)
+                remainingCharacterBudget = 0
+                break
+            }
+        }
+
+        return remainingCharacterBudget
     }
 
     /**

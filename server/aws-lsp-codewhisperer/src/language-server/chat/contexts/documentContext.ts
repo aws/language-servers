@@ -12,6 +12,7 @@ export type DocumentContext = CwsprTextDocument & {
     hasCodeSnippet: boolean
     totalEditorCharacters: number
     workspaceFolder?: WorkspaceFolder | null
+    path?: string
 }
 
 export interface DocumentContextExtractorConfig {
@@ -64,6 +65,7 @@ export class DocumentContextExtractor {
             hasCodeSnippet: Boolean(rangeWithinCodeBlock),
             totalEditorCharacters: document.getText().length,
             workspaceFolder,
+            path: URI.parse(document.uri).fsPath,
         }
     }
 
