@@ -34,6 +34,7 @@ import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
+import { getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -172,11 +173,14 @@ export class AgenticChatTriggerContext {
                           : item.type === 'code'
                             ? ContentType.CODE
                             : undefined
+                const workspaceFolder = this.#workspace.getWorkspaceFolder(URI.file(item.path).toString())
                 // Create the relevant text document
                 const relevantTextDocument: RelevantTextDocumentAddition = {
                     text: item.innerContext,
                     path: item.path,
-                    relativeFilePath: item.relativePath,
+                    relativeFilePath: workspaceFolder
+                        ? getRelativePathWithWorkspaceFolder(workspaceFolder, item.path)
+                        : item.relativePath,
                     programmingLanguage: programmingLanguage,
                     type: filteredType,
                     startLine: item.startLine ?? -1,
