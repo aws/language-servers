@@ -554,11 +554,6 @@ export class AgenticChatController implements ChatHandlers {
                 // Then update UI to inform the user
                 await this.#showUndoAllIfRequired(chatResultStream, session)
                 await chatResultStream.updateOngoingProgressResult('Canceled')
-                await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
-                    type: 'directive',
-                    messageId: 'stopped' + uuid(),
-                    body: 'You stopped your current work, please provide additional examples or ask another question.',
-                })
 
                 // Finally, send telemetry/metrics
                 this.#telemetryController.emitInteractWithAgenticChat(
