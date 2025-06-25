@@ -771,6 +771,143 @@ describe('handleError()', () => {
     })
 })
 
+describe('concurrent server initialization', () => {
+    let loadStub: sinon.SinonStub
+    let initOneServerStub: sinon.SinonStub
+    let promiseAllSpy: sinon.SinonSpy
+
+    beforeEach(() => {
+        sinon.restore()
+        // Stub the loadPersonaPermissions to return a simple map
+        sinon
+            .stub(mcpUtils, 'loadPersonaPermissions')
+            .resolves(new Map([['*', { enabled: true, toolPerms: {}, __configPath__: '/tmp/p.yaml' }]]))
+
+        // Create a spy on Promise.all to verify it's called with the correct arguments
+        promiseAllSpy = sinon.spy(Promise, 'all')
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('initializes multiple servers concurrently', async () => {
+        // Create multiple server configs
+        const cfg1: MCPServerConfig = {
+            command: 'server1',
+            args: [],
+            env: {},
+            timeout: 0,
+            __configPath__: 'config1.json',
+        }
+
+        const cfg2: MCPServerConfig = {
+            command: 'server2',
+            args: [],
+            env: {},
+            timeout: 0,
+            __configPath__: 'config2.json',
+        }
+
+        const cfg3: MCPServerConfig = {
+            command: 'server3',
+            args: [],
+            env: {},
+            timeout: 0,
+            __configPath__: 'config3.json',
+        }
+
+        // Set up the loadMcpServerConfigs stub to return multiple servers
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
+            servers: new Map([
+                ['server1', cfg1],
+                ['server2', cfg2],
+                ['server3', cfg3],
+            ]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+        })
+
+        // Create a controlled stub for initOneServer that resolves after a delay
+        // This helps verify that servers are initialized concurrently
+        const initPromises: Promise<void>[] = []
+        const initStartTimes: Record<string, number> = {}
+        const initEndTimes: Record<string, number> = {}
+
+        initOneServerStub = sinon
+            .stub(McpManager.prototype as any, 'initOneServer' as keyof McpManager)
+            .callsFake(async function (this: any, ...args: any[]) {
+                const serverName = args[0] as string
+                initStartTimes[serverName] = Date.now()
+
+                // Create a promise that resolves after a short delay
+                const promise = new Promise<void>(resolve => {
+                    setTimeout(() => {
+                        // Set up the server state as the original method would
+                        this.clients.set(serverName, new Client({ name: `mcp-client-${serverName}`, version: '1.0.0' }))
+                        this.mcpTools.push({
+                            serverName,
+                            toolName: `tool-${serverName}`,
+                            description: `Tool for ${serverName}`,
+                            inputSchema: {},
+                        })
+                        this.setState(serverName, 'ENABLED', 1)
+
+                        initEndTimes[serverName] = Date.now()
+                        resolve()
+                    }, 50) // Small delay to simulate async initialization
+                })
+
+                initPromises.push(promise)
+                return promise
+            })
+
+        // Initialize the McpManager
+        const mgr = await McpManager.init(['config1.json', 'config2.json', 'config3.json'], [], features)
+
+        // Verify that Promise.all was called with an array of promises
+        expect(promiseAllSpy.called).to.be.true
+
+        // At least one of the calls to Promise.all should have our 3 initialization promises
+        let foundInitCall = false
+        for (const call of promiseAllSpy.getCalls()) {
+            const args = call.args[0]
+            if (Array.isArray(args) && args.length === 3) {
+                foundInitCall = true
+                break
+            }
+        }
+        expect(foundInitCall).to.be.true
+
+        // Verify that initOneServer was called for each server
+        expect(initOneServerStub.callCount).to.equal(3)
+        expect(initOneServerStub.calledWith('server1', cfg1)).to.be.true
+        expect(initOneServerStub.calledWith('server2', cfg2)).to.be.true
+        expect(initOneServerStub.calledWith('server3', cfg3)).to.be.true
+
+        // Verify that all servers were initialized
+        const serverStates = mgr.getAllServerStates()
+        expect(serverStates.get('server1')?.status).to.equal('ENABLED')
+        expect(serverStates.get('server2')?.status).to.equal('ENABLED')
+        expect(serverStates.get('server3')?.status).to.equal('ENABLED')
+
+        // Verify that all servers were initialized concurrently
+        // This is done by checking that the initialization of the second and third servers
+        // started before the first one completed
+        const server1Start = initStartTimes['server1']
+        const server2Start = initStartTimes['server2']
+        const server3Start = initStartTimes['server3']
+        const server1End = initEndTimes['server1']
+
+        // All servers should have started initialization before any of them completed
+        expect(server2Start).to.be.lessThan(server1End)
+        expect(server3Start).to.be.lessThan(server1End)
+    })
+})
+
 describe('McpManager error handling', () => {
     let loadStub: sinon.SinonStub
 

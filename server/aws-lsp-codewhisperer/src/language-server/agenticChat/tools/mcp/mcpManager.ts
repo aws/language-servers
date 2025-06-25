@@ -173,6 +173,9 @@ export class McpManager {
             this.setState(name, McpServerStatus.UNINITIALIZED, 0)
         }
 
+        // Create an array of initialization promises for concurrent execution
+        const initPromises: Promise<void>[] = []
+
         for (const [name, cfg] of this.mcpServers.entries()) {
             if (this.isServerDisabled(name)) {
                 this.features.logging.info(`MCP: server '${name}' is disabled by persona settings, skipping`)
@@ -180,7 +183,15 @@ export class McpManager {
                 this.emitToolsChanged(name)
                 continue
             }
-            await this.initOneServer(name, cfg)
+            // Add initialization promise to the array instead of awaiting it immediately
+            initPromises.push(this.initOneServer(name, cfg))
+        }
+
+        // Wait for all server initializations to complete concurrently
+        if (initPromises.length > 0) {
+            this.features.logging.info(`MCP: concurrently initializing ${initPromises.length} servers`)
+            await Promise.all(initPromises)
+            this.features.logging.info(`MCP: completed concurrent initialization of ${initPromises.length} servers`)
         }
     }
 
