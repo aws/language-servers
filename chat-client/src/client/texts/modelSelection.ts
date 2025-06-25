@@ -54,3 +54,14 @@ export const modelUnavailableBanner: Partial<ChatItem> = {
     body: `The model you've selected is experiencing high load. Please switch to another model and try again.`,
     canBeDismissed: true,
 }
+
+export const modelThrottledBanner: Partial<ChatItem> = {
+    messageId: 'model-throttled-banner',
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: '### Model Unavailable',
+    },
+    body: `I am experiencing high traffic, please try again shortly.`,
+    canBeDismissed: true,
+}

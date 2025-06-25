@@ -93,6 +93,7 @@ import {
     getSsoConnectionType,
     isUsageLimitError,
     isNullish,
+    enabledModelSelection,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -1952,8 +1953,10 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // Determine if this is a built-in tool or MCP tool
+        // TODO: add agent.getBuiltInTools to avoid hardcoding the list here
         const isStandardTool =
-            toolName !== undefined && ['executeBash', 'fsWrite', 'fsRead', 'listDirectory'].includes(toolName)
+            toolName !== undefined &&
+            ['executeBash', 'fsWrite', 'fsRead', 'listDirectory', 'fsReplace', 'fileSearch'].includes(toolName)
 
         if (isStandardTool) {
             return {
@@ -2395,6 +2398,19 @@ export class AgenticChatController implements ChatHandlers {
                     this.#features.chat.sendChatUpdate({
                         tabId: tabId,
                         data: { messages: [{ messageId: 'modelUnavailable' }] },
+                    })
+                    const emptyChatResult: ChatResult = {
+                        type: 'answer',
+                        body: '',
+                        messageId: errorMessageId,
+                        buttons: [],
+                    }
+                    return emptyChatResult
+                }
+                if (err.message === `I am experiencing high traffic, please try again shortly.`) {
+                    this.#features.chat.sendChatUpdate({
+                        tabId: tabId,
+                        data: { messages: [{ messageId: 'modelThrottled' }] },
                     })
                     const emptyChatResult: ChatResult = {
                         type: 'answer',
@@ -3374,6 +3390,7 @@ export class AgenticChatController implements ChatHandlers {
         if (!enabledMCP(this.#features.lsp.getClientInitializeParams())) {
             if (!session.pairProgrammingMode) {
                 return allTools.filter(
+                    // TODO: add agent.getBuiltInReadOnlyTools or agent.getBuiltInWriteTools to avoid hardcoding
                     tool => !['fsWrite', 'fsReplace', 'executeBash'].includes(tool.toolSpecification?.name || '')
                 )
             }

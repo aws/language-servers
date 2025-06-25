@@ -13,7 +13,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
-import { safeGet } from '../../shared/utils'
+import { enabledModelSelection, safeGet } from '../../shared/utils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
 
 export const QAgenticChatServer =
@@ -47,6 +47,7 @@ export const QAgenticChatServer =
                             ],
                         },
                         mcpServers: enabledMCP(params),
+                        // we should set it as true for current VSC and VS clients
                         modelSelection: true,
                         history: true,
                         export: TabBarController.enableChatExport(params)
@@ -64,7 +65,7 @@ export const QAgenticChatServer =
             // Get initialized service manager and inject it to chatSessionManagementService to pass it down
             amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
             chatSessionManagementService =
-                ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager)
+                ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager, features.lsp)
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
@@ -144,7 +145,7 @@ export const QAgenticChatServer =
             return chatController.onListConversations(params)
         })
 
-         chat.onListRules(params => {
+        chat.onListRules(params => {
             return chatController.onListRules(params)
         })
 

@@ -26,6 +26,8 @@ import { ServiceException } from '@smithy/smithy-client'
 import * as ignoreWalk from 'ignore-walk'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 import ignore = require('ignore')
+import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
+import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -314,6 +316,13 @@ export function getCompletionType(suggestion: Suggestion): CodewhispererCompleti
     const nonBlankLines = suggestion.content.split('\n').filter(line => line.trim() !== '').length
 
     return nonBlankLines > 1 ? 'Block' : 'Line'
+}
+
+export function enabledModelSelection(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.modelSelection || false
 }
 
 export function parseJson(jsonString: string) {

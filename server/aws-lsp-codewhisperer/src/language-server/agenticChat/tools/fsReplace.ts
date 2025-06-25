@@ -94,7 +94,7 @@ export class FsReplace {
                     },
                     diffs: {
                         description:
-                            'List of `oldStr`/`newStr` pairs to replace contents in an existing file. IMPORTANT: Must be provided as an array of objects, NOT as a string. For example, `[{"oldStr": "existingContent", "newStr": "newContent"}]`',
+                            'A list of `oldStr`/`newStr` pairs to replace content in an existing file. Example: `[{"oldStr": "existingContent", "newStr": "newContent"}]`. CRITICAL: Use JSON array syntax [{}], NOT string "[{}]". Common error: wrapping array in quotes.',
                         type: 'array',
                         items: {
                             type: 'object',
