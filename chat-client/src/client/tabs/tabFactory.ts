@@ -1,6 +1,5 @@
 import {
     ChatItem,
-    ChatItemFormItem,
     ChatItemType,
     MynahIcons,
     MynahUIDataModel,
@@ -25,7 +24,6 @@ export class TabFactory {
     private agenticMode: boolean = false
     private mcp: boolean = false
     private modelSelectionEnabled: boolean = false
-    private defaultPairProgrammingMode: boolean = true
     initialTabId: string
 
     public static generateUniqueId() {
@@ -49,10 +47,7 @@ export class TabFactory {
             ...(disclaimerCardActive ? { promptInputStickyCard: disclaimerCard } : {}),
             promptInputOptions: this.agenticMode
                 ? [
-                      {
-                          ...pairProgrammingPromptInput,
-                          value: this.defaultPairProgrammingMode ? 'true' : 'false',
-                      } as ChatItemFormItem,
+                      pairProgrammingPromptInput,
                       ...(this.modelSelectionEnabled ? [modelSelectionForRegion['us-east-1']] : []),
                   ]
                 : [],
@@ -114,10 +109,6 @@ export class TabFactory {
 
     public enableModelSelection() {
         this.modelSelectionEnabled = true
-    }
-
-    public setDefaultPairProgrammingMode(enabled: boolean) {
-        this.defaultPairProgrammingMode = enabled
     }
 
     public getDefaultTabData(): DefaultTabData {

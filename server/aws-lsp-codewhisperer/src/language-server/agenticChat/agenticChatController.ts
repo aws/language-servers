@@ -3309,31 +3309,6 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
     }
 
-    chatOptionsUpdate(params: ChatUpdateParams): void {
-        // Need to use type assertions since these properties aren't in the interface
-        const extendedParams = params as any
-
-        if (extendedParams?.modelId) {
-            this.#log(`Model selection changed to ${extendedParams.modelId}`)
-            const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
-            const { data: session } = sessionResult
-            if (session) {
-                session.modelId = extendedParams.modelId
-                this.#chatHistoryDb.setModelId(extendedParams.modelId)
-            }
-        }
-        // Handle pairProgrammingMode if it's provided
-        if (extendedParams?.pairProgrammingMode !== undefined) {
-            this.#log(`Pair programming mode changed to ${extendedParams.pairProgrammingMode}`)
-            const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
-            const { data: session } = sessionResult
-            if (session) {
-                session.pairProgrammingMode = extendedParams.pairProgrammingMode
-                this.#chatHistoryDb.setPairProgrammingMode(extendedParams.pairProgrammingMode)
-            }
-        }
-    }
-
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
         this.#customizationArn = newConfig.customizationArn
         if (newConfig.sendUserWrittenCodeMetrics) {
