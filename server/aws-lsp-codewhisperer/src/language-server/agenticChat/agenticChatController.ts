@@ -554,11 +554,6 @@ export class AgenticChatController implements ChatHandlers {
                 // Then update UI to inform the user
                 await this.#showUndoAllIfRequired(chatResultStream, session)
                 await chatResultStream.updateOngoingProgressResult('Canceled')
-                await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
-                    type: 'directive',
-                    messageId: 'stopped' + uuid(),
-                    body: 'You stopped your current work, please provide additional examples or ask another question.',
-                })
 
                 // Finally, send telemetry/metrics
                 this.#telemetryController.emitInteractWithAgenticChat(
@@ -1172,6 +1167,19 @@ export class AgenticChatController implements ChatHandlers {
                     default:
                         // Get original server and tool names from the mapping
                         const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+
+                        // Remove explanation field from toolUse.input for MCP tools
+                        // many MCP servers do not support explanation field and it will break the tool if this is altered
+                        if (
+                            originalNames &&
+                            toolUse.input &&
+                            typeof toolUse.input === 'object' &&
+                            'explanation' in toolUse.input
+                        ) {
+                            const { explanation, ...inputWithoutExplanation } = toolUse.input as any
+                            toolUse.input = inputWithoutExplanation
+                        }
+
                         if (originalNames) {
                             const { serverName, toolName } = originalNames
                             const def = McpManager.instance
