@@ -19,6 +19,9 @@ import {
     TabType,
     calculateDatabaseSize,
     updateOrCreateConversation,
+    getChatDbNameFromWorkspaceId,
+    getSha256WorkspaceId,
+    getMd5WorkspaceId,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -28,6 +31,7 @@ import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-clie
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
+import { existsSync, renameSync } from 'fs'
 
 export class ToolResultValidationError extends Error {
     constructor(message?: string) {
@@ -133,7 +137,7 @@ export class ChatDatabase {
     /**
      * Generates an identifier for the open workspace folder(s).
      */
-    getWorkspaceIdentifier() {
+    private getFolderBasedWorkspaceIdentifier() {
         let workspaceFolderPaths = this.#features.workspace
             .getAllWorkspaceFolders()
             ?.map(({ uri }) => new URL(uri).pathname)
@@ -143,16 +147,60 @@ export class ChatDatabase {
             const pathsString = workspaceFolderPaths
                 .sort() // Sort to ensure consistent hash regardless of folder order
                 .join('|')
-            return crypto.createHash('md5').update(pathsString).digest('hex')
+            return getMd5WorkspaceId(pathsString)
         }
 
         // Case 2: Single folder workspace
         if (workspaceFolderPaths && workspaceFolderPaths[0]) {
-            return crypto.createHash('md5').update(workspaceFolderPaths[0]).digest('hex')
+            return getMd5WorkspaceId(workspaceFolderPaths[0])
         }
 
         // Case 3: No workspace open
         return 'no-workspace'
+    }
+
+    /**
+     * Generates an identifier for the open workspace.
+     */
+    getWorkspaceIdentifier() {
+        const workspaceFilePath =
+            this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.workspaceFilePath
+
+        if (workspaceFilePath) {
+            // Case 1: The latest plugins provide workspaceFilePath - should use workspace file-based SHA256 hash for workspace ID.
+            // This distinguishes from older plugins that used MD5 of workspaceFilePath.
+            const workspaceId = getSha256WorkspaceId(workspaceFilePath)
+            const dbFilePath = path.join(this.#dbDirectory, getChatDbNameFromWorkspaceId(workspaceId))
+
+            const dbFileExists = existsSync(dbFilePath)
+            if (!dbFileExists) {
+                // Migrate the history file from folder-based to workspace file-based.
+                this.migrateHistoryFile(dbFilePath)
+            }
+
+            this.#features.logging.debug(`workspaceFilePath is set: ${workspaceFilePath}, workspaceId: ${workspaceId}`)
+            return workspaceId
+        } else {
+            // Case 2: workspaceFilePath is not set, use folder-based workspaceId
+            return this.getFolderBasedWorkspaceIdentifier()
+        }
+    }
+
+    /**
+     * Migrate the workspace folder based history file to workspaceFile based history file
+     * @param newDbFilePath workspaceFile based history file path
+     */
+    private migrateHistoryFile(newDbFilePath: string) {
+        // Check if old folder-based history file exists and migrate it to the new workspace file-based location.
+        // If no old file exists, we'll simply use the new workspace ID for the history file.
+        const oldWorkspaceIdentifier = this.getFolderBasedWorkspaceIdentifier()
+        const oldDbFilePath = path.join(this.#dbDirectory, getChatDbNameFromWorkspaceId(oldWorkspaceIdentifier))
+        const oldDbFileExists = existsSync(oldDbFilePath)
+        if (oldDbFileExists) {
+            this.#features.logging.log(`Migrating history file from ${oldDbFilePath} to ${newDbFilePath}`)
+            renameSync(oldDbFilePath, newDbFilePath)
+        }
     }
 
     /**

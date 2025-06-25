@@ -23,9 +23,9 @@ import {
 } from '@aws/codewhisperer-streaming-client'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { activeFileCmd } from '../../context/addtionalContextProvider'
-import { ChatItemType } from '@aws/mynah-ui'
 import { PriorityQueue } from 'typescript-collections'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import * as crypto from 'crypto'
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
@@ -441,4 +441,16 @@ function getTabTypeIcon(tabType: TabType): IconType {
 export async function calculateDatabaseSize(features: Features, dbPath: string): Promise<number> {
     const result = await features.workspace.fs.getFileSize(dbPath)
     return result.size
+}
+
+export function getChatDbNameFromWorkspaceId(workspaceId: string): string {
+    return `chat-history-${workspaceId}.json`
+}
+
+export function getMd5WorkspaceId(filePath: string): string {
+    return crypto.createHash('md5').update(filePath).digest('hex')
+}
+
+export function getSha256WorkspaceId(filePath: string): string {
+    return crypto.createHash('sha256').update(filePath).digest('hex')
 }
