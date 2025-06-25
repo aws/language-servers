@@ -62,7 +62,7 @@ import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/cod
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 import { getAddedAndDeletedChars } from './diffUtils'
-const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
+import { editPredictionAutoTrigger } from './auto-trigger/editPredictionAutoTrigger'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const FILE_URI_CHARS_LIMIT = 1024
@@ -483,6 +483,8 @@ export const CodewhispererServerFactory =
                                 ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
                                 ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
                             ]
+
+                            predictionTypes = [['COMPLETIONS'], ['EDITS']]
 
                             // Step 1: Recent Edits context
                             const supplementalContextItemsForEdits =

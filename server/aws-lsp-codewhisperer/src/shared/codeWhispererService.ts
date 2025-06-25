@@ -241,6 +241,43 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
+        this.logging.info(`[NEP]: generateCompletion payload: 
+    "lsp-version": '6/25 empty request replay commit id d0abaade0e302b7d932254a95f47fa50906963d8',
+    "requestId": ${response.$response.requestId},
+    "responseCompletionCount": ${response.completions?.length ?? 0},
+    "responsePredictionCount": ${response.predictions?.length ?? 0},
+    "suggestionType": ${request.predictionTypes?.toString() ?? '[]'},
+    "filename": ${request.fileContext.filename},
+    "language": ${request.fileContext.programmingLanguage.languageName},
+    "editorState.cursorState": ${request.editorState?.cursorState},
+    "editorState.document" :${JSON.stringify(request.editorState?.document)}
+    "supplementalContextLength": ${request.supplementalContexts?.length ?? 0},
+    "supplementalContext": ${JSON.stringify(request.supplementalContexts)}`)
+
+        if (response.completions?.length === 0 && response.predictions?.length === 0) {
+            this.logging.warn(`[NEP]: EMPTY response: requestId=${response.$response.requestId}`)
+            if (request.predictionTypes && request.predictionTypes.length === 2) {
+                this.logging.warn(`[NEP]: retry request with single suggestion type`)
+                setTimeout(async () => {
+                    const editsOnlyRequest: GenerateSuggestionsRequest = {
+                        ...request,
+                        predictionTypes: ['EDITS'],
+                    }
+
+                    await this.generateSuggestions(editsOnlyRequest)
+                }, 1000)
+
+                setTimeout(async () => {
+                    const editsOnlyRequest: GenerateSuggestionsRequest = {
+                        ...request,
+                        predictionTypes: ['COMPLETIONS'],
+                    }
+
+                    await this.generateSuggestions(editsOnlyRequest)
+                }, 2000)
+            }
+        }
+
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
