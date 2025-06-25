@@ -1901,8 +1901,10 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // Determine if this is a built-in tool or MCP tool
+        // TODO: add agent.getBuiltInTools to avoid hardcoding the list here
         const isStandardTool =
-            toolName !== undefined && ['executeBash', 'fsWrite', 'fsRead', 'listDirectory'].includes(toolName)
+            toolName !== undefined &&
+            ['executeBash', 'fsWrite', 'fsRead', 'listDirectory', 'fsReplace', 'fileSearch'].includes(toolName)
 
         if (isStandardTool) {
             return {
@@ -3336,6 +3338,7 @@ export class AgenticChatController implements ChatHandlers {
         if (!enabledMCP(this.#features.lsp.getClientInitializeParams())) {
             if (!session.pairProgrammingMode) {
                 return allTools.filter(
+                    // TODO: add agent.getBuiltInReadOnlyTools or agent.getBuiltInWriteTools to avoid hardcoding
                     tool => !['fsWrite', 'fsReplace', 'executeBash'].includes(tool.toolSpecification?.name || '')
                 )
             }
