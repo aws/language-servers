@@ -215,6 +215,19 @@ export const createMynahUi = (
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
     let contextCommandGroups: ContextCommandGroups | undefined
 
+    // Fetch and set the saved pair programming mode from the server
+    // This will be called later when the UI is ready
+    const fetchSavedPairProgrammingMode = () => {
+        // Request to get the saved pair programming mode
+        messager.onChatPrompt(
+            {
+                prompt: { prompt: '', escapedPrompt: '' },
+                tabId: tabFactory.initialTabId,
+            },
+            'fetchPreferences'
+        )
+    }
+
     let chatEventHandlers: ChatEventHandler = {
         onCodeInsertToCursorPosition(
             tabId,
@@ -276,6 +289,10 @@ export const createMynahUi = (
         onReady: () => {
             messager.onUiReady()
             messager.onTabAdd(tabFactory.initialTabId)
+            // Request to get the saved pair programming mode
+            if (agenticMode) {
+                fetchSavedPairProgrammingMode()
+            }
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })

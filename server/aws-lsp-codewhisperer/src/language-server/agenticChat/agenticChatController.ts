@@ -2625,6 +2625,17 @@ export class AgenticChatController implements ChatHandlers {
         }
         session.modelId = modelId
 
+        // Get the saved pair programming mode from the database or default to true if not found
+        const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
+        session.pairProgrammingMode = savedPairProgrammingMode !== undefined ? savedPairProgrammingMode : true
+
+        // Update the client with the initial pair programming mode
+        this.#features.chat.chatOptionsUpdate({
+            tabId: params.tabId,
+            // Type assertion to support pairProgrammingMode
+            ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
+        } as ChatUpdateParams)
+
         if (success && session) {
             // Set the logging object on the session
             session.setLogging(this.#features.logging)
@@ -3295,6 +3306,32 @@ export class AgenticChatController implements ChatHandlers {
         session.modelId = params.optionsValues['model-selection']
 
         this.#chatHistoryDb.setModelId(session.modelId)
+        this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
+    }
+
+    chatOptionsUpdate(params: ChatUpdateParams): void {
+        // Need to use type assertions since these properties aren't in the interface
+        const extendedParams = params as any
+
+        if (extendedParams?.modelId) {
+            this.#log(`Model selection changed to ${extendedParams.modelId}`)
+            const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+            const { data: session } = sessionResult
+            if (session) {
+                session.modelId = extendedParams.modelId
+                this.#chatHistoryDb.setModelId(extendedParams.modelId)
+            }
+        }
+        // Handle pairProgrammingMode if it's provided
+        if (extendedParams?.pairProgrammingMode !== undefined) {
+            this.#log(`Pair programming mode changed to ${extendedParams.pairProgrammingMode}`)
+            const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+            const { data: session } = sessionResult
+            if (session) {
+                session.pairProgrammingMode = extendedParams.pairProgrammingMode
+                this.#chatHistoryDb.setPairProgrammingMode(extendedParams.pairProgrammingMode)
+            }
+        }
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
