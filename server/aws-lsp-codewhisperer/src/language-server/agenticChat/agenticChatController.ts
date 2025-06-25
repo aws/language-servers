@@ -2649,6 +2649,17 @@ export class AgenticChatController implements ChatHandlers {
         }
         session.modelId = modelId
 
+        // Get the saved pair programming mode from the database or default to true if not found
+        const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
+        session.pairProgrammingMode = savedPairProgrammingMode !== undefined ? savedPairProgrammingMode : true
+
+        // Update the client with the initial pair programming mode
+        this.#features.chat.chatOptionsUpdate({
+            tabId: params.tabId,
+            // Type assertion to support pairProgrammingMode
+            ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
+        } as ChatUpdateParams)
+
         if (success && session) {
             // Set the logging object on the session
             session.setLogging(this.#features.logging)
@@ -3319,6 +3330,7 @@ export class AgenticChatController implements ChatHandlers {
         session.modelId = params.optionsValues['model-selection']
 
         this.#chatHistoryDb.setModelId(session.modelId)
+        this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
