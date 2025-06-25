@@ -22,9 +22,12 @@ import * as JSZip from 'jszip'
 import { existsSync, statSync, readFileSync } from 'fs'
 
 export class QCodeReview {
+    private readonly chat: Features['chat']
     private readonly logging: Features['logging']
-    private readonly workspace: Features['workspace']
     private readonly lsp: Features['lsp']
+    private readonly notification: Features['notification']
+    private readonly telemetry: Features['telemetry']
+    private readonly workspace: Features['workspace']
 
     private static readonly CUSTOMER_CODE_BASE_PATH = 'customerCodeBaseFolder'
     private static readonly CODE_ARTIFACT_PATH = 'code_artifact'
@@ -36,10 +39,16 @@ export class QCodeReview {
         compressionOptions: { level: 9 },
     }
 
-    constructor(features: Pick<Features, 'workspace' | 'logging' | 'lsp'> & Partial<Features>) {
+    constructor(
+        features: Pick<Features, 'chat' | 'logging' | 'lsp' | 'notification' | 'telemetry' | 'workspace'> &
+            Partial<Features>
+    ) {
+        this.chat = features.chat
         this.logging = features.logging
-        this.workspace = features.workspace
         this.lsp = features.lsp
+        this.notification = features.notification
+        this.telemetry = features.telemetry
+        this.workspace = features.workspace
     }
 
     static readonly toolName = Q_CODE_REVIEW_TOOL_NAME
@@ -275,7 +284,7 @@ export class QCodeReview {
 
             // Add code diff file if we have any diffs
             if (codeDiff.trim()) {
-                this.logging.info(`Adding code diff to zip: ${codeDiff}`)
+                this.logging.info(`Adding code diff to zip of size: ${codeDiff.length}`)
                 isCodeDiffPresent = true
                 codeArtifactZip.file(QCodeReview.CODE_DIFF_PATH, codeDiff)
             }

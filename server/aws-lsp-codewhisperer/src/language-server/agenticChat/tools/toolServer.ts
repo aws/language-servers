@@ -67,15 +67,25 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
 }
 
 export const QCodeAnalysisServer: Server = ({
-    workspace,
-    logging,
     agent,
-    lsp,
-    sdkInitializator,
+    chat,
     credentialsProvider,
+    logging,
+    lsp,
+    notification,
+    sdkInitializator,
+    telemetry,
+    workspace,
 }) => {
     logging.info('QCodeAnalysisServer')
-    const qCodeReviewTool = new QCodeReview({ workspace, lsp, logging })
+    const qCodeReviewTool = new QCodeReview({
+        chat,
+        logging,
+        lsp,
+        notification,
+        telemetry,
+        workspace,
+    })
 
     lsp.onInitialized(async () => {
         logging.info('LSP on initialize for QCodeAnalysisServer')
