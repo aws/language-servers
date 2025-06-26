@@ -42,32 +42,38 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
                 - "review the modified lines"
 
                 AMBIGUOUS cases that default to PARTIAL_REVIEW:
-                - "review this file" (without explicit full-file language)
                 - "check my code" (without specifying scope)
                 - "look at [filename]" (without context about scope)
+                - "review this file / folder / workspace" (without explicit full-file language)
+                - "review the file / folder / workspace"
+                - "check this code"
+                - "analyze this file / folder / workspace"
+                - "look at this file / folder / workspace"
+                - "review my code"
+                - "look into it"
+                - Any review request without explicit "entire", "whole", "complete", "all", or "full" qualifiers
 
                 Decision framework to set value of 'scopeOfReview':
                 1. If explicit full-file language is used → FULL_REVIEW
                 2. If explicit change-only language is used → PARTIAL_REVIEW 
-                3. If ambiguous → Default to PARTIAL_REVIEW
-                4. Consider context: if user just made changes and asks for review without specifying scope, perform PARTIAL_REVIEW`,
+                3. If ambiguous → PARTIAL_REVIEW`,
             enum: SCOPE_OF_CODE_REVIEW,
         },
         fileLevelArtifacts: {
             type: <const>'array',
             description:
-                'Array of file paths that will be reviewed and their respective programming language (e.g. [{"path": "path/to/file.py", "programmingLanguage": "PYTHON"}]).' +
-                'So, if the customer asks for a code review of a single file, provide the file path and programming language in the array.' +
-                'If the customer asks for a code review of multiple files, provide the file paths and programming languages in the array.' +
+                'Array of abosolute file paths that will be reviewed and their respective programming language (e.g. [{"path": "path/to/file.py", "programmingLanguage": "PYTHON"}]).' +
+                'So, if the customer asks for a code review of a single file, provide the absolute file path and programming language in the array.' +
+                'If the customer asks for a code review of multiple files, provide the absolute file paths and programming languages in the array.' +
                 'If the customer asks for a code review of a folder, do not provide any file paths or programming languages in this array. It should be provided in folderLevelArtifacts',
             items: {
                 type: <const>'object',
                 description:
-                    'Array item containing artifact path and the programming language (e.g. {"path": "path/to/file.py", "programmingLanguage": "PYTHON"})',
+                    'Array item containing absolute path of artifact and the programming language (e.g. {"path": "path/to/file.py", "programmingLanguage": "PYTHON"})',
                 properties: {
                     path: {
                         type: <const>'string',
-                        description: 'The path of the file that will be scanned',
+                        description: 'The absolute path of the file that will be scanned',
                     },
                     programmingLanguage: {
                         type: <const>'string',
@@ -81,18 +87,18 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
         folderLevelArtifacts: {
             type: <const>'array',
             description:
-                'Array of folder paths that will be reviewed (e.g. [{"path": "path/to/code/"}]).' +
-                'So, if the customer asks for a code review of a single folder, provide the folder path in the array.' +
-                'If the customer asks for a code review of multiple folders, provide the folder paths in the array.' +
+                'Array of absolute folder paths that will be reviewed (e.g. [{"path": "path/to/code/"}]).' +
+                'So, if the customer asks for a code review of a single folder, provide the absolute folder path in the array.' +
+                'If the customer asks for a code review of multiple folders, provide multiple absolute folder paths in the array.' +
                 'If the customer asks for a code review of a file or multiple files, do not provide any folder paths in this array. It should be provided in fileLevelArtifacts.',
             items: {
                 type: <const>'object',
                 description:
-                    'Array item containing folder path of code that will be scanned (e.g. {"path": "path/to/code/"})',
+                    'Array item containing absolute folder path of code that will be scanned (e.g. {"path": "path/to/code/"})',
                 properties: {
                     path: {
                         type: <const>'string',
-                        description: 'The path of the folder that will be scanned',
+                        description: 'The absolute path of the folder that will be scanned',
                     },
                 },
                 required: ['path'] as const,
