@@ -484,6 +484,10 @@ export const CodewhispererServerFactory =
                                 ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
                             ]
 
+                            if (predictionTypes.length === 0) {
+                                return EMPTY_RESULT
+                            }
+
                             // Step 1: Recent Edits context
                             const supplementalContextItemsForEdits =
                                 supplementalContextFromEdits?.supplementalContextItems || []

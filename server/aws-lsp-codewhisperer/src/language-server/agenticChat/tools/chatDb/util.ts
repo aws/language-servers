@@ -82,6 +82,7 @@ export type Rules = {
 
 export type Settings = {
     modelId: string | undefined
+    pairProgrammingMode?: boolean
 }
 
 export type Conversation = {

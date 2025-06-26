@@ -554,11 +554,6 @@ export class AgenticChatController implements ChatHandlers {
                 // Then update UI to inform the user
                 await this.#showUndoAllIfRequired(chatResultStream, session)
                 await chatResultStream.updateOngoingProgressResult('Canceled')
-                await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
-                    type: 'directive',
-                    messageId: 'stopped' + uuid(),
-                    body: 'You stopped your current work, please provide additional examples or ask another question.',
-                })
 
                 // Finally, send telemetry/metrics
                 this.#telemetryController.emitInteractWithAgenticChat(
@@ -894,7 +889,7 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
-                    [llmLatency],
+                    llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
                     this.#timeBetweenChunks,
@@ -929,7 +924,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseIds ?? undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
-                    [llmLatency],
+                    llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
                     this.#timeBetweenChunks,
@@ -950,7 +945,7 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Failed',
                     this.#features.runtime.serverInfo.version ?? '',
-                    [llmLatency],
+                    llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
                     this.#timeBetweenChunks,
@@ -1224,6 +1219,19 @@ export class AgenticChatController implements ChatHandlers {
                     default:
                         // Get original server and tool names from the mapping
                         const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+
+                        // Remove explanation field from toolUse.input for MCP tools
+                        // many MCP servers do not support explanation field and it will break the tool if this is altered
+                        if (
+                            originalNames &&
+                            toolUse.input &&
+                            typeof toolUse.input === 'object' &&
+                            'explanation' in toolUse.input
+                        ) {
+                            const { explanation, ...inputWithoutExplanation } = toolUse.input as any
+                            toolUse.input = inputWithoutExplanation
+                        }
+
                         if (originalNames) {
                             const { serverName, toolName } = originalNames
                             const def = McpManager.instance
@@ -2693,6 +2701,17 @@ export class AgenticChatController implements ChatHandlers {
         }
         session.modelId = modelId
 
+        // Get the saved pair programming mode from the database or default to true if not found
+        const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
+        session.pairProgrammingMode = savedPairProgrammingMode !== undefined ? savedPairProgrammingMode : true
+
+        // Update the client with the initial pair programming mode
+        this.#features.chat.chatOptionsUpdate({
+            tabId: params.tabId,
+            // Type assertion to support pairProgrammingMode
+            ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
+        } as ChatUpdateParams)
+
         if (success && session) {
             // Set the logging object on the session
             session.setLogging(this.#features.logging)
@@ -3363,6 +3382,7 @@ export class AgenticChatController implements ChatHandlers {
         session.modelId = params.optionsValues['model-selection']
 
         this.#chatHistoryDb.setModelId(session.modelId)
+        this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
