@@ -81,8 +81,8 @@ describe('AdditionalContextProvider', () => {
             }
 
             // Mock fs.exists to only return true for .amazonq/rules directory, false for README/AmazonQ files
-            fsExistsStub.callsFake((path: string) => {
-                if (path.includes('.amazonq/rules')) {
+            fsExistsStub.callsFake((pathStr: string) => {
+                if (pathStr.includes(path.join('.amazonq', 'rules'))) {
                     return Promise.resolve(true)
                 }
                 return Promise.resolve(false)
@@ -471,8 +471,8 @@ describe('AdditionalContextProvider', () => {
             // Mock workspace folders
             sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
 
-            fsExistsStub.callsFake((path: string) => {
-                if (path.includes('.amazonq/rules')) {
+            fsExistsStub.callsFake((pathStr: string) => {
+                if (pathStr.includes(path.join('.amazonq', 'rules'))) {
                     return Promise.resolve(true)
                 }
                 return Promise.resolve(false)
