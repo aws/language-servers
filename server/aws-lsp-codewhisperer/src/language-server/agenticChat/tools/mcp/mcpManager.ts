@@ -173,6 +173,9 @@ export class McpManager {
             this.setState(name, McpServerStatus.UNINITIALIZED, 0)
         }
 
+        // Get all servers that need to be initialized
+        const serversToInit: Array<[string, MCPServerConfig]> = []
+
         for (const [name, cfg] of this.mcpServers.entries()) {
             if (this.isServerDisabled(name)) {
                 this.features.logging.info(`MCP: server '${name}' is disabled by persona settings, skipping`)
@@ -180,7 +183,30 @@ export class McpManager {
                 this.emitToolsChanged(name)
                 continue
             }
-            await this.initOneServer(name, cfg)
+            serversToInit.push([name, cfg])
+        }
+
+        // Process servers in batches of 5 at a time
+        const MAX_CONCURRENT_SERVERS = 5
+        const totalServers = serversToInit.length
+
+        if (totalServers > 0) {
+            this.features.logging.info(
+                `MCP: initializing ${totalServers} servers with max concurrency of ${MAX_CONCURRENT_SERVERS}`
+            )
+
+            // Process servers in batches
+            for (let i = 0; i < totalServers; i += MAX_CONCURRENT_SERVERS) {
+                const batch = serversToInit.slice(i, i + MAX_CONCURRENT_SERVERS)
+                const batchPromises = batch.map(([name, cfg]) => this.initOneServer(name, cfg))
+
+                this.features.logging.debug(
+                    `MCP: initializing batch of ${batch.length} servers (${i + 1}-${Math.min(i + MAX_CONCURRENT_SERVERS, totalServers)} of ${totalServers})`
+                )
+                await Promise.all(batchPromises)
+            }
+
+            this.features.logging.info(`MCP: completed initialization of ${totalServers} servers`)
         }
     }
 

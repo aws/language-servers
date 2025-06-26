@@ -64,7 +64,7 @@ import {
 import { ChatHistory, ChatHistoryList } from './features/history'
 import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
 import { ContextRule, RulesList } from './features/rules'
-import { getModelSelectionChatItem, modelUnavailableBanner } from './texts/modelSelection'
+import { getModelSelectionChatItem, modelUnavailableBanner, modelThrottledBanner } from './texts/modelSelection'
 import {
     freeTierLimitSticky,
     upgradeSuccessSticky,
@@ -146,7 +146,32 @@ export const handleChatPrompt = (
     agenticMode?: boolean
 ) => {
     let userPrompt = prompt.escapedPrompt
-    messager.onStopChatResponse(tabId)
+
+    // Check if there's an ongoing request
+    const isLoading = mynahUi.getTabData(tabId)?.getStore()?.loadingChat
+
+    if (isLoading) {
+        // Stop the current response
+        messager.onStopChatResponse(tabId)
+
+        // Add cancellation message BEFORE showing the new prompt
+        mynahUi.addChatItem(tabId, {
+            type: ChatItemType.DIRECTIVE,
+            messageId: 'stopped' + Date.now(),
+            body: 'You stopped your current work and asked me to work on the following task instead.',
+        })
+
+        // Reset loading state
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            cancelButtonWhenLoading: true,
+            promptInputDisabledState: false,
+        })
+    } else {
+        // If no ongoing request, just send the stop signal
+        messager.onStopChatResponse(tabId)
+    }
+
     if (prompt.command) {
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -564,6 +589,20 @@ export const createMynahUi = (
         },
         onStopChatResponse: tabId => {
             messager.onStopChatResponse(tabId)
+
+            // Add cancellation message when stop button is clicked
+            mynahUi.addChatItem(tabId, {
+                type: ChatItemType.DIRECTIVE,
+                messageId: 'stopped' + Date.now(),
+                body: 'You stopped your current work, please provide additional examples or ask another question.',
+            })
+
+            // Reset loading state
+            mynahUi.updateStore(tabId, {
+                loadingChat: false,
+                cancelButtonWhenLoading: true,
+                promptInputDisabledState: false,
+            })
         },
     }
 
@@ -1016,6 +1055,13 @@ export const createMynahUi = (
                     return
                 }
 
+                if (updatedMessage.messageId === 'modelThrottled') {
+                    mynahUi.updateStore(tabId, {
+                        promptInputStickyCard: modelThrottledBanner,
+                    })
+                    return
+                }
+
                 const oldMessage = chatItems.find(ci => ci.messageId === updatedMessage.messageId)
                 if (!oldMessage) return
 
@@ -1135,7 +1181,7 @@ export const createMynahUi = (
             buttons: processedButtons,
             fileList,
             // file diffs in the header need space
-            fullWidth: message.type === 'tool' && message.header?.buttons ? true : undefined,
+            fullWidth: message.type === 'tool' && includeHeader ? true : undefined,
             padding,
             contentHorizontalAlignment,
             wrapCodes: message.type === 'tool',

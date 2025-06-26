@@ -82,7 +82,9 @@ export class WebSocketClient {
         // Apply exponential backoff for both unclean closures and failed reconnection attempts
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++
-            const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
+            const baseDelay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
+            const jitter = Math.random() * 5000 // jitter of 0 ~ 5000 milliseconds
+            const delay = baseDelay + jitter
             this.logging.log(
                 `WebSocket will attempt reconnection ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}s`
             )

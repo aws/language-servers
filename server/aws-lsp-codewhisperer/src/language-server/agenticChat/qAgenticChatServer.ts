@@ -10,10 +10,13 @@ import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
-import { safeGet } from '../../shared/utils'
+import { isUsingIAMAuth, safeGet, enabledModelSelection } from '../../shared/utils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
 
 export const QAgenticChatServer =
@@ -22,7 +25,7 @@ export const QAgenticChatServer =
         const { chat, credentialsProvider, telemetry, logging, lsp, runtime, agent } = features
 
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
-        let amazonQServiceManager: AmazonQTokenServiceManager
+        let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
 
         let chatController: AgenticChatController
@@ -47,6 +50,7 @@ export const QAgenticChatServer =
                             ],
                         },
                         mcpServers: enabledMCP(params),
+                        // we should set it as true for current VSC and VS clients
                         modelSelection: true,
                         history: true,
                         export: TabBarController.enableChatExport(params)
@@ -62,9 +66,10 @@ export const QAgenticChatServer =
 
         lsp.onInitialized(async () => {
             // Get initialized service manager and inject it to chatSessionManagementService to pass it down
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+            logging.info(`In IAM Auth mode: ${isUsingIAMAuth()}`)
+            amazonQServiceManager = isUsingIAMAuth() ? getOrThrowBaseIAMServiceManager() : getOrThrowBaseTokenServiceManager()
             chatSessionManagementService =
-                ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager)
+                ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager, features.lsp)
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
@@ -144,7 +149,7 @@ export const QAgenticChatServer =
             return chatController.onListConversations(params)
         })
 
-         chat.onListRules(params => {
+        chat.onListRules(params => {
             return chatController.onListRules(params)
         })
 

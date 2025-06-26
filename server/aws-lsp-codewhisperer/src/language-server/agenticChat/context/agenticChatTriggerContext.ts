@@ -8,7 +8,6 @@ import {
     ChatTriggerType,
     UserIntent,
     AdditionalContentEntry,
-    GenerateAssistantResponseCommandInput,
     ChatMessage,
     ContentType,
     ProgrammingLanguage,
@@ -34,6 +33,8 @@ import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
+import { getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
+import { ChatCommandInput } from '../../../shared/streamingClientService'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -99,6 +100,20 @@ export class AgenticChatTriggerContext {
         }
     }
 
+    /**
+     * Creates chat parameters from trigger context for sending to the backend
+     * @param params Chat parameters or inline chat parameters
+     * @param triggerContext Context information from the trigger
+     * @param chatTriggerType Type of chat trigger
+     * @param customizationArn Optional ARN for customization
+     * @param chatResultStream Optional stream for chat results
+     * @param profileArn Optional ARN for profile
+     * @param history Optional chat message history
+     * @param tools Optional Bedrock tools
+     * @param additionalContent Optional additional content entries
+     * @param modelId Optional model ID
+     * @returns ChatCommandInput - which is either SendMessageInput or GenerateAssistantResponseInput
+     */
     async getChatParamsFromTrigger(
         params: ChatParams | InlineChatParams,
         triggerContext: TriggerContext,
@@ -110,7 +125,7 @@ export class AgenticChatTriggerContext {
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[],
         modelId?: string
-    ): Promise<GenerateAssistantResponseCommandInput> {
+    ): Promise<ChatCommandInput> {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
         const defaultEditorState = { workspaceFolders }
@@ -172,11 +187,14 @@ export class AgenticChatTriggerContext {
                           : item.type === 'code'
                             ? ContentType.CODE
                             : undefined
+                const workspaceFolder = this.#workspace.getWorkspaceFolder(URI.file(item.path).toString())
                 // Create the relevant text document
                 const relevantTextDocument: RelevantTextDocumentAddition = {
                     text: item.innerContext,
                     path: item.path,
-                    relativeFilePath: item.relativePath,
+                    relativeFilePath: workspaceFolder
+                        ? getRelativePathWithWorkspaceFolder(workspaceFolder, item.path)
+                        : item.relativePath,
                     programmingLanguage: programmingLanguage,
                     type: filteredType,
                     startLine: item.startLine ?? -1,
@@ -187,7 +205,7 @@ export class AgenticChatTriggerContext {
         }
         const useRelevantDocuments = relevantDocuments.length !== 0
 
-        const data: GenerateAssistantResponseCommandInput = {
+        const data: ChatCommandInput = {
             conversationState: {
                 workspaceId: workspaceId,
                 chatTriggerType: chatTriggerType,

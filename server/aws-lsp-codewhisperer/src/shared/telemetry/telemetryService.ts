@@ -100,6 +100,7 @@ export class TelemetryService {
         return this.serviceManager.getCodewhispererService().getCredentialsType()
     }
 
+    // NOTE : CWSPR Service GetManager
     private getService(): CodeWhispererServiceToken {
         const service = this.serviceManager.getCodewhispererService() as CodeWhispererServiceToken
 
@@ -181,7 +182,13 @@ export class TelemetryService {
         return this.cwInteractionTypeMap[interactionType] || 'UNKNOWN'
     }
 
-    public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
+    public emitUserTriggerDecision(
+        session: CodeWhispererSession,
+        timeSinceLastUserModification?: number,
+        addedCharacterCount?: number,
+        deletedCharacterCount?: number,
+        streakLength?: number
+    ) {
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {
                 codewhispererSessionId: session.codewhispererSessionId || '',
@@ -257,7 +264,9 @@ export class TelemetryService {
             generatedLine: generatedLines,
             numberOfRecommendations: session.suggestions.length,
             perceivedLatencyMilliseconds: perceivedLatencyMilliseconds,
-            acceptedCharacterCount: acceptedCharacterCount,
+            addedCharacterCount: addedCharacterCount,
+            deletedCharacterCount: deletedCharacterCount,
+            streakLength: streakLength,
         }
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
@@ -380,6 +389,8 @@ export class TelemetryService {
                 timestamp: params.timestamp,
                 acceptedCharacterCount: params.acceptedCharacterCount,
                 unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+                addedCharacterCount: params.acceptedCharacterCount,
+                unmodifiedAddedCharacterCount: params.unmodifiedAcceptedCharacterCount,
             },
         })
     }
@@ -420,6 +431,7 @@ export class TelemetryService {
             acceptedCharacterCount: params.acceptedCharacterCount,
             totalCharacterCount: params.totalCharacterCount,
             timestamp: new Date(Date.now()),
+            addedCharacterCount: params.acceptedCharacterCount,
             userWrittenCodeCharacterCount: params.userWrittenCodeCharacterCount,
             userWrittenCodeLineCount: params.userWrittenCodeLineCount,
         }

@@ -1,16 +1,19 @@
 import { InitializeParams, Server, TextDocumentSyncKind } from '@aws/language-server-runtimes/server-interface'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { URI } from 'vscode-uri'
+import { isUsingIAMAuth } from '../../shared/utils'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 export const LocalProjectContextServer =
     (): Server =>
     ({ credentialsProvider, telemetry, logging, lsp, workspace }) => {
         let localProjectContextController: LocalProjectContextController
-        let amazonQServiceManager: AmazonQTokenServiceManager
+        let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
 
         let localProjectContextEnabled: boolean = false
@@ -60,7 +63,9 @@ export const LocalProjectContextServer =
 
         lsp.onInitialized(async () => {
             try {
-                amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+                amazonQServiceManager = isUsingIAMAuth()
+                    ? getOrThrowBaseIAMServiceManager()
+                    : getOrThrowBaseTokenServiceManager()
                 telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
                 await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
@@ -80,7 +85,7 @@ export const LocalProjectContextServer =
 
         lsp.workspace.onDidCreateFiles(async event => {
             try {
-                const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
+                const filePaths = event.files.map(file => URI.file(file.uri).fsPath)
                 await localProjectContextController.updateIndexAndContextCommand(filePaths, true)
             } catch (error) {
                 logging.error(`Error handling create event: ${error}`)
@@ -89,7 +94,7 @@ export const LocalProjectContextServer =
 
         lsp.workspace.onDidDeleteFiles(async event => {
             try {
-                const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
+                const filePaths = event.files.map(file => URI.file(file.uri).fsPath)
                 await localProjectContextController.updateIndexAndContextCommand(filePaths, false)
             } catch (error) {
                 logging.error(`Error handling delete event: ${error}`)
@@ -98,8 +103,8 @@ export const LocalProjectContextServer =
 
         lsp.workspace.onDidRenameFiles(async event => {
             try {
-                const oldPaths = event.files.map(file => URI.parse(file.oldUri).fsPath)
-                const newPaths = event.files.map(file => URI.parse(file.newUri).fsPath)
+                const oldPaths = event.files.map(file => URI.file(file.oldUri).fsPath)
+                const newPaths = event.files.map(file => URI.file(file.newUri).fsPath)
 
                 await localProjectContextController.updateIndexAndContextCommand(oldPaths, false)
                 await localProjectContextController.updateIndexAndContextCommand(newPaths, true)
@@ -110,7 +115,7 @@ export const LocalProjectContextServer =
 
         lsp.onDidSaveTextDocument(async event => {
             try {
-                const filePaths = [URI.parse(event.textDocument.uri).fsPath]
+                const filePaths = [URI.file(event.textDocument.uri).fsPath]
                 await localProjectContextController.updateIndex(filePaths, 'update')
             } catch (error) {
                 logging.error(`Error handling save event: ${error}`)
