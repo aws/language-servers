@@ -147,7 +147,6 @@ describe('AgenticChatTriggerContext', () => {
             undefined,
             modelId
         )
-
         assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, modelId)
     })
 
@@ -158,7 +157,6 @@ describe('AgenticChatTriggerContext', () => {
             {},
             ChatTriggerType.MANUAL
         )
-
         assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, undefined)
     })
 

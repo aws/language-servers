@@ -7,7 +7,7 @@
         "compile": "tsc --build"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.98",
+        "@aws/language-server-runtimes": "^0.2.100",
         "@aws/lsp-notification": "^0.0.1"
     }
 }
