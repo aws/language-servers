@@ -20,7 +20,7 @@ import {
     ServiceQuotaExceededException,
     ThrottlingException,
     ThrottlingExceptionReason,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
 import * as ignoreWalk from 'ignore-walk'

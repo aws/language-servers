@@ -1,4 +1,4 @@
-import { ToolUse } from '@aws/codewhisperer-streaming-client'
+import { ToolUse } from '@amzn/codewhisperer-streaming'
 
 function codeBlocked(s: string) {
     const codeBlock = `\`\`\`\``
