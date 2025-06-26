@@ -844,4 +844,15 @@ export class ChatDatabase {
     setModelId(modelId: string | undefined): void {
         this.updateSettings({ modelId: modelId === '' ? undefined : modelId })
     }
+
+    getPairProgrammingMode(): boolean | undefined {
+        const settings = this.getSettings()
+        return settings?.pairProgrammingMode
+    }
+
+    setPairProgrammingMode(pairProgrammingMode: boolean | undefined): void {
+        // Get existing settings to preserve other fields like modelId
+        const settings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({ ...settings, pairProgrammingMode })
+    }
 }

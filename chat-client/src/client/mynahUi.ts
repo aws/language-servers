@@ -146,7 +146,32 @@ export const handleChatPrompt = (
     agenticMode?: boolean
 ) => {
     let userPrompt = prompt.escapedPrompt
-    messager.onStopChatResponse(tabId)
+
+    // Check if there's an ongoing request
+    const isLoading = mynahUi.getTabData(tabId)?.getStore()?.loadingChat
+
+    if (isLoading) {
+        // Stop the current response
+        messager.onStopChatResponse(tabId)
+
+        // Add cancellation message BEFORE showing the new prompt
+        mynahUi.addChatItem(tabId, {
+            type: ChatItemType.DIRECTIVE,
+            messageId: 'stopped' + Date.now(),
+            body: 'You stopped your current work and asked me to work on the following task instead.',
+        })
+
+        // Reset loading state
+        mynahUi.updateStore(tabId, {
+            loadingChat: false,
+            cancelButtonWhenLoading: true,
+            promptInputDisabledState: false,
+        })
+    } else {
+        // If no ongoing request, just send the stop signal
+        messager.onStopChatResponse(tabId)
+    }
+
     if (prompt.command) {
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -564,6 +589,20 @@ export const createMynahUi = (
         },
         onStopChatResponse: tabId => {
             messager.onStopChatResponse(tabId)
+
+            // Add cancellation message when stop button is clicked
+            mynahUi.addChatItem(tabId, {
+                type: ChatItemType.DIRECTIVE,
+                messageId: 'stopped' + Date.now(),
+                body: 'You stopped your current work, please provide additional examples or ask another question.',
+            })
+
+            // Reset loading state
+            mynahUi.updateStore(tabId, {
+                loadingChat: false,
+                cancelButtonWhenLoading: true,
+                promptInputDisabledState: false,
+            })
         },
     }
 
