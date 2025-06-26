@@ -715,6 +715,7 @@ export class AgenticChatController implements ChatHandlers {
                 throw new CancellationError('user')
             }
 
+            this.truncateRequest(currentRequestInput)
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
             if (!currentMessage || !conversationId) {
@@ -722,12 +723,11 @@ export class AgenticChatController implements ChatHandlers {
                     `Warning: ${!currentMessage ? 'currentMessage' : ''}${!currentMessage && !conversationId ? ' and ' : ''}${!conversationId ? 'conversationIdentifier' : ''} is empty in agent loop iteration ${iterationCount}.`
                 )
             }
-            const remainingCharacterBudget = this.truncateRequest(currentRequestInput)
             let messages: DbMessage[] = []
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, remainingCharacterBudget)
+                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
                         this.#features.logging.warn(`Tool validation error: ${err.message}`)
