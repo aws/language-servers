@@ -29,6 +29,7 @@ import { LocalProjectContextController } from '../../../shared/localProjectConte
 import { Features } from '../../types'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
 import { ImageBlock, ImageFormat } from '@aws/codewhisperer-streaming-client'
+import { isSupportedImageExtension } from '../../../shared/imageVerification'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
@@ -386,7 +387,7 @@ export class AdditionalContextProvider {
                         ? context.route[0].substring(7)
                         : context.route[0]
                     const format = imagePath.split('.').pop()?.toLowerCase() || ''
-                    if (!['png', 'jpeg', 'gif', 'webp'].includes(format)) {
+                    if (!isSupportedImageExtension(format)) {
                         this.features.logging.warn(`Unsupported image format: ${format}`)
                         continue
                     }
