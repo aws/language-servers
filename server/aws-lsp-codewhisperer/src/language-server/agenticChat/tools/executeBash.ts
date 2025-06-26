@@ -423,6 +423,7 @@ export class ExecuteBash {
                 spawnOptions: {
                     cwd: params.cwd,
                     stdio: ['pipe', 'pipe', 'pipe'],
+                    windowsVerbatimArguments: IS_WINDOWS_PLATFORM, // if true, then arguments are passed exactly as provided. no quoting or escaping is done.
                 },
                 collect: false,
                 waitForStreams: true,
@@ -459,7 +460,7 @@ export class ExecuteBash {
             }
 
             const shellArgs = IS_WINDOWS_PLATFORM
-                ? ['/u', shellFlag, ...split(params.command)] // Windows: split for proper arg handling
+                ? ['/u', shellFlag, params.command] // Windows: no need to split arguments when using windowsVerbatimArguments: true
                 : [shellFlag, params.command]
 
             this.childProcess = new ChildProcess(this.logging, shellName, shellArgs, childProcessOptions)
@@ -556,7 +557,10 @@ export class ExecuteBash {
 
     private static handleChunk(chunk: string, buffer: string[], writer?: WritableStreamDefaultWriter<any>) {
         try {
-            void writer?.write(chunk)
+            // Trim trailing newlines from the chunk before writing
+            const trimmedChunk = chunk.replace(/\r?\n$/, '')
+            void writer?.write(trimmedChunk)
+
             const lines = chunk.split(/\r?\n/)
             for (const line of lines) {
                 buffer.push(line)
@@ -648,18 +652,68 @@ export class ExecuteBash {
     }
 
     public getSpec() {
+        if (IS_WINDOWS_PLATFORM) {
+            return this.getWindowsSpec()
+        } else {
+            return this.getMacOSSpec()
+        }
+    }
+
+    private getWindowsSpec() {
         return {
             name: 'executeBash',
             description:
-                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).\n\n' +
+                'Execute the specified command on Windows cmd.exe.\n\n' +
                 '## Overview\n' +
-                "This tool executes commands on the user's system shell and returns the output.\n\n" +
-                '## Operating System Specific Commands\n' +
-                "- IMPORTANT: You MUST use commands specific to the user's current operating system. This tool will NOT adapt or translate commands between operating systems.\n" +
-                "  - On Windows (cmd.exe): Use Windows-specific commands like 'dir', 'type', 'mkdir' (without -p flag).\n" +
-                "  - On Unix/Linux/macOS (bash): Use Unix commands like 'ls', 'cat', 'mkdir -p'.\n" +
+                'This tool executes commands on Windows cmd.exe and returns the output.\n\n' +
+                '## Windows Commands\n' +
+                "- ONLY use Windows-specific commands like 'dir', 'type', 'copy', 'move', 'del', 'mkdir'.\n" +
+                "- DO NOT use -p flag with mkdir. Use 'mkdir dir1 && mkdir dir2' for multiple directories.\n" +
+                "- For multiple directories, use multiple commands with && (e.g., 'mkdir main && mkdir main\\src && mkdir main\\test').\n\n" +
                 '## When to use\n' +
-                "- When you need to run system commands that aren't covered by specialized tools.\n" +
+                "- When you need to run Windows system commands that aren't covered by specialized tools.\n" +
+                '- When you need to interact with Windows applications or utilities.\n' +
+                '- When you need to perform Windows-specific operations.\n\n' +
+                '## When not to use\n' +
+                '- When specialized tools would be more appropriate for the task.\n' +
+                '- When you need to perform file operations (use dedicated file tools instead).\n' +
+                '- When you need to search through files (use dedicated search tools instead).\n\n' +
+                '## Notes\n' +
+                '- Output is limited to prevent overwhelming responses.\n',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    explanation: {
+                        type: 'string',
+                        description:
+                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
+                    },
+                    command: {
+                        type: 'string',
+                        description: 'Windows command to execute in cmd.exe. Use cmd.exe syntax and commands.',
+                    },
+                    cwd: {
+                        type: 'string',
+                        description:
+                            'Parameter to set the current working directory for the command execution. Use Windows path format with backslashes (e.g., C:\\Users\\username\\folder\\subfolder).',
+                    },
+                },
+                required: ['command', 'cwd'],
+            },
+        } as const
+    }
+
+    private getMacOSSpec() {
+        return {
+            name: 'executeBash',
+            description:
+                'Execute the specified command on the macOS/Unix shell (bash).\n\n' +
+                '## Overview\n' +
+                'This tool executes commands on macOS/Unix shell and returns the output.\n\n' +
+                '## macOS/Unix Commands\n' +
+                "- Use Unix commands like 'ls', 'cat', 'cp', 'mv', 'rm', 'mkdir -p', 'grep', 'find'.\n\n" +
+                '## When to use\n' +
+                "- When you need to run Unix/macOS system commands that aren't covered by specialized tools.\n" +
                 '- When you need to interact with installed applications or utilities.\n' +
                 '- When you need to perform operations that require shell capabilities.\n\n' +
                 '## When not to use\n' +
@@ -678,8 +732,7 @@ export class ExecuteBash {
                     },
                     command: {
                         type: 'string',
-                        description:
-                            'Command to execute on the system shell. On Windows, this will run in cmd.exe; on Unix-like systems, this will run in bash.',
+                        description: 'Unix/macOS command to execute in bash. Use Unix-specific syntax and commands.',
                     },
                     cwd: {
                         type: 'string',

@@ -10,7 +10,12 @@ import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererServerFactory } from './codeWhispererServer'
-import { CodeWhispererServiceBase, ResponseContext, Suggestion } from '../../shared/codeWhispererService'
+import {
+    CodeWhispererServiceBase,
+    ResponseContext,
+    Suggestion,
+    SuggestionType,
+} from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
@@ -151,6 +156,7 @@ describe('Telemetry', () => {
                 return Promise.resolve({
                     suggestions,
                     responseContext,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             })
         }
@@ -1287,6 +1293,7 @@ describe('Telemetry', () => {
                             ...EXPECTED_RESPONSE_CONTEXT,
                             codewhispererSessionId: `cwspr-session-id-${i}`,
                         },
+                        suggestionType: SuggestionType.COMPLETION,
                     })
                 })
 

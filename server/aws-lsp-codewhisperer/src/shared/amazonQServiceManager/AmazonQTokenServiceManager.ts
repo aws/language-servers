@@ -290,11 +290,14 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         if (this.connectionType === 'none') {
             if (newProfileArn !== null) {
-                throw new AmazonQServicePendingSigninError()
+                // During reauthentication, connection might be temporarily 'none' but user is providing a profile
+                // Set connection type to identityCenter to proceed with profile setting
+                this.connectionType = 'identityCenter'
+                this.state = 'PENDING_Q_PROFILE_UPDATE'
+            } else {
+                this.logServiceState('Received null profile while not connected, ignoring request')
+                return
             }
-
-            this.logServiceState('Received null profile while not connected, ignoring request')
-            return
         }
 
         if (this.connectionType !== 'identityCenter') {
@@ -563,7 +566,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return this.connectionType
     }
 
-    public getActiveProfileArn() {
+    public override getActiveProfileArn() {
         return this.activeIdcProfile?.arn
     }
 
@@ -584,7 +587,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
      * @param listener Function that will be called with the new region
      * @returns Function to unregister the listener
      */
-    public onRegionChange(listener: (region: string) => void): () => void {
+    public override onRegionChange(listener: (region: string) => void): () => void {
         this.regionChangeListeners.push(listener)
         // If we already have a region, notify the listener immediately
         if (this.region) {

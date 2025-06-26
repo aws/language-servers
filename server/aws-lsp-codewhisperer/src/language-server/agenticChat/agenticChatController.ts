@@ -7,17 +7,18 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import {
     ChatTriggerType,
-    GenerateAssistantResponseCommandInput,
-    GenerateAssistantResponseCommandOutput,
-    SendMessageCommandInput,
-    SendMessageCommandInput as SendMessageCommandInputCodeWhispererStreaming,
-    SendMessageCommandOutput,
     ToolResult,
     ToolResultContentBlock,
     ToolResultStatus,
     ToolUse,
     ToolUseEvent,
 } from '@aws/codewhisperer-streaming-client'
+import {
+    SendMessageCommandInput,
+    SendMessageCommandOutput,
+    ChatCommandInput,
+    ChatCommandOutput,
+} from '../../shared/streamingClientService'
 import {
     Button,
     Status,
@@ -93,6 +94,7 @@ import {
     getSsoConnectionType,
     isUsageLimitError,
     isNullish,
+    enabledModelSelection,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -101,6 +103,8 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
+import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
@@ -134,6 +138,7 @@ import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { FsReplace, FsReplaceParams } from './tools/fsReplace'
 import { loggingUtils, timeoutUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
@@ -145,7 +150,14 @@ import {
     responseTimeoutPartialMsg,
     defaultModelId,
 } from './constants'
-import { AgenticChatError, customerFacingErrorCodes, isRequestAbortedError, unactionableErrorCodes } from './errors'
+import {
+    AgenticChatError,
+    customerFacingErrorCodes,
+    getCustomerFacingErrorMessage,
+    isRequestAbortedError,
+    isThrottlingRelated,
+    unactionableErrorCodes,
+} from './errors'
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
@@ -182,6 +194,7 @@ type ChatHandlers = Omit<
     | 'onActiveEditorChanged'
     | 'onPinnedContextAdd'
     | 'onPinnedContextRemove'
+    | 'onOpenFileDialog'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -191,7 +204,7 @@ export class AgenticChatController implements ChatHandlers {
     #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #serviceManager?: AmazonQTokenServiceManager
+    #serviceManager?: AmazonQBaseServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
@@ -227,7 +240,7 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        serviceManager?: AmazonQTokenServiceManager
+        serviceManager?: AmazonQBaseServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
@@ -351,7 +364,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#log(`Reverting file change for tooluseId: ${toolUseId}`)
         const toolUse = session?.toolUseLookup.get(toolUseId)
 
-        const input = toolUse?.input as unknown as FsWriteParams
+        const input = toolUse?.input as unknown as FsWriteParams | FsReplaceParams
         if (toolUse?.fileChange?.before) {
             await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
         } else {
@@ -545,11 +558,6 @@ export class AgenticChatController implements ChatHandlers {
                 // Then update UI to inform the user
                 await this.#showUndoAllIfRequired(chatResultStream, session)
                 await chatResultStream.updateOngoingProgressResult('Canceled')
-                await this.#getChatResultStream(params.partialResultToken).writeResultBlock({
-                    type: 'directive',
-                    messageId: 'stopped' + uuid(),
-                    body: 'You stopped your current work, please provide additional examples or ask another question.',
-                })
 
                 // Finally, send telemetry/metrics
                 this.#telemetryController.emitInteractWithAgenticChat(
@@ -654,9 +662,10 @@ export class AgenticChatController implements ChatHandlers {
         triggerContext: TriggerContext,
         additionalContext: AdditionalContentEntryAddition[],
         chatResultStream: AgenticChatResultStream
-    ): Promise<GenerateAssistantResponseCommandInput> {
+    ): Promise<ChatCommandInput> {
         this.#debug('Preparing request input')
-        const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+        // Get profileArn from the service manager if available
+        const profileArn = this.#serviceManager?.getActiveProfileArn()
         const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
             params,
             triggerContext,
@@ -669,7 +678,6 @@ export class AgenticChatController implements ChatHandlers {
             additionalContext,
             session.modelId
         )
-
         return requestInput
     }
 
@@ -677,7 +685,7 @@ export class AgenticChatController implements ChatHandlers {
      * Runs the agent loop, making requests and processing tool uses until completion
      */
     async #runAgentLoop(
-        initialRequestInput: GenerateAssistantResponseCommandInput,
+        initialRequestInput: ChatCommandInput,
         session: ChatSessionService,
         metric: Metric<CombinedConversationEvent>,
         chatResultStream: AgenticChatResultStream,
@@ -741,16 +749,17 @@ export class AgenticChatController implements ChatHandlers {
             this.#llmRequestStartTime = Date.now()
             // Phase 3: Request Execution
             // Note: these logs are very noisy, but contain information redacted on the backend.
-            this.#debug(`generateAssistantResponse Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
-            const response = await session.generateAssistantResponse(currentRequestInput)
-
+            this.#debug(
+                `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
+            )
+            const response = await session.getChatResponse(currentRequestInput)
             if (response.$metadata.requestId) {
                 metric.mergeWith({
                     requestIds: [response.$metadata.requestId],
                 })
             }
             this.#features.logging.info(
-                `generateAssistantResponse ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
+                `generateAssistantResponse/SendMessage ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
             )
             await chatResultStream.removeResultBlock(loadingMessageId)
 
@@ -774,7 +783,7 @@ export class AgenticChatController implements ChatHandlers {
             shouldDisplayMessage = true
 
             // Phase 4: Response Processing
-            const result = await this.#processGenerateAssistantResponseResponseWithTimeout(
+            const result = await this.#processAgenticChatResponseWithTimeout(
                 response,
                 metric.mergeWith({
                     cwsprChatResponseCode: response.$metadata.httpStatusCode,
@@ -853,7 +862,7 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
-                    [llmLatency],
+                    llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
                     this.#timeBetweenChunks,
@@ -888,7 +897,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseIds ?? undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
-                    [llmLatency],
+                    llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
                     this.#timeBetweenChunks,
@@ -909,7 +918,7 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Failed',
                     this.#features.runtime.serverInfo.version ?? '',
-                    [llmLatency],
+                    llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
                     this.#timeBetweenChunks,
@@ -944,7 +953,8 @@ export class AgenticChatController implements ChatHandlers {
      * Returns the remaining character budget for chat history.
      * @param request
      */
-    truncateRequest(request: GenerateAssistantResponseCommandInput): number {
+    truncateRequest(request: ChatCommandInput): number {
+        // TODO: Confirm if this limit applies to SendMessage and rename this constant
         let remainingCharacterBudget = generateAssistantResponseInputLimit
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
             return remainingCharacterBudget
@@ -1069,11 +1079,11 @@ export class AgenticChatController implements ChatHandlers {
                 await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
 
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
-                if (!['fsWrite', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
+                if (!['fsWrite', 'fsReplace', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
-                if (toolUse.name !== 'fsWrite') {
+                if (toolUse.name !== 'fsWrite' && toolUse.name !== 'fsReplace') {
                     const { explanation } = toolUse.input as unknown as ExplanatoryParams
                     if (explanation) {
                         await chatResultStream.writeResultBlock({
@@ -1089,11 +1099,13 @@ export class AgenticChatController implements ChatHandlers {
                     case 'grepSearch':
                     case 'fileSearch':
                     case 'fsWrite':
+                    case 'fsReplace':
                     case 'executeBash': {
                         const toolMap = {
                             fsRead: { Tool: FsRead },
                             listDirectory: { Tool: ListDirectory },
                             fsWrite: { Tool: FsWrite },
+                            fsReplace: { Tool: FsReplace },
                             executeBash: { Tool: ExecuteBash },
                             grepSearch: { Tool: GrepSearch },
                             fileSearch: { Tool: FileSearch },
@@ -1157,13 +1169,23 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
-                    case 'codeSearch':
-                        // no need to write tool message for code search.
-                        break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
                         const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+
+                        // Remove explanation field from toolUse.input for MCP tools
+                        // many MCP servers do not support explanation field and it will break the tool if this is altered
+                        if (
+                            originalNames &&
+                            toolUse.input &&
+                            typeof toolUse.input === 'object' &&
+                            'explanation' in toolUse.input
+                        ) {
+                            const { explanation, ...inputWithoutExplanation } = toolUse.input as any
+                            toolUse.input = inputWithoutExplanation
+                        }
+
                         if (originalNames) {
                             const { serverName, toolName } = originalNames
                             const def = McpManager.instance
@@ -1209,9 +1231,10 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
 
-                if (toolUse.name === 'fsWrite') {
-                    const input = toolUse.input as unknown as FsWriteParams
-                    const document = await this.#triggerContext.getTextDocument(input.path)
+                if (toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') {
+                    const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+                    const document = await this.#triggerContext.getTextDocumentFromPath(input.path, true, true)
+
                     session.toolUseLookup.set(toolUse.toolUseId, {
                         ...toolUse,
                         fileChange: { before: document?.getText() },
@@ -1264,9 +1287,16 @@ export class AgenticChatController implements ChatHandlers {
                             await chatResultStream.writeResultBlock(grepSearchResult)
                         }
                         break
+                    case 'fsReplace':
                     case 'fsWrite':
-                        const input = toolUse.input as unknown as FsWriteParams
-                        const doc = await this.#triggerContext.getTextDocument(input.path)
+                        const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+                        // Load from the filesystem instead of workspace.
+                        // Workspace is likely out of date - when files
+                        // are modified external to the IDE, many IDEs
+                        // will only update their file contents (which
+                        // then propagates to the LSP) if/when that
+                        // document receives focus.
+                        const doc = await this.#triggerContext.getTextDocumentFromPath(input.path, false, true)
                         const chatResult = await this.#getFsWriteChatResult(toolUse, doc, session)
                         const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
                         if (cachedToolUse) {
@@ -1352,33 +1382,38 @@ export class AgenticChatController implements ChatHandlers {
                 }
 
                 // display fs write failure status in the UX of that file card
-                if (toolUse.name === 'fsWrite' && toolUse.toolUseId) {
+                if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
-                    const fsParam = toolUse.input as unknown as FsWriteParams
-                    const fileName = path.basename(fsParam.path)
-                    const errorResult = {
-                        type: 'tool',
-                        messageId: toolUse.toolUseId,
-                        header: {
-                            fileList: {
-                                filePaths: [fileName],
-                                details: {
-                                    [fileName]: {
-                                        description: fsParam.path,
+                    const fsParam = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+                    if (fsParam.path) {
+                        const fileName = path.basename(fsParam.path)
+                        const customerFacingError = getCustomerFacingErrorMessage(err)
+                        const errorResult = {
+                            type: 'tool',
+                            messageId: toolUse.toolUseId,
+                            header: {
+                                fileList: {
+                                    filePaths: [fileName],
+                                    details: {
+                                        [fileName]: {
+                                            description: fsParam.path,
+                                        },
                                     },
                                 },
+                                status: {
+                                    status: 'error',
+                                    icon: 'error',
+                                    text: 'Error',
+                                    description: customerFacingError,
+                                },
                             },
-                            status: {
-                                status: 'error',
-                                icon: 'error',
-                                text: 'Error',
-                            },
-                        },
-                    } as ChatResult
-                    if (existingCard) {
-                        await chatResultStream.overwriteResultBlock(errorResult, existingCard)
-                    } else {
-                        await chatResultStream.writeResultBlock(errorResult)
+                        } as ChatResult
+
+                        if (existingCard) {
+                            await chatResultStream.overwriteResultBlock(errorResult, existingCard)
+                        } else {
+                            await chatResultStream.writeResultBlock(errorResult)
+                        }
                     }
                 } else if (toolUse.name === 'executeBash' && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
@@ -1444,7 +1479,7 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
             return
         }
-        if (toolUse.name === 'fsWrite') {
+        if (toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') {
             if (session.currentUndoAllId === undefined) {
                 session.currentUndoAllId = toolUse.toolUseId
             }
@@ -1654,6 +1689,7 @@ export class AgenticChatController implements ChatHandlers {
         let body: string | undefined
 
         switch (toolName) {
+            case 'fsReplace':
             case 'fsWrite':
             case 'fsRead':
             case 'listDirectory':
@@ -1818,9 +1854,9 @@ export class AgenticChatController implements ChatHandlers {
                 body = '```shell\n' + commandString
                 break
             }
-
+            case 'fsReplace':
             case 'fsWrite': {
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
+                const writeFilePath = (toolUse.input as unknown as FsWriteParams | FsReplaceParams).path
                 buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
@@ -1879,8 +1915,10 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // Determine if this is a built-in tool or MCP tool
+        // TODO: add agent.getBuiltInTools to avoid hardcoding the list here
         const isStandardTool =
-            toolName !== undefined && ['executeBash', 'fsWrite', 'fsRead', 'listDirectory'].includes(toolName)
+            toolName !== undefined &&
+            ['executeBash', 'fsWrite', 'fsRead', 'listDirectory', 'fsReplace', 'fileSearch'].includes(toolName)
 
         if (isStandardTool) {
             return {
@@ -1925,7 +1963,7 @@ export class AgenticChatController implements ChatHandlers {
         doc: TextDocument | undefined,
         session: ChatSessionService
     ): Promise<ChatMessage> {
-        const input = toolUse.input as unknown as FsWriteParams
+        const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
         const oldContent = session.toolUseLookup.get(toolUse.toolUseId!)?.fileChange?.before ?? ''
         // Get just the filename instead of the full path
         const fileName = path.basename(input.path)
@@ -2096,12 +2134,12 @@ export class AgenticChatController implements ChatHandlers {
      * Updates the request input with tool results for the next iteration
      */
     #updateRequestInputWithToolResults(
-        requestInput: GenerateAssistantResponseCommandInput,
+        requestInput: ChatCommandInput,
         toolResults: ToolResult[],
         content: string
-    ): GenerateAssistantResponseCommandInput {
+    ): ChatCommandInput {
         // Create a deep copy of the request input
-        const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as GenerateAssistantResponseCommandInput
+        const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as ChatCommandInput
 
         // Add tool results to the request
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
@@ -2166,7 +2204,7 @@ export class AgenticChatController implements ChatHandlers {
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
         metric.setDimension('enabled', session.pairProgrammingMode)
-        const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+        const profileArn = this.#serviceManager?.getActiveProfileArn()
         if (profileArn) {
             this.#telemetryService.updateProfileArn(profileArn)
         }
@@ -2244,6 +2282,22 @@ export class AgenticChatController implements ChatHandlers {
             })
         }
 
+        if (isThrottlingRelated(err)) {
+            this.#telemetryController.emitMessageResponseError(
+                tabId,
+                metric.metric,
+                requestID,
+                err.message,
+                agenticCodingMode
+            )
+            new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
+                type: 'answer',
+                body: requestID ? `${err.message} \n\nRequest ID: ${requestID}` : err.message,
+                messageId: errorMessageId,
+                buttons: [],
+            })
+        }
+
         // use custom error message for unactionable errors (user-dependent errors like PromptCharacterLimit)
         if (err.code && err.code in unactionableErrorCodes) {
             const customErrMessage = unactionableErrorCodes[err.code as keyof typeof unactionableErrorCodes]
@@ -2315,6 +2369,19 @@ export class AgenticChatController implements ChatHandlers {
                     }
                     return emptyChatResult
                 }
+                if (err.message === `I am experiencing high traffic, please try again shortly.`) {
+                    this.#features.chat.sendChatUpdate({
+                        tabId: tabId,
+                        data: { messages: [{ messageId: 'modelThrottled' }] },
+                    })
+                    const emptyChatResult: ChatResult = {
+                        type: 'answer',
+                        body: '',
+                        messageId: errorMessageId,
+                        buttons: [],
+                    }
+                    return emptyChatResult
+                }
                 return responseData
             }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, responseData)
@@ -2338,8 +2405,8 @@ export class AgenticChatController implements ChatHandlers {
         })
         const triggerContext = await this.#getInlineChatTriggerContext(params)
 
-        let response: SendMessageCommandOutput
-        let requestInput: SendMessageCommandInput
+        let response: ChatCommandOutput
+        let requestInput: ChatCommandInput
 
         try {
             requestInput = await this.#triggerContext.getChatParamsFromTrigger(
@@ -2354,7 +2421,7 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             const client = this.#serviceManager.getStreamingClient()
-            response = await client.sendMessage(requestInput as SendMessageCommandInputCodeWhispererStreaming)
+            response = await client.sendMessage(requestInput as SendMessageCommandInput)
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
@@ -2415,7 +2482,6 @@ export class AgenticChatController implements ChatHandlers {
             this.#log(
                 `Q Chat server failed to insert code.Missing required parameters for insert code: ${missingParams.join(', ')}`
             )
-
             return
         }
 
@@ -2497,8 +2563,8 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseId = params.messageId
         const toolUse = toolUseId ? session.data?.toolUseLookup.get(toolUseId) : undefined
 
-        if (toolUse?.name === 'fsWrite') {
-            const input = toolUse.input as unknown as FsWriteParams
+        if (toolUse?.name === 'fsWrite' || toolUse?.name === 'fsReplace') {
+            const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
             this.#features.lsp.workspace.openFileDiff({
                 originalFileUri: input.path,
                 originalFileContent: toolUse.fileChange?.before,
@@ -2587,6 +2653,17 @@ export class AgenticChatController implements ChatHandlers {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
         session.modelId = modelId
+
+        // Get the saved pair programming mode from the database or default to true if not found
+        const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
+        session.pairProgrammingMode = savedPairProgrammingMode !== undefined ? savedPairProgrammingMode : true
+
+        // Update the client with the initial pair programming mode
+        this.#features.chat.chatOptionsUpdate({
+            tabId: params.tabId,
+            // Type assertion to support pairProgrammingMode
+            ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
+        } as ChatUpdateParams)
 
         if (success && session) {
             // Set the logging object on the session
@@ -2818,8 +2895,8 @@ export class AgenticChatController implements ChatHandlers {
             this.showFreeTierLimitMsgOnClient(tabId)
         } else if (!mode) {
             // Note: intentionally async.
-            AmazonQTokenServiceManager.getInstance()
-                .getCodewhispererService()
+            this.#serviceManager
+                ?.getCodewhispererService()
                 .getSubscriptionStatus(true)
                 .then(o => {
                     this.#log(`setPaidTierMode: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
@@ -2829,7 +2906,6 @@ export class AgenticChatController implements ChatHandlers {
                     this.#log(`setPaidTierMode: getSubscriptionStatus failed: ${JSON.stringify(err)}`)
                 })
             // mode = isFreeTierUser ? 'freetier' : 'paidtier'
-
             return
         }
 
@@ -2865,8 +2941,7 @@ export class AgenticChatController implements ChatHandlers {
      * @returns `undefined` on success, or error message on failure.
      */
     async onManageSubscription(tabId: string, awsAccountId?: string): Promise<string | undefined> {
-        const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
-
+        const client = this.#serviceManager?.getCodewhispererService()
         if (!awsAccountId) {
             // If no awsAccountId was provided:
             // 1. Check if the user is subscribed.
@@ -2875,7 +2950,7 @@ export class AgenticChatController implements ChatHandlers {
             //
             // Note: intentionally async.
             client
-                .getSubscriptionStatus()
+                ?.getSubscriptionStatus()
                 .then(o => {
                     this.#log(`onManageSubscription: getSubscriptionStatus: ${o.status} ${o.encodedVerificationUrl}`)
 
@@ -2991,8 +3066,8 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #processGenerateAssistantResponseResponseWithTimeout(
-        response: GenerateAssistantResponseCommandOutput,
+    async #processAgenticChatResponseWithTimeout(
+        response: ChatCommandOutput,
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
@@ -3012,7 +3087,7 @@ export class AgenticChatController implements ChatHandlers {
             }, responseTimeoutMs)
         })
         const streamWriter = chatResultStream.getResultStreamWriter()
-        const processResponsePromise = this.#processGenerateAssistantResponseResponse(
+        const processResponsePromise = this.#processAgenticChatResponse(
             response,
             metric,
             chatResultStream,
@@ -3048,7 +3123,7 @@ export class AgenticChatController implements ChatHandlers {
         }
         const toolUses = Object.values(data.toolUses)
         for (const toolUse of toolUses) {
-            if (toolUse.name === 'fsWrite' && typeof toolUse.input === 'string') {
+            if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && typeof toolUse.input === 'string') {
                 const filepath = extractKey(toolUse.input, 'path')
                 const msgId = progressPrefix + toolUse.toolUseId
                 // render fs write UI as soon as fs write starts
@@ -3075,7 +3150,7 @@ export class AgenticChatController implements ChatHandlers {
                         },
                     })
                 }
-                // render the tool use explanatory as soon as this is received for fsWrite
+                // render the tool use explanatory as soon as this is received for fsWrite/fsReplace
                 const explanation = extractKey(toolUse.input, 'explanation')
                 const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
                 if (explanation && !chatResultStream.hasMessage(messageId)) {
@@ -3090,8 +3165,8 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async #processGenerateAssistantResponseResponse(
-        response: GenerateAssistantResponseCommandOutput,
+    async #processAgenticChatResponse(
+        response: ChatCommandOutput,
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
         streamWriter: ResultStreamWriter,
@@ -3108,13 +3183,22 @@ export class AgenticChatController implements ChatHandlers {
             await streamWriter.write({ body: '', contextList })
             session.contextListSent = true
         }
-
         const toolUseStartTimes: Record<string, number> = {}
         const toolUseLoadingTimeouts: Record<string, NodeJS.Timeout> = {}
-        for await (const chatEvent of response.generateAssistantResponseResponse!) {
+        let chatEventStream = undefined
+        if ('generateAssistantResponseResponse' in response) {
+            chatEventStream = response.generateAssistantResponseResponse
+        } else if ('sendMessageResponse' in response) {
+            chatEventStream = response.sendMessageResponse
+        }
+        let isEmptyResponse = true
+        for await (const chatEvent of chatEventStream!) {
+            isEmptyResponse = false
             if (abortSignal?.aborted) {
                 throw new Error('Operation was aborted')
             }
+            // assistantResponseEvent is present in ChatResponseStream - used by both SendMessage and GenerateAssistantResponse
+            // https://code.amazon.com/packages/AWSVectorConsolasPlatformModel/blobs/mainline/--/model/types/conversation_types.smithy
             if (chatEvent.assistantResponseEvent) {
                 await this.#showUndoAllIfRequired(chatResultStream, session)
             }
@@ -3145,6 +3229,10 @@ export class AgenticChatController implements ChatHandlers {
                 )
                 await this.#showToolUseIntermediateResult(result.data, chatResultStream, streamWriter)
             }
+        }
+        if (isEmptyResponse) {
+            // If the response is empty, we need to send an empty answer message to remove the Thinking... indicator
+            await streamWriter.write({ type: 'answer', body: '', messageId: uuid() })
         }
         await streamWriter.close()
 
@@ -3252,6 +3340,7 @@ export class AgenticChatController implements ChatHandlers {
         session.modelId = params.optionsValues['model-selection']
 
         this.#chatHistoryDb.setModelId(session.modelId)
+        this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
@@ -3278,7 +3367,10 @@ export class AgenticChatController implements ChatHandlers {
         const allTools = this.#features.agent.getTools({ format: 'bedrock' })
         if (!enabledMCP(this.#features.lsp.getClientInitializeParams())) {
             if (!session.pairProgrammingMode) {
-                return allTools.filter(tool => !['fsWrite', 'executeBash'].includes(tool.toolSpecification?.name || ''))
+                return allTools.filter(
+                    // TODO: add agent.getBuiltInReadOnlyTools or agent.getBuiltInWriteTools to avoid hardcoding
+                    tool => !['fsWrite', 'fsReplace', 'executeBash'].includes(tool.toolSpecification?.name || '')
+                )
             }
             return allTools
         }
@@ -3299,7 +3391,7 @@ export class AgenticChatController implements ChatHandlers {
         )
 
         McpManager.instance.setToolNameMapping(tempMapping)
-        const writeToolNames = new Set(['fsWrite', 'executeBash'])
+        const writeToolNames = new Set(['fsWrite', 'fsReplace', 'executeBash'])
         const restrictedToolNames = new Set([...mcpToolSpecNames, ...writeToolNames])
 
         const readOnlyTools = allTools.filter(tool => {
