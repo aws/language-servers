@@ -2,7 +2,6 @@ import { BaseDependencyInfo, Dependency, LanguageDependencyHandler } from './Lan
 import * as path from 'path'
 import * as fs from 'fs'
 import * as xml2js from 'xml2js'
-import { FileMetadata } from '../../artifactManager'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { DependencyWatcher } from './DependencyWatcher'
 
@@ -93,12 +92,11 @@ export class JavaDependencyHandler extends LanguageDependencyHandler<JavaDepende
                 const callBackDependencyUpdate = async (events: string[]) => {
                     this.logging.log(`Change detected in ${dotClasspathPath}`)
                     const updatedDependencyMap = this.generateDependencyMap(javaDependencyInfo)
-                    let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                    await this.compareAndUpdateDependencyMap(
                         javaDependencyInfo.workspaceFolder,
                         updatedDependencyMap,
                         true
                     )
-                    this.emitDependencyChange(javaDependencyInfo.workspaceFolder, zips)
                 }
                 const watcher = new DependencyWatcher(
                     dotClasspathPath,

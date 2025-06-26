@@ -2,7 +2,6 @@ import { Logging, Workspace, WorkspaceFolder } from '@aws/language-server-runtim
 import * as fs from 'fs'
 import { ArtifactManager, FileMetadata } from '../../artifactManager'
 import path = require('path')
-import { EventEmitter } from 'events'
 import { CodewhispererLanguage } from '../../../../shared/languageDetection'
 import { isDirectory } from '../../util'
 import { DependencyWatcher } from './DependencyWatcher'
@@ -33,10 +32,14 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     protected dependencyWatchers: Map<string, DependencyWatcher> = new Map<string, DependencyWatcher>()
     protected artifactManager: ArtifactManager
     protected dependenciesFolderName: string
-    protected eventEmitter: EventEmitter
     protected readonly MAX_SINGLE_DEPENDENCY_SIZE: number = 500 * 1024 * 1024 // 500 MB
     protected readonly MAX_WORKSPACE_DEPENDENCY_SIZE: number = 8 * 1024 * 1024 * 1024 // 8 GB
     protected readonly DEPENDENCY_WATCHER_EVENT_BATCH_INTERVAL: number = 1000
+    private dependencyZipGeneratedCallback?: (
+        workspaceFolder: WorkspaceFolder,
+        zip: FileMetadata,
+        addWSFolderPathInS3: boolean
+    ) => Promise<void>
 
     constructor(
         language: CodewhispererLanguage,
@@ -60,7 +63,6 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             this.dependencyMap.set(workSpaceFolder, new Map<string, Dependency>())
         )
         this.dependencyUploadedSizeSum = dependencyUploadedSizeSum
-        this.eventEmitter = new EventEmitter()
     }
 
     /*
@@ -90,19 +92,17 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         dependencyMap: Map<string, Dependency>
     ): void
 
-    public onDependencyChange(
-        callback: (workspaceFolder: WorkspaceFolder, zips: FileMetadata[], addWSFolderPathInS3: boolean) => void
+    public onDependencyZipGenerated(
+        callback: (workspaceFolder: WorkspaceFolder, zip: FileMetadata, addWSFolderPathInS3: boolean) => Promise<void>
     ): void {
-        this.eventEmitter.on('dependencyChange', callback)
+        this.dependencyZipGeneratedCallback = callback
     }
 
-    protected emitDependencyChange(workspaceFolder: WorkspaceFolder, zips: FileMetadata[]): void {
-        if (zips.length > 0) {
-            this.logging.log(`Emitting ${this.language} dependency change event for ${workspaceFolder.name}`)
-            // If language is JavaScript or TypeScript, we want to preserve the workspaceFolder path in S3 path
-            const addWSFolderPathInS3 = this.language === 'javascript' || this.language === 'typescript'
-            this.eventEmitter.emit('dependencyChange', workspaceFolder, zips, addWSFolderPathInS3)
-            return
+    private async uploadDependencyZip(workspaceFolder: WorkspaceFolder, zip: FileMetadata): Promise<void> {
+        // If language is JavaScript or TypeScript, we want to preserve the workspaceFolder path in S3 path
+        const addWSFolderPathInS3 = this.language === 'javascript' || this.language === 'typescript'
+        if (this.dependencyZipGeneratedCallback) {
+            await this.dependencyZipGeneratedCallback(workspaceFolder, zip, addWSFolderPathInS3)
         }
     }
 
@@ -120,8 +120,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         })
 
         if (workspaceFolder) {
-            const zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(workspaceFolder, dependencyMap, true)
-            this.emitDependencyChange(workspaceFolder, zips)
+            await this.compareAndUpdateDependencyMap(workspaceFolder, dependencyMap, true)
         }
     }
     async zipDependencyMap(folders: WorkspaceFolder[]): Promise<void> {
@@ -131,19 +130,14 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             if (!folders.includes(workspaceFolder)) {
                 continue
             }
-            const chunkZipFileMetadata = await this.generateFileMetadata(
-                [...correspondingDependencyMap.values()],
-                workspaceFolder
-            )
-            this.emitDependencyChange(workspaceFolder, chunkZipFileMetadata)
+            await this.zipAndUploadDependenciesByChunk([...correspondingDependencyMap.values()], workspaceFolder)
         }
     }
 
-    private async generateFileMetadata(
+    private async zipAndUploadDependenciesByChunk(
         dependencyList: Dependency[],
         workspaceFolder: WorkspaceFolder
-    ): Promise<FileMetadata[]> {
-        const zipFileMetadata: FileMetadata[] = []
+    ): Promise<void> {
         const MAX_CHUNK_SIZE_BYTES = 100 * 1024 * 1024 // 100MB per chunk
         // Process each workspace folder sequentially
         let chunkIndex = 0
@@ -157,7 +151,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                 this.logging.log(
                     `Under ${workspaceFolder.name}, #${chunkIndex} chunk containing ${this.language} dependencies with size: ${currentChunkSize} has reached chunk limit. Start to process...`
                 )
-                await this.processChunk(currentChunk, workspaceFolder, zipFileMetadata, chunkIndex)
+                await this.processChunk(currentChunk, workspaceFolder, chunkIndex)
 
                 // Reset chunk
                 currentChunk = []
@@ -191,15 +185,13 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         }
         // Process any remaining dependencies in the last chunk
         if (currentChunk.length > 0) {
-            await this.processChunk(currentChunk, workspaceFolder, zipFileMetadata, chunkIndex)
+            await this.processChunk(currentChunk, workspaceFolder, chunkIndex)
         }
-        return zipFileMetadata
     }
 
     private async processChunk(
         chunk: Array<Dependency>,
         workspaceFolder: WorkspaceFolder,
-        zipFileMetadata: FileMetadata[],
         chunkIndex: number
     ): Promise<void> {
         let fileMetadataList: FileMetadata[] = []
@@ -227,15 +219,15 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                     this.dependenciesFolderName,
                     chunkIndex
                 )
-                zipFileMetadata.push(singleZip)
                 const totalChunkSize = chunk.reduce((sum, dep) => sum + dep.size, 0)
                 // Log chunk statistics
                 this.logging.log(
-                    `Created zip: ${singleZip.filePath} for #${chunkIndex} chunk containing ${chunk.length} ${this.language} dependencies with total size: ${(
+                    `Created a zip for chunk #${chunkIndex} containing ${chunk.length} ${this.language} dependencies with total size: ${(
                         totalChunkSize /
                         (1024 * 1024)
                     ).toFixed(2)}MB under ${workspaceFolder.name}`
                 )
+                await this.uploadDependencyZip(workspaceFolder, singleZip)
             } catch (error) {
                 this.logging.warn(`Error creating dependency zip for workspace ${workspaceFolder.uri}: ${error}`)
             }
@@ -251,7 +243,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         workspaceFolder: WorkspaceFolder,
         updatedDependencyMap: Map<string, Dependency>,
         zipChanges: boolean = false
-    ): Promise<FileMetadata[]> {
+    ): Promise<void> {
         const changes = {
             added: [] as Dependency[],
             updated: [] as Dependency[],
@@ -286,12 +278,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             this.dependencyMap.get(workspaceFolder)?.set(name, newDep)
         })
 
-        let zips: FileMetadata[] = []
         if (zipChanges) {
-            zips = await this.generateFileMetadata([...changes.added, ...changes.updated], workspaceFolder)
+            await this.zipAndUploadDependenciesByChunk([...changes.added, ...changes.updated], workspaceFolder)
         }
-
-        return zips
     }
 
     private validateSingleDependencySize(workspaceFolder: WorkspaceFolder, dependency: Dependency): boolean {

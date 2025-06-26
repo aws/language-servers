@@ -2,7 +2,6 @@ import { BaseDependencyInfo, Dependency, LanguageDependencyHandler } from './Lan
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import * as path from 'path'
 import * as fs from 'fs'
-import { FileMetadata } from '../../artifactManager'
 import { resolveSymlink, isDirectory } from '../../util'
 import { DependencyWatcher } from './DependencyWatcher'
 
@@ -123,12 +122,11 @@ export class PythonDependencyHandler extends LanguageDependencyHandler<PythonDep
                                 this.handlePackageChange(sitePackagesPath, fileName, updatedDependencyMap)
                             }
                         }
-                        let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                        await this.compareAndUpdateDependencyMap(
                             pythonDependencyInfo.workspaceFolder,
                             updatedDependencyMap,
                             true
                         )
-                        this.emitDependencyChange(pythonDependencyInfo.workspaceFolder, zips)
                     } // end of callback function
 
                     const watcher = new DependencyWatcher(

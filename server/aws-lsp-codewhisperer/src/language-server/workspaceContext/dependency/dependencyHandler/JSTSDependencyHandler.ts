@@ -2,7 +2,6 @@ import { BaseDependencyInfo, Dependency, LanguageDependencyHandler } from './Lan
 import * as path from 'path'
 import * as fs from 'fs'
 import { WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
-import { FileMetadata } from '../../artifactManager'
 import { DependencyWatcher } from './DependencyWatcher'
 
 interface JSTSDependencyInfo extends BaseDependencyInfo {
@@ -185,12 +184,11 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 const callBackDependencyUpdate = async (events: string[]) => {
                     this.logging.log(`Change detected in ${packageJsonPath}`)
                     const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
-                    let zips: FileMetadata[] = await this.compareAndUpdateDependencyMap(
+                    await this.compareAndUpdateDependencyMap(
                         jstsDependencyInfo.workspaceFolder,
                         updatedDependencyMap,
                         true
                     )
-                    this.emitDependencyChange(jstsDependencyInfo.workspaceFolder, zips)
                 }
                 const watcher = new DependencyWatcher(
                     packageJsonPath,
