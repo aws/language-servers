@@ -9,7 +9,7 @@ import {
     Origin,
     SendMessageCommandInput,
     SendMessageCommandOutput,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import { QDeveloperStreaming } from '@amzn/amazon-q-developer-streaming-client'
 import { rejects } from 'assert'
 
