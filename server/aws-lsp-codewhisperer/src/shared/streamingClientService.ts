@@ -13,7 +13,7 @@ import {
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
 import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
-import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
+import { getBearerTokenFromProvider, getIAMCredentialsFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { clientTimeoutMs } from '../language-server/agenticChat/constants'
@@ -26,6 +26,9 @@ export type SendMessageCommandInput =
 export type SendMessageCommandOutput =
     | SendMessageCommandOutputCodeWhispererStreaming
     | SendMessageCommandOutputQDeveloperStreaming
+
+export type ChatCommandInput = SendMessageCommandInput | GenerateAssistantResponseCommandInputCodeWhispererStreaming
+export type ChatCommandOutput = SendMessageCommandOutput | GenerateAssistantResponseCommandOutputCodeWhispererStreaming
 
 export abstract class StreamingClientServiceBase {
     protected readonly region
@@ -165,17 +168,13 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
         endpoint: string
     ) {
         super(region, endpoint)
-
         logging.log(
             `Passing client for class QDeveloperStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
-
         this.client = sdkInitializator(QDeveloperStreaming, {
             region: region,
             endpoint: endpoint,
-            credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials('iam') as Credentials,
-            ]),
+            credentials: getIAMCredentialsFromProvider(credentialsProvider),
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })
     }

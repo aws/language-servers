@@ -1,10 +1,12 @@
 import { standalone } from '@aws/language-server-runtimes/runtimes'
 import {
+    AmazonQServiceServerIAM,
+    AmazonQServiceServerToken,
     CodeWhispererSecurityScanServerTokenProxy,
     CodeWhispererServerTokenProxy,
-    QAgenticChatServerTokenProxy,
+    QAgenticChatServerProxy,
     QConfigurationServerTokenProxy,
-    QLocalProjectContextServerTokenProxy,
+    QLocalProjectContextServerProxy,
     QNetTransformServerTokenProxy,
     WorkspaceContextServerTokenProxy,
 } from '@aws/lsp-codewhisperer'
@@ -15,27 +17,32 @@ import {
     QCodeAnalysisServer,
     McpToolsServer,
 } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
-import { createTokenRuntimeProps } from './standalone-common'
+import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 
 const MAJOR = 0
 const MINOR = 1
 const PATCH = 0
 const VERSION = `${MAJOR}.${MINOR}.${PATCH}`
 
-const props = createTokenRuntimeProps(VERSION, [
-    CodeWhispererServerTokenProxy,
-    CodeWhispererSecurityScanServerTokenProxy,
-    QConfigurationServerTokenProxy,
-    QNetTransformServerTokenProxy,
-    QAgenticChatServerTokenProxy,
-    IdentityServer.create,
-    FsToolsServer,
-    BashToolsServer,
-    QLocalProjectContextServerTokenProxy,
-    WorkspaceContextServerTokenProxy,
-    QCodeAnalysisServer,
-    McpToolsServer,
-    // LspToolsServer,
-])
+const props = {
+    version: VERSION,
+    servers: [
+        CodeWhispererServerTokenProxy,
+        CodeWhispererSecurityScanServerTokenProxy,
+        QConfigurationServerTokenProxy,
+        QNetTransformServerTokenProxy,
+        QAgenticChatServerProxy,
+        IdentityServer.create,
+        FsToolsServer,
+        BashToolsServer,
+        QLocalProjectContextServerProxy,
+        WorkspaceContextServerTokenProxy,
+        McpToolsServer,
+        // LspToolsServer,
+        AmazonQServiceServerIAM,
+        AmazonQServiceServerToken,
+    ],
+    name: 'AWS CodeWhisperer',
+} as RuntimeProps
 
 standalone(props)

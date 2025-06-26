@@ -88,6 +88,7 @@ const webworkerConfig = {
             net: false,
             tls: false,
             http2: false,
+            buffer: require.resolve('buffer/'),
         },
         extensions: ['.ts', '.tsx', '.js', '.jsx'],
     },
@@ -108,6 +109,9 @@ const webworkerConfig = {
     plugins: [
         new webpack.ProvidePlugin({
             process: 'process/browser',
+        }),
+        new webpack.ProvidePlugin({
+            Buffer: ['buffer', 'Buffer'],
         }),
     ],
 }
