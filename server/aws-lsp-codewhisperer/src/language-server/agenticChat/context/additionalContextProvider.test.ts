@@ -112,247 +112,247 @@ describe('AdditionalContextProvider', () => {
             const result = await provider.getAdditionalContext(triggerContext, '')
 
             assert.strictEqual(result.length, 1)
-            it('should handle pinned context correctly', async () => {
-                const mockWorkspaceFolder = {
-                    uri: URI.file('/workspace').toString(),
-                    name: 'test',
-                }
-                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-                const triggerContext: TriggerContext = {
-                    workspaceFolder: mockWorkspaceFolder,
-                }
+        })
+        it('should handle pinned context correctly', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
 
-                // Mock pinned context in database
-                const pinnedContext = [
+            // Mock pinned context in database
+            const pinnedContext = [
+                {
+                    id: 'pinned-file',
+                    command: 'Pinned File',
+                    label: 'file',
+                    route: ['/workspace', 'src/pinned.ts'],
+                },
+            ]
+            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(pinnedContext)
+
+            fsExistsStub.resolves(false)
+
+            getContextCommandPromptStub
+                .onFirstCall()
+                .resolves([]) // for promptContextCommands
+                .onSecondCall()
+                .resolves([
+                    // for pinnedContextCommands
                     {
-                        id: 'pinned-file',
-                        command: 'Pinned File',
-                        label: 'file',
-                        route: ['/workspace', 'src/pinned.ts'],
+                        name: 'Pinned File',
+                        description: 'Test Description',
+                        content: 'Pinned content',
+                        filePath: '/workspace/src/pinned.ts',
+                        relativePath: 'src/pinned.ts',
+                        startLine: 1,
+                        endLine: 10,
                     },
-                ]
-                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(pinnedContext)
+                ])
 
-                fsExistsStub.resolves(false)
+            const result = await provider.getAdditionalContext(triggerContext, 'tab1')
 
-                getContextCommandPromptStub
-                    .onFirstCall()
-                    .resolves([]) // for promptContextCommands
-                    .onSecondCall()
-                    .resolves([
-                        // for pinnedContextCommands
-                        {
-                            name: 'Pinned File',
-                            description: 'Test Description',
-                            content: 'Pinned content',
-                            filePath: '/workspace/src/pinned.ts',
-                            relativePath: 'src/pinned.ts',
-                            startLine: 1,
-                            endLine: 10,
-                        },
-                    ])
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].name, 'Pinned File')
+            assert.strictEqual(result[0].pinned, true)
+        })
 
-                const result = await provider.getAdditionalContext(triggerContext, 'tab1')
+        it('should handle explicit context (@-mentions) correctly', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
 
-                assert.strictEqual(result.length, 1)
-                assert.strictEqual(result[0].name, 'Pinned File')
-                assert.strictEqual(result[0].pinned, true)
-            })
-
-            it('should handle explicit context (@-mentions) correctly', async () => {
-                const mockWorkspaceFolder = {
-                    uri: URI.file('/workspace').toString(),
-                    name: 'test',
-                }
-                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-                const triggerContext: TriggerContext = {
-                    workspaceFolder: mockWorkspaceFolder,
-                }
-
-                const explicitContext = [
-                    {
-                        id: 'explicit-file',
-                        command: 'Explicit File',
-                        label: 'file' as any,
-                        route: ['/workspace', 'src/explicit.ts'],
-                    },
-                ]
-                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns([])
-
-                fsExistsStub.resolves(false)
-
-                getContextCommandPromptStub
-                    .onFirstCall()
-                    .resolves([
-                        // for promptContextCommands (explicit @-mentions)
-                        {
-                            name: 'Explicit File',
-                            description: 'Test Description',
-                            content: 'Explicit content',
-                            filePath: '/workspace/src/explicit.ts',
-                            relativePath: 'src/explicit.ts',
-                            startLine: 1,
-                            endLine: 10,
-                        },
-                    ])
-                    .onSecondCall()
-                    .resolves([]) // for pinnedContextCommands
-
-                const result = await provider.getAdditionalContext(triggerContext, 'tab1', explicitContext)
-
-                assert.strictEqual(result.length, 1)
-                assert.strictEqual(result[0].name, 'Explicit File')
-                assert.strictEqual(result[0].pinned, false)
-            })
-
-            it('should avoid duplicates between explicit and pinned context', async () => {
-                const mockWorkspaceFolder = {
-                    uri: URI.file('/workspace').toString(),
-                    name: 'test',
-                }
-                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-                const triggerContext: TriggerContext = {
-                    workspaceFolder: mockWorkspaceFolder,
-                }
-
-                const sharedContext = {
-                    id: 'shared-file',
-                    command: 'Shared File',
+            const explicitContext = [
+                {
+                    id: 'explicit-file',
+                    command: 'Explicit File',
                     label: 'file' as any,
-                    route: ['/workspace', 'src/shared.ts'],
-                }
-                const explicitContext = [sharedContext]
-                const pinnedContext = [sharedContext]
+                    route: ['/workspace', 'src/explicit.ts'],
+                },
+            ]
+            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns([])
 
-                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(pinnedContext)
+            fsExistsStub.resolves(false)
 
-                fsExistsStub.resolves(false)
+            getContextCommandPromptStub
+                .onFirstCall()
+                .resolves([
+                    // for promptContextCommands (explicit @-mentions)
+                    {
+                        name: 'Explicit File',
+                        description: 'Test Description',
+                        content: 'Explicit content',
+                        filePath: '/workspace/src/explicit.ts',
+                        relativePath: 'src/explicit.ts',
+                        startLine: 1,
+                        endLine: 10,
+                    },
+                ])
+                .onSecondCall()
+                .resolves([]) // for pinnedContextCommands
 
-                getContextCommandPromptStub
-                    .onFirstCall()
-                    .resolves([
-                        // for promptContextCommands (explicit @-mentions)
-                        {
-                            name: 'Shared File',
-                            description: 'Test Description',
-                            content: 'Shared content',
-                            filePath: '/workspace/src/shared.ts',
-                            relativePath: 'src/shared.ts',
-                            startLine: 1,
-                            endLine: 10,
-                        },
-                    ])
-                    .onSecondCall()
-                    .resolves([]) // for pinnedContextCommands (should be empty due to deduplication)
+            const result = await provider.getAdditionalContext(triggerContext, 'tab1', explicitContext)
 
-                const result = await provider.getAdditionalContext(triggerContext, 'tab1', explicitContext)
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].name, 'Explicit File')
+            assert.strictEqual(result[0].pinned, false)
+        })
 
-                assert.strictEqual(result.length, 1)
-                assert.strictEqual(result[0].name, 'Shared File')
-                assert.strictEqual(result[0].pinned, false) // Should be marked as explicit, not pinned
-            })
+        it('should avoid duplicates between explicit and pinned context', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
 
-            it('should handle Active File context correctly', async () => {
-                const mockWorkspaceFolder = {
-                    uri: URI.file('/workspace').toString(),
-                    name: 'test',
-                }
-                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-                const triggerContext: TriggerContext = {
-                    workspaceFolder: mockWorkspaceFolder,
+            const sharedContext = {
+                id: 'shared-file',
+                command: 'Shared File',
+                label: 'file' as any,
+                route: ['/workspace', 'src/shared.ts'],
+            }
+            const explicitContext = [sharedContext]
+            const pinnedContext = [sharedContext]
 
-                    text: 'active file content',
-                    cursorState: { position: { line: 1, character: 0 } },
-                }
+            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(pinnedContext)
 
-                const contextWithActiveFile = [{ id: 'active-editor', command: 'Active file', label: 'file' }]
-                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(contextWithActiveFile)
+            fsExistsStub.resolves(false)
 
-                fsExistsStub.resolves(false)
-                getContextCommandPromptStub.resolves([])
+            getContextCommandPromptStub
+                .onFirstCall()
+                .resolves([
+                    // for promptContextCommands (explicit @-mentions)
+                    {
+                        name: 'Shared File',
+                        description: 'Test Description',
+                        content: 'Shared content',
+                        filePath: '/workspace/src/shared.ts',
+                        relativePath: 'src/shared.ts',
+                        startLine: 1,
+                        endLine: 10,
+                    },
+                ])
+                .onSecondCall()
+                .resolves([]) // for pinnedContextCommands (should be empty due to deduplication)
 
-                const result = await provider.getAdditionalContext(triggerContext, 'tab1')
+            const result = await provider.getAdditionalContext(triggerContext, 'tab1', explicitContext)
 
-                // Active file should be preserved in triggerContext but not added to result
-                assert.strictEqual(triggerContext.text, 'active file content')
-                assert.strictEqual(triggerContext.cursorState?.position?.line, 1)
-            })
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].name, 'Shared File')
+            assert.strictEqual(result[0].pinned, false) // Should be marked as explicit, not pinned
+        })
 
-            it('should remove Active File context when not in pinned context', async () => {
-                const mockWorkspaceFolder = {
-                    uri: URI.file('/workspace').toString(),
-                    name: 'test',
-                }
-                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-                const triggerContext: TriggerContext = {
-                    workspaceFolder: mockWorkspaceFolder,
+        it('should handle Active File context correctly', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
 
-                    text: 'active file content',
-                    cursorState: { position: { line: 1, character: 0 } },
-                }
+                text: 'active file content',
+                cursorState: { position: { line: 1, character: 0 } },
+            }
 
-                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns([]) // No active file in pinned context
+            const contextWithActiveFile = [{ id: 'active-editor', command: 'Active file', label: 'file' }]
+            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(contextWithActiveFile)
 
-                fsExistsStub.resolves(false)
-                getContextCommandPromptStub.resolves([])
+            fsExistsStub.resolves(false)
+            getContextCommandPromptStub.resolves([])
 
-                const result = await provider.getAdditionalContext(triggerContext, 'tab1')
+            const result = await provider.getAdditionalContext(triggerContext, 'tab1')
 
-                // Active file should be removed from triggerContext
-                assert.strictEqual(triggerContext.text, undefined)
-                assert.strictEqual(triggerContext.cursorState, undefined)
-            })
+            // Active file should be preserved in triggerContext but not added to result
+            assert.strictEqual(triggerContext.text, 'active file content')
+            assert.strictEqual(triggerContext.cursorState?.position?.line, 1)
+        })
 
-            it('should set hasWorkspace flag when @workspace is present', async () => {
-                const mockWorkspaceFolder = {
-                    uri: URI.file('/workspace').toString(),
-                    name: 'test',
-                }
-                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-                const triggerContext: TriggerContext = {
-                    workspaceFolder: mockWorkspaceFolder,
-                }
+        it('should remove Active File context when not in pinned context', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
 
-                const workspaceContext = [{ id: '@workspace', command: 'Workspace', label: 'folder' }]
-                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(workspaceContext)
+                text: 'active file content',
+                cursorState: { position: { line: 1, character: 0 } },
+            }
 
-                fsExistsStub.resolves(false)
-                getContextCommandPromptStub.resolves([])
+            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns([]) // No active file in pinned context
 
-                await provider.getAdditionalContext(triggerContext, 'tab1')
+            fsExistsStub.resolves(false)
+            getContextCommandPromptStub.resolves([])
 
-                assert.strictEqual(triggerContext.hasWorkspace, true)
-            })
+            const result = await provider.getAdditionalContext(triggerContext, 'tab1')
 
-            it('should count context types correctly', async () => {
-                const mockWorkspaceFolder = {
-                    uri: URI.file('/workspace').toString(),
-                    name: 'test',
-                }
-                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-                const triggerContext: TriggerContext = {
-                    workspaceFolder: mockWorkspaceFolder,
-                }
+            // Active file should be removed from triggerContext
+            assert.strictEqual(triggerContext.text, undefined)
+            assert.strictEqual(triggerContext.cursorState, undefined)
+        })
 
-                const mixedContext = [
-                    { id: 'file1', command: 'File 1', label: 'file', route: ['/workspace', 'file1.ts'] },
-                    { id: 'folder1', command: 'Folder 1', label: 'folder', route: ['/workspace', 'src'] },
-                    { id: 'code1', command: 'Code 1', label: 'code', route: ['/workspace', 'code1.ts'] },
-                    { id: 'prompt', command: 'Prompt', label: 'prompt' },
-                ]
+        it('should set hasWorkspace flag when @workspace is present', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
 
-                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(mixedContext)
+            const workspaceContext = [{ id: '@workspace', command: 'Workspace', label: 'folder' }]
+            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(workspaceContext)
 
-                fsExistsStub.resolves(false)
-                getContextCommandPromptStub.resolves([])
+            fsExistsStub.resolves(false)
+            getContextCommandPromptStub.resolves([])
 
-                await provider.getAdditionalContext(triggerContext, 'tab1')
+            await provider.getAdditionalContext(triggerContext, 'tab1')
 
-                assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.fileContextCount, 1)
-                assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.folderContextCount, 1)
-                assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.codeContextCount, 1)
-                assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.promptContextCount, 1)
-            })
+            assert.strictEqual(triggerContext.hasWorkspace, true)
+        })
+
+        it('should count context types correctly', async () => {
+            const mockWorkspaceFolder = {
+                uri: URI.file('/workspace').toString(),
+                name: 'test',
+            }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+            const triggerContext: TriggerContext = {
+                workspaceFolder: mockWorkspaceFolder,
+            }
+
+            const mixedContext = [
+                { id: 'file1', command: 'File 1', label: 'file', route: ['/workspace', 'file1.ts'] },
+                { id: 'folder1', command: 'Folder 1', label: 'folder', route: ['/workspace', 'src'] },
+                { id: 'code1', command: 'Code 1', label: 'code', route: ['/workspace', 'code1.ts'] },
+                { id: 'prompt', command: 'Prompt', label: 'prompt' },
+            ]
+
+            ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(mixedContext)
+
+            fsExistsStub.resolves(false)
+            getContextCommandPromptStub.resolves([])
+
+            await provider.getAdditionalContext(triggerContext, 'tab1')
+
+            assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.fileContextCount, 1)
+            assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.folderContextCount, 1)
+            assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.codeContextCount, 1)
+            assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.promptContextCount, 1)
         })
     })
 
