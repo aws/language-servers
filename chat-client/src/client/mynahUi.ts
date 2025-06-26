@@ -52,6 +52,7 @@ import {
     MynahIcons,
     CustomQuickActionCommand,
     ConfigTexts,
+    DropdownListOption,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -675,7 +676,19 @@ export const createMynahUi = (
 
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
+        onDropDownOptionChange: (tabId: string, messageId: string, value: DropdownListOption[]) => {
+            console.log(`dropdown option: ${value[0]}, ${messageId}, ${tabId}`)
+            // map value: string [] to Record <string, string>
+            const payload: ButtonClickParams = {
+                tabId,
+                messageId,
+                buttonId: 'auto-run-commands',
+                metadata: value[0],
+            }
+            messager.onButtonClick(payload)
+        },
         onPromptInputOptionChange: (tabId, optionsValues) => {
+            console.log('PromptOptions', optionsValues)
             if (agenticMode) {
                 handlePromptInputChange(mynahUi, tabId, optionsValues)
             }
@@ -957,6 +970,16 @@ export const createMynahUi = (
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
                     ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
+                    dropdownList: am.dropdown
+                        ? {
+                              title: am.dropdown.title,
+                              messageId: am.dropdown.messageId,
+                              tabId: am.dropdown.tabId,
+                              titleIcon: toMynahIcon(am.dropdown.icon),
+                              description: am.dropdown.description,
+                              options: am.dropdown.option || [],
+                          }
+                        : undefined,
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {

@@ -162,7 +162,7 @@ import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
-import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
+import { commandCategories, ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
@@ -226,6 +226,7 @@ import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { McpPermissionType, MCPServerPermission } from './tools/mcp/mcpTypes'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -387,10 +388,45 @@ export class AgenticChatController implements ChatHandlers {
             params.buttonId === BUTTON_RUN_SHELL_COMMAND ||
             params.buttonId === BUTTON_REJECT_SHELL_COMMAND ||
             params.buttonId === BUTTON_REJECT_MCP_TOOL ||
-            params.buttonId === BUTTON_ALLOW_TOOLS
+            params.buttonId === BUTTON_ALLOW_TOOLS ||
+            params.buttonId === 'auto-run-commands'
         ) {
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
+            }
+            // update permission if it's auto-run
+            if (params.buttonId === 'auto-run-commands') {
+                // get result from metadata
+                const option = params.metadata
+                const toolName = option.value
+                const new_permission = option.id
+
+                const current_permission = McpManager.instance.getToolPerm('Built-in', toolName)
+
+                // only trigger update if curren != previous
+                if (current_permission !== new_permission) {
+                    // generate perm object
+                    const perm = await this.#mcpEventHandler.generateEmptyBuiltInToolPermission()
+
+                    // load updated permission
+                    perm.toolPerms[option.value] = new_permission as McpPermissionType
+
+                    // update permission
+                    try {
+                        await McpManager.instance.updateServerPermission('Built-in', perm)
+                    } catch (error) {
+                        this.#features.logging.error(`Failed to save MCP permissions: ${error}`)
+                        return {
+                            success: false,
+                            failureReason: `Failed to update permission for ${option.value}`,
+                        }
+                    }
+                } else {
+                    // break, because nothing happen
+                    return {
+                        success: true,
+                    }
+                }
             }
             // For 'allow-tools', remove suffix as permission card needs to be seperate from file list card
             const messageId =
@@ -400,6 +436,13 @@ export class AgenticChatController implements ChatHandlers {
 
             const handler = session.data.getDeferredToolExecution(messageId)
             if (!handler?.reject || !handler.resolve) {
+                if (params.buttonId === 'auto-run-commands') {
+                    // change permission of a completed task --> no handler
+                    // should not return an error because it's a expected behavior
+                    return {
+                        success: true,
+                    }
+                }
                 return {
                     success: false,
                     failureReason: `could not find deferred tool execution for message: ${messageId} `,
@@ -411,6 +454,7 @@ export class AgenticChatController implements ChatHandlers {
                       this.#stoppedToolUses.add(messageId)
                   })()
                 : handler.resolve()
+
             return {
                 success: true,
             }
@@ -1616,7 +1660,9 @@ export class AgenticChatController implements ChatHandlers {
         resultStream: AgenticChatResultStream,
         promptBlockId: number,
         session: ChatSessionService,
-        toolName: string
+        toolName: string,
+        commandCategory?: CommandCategory,
+        tabId?: string
     ) {
         const deferred = this.#createDeferred()
         session.setDeferredToolExecution(toolUse.toolUseId!, deferred.resolve, deferred.reject)
@@ -1624,7 +1670,7 @@ export class AgenticChatController implements ChatHandlers {
         await deferred.promise
         // Note: we want to overwrite the button block because it already exists in the stream.
         await resultStream.overwriteResultBlock(
-            this.#getUpdateToolConfirmResult(toolUse, true, toolName),
+            this.#getUpdateToolConfirmResult(toolUse, true, toolName, undefined, commandCategory, tabId),
             promptBlockId
         )
     }
@@ -1745,7 +1791,8 @@ export class AgenticChatController implements ChatHandlers {
                                 warning,
                                 commandCategory,
                                 toolUse.name,
-                                builtInPermission
+                                builtInPermission,
+                                tabId
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
 
@@ -1765,7 +1812,8 @@ export class AgenticChatController implements ChatHandlers {
                                     chatResultStream,
                                     cachedButtonBlockId,
                                     session,
-                                    toolUse.name
+                                    toolUse.name,
+                                    commandCategory
                                 )
                             }
                             if (isExecuteBash) {
@@ -2350,12 +2398,15 @@ export class AgenticChatController implements ChatHandlers {
         toolUse: ToolUse,
         isAccept: boolean,
         originalToolName: string,
-        toolType?: string
+        toolType?: string,
+        commandCategory?: CommandCategory,
+        tabId?: string
     ): ChatResult {
         const toolName = originalToolName ?? (toolType || toolUse.name)
 
         // Handle bash commands with special formatting
         if (toolName === EXECUTE_BASH) {
+            const permission = McpManager.instance.getToolPerm('Built-in', 'executeBash')
             return {
                 messageId: toolUse.toolUseId,
                 type: 'tool',
@@ -2372,6 +2423,32 @@ export class AgenticChatController implements ChatHandlers {
                               },
                           }),
                     buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
+                },
+                dropdown: {
+                    title:
+                        commandCategory === CommandCategory.Destructive
+                            ? 'Destructive commands'
+                            : commandCategory === CommandCategory.Mutate
+                              ? 'Mutating commands'
+                              : 'Read-only commands',
+                    description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
+                    messageId: toolUse.toolUseId!,
+                    tabId: tabId!,
+                    icon:
+                        commandCategory === CommandCategory.Destructive
+                            ? 'warning'
+                            : commandCategory === CommandCategory.Mutate
+                              ? 'info'
+                              : 'eye',
+                    option: [
+                        { id: 'ask', label: 'Ask to run', value: toolName, selected: permission === 'ask' },
+                        {
+                            id: 'alwaysAllow',
+                            label: 'Auto run',
+                            value: toolName,
+                            selected: permission === 'alwaysAllow',
+                        },
+                    ],
                 },
             }
         }
@@ -2595,7 +2672,8 @@ export class AgenticChatController implements ChatHandlers {
         warning?: string,
         commandCategory?: CommandCategory,
         toolType?: string,
-        builtInPermission?: boolean
+        builtInPermission?: boolean,
+        tabId?: string
     ): ChatResult {
         const toolName = toolType || toolUse.name
         let buttons: Button[] = []
@@ -2613,10 +2691,25 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
         let body: string | undefined
-
+        let dropdown:
+            | {
+                  title: string
+                  description: string
+                  messageId: string
+                  tabId: string
+                  icon: string
+                  option: {
+                      id: string
+                      label: string
+                      value: string
+                      selected?: boolean | undefined
+                  }[]
+              }
+            | undefined = undefined
         // Configure tool-specific UI elements
         switch (toolName) {
-            case EXECUTE_BASH: {
+            case 'executeBash': {
+                const permissions = McpManager.instance.getToolPerm('Built-in', 'executeBash')
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 // get feature flag
                 const shortcut =
@@ -2671,7 +2764,33 @@ export class AgenticChatController implements ChatHandlers {
                     body: 'shell',
                     buttons,
                 }
-                body = '```shell\n' + commandString
+                ;((body = '```shell\n' + commandString),
+                    (dropdown = {
+                        messageId: this.#getMessageIdForToolUse(toolType, toolUse),
+                        tabId: tabId!,
+                        title:
+                            commandCategory === CommandCategory.Destructive
+                                ? 'Destructive commands'
+                                : commandCategory === CommandCategory.Mutate
+                                  ? 'Mutating commands'
+                                  : 'Read-only commands',
+                        description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
+                        icon:
+                            commandCategory === CommandCategory.Destructive
+                                ? 'warning'
+                                : commandCategory === CommandCategory.Mutate
+                                  ? 'info'
+                                  : 'eye',
+                        option: [
+                            { id: 'ask', label: 'Ask to run', value: toolName, selected: permissions === 'ask' },
+                            {
+                                id: 'alwaysAllow',
+                                label: 'Auto run',
+                                value: toolName,
+                                selected: permissions === 'alwaysAllow',
+                            },
+                        ],
+                    }))
                 break
             }
 
@@ -2785,6 +2904,7 @@ export class AgenticChatController implements ChatHandlers {
                 messageId: this.#getMessageIdForToolUse(toolType, toolUse),
                 header,
                 body: warning ? (toolName === EXECUTE_BASH ? '' : '\n\n') + body : body,
+                dropdown,
             }
         } else {
             return {

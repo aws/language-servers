@@ -268,6 +268,17 @@ export class McpEventHandler {
         return this.#getDefaultMcpResponse(params.id)
     }
 
+    async generateEmptyBuiltInToolPermission() {
+        const personaPath = await this.#getPersonaPath()
+        const perm: MCPServerPermission = {
+            enabled: true,
+            toolPerms: {},
+            __configPath__: personaPath,
+        }
+
+        return perm
+    }
+
     /**
      * Returns the default MCP servers response
      */
