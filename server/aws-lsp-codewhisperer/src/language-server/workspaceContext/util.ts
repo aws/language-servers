@@ -94,6 +94,6 @@ export const getRelativePathWithWorkspaceFolder = (workspaceFolder: WorkspaceFol
     const workspaceUri = URI.parse(workspaceFolder.uri)
     const fileUri = URI.parse(filePath)
     const relativePath = path.relative(workspaceUri.fsPath, fileUri.fsPath)
-    const workspaceFolderName = path.basename(workspaceUri.path)
+    const workspaceFolderName = path.basename(workspaceUri.fsPath)
     return path.join(workspaceFolderName, relativePath)
 }
