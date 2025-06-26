@@ -76,6 +76,7 @@ import {
     plansAndPricingTitle,
     freeTierLimitDirective,
 } from './texts/paidTier'
+import { isSupportedImageExtension, MAX_IMAGE_CONTEXT, verifyClientImages } from './imageVerification'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -229,71 +230,6 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
     // Create initial empty response
     mynahUi.addChatItem(tabId, {
         type: ChatItemType.ANSWER_STREAM,
-    })
-}
-
-// Add verification function for dropped files
-const verifyDroppedFiles = async (files: FileList): Promise<{ validFiles: File[]; errors: string[] }> => {
-    const supportedExtensions = [
-        // Images
-        'jpeg',
-        'png',
-        'gif',
-        'webp',
-    ]
-
-    const validFiles: File[] = []
-    const errors: string[] = []
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i]
-        const fileName = file.name || 'Unknown file'
-        const extension = file.name.split('.').pop()?.toLowerCase()
-
-        if (!extension || !supportedExtensions.includes(extension)) {
-            errors.push(`${fileName}: File must be an image in JPEG, PNG, GIF, or WebP format.`)
-            continue
-        }
-        if (extension && supportedExtensions.includes(extension)) {
-            // Check file size (3.75MB = 3.75 * 1024 * 1024 bytes)
-            const maxSizeBytes = 3.75 * 1024 * 1024
-            if (file.size > maxSizeBytes) {
-                errors.push(`${fileName}: Image must be no more than 3.75MB in size.`)
-                continue // Skip files that are too large
-            }
-
-            // Check image dimensions
-            try {
-                const dimensions = await getImageDimensions(file)
-                if (dimensions.width > 8000 || dimensions.height > 8000) {
-                    errors.push(`${fileName}: Image must be no more than 8,000px in width or height.`)
-                    continue // Skip images that are too large
-                }
-            } catch (error) {
-                // If we can't read dimensions, skip the file
-                continue
-            }
-
-            validFiles.push(file)
-        }
-    }
-    return { validFiles, errors }
-}
-
-// Helper function to get image dimensions
-const getImageDimensions = (file: File): Promise<{ width: number; height: number }> => {
-    return new Promise((resolve, reject) => {
-        const img = new Image()
-        const objectUrl = URL.createObjectURL(file)
-
-        img.onload = () => {
-            URL.revokeObjectURL(objectUrl) // Clean up the object URL
-            resolve({ width: img.width, height: img.height })
-        }
-        img.onerror = () => {
-            URL.revokeObjectURL(objectUrl) // Clean up the object URL
-            reject(new Error('Failed to load image'))
-        }
-        img.src = objectUrl
     })
 }
 
@@ -538,9 +474,9 @@ export const createMynahUi = (
         onContextSelected: (contextItem, tabId) => {
             if (contextItem.command === 'Image') {
                 const imageContext = getImageContextCount(tabId)
-                if (imageContext >= 20) {
+                if (imageContext >= MAX_IMAGE_CONTEXT) {
                     mynahUi.notify({
-                        content: 'A maximum of 20 images can be added to a single message.',
+                        content: `A maximum of ${MAX_IMAGE_CONTEXT} images can be added to a single message.`,
                         type: NotificationType.WARNING,
                     })
                     return false
@@ -695,9 +631,9 @@ export const createMynahUi = (
         },
         onOpenFileDialogClick: (tabId, fileType, insertPosition) => {
             const imageContext = getImageContextCount(tabId)
-            if (imageContext >= 20) {
+            if (imageContext >= MAX_IMAGE_CONTEXT) {
                 mynahUi.notify({
-                    content: 'A maximum of 20 images can be added to a single message.',
+                    content: `A maximum of ${MAX_IMAGE_CONTEXT} images can be added to a single message.`,
                     type: NotificationType.WARNING,
                 })
                 return
@@ -711,24 +647,24 @@ export const createMynahUi = (
         },
         onFilesDropped: async (tabId: string, files: FileList, insertPosition: number) => {
             const imageContextCount = getImageContextCount(tabId)
-            if (imageContextCount >= 20) {
+            if (imageContextCount >= MAX_IMAGE_CONTEXT) {
                 mynahUi.notify({
-                    content: 'A maximum of 20 images can be added to a single message.',
+                    content: `A maximum of ${MAX_IMAGE_CONTEXT} images can be added to a single message.`,
                     type: NotificationType.WARNING,
                 })
                 return
             }
             // Verify dropped files and add valid ones to context
-            const { validFiles, errors } = await verifyDroppedFiles(files)
+            const { validFiles, errors } = await verifyClientImages(files)
             if (validFiles.length > 0) {
                 // Calculate how many files we can actually add
-                const availableSlots = 20 - imageContextCount
+                const availableSlots = MAX_IMAGE_CONTEXT - imageContextCount
                 const filesToAdd = validFiles.slice(0, availableSlots)
                 const filesExceeded = validFiles.length - availableSlots
 
                 // Add error message if we exceed the limit
                 if (filesExceeded > 0) {
-                    errors.push(`A maximum of 20 images can be added to a single message.`)
+                    errors.push(`A maximum of ${MAX_IMAGE_CONTEXT} images can be added to a single message.`)
                 }
 
                 const commands: CustomQuickActionCommand[] = await Promise.all(
@@ -738,7 +674,7 @@ export const createMynahUi = (
 
                         // Determine file type and appropriate icon
                         const fileExtension = filePath.split('.').pop()?.toLowerCase() || ''
-                        const isImage = ['jpeg', 'png', 'gif', 'webp'].includes(fileExtension)
+                        const isImage = isSupportedImageExtension(fileExtension)
 
                         let icon = MynahIcons.FILE
                         if (isImage) {

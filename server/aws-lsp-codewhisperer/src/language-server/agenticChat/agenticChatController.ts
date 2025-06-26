@@ -177,10 +177,9 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
-import { ImageBlock, ImageFormat } from '@aws/codewhisperer-streaming-client'
-import { ContextCommand } from '@aws/language-server-runtimes/protocol'
+import { ImageBlock } from '@aws/codewhisperer-streaming-client'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
-import imageSize from 'image-size'
+import { verifyServerImage } from '../../shared/imageVerification'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -449,10 +448,6 @@ export class AgenticChatController implements ChatHandlers {
 
     async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
         if (params.fileType === 'image') {
-            const supportedExtensions = ['jpeg', 'png', 'gif', 'webp']
-            const maxSizeBytes = 3.75 * 1024 * 1024
-            const maxDimension = 8000
-
             // 1. Prompt user for file selection
             const result = await this.#features.lsp.window.showOpenDialog({
                 canSelectFiles: true,
@@ -476,37 +471,23 @@ export class AgenticChatController implements ChatHandlers {
             for (const filePath of result.uris) {
                 // Extract filename from the URI for error messages
                 const fileName = filePath.split('/').pop() || ''
+                const sanitizedPath = filePath.startsWith('file://') ? filePath.substring(7) : filePath
 
-                const extension = filePath.split('.').pop()?.toLowerCase() || ''
-                // 2. File type check
-                if (!supportedExtensions.includes(extension)) {
-                    errorMessage = `${fileName}: File must be an image in JPEG, PNG, GIF, or WebP format.`
-                    continue
-                }
-                const sanitizedPath = filePath.startsWith('file://') ? filePath.substring(7) : filePath[0]
-
-                // 3. File size check
+                // Get file size and content for verification
                 const size = await this.#features.workspace.fs.getFileSize(sanitizedPath)
-                if (size.size > maxSizeBytes) {
-                    errorMessage = `${fileName}: Image must be no more than 3.75MB in size.`
-                    continue
-                }
-                // 4. Image dimension check
                 const fileContent = await this.#features.workspace.fs.readFile(sanitizedPath, {
                     encoding: 'binary',
                 })
                 const imageBuffer = Buffer.from(fileContent, 'binary')
-                const { width = 0, height = 0 } = imageSize(imageBuffer)
-                if (width > maxDimension) {
-                    errorMessage = `${fileName}: Image must be no more than 8,000px in width.`
-                    continue
+
+                // Use centralized verification utility
+                const verificationResult = await verifyServerImage(fileName, size.size, imageBuffer)
+
+                if (verificationResult.isValid) {
+                    validFilePaths.push(filePath)
+                } else {
+                    errorMessage = verificationResult.errors[0] // Use first error message
                 }
-                if (height > maxDimension) {
-                    errorMessage = `${fileName}: Image must be no more than 8,000px in height.`
-                    continue
-                }
-                // Passed all checks
-                validFilePaths.push(filePath)
             }
 
             if (validFilePaths.length === 0) {
