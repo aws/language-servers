@@ -47,7 +47,7 @@ async function createLSPServer(runtimeFile: string) {
     return { client, endpoint, process }
 }
 
-describe('Test YamlServer with CloudFormation schema', () => {
+;(describe('Test YamlServer with CloudFormation schema', () => {
     const rootPath = path.resolve(__dirname)
     let process: ChildProcessWithoutNullStreams
     let endpoint: JSONRPCEndpoint
@@ -203,4 +203,4 @@ describe('Test YamlServer with CloudFormation schema', () => {
 
             expect(clientResult).to.deep.equal(HOVER_YAML_CUSTOMIZED)
         })
-    })
+    }))

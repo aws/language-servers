@@ -3,6 +3,7 @@ import { deepStrictEqual } from 'assert'
 import sinon from 'ts-sinon'
 import { AmazonQIAMServiceManager } from './AmazonQIAMServiceManager'
 import { generateSingletonInitializationTests } from './testUtils'
+import * as utils from '../utils'
 
 describe('AmazonQIAMServiceManager', () => {
     describe('Initialization process', () => {
@@ -41,9 +42,18 @@ describe('AmazonQIAMServiceManager', () => {
         })
 
         it('should initialize the streaming client only once', () => {
+            // Mock getIAMCredentialsFromProvider to return dummy credentials
+            const getIAMCredentialsStub = sinon.stub(utils, 'getIAMCredentialsFromProvider').returns({
+                accessKeyId: 'dummy-access-key',
+                secretAccessKey: 'dummy-secret-key',
+                sessionToken: 'dummy-session-token',
+            })
+
             const streamingClient = serviceManager.getStreamingClient()
 
             deepStrictEqual(serviceManager.getStreamingClient(), streamingClient)
+
+            getIAMCredentialsStub.restore()
         })
     })
 })
