@@ -11,6 +11,8 @@ import {
     PROGRAMMING_LANGUAGES_LOWERCASE,
     Q_CODE_REVIEW_TOOL_NAME,
     Q_CODE_REVIEW_TOOL_DESCRIPTION,
+    FULL_REVIEW,
+    PARTIAL_REVIEW,
 } from './qCodeReviewConstants'
 import { QCodeReviewUtils } from './qCodeReviewUtils'
 import { Q_CODE_REVIEW_INPUT_SCHEMA, Z_Q_CODE_REVIEW_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
@@ -22,13 +24,6 @@ import * as JSZip from 'jszip'
 import { existsSync, statSync, readFileSync } from 'fs'
 
 export class QCodeReview {
-    private readonly chat: Features['chat']
-    private readonly logging: Features['logging']
-    private readonly lsp: Features['lsp']
-    private readonly notification: Features['notification']
-    private readonly telemetry: Features['telemetry']
-    private readonly workspace: Features['workspace']
-
     private static readonly CUSTOMER_CODE_BASE_PATH = 'customerCodeBaseFolder'
     private static readonly CODE_ARTIFACT_PATH = 'code_artifact'
     private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
@@ -38,6 +33,27 @@ export class QCodeReview {
         compression: 'DEFLATE' as const,
         compressionOptions: { level: 9 },
     }
+    private static readonly MAX_POLLING_ATTEMPTS = 12
+    private static readonly POLLING_INTERVAL_MS = 10000
+    private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
+    private static readonly SCAN_SCOPE = 'AGENTIC'
+
+    private static readonly ERROR_MESSAGES = {
+        MISSING_CLIENT: 'CodeWhisperer client not available',
+        MISSING_ARTIFACTS: `Missing fileLevelArtifacts and folderLevelArtifacts for ${Q_CODE_REVIEW_TOOL_NAME} tool. Need more information from user.`,
+        UPLOAD_FAILED: `Failed to upload artifact for code review in ${Q_CODE_REVIEW_TOOL_NAME} tool.`,
+        ANALYSIS_FAILED: `Failed to start code analysis in ${Q_CODE_REVIEW_TOOL_NAME} tool.`,
+        SCAN_FAILED: 'Code scan failed',
+        TIMEOUT: (attempts: number) => `Code scan timed out after ${attempts} attempts`,
+    }
+
+    private readonly chat: Features['chat']
+    private readonly logging: Features['logging']
+    private readonly lsp: Features['lsp']
+    private readonly notification: Features['notification']
+    private readonly telemetry: Features['telemetry']
+    private readonly workspace: Features['workspace']
+    private codeWhispererClient?: CodeWhispererServiceToken
 
     constructor(
         features: Pick<Features, 'chat' | 'logging' | 'lsp' | 'notification' | 'telemetry' | 'workspace'> &
@@ -61,170 +77,301 @@ export class QCodeReview {
         try {
             this.logging.info(`Executing ${Q_CODE_REVIEW_TOOL_NAME}: ${JSON.stringify(input)}`)
 
-            // Step 0: Validate input
-            // Get the CodeWhisperer client from the context
-            const codeWhispererClient = context.codeWhispererClient as CodeWhispererServiceToken
-            if (!codeWhispererClient) {
-                throw new Error('CodeWhisperer client not available')
-            }
+            const setup = await this.validateInputAndSetup(input, context)
+            if ('errorMessage' in setup) return setup
 
-            // Parse and validate input using zod schema for file/folder level
-            const validatedInput = Z_Q_CODE_REVIEW_INPUT_SCHEMA.parse(input)
+            const uploadResult = await this.prepareAndUploadArtifacts(setup)
+            if ('errorMessage' in uploadResult) return uploadResult
 
-            // Prepare artifacts for processing
-            const fileArtifacts = validatedInput.fileLevelArtifacts || []
-            const folderArtifacts = validatedInput.folderLevelArtifacts || []
+            const analysisResult = await this.startCodeAnalysis(setup, uploadResult)
+            if ('errorMessage' in analysisResult) return analysisResult
 
-            if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
-                throw new Error('No files or folders provided for code review')
-            }
-
-            // Determine programming language from file artifacts if available
-            const programmingLanguage =
-                fileArtifacts.length > 0 ? this.determineProgrammingLanguageFromFileArtifacts(fileArtifacts) : 'java'
-
-            if (!programmingLanguage) {
-                throw new Error('Programming language could not be determined')
-            }
-
-            // Step 1: Prepare the files for upload - create zip and calculate MD5
-            const { zipBuffer, md5Hash, isCodeDiffPresent } = await this.prepareFilesAndFoldersForUpload(
-                fileArtifacts,
-                folderArtifacts
+            const completionResult = await this.pollForCompletion(
+                analysisResult.jobId,
+                setup.scanName,
+                setup.artifactType
             )
+            if ('errorMessage' in completionResult) return completionResult
 
-            // Step 2: Get a pre-signed URL for uploading the code
-            const scanName = 'Standard-' + randomUUID()
-            this.logging.info(`Agentic scan name: ${scanName}`)
+            return await this.processResults(
+                completionResult,
+                { ...setup, isCodeDiffPresent: analysisResult.isCodeDiffPresent },
+                analysisResult.jobId
+            )
+        } catch (error) {
+            return this.handleFailure(error, input)
+        }
+    }
 
-            // Determine upload intent based on input
-            const uploadIntent = 'AGENTIC_CODE_REVIEW'
+    private async validateInputAndSetup(input: any, context: any) {
+        this.codeWhispererClient = context.codeWhispererClient as CodeWhispererServiceToken
+        if (!this.codeWhispererClient) {
+            throw new Error(QCodeReview.ERROR_MESSAGES.MISSING_CLIENT)
+        }
 
-            const uploadUrlResponse = await codeWhispererClient.createUploadUrl({
-                contentLength: zipBuffer.length,
-                contentMd5: md5Hash,
-                uploadIntent: uploadIntent,
-                uploadContext: {
-                    codeAnalysisUploadContext: {
-                        codeScanName: scanName,
-                    },
+        // parse input
+        const validatedInput = Z_Q_CODE_REVIEW_INPUT_SCHEMA.parse(input)
+        const fileArtifacts = validatedInput.fileLevelArtifacts || []
+        const folderArtifacts = validatedInput.folderLevelArtifacts || []
+
+        if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
+            this.telemetry.emitMetric({ name: `${Q_CODE_REVIEW_TOOL_NAME}_MissingFilesOrFolders` })
+            return { errorMessage: QCodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS }
+        }
+
+        const isFullReviewRequest = validatedInput.scopeOfReview?.toUpperCase() === FULL_REVIEW
+        const artifactType = fileArtifacts.length > 0 ? 'FILE' : 'FOLDER'
+        const programmingLanguage =
+            fileArtifacts.length > 0 ? this.determineProgrammingLanguageFromFileArtifacts(fileArtifacts) : 'java'
+        const scanName = 'Standard-' + randomUUID()
+
+        this.logging.info(`Agentic scan name: ${scanName}`)
+
+        return {
+            fileArtifacts,
+            folderArtifacts,
+            isFullReviewRequest,
+            artifactType,
+            programmingLanguage,
+            scanName,
+        }
+    }
+
+    private async prepareAndUploadArtifacts(setup: any) {
+        const { zipBuffer, md5Hash, isCodeDiffPresent } = await this.prepareFilesAndFoldersForUpload(
+            setup.fileArtifacts,
+            setup.folderArtifacts
+        )
+
+        const uploadUrlResponse = await this.codeWhispererClient!.createUploadUrl({
+            contentLength: zipBuffer.length,
+            contentMd5: md5Hash,
+            uploadIntent: QCodeReview.UPLOAD_INTENT,
+            uploadContext: {
+                codeAnalysisUploadContext: {
+                    codeScanName: setup.scanName,
+                },
+            },
+        })
+
+        if (!uploadUrlResponse.uploadUrl || !uploadUrlResponse.uploadId) {
+            this.telemetry.emitMetric({
+                name: `${Q_CODE_REVIEW_TOOL_NAME}_CreateUploadUrlFailed`,
+                data: {
+                    contentLength: zipBuffer.length,
+                    uploadIntent: QCodeReview.UPLOAD_INTENT,
+                    codeScanName: setup.scanName,
+                    response: uploadUrlResponse,
                 },
             })
+            return { errorMessage: QCodeReview.ERROR_MESSAGES.UPLOAD_FAILED }
+        }
 
-            if (!uploadUrlResponse.uploadUrl || !uploadUrlResponse.uploadId) {
-                throw new Error('Failed to get upload URL')
-            } else {
-                this.logging.info(`Upload Url - ${uploadUrlResponse.uploadUrl}`)
-            }
+        this.logging.info(`Upload Url - ${uploadUrlResponse.uploadUrl}`)
 
-            // Step 3: Upload the file to the pre-signed URL
-            await this.uploadFileToPresignedUrl(
-                uploadUrlResponse.uploadUrl,
-                zipBuffer,
-                uploadUrlResponse.requestHeaders || {}
-            )
+        await this.uploadFileToPresignedUrl(
+            uploadUrlResponse.uploadUrl,
+            zipBuffer,
+            uploadUrlResponse.requestHeaders || {}
+        )
 
-            // Step 4: Create the code scan with the upload ID
-            // The artifact map should be a mapping of artifact type to upload ID
-            const artifactMap = {
-                SourceCode: uploadUrlResponse.uploadId,
-            }
+        this.telemetry.emitMetric({
+            name: `${Q_CODE_REVIEW_TOOL_NAME}_UploadArtifactSuccess`,
+            data: {
+                codeScanName: setup.scanName,
+                codeArtifactId: uploadUrlResponse.uploadId,
+                artifactSize: zipBuffer.length,
+                artifactType: setup.artifactType,
+            },
+        })
 
-            // Determine scan scope based on input
-            const scanScope = 'AGENTIC'
+        return { uploadId: uploadUrlResponse.uploadId, isCodeDiffPresent }
+    }
 
-            const createResponse = await codeWhispererClient.startCodeAnalysis({
-                artifacts: artifactMap,
-                programmingLanguage: { languageName: programmingLanguage },
-                clientToken: QCodeReviewUtils.generateClientToken(),
-                codeScanName: scanName,
-                scope: scanScope,
-                codeDiffMetadata: isCodeDiffPresent ? { codeDiffPath: '/code_artifact/codeDiff/' } : undefined,
+    private async startCodeAnalysis(setup: any, uploadResult: any) {
+        const createResponse = await this.codeWhispererClient!.startCodeAnalysis({
+            artifacts: { SourceCode: uploadResult.uploadId },
+            programmingLanguage: { languageName: setup.programmingLanguage },
+            clientToken: QCodeReviewUtils.generateClientToken(),
+            codeScanName: setup.scanName,
+            scope: QCodeReview.SCAN_SCOPE,
+            codeDiffMetadata: uploadResult.isCodeDiffPresent ? { codeDiffPath: '/code_artifact/codeDiff/' } : undefined,
+        })
+
+        if (!createResponse.jobId) {
+            this.telemetry.emitMetric({
+                name: `${Q_CODE_REVIEW_TOOL_NAME}_StartCodeAnalysisFailed`,
+                data: {
+                    artifacts: { SourceCode: uploadResult.uploadId },
+                    programmingLanguage: { languageName: setup.programmingLanguage },
+                    codeScanName: setup.scanName,
+                    scope: QCodeReview.SCAN_SCOPE,
+                    artifactType: setup.artifactType,
+                    response: createResponse,
+                },
             })
+            return { errorMessage: QCodeReview.ERROR_MESSAGES.ANALYSIS_FAILED }
+        }
 
-            const jobId = createResponse.jobId
-            if (!jobId) {
-                throw new Error('Failed to create code scan: No job ID returned')
-            }
+        this.logging.info(`Code scan created with job ID: ${createResponse.jobId}`)
+        return {
+            jobId: createResponse.jobId,
+            status: createResponse.status,
+            isCodeDiffPresent: uploadResult.isCodeDiffPresent,
+        }
+    }
 
-            this.logging.info(`Code scan created with job ID: ${jobId}`)
+    private async pollForCompletion(jobId: string, scanName: string, artifactType: string) {
+        let status = 'Pending'
+        let attemptCount = 0
 
-            // Step 5: Poll for the code scan status until it completes or fails
-            let status = createResponse.status
-            while (status === 'Pending') {
-                this.logging.info(`Code scan status: ${status}, waiting...`)
+        while (status === 'Pending' && attemptCount < QCodeReview.MAX_POLLING_ATTEMPTS) {
+            this.logging.info(`Code scan status: ${status}, waiting...`)
+            await new Promise(resolve => setTimeout(resolve, QCodeReview.POLLING_INTERVAL_MS))
 
-                // Wait before checking again
-                await new Promise(resolve => setTimeout(resolve, 5000))
+            const statusResponse = await this.getCodeAnalysisStatus(jobId)
+            status = statusResponse.status
+            attemptCount++
 
-                // Check the status
-                const statusResponse = await codeWhispererClient.getCodeAnalysis({ jobId })
-                status = statusResponse.status
-
-                if (statusResponse.errorMessage) {
-                    return {
+            if (statusResponse.errorMessage) {
+                this.telemetry.emitMetric({
+                    name: `${Q_CODE_REVIEW_TOOL_NAME}_CodeAnalysisFailed`,
+                    data: {
+                        codeScanName: scanName,
                         codeReviewId: jobId,
-                        status: status,
-                        errorMessage: statusResponse.errorMessage,
-                    }
-                }
-            }
-
-            this.logging.info(`Code scan completed with status: ${status}`)
-
-            // Step 6: If the scan completed successfully, get the findings
-            if (status === 'Completed') {
-                let totalFindings: any[] = []
-                let nextFindingToken = undefined
-                do {
-                    this.logging.info(`Getting findings for job ID: ${jobId}, next token: ${nextFindingToken}`)
-                    const findingsResponse = await codeWhispererClient.listCodeAnalysisFindings({
-                        jobId: jobId,
-                        nextToken: nextFindingToken,
-                        codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
-                    })
-                    nextFindingToken = findingsResponse.nextToken
-
-                    // If isCodeDiffScan is true, filter findings to include only those with findingContext == "CodeDiff"
-                    const parsedFindings = this.parseFindings(findingsResponse.codeAnalysisFindings) || []
-                    const filteredFindings = isCodeDiffPresent
-                        ? parsedFindings.filter(finding => finding?.findingContext === 'CodeDiff')
-                        : parsedFindings
-                    totalFindings = totalFindings.concat(filteredFindings)
-                } while (nextFindingToken !== undefined && nextFindingToken !== null)
-
-                this.logging.info(`Total findings: ${totalFindings.length}`)
-
-                const aggregatedCodeScanIssueList = await this.processFindings(
-                    totalFindings,
-                    jobId,
-                    programmingLanguage,
-                    fileArtifacts,
-                    folderArtifacts
-                )
-
-                this.logging.info(`Parsed findings successfully.`)
-
+                        status,
+                        artifactType,
+                        message: statusResponse.errorMessage,
+                    },
+                })
                 return {
                     codeReviewId: jobId,
-                    status: status,
-                    result: {
-                        message: 'Q Code Review tool completed successfully with attached findings.',
-                        findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
-                    },
+                    status,
+                    errorMessage: statusResponse.errorMessage,
                 }
             }
+        }
 
-            // If the scan failed or had another status
+        if (status === 'Pending') {
+            this.telemetry.emitMetric({
+                name: `${Q_CODE_REVIEW_TOOL_NAME}_CodeAnalysisTimeout`,
+                data: {
+                    codeScanName: scanName,
+                    codeReviewId: jobId,
+                    status,
+                    maxAttempts: QCodeReview.MAX_POLLING_ATTEMPTS,
+                },
+            })
             return {
                 codeReviewId: jobId,
-                status: status,
-                errorMessage: status === 'Failed' ? 'Code scan failed' : `Unexpected status: ${status}`,
+                status: 'Timeout',
+                errorMessage: QCodeReview.ERROR_MESSAGES.TIMEOUT(QCodeReview.MAX_POLLING_ATTEMPTS),
             }
-        } catch (error) {
-            this.logging.error(`Error in ${Q_CODE_REVIEW_TOOL_NAME} - ${error}`)
-            throw error
         }
+
+        this.logging.info(`Code scan completed with status: ${status}`)
+        return { status, jobId }
+    }
+
+    private async processResults(completionResult: any, setup: any, jobId: string) {
+        if (completionResult.status !== 'Completed') {
+            return this.handleFailure(completionResult.status, setup.scanName, jobId)
+        }
+
+        const totalFindings = await this.collectFindings(jobId, setup.isFullReviewRequest, setup.isCodeDiffPresent)
+
+        this.telemetry.emitMetric({
+            name: `${Q_CODE_REVIEW_TOOL_NAME}_CodeAnalysisSuccess`,
+            data: {
+                codeScanName: setup.scanName,
+                codeReviewId: jobId,
+                findingsCount: totalFindings.length,
+            },
+        })
+
+        const aggregatedCodeScanIssueList = await this.processFindings(
+            totalFindings,
+            jobId,
+            setup.programmingLanguage,
+            setup.fileArtifacts,
+            setup.folderArtifacts
+        )
+
+        this.logging.info(`Parsed findings successfully.`)
+
+        return {
+            codeReviewId: jobId,
+            status: completionResult.status,
+            scopeOfReview: setup.isFullReviewRequest ? FULL_REVIEW : PARTIAL_REVIEW,
+            result: {
+                message: `${Q_CODE_REVIEW_TOOL_NAME} tool completed successfully. It performed a ${setup.isFullReviewRequest ? 'full' : 'partial'} review and has attached findings.`,
+                findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
+            },
+        }
+    }
+
+    private async collectFindings(
+        jobId: string,
+        isFullReviewRequest: boolean,
+        isCodeDiffPresent: boolean
+    ): Promise<any[]> {
+        let totalFindings: any[] = []
+        let nextFindingToken = undefined
+
+        do {
+            this.logging.info(`Getting findings for job ID: ${jobId}, next token: ${nextFindingToken}`)
+            const findingsResponse = await this.getCodeAnalysisFindings(jobId, nextFindingToken)
+            nextFindingToken = findingsResponse.nextToken
+
+            const parsedFindings = this.parseFindings(findingsResponse.codeAnalysisFindings) || []
+            const filteredFindings =
+                !isFullReviewRequest && isCodeDiffPresent
+                    ? parsedFindings.filter(finding => finding?.findingContext === 'CodeDiff')
+                    : parsedFindings
+            totalFindings = totalFindings.concat(filteredFindings)
+        } while (nextFindingToken)
+
+        this.logging.info(`Total findings: ${totalFindings.length}`)
+        return totalFindings
+    }
+
+    private handleFailure(error: any, input?: any, scanName?: string, jobId?: string) {
+        const errorData: any = { error: JSON.stringify(error) }
+        if (input) errorData.input = input
+        if (scanName) errorData.codeScanName = scanName
+        if (jobId) errorData.codeReviewId = jobId
+
+        this.telemetry.emitMetric({
+            name: `${Q_CODE_REVIEW_TOOL_NAME}_Failed`,
+            data: errorData,
+        })
+
+        this.logging.error(`Error in ${Q_CODE_REVIEW_TOOL_NAME} - ${JSON.stringify(error)}`)
+
+        if (typeof error === 'string') {
+            return {
+                codeReviewId: jobId,
+                status: error,
+                errorMessage:
+                    error === 'Failed' ? QCodeReview.ERROR_MESSAGES.SCAN_FAILED : `Unexpected status: ${error}`,
+            }
+        }
+
+        return {
+            errorMessage: `${Q_CODE_REVIEW_TOOL_NAME} tool failed with error - ${JSON.stringify(error)}`,
+        }
+    }
+
+    private async getCodeAnalysisStatus(jobId: string) {
+        return await this.codeWhispererClient!.getCodeAnalysis({ jobId })
+    }
+
+    private async getCodeAnalysisFindings(jobId: string, nextToken?: string) {
+        return await this.codeWhispererClient!.listCodeAnalysisFindings({
+            jobId,
+            nextToken,
+            codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
+        })
     }
 
     /**

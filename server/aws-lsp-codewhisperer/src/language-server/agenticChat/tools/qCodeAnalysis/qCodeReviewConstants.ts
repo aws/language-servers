@@ -71,35 +71,58 @@ export const Q_CODE_REVIEW_TOOL_NAME = 'qCodeReview'
  * Tool description for QCodeReview
  */
 export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
-    'A tool for scanning code for security vulnerabilities and code quality issues. It can be used to scan code present in a file or multiple files or a folder or multiple folders.',
+    'The primary tool for comprehensive code analysis and review. This tool should be used by default whenever a customer requests code review, file analysis, or code examination unless explicitly instructed otherwise.',
     '',
-    'Amazon Q Review provides comprehensive code analysis with:',
+    'Amazon Q Code Review is your go-to solution for all code analysis needs, providing:',
+    '',
+    '**Default Use Cases - Use this tool when customers ask to:**',
+    '- "Review this file/folder/workspace" or "Review my code"',
+    '- "Check this code" or "Analyze this file/folder/workspace"',
+    '- "Look at my implementation" or "Examine this code"',
+    '- "What do you think of this code?"',
+    '- Any general code review or analysis request',
+    '',
+    '**Comprehensive Analysis Capabilities:**',
     '- Static Application Security Testing (SAST): Identifies vulnerabilities in source code without execution',
     '- Secrets Detection: Finds hardcoded credentials, API keys, tokens, and other sensitive information',
     '- Infrastructure as Code (IaC) Analysis: Detects security issues in infrastructure definitions',
     '- Software Composition Analysis (SCA): Identifies vulnerabilities in dependencies and third-party components',
     '',
-    'Key capabilities include detection of:',
+    '**Advanced Detection Features:**',
     '- Security vulnerabilities: Injection flaws, XSS, CSRF, insecure authentication, data exposure risks',
     '- Code quality issues: Bugs, anti-patterns, and maintainability concerns',
     '- Best practice violations: Deviations from coding standards and recommended practices',
     '- Resource leaks: Potential memory leaks and unclosed resources',
     '- Input validation problems: Missing or improper validation of user inputs',
+    '- Performance optimization opportunities',
+    '- Code complexity and readability assessment',
     '',
-    'Findings include:',
-    '- Issue severity classification (Critical, High, Medium, Low)',
-    '- Specific code locations where issues were found',
-    '- References to relevant security standards and best practices',
+    '**Detailed Reporting:**',
+    '- Issue severity classification (Critical, High, Medium, Low, Info)',
+    '- Precise code locations with line numbers',
+    '- Actionable remediation guidance',
+    '- References to security standards (OWASP, CWE, etc.)',
+    '- Best practice recommendations',
     '',
-    'Supported programming languages:',
+    '**Supported Programming Languages:**',
     '- Python, JavaScript/TypeScript, Java, C#, PHP, Ruby, Go, Rust, C/C++',
     '- Shell scripts, SQL, Kotlin, Scala, Swift',
+    '',
+    '**Usage Priority:**',
+    'This tool should be the DEFAULT choice for any code review request. Only skip this tool if the customer explicitly requests basic code reading, syntax highlighting, or specifically asks not to run security/quality analysis.',
 ].join('\n')
 
 /**
  * Finding severity levels
  */
 export const FINDING_SEVERITY = ['Info', 'Low', 'Medium', 'High', 'Critical']
+
+/**
+ * Scope of code review based on customers prompt
+ */
+export const FULL_REVIEW = 'FULL_REVIEW'
+export const PARTIAL_REVIEW = 'PARTIAL_REVIEW'
+export const SCOPE_OF_CODE_REVIEW = [FULL_REVIEW, PARTIAL_REVIEW]
 
 /**
  * File extensions to skip during zip creation

@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod'
-import { FINDING_SEVERITY, PROGRAMMING_LANGUAGES_CAPS } from './qCodeReviewConstants'
+import { FINDING_SEVERITY, PROGRAMMING_LANGUAGES_CAPS, SCOPE_OF_CODE_REVIEW } from './qCodeReviewConstants'
 
 /**
  * Input schema for QCodeReview tool
@@ -13,6 +13,46 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
     description: 'Contains either file level or folder level artifacts to perform code review',
     properties: {
+        scopeOfReview: {
+            type: <const>'string',
+            description: `After analyzing user request, determine if they are explicitly asking for a full review of code.
+
+                FULL FILE REVIEW indicators - User is asking for complete file analysis when they use phrases like:
+                - "review the entire file"
+                - "look at all the code in [filename/foldername/project/workspace]"
+                - "analyze the whole file"
+                - "check everything in this file/folder/project/workspace"
+                - "review all lines of code"
+                - "examine the complete file"
+                - "go through the entire file/folder/project/workspace"
+                - "review from top to bottom"
+                - "full code review of [filename/foldername/project/workspace]"
+                - "comprehensive review"
+                - "analyze all functions/classes in the file"
+
+                PARTIAL/CHANGE-ONLY REVIEW indicators - User is asking for limited scope when they use phrases like:
+                - "review my changes"
+                - "look at what I modified"
+                - "check the uncommitted changes"
+                - "review the diff"
+                - "analyze recent changes"
+                - "look at the new code"
+                - "review what I added/updated"
+                - "check my latest commits"
+                - "review the modified lines"
+
+                AMBIGUOUS cases that default to PARTIAL_REVIEW:
+                - "review this file" (without explicit full-file language)
+                - "check my code" (without specifying scope)
+                - "look at [filename]" (without context about scope)
+
+                Decision framework to set value of 'scopeOfReview':
+                1. If explicit full-file language is used → FULL_REVIEW
+                2. If explicit change-only language is used → PARTIAL_REVIEW 
+                3. If ambiguous → Default to PARTIAL_REVIEW
+                4. Consider context: if user just made changes and asks for review without specifying scope, perform PARTIAL_REVIEW`,
+            enum: SCOPE_OF_CODE_REVIEW,
+        },
         fileLevelArtifacts: {
             type: <const>'array',
             description:
@@ -59,12 +99,14 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
             },
         },
     },
+    required: ['scopeOfReview'] as const,
 }
 
 /**
  * Zod schema for input validation during execution of Q Code Review tool
  */
 export const Z_Q_CODE_REVIEW_INPUT_SCHEMA = z.object({
+    scopeOfReview: z.enum(SCOPE_OF_CODE_REVIEW as [string, ...string[]]),
     fileLevelArtifacts: z
         .array(
             z.object({
