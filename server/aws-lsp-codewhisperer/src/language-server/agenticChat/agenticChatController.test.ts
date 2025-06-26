@@ -66,6 +66,7 @@ import {
 import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
+import * as sharedUtils from '../../shared/utils'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -2626,7 +2627,6 @@ ${' '.repeat(8)}}
             // Create chat session management service with IAM service manager
             iamChatSessionManagementService = ChatSessionManagementService.getInstance()
             iamChatSessionManagementService.withAmazonQServiceManager(iamServiceManager)
-
             // Create controller with IAM service manager
             iamChatController = new AgenticChatController(
                 iamChatSessionManagementService,
@@ -2688,6 +2688,32 @@ ${' '.repeat(8)}}
             sinon.assert.called(sendMessageStub)
             const request = sendMessageStub.firstCall.args[0]
             assert.strictEqual(request.source, 'IDE')
+        })
+
+        it('sets source to origin from client info when using IAM service manager', async () => {
+            // Stub getOriginFromClientInfo to return a specific value
+            const getOriginFromClientInfoStub = sinon
+                .stub(sharedUtils, 'getOriginFromClientInfo')
+                .returns('MD_IDE' as any)
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
+
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
+
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+            // Verify getOriginFromClientInfo was called
+            sinon.assert.calledOnce(getOriginFromClientInfoStub)
+            // Verify sendMessage was called with source set to IDE
+            sinon.assert.called(sendMessageStub)
+            const request = sendMessageStub.firstCall.args[0]
+            assert.strictEqual(request.source, 'MD_IDE')
+            // Restore the stub
+            getOriginFromClientInfoStub.restore()
         })
 
         it('does not call onManageSubscription with IAM service manager', async () => {

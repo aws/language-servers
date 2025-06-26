@@ -12,6 +12,7 @@ import {
     ContentType,
     ProgrammingLanguage,
     EnvState,
+    Origin,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -124,7 +125,8 @@ export class AgenticChatTriggerContext {
         history: ChatMessage[] = [],
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[],
-        modelId?: string
+        modelId?: string,
+        origin?: Origin
     ): Promise<ChatCommandInput> {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
@@ -239,7 +241,7 @@ export class AgenticChatTriggerContext {
                                       envState: this.#mapPlatformToEnvState(process.platform),
                                   },
                         userIntent: triggerContext.userIntent,
-                        origin: 'IDE',
+                        origin: origin ? origin : 'IDE',
                         modelId,
                     },
                 },

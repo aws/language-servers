@@ -3,6 +3,7 @@ import {
     CodeWhispererStreamingServiceException,
     GenerateAssistantResponseCommandInput,
     GenerateAssistantResponseCommandOutput,
+    Origin,
     SendMessageCommand,
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
@@ -26,7 +27,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
-import { getRequestID, isUsageLimitError } from '../../shared/utils'
+import { getOriginFromClientInfo, getRequestID, isUsageLimitError } from '../../shared/utils'
 import { enabledModelSelection } from '../../shared/utils'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
@@ -56,6 +57,7 @@ export class ChatSessionService {
     #approvedPaths: Set<string> = new Set<string>()
     #serviceManager?: AmazonQBaseServiceManager
     #logging?: Logging
+    #origin?: Origin
 
     public getConversationType(): string {
         return this.#conversationType
@@ -132,6 +134,7 @@ export class ChatSessionService {
         this.#serviceManager = serviceManager
         this.#lsp = lsp
         this.#logging = logging
+        this.#origin = getOriginFromClientInfo(this.#lsp?.getClientInitializeParams()?.clientInfo?.name)
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
@@ -228,7 +231,9 @@ export class ChatSessionService {
         } else if (client instanceof StreamingClientServiceIAM) {
             try {
                 // @ts-ignore
-                request.source = 'IDE'
+                // SendMessageStreaming checks for origin from request source
+                // https://code.amazon.com/packages/AWSVectorConsolasRuntimeService/blobs/ac917609a28dbcb6757a8427bcc585a42fd15bf2/--/src/com/amazon/aws/vector/consolas/runtimeservice/activity/SendMessageStreamingActivity.java#L246
+                request.source = this.#origin ? this.#origin : 'IDE'
                 return await client.sendMessage(request, this.#abortController)
             } catch (e) {
                 // Log the error using the logging property if available, otherwise fall back to console.error

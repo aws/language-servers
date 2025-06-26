@@ -37,6 +37,9 @@ export class ToolResultValidationError extends Error {
 }
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
+// Maximum number of characters to keep in request
+// (200K tokens - 8K output tokens - 2k system prompt) * 3 = 570K characters, intentionally overestimating with 3:1 ratio
+const MaxOverallCharacters = 570_000
 // Maximum number of history messages to include in each request to the LLM
 const maxConversationHistoryMessages = 250
 
@@ -529,7 +532,6 @@ export class ChatDatabase {
                 userInputMessageContext: {
                     // keep falcon context when inputMessage is not a toolResult message
                     editorState: hasToolResults ? undefined : message.userInputMessageContext?.editorState,
-                    additionalContext: hasToolResults ? undefined : message.userInputMessageContext?.additionalContext,
                     // Only keep toolResults in history
                     toolResults: message.userInputMessageContext?.toolResults,
                 },
@@ -546,7 +548,7 @@ export class ChatDatabase {
      * 3. The toolUse and toolResult relationship is valid
      * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage, remainingCharacterBudget: number) {
+    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage) {
         if (!this.isInitialized()) {
             return []
         }
@@ -567,7 +569,7 @@ export class ChatDatabase {
 
         // 4. NOTE: Keep this trimming logic at the end of the preprocess.
         // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
-        allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
+        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage)
 
         // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
         if (
@@ -609,11 +611,15 @@ export class ChatDatabase {
         return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
     }
 
-    private trimMessagesToMaxLength(messages: Message[], remainingCharacterBudget: number): Message[] {
-        let totalCharacters = this.calculateHistoryCharacterCount(messages)
+    private trimMessagesToMaxLength(messages: Message[], newUserMessage: ChatMessage): Message[] {
+        let totalCharacters = this.calculateMessagesCharacterCount(messages)
         this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
-        this.#features.logging.debug(`Current remaining character budget: ${remainingCharacterBudget}`)
-        const maxHistoryCharacterSize = Math.max(0, remainingCharacterBudget)
+        const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
+            chatMessageToMessage(newUserMessage),
+        ])
+        this.#features.logging.debug(`Current user message characters: ${currentUserInputCharacterCount}`)
+        const maxHistoryCharacterSize = Math.max(0, MaxOverallCharacters - currentUserInputCharacterCount)
+        this.#features.logging.debug(`Current remaining character budget: ${maxHistoryCharacterSize}`)
         while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
             // Find the next valid user message to start from
             const indexToTrim = this.findIndexToTrim(messages)
@@ -628,13 +634,13 @@ export class ChatDatabase {
                 )
                 return []
             }
-            totalCharacters = this.calculateHistoryCharacterCount(messages)
+            totalCharacters = this.calculateMessagesCharacterCount(messages)
             this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
         }
         return messages
     }
 
-    private calculateHistoryCharacterCount(allMessages: Message[]): number {
+    private calculateMessagesCharacterCount(allMessages: Message[]): number {
         let count = 0
         for (const message of allMessages) {
             // Count characters of all message text
@@ -665,14 +671,6 @@ export class ChatDatabase {
                     count += JSON.stringify(message.userInputMessageContext?.editorState).length
                 } catch (e) {
                     this.#features.logging.error(`Error counting editorState: ${String(e)}`)
-                }
-            }
-
-            if (message.userInputMessageContext?.additionalContext) {
-                try {
-                    count += JSON.stringify(message.userInputMessageContext?.additionalContext).length
-                } catch (e) {
-                    this.#features.logging.error(`Error counting additionalContext: ${String(e)}`)
                 }
             }
         }

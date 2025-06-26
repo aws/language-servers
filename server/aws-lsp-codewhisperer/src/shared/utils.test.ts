@@ -24,6 +24,7 @@ import {
     safeGet,
     getFileExtensionName,
     listFilesWithGitignore,
+    getOriginFromClientInfo,
 } from './utils'
 import { promises as fsPromises } from 'fs'
 
@@ -68,6 +69,28 @@ describe('getBearerTokenFromProvider', () => {
             Error,
             'credentialsProvider does not have bearer token credentials'
         )
+    })
+})
+
+describe('getOriginFromClientInfo', () => {
+    it('returns MD_IDE for SMUS client name', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMUS-IDE-1.0.0')
+        assert.strictEqual(result, 'MD_IDE')
+    })
+
+    it('returns IDE for non-SMUS client name', () => {
+        const result = getOriginFromClientInfo('VSCode-Extension')
+        assert.strictEqual(result, 'IDE')
+    })
+
+    it('returns IDE for undefined client name', () => {
+        const result = getOriginFromClientInfo(undefined)
+        assert.strictEqual(result, 'IDE')
+    })
+
+    it('returns IDE for empty string client name', () => {
+        const result = getOriginFromClientInfo('')
+        assert.strictEqual(result, 'IDE')
     })
 })
 

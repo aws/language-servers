@@ -7,6 +7,7 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import {
     ChatTriggerType,
+    Origin,
     ToolResult,
     ToolResultContentBlock,
     ToolResultStatus,
@@ -95,6 +96,7 @@ import {
     isUsageLimitError,
     isNullish,
     enabledModelSelection,
+    getOriginFromClientInfo,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -215,6 +217,7 @@ export class AgenticChatController implements ChatHandlers {
     #toolUseLatencies: Array<{ toolName: string; toolUseId: string; latency: number }> = []
     #mcpEventHandler: McpEventHandler
     #paidTierMode: PaidTierMode | undefined
+    #origin: Origin
 
     // latency metrics
     #llmRequestStartTime: number = 0
@@ -268,6 +271,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.lsp
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
+        this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -675,7 +679,8 @@ export class AgenticChatController implements ChatHandlers {
             [],
             this.#getTools(session),
             additionalContext,
-            session.modelId
+            session.modelId,
+            this.#origin
         )
         return requestInput
     }
@@ -714,6 +719,7 @@ export class AgenticChatController implements ChatHandlers {
                 throw new CancellationError('user')
             }
 
+            this.truncateRequest(currentRequestInput)
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
             if (!currentMessage || !conversationId) {
@@ -721,12 +727,11 @@ export class AgenticChatController implements ChatHandlers {
                     `Warning: ${!currentMessage ? 'currentMessage' : ''}${!currentMessage && !conversationId ? ' and ' : ''}${!conversationId ? 'conversationIdentifier' : ''} is empty in agent loop iteration ${iterationCount}.`
                 )
             }
-            const remainingCharacterBudget = this.truncateRequest(currentRequestInput)
             let messages: DbMessage[] = []
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, remainingCharacterBudget)
+                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
                         this.#features.logging.warn(`Tool validation error: ${err.message}`)

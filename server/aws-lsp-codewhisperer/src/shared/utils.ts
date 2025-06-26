@@ -17,6 +17,7 @@ import {
 } from './constants'
 import {
     CodeWhispererStreamingServiceException,
+    Origin,
     ServiceQuotaExceededException,
     ThrottlingException,
     ThrottlingExceptionReason,
@@ -382,6 +383,13 @@ export function getIAMCredentialsFromProvider(credentialsProvider: CredentialsPr
         secretAccessKey: credentials.secretAccessKey,
         sessionToken: credentials.sessionToken,
     }
+}
+
+export function getOriginFromClientInfo(clientName: string | undefined): Origin {
+    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE')) {
+        return 'MD_IDE'
+    }
+    return 'IDE'
 }
 
 export function isUsingIAMAuth(): boolean {
