@@ -206,7 +206,7 @@ export class AdditionalContextProvider {
         const promptContextCommands: ContextCommandItem[] = []
         /**
          * Non message-specific context, such as pinned context and workspace rules
-         * Sent in  GenerateAssistantResponse request: conversationState.history[0]
+         * Sent in GenerateAssistantResponse request: First message in conversationState.history
          */
         const pinnedContextCommands: ContextCommandItem[] = []
 
