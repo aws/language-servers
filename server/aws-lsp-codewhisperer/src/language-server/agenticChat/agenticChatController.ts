@@ -571,25 +571,25 @@ export class AgenticChatController implements ChatHandlers {
                 params.tabId,
                 params.context
             )
-            // Add explicit context, pinned context, and active file to context transparency list
-            triggerContext.documentReference = this.#additionalContextProvider.getFileListFromContext(
-                additionalContext.concat(
-                    triggerContext.text && triggerContext.relativeFilePath
-                        ? [
-                              {
-                                  name: path.basename(triggerContext.relativeFilePath),
-                                  description: '',
-                                  type: 'file',
-                                  relativePath: triggerContext.relativeFilePath,
-                                  path: triggerContext.activeFilePath || '',
-                                  startLine: -1,
-                                  endLine: -1,
-                              },
-                          ]
-                        : []
-                )
-            )
+            // Add active file to context list if it exists
+            const activeFile =
+                triggerContext.text && triggerContext.relativeFilePath
+                    ? [
+                          {
+                              name: path.basename(triggerContext.relativeFilePath),
+                              description: '',
+                              type: 'file',
+                              relativePath: triggerContext.relativeFilePath,
+                              path: triggerContext.activeFilePath || '',
+                              startLine: -1,
+                              endLine: -1,
+                          },
+                      ]
+                    : []
 
+            // Combine additional context with active file and get file list to display at top of response
+            const contextItems = [...additionalContext, ...activeFile]
+            triggerContext.documentReference = this.#additionalContextProvider.getFileListFromContext(contextItems)
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
                 params,
