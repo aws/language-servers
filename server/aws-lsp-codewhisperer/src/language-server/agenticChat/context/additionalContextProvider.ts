@@ -31,6 +31,7 @@ import { Features } from '../../types'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
 import { ChatMessage, ImageBlock, ImageFormat } from '@amzn/codewhisperer-streaming'
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
+import { isSupportedImageExtension } from '../../../shared/imageVerification'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
@@ -432,7 +433,7 @@ export class AdditionalContextProvider {
                         ? context.route[0].substring(7)
                         : context.route[0]
                     const format = imagePath.split('.').pop()?.toLowerCase() || ''
-                    if (!['png', 'jpeg', 'gif', 'webp'].includes(format)) {
+                    if (!isSupportedImageExtension(format)) {
                         this.features.logging.warn(`Unsupported image format: ${format}`)
                         continue
                     }

@@ -770,8 +770,6 @@ export class AgenticChatController implements ChatHandlers {
         customContext: ImageBlock[]
     ): Promise<ChatCommandInput> {
         this.#debug('Preparing request input')
-        const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
-
         // Get profileArn from the service manager if available
         const profileArn = this.#serviceManager?.getActiveProfileArn()
         const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
