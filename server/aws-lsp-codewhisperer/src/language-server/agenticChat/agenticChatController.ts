@@ -581,7 +581,7 @@ export class AgenticChatController implements ChatHandlers {
                                   description: '',
                                   type: 'file',
                                   relativePath: triggerContext.relativeFilePath,
-                                  path: triggerContext.path || '',
+                                  path: triggerContext.activeFilePath || '',
                                   startLine: -1,
                                   endLine: -1,
                               },
@@ -760,8 +760,10 @@ export class AgenticChatController implements ChatHandlers {
 
             // Prepend pinned context to history as a fake message pair
             // This ensures pinned context doesn't get added to history file, and fulfills API contract requiring message pairs.
-            let pinnedContextChatMessages =
-                await this.#additionalContextProvider.convertPinnedContextToChatMessages(pinnedContext)
+            let pinnedContextChatMessages = await this.#additionalContextProvider.convertPinnedContextToChatMessages(
+                pinnedContext,
+                this.#features.workspace.getWorkspaceFolder
+            )
 
             if (pinnedContextChatMessages.length === 2) {
                 currentRequestInput.conversationState!.history = [

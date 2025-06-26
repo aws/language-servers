@@ -3,6 +3,7 @@ import sinon from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { DocumentContext, DocumentContextExtractor } from './documentContext'
 import { Features } from '../../types'
+import { URI } from 'vscode-uri'
 
 describe('DocumentContext', () => {
     const mockTypescriptCodeBlock = `function test() {
@@ -40,6 +41,7 @@ describe('DocumentContext', () => {
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
                 relativeFilePath: relativeFilePath,
+                activeFilePath: URI.parse(testFilePath).fsPath,
                 text: "console.log('test')",
                 hasCodeSnippet: true,
                 totalEditorCharacters: mockTypescriptCodeBlock.length,
@@ -87,6 +89,7 @@ describe('DocumentContext', () => {
             const expected: DocumentContext = {
                 programmingLanguage: { languageName: 'typescript' },
                 relativeFilePath: relativeFilePath,
+                activeFilePath: URI.parse(testFilePath).fsPath,
                 text: "console.log('test')",
                 hasCodeSnippet: true,
                 totalEditorCharacters: mockTypescriptCodeBlock.length,
@@ -140,6 +143,7 @@ describe('DocumentContext', () => {
         const expectedResult: DocumentContext = {
             programmingLanguage: { languageName: 'go' },
             relativeFilePath: relativeFilePath,
+            activeFilePath: URI.parse(testGoFilePath).fsPath,
             text: 'fmt.Println("test")',
             totalEditorCharacters: mockGoCodeBLock.length,
             hasCodeSnippet: true,

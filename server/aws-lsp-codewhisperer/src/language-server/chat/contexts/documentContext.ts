@@ -5,13 +5,14 @@ import { getLanguageId } from '../../../shared/languageDetection'
 import { Features } from '../../types'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
+import { URI } from 'vscode-uri'
 
 export type DocumentContext = CwsprTextDocument & {
     cursorState?: EditorState['cursorState']
     hasCodeSnippet: boolean
     totalEditorCharacters: number
     workspaceFolder?: WorkspaceFolder | null
-    path?: string
+    activeFilePath?: string
 }
 
 export interface DocumentContextExtractorConfig {
@@ -69,7 +70,7 @@ export class DocumentContextExtractor {
             hasCodeSnippet: Boolean(rangeWithinCodeBlock),
             totalEditorCharacters: document.getText().length,
             workspaceFolder,
-            path: URI.parse(document.uri).fsPath,
+            activeFilePath: URI.parse(document.uri).fsPath,
         }
     }
 }

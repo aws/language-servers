@@ -8,6 +8,7 @@ import {
     RuleClickResult,
     RulesFolder,
     PinnedContextParams,
+    WorkspaceFolder,
 } from '@aws/language-server-runtimes/protocol'
 import { AdditionalContextPrompt, ContextCommandItem, ContextCommandItemType } from 'local-indexing'
 import * as path from 'path'
@@ -29,6 +30,7 @@ import { LocalProjectContextController } from '../../../shared/localProjectConte
 import { Features } from '../../types'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
 import { ChatMessage } from '@aws/codewhisperer-streaming-client'
+import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
@@ -605,7 +607,8 @@ export class AdditionalContextProvider {
      *
      */
     public async convertPinnedContextToChatMessages(
-        pinnedContext?: AdditionalContentEntryAddition[]
+        pinnedContext?: AdditionalContentEntryAddition[],
+        getWorkspaceFolder?: (uri: string) => WorkspaceFolder | null | undefined
     ): Promise<ChatMessage[]> {
         if (!pinnedContext || pinnedContext.length === 0) {
             return []
@@ -615,7 +618,17 @@ export class AdditionalContextProvider {
         let pinnedContextXml = '<pinnedContext>\n'
 
         for (const prompt of pinnedContext) {
-            const { type, innerContext, relativePath } = prompt
+            const { type, innerContext, path } = prompt
+
+            const workspaceFolder = getWorkspaceFolder?.(URI.file(path).toString())
+
+            let relativePath
+            if (workspaceFolder) {
+                relativePath = getRelativePathWithWorkspaceFolder(workspaceFolder, path)
+            } else {
+                relativePath = getRelativePathWithUri(path, workspaceFolder)
+            }
+
             if (type === 'rule' || type === 'prompt') {
                 pinnedContextXml += `<promptInstruction>\n<relativeFilePath>\n${relativePath}\n</relativeFilePath>\n<text>\n${innerContext}\n</text>\n</promptInstruction>\n`
             } else if (type === 'file') {

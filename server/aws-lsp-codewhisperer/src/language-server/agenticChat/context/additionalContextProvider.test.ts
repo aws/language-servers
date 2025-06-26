@@ -9,6 +9,7 @@ import { getUserPromptsDirectory } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { workspaceUtils } from '@aws/lsp-core'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
+import { TriggerContext } from './agenticChatTriggerContext'
 
 describe('AdditionalContextProvider', () => {
     let provider: AdditionalContextProvider
@@ -57,10 +58,8 @@ describe('AdditionalContextProvider', () => {
 
     describe('getAdditionalContext', () => {
         it('should return empty array when no additional context commands', async () => {
-            const triggerContext = {
+            const triggerContext: TriggerContext = {
                 workspaceFolder: null,
-                context: [],
-                workspaceRulesCount: 0,
             }
 
             fsExistsStub.resolves(false)
@@ -77,34 +76,283 @@ describe('AdditionalContextProvider', () => {
                 name: 'test',
             }
             sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
-            const triggerContext = {
+            const triggerContext: TriggerContext = {
                 workspaceFolder: mockWorkspaceFolder,
-                context: [],
-                workspaceRulesCount: 0,
             }
 
-            fsExistsStub.callsFake((path: string) =>
-                Promise.resolve(!path.includes('README') && !path.includes('AmazonQ'))
-            )
+            // Mock fs.exists to only return true for .amazonq/rules directory, false for README/AmazonQ files
+            fsExistsStub.callsFake((path: string) => {
+                if (path.includes('.amazonq/rules')) {
+                    return Promise.resolve(true)
+                }
+                return Promise.resolve(false)
+            })
             fsReadDirStub.resolves([{ name: 'rule1.md', isFile: () => true, isDirectory: () => false }])
 
-            getContextCommandPromptStub.resolves([
-                {
-                    name: 'Test Rule',
-                    description: 'Test Description',
-                    content: 'Test Content',
-                    filePath: '/workspace/.amazonq/rules/rule1.md',
-                    relativePath: '.amazonq/rules/rule1.md',
-                    startLine: 1,
-                    endLine: 10,
-                },
-            ])
+            // Mock getContextCommandPrompt to handle both calls:
+            // 1. First call for promptContextCommands (empty array)
+            // 2. Second call for pinnedContextCommands (workspace rules)
+            getContextCommandPromptStub
+                .onFirstCall()
+                .resolves([]) // for promptContextCommands
+                .onSecondCall()
+                .resolves([
+                    // for pinnedContextCommands (workspace rules)
+                    {
+                        name: 'Test Rule',
+                        description: 'Test Description',
+                        content: 'Test Content',
+                        filePath: '/workspace/.amazonq/rules/rule1.md',
+                        relativePath: '.amazonq/rules/rule1.md',
+                        startLine: 1,
+                        endLine: 10,
+                    },
+                ])
 
             const result = await provider.getAdditionalContext(triggerContext, '')
 
             assert.strictEqual(result.length, 1)
-            assert.strictEqual(result[0].name, 'Test Rule')
-            assert.strictEqual(result[0].type, 'rule')
+            it('should handle pinned context correctly', async () => {
+                const mockWorkspaceFolder = {
+                    uri: URI.file('/workspace').toString(),
+                    name: 'test',
+                }
+                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+                const triggerContext: TriggerContext = {
+                    workspaceFolder: mockWorkspaceFolder,
+                }
+
+                // Mock pinned context in database
+                const pinnedContext = [
+                    {
+                        id: 'pinned-file',
+                        command: 'Pinned File',
+                        label: 'file',
+                        route: ['/workspace', 'src/pinned.ts'],
+                    },
+                ]
+                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(pinnedContext)
+
+                fsExistsStub.resolves(false)
+
+                getContextCommandPromptStub
+                    .onFirstCall()
+                    .resolves([]) // for promptContextCommands
+                    .onSecondCall()
+                    .resolves([
+                        // for pinnedContextCommands
+                        {
+                            name: 'Pinned File',
+                            description: 'Test Description',
+                            content: 'Pinned content',
+                            filePath: '/workspace/src/pinned.ts',
+                            relativePath: 'src/pinned.ts',
+                            startLine: 1,
+                            endLine: 10,
+                        },
+                    ])
+
+                const result = await provider.getAdditionalContext(triggerContext, 'tab1')
+
+                assert.strictEqual(result.length, 1)
+                assert.strictEqual(result[0].name, 'Pinned File')
+                assert.strictEqual(result[0].pinned, true)
+            })
+
+            it('should handle explicit context (@-mentions) correctly', async () => {
+                const mockWorkspaceFolder = {
+                    uri: URI.file('/workspace').toString(),
+                    name: 'test',
+                }
+                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+                const triggerContext: TriggerContext = {
+                    workspaceFolder: mockWorkspaceFolder,
+                }
+
+                const explicitContext = [
+                    {
+                        id: 'explicit-file',
+                        command: 'Explicit File',
+                        label: 'file' as any,
+                        route: ['/workspace', 'src/explicit.ts'],
+                    },
+                ]
+                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns([])
+
+                fsExistsStub.resolves(false)
+
+                getContextCommandPromptStub
+                    .onFirstCall()
+                    .resolves([
+                        // for promptContextCommands (explicit @-mentions)
+                        {
+                            name: 'Explicit File',
+                            description: 'Test Description',
+                            content: 'Explicit content',
+                            filePath: '/workspace/src/explicit.ts',
+                            relativePath: 'src/explicit.ts',
+                            startLine: 1,
+                            endLine: 10,
+                        },
+                    ])
+                    .onSecondCall()
+                    .resolves([]) // for pinnedContextCommands
+
+                const result = await provider.getAdditionalContext(triggerContext, 'tab1', explicitContext)
+
+                assert.strictEqual(result.length, 1)
+                assert.strictEqual(result[0].name, 'Explicit File')
+                assert.strictEqual(result[0].pinned, false)
+            })
+
+            it('should avoid duplicates between explicit and pinned context', async () => {
+                const mockWorkspaceFolder = {
+                    uri: URI.file('/workspace').toString(),
+                    name: 'test',
+                }
+                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+                const triggerContext: TriggerContext = {
+                    workspaceFolder: mockWorkspaceFolder,
+                }
+
+                const sharedContext = {
+                    id: 'shared-file',
+                    command: 'Shared File',
+                    label: 'file' as any,
+                    route: ['/workspace', 'src/shared.ts'],
+                }
+                const explicitContext = [sharedContext]
+                const pinnedContext = [sharedContext]
+
+                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(pinnedContext)
+
+                fsExistsStub.resolves(false)
+
+                getContextCommandPromptStub
+                    .onFirstCall()
+                    .resolves([
+                        // for promptContextCommands (explicit @-mentions)
+                        {
+                            name: 'Shared File',
+                            description: 'Test Description',
+                            content: 'Shared content',
+                            filePath: '/workspace/src/shared.ts',
+                            relativePath: 'src/shared.ts',
+                            startLine: 1,
+                            endLine: 10,
+                        },
+                    ])
+                    .onSecondCall()
+                    .resolves([]) // for pinnedContextCommands (should be empty due to deduplication)
+
+                const result = await provider.getAdditionalContext(triggerContext, 'tab1', explicitContext)
+
+                assert.strictEqual(result.length, 1)
+                assert.strictEqual(result[0].name, 'Shared File')
+                assert.strictEqual(result[0].pinned, false) // Should be marked as explicit, not pinned
+            })
+
+            it('should handle Active File context correctly', async () => {
+                const mockWorkspaceFolder = {
+                    uri: URI.file('/workspace').toString(),
+                    name: 'test',
+                }
+                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+                const triggerContext: TriggerContext = {
+                    workspaceFolder: mockWorkspaceFolder,
+
+                    text: 'active file content',
+                    cursorState: { position: { line: 1, character: 0 } },
+                }
+
+                const contextWithActiveFile = [{ id: 'active-editor', command: 'Active file', label: 'file' }]
+                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(contextWithActiveFile)
+
+                fsExistsStub.resolves(false)
+                getContextCommandPromptStub.resolves([])
+
+                const result = await provider.getAdditionalContext(triggerContext, 'tab1')
+
+                // Active file should be preserved in triggerContext but not added to result
+                assert.strictEqual(triggerContext.text, 'active file content')
+                assert.strictEqual(triggerContext.cursorState?.position?.line, 1)
+            })
+
+            it('should remove Active File context when not in pinned context', async () => {
+                const mockWorkspaceFolder = {
+                    uri: URI.file('/workspace').toString(),
+                    name: 'test',
+                }
+                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+                const triggerContext: TriggerContext = {
+                    workspaceFolder: mockWorkspaceFolder,
+
+                    text: 'active file content',
+                    cursorState: { position: { line: 1, character: 0 } },
+                }
+
+                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns([]) // No active file in pinned context
+
+                fsExistsStub.resolves(false)
+                getContextCommandPromptStub.resolves([])
+
+                const result = await provider.getAdditionalContext(triggerContext, 'tab1')
+
+                // Active file should be removed from triggerContext
+                assert.strictEqual(triggerContext.text, undefined)
+                assert.strictEqual(triggerContext.cursorState, undefined)
+            })
+
+            it('should set hasWorkspace flag when @workspace is present', async () => {
+                const mockWorkspaceFolder = {
+                    uri: URI.file('/workspace').toString(),
+                    name: 'test',
+                }
+                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+                const triggerContext: TriggerContext = {
+                    workspaceFolder: mockWorkspaceFolder,
+                }
+
+                const workspaceContext = [{ id: '@workspace', command: 'Workspace', label: 'folder' }]
+                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(workspaceContext)
+
+                fsExistsStub.resolves(false)
+                getContextCommandPromptStub.resolves([])
+
+                await provider.getAdditionalContext(triggerContext, 'tab1')
+
+                assert.strictEqual(triggerContext.hasWorkspace, true)
+            })
+
+            it('should count context types correctly', async () => {
+                const mockWorkspaceFolder = {
+                    uri: URI.file('/workspace').toString(),
+                    name: 'test',
+                }
+                sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+                const triggerContext: TriggerContext = {
+                    workspaceFolder: mockWorkspaceFolder,
+                }
+
+                const mixedContext = [
+                    { id: 'file1', command: 'File 1', label: 'file', route: ['/workspace', 'file1.ts'] },
+                    { id: 'folder1', command: 'Folder 1', label: 'folder', route: ['/workspace', 'src'] },
+                    { id: 'code1', command: 'Code 1', label: 'code', route: ['/workspace', 'code1.ts'] },
+                    { id: 'prompt', command: 'Prompt', label: 'prompt' },
+                ]
+
+                ;(chatHistoryDb.getPinnedContext as sinon.SinonStub).returns(mixedContext)
+
+                fsExistsStub.resolves(false)
+                getContextCommandPromptStub.resolves([])
+
+                await provider.getAdditionalContext(triggerContext, 'tab1')
+
+                assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.fileContextCount, 1)
+                assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.folderContextCount, 1)
+                assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.codeContextCount, 1)
+                assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.promptContextCount, 1)
+            })
         })
     })
 
@@ -223,9 +471,12 @@ describe('AdditionalContextProvider', () => {
             // Mock workspace folders
             sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
 
-            fsExistsStub.callsFake((path: string) =>
-                Promise.resolve(!path.includes('README') && !path.includes('AmazonQ'))
-            )
+            fsExistsStub.callsFake((path: string) => {
+                if (path.includes('.amazonq/rules')) {
+                    return Promise.resolve(true)
+                }
+                return Promise.resolve(false)
+            })
             fsReadDirStub.resolves([
                 { name: 'rule1.md', isFile: () => true, isDirectory: () => false },
                 { name: 'rule2.md', isFile: () => true, isDirectory: () => false },
@@ -238,15 +489,130 @@ describe('AdditionalContextProvider', () => {
                     workspaceFolder: '/workspace',
                     type: 'file',
                     relativePath: path.join('.amazonq', 'rules', 'rule1.md'),
-                    id: path.join(path.join('/workspace', '.amazonq', 'rules', 'rule1.md')),
+                    id: path.join('/workspace', '.amazonq', 'rules', 'rule1.md'),
                 },
                 {
                     workspaceFolder: '/workspace',
                     type: 'file',
                     relativePath: path.join('.amazonq', 'rules', 'rule2.md'),
-                    id: path.join(path.join('/workspace', '.amazonq', 'rules', 'rule2.md')),
+                    id: path.join('/workspace', '.amazonq', 'rules', 'rule2.md'),
                 },
             ])
+        })
+
+        describe('convertPinnedContextToChatMessages', () => {
+            it('should return empty array for no pinned context', async () => {
+                const result = await provider.convertPinnedContextToChatMessages()
+                assert.deepStrictEqual(result, [])
+            })
+
+            it('should return empty array for empty pinned context', async () => {
+                const result = await provider.convertPinnedContextToChatMessages([])
+                assert.deepStrictEqual(result, [])
+            })
+
+            it('should convert rule context to promptInstruction XML', async () => {
+                const pinnedContext = [
+                    {
+                        name: 'Test Rule',
+                        type: 'rule',
+                        innerContext: 'Follow this rule',
+                        relativePath: '.amazonq/rules/test.md',
+                        description: '',
+                        path: '/workspace/.amazonq/rules/test.md',
+                        startLine: 1,
+                        endLine: 10,
+                        pinned: true,
+                    },
+                ]
+
+                const result = await provider.convertPinnedContextToChatMessages(pinnedContext)
+
+                assert.strictEqual(result.length, 2)
+                assert.strictEqual(result[0].userInputMessage?.content?.includes('<promptInstruction>'), true)
+                assert.strictEqual(result[0].userInputMessage?.content?.includes('Follow this rule'), true)
+                assert.strictEqual(result[1].assistantResponseMessage?.content, '')
+            })
+
+            it('should convert file context to fileContext XML', async () => {
+                const pinnedContext = [
+                    {
+                        name: 'Test File',
+                        type: 'file',
+                        innerContext: 'File content here',
+                        relativePath: 'src/test.ts',
+                        description: '',
+                        path: '/workspace/src/test.ts',
+                        startLine: 1,
+                        endLine: 10,
+                        pinned: true,
+                    },
+                ]
+
+                const result = await provider.convertPinnedContextToChatMessages(pinnedContext)
+
+                assert.strictEqual(result.length, 2)
+                assert.strictEqual(result[0].userInputMessage?.content?.includes('<fileContext>'), true)
+                assert.strictEqual(result[0].userInputMessage?.content?.includes('File content here'), true)
+            })
+
+            it('should convert code context to codeContext XML', async () => {
+                const pinnedContext = [
+                    {
+                        name: 'symbol',
+                        type: 'code',
+                        innerContext: 'function test() {}',
+                        relativePath: 'src/test.ts',
+                        description: '',
+                        path: '/workspace/src/test.ts',
+                        startLine: 1,
+                        endLine: 3,
+                        pinned: true,
+                    },
+                ]
+
+                const result = await provider.convertPinnedContextToChatMessages(pinnedContext)
+
+                assert.strictEqual(result.length, 2)
+                assert.strictEqual(result[0].userInputMessage?.content?.includes('<codeContext>'), true)
+                assert.strictEqual(result[0].userInputMessage?.content?.includes('function test() {}'), true)
+            })
+
+            it('should handle mixed context types', async () => {
+                const pinnedContext = [
+                    {
+                        name: 'Test Rule',
+                        type: 'rule',
+                        innerContext: 'Follow this rule',
+                        relativePath: '.amazonq/rules/test.md',
+                        description: '',
+                        path: '/workspace/.amazonq/rules/test.md',
+                        startLine: 1,
+                        endLine: 10,
+                        pinned: true,
+                    },
+                    {
+                        name: 'Test File',
+                        type: 'file',
+                        innerContext: 'File content',
+                        relativePath: 'src/test.ts',
+                        description: '',
+                        path: '/workspace/src/test.ts',
+                        startLine: 1,
+                        endLine: 10,
+                        pinned: true,
+                    },
+                ]
+
+                const result = await provider.convertPinnedContextToChatMessages(pinnedContext)
+
+                assert.strictEqual(result.length, 2)
+                const content = result[0].userInputMessage?.content || ''
+                assert.strictEqual(content.includes('<promptInstruction>'), true)
+                assert.strictEqual(content.includes('<fileContext>'), true)
+                assert.strictEqual(content.includes('Follow this rule'), true)
+                assert.strictEqual(content.includes('File content'), true)
+            })
         })
     })
 })
