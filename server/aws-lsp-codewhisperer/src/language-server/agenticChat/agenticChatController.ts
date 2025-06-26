@@ -1914,10 +1914,7 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         // Determine if this is a built-in tool or MCP tool
-        // TODO: add agent.getBuiltInTools to avoid hardcoding the list here
-        const isStandardTool =
-            toolName !== undefined &&
-            ['executeBash', 'fsWrite', 'fsRead', 'listDirectory', 'fsReplace', 'fileSearch'].includes(toolName)
+        const isStandardTool = toolName !== undefined && this.#features.agent.getBuiltInToolNames().includes(toolName)
 
         if (isStandardTool) {
             return {
@@ -3363,13 +3360,11 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getTools(session: ChatSessionService) {
+        const builtInWriteTools = new Set(this.#features.agent.getBuiltInWriteToolNames())
         const allTools = this.#features.agent.getTools({ format: 'bedrock' })
         if (!enabledMCP(this.#features.lsp.getClientInitializeParams())) {
             if (!session.pairProgrammingMode) {
-                return allTools.filter(
-                    // TODO: add agent.getBuiltInReadOnlyTools or agent.getBuiltInWriteTools to avoid hardcoding
-                    tool => !['fsWrite', 'fsReplace', 'executeBash'].includes(tool.toolSpecification?.name || '')
-                )
+                return allTools.filter(tool => !builtInWriteTools.has(tool.toolSpecification?.name || ''))
             }
             return allTools
         }
@@ -3390,8 +3385,7 @@ export class AgenticChatController implements ChatHandlers {
         )
 
         McpManager.instance.setToolNameMapping(tempMapping)
-        const writeToolNames = new Set(['fsWrite', 'fsReplace', 'executeBash'])
-        const restrictedToolNames = new Set([...mcpToolSpecNames, ...writeToolNames])
+        const restrictedToolNames = new Set([...mcpToolSpecNames, ...builtInWriteTools])
 
         const readOnlyTools = allTools.filter(tool => {
             const toolName = tool.toolSpecification.name
