@@ -14,6 +14,7 @@ import {
     ResponseError,
     LSPErrorCodes,
     WorkspaceFolder,
+    IdeDiagnostic,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
@@ -207,6 +208,8 @@ const emitUserTriggerDecisionTelemetry = async (
     timeSinceLastUserModification?: number,
     addedCharsCountForEditSuggestion?: number,
     deletedCharsCountForEditSuggestion?: number,
+    addedIdeDiagnostics?: IdeDiagnostic[],
+    removedIdeDiagnostics?: IdeDiagnostic[],
     streakLength?: number
 ) => {
     // Prevent reporting user decision if it was already sent
@@ -225,6 +228,8 @@ const emitUserTriggerDecisionTelemetry = async (
         timeSinceLastUserModification,
         addedCharsCountForEditSuggestion,
         deletedCharsCountForEditSuggestion,
+        addedIdeDiagnostics,
+        removedIdeDiagnostics,
         streakLength
     )
 
@@ -237,6 +242,8 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
     timeSinceLastUserModification?: number,
     addedCharsCountForEditSuggestion?: number,
     deletedCharsCountForEditSuggestion?: number,
+    addedIdeDiagnostics?: IdeDiagnostic[],
+    removedIdeDiagnostics?: IdeDiagnostic[],
     streakLength?: number
 ) => {
     return telemetryService.emitUserTriggerDecision(
@@ -244,6 +251,8 @@ const emitAggregatedUserTriggerDecisionTelemetry = (
         timeSinceLastUserModification,
         addedCharsCountForEditSuggestion,
         deletedCharsCountForEditSuggestion,
+        addedIdeDiagnostics,
+        removedIdeDiagnostics,
         streakLength
     )
 }
@@ -539,6 +548,8 @@ export const CodewhispererServerFactory =
                             timeSinceLastUserModification,
                             0,
                             0,
+                            [],
+                            [],
                             streakLength
                         )
                     }
@@ -841,10 +852,11 @@ export const CodewhispererServerFactory =
                 totalSessionDisplayTime,
                 typeaheadLength,
                 isInlineEdit,
+                addedDiagnostics,
+                removedDiagnostics,
             } = params
 
             const session = sessionManager.getSessionById(sessionId)
-
             if (!session) {
                 logging.log(`ERROR: Session ID ${sessionId} was not found`)
                 return
@@ -937,6 +949,8 @@ export const CodewhispererServerFactory =
                 timeSinceLastUserModification,
                 addedCharactersForEditSuggestion.length,
                 deletedCharactersForEditSuggestion.length,
+                addedDiagnostics,
+                removedDiagnostics,
                 streakLength
             )
         }
