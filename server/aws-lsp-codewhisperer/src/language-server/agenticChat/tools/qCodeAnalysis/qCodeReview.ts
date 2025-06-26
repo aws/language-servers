@@ -48,6 +48,7 @@ export class QCodeReview {
     }
 
     private readonly chat: Features['chat']
+    private readonly credentialsProvider: Features['credentialsProvider']
     private readonly logging: Features['logging']
     private readonly lsp: Features['lsp']
     private readonly notification: Features['notification']
@@ -56,10 +57,14 @@ export class QCodeReview {
     private codeWhispererClient?: CodeWhispererServiceToken
 
     constructor(
-        features: Pick<Features, 'chat' | 'logging' | 'lsp' | 'notification' | 'telemetry' | 'workspace'> &
+        features: Pick<
+            Features,
+            'chat' | 'credentialsProvider' | 'logging' | 'lsp' | 'notification' | 'telemetry' | 'workspace'
+        > &
             Partial<Features>
     ) {
         this.chat = features.chat
+        this.credentialsProvider = features.credentialsProvider
         this.logging = features.logging
         this.lsp = features.lsp
         this.notification = features.notification
@@ -115,7 +120,7 @@ export class QCodeReview {
         const folderArtifacts = validatedInput.folderLevelArtifacts || []
 
         if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
-            this.telemetry.emitMetric({ name: `${Q_CODE_REVIEW_TOOL_NAME}_MissingFilesOrFolders` })
+            this.emitMetric('MissingFilesOrFolders', {})
             return { errorMessage: QCodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS }
         }
 
@@ -155,14 +160,11 @@ export class QCodeReview {
         })
 
         if (!uploadUrlResponse.uploadUrl || !uploadUrlResponse.uploadId) {
-            this.telemetry.emitMetric({
-                name: `${Q_CODE_REVIEW_TOOL_NAME}_CreateUploadUrlFailed`,
-                data: {
-                    contentLength: zipBuffer.length,
-                    uploadIntent: QCodeReview.UPLOAD_INTENT,
-                    codeScanName: setup.scanName,
-                    response: uploadUrlResponse,
-                },
+            this.emitMetric('createUploadUrlFailed', {
+                codeScanName: setup.scanName,
+                contentLength: zipBuffer.length,
+                uploadIntent: QCodeReview.UPLOAD_INTENT,
+                response: uploadUrlResponse,
             })
             return { errorMessage: QCodeReview.ERROR_MESSAGES.UPLOAD_FAILED }
         }
@@ -175,16 +177,12 @@ export class QCodeReview {
             uploadUrlResponse.requestHeaders || {}
         )
 
-        this.telemetry.emitMetric({
-            name: `${Q_CODE_REVIEW_TOOL_NAME}_UploadArtifactSuccess`,
-            data: {
-                codeScanName: setup.scanName,
-                codeArtifactId: uploadUrlResponse.uploadId,
-                artifactSize: zipBuffer.length,
-                artifactType: setup.artifactType,
-            },
+        this.emitMetric('uploadArtifactSuccess', {
+            codeScanName: setup.scanName,
+            codeArtifactId: uploadUrlResponse.uploadId,
+            artifactSize: zipBuffer.length,
+            artifactType: setup.artifactType,
         })
-
         return { uploadId: uploadUrlResponse.uploadId, isCodeDiffPresent }
     }
 
@@ -199,16 +197,13 @@ export class QCodeReview {
         })
 
         if (!createResponse.jobId) {
-            this.telemetry.emitMetric({
-                name: `${Q_CODE_REVIEW_TOOL_NAME}_StartCodeAnalysisFailed`,
-                data: {
-                    artifacts: { SourceCode: uploadResult.uploadId },
-                    programmingLanguage: { languageName: setup.programmingLanguage },
-                    codeScanName: setup.scanName,
-                    scope: QCodeReview.SCAN_SCOPE,
-                    artifactType: setup.artifactType,
-                    response: createResponse,
-                },
+            this.emitMetric('startCodeAnalysisFailed', {
+                artifacts: { SourceCode: uploadResult.uploadId },
+                programmingLanguage: { languageName: setup.programmingLanguage },
+                codeScanName: setup.scanName,
+                scope: QCodeReview.SCAN_SCOPE,
+                artifactType: setup.artifactType,
+                response: createResponse,
             })
             return { errorMessage: QCodeReview.ERROR_MESSAGES.ANALYSIS_FAILED }
         }
@@ -234,15 +229,12 @@ export class QCodeReview {
             attemptCount++
 
             if (statusResponse.errorMessage) {
-                this.telemetry.emitMetric({
-                    name: `${Q_CODE_REVIEW_TOOL_NAME}_CodeAnalysisFailed`,
-                    data: {
-                        codeScanName: scanName,
-                        codeReviewId: jobId,
-                        status,
-                        artifactType,
-                        message: statusResponse.errorMessage,
-                    },
+                this.emitMetric('codeAnalysisFailed', {
+                    codeScanName: scanName,
+                    codeReviewId: jobId,
+                    status,
+                    artifactType,
+                    message: statusResponse.errorMessage,
                 })
                 return {
                     codeReviewId: jobId,
@@ -253,14 +245,11 @@ export class QCodeReview {
         }
 
         if (status === 'Pending') {
-            this.telemetry.emitMetric({
-                name: `${Q_CODE_REVIEW_TOOL_NAME}_CodeAnalysisTimeout`,
-                data: {
-                    codeScanName: scanName,
-                    codeReviewId: jobId,
-                    status,
-                    maxAttempts: QCodeReview.MAX_POLLING_ATTEMPTS,
-                },
+            this.emitMetric('codeAnalysisTimeout', {
+                codeScanName: scanName,
+                codeReviewId: jobId,
+                status,
+                maxAttempts: QCodeReview.MAX_POLLING_ATTEMPTS,
             })
             return {
                 codeReviewId: jobId,
@@ -280,13 +269,10 @@ export class QCodeReview {
 
         const totalFindings = await this.collectFindings(jobId, setup.isFullReviewRequest, setup.isCodeDiffPresent)
 
-        this.telemetry.emitMetric({
-            name: `${Q_CODE_REVIEW_TOOL_NAME}_CodeAnalysisSuccess`,
-            data: {
-                codeScanName: setup.scanName,
-                codeReviewId: jobId,
-                findingsCount: totalFindings.length,
-            },
+        this.emitMetric('codeAnalysisSucces', {
+            codeScanName: setup.scanName,
+            codeReviewId: jobId,
+            findingsCount: totalFindings.length,
         })
 
         const aggregatedCodeScanIssueList = await this.processFindings(
@@ -341,8 +327,7 @@ export class QCodeReview {
         if (scanName) errorData.codeScanName = scanName
         if (jobId) errorData.codeReviewId = jobId
 
-        this.telemetry.emitMetric({
-            name: `${Q_CODE_REVIEW_TOOL_NAME}_Failed`,
+        this.emitMetric('failed', {
             data: errorData,
         })
 
@@ -371,6 +356,16 @@ export class QCodeReview {
             jobId,
             nextToken,
             codeAnalysisFindingsSchema: 'codeanalysis/findings/1.0',
+        })
+    }
+
+    private emitMetric(metricSuffix: string, metricData: any) {
+        this.telemetry?.emitMetric({
+            name: `${Q_CODE_REVIEW_TOOL_NAME}_${metricSuffix}`,
+            data: {
+                credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                ...metricData,
+            },
         })
     }
 

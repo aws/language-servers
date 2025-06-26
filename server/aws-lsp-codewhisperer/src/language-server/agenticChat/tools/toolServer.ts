@@ -80,6 +80,7 @@ export const QCodeAnalysisServer: Server = ({
     logging.info('QCodeAnalysisServer')
     const qCodeReviewTool = new QCodeReview({
         chat,
+        credentialsProvider,
         logging,
         lsp,
         notification,
