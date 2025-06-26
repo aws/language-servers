@@ -173,8 +173,8 @@ export class McpManager {
             this.setState(name, McpServerStatus.UNINITIALIZED, 0)
         }
 
-        // Create an array of initialization promises for concurrent execution
-        const initPromises: Promise<void>[] = []
+        // Get all servers that need to be initialized
+        const serversToInit: Array<[string, MCPServerConfig]> = []
 
         for (const [name, cfg] of this.mcpServers.entries()) {
             if (this.isServerDisabled(name)) {
@@ -183,15 +183,30 @@ export class McpManager {
                 this.emitToolsChanged(name)
                 continue
             }
-            // Add initialization promise to the array instead of awaiting it immediately
-            initPromises.push(this.initOneServer(name, cfg))
+            serversToInit.push([name, cfg])
         }
 
-        // Wait for all server initializations to complete concurrently
-        if (initPromises.length > 0) {
-            this.features.logging.info(`MCP: concurrently initializing ${initPromises.length} servers`)
-            await Promise.all(initPromises)
-            this.features.logging.info(`MCP: completed concurrent initialization of ${initPromises.length} servers`)
+        // Process servers in batches of 5 at a time
+        const MAX_CONCURRENT_SERVERS = 5
+        const totalServers = serversToInit.length
+
+        if (totalServers > 0) {
+            this.features.logging.info(
+                `MCP: initializing ${totalServers} servers with max concurrency of ${MAX_CONCURRENT_SERVERS}`
+            )
+
+            // Process servers in batches
+            for (let i = 0; i < totalServers; i += MAX_CONCURRENT_SERVERS) {
+                const batch = serversToInit.slice(i, i + MAX_CONCURRENT_SERVERS)
+                const batchPromises = batch.map(([name, cfg]) => this.initOneServer(name, cfg))
+
+                this.features.logging.debug(
+                    `MCP: initializing batch of ${batch.length} servers (${i + 1}-${Math.min(i + MAX_CONCURRENT_SERVERS, totalServers)} of ${totalServers})`
+                )
+                await Promise.all(batchPromises)
+            }
+
+            this.features.logging.info(`MCP: completed initialization of ${totalServers} servers`)
         }
     }
 
