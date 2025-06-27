@@ -24,7 +24,7 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ContextCommand, ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
-import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
+import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
@@ -617,8 +617,12 @@ export class ChatDatabase {
         const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
             chatMessageToMessage(newUserMessage),
         ])
-        this.#features.logging.debug(`Current user message characters: ${currentUserInputCharacterCount}`)
-        const maxHistoryCharacterSize = Math.max(0, MaxOverallCharacters - currentUserInputCharacterCount)
+        const currentInputToolSpecCount = this.calculateToolSpecCharacterCount(newUserMessage)
+        const currentUserInputCount = currentUserInputCharacterCount + currentInputToolSpecCount
+        this.#features.logging.debug(
+            `Current user message characters input: ${currentUserInputCharacterCount} + toolSpec: ${currentInputToolSpecCount}`
+        )
+        const maxHistoryCharacterSize = Math.max(0, MaxOverallCharacters - currentUserInputCount)
         this.#features.logging.debug(`Current remaining character budget: ${maxHistoryCharacterSize}`)
         while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
             // Find the next valid user message to start from
@@ -638,6 +642,20 @@ export class ChatDatabase {
             this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
         }
         return messages
+    }
+
+    private calculateToolSpecCharacterCount(currentMessage: ChatMessage): number {
+        let count = 0
+        if (currentMessage.userInputMessage?.userInputMessageContext?.tools) {
+            try {
+                for (const tool of currentMessage.userInputMessage?.userInputMessageContext?.tools) {
+                    count += JSON.stringify(tool).length
+                }
+            } catch (e) {
+                this.#features.logging.error(`Error counting tools: ${String(e)}`)
+            }
+        }
+        return count
     }
 
     private calculateMessagesCharacterCount(allMessages: Message[]): number {
