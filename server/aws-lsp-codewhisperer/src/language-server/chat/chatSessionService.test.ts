@@ -1,4 +1,4 @@
-import { SendMessageCommandInput, SendMessageCommandOutput, ChatTriggerType } from '@aws/codewhisperer-streaming-client'
+import { SendMessageCommandInput, SendMessageCommandOutput, ChatTriggerType } from '@amzn/codewhisperer-streaming'
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'

@@ -12,7 +12,7 @@ import {
     ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     QDeveloperStreaming,
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
@@ -241,8 +241,8 @@ describe('AgenticChatController', () => {
             ),
             addTool: sinon.stub().resolves(),
             removeTool: sinon.stub().resolves(),
-            getBuiltInToolNames: sinon.stub().resolves(),
-            getBuiltInWriteToolNames: sinon.stub().resolves(),
+            getBuiltInToolNames: sinon.stub().returns(['fsRead']),
+            getBuiltInWriteToolNames: sinon.stub().returns(['fsWrite']),
         } as any // Using 'as any' to prevent type errors when the Agent interface is updated with new methods
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
