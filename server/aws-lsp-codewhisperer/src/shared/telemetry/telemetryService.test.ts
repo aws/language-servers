@@ -274,6 +274,8 @@ describe('TelemetryService', () => {
                     perceivedLatencyMilliseconds: undefined,
                     addedCharacterCount: undefined,
                     deletedCharacterCount: undefined,
+                    addedIdeDiagnostics: undefined,
+                    removedIdeDiagnostics: undefined,
                     streakLength: undefined,
                 },
             },

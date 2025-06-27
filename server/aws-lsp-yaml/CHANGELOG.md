@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.13...lsp-yaml/v0.1.14) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+
 ## [0.1.13](https://github.com/aws/language-servers/compare/lsp-yaml/v0.1.12...lsp-yaml/v0.1.13) (2025-06-23)
 
 

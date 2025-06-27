@@ -1,11 +1,11 @@
-import { CancellationToken, Server } from '@aws/language-server-runtimes/server-interface'
+import { CancellationToken, Server, ToolClassification } from '@aws/language-server-runtimes/server-interface'
 import { FsRead, FsReadParams } from './fsRead'
 import { FsWrite, FsWriteParams } from './fsWrite'
 import { ListDirectory, ListDirectoryParams } from './listDirectory'
 import { ExecuteBash, ExecuteBashParams } from './executeBash'
 import { LspGetDocuments, LspGetDocumentsParams } from './lspGetDocuments'
 import { LspReadDocumentContents, LspReadDocumentContentsParams } from './lspReadDocumentContents'
-import { LspApplyWorkspaceEdit, LspApplyWorkspaceEditParams } from './lspApplyWorkspaceEdit'
+import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
 import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
@@ -30,36 +30,56 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
     const fsReplaceTool = new FsReplace({ workspace, lsp, logging })
 
-    agent.addTool(fsReadTool.getSpec(), async (input: FsReadParams) => {
-        await fsReadTool.validate(input)
-        return await fsReadTool.invoke(input)
-    })
+    agent.addTool(
+        fsReadTool.getSpec(),
+        async (input: FsReadParams) => {
+            await fsReadTool.validate(input)
+            return await fsReadTool.invoke(input)
+        },
+        ToolClassification.BuiltIn
+    )
 
-    agent.addTool(fsWriteTool.getSpec(), async (input: FsWriteParams) => {
-        await fsWriteTool.validate(input)
-        return await fsWriteTool.invoke(input)
-    })
+    agent.addTool(
+        fsWriteTool.getSpec(),
+        async (input: FsWriteParams) => {
+            await fsWriteTool.validate(input)
+            return await fsWriteTool.invoke(input)
+        },
+        ToolClassification.BuiltInCanWrite
+    )
 
-    agent.addTool(fsReplaceTool.getSpec(), async (input: FsReplaceParams) => {
-        await fsReplaceTool.validate(input)
-        return await fsReplaceTool.invoke(input)
-    })
+    agent.addTool(
+        fsReplaceTool.getSpec(),
+        async (input: FsReplaceParams) => {
+            await fsReplaceTool.validate(input)
+            return await fsReplaceTool.invoke(input)
+        },
+        ToolClassification.BuiltInCanWrite
+    )
 
-    agent.addTool(listDirectoryTool.getSpec(), async (input: ListDirectoryParams, token?: CancellationToken) => {
-        await listDirectoryTool.validate(input)
-        return await listDirectoryTool.invoke(input, token)
-    })
+    agent.addTool(
+        listDirectoryTool.getSpec(),
+        async (input: ListDirectoryParams, token?: CancellationToken) => {
+            await listDirectoryTool.validate(input)
+            return await listDirectoryTool.invoke(input, token)
+        },
+        ToolClassification.BuiltIn
+    )
 
-    agent.addTool(fileSearchTool.getSpec(), async (input: FileSearchParams, token?: CancellationToken) => {
-        await fileSearchTool.validate(input)
-        return await fileSearchTool.invoke(input, token)
-    })
+    agent.addTool(
+        fileSearchTool.getSpec(),
+        async (input: FileSearchParams, token?: CancellationToken) => {
+            await fileSearchTool.validate(input)
+            return await fileSearchTool.invoke(input, token)
+        },
+        ToolClassification.BuiltIn
+    )
 
     // Temporarily disable grep search
     // agent.addTool(grepSearchTool.getSpec(), async (input: GrepSearchParams, token?: CancellationToken) => {
     //     await grepSearchTool.validate(input)
     //     return await grepSearchTool.invoke(input, token)
-    // })
+    // }, ToolClassification.BuiltIn)
 
     return () => {}
 }
@@ -71,7 +91,8 @@ export const BashToolsServer: Server = ({ logging, workspace, agent, lsp }) => {
         async (input: ExecuteBashParams, token?: CancellationToken, updates?: WritableStream) => {
             await bashTool.validate(input)
             return await bashTool.invoke(input, token, updates)
-        }
+        },
+        ToolClassification.BuiltInCanWrite
     )
     return () => {}
 }
@@ -136,7 +157,8 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
                     description: def.description?.trim() || 'undefined',
                     inputSchema: inputSchemaWithExplanation,
                 },
-                input => tool.invoke(input)
+                input => tool.invoke(input),
+                ToolClassification.MCP
             )
             registered[server].push(namespaced)
             logging.info(`MCP: registered tool ${namespaced} (original: ${def.toolName})`)

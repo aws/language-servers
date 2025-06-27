@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.14](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.13...lsp-partiql/v0.0.14) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+
 ## [0.0.13](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.12...lsp-partiql/v0.0.13) (2025-06-16)
 
 
