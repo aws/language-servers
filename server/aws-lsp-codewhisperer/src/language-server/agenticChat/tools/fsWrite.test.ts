@@ -9,6 +9,7 @@ import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { StubbedInstance } from 'ts-sinon'
 import * as sinon from 'sinon'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
+import { URI } from 'vscode-uri'
 
 describe('FsWrite Tool', function () {
     let tempFolder: testFolder.TestFolder
@@ -110,7 +111,7 @@ describe('FsWrite Tool', function () {
             // Verify updateIndexAndContextCommand was called with correct parameters
             assert.ok(mockController.updateIndexAndContextCommand.calledOnce)
             const [paths, isAdded] = mockController.updateIndexAndContextCommand.firstCall.args
-            assert.deepStrictEqual(paths, [filePath])
+            assert.deepStrictEqual(paths, [URI.file(filePath).fsPath])
             assert.strictEqual(isAdded, true)
         })
 
