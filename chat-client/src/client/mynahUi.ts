@@ -1148,7 +1148,7 @@ export const createMynahUi = (
                 }
             }
             if (!isPartialResult) {
-                if (processedHeader && processedHeader.status?.status !== 'error') {
+                if (processedHeader) {
                     processedHeader.status = undefined
                 }
             }
