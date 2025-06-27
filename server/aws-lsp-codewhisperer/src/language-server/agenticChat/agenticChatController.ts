@@ -136,7 +136,7 @@ import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
-import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
+import { ExecuteBash, ExecuteBashParams, outOfWorkspaceWarningmessage } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
@@ -1133,8 +1133,7 @@ export class AgenticChatController implements ChatHandlers {
                         )
 
                         // Honor built-in permission if available, otherwise use tool's requiresAcceptance
-                        const toolRequiresAcceptance =
-                            builtInPermission !== undefined ? builtInPermission : requiresAcceptance
+                        const toolRequiresAcceptance = builtInPermission || requiresAcceptance
 
                         if (toolRequiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -1148,7 +1147,7 @@ export class AgenticChatController implements ChatHandlers {
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
-                            const isReadOnlyCommand = commandCategory === CommandCategory.ReadOnly
+                            const isOutOfWorkSpace = warning === outOfWorkspaceWarningmessage
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -1157,7 +1156,7 @@ export class AgenticChatController implements ChatHandlers {
                                     session.getConversationType()
                                 )
                             }
-                            if (toolRequiresAcceptance || (isExecuteBash && !isReadOnlyCommand)) {
+                            if (toolRequiresAcceptance || (isExecuteBash && isOutOfWorkSpace)) {
                                 await this.waitForToolApproval(
                                     toolUse,
                                     chatResultStream,
@@ -1820,18 +1819,17 @@ export class AgenticChatController implements ChatHandlers {
         switch (toolName) {
             case 'executeBash': {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                buttons =
-                    builtInPermission || (requiresAcceptance && commandCategory !== CommandCategory.ReadOnly)
-                        ? [
-                              { id: 'run-shell-command', text: 'Allow', icon: 'play' },
-                              {
-                                  id: 'reject-shell-command',
-                                  status: 'dimmed-clear' as Status,
-                                  text: 'Deny',
-                                  icon: 'cancel',
-                              },
-                          ]
-                        : []
+                buttons = requiresAcceptance
+                    ? [
+                          { id: 'run-shell-command', text: 'Allow', icon: 'play' },
+                          {
+                              id: 'reject-shell-command',
+                              status: 'dimmed-clear' as Status,
+                              text: 'Deny',
+                              icon: 'cancel',
+                          },
+                      ]
+                    : []
 
                 const statusIcon =
                     commandCategory === CommandCategory.Destructive
@@ -1847,17 +1845,16 @@ export class AgenticChatController implements ChatHandlers {
                           : undefined
 
                 header = {
-                    status:
-                        builtInPermission || (requiresAcceptance && commandCategory !== CommandCategory.ReadOnly)
-                            ? {
-                                  icon: statusIcon,
-                                  status: statusType,
-                                  position: 'left',
-                                  description: this.#getCommandCategoryDescription(
-                                      commandCategory ?? CommandCategory.ReadOnly
-                                  ),
-                              }
-                            : {},
+                    status: requiresAcceptance
+                        ? {
+                              icon: statusIcon,
+                              status: statusType,
+                              position: 'left',
+                              description: this.#getCommandCategoryDescription(
+                                  commandCategory ?? CommandCategory.ReadOnly
+                              ),
+                          }
+                        : {},
                     body: 'shell',
                     buttons,
                 }
@@ -1883,6 +1880,7 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             case 'fsRead':
+            case 'fileSearch':
             case 'listDirectory': {
                 buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
@@ -1901,11 +1899,16 @@ export class AgenticChatController implements ChatHandlers {
                     body = builtInPermission
                         ? `I need permission to read files.\n${formattedPaths.join('\n')}`
                         : `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
-                } else {
+                } else if (toolName === 'listDirectory') {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
                     body = builtInPermission
                         ? `I need permission to list directories.\n\`${readFilePath}\``
                         : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
+                } else {
+                    const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
+                    body = builtInPermission
+                        ? `I need permission to search files.\n\`${readFilePath}\``
+                        : `I need permission to search files outside the workspace.\n\`${readFilePath}\``
                 }
                 break
             }

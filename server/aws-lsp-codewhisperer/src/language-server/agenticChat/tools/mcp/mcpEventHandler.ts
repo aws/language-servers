@@ -121,14 +121,11 @@ export class McpEventHandler {
 
         // Get built-in tools programmatically
         const allTools = this.#features.agent.getTools({ format: 'bedrock' })
-        const mcpToolNames = new Set(mcpManager.getAllTools().map(tool => tool.toolName))
+        // const mcpToolNames = new Set(mcpManager.getAllTools().map(tool => tool.toolName))
+        const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
         const builtInTools = allTools
             .filter(tool => {
-                const fullName = tool.toolSpecification.name
-                // Extract just the tool name part by splitting on "___" if it exists
-                const toolName = fullName.includes('___') ? fullName.split('___')[1] : fullName
-                const isInMcpTool = mcpToolNames.has(toolName)
-                return !isInMcpTool
+                return builtInToolNames.has(tool.toolSpecification.name)
             })
             .map(tool => ({
                 name: tool.toolSpecification.name,
@@ -718,14 +715,11 @@ export class McpEventHandler {
         if (serverName === 'Built-in') {
             // Handle Built-in server specially
             const allTools = this.#features.agent.getTools({ format: 'bedrock' })
-            const mcpToolNames = new Set(McpManager.instance.getAllTools().map(tool => tool.toolName))
+            // const mcpToolNames = new Set(McpManager.instance.getAllTools().map(tool => tool.toolName))
+            const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
             const builtInTools = allTools
                 .filter(tool => {
-                    const fullName = tool.toolSpecification.name
-                    // Extract just the tool name part by splitting on "___" if it exists
-                    const toolName = fullName.includes('___') ? fullName.split('___')[1] : fullName
-                    const isInMcpTool = mcpToolNames.has(toolName)
-                    return !isInMcpTool
+                    return builtInToolNames.has(tool.toolSpecification.name)
                 })
                 .map(tool => {
                     const permission = McpManager.instance.getToolPerm(serverName, tool.toolSpecification.name)
