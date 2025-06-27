@@ -90,13 +90,11 @@ export const editPredictionAutoTrigger = ({
     const isAtLineBeginning =
         config.enableLineBeginningTrigger && languageDetector.isAtLineBeginning(currentLineContent)
 
-    // TODO : Disable all OR conditions
-
     // Determine if we should trigger
     const requiredConditionsMet =
         (hasRecentEdit && isNotInMiddleOfWord && isPreviousDecisionNotReject && hasNonEmptySuffix) || false
-    const optionalConditionsMet = isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
-    const shouldTrigger = (requiredConditionsMet && optionalConditionsMet) || false
+    // const optionalConditionsMet = isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
+    const shouldTrigger = requiredConditionsMet
 
     return { shouldTrigger }
 }
