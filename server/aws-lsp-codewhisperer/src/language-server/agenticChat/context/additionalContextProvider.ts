@@ -29,7 +29,7 @@ import {
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { Features } from '../../types'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
-import { ChatMessage } from '@aws/codewhisperer-streaming-client'
+import { ChatMessage } from '@amzn/codewhisperer-streaming'
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
