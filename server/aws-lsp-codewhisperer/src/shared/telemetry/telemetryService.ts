@@ -20,6 +20,7 @@ import {
     UserIntent,
     InlineChatEvent,
     AgenticChatEventStatus,
+    IdeDiagnostic,
 } from '../../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
@@ -187,6 +188,8 @@ export class TelemetryService {
         timeSinceLastUserModification?: number,
         addedCharacterCount?: number,
         deletedCharacterCount?: number,
+        addedIdeDiagnostics?: IdeDiagnostic[],
+        removedIdeDiagnostics?: IdeDiagnostic[],
         streakLength?: number
     ) {
         if (this.enableTelemetryEventsToDestination) {
@@ -266,6 +269,8 @@ export class TelemetryService {
             perceivedLatencyMilliseconds: perceivedLatencyMilliseconds,
             addedCharacterCount: addedCharacterCount,
             deletedCharacterCount: deletedCharacterCount,
+            addedIdeDiagnostics: addedIdeDiagnostics,
+            removedIdeDiagnostics: removedIdeDiagnostics,
             streakLength: streakLength,
         }
         return this.invokeSendTelemetryEvent({

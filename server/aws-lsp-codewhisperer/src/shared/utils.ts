@@ -17,10 +17,11 @@ import {
 } from './constants'
 import {
     CodeWhispererStreamingServiceException,
+    Origin,
     ServiceQuotaExceededException,
     ThrottlingException,
     ThrottlingExceptionReason,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
 import * as ignoreWalk from 'ignore-walk'
@@ -382,6 +383,13 @@ export function getIAMCredentialsFromProvider(credentialsProvider: CredentialsPr
         secretAccessKey: credentials.secretAccessKey,
         sessionToken: credentials.sessionToken,
     }
+}
+
+export function getOriginFromClientInfo(clientName: string | undefined): Origin {
+    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE')) {
+        return 'MD_IDE'
+    }
+    return 'IDE'
 }
 
 export function isUsingIAMAuth(): boolean {

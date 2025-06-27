@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-yaml",
-    "version": "0.1.13",
+    "version": "0.1.14",
     "description": "YAML Language Server",
     "main": "out/index.js",
     "repository": {
@@ -26,7 +26,7 @@
         "postinstall": "node patchYamlPackage.js"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.100",
+        "@aws/language-server-runtimes": "^0.2.101",
         "@aws/lsp-core": "^0.0.10",
         "vscode-languageserver": "^9.0.1",
         "vscode-languageserver-textdocument": "^1.0.8",

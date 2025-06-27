@@ -12,7 +12,8 @@ import {
     ContentType,
     ProgrammingLanguage,
     EnvState,
-} from '@aws/codewhisperer-streaming-client'
+    Origin,
+} from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
     ChatParams,
@@ -28,7 +29,7 @@ import { workspaceUtils } from '@aws/lsp-core'
 import { URI } from 'vscode-uri'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import * as path from 'path'
-import { RelevantTextDocument } from '@aws/codewhisperer-streaming-client'
+import { RelevantTextDocument } from '@amzn/codewhisperer-streaming'
 import { languageByExtension } from '../../../shared/languageDetection'
 import { AgenticChatResultStream } from '../agenticChatResultStream'
 import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './contextUtils'
@@ -124,7 +125,8 @@ export class AgenticChatTriggerContext {
         history: ChatMessage[] = [],
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[],
-        modelId?: string
+        modelId?: string,
+        origin?: Origin
     ): Promise<ChatCommandInput> {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
@@ -239,7 +241,7 @@ export class AgenticChatTriggerContext {
                                       envState: this.#mapPlatformToEnvState(process.platform),
                                   },
                         userIntent: triggerContext.userIntent,
-                        origin: 'IDE',
+                        origin: origin ? origin : 'IDE',
                         modelId,
                     },
                 },
