@@ -39,6 +39,7 @@ export interface QClientCapabilities {
     developerProfiles?: boolean
     customizationsWithMetadata?: boolean
     mcp?: boolean
+    reroute?: boolean
 }
 
 type QConfigurationResponse =

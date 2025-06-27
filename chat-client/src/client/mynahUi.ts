@@ -62,7 +62,12 @@ import {
     toMynahIcon,
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
+import {
+    pairProgrammingModeOff,
+    pairProgrammingModeOn,
+    programmerModeCard,
+    createRerouteCard,
+} from './texts/pairProgramming'
 import { ContextRule, RulesList } from './features/rules'
 import { getModelSelectionChatItem, modelUnavailableBanner } from './texts/modelSelection'
 import {
@@ -143,11 +148,19 @@ export const handleChatPrompt = (
     messager: Messager,
     triggerType?: TriggerType,
     _eventId?: string,
-    agenticMode?: boolean
+    agenticMode?: boolean,
+    tabFactory?: TabFactory
 ) => {
     let userPrompt = prompt.escapedPrompt
+    const isReroutedCommand =
+        agenticMode &&
+        tabFactory?.isRerouteEnabled() &&
+        prompt.command &&
+        ['/dev', '/test', '/doc'].includes(prompt.command)
+
     messager.onStopChatResponse(tabId)
-    if (prompt.command) {
+    if (prompt.command && !isReroutedCommand) {
+        // Handle non-rerouted commands (/clear, /help, /transform, /review) as quick actions
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
             mynahUi.updateStore(tabId, {
@@ -168,15 +181,67 @@ export const handleChatPrompt = (
             return
         }
     } else {
-        // Send chat prompt to server
-        const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
-        messager.onChatPrompt({ prompt, tabId, context }, triggerType)
+        // Go agentic chat workflow when:
+        // 1. Regular prompts without commands
+        // 2. Rerouted commands (/dev, /test, /doc) when reroute is enabled
+
+        // Special handling for /doc command - always send fixed prompt for fixed response
+        if (isReroutedCommand && prompt.command === '/doc') {
+            const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
+            messager.onChatPrompt(
+                {
+                    prompt: { ...prompt, escapedPrompt: DEFAULT_DOC_PROMPT, prompt: DEFAULT_DOC_PROMPT },
+                    tabId,
+                    context,
+                },
+                triggerType
+            )
+        } else if (isReroutedCommand && (!userPrompt || userPrompt.trim() === '')) {
+            // For /dev and /test commands, provide meaningful defaults if no additional text
+            let defaultPrompt = userPrompt
+            switch (prompt.command) {
+                case '/dev':
+                    defaultPrompt = 'Help me with code development'
+                    break
+                case '/test':
+                    defaultPrompt = 'Help me generate unit tests'
+                    break
+            }
+
+            // Send the updated prompt with default text to server
+            const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
+            messager.onChatPrompt(
+                {
+                    prompt: { ...prompt, escapedPrompt: defaultPrompt, prompt: defaultPrompt },
+                    tabId,
+                    context,
+                },
+                triggerType
+            )
+        } else {
+            const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
+            messager.onChatPrompt({ prompt, tabId, context }, triggerType)
+        }
     }
 
-    initializeChatResponse(mynahUi, tabId, userPrompt, agenticMode)
+    // For /doc command, don't show any prompt in UI
+    const displayPrompt = isReroutedCommand && prompt.command === '/doc' ? '' : userPrompt
+    initializeChatResponse(mynahUi, tabId, displayPrompt, agenticMode, isReroutedCommand ? prompt.command : undefined)
+
+    // If this is a rerouted command AND reroute feature is enabled, show the reroute card after the prompt
+    if (isReroutedCommand && tabFactory?.isRerouteEnabled() && prompt.command) {
+        mynahUi.addChatItem(tabId, createRerouteCard(prompt.command))
+    }
 }
 
-const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: string, agenticMode?: boolean) => {
+const initializeChatResponse = (
+    mynahUi: MynahUI,
+    tabId: string,
+    userPrompt?: string,
+    agenticMode?: boolean,
+    reroutedCommand?: string
+) => {
+    // First show the user's prompt
     mynahUi.addChatItem(tabId, {
         type: ChatItemType.PROMPT,
         body: userPrompt,
@@ -259,7 +324,8 @@ export const createMynahUi = (
                     messager,
                     'click',
                     eventId,
-                    agenticMode
+                    agenticMode,
+                    tabFactory
                 )
 
                 const payload: FollowUpClickParams = {
@@ -271,7 +337,7 @@ export const createMynahUi = (
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
-            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId, agenticMode)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId, agenticMode, tabFactory)
         },
         onReady: () => {
             messager.onUiReady()
@@ -600,7 +666,7 @@ export const createMynahUi = (
     const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
     if (customChatClientAdapter) {
         // Attach routing to custom adapter top of default message handlers
-        chatEventHandlers = withAdapter(chatEventHandlers, mynahUiRef, customChatClientAdapter)
+        chatEventHandlers = withAdapter(chatEventHandlers, mynahUiRef, customChatClientAdapter, tabFactory)
     }
 
     const mynahUi = new MynahUI({
@@ -1182,7 +1248,7 @@ export const createMynahUi = (
         ].join('')
         const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 
-        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode)
+        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode, tabFactory)
     }
 
     const showError = (params: ErrorParams) => {
@@ -1401,6 +1467,8 @@ ${params.message}`,
 const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
 export const DEFAULT_HELP_PROMPT = 'What can Amazon Q help me with?'
+
+export const DEFAULT_DOC_PROMPT = 'Generate documentation with /doc command'
 const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
     copy: 'Copy',

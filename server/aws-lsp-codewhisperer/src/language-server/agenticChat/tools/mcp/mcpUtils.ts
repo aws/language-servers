@@ -322,6 +322,13 @@ export function enabledMCP(params: InitializeParams | undefined): boolean {
     return qCapabilities?.mcp || false
 }
 
+export function enabledReroute(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.reroute || false
+}
+
 /**
  * Sanitizes a name by:
  * 1. Returning the original if it matches the regex and doesn't contain namespace delimiter(__)

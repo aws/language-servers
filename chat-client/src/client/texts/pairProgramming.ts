@@ -1,4 +1,4 @@
-import { ChatItem, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
+import { ChatItem, ChatItemFormItem, ChatItemType, MynahIcons } from '@aws/mynah-ui'
 
 export const programmerModeCard: ChatItem = {
     type: ChatItemType.ANSWER,
@@ -35,4 +35,62 @@ export const pairProgrammingModeOff: ChatItem = {
     contentHorizontalAlignment: 'center',
     fullWidth: true,
     body: 'Agentic coding - OFF',
+}
+
+export const testRerouteCard: ChatItem = {
+    type: ChatItemType.ANSWER,
+    border: true,
+    header: {
+        padding: true,
+        iconForegroundStatus: 'warning',
+        icon: MynahIcons.INFO,
+        body: 'You can now ask to generate unit tests directly in the chat.',
+    },
+    body: `You don't need to explicitly use /test. We've redirected your request to chat.
+
+Ask me to do things like:
+• Add unit tests for highlighted functions in my active file
+• Generate tests for null and empty inputs in my project`,
+}
+
+export const docRerouteCard: ChatItem = {
+    type: ChatItemType.ANSWER,
+    border: true,
+    header: {
+        padding: true,
+        iconForegroundStatus: 'warning',
+        icon: MynahIcons.INFO,
+        body: 'You can now ask to generate documentation directly in the chat.',
+    },
+    body: `You don't need to explicitly use /doc. We've redirected your request to chat.`,
+}
+
+export const devRerouteCard: ChatItem = {
+    type: ChatItemType.ANSWER,
+    border: true,
+    header: {
+        padding: true,
+        iconForegroundStatus: 'warning',
+        icon: MynahIcons.INFO,
+        body: 'You can now ask to generate code directly in the chat.',
+    },
+    body: `You don't need to explicitly use /dev. We've redirected your request to chat.
+
+Ask me to do things like:
+1. Create a project
+2. Add a feature
+3. Modify your files`,
+}
+
+export const createRerouteCard = (command: string): ChatItem => {
+    switch (command) {
+        case '/test':
+            return testRerouteCard
+        case '/doc':
+            return docRerouteCard
+        case '/dev':
+            return devRerouteCard
+        default:
+            return devRerouteCard // Default fallback
+    }
 }

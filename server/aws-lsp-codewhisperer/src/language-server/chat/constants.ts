@@ -31,6 +31,11 @@ export const HELP_MESSAGE = `I'm Amazon Q, a generative AI assistant. Learn more
 
 export const DEFAULT_HELP_FOLLOW_UP_PROMPT = 'How can Amazon Q help me?'
 
+export const DEFAULT_DOC_PROMPT = 'Generate documentation with /doc command'
+
+export const DOC_RESPONSE_MESSAGE =
+    'Do you want to create a README or update an existing README for a specific project?'
+
 export const DEFAULT_EXCLUDE_DIRS = [
     // Dependency directories
     'node_modules',
