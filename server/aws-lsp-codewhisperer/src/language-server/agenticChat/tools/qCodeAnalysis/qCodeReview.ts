@@ -725,7 +725,7 @@ export class QCodeReview {
     ): string | null {
         // 1. Check if finding path matches one of the file artifacts
         for (const fileArtifact of fileArtifacts) {
-            if (fileArtifact.path.endsWith(findingPath)) {
+            if (fileArtifact.path.endsWith(path.normalize(findingPath))) {
                 return fileArtifact.path
             }
         }
@@ -767,7 +767,7 @@ export class QCodeReview {
         }
 
         // 3. Check if finding already has absolute file path
-        const maybeAbsolutePath = `${findingPath}`
+        const maybeAbsolutePath = path.normalize(findingPath)
         if (existsSync(maybeAbsolutePath) && statSync(maybeAbsolutePath).isFile()) {
             return maybeAbsolutePath
         }

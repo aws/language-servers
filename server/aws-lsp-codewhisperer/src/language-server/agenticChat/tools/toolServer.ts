@@ -134,7 +134,8 @@ export const QCodeAnalysisServer: Server = ({
             },
             async (input: any) => {
                 return await qCodeReviewTool.execute(input, { codeWhispererClient })
-            }
+            },
+            ToolClassification.BuiltIn
         )
     })
 
