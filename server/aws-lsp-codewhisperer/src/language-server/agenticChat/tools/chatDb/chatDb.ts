@@ -548,7 +548,7 @@ export class ChatDatabase {
      * 3. The toolUse and toolResult relationship is valid
      * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage) {
+    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage, pinnedContextMessages: ChatMessage[]) {
         if (!this.isInitialized()) {
             return []
         }
@@ -569,7 +569,7 @@ export class ChatDatabase {
 
         // 4. NOTE: Keep this trimming logic at the end of the preprocess.
         // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
-        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage)
+        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage, pinnedContextMessages)
 
         // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
         if (
@@ -580,6 +580,11 @@ export class ChatDatabase {
             this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
             newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
             newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+        }
+
+        // Prepend pinned context fake message pair to beginning of history
+        if (pinnedContextMessages.length === 2) {
+            allMessages = [...pinnedContextMessages.map(msg => chatMessageToMessage(msg)), ...allMessages]
         }
 
         return allMessages
@@ -611,11 +616,16 @@ export class ChatDatabase {
         return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
     }
 
-    private trimMessagesToMaxLength(messages: Message[], newUserMessage: ChatMessage): Message[] {
+    private trimMessagesToMaxLength(
+        messages: Message[],
+        newUserMessage: ChatMessage,
+        pinnedContextMessages: ChatMessage[]
+    ): Message[] {
         let totalCharacters = this.calculateMessagesCharacterCount(messages)
         this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
         const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
             chatMessageToMessage(newUserMessage),
+            ...pinnedContextMessages.map(msg => chatMessageToMessage(msg)),
         ])
         const currentInputToolSpecCount = this.calculateToolSpecCharacterCount(newUserMessage)
         const currentUserInputCount = currentUserInputCharacterCount + currentInputToolSpecCount

@@ -736,7 +736,7 @@ export class AgenticChatController implements ChatHandlers {
                 throw new CancellationError('user')
             }
 
-            this.truncateRequest(currentRequestInput)
+            this.truncateRequest(currentRequestInput, pinnedContext)
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
             if (!currentMessage || !conversationId) {
@@ -745,10 +745,17 @@ export class AgenticChatController implements ChatHandlers {
                 )
             }
             let messages: DbMessage[] = []
+            // Prepend pinned context to history as a fake message pair
+            // This ensures pinned context doesn't get added to history file, and fulfills API contract requiring message pairs.
+            let pinnedContextMessages = await this.#additionalContextProvider.convertPinnedContextToChatMessages(
+                pinnedContext,
+                this.#features.workspace.getWorkspaceFolder
+            )
+
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage)
+                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, pinnedContextMessages)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
                         this.#features.logging.warn(`Tool validation error: ${err.message}`)
@@ -762,20 +769,6 @@ export class AgenticChatController implements ChatHandlers {
                 ?.userInputMessage?.userIntent
                 ? []
                 : messages.map(msg => messageToStreamingMessage(msg))
-
-            // Prepend pinned context to history as a fake message pair
-            // This ensures pinned context doesn't get added to history file, and fulfills API contract requiring message pairs.
-            let pinnedContextChatMessages = await this.#additionalContextProvider.convertPinnedContextToChatMessages(
-                pinnedContext,
-                this.#features.workspace.getWorkspaceFolder
-            )
-
-            if (pinnedContextChatMessages.length === 2) {
-                currentRequestInput.conversationState!.history = [
-                    ...pinnedContextChatMessages,
-                    ...currentRequestInput.conversationState!.history,
-                ]
-            }
 
             // Add loading message before making the request
             const loadingMessageId = `loading-${uuid()}`
@@ -1008,7 +1001,7 @@ export class AgenticChatController implements ChatHandlers {
      * Returns the remaining character budget for chat history.
      * @param request
      */
-    truncateRequest(request: ChatCommandInput): number {
+    truncateRequest(request: ChatCommandInput, pinnedContext?: AdditionalContentEntryAddition[]): number {
         // TODO: Confirm if this limit applies to SendMessage and rename this constant
         let remainingCharacterBudget = generateAssistantResponseInputLimit
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
@@ -1061,6 +1054,11 @@ export class AgenticChatController implements ChatHandlers {
             }
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
                 truncatedCurrentDocument
+        }
+
+        // 4. try to fit pinned context into budget
+        if (pinnedContext && pinnedContext.length > 0) {
+            remainingCharacterBudget = this.truncatePinnedContext(remainingCharacterBudget, pinnedContext)
         }
         return remainingCharacterBudget
     }
