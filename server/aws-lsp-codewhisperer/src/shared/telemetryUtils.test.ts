@@ -180,8 +180,8 @@ describe('makeUserContextObject', () => {
         const clientNames = [
             'AmazonQ-For-VSCode',
             'Amazon Q For JetBrains',
-            'AmazonQ-For-Eclipse',
-            'AWS-Toolkit-For-VisualStudio',
+            'Amazon Q For Eclipse',
+            'AWS Toolkit For VisualStudio',
         ]
 
         clientNames.forEach(clientName => {
@@ -196,10 +196,10 @@ describe('makeUserContextObject', () => {
                 case 'Amazon Q For JetBrains':
                     assert.strictEqual(result?.ideCategory, 'JETBRAINS')
                     break
-                case 'AmazonQ-For-Eclipse':
+                case 'Amazon Q For Eclipse':
                     assert.strictEqual(result?.ideCategory, 'ECLIPSE')
                     break
-                case 'AWS-Toolkit-For-VisualStudio':
+                case 'AWS Toolkit For VisualStudio':
                     assert.strictEqual(result?.ideCategory, 'VISUAL_STUDIO')
                     break
                 default:

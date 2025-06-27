@@ -771,6 +771,151 @@ describe('handleError()', () => {
     })
 })
 
+describe('concurrent server initialization', () => {
+    let loadStub: sinon.SinonStub
+    let initOneServerStub: sinon.SinonStub
+    let promiseAllSpy: sinon.SinonSpy
+
+    beforeEach(() => {
+        sinon.restore()
+        // Stub the loadPersonaPermissions to return a simple map
+        sinon
+            .stub(mcpUtils, 'loadPersonaPermissions')
+            .resolves(new Map([['*', { enabled: true, toolPerms: {}, __configPath__: '/tmp/p.yaml' }]]))
+
+        // Create a spy on Promise.all to verify it's called with the correct arguments
+        promiseAllSpy = sinon.spy(Promise, 'all')
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('initializes multiple servers concurrently with a limit of 5', async () => {
+        // Create 7 server configs to test batching (more than the MAX_CONCURRENT_SERVERS of 5)
+        const serverConfigs: Record<string, MCPServerConfig> = {}
+        for (let i = 1; i <= 7; i++) {
+            serverConfigs[`server${i}`] = {
+                command: `server${i}`,
+                args: [],
+                env: {},
+                timeout: 0,
+                __configPath__: `config${i}.json`,
+            }
+        }
+
+        // Set up the loadMcpServerConfigs stub to return multiple servers
+        const serversMap = new Map(Object.entries(serverConfigs))
+        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
+            servers: serversMap,
+            serverNameMapping: new Map(),
+            errors: new Map(),
+        })
+
+        // Create a controlled stub for initOneServer that resolves after a delay
+        // This helps verify that servers are initialized in batches
+        const initStartTimes: Record<string, number> = {}
+        const initEndTimes: Record<string, number> = {}
+        const batchAssignments: Record<string, number> = {} // Track which batch each server is in
+
+        // Spy on the debug logging to capture batch information
+        const debugSpy = sinon.spy(fakeLogging, 'debug')
+
+        initOneServerStub = sinon
+            .stub(McpManager.prototype as any, 'initOneServer' as keyof McpManager)
+            .callsFake(async function (this: any, ...args: any[]) {
+                const serverName = args[0] as string
+                initStartTimes[serverName] = Date.now()
+
+                // Create a promise that resolves after a short delay
+                return new Promise<void>(resolve => {
+                    setTimeout(() => {
+                        // Set up the server state as the original method would
+                        this.clients.set(serverName, new Client({ name: `mcp-client-${serverName}`, version: '1.0.0' }))
+                        this.mcpTools.push({
+                            serverName,
+                            toolName: `tool-${serverName}`,
+                            description: `Tool for ${serverName}`,
+                            inputSchema: {},
+                        })
+                        this.setState(serverName, 'ENABLED', 1)
+
+                        initEndTimes[serverName] = Date.now()
+                        resolve()
+                    }, 50) // Small delay to simulate async initialization
+                })
+            })
+
+        // Initialize the McpManager
+        const mgr = await McpManager.init(['config1.json'], [], features)
+
+        // Verify that Promise.all was called at least twice (once for each batch)
+        expect(promiseAllSpy.called).to.be.true
+        expect(promiseAllSpy.callCount).to.be.at.least(2) // At least 2 batches for 7 servers with max 5 per batch
+
+        // Verify that initOneServer was called for each server
+        expect(initOneServerStub.callCount).to.equal(7)
+        for (let i = 1; i <= 7; i++) {
+            expect(initOneServerStub.calledWith(`server${i}`, serverConfigs[`server${i}`])).to.be.true
+        }
+
+        // Verify that all servers were initialized
+        const serverStates = mgr.getAllServerStates()
+        for (let i = 1; i <= 7; i++) {
+            expect(serverStates.get(`server${i}`)?.status).to.equal('ENABLED')
+        }
+
+        // Verify that debug logging shows batch processing
+        expect(debugSpy.called).to.be.true
+
+        // Instead of checking individual calls, convert the entire debug log to a string
+        // This avoids TypeScript errors with array access
+        let debugLogString = ''
+
+        // Safely collect all debug messages into a single string
+        debugSpy.getCalls().forEach(call => {
+            try {
+                if (call && call.args) {
+                    // Convert all arguments to string and concatenate
+                    for (let i = 0; i < call.args.length; i++) {
+                        debugLogString += String(call.args[i] || '') + ' '
+                    }
+                }
+            } catch (e) {
+                // Ignore any errors during string conversion
+            }
+        })
+
+        // Now check if the combined log contains our expected phrases
+        const batchLogFound =
+            debugLogString.indexOf('initializing batch of') >= 0 && debugLogString.indexOf('of 7') >= 0
+        expect(batchLogFound).to.be.true
+
+        // Verify that Promise.all was called with the correct batch sizes
+        let firstBatchFound = false
+        let secondBatchFound = false
+
+        for (const call of promiseAllSpy.getCalls()) {
+            if (call.args && call.args.length > 0) {
+                const args = call.args[0]
+                if (Array.isArray(args)) {
+                    if (args.length === 5) {
+                        firstBatchFound = true
+                    } else if (args.length === 2) {
+                        secondBatchFound = true
+                    }
+                }
+            }
+        }
+
+        expect(firstBatchFound).to.be.true // First batch should have 5 servers
+        expect(secondBatchFound).to.be.true // Second batch should have 2 servers
+    })
+})
+
 describe('McpManager error handling', () => {
     let loadStub: sinon.SinonStub
 

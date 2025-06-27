@@ -31,9 +31,9 @@ export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhi
     itemId: string
 }
 
-export interface GenerateSuggestionsRequest
-    extends CodeWhispererTokenClient.GenerateCompletionsRequest,
-        CodeWhispererSigv4Client.GenerateRecommendationsRequest {
+export interface GenerateSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest {
+    // TODO : This is broken due to Interface 'GenerateSuggestionsRequest' cannot simultaneously extend types 'GenerateCompletionsRequest' and 'GenerateRecommendationsRequest'.
+    //CodeWhispererSigv4Client.GenerateRecommendationsRequest {
     maxResults: number
 }
 
@@ -99,6 +99,20 @@ export abstract class CodeWhispererServiceBase {
     }
 
     generateItemId = () => uuidv4()
+
+    async getSubscriptionStatus(
+        statusOnly?: boolean
+    ): Promise<{ status: 'active' | 'active-expiring' | 'none'; encodedVerificationUrl?: string }> {
+        // No-op/default implementation: assume no subscription
+        return {
+            status: 'none',
+        }
+    }
+
+    async waitUntilSubscriptionActive(_cancelToken?: CancellationToken): Promise<boolean> {
+        // No-op: base class doesn't support subscription polling
+        return false
+    }
 }
 
 export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
@@ -450,7 +464,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      *
      * @param statusOnly use this if you don't need the encodedVerificationUrl, else a ConflictException is treated as "ACTIVE"
      */
-    async getSubscriptionStatus(
+    override async getSubscriptionStatus(
         statusOnly?: boolean
     ): Promise<{ status: 'active' | 'active-expiring' | 'none'; encodedVerificationUrl?: string }> {
         // NOTE: The subscription API behaves in a non-intuitive way.
@@ -494,7 +508,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      *
      * Returns true on success, or false on timeout/cancellation.
      */
-    async waitUntilSubscriptionActive(cancelToken?: CancellationToken): Promise<boolean> {
+    override async waitUntilSubscriptionActive(cancelToken?: CancellationToken): Promise<boolean> {
         // If user clicks "Upgrade" multiple times, cancel any pending waitUntil().
         if (this.#waitUntilSubscriptionCancelSource) {
             this.#waitUntilSubscriptionCancelSource.cancel()

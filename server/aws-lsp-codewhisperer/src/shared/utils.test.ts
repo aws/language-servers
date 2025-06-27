@@ -8,10 +8,13 @@ import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import { expect } from 'chai'
 import * as sinon from 'sinon'
+import * as os from 'os'
+import * as path from 'path'
 import { BUILDER_ID_START_URL } from './constants'
 import {
     getBearerTokenFromProvider,
     getEndPositionForAcceptedSuggestion,
+    getIAMCredentialsFromProvider,
     getSsoConnectionType,
     getUnmodifiedAcceptedTokens,
     isAwsThrottlingError,
@@ -19,7 +22,10 @@ import {
     isQuotaExceededError,
     isStringOrNull,
     safeGet,
+    getFileExtensionName,
+    listFilesWithGitignore,
 } from './utils'
+import { promises as fsPromises } from 'fs'
 
 describe('getBearerTokenFromProvider', () => {
     const mockToken = 'mockToken'
@@ -62,6 +68,44 @@ describe('getBearerTokenFromProvider', () => {
             Error,
             'credentialsProvider does not have bearer token credentials'
         )
+    })
+})
+
+describe('getIAMCredentialsFromProvider', () => {
+    const mockIAMCredentials = {
+        accessKeyId: 'mock-access-key',
+        secretAccessKey: 'mock-secret-key',
+        sessionToken: 'mock-session-token',
+    }
+
+    it('returns the IAM credentials from the provider', () => {
+        const mockCredentialsProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(true),
+            getCredentials: sinon.stub().returns(mockIAMCredentials),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
+        }
+
+        const result = getIAMCredentialsFromProvider(mockCredentialsProvider)
+
+        assert.deepStrictEqual(result, {
+            accessKeyId: 'mock-access-key',
+            secretAccessKey: 'mock-secret-key',
+            sessionToken: 'mock-session-token',
+        })
+    })
+
+    it('throws an error if the credentials provider does not have IAM credentials', () => {
+        const mockCredentialsProvider: CredentialsProvider = {
+            hasCredentials: sinon.stub().returns(false),
+            getCredentials: sinon.stub().returns(mockIAMCredentials),
+            getConnectionMetadata: sinon.stub(),
+            getConnectionType: sinon.stub(),
+            onCredentialsDeleted: sinon.stub(),
+        }
+
+        assert.throws(() => getIAMCredentialsFromProvider(mockCredentialsProvider), Error, 'Missing IAM creds')
     })
 })
 
@@ -376,5 +420,206 @@ describe('isQuotaExceededError', function () {
         assert.strictEqual(isQuotaExceededError(reachedForThisMonth), false)
         limitForIterationsError.message = 'foo bar'
         assert.strictEqual(isQuotaExceededError(limitForIterationsError), false)
+    })
+})
+
+describe('getFileExtensionName', () => {
+    it('should return empty string for null or undefined input', () => {
+        assert.strictEqual(getFileExtensionName(null as unknown as string), '')
+        assert.strictEqual(getFileExtensionName(undefined as unknown as string), '')
+    })
+
+    it('should return empty string for empty input', () => {
+        assert.strictEqual(getFileExtensionName(''), '')
+    })
+
+    it('should return empty string when no dots are present', () => {
+        assert.strictEqual(getFileExtensionName('filename'), '')
+        assert.strictEqual(getFileExtensionName('path/to/file'), '')
+    })
+
+    it('should return empty string when file ends with a dot', () => {
+        assert.strictEqual(getFileExtensionName('file.'), '')
+        assert.strictEqual(getFileExtensionName('path/to/file.'), '')
+    })
+
+    it('should return empty string for hidden files without extensions', () => {
+        assert.strictEqual(getFileExtensionName('.gitignore'), '')
+        assert.strictEqual(getFileExtensionName('.env'), '')
+    })
+
+    it('should return extension in lowercase for regular files', () => {
+        assert.strictEqual(getFileExtensionName('file.txt'), 'txt')
+        assert.strictEqual(getFileExtensionName('file.TXT'), 'txt')
+        assert.strictEqual(getFileExtensionName('file.Txt'), 'txt')
+    })
+
+    it('should return the last extension for files with multiple dots', () => {
+        assert.strictEqual(getFileExtensionName('file.tar.gz'), 'gz')
+        assert.strictEqual(getFileExtensionName('archive.TAR.GZ'), 'gz')
+    })
+
+    it('should handle paths with directories correctly', () => {
+        assert.strictEqual(getFileExtensionName('/path/to/file.pdf'), 'pdf')
+        assert.strictEqual(getFileExtensionName('C:\\path\\to\\file.PDF'), 'pdf')
+        assert.strictEqual(getFileExtensionName('./relative/path/file.docx'), 'docx')
+    })
+
+    it('should return extension for hidden files with extensions', () => {
+        assert.strictEqual(getFileExtensionName('.config.json'), 'json')
+        assert.strictEqual(getFileExtensionName('.bashrc.bak'), 'bak')
+    })
+})
+
+describe('listFilesWithGitignore', () => {
+    let tempDir: string
+
+    // Helper function to create test files and directories
+    async function createTestFiles(structure: { [key: string]: string | null }) {
+        for (const [filePath, content] of Object.entries(structure)) {
+            const fullPath = path.join(tempDir, filePath)
+            const dir = path.dirname(fullPath)
+
+            await fsPromises.mkdir(dir, { recursive: true })
+
+            if (content !== null) {
+                await fsPromises.writeFile(fullPath, content || '')
+            }
+        }
+    }
+
+    beforeEach(async () => {
+        // Create a temporary directory for each test
+        tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'test-'))
+    })
+
+    afterEach(async () => {
+        // Clean up temporary directory after each test
+        await fsPromises.rm(tempDir, { recursive: true, force: true })
+    })
+
+    it('should return empty array for empty directory', async () => {
+        const files = await listFilesWithGitignore(tempDir)
+        assert.deepStrictEqual(files, [])
+    })
+
+    it('should return all files when no ignore files present', async () => {
+        await createTestFiles({
+            'file1.txt': 'content1',
+            'file2.js': 'content2',
+            'dir/file3.txt': 'content3',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [
+            path.join(tempDir, 'file1.txt'),
+            path.join(tempDir, 'file2.js'),
+            path.join(tempDir, 'dir/file3.txt'),
+        ].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should respect .gitignore patterns', async () => {
+        await createTestFiles({
+            '.gitignore': '*.txt\nnode_modules/',
+            'file1.txt': 'ignored',
+            'file2.js': 'not ignored',
+            'node_modules/package.json': 'ignored',
+            'src/file3.txt': 'ignored',
+            'src/file4.js': 'not ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [
+            path.join(tempDir, '.gitignore'),
+            path.join(tempDir, 'file2.js'),
+            path.join(tempDir, 'src/file4.js'),
+        ].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should respect patterns in common gitignore', async () => {
+        await createTestFiles({
+            'file1.txt': 'not ignored',
+            'file2.js': 'not ignored',
+            'node_modules/package.json': 'ignored',
+            '.idea/file3.txt': 'ignored',
+            'src/file4.js': 'not ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [
+            path.join(tempDir, 'file1.txt'),
+            path.join(tempDir, 'file2.js'),
+            path.join(tempDir, 'src/file4.js'),
+        ].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should respect .npmignore patterns', async () => {
+        await createTestFiles({
+            '.npmignore': '*.test.js\ntests/',
+            'file1.js': 'not ignored',
+            'file1.test.js': 'ignored',
+            'tests/test.js': 'ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [path.join(tempDir, '.npmignore'), path.join(tempDir, 'file1.js')].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should respect custom .ignorefile patterns', async () => {
+        await createTestFiles({
+            '.ignorefile': '*.log\nlogs/',
+            'app.log': 'ignored',
+            'logs/error.log': 'ignored',
+            'src/app.js': 'not ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [path.join(tempDir, '.ignorefile'), path.join(tempDir, 'src/app.js')].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should handle non-existent directory', async () => {
+        const nonExistentDir = path.join(tempDir, 'non-existent')
+        const files = await listFilesWithGitignore(nonExistentDir)
+        assert.deepStrictEqual(files, [])
+    })
+
+    it('should handle nested directories and multiple ignore files', async () => {
+        await createTestFiles({
+            '.gitignore': '*.log',
+            'src/.npmignore': 'test/',
+            'src/lib/.gitignore': '*.tmp',
+            'app.log': 'ignored',
+            'src/index.js': 'not ignored',
+            'src/test/test.js': 'ignored',
+            'src/lib/temp.tmp': 'ignored',
+            'src/lib/main.js': 'not ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [
+            path.join(tempDir, '.gitignore'),
+            path.join(tempDir, 'src/.npmignore'),
+            path.join(tempDir, 'src/lib/.gitignore'),
+            path.join(tempDir, 'src/index.js'),
+            path.join(tempDir, 'src/lib/main.js'),
+        ].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    // Add a hook that runs after all tests in this describe block
+    after(() => {
+        // Force process to exit after tests complete to prevent hanging
+        setTimeout(() => process.exit(0), 1000)
     })
 })
