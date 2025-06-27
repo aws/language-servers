@@ -26,7 +26,7 @@ import {
     SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodewhispererLanguage, getRuntimeLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { truncateOverlapWithRightContext } from './mergeRightUtils'
+import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
@@ -538,6 +538,20 @@ export const CodewhispererServerFactory =
 
                     // Close ACTIVE session and record Discard trigger decision immediately
                     if (currentSession && currentSession.state === 'ACTIVE') {
+                        if (editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
+                            const mergedSuggestions = mergeEditSuggestionsWithFileContext(
+                                currentSession,
+                                textDocument,
+                                fileContext
+                            )
+
+                            if (mergedSuggestions.length > 0) {
+                                return {
+                                    items: mergedSuggestions,
+                                    sessionId: currentSession.id,
+                                }
+                            }
+                        }
                         // Emit user trigger decision at session close time for active session
                         sessionManager.discardSession(currentSession)
                         const streakLength = sessionManager.getAndUpdateStreakLength(false)
@@ -642,6 +656,7 @@ export const CodewhispererServerFactory =
                 session.responseContext = suggestionResponse.responseContext
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
                 session.timeToFirstRecommendation = new Date().getTime() - session.startTime
+                session.suggestionType = suggestionResponse.suggestionType
             } else {
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
             }
