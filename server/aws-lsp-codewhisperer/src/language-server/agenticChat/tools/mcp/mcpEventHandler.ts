@@ -1,7 +1,7 @@
 import { Features } from '../../../types'
 import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
-import { FileWatcher } from './fileWatcher'
+import { ChokidarFileWatcher } from './chokidarFileWatcher'
 // eslint-disable-next-line import/no-nodejs-modules
 import * as path from 'path'
 import {
@@ -44,7 +44,7 @@ export class McpEventHandler {
     #telemetryController: ChatTelemetryController
     #pendingPermissionConfig: { serverName: string; permission: MCPServerPermission } | undefined
     #newlyAddedServers: Set<string> = new Set()
-    #fileWatcher: FileWatcher
+    #fileWatcher: ChokidarFileWatcher
     #isProgrammaticChange: boolean = false
 
     constructor(features: Features, telemetryService: TelemetryService) {
@@ -54,7 +54,7 @@ export class McpEventHandler {
         this.#shouldDisplayListMCPServers = true
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#pendingPermissionConfig = undefined
-        this.#fileWatcher = new FileWatcher(features.logging)
+        this.#fileWatcher = new ChokidarFileWatcher(features.logging)
         this.#setupFileWatchers()
     }
 
@@ -1331,72 +1331,12 @@ export class McpEventHandler {
 
         const allPaths = [...configPaths, ...personaPaths]
 
-        for (const uriPath of allPaths) {
-            // Normalize the path to handle file:// URIs
-            const filePath = normalizePathFromUri(uriPath, this.#features.logging)
-
-            // Check if file exists before watching
-            this.#features.workspace.fs
-                .exists(filePath)
-                .then(exists => {
-                    if (exists) {
-                        this.#fileWatcher.watchFile(filePath, async () => {
-                            // Skip if this is a programmatic change
-                            if (this.#isProgrammaticChange) {
-                                this.#features.logging.debug(`Ignoring programmatic change to: ${filePath}`)
-                                return
-                            }
-
-                            this.#features.logging.info(`MCP config file changed: ${filePath}, triggering refresh`)
-                            await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
-                        })
-                    } else {
-                        // Watch the directory instead to detect file creation
-                        const dirPath = path.dirname(filePath)
-                        this.#fileWatcher.watchFile(dirPath, async () => {
-                            // Check if our target file was created
-                            this.#features.workspace.fs
-                                .exists(filePath)
-                                .then(async nowExists => {
-                                    if (nowExists) {
-                                        // Skip if this is a programmatic change
-                                        if (this.#isProgrammaticChange) {
-                                            this.#features.logging.debug(
-                                                `Ignoring programmatic file creation: ${filePath}`
-                                            )
-                                            return
-                                        }
-
-                                        this.#features.logging.info(
-                                            `MCP config file created: ${filePath}, triggering refresh`
-                                        )
-                                        await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
-
-                                        // Start watching the file directly
-                                        this.#fileWatcher.watchFile(filePath, async () => {
-                                            // Skip if this is a programmatic change
-                                            if (this.#isProgrammaticChange) {
-                                                this.#features.logging.debug(
-                                                    `Ignoring programmatic change to: ${filePath}`
-                                                )
-                                                return
-                                            }
-
-                                            this.#features.logging.info(
-                                                `MCP config file changed: ${filePath}, triggering refresh`
-                                            )
-                                            await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
-                                        })
-                                    }
-                                })
-                                .catch(err =>
-                                    this.#features.logging.warn(`Error checking if file exists: ${err.message}`)
-                                )
-                        })
-                    }
-                })
-                .catch(err => this.#features.logging.warn(`Error checking if file exists: ${err.message}`))
-        }
+        this.#fileWatcher.watchPaths(allPaths, async () => {
+            if (this.#isProgrammaticChange) {
+                return
+            }
+            await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
+        })
     }
 
     /**
