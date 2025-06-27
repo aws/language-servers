@@ -557,29 +557,27 @@ export class ChatDatabase {
 
         // 1. Make sure the length of the history messages don't exceed MaxConversationHistoryMessages
         let allMessages = this.getMessages(tabId, maxConversationHistoryMessages)
-        if (allMessages.length === 0) {
-            return []
-        }
+        if (allMessages.length > 0) {
+            // 2. Fix history: Ensure messages in history is valid for server side checks
+            this.ensureValidMessageSequence(tabId, allMessages)
 
-        // 2. Fix history: Ensure messages in history is valid for server side checks
-        this.ensureValidMessageSequence(tabId, allMessages)
+            // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
+            this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
 
-        // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
-        this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
+            // 4. NOTE: Keep this trimming logic at the end of the preprocess.
+            // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
+            allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage, pinnedContextMessages)
 
-        // 4. NOTE: Keep this trimming logic at the end of the preprocess.
-        // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
-        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage, pinnedContextMessages)
-
-        // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
-        if (
-            allMessages.length === 0 &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
-        ) {
-            this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
-            newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
-            newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+            // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
+            if (
+                allMessages.length === 0 &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
+            ) {
+                this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
+                newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
+                newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+            }
         }
 
         // Prepend pinned context fake message pair to beginning of history
