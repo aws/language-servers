@@ -190,6 +190,11 @@ describe('AgenticChatController', () => {
             close: sinon.stub(),
         } as unknown as chokidar.FSWatcher)
 
+        // Mock getUserHomeDir function for McpEventHandler
+        const getUserHomeDirStub = sinon.stub().returns('/mock/home/dir')
+        testFeatures = new TestFeatures()
+        testFeatures.workspace.fs.getUserHomeDir = getUserHomeDirStub
+
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
             return new Promise(resolve =>
                 setTimeout(() => {
@@ -313,7 +318,9 @@ describe('AgenticChatController', () => {
     })
 
     afterEach(() => {
-        chatController.dispose()
+        if (chatController) {
+            chatController.dispose()
+        }
         sinon.restore()
         ChatSessionManagementService.reset()
     })
