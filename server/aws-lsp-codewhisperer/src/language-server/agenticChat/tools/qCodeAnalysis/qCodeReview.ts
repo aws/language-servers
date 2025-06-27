@@ -725,8 +725,11 @@ export class QCodeReview {
     ): string | null {
         // 1. Check if finding path matches one of the file artifacts
         for (const fileArtifact of fileArtifacts) {
-            if (fileArtifact.path.endsWith(path.normalize(findingPath))) {
-                return fileArtifact.path
+            const normalizedFilePath = path.normalize(fileArtifact.path)
+            const normalizedFindingPath = path.normalize(findingPath)
+
+            if (normalizedFilePath.endsWith(normalizedFindingPath)) {
+                return normalizedFilePath
             }
         }
 
