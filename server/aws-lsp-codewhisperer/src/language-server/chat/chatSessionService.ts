@@ -134,7 +134,9 @@ export class ChatSessionService {
         this.#serviceManager = serviceManager
         this.#lsp = lsp
         this.#logging = logging
-        this.#origin = getOriginFromClientInfo(this.#lsp?.getClientInitializeParams()?.clientInfo?.name)
+        this.#origin = getOriginFromClientInfo(
+            this.#lsp?.getClientInitializeParams()?.initializationOptions?.aws?.clientInfo?.extension?.name
+        )
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {

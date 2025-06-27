@@ -271,7 +271,9 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.lsp
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
-        this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
+        this.#origin = getOriginFromClientInfo(
+            this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.clientInfo?.extension?.name
+        )
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
