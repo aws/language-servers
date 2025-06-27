@@ -34,6 +34,7 @@ const props = {
         QAgenticChatServerProxy,
         IdentityServer.create,
         FsToolsServer,
+        QCodeAnalysisServer,
         BashToolsServer,
         QLocalProjectContextServerProxy,
         WorkspaceContextServerTokenProxy,
