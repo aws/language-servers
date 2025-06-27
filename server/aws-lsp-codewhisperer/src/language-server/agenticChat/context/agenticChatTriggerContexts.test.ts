@@ -147,7 +147,7 @@ describe('AgenticChatTriggerContext', () => {
             undefined,
             modelId
         )
-        assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, modelId)
+        assert.strictEqual((chatParams.conversationState as any).modelId, modelId)
     })
 
     it('does not include modelId in chat params when not provided', async () => {
@@ -157,7 +157,7 @@ describe('AgenticChatTriggerContext', () => {
             {},
             ChatTriggerType.MANUAL
         )
-        assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, undefined)
+        assert.strictEqual((chatParams.conversationState as any).modelId, undefined)
     })
 
     it('includes remote workspaceId if it exists and is connected', async () => {
@@ -191,7 +191,7 @@ describe('AgenticChatTriggerContext', () => {
                 ?.workspaceFolders,
             mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
         )
-        assert.deepStrictEqual(chatParamsWithMore.conversationState?.workspaceId, 'test-workspace-123')
+        assert.deepStrictEqual((chatParamsWithMore.conversationState as any).workspaceId, 'test-workspace-123')
     })
     describe('getTextDocument*', function () {
         let tempFolder: TestFolder
