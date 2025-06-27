@@ -1139,7 +1139,7 @@ export class AgenticChatController implements ChatHandlers {
                             // for executeBash, we till send the confirmation message without action buttons
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
-                                requiresAcceptance,
+                                toolRequiresAcceptance,
                                 warning,
                                 commandCategory,
                                 toolUse.name,
