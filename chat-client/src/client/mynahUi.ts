@@ -350,6 +350,9 @@ export const createMynahUi = (
             const defaultTabBarData = tabFactory.getDefaultTabData()
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
+                ...(tabFactory.isRerouteEnabled()
+                    ? { quickActionCommandsHeader: defaultTabBarData.quickActionCommandsHeader }
+                    : {}),
                 tabBarButtons: defaultTabBarData.tabBarButtons,
                 contextCommands: [
                     ...(contextCommandGroups || []),
