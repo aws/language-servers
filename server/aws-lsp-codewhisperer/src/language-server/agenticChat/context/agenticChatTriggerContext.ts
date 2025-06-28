@@ -13,7 +13,8 @@ import {
     ProgrammingLanguage,
     EnvState,
     Origin,
-} from '@amzn/codewhisperer-streaming'
+    ImageBlock,
+} from '@aws/codewhisperer-streaming-client'
 import {
     BedrockTools,
     ChatParams,
@@ -113,6 +114,7 @@ export class AgenticChatTriggerContext {
      * @param tools Optional Bedrock tools
      * @param additionalContent Optional additional content entries
      * @param modelId Optional model ID
+     * @param imageContext Optional image block for image context
      * @returns ChatCommandInput - which is either SendMessageInput or GenerateAssistantResponseInput
      */
     async getChatParamsFromTrigger(
@@ -126,7 +128,8 @@ export class AgenticChatTriggerContext {
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[],
         modelId?: string,
-        origin?: Origin
+        origin?: Origin,
+        imageContext?: ImageBlock[]
     ): Promise<ChatCommandInput> {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
@@ -243,6 +246,7 @@ export class AgenticChatTriggerContext {
                         userIntent: triggerContext.userIntent,
                         origin: origin ? origin : 'IDE',
                         modelId,
+                        images: imageContext,
                     },
                 },
                 customizationArn,
