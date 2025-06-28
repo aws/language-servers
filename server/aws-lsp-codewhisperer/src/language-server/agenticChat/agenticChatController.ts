@@ -180,6 +180,7 @@ import {
 import { ImageBlock } from '@aws/codewhisperer-streaming-client'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
 import { verifyServerImage } from '../../shared/imageVerification'
+import { sanitize } from '@aws/lsp-core/out/util/path'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -471,7 +472,7 @@ export class AgenticChatController implements ChatHandlers {
             for (const filePath of result.uris) {
                 // Extract filename from the URI for error messages
                 const fileName = filePath.split('/').pop() || ''
-                const sanitizedPath = filePath.startsWith('file://') ? filePath.substring(7) : filePath
+                const sanitizedPath = sanitize(filePath)
 
                 // Get file size and content for verification
                 const size = await this.#features.workspace.fs.getFileSize(sanitizedPath)
