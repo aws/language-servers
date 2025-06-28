@@ -128,6 +128,7 @@ export const Z_Q_CODE_REVIEW_INPUT_SCHEMA = z.object({
             })
         )
         .optional(),
+    ruleArtifacts: z.array(z.string()).optional(),
 })
 
 /**

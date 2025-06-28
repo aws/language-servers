@@ -706,6 +706,10 @@ export class AgenticChatController implements ChatHandlers {
         let iterationCount = 0
         let shouldDisplayMessage = true
         metric.recordStart()
+        let pathsToRules =
+            currentRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState?.relevantDocuments?.map(
+                doc => (doc as any)?.path
+            )
 
         while (true) {
             iterationCount++
@@ -883,7 +887,14 @@ export class AgenticChatController implements ChatHandlers {
             session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
-                toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+                toolResults = await this.#processToolUses(
+                    pendingToolUses,
+                    chatResultStream,
+                    session,
+                    tabId,
+                    token,
+                    pathsToRules
+                )
                 if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                     shouldDisplayMessage = false
@@ -1056,7 +1067,8 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
         tabId: string,
-        token?: CancellationToken
+        token?: CancellationToken,
+        pathsToRules?: string[]
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
 
@@ -1248,6 +1260,18 @@ export class AgenticChatController implements ChatHandlers {
                         ...toolUse,
                         fileChange: { before: document?.getText() },
                     })
+                }
+
+                if (toolUse.name === QCodeReview.toolName) {
+                    try {
+                        let initialInput = JSON.parse(JSON.stringify(toolUse.input))
+                        if (pathsToRules != undefined) {
+                            initialInput['ruleArtifacts'] = pathsToRules
+                        }
+                        toolUse.input = initialInput
+                    } catch (e) {
+                        this.#features.logging.warn(`could not parse input: ${e}`)
+                    }
                 }
 
                 // After approval, add the path to the approved paths in the session

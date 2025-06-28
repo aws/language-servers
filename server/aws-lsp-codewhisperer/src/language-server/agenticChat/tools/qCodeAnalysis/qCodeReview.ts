@@ -28,6 +28,7 @@ export class QCodeReview {
     private static readonly CODE_ARTIFACT_PATH = 'code_artifact'
     private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
     private static readonly CODE_DIFF_PATH = 'code_artifact/codeDiff/customerCodeDiff.diff'
+    private static readonly RULE_ARTIFACT_PATH = '.amazonq/rules'
     private static readonly ZIP_COMPRESSION_OPTIONS = {
         type: 'nodebuffer' as const,
         compression: 'DEFLATE' as const,
@@ -118,6 +119,7 @@ export class QCodeReview {
         const validatedInput = Z_Q_CODE_REVIEW_INPUT_SCHEMA.parse(input)
         const fileArtifacts = validatedInput.fileLevelArtifacts || []
         const folderArtifacts = validatedInput.folderLevelArtifacts || []
+        const ruleArtifacts = validatedInput.ruleArtifacts || []
 
         if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
             this.emitMetric('MissingFilesOrFolders', {})
@@ -139,13 +141,15 @@ export class QCodeReview {
             artifactType,
             programmingLanguage,
             scanName,
+            ruleArtifacts,
         }
     }
 
     private async prepareAndUploadArtifacts(setup: any) {
         const { zipBuffer, md5Hash, isCodeDiffPresent } = await this.prepareFilesAndFoldersForUpload(
             setup.fileArtifacts,
-            setup.folderArtifacts
+            setup.folderArtifacts,
+            setup.ruleArtifacts
         )
 
         const uploadUrlResponse = await this.codeWhispererClient!.createUploadUrl({
@@ -399,7 +403,8 @@ export class QCodeReview {
      */
     private async prepareFilesAndFoldersForUpload(
         fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
-        folderArtifacts: Array<{ path: string }>
+        folderArtifacts: Array<{ path: string }>,
+        ruleArtifacts: string[]
     ): Promise<{ zipBuffer: Buffer; md5Hash: string; isCodeDiffPresent: boolean }> {
         try {
             this.logging.info(
@@ -429,6 +434,11 @@ export class QCodeReview {
                 this.logging.info(`Adding code diff to zip of size: ${codeDiff.length}`)
                 isCodeDiffPresent = true
                 codeArtifactZip.file(QCodeReview.CODE_DIFF_PATH, codeDiff)
+            }
+
+            for (const ruleArtifact of ruleArtifacts) {
+                const ruleText = this.workspace.fs.readFileSync(ruleArtifact)
+                codeArtifactZip.file(`${QCodeReview.RULE_ARTIFACT_PATH}/${path.basename(ruleArtifact)}`, ruleText)
             }
 
             // Generate the final code artifact zip
