@@ -2,9 +2,20 @@ import { Logging, Workspace } from '@aws/language-server-runtimes/server-interfa
 import * as archiver from 'archiver'
 import * as crypto from 'crypto'
 import * as fs from 'fs'
-import { CodeFile, ExternalReference, Project, References, RequirementJson, StartTransformRequest } from './models'
+import {
+    CodeFile,
+    ExternalReference,
+    Project,
+    References,
+    RequirementJson,
+    StartTransformRequest,
+    TransformationPreferences,
+    TransformationSettings,
+} from './models'
 import path = require('path')
+
 const requriementJsonFileName = 'requirement.json'
+const transformationPreferencesFileName = 'transformation-preferences.json'
 const artifactFolderName = 'artifact'
 const referencesFolderName = 'references'
 const zipFileName = 'artifact.zip'
@@ -16,6 +27,7 @@ export class ArtifactManager {
     private workspace: Workspace
     private logging: Logging
     private workspacePath: string
+
     constructor(workspace: Workspace, logging: Logging, workspacePath: string) {
         this.workspace = workspace
         this.logging = logging
@@ -23,12 +35,63 @@ export class ArtifactManager {
     }
 
     async createZip(request: StartTransformRequest): Promise<string> {
+        // Requirements.json contains project metadata
         const requirementJson = await this.createRequirementJsonContent(request)
         await this.writeRequirementJsonAsync(this.getRequirementJsonPath(), JSON.stringify(requirementJson))
+
+        // Transformation preferences contains user intent for the transformation type
+        const transformationPreferences = await this.createTransformationPreferencesContent(request)
+        await this.writeTransformationPreferencesAsync(
+            this.getTransformationPreferencesPath(),
+            JSON.stringify(transformationPreferences)
+        )
+
         await this.copySolutionConfigFiles(request)
         await this.removeDuplicateNugetPackagesFolder(request)
         const zipPath = await this.zipArtifact()
         return zipPath
+    }
+
+    async createTransformationPreferencesContent(request: StartTransformRequest): Promise<TransformationPreferences> {
+        const transformationSettings: TransformationSettings = {}
+
+        // Detect database modernization intent from DatabaseSettings or DmsArn presence
+        const hasDatabaseSettings = request.DatabaseSettings != null
+        const hasDmsArn = request.DmsArn != null
+
+        // Conditional enabling of DatabaseModernization transformation
+        if (hasDatabaseSettings || hasDmsArn) {
+            transformationSettings.DatabaseModernization = {
+                Enabled: true,
+            }
+
+            // Handle DmsArn when present
+            if (hasDmsArn) {
+                transformationSettings.DatabaseModernization.DmsArn = request.DmsArn
+            }
+
+            // Handle full DatabaseSettings scenario
+            if (hasDatabaseSettings) {
+                transformationSettings.DatabaseModernization.DatabaseSettings = request.DatabaseSettings
+            } else if (hasDmsArn) {
+                // Handle DmsArn-only scenario - create minimal tool configuration
+                transformationSettings.DatabaseModernization.DatabaseSettings = {
+                    Tools: [
+                        {
+                            Name: 'DMS',
+                            Properties: { DmsArn: request.DmsArn },
+                        },
+                    ],
+                }
+            }
+        }
+
+        return {
+            Transformations: transformationSettings,
+            Metadata: {
+                GeneratedAt: new Date().toISOString(),
+            },
+        } as TransformationPreferences
     }
 
     async removeDir(dir: string) {
@@ -240,6 +303,12 @@ export class ArtifactManager {
         return dir
     }
 
+    getTransformationPreferencesPath(): string {
+        const dir = path.join(this.workspacePath, artifactFolderName)
+        this.createFolderIfNotExist(dir)
+        return dir
+    }
+
     getWorkspaceReferencePathFromRelativePath(relativePath: string): string {
         return path.join(this.workspacePath, artifactFolderName, relativePath)
     }
@@ -284,6 +353,11 @@ export class ArtifactManager {
 
     async writeRequirementJsonAsync(dir: string, fileContent: string) {
         const fileName = path.join(dir, requriementJsonFileName)
+        fs.writeFileSync(fileName, fileContent)
+    }
+
+    async writeTransformationPreferencesAsync(dir: string, fileContent: string) {
+        const fileName = path.join(dir, transformationPreferencesFileName)
         fs.writeFileSync(fileName, fileContent)
     }
 
