@@ -24,6 +24,8 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     EnableRazorViewTransform: boolean
     EnableWebFormsToBlazorTransform: boolean
     PackageReferences?: PackageReferenceMetadata[]
+    DmsArn?: string
+    DatabaseSettings?: DatabaseSettings
 }
 
 export interface StartTransformResponse {
@@ -104,6 +106,42 @@ export interface RequirementJson {
     TransformNetStandardProjects: boolean
     EnableRazorViewTransform: boolean
     EnableWebFormsToBlazorTransform: boolean
+}
+
+export interface TransformationPreferences {
+    // TODO: Add preferences
+    Transformations: TransformationSettings
+    Metadata: TransformationMetadata
+}
+
+export interface TransformationSettings {
+    DatabaseModernization?: DatabaseModernizationTransformation
+}
+
+export interface DatabaseModernizationTransformation {
+    Enabled: boolean
+    DmsArn?: string
+    // Don't populate for now until we have more control over identifying database metadata from source code
+    DatabaseSettings?: DatabaseSettings
+}
+
+export interface DatabaseSettings {
+    Tools?: Tool[]
+    Source?: DatabaseInfo
+    Target?: DatabaseInfo
+}
+
+export interface Tool {
+    Name?: string
+    Properties?: Object
+}
+
+export interface DatabaseInfo {
+    DatabaseName?: string
+    DatabaseVersion?: string
+}
+export interface TransformationMetadata {
+    GeneratedAt: string
 }
 
 export interface ExternalReference {
