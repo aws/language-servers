@@ -14,7 +14,7 @@ import {
     EnvState,
     Origin,
     ImageBlock,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
     ChatParams,

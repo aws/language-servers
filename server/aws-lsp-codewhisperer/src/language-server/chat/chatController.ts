@@ -60,6 +60,7 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { DEFAULT_IMAGE_VERIFICATION_OPTIONS } from '../../shared/imageVerification'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -604,8 +605,8 @@ export class ChatController implements ChatHandlers {
     async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
         if (params.fileType === 'image') {
             try {
-                const fileTypes = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp']
-                const filters = { 'Image Files': fileTypes.map(ext => `*.${ext}`) }
+                const supportedExtensions = DEFAULT_IMAGE_VERIFICATION_OPTIONS.supportedExtensions
+                const filters = { 'Image Files': supportedExtensions.map(ext => `*.${ext}`) }
 
                 const result = await this.#features.lsp.window.showOpenDialog({
                     canSelectFiles: true,

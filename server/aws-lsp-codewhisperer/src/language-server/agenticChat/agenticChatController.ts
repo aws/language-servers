@@ -13,6 +13,7 @@ import {
     ToolResultStatus,
     ToolUse,
     ToolUseEvent,
+    ImageBlock,
 } from '@amzn/codewhisperer-streaming'
 import {
     SendMessageCommandInput,
@@ -177,9 +178,8 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
-import { ImageBlock } from '@aws/codewhisperer-streaming-client'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
-import { verifyServerImage } from '../../shared/imageVerification'
+import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 
 type ChatHandlers = Omit<
@@ -450,11 +450,13 @@ export class AgenticChatController implements ChatHandlers {
     async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
         if (params.fileType === 'image') {
             // 1. Prompt user for file selection
+            const supportedExtensions = DEFAULT_IMAGE_VERIFICATION_OPTIONS.supportedExtensions
+            const filters = { 'Image Files': supportedExtensions.map(ext => `*.${ext}`) }
             const result = await this.#features.lsp.window.showOpenDialog({
                 canSelectFiles: true,
                 canSelectFolders: false,
                 canSelectMany: false,
-                filters: { 'Image Files': ['*.jpeg', '*.png', '*.gif', '*.webp'] },
+                filters,
             })
 
             if (!result.uris || result.uris.length === 0) {
