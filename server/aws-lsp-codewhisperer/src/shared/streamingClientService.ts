@@ -6,7 +6,7 @@ import {
     SendMessageCommandOutput as SendMessageCommandOutputCodeWhispererStreaming,
     ExportResultArchiveCommandInput as ExportResultArchiveCommandInputCodeWhispererStreaming,
     ExportResultArchiveCommandOutput as ExportResultArchiveCommandOutputCodeWhispererStreaming,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import {
     QDeveloperStreaming,
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
@@ -25,6 +25,7 @@ import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { clientTimeoutMs } from '../language-server/agenticChat/constants'
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 import { TokenIdentityProvider } from '@smithy/types'
+import { NodeHttpHandler } from '@smithy/node-http-handler'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -34,6 +35,8 @@ export type SendMessageCommandOutput =
     | SendMessageCommandOutputQDeveloperStreaming
 
 type StreamingClient = CodeWhispererStreaming | QDeveloperStreaming
+export type ChatCommandInput = SendMessageCommandInput | GenerateAssistantResponseCommandInputCodeWhispererStreaming
+export type ChatCommandOutput = SendMessageCommandOutput | GenerateAssistantResponseCommandOutputCodeWhispererStreaming
 
 export abstract class StreamingClientServiceBase {
     protected readonly region
@@ -90,10 +93,9 @@ export class StreamingClientService extends StreamingClientServiceBase {
                 endpoint,
                 token: tokenProvider,
                 retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
-                requestHandler: {
-                    keepAlive: true,
+                requestHandler: new NodeHttpHandler({
                     requestTimeout: clientTimeoutMs,
-                },
+                }),
                 customUserAgent: customUserAgent,
             }) as CodeWhispererStreaming
         } else if (credentialsProvider.getCredentialsType() === 'iam') {

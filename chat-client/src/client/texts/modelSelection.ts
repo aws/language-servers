@@ -19,7 +19,7 @@ const modelOptions = Object.entries(modelRecord).map(([value, { label }]) => ({
     label,
 }))
 
-export const modelSelection: ChatItemFormItem = {
+const modelSelection: ChatItemFormItem = {
     type: 'select',
     id: 'model-selection',
     options: modelOptions,
@@ -27,6 +27,14 @@ export const modelSelection: ChatItemFormItem = {
     hideMandatoryIcon: true,
     border: false,
     autoWidth: true,
+}
+
+export const modelSelectionForRegion: Record<string, ChatItemFormItem> = {
+    'us-east-1': modelSelection,
+    'eu-central-1': {
+        ...modelSelection,
+        options: modelOptions.filter(option => option.value !== BedrockModel.CLAUDE_SONNET_4_20250514_V1_0),
+    },
 }
 
 export const getModelSelectionChatItem = (modelId: string): ChatItem => ({
@@ -43,6 +51,17 @@ export const modelUnavailableBanner: Partial<ChatItem> = {
         iconStatus: 'warning',
         body: '### Model Unavailable',
     },
-    body: `The model you selected is temporarily unavailable. Please switch to a different model and try again.`,
+    body: `The model you've selected is experiencing high load. Please switch to another model and try again.`,
+    canBeDismissed: true,
+}
+
+export const modelThrottledBanner: Partial<ChatItem> = {
+    messageId: 'model-throttled-banner',
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: '### Model Unavailable',
+    },
+    body: `I am experiencing high traffic, please try again shortly.`,
     canBeDismissed: true,
 }

@@ -6,13 +6,16 @@ import * as Loki from 'lokijs'
 import {
     chatMessageToMessage,
     Conversation,
+    DEFAULT_PINNED_CONTEXT,
     FileSystemAdapter,
     groupTabsByDate,
     Message,
+    Rules,
     Settings,
     SettingsCollection,
     Tab,
     TabCollection,
+    TabContext,
     TabType,
     calculateDatabaseSize,
     updateOrCreateConversation,
@@ -20,8 +23,8 @@ import {
 import * as crypto from 'crypto'
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
-import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
+import { ContextCommand, ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
+import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
@@ -34,6 +37,9 @@ export class ToolResultValidationError extends Error {
 }
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
+// Maximum number of characters to keep in request
+// (200K tokens - 8K output tokens - 2k system prompt) * 3 = 570K characters, intentionally overestimating with 3:1 ratio
+const MaxOverallCharacters = 570_000
 // Maximum number of history messages to include in each request to the LLM
 const maxConversationHistoryMessages = 250
 
@@ -178,6 +184,122 @@ export class ChatDatabase {
         if (this.isInitialized()) {
             const collection = this.#db.getCollection<Tab>(TabCollection)
             return collection.find({ isOpen: true })
+        }
+    }
+
+    addTabWithContext(collection: Collection<Tab>, historyId: string, tabContext: TabContext) {
+        collection.insert({
+            tabType: 'cwc',
+            historyId,
+            title: 'Amazon Q Chat',
+            conversations: [],
+            isOpen: true,
+            updatedAt: new Date(),
+            tabContext,
+        })
+    }
+
+    getRules(tabId: string): Rules {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.#historyIdMapping.get(tabId)
+            if (historyId) {
+                const tab = collection.findOne({ historyId })
+                return tab?.tabContext?.rules || { folders: {}, rules: {} }
+            }
+        }
+        return { folders: {}, rules: {} }
+    }
+
+    getPinnedContext(tabId: string): ContextCommand[] {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            if (historyId) {
+                const tab = collection.findOne({ historyId })
+                return tab?.tabContext?.pinnedContext || DEFAULT_PINNED_CONTEXT
+            }
+        }
+        return []
+    }
+
+    setRules(tabId: string, rules: Rules) {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            const tab = collection.findOne({ historyId })
+
+            this.#features.logging.log(`Updating rules: rules=${JSON.stringify(rules)}`)
+
+            if (!tab) {
+                this.addTabWithContext(collection, historyId, { rules })
+            } else {
+                if (!tab.tabContext) {
+                    tab.tabContext = {}
+                }
+                tab.tabContext.rules = rules
+                collection.update(tab)
+            }
+        }
+    }
+
+    addPinnedContext(tabId: string, context: ContextCommand) {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            if (historyId) {
+                this.#features.logging.log(
+                    `Adding pinned context: historyId=${historyId}, context=${JSON.stringify(context)}`
+                )
+                const tab = collection.findOne({ historyId })
+                if (!tab) {
+                    this.addTabWithContext(collection, historyId, {
+                        pinnedContext: DEFAULT_PINNED_CONTEXT.concat([context]),
+                    })
+                } else {
+                    if (!tab.tabContext) {
+                        tab.tabContext = {}
+                    }
+                    if (!tab.tabContext.pinnedContext) {
+                        tab.tabContext.pinnedContext = DEFAULT_PINNED_CONTEXT
+                    }
+                    // Only add context item if its not already in this tab's pinned context
+                    if (!tab.tabContext.pinnedContext.find(c => c.id === context.id)) {
+                        // Active file pill should always be at the beginning of pinned context
+                        if (DEFAULT_PINNED_CONTEXT.find(item => context.id === item.id)) {
+                            tab.tabContext.pinnedContext.unshift(context)
+                        } else {
+                            tab.tabContext.pinnedContext.push(context)
+                        }
+                    }
+                    collection.update(tab)
+                }
+            }
+        }
+    }
+
+    removePinnedContext(tabId: string, context: ContextCommand) {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            if (historyId) {
+                this.#features.logging.log(
+                    `Removing pinned context: historyId=${historyId}, context=${JSON.stringify(context)}`
+                )
+                const tab = collection.findOne({ historyId })
+                if (!tab) {
+                    this.addTabWithContext(collection, historyId, { pinnedContext: [] })
+                } else {
+                    if (!tab.tabContext) {
+                        tab.tabContext = {}
+                    }
+                    if (!tab.tabContext.pinnedContext) {
+                        tab.tabContext.pinnedContext = []
+                    }
+                    tab.tabContext.pinnedContext = tab.tabContext.pinnedContext.filter(c => c.id !== context.id)
+                    collection.update(tab)
+                }
+            }
         }
     }
 
@@ -336,6 +458,18 @@ export class ChatDatabase {
         }
     }
 
+    getOrCreateHistoryId(tabId: string) {
+        let historyId = this.#historyIdMapping.get(tabId)
+
+        if (!historyId) {
+            historyId = crypto.randomUUID()
+            this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
+            this.setHistoryIdMapping(tabId, historyId)
+        }
+
+        return historyId
+    }
+
     /**
      * Adds a message to a conversation within a specified tab.
      *
@@ -354,13 +488,7 @@ export class ChatDatabase {
                 `Adding message to history: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
             )
 
-            let historyId = this.#historyIdMapping.get(tabId)
-
-            if (!historyId) {
-                historyId = crypto.randomUUID()
-                this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
-                this.setHistoryIdMapping(tabId, historyId)
-            }
+            let historyId = this.getOrCreateHistoryId(tabId)
 
             const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
             const tabTitle =
@@ -404,7 +532,6 @@ export class ChatDatabase {
                 userInputMessageContext: {
                     // keep falcon context when inputMessage is not a toolResult message
                     editorState: hasToolResults ? undefined : message.userInputMessageContext?.editorState,
-                    additionalContext: hasToolResults ? undefined : message.userInputMessageContext?.additionalContext,
                     // Only keep toolResults in history
                     toolResults: message.userInputMessageContext?.toolResults,
                 },
@@ -421,7 +548,7 @@ export class ChatDatabase {
      * 3. The toolUse and toolResult relationship is valid
      * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage, remainingCharacterBudget: number) {
+    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage) {
         if (!this.isInitialized()) {
             return []
         }
@@ -442,7 +569,7 @@ export class ChatDatabase {
 
         // 4. NOTE: Keep this trimming logic at the end of the preprocess.
         // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
-        allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
+        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage)
 
         // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
         if (
@@ -484,11 +611,19 @@ export class ChatDatabase {
         return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
     }
 
-    private trimMessagesToMaxLength(messages: Message[], remainingCharacterBudget: number): Message[] {
-        let totalCharacters = this.calculateHistoryCharacterCount(messages)
+    private trimMessagesToMaxLength(messages: Message[], newUserMessage: ChatMessage): Message[] {
+        let totalCharacters = this.calculateMessagesCharacterCount(messages)
         this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
-        this.#features.logging.debug(`Current remaining character budget: ${remainingCharacterBudget}`)
-        const maxHistoryCharacterSize = Math.max(0, remainingCharacterBudget)
+        const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
+            chatMessageToMessage(newUserMessage),
+        ])
+        const currentInputToolSpecCount = this.calculateToolSpecCharacterCount(newUserMessage)
+        const currentUserInputCount = currentUserInputCharacterCount + currentInputToolSpecCount
+        this.#features.logging.debug(
+            `Current user message characters input: ${currentUserInputCharacterCount} + toolSpec: ${currentInputToolSpecCount}`
+        )
+        const maxHistoryCharacterSize = Math.max(0, MaxOverallCharacters - currentUserInputCount)
+        this.#features.logging.debug(`Current remaining character budget: ${maxHistoryCharacterSize}`)
         while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
             // Find the next valid user message to start from
             const indexToTrim = this.findIndexToTrim(messages)
@@ -503,13 +638,27 @@ export class ChatDatabase {
                 )
                 return []
             }
-            totalCharacters = this.calculateHistoryCharacterCount(messages)
+            totalCharacters = this.calculateMessagesCharacterCount(messages)
             this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
         }
         return messages
     }
 
-    private calculateHistoryCharacterCount(allMessages: Message[]): number {
+    private calculateToolSpecCharacterCount(currentMessage: ChatMessage): number {
+        let count = 0
+        if (currentMessage.userInputMessage?.userInputMessageContext?.tools) {
+            try {
+                for (const tool of currentMessage.userInputMessage?.userInputMessageContext?.tools) {
+                    count += JSON.stringify(tool).length
+                }
+            } catch (e) {
+                this.#features.logging.error(`Error counting tools: ${String(e)}`)
+            }
+        }
+        return count
+    }
+
+    private calculateMessagesCharacterCount(allMessages: Message[]): number {
         let count = 0
         for (const message of allMessages) {
             // Count characters of all message text
@@ -540,14 +689,6 @@ export class ChatDatabase {
                     count += JSON.stringify(message.userInputMessageContext?.editorState).length
                 } catch (e) {
                     this.#features.logging.error(`Error counting editorState: ${String(e)}`)
-                }
-            }
-
-            if (message.userInputMessageContext?.additionalContext) {
-                try {
-                    count += JSON.stringify(message.userInputMessageContext?.additionalContext).length
-                } catch (e) {
-                    this.#features.logging.error(`Error counting additionalContext: ${String(e)}`)
                 }
             }
         }
@@ -718,5 +859,16 @@ export class ChatDatabase {
 
     setModelId(modelId: string | undefined): void {
         this.updateSettings({ modelId: modelId === '' ? undefined : modelId })
+    }
+
+    getPairProgrammingMode(): boolean | undefined {
+        const settings = this.getSettings()
+        return settings?.pairProgrammingMode
+    }
+
+    setPairProgrammingMode(pairProgrammingMode: boolean | undefined): void {
+        // Get existing settings to preserve other fields like modelId
+        const settings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({ ...settings, pairProgrammingMode })
     }
 }

@@ -80,7 +80,7 @@ export const LocalProjectContextServer =
 
         lsp.workspace.onDidCreateFiles(async event => {
             try {
-                const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
+                const filePaths = event.files.map(file => URI.file(file.uri).fsPath)
                 await localProjectContextController.updateIndexAndContextCommand(filePaths, true)
             } catch (error) {
                 logging.error(`Error handling create event: ${error}`)
@@ -89,7 +89,7 @@ export const LocalProjectContextServer =
 
         lsp.workspace.onDidDeleteFiles(async event => {
             try {
-                const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
+                const filePaths = event.files.map(file => URI.file(file.uri).fsPath)
                 await localProjectContextController.updateIndexAndContextCommand(filePaths, false)
             } catch (error) {
                 logging.error(`Error handling delete event: ${error}`)
@@ -98,8 +98,8 @@ export const LocalProjectContextServer =
 
         lsp.workspace.onDidRenameFiles(async event => {
             try {
-                const oldPaths = event.files.map(file => URI.parse(file.oldUri).fsPath)
-                const newPaths = event.files.map(file => URI.parse(file.newUri).fsPath)
+                const oldPaths = event.files.map(file => URI.file(file.oldUri).fsPath)
+                const newPaths = event.files.map(file => URI.file(file.newUri).fsPath)
 
                 await localProjectContextController.updateIndexAndContextCommand(oldPaths, false)
                 await localProjectContextController.updateIndexAndContextCommand(newPaths, true)
@@ -110,7 +110,7 @@ export const LocalProjectContextServer =
 
         lsp.onDidSaveTextDocument(async event => {
             try {
-                const filePaths = [URI.parse(event.textDocument.uri).fsPath]
+                const filePaths = [URI.file(event.textDocument.uri).fsPath]
                 await localProjectContextController.updateIndex(filePaths, 'update')
             } catch (error) {
                 logging.error(`Error handling save event: ${error}`)

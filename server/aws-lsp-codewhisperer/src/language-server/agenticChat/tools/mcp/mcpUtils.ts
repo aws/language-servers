@@ -353,6 +353,30 @@ export function sanitizeName(orig: string): string {
     return sanitized
 }
 
+/**
+ * Safely converts a path that might be in URI format to a filesystem path
+ * @param path The path that might be in URI format
+ * @param logging Optional logger for error reporting
+ * @returns The normalized filesystem path
+ */
+export function normalizePathFromUri(path: string, logging?: Logger): string {
+    if (!path) {
+        return path
+    }
+
+    try {
+        if (path.startsWith('file:')) {
+            return URI.parse(path).fsPath
+        }
+        return path
+    } catch (e) {
+        if (logging) {
+            logging.warn(`Failed to parse URI path: ${path}. Error: ${e}`)
+        }
+        return path // Return original path if parsing fails
+    }
+}
+
 export const MAX_TOOL_NAME_LENGTH = 64
 
 /**
@@ -379,9 +403,19 @@ export function createNamespacedToolName(
         }
     }
 
+    // Sanitize the tool name
+    const sanitizedToolName = sanitizeName(toolName)
+
+    // First try to use just the tool name if it's not already in use
+    if (!allNamespacedTools.has(sanitizedToolName)) {
+        allNamespacedTools.add(sanitizedToolName)
+        toolNameMapping.set(sanitizedToolName, { serverName, toolName })
+        return sanitizedToolName
+    }
+
+    // If tool name is already in use, then use the namespaced version with server name
     const sep = '___'
-    // If tool name alone isn't unique or is too long, try adding server prefix
-    const fullName = `${serverName}${sep}${toolName}`
+    const fullName = `${serverName}${sep}${sanitizedToolName}`
 
     // If the full name fits and is unique, use it
     if (fullName.length <= MAX_TOOL_NAME_LENGTH && !allNamespacedTools.has(fullName)) {
@@ -392,10 +426,10 @@ export function createNamespacedToolName(
 
     // If the full name is too long, truncate the server name
     if (fullName.length > MAX_TOOL_NAME_LENGTH) {
-        const maxServerLength = MAX_TOOL_NAME_LENGTH - sep.length - toolName.length
+        const maxServerLength = MAX_TOOL_NAME_LENGTH - sep.length - sanitizedToolName.length
         if (maxServerLength > 0) {
             const truncatedServer = serverName.substring(0, maxServerLength)
-            const namespacedName = `${truncatedServer}${sep}${toolName}`
+            const namespacedName = `${truncatedServer}${sep}${sanitizedToolName}`
 
             if (!allNamespacedTools.has(namespacedName)) {
                 allNamespacedTools.add(namespacedName)
@@ -411,23 +445,17 @@ export function createNamespacedToolName(
     // 3. Server truncation resulted in a duplicate
     // In all cases, fall back to numeric suffix on the tool name
 
-    // Check if the tool name is already in use with a server prefix
-    // If so, we need to use a numeric suffix instead of server prefix
-    const isToolNameWithServerPrefixInUse = Array.from(allNamespacedTools).some(
-        name => name.includes('___') && name.split('___')[1] === toolName
-    )
-
     let duplicateNum = 1
     while (true) {
         const suffix = duplicateNum.toString()
         const maxToolLength = MAX_TOOL_NAME_LENGTH - suffix.length
 
         let candidateName: string
-        if (toolName.length <= maxToolLength) {
-            candidateName = `${toolName}${suffix}`
+        if (sanitizedToolName.length <= maxToolLength) {
+            candidateName = `${sanitizedToolName}${suffix}`
         } else {
             // Truncate tool name to make room for suffix
-            const truncatedTool = toolName.substring(0, maxToolLength)
+            const truncatedTool = sanitizedToolName.substring(0, maxToolLength)
             candidateName = `${truncatedTool}${suffix}`
         }
 

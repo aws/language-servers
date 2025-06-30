@@ -43,7 +43,7 @@ describe('TabBarController', () => {
             emitLoadHistory: sinon.stub(),
         } as any
 
-        tabBarController = new TabBarController(testFeatures, chatHistoryDb, telemetryService)
+        tabBarController = new TabBarController(testFeatures, chatHistoryDb, telemetryService, sinon.stub())
         clock = sinon.useFakeTimers()
     })
 
@@ -558,22 +558,6 @@ describe('TabBarController', () => {
                 languageServerVersion: testFeatures.runtime.serverInfo.version,
                 result: 'Succeeded',
             })
-        })
-
-        it('should not restore tabs with empty conversations', async () => {
-            const mockTabs = [
-                { historyId: 'history1', conversations: [] },
-                { historyId: 'history2', conversations: [{ messages: [] }] },
-            ] as unknown as Tab[]
-
-            ;(chatHistoryDb.getOpenTabs as sinon.SinonStub).returns(mockTabs)
-
-            const restoreTabStub = sinon.stub(tabBarController, 'restoreTab')
-
-            await tabBarController.loadChats()
-
-            sinon.assert.calledOnce(restoreTabStub)
-            sinon.assert.calledWith(restoreTabStub, mockTabs[1])
         })
     })
 })

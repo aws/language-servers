@@ -1,5 +1,171 @@
 # Changelog
 
+## [0.0.59](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.58...lsp-codewhisperer/v0.0.59) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+* enable iam auth for agentic chat ([#1736](https://github.com/aws/language-servers/issues/1736)) ([16b287b](https://github.com/aws/language-servers/commit/16b287b9edb3cb3a99b2b3f74c61df216641c5a6))
+* Implement dynamic model selection based on extension capabilities and improve error handling ([#1737](https://github.com/aws/language-servers/issues/1737)) ([97db5d8](https://github.com/aws/language-servers/commit/97db5d8dd0a2c8214d37429375ec57aa68a462ee))
+* make origin a configurable parameter and pass it to downstream calls ([#1773](https://github.com/aws/language-servers/issues/1773)) ([a1c33d1](https://github.com/aws/language-servers/commit/a1c33d1d7e2bbea693a6d8a9885491c1815f7f62))
+
+
+### Bug Fixes
+
+* add missing tools from the list ([#1756](https://github.com/aws/language-servers/issues/1756)) ([4b965d2](https://github.com/aws/language-servers/commit/4b965d279716bb17be3c9402610835d33887adf6))
+* Add persistent pair programming mode setting with database storage and UI synchronization([#1757](https://github.com/aws/language-servers/issues/1757)) ([ba683cc](https://github.com/aws/language-servers/commit/ba683cc6dc120863350025a4a082ecf3a95b5905))
+* add workspace folder to the relativePath ([#1764](https://github.com/aws/language-servers/issues/1764)) ([48a7769](https://github.com/aws/language-servers/commit/48a77697b26590e599a13e731f2cc5c62a893eae))
+* adding files on windows properly triggers reindexing ([#1743](https://github.com/aws/language-servers/issues/1743)) ([a9d4c39](https://github.com/aws/language-servers/commit/a9d4c39afac6112294c9f486a834153a89656966))
+* adding files on windows properly triggers reindexing ([#1755](https://github.com/aws/language-servers/issues/1755)) ([d0abaad](https://github.com/aws/language-servers/commit/d0abaade0e302b7d932254a95f47fa50906963d8))
+* adjust overall limit per request to 570K characters ([#1771](https://github.com/aws/language-servers/issues/1771)) ([07cf383](https://github.com/aws/language-servers/commit/07cf38325847b586190aed6864ffb86782af743a))
+* **amazonq:** add jitter for websocket client re-connections ([#1752](https://github.com/aws/language-servers/issues/1752)) ([0542858](https://github.com/aws/language-servers/commit/0542858891ec982bd22369ed42318ff93537f600))
+* **amazonq:** fix the order of publishing the chat stop ack message ([#1761](https://github.com/aws/language-servers/issues/1761)) ([20c2263](https://github.com/aws/language-servers/commit/20c22638a34d557fc755e33aed798abc1ce3a6d9))
+* **amazonq:** fix to include explanation field in mcp tools schema but remove it for tool execution ([#1759](https://github.com/aws/language-servers/issues/1759)) ([b66c772](https://github.com/aws/language-servers/commit/b66c77218d3cc5476cec32922dc22fccd9ca1861))
+* **amazonq:** init mcp servers in batch of 5 ([#1758](https://github.com/aws/language-servers/issues/1758)) ([43018a6](https://github.com/aws/language-servers/commit/43018a6bb9d782a5e46d2d60f5a07fffd73cc613))
+* **amazonq:** init mcp servers in parallel ([#1754](https://github.com/aws/language-servers/issues/1754)) ([92527c6](https://github.com/aws/language-servers/commit/92527c6b0cee41634c3bce74173f1c2ced08a985))
+* **amazonq:** nep auto trigger should use file uri but filename is used ([#1753](https://github.com/aws/language-servers/issues/1753)) ([d010c66](https://github.com/aws/language-servers/commit/d010c6610e457fab1a5982e1c677f699150fefe0))
+* **amazonq:** remove the unnecessary new line after the chat shell command output ([#1750](https://github.com/aws/language-servers/issues/1750)) ([c9f8989](https://github.com/aws/language-servers/commit/c9f8989c7e66e2f594e8c56ad55ce586fb9f6b34))
+* **amazonq:** return empty if nep auto trigger is not triggered ([#1766](https://github.com/aws/language-servers/issues/1766)) ([e5c1708](https://github.com/aws/language-servers/commit/e5c17085d43747e8fc852f47182a458ca6e81abb))
+* **amazonq:** save one unnecessary listWorkspaceMetadata call ([#1742](https://github.com/aws/language-servers/issues/1742)) ([a9eb908](https://github.com/aws/language-servers/commit/a9eb908b183a85257958c511e47faf2bc29410df))
+* emit latency as an int for creating visualizations ([#1763](https://github.com/aws/language-servers/issues/1763)) ([34bf564](https://github.com/aws/language-servers/commit/34bf5644444bf66dc5d6b87fc70bd3561d48728a))
+* include toolSpec count for history trimming ([#1778](https://github.com/aws/language-servers/issues/1778)) ([8a5322a](https://github.com/aws/language-servers/commit/8a5322a1f2e2452d5535d5cfcacd6c2bfd595b0e))
+* move ignore walk from app/package.json to server/package.json ([#1748](https://github.com/aws/language-servers/issues/1748)) ([6f88dad](https://github.com/aws/language-servers/commit/6f88dad8423aeccc7668e644d33323037fc7a90c))
+* remove hardcoding of builtIn and builtInWrite tools ([#1774](https://github.com/aws/language-servers/issues/1774)) ([fc8cc10](https://github.com/aws/language-servers/commit/fc8cc106617249c81a5c48601418b5f31451865c))
+* update fsReplace toolSpec to emphasize JSON array syntax ([#1751](https://github.com/aws/language-servers/issues/1751)) ([31f6994](https://github.com/aws/language-servers/commit/31f6994c25d2a24709fd7119463d1be269cd68b1))
+
+
+### Reverts
+
+* fix adding files on windows properly triggers reindexing ([#1743](https://github.com/aws/language-servers/issues/1743)) ([08d15e6](https://github.com/aws/language-servers/commit/08d15e67e1ff690dab8bf2dca5c0cf977afc0ba9))
+* use cw streaming client from npm ([#1552](https://github.com/aws/language-servers/issues/1552)) ([788d8ed](https://github.com/aws/language-servers/commit/788d8ed58f828b16ddce9029b8d640ed1fe885bc))
+
+## [0.0.58](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.57...lsp-codewhisperer/v0.0.58) (2025-06-23)
+
+
+### Features
+
+* surface file operation errors in tooltip ([#1713](https://github.com/aws/language-servers/issues/1713)) ([8d80e06](https://github.com/aws/language-servers/commit/8d80e06a18e89c1ae33430676ba461b2d7acd314))
+
+
+### Bug Fixes
+
+* **amazonq:** Handle throttling errors gracefully and give correct error message([#1733](https://github.com/aws/language-servers/issues/1733)) ([232e7ea](https://github.com/aws/language-servers/commit/232e7eac9556af3ab5e8cc86185b0c90b144cdd7))
+* fsReplace still available when agentic mode off ([#1731](https://github.com/aws/language-servers/issues/1731)) ([7904ea1](https://github.com/aws/language-servers/commit/7904ea18849bb5b9aa6c0e1eb4c6491f3d1598f4))
+* ide mapping for VS/Eclipse for send telemetry API ([#1724](https://github.com/aws/language-servers/issues/1724)) ([84373c5](https://github.com/aws/language-servers/commit/84373c537087492445dbf1d3c9d7b86254603ceb))
+* separate executeBash toolspec for mac and windows ([#1727](https://github.com/aws/language-servers/issues/1727)) ([33e0e4b](https://github.com/aws/language-servers/commit/33e0e4b2347e858ccb0c82c333aeaa8938b24c22))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.9 to ^0.0.10
+
+## [0.0.57](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.56...lsp-codewhisperer/v0.0.57) (2025-06-20)
+
+
+### Features
+
+* **amazonq:** bundle dependency events from workspace context server ([#1712](https://github.com/aws/language-servers/issues/1712)) ([587da41](https://github.com/aws/language-servers/commit/587da4152ed1273117fc549f49d0b81eef7d98a9))
+
+
+### Bug Fixes
+
+* **amazonq:** removed explanation field for mcp servers ([#1717](https://github.com/aws/language-servers/issues/1717)) ([cfc6831](https://github.com/aws/language-servers/commit/cfc683111307dc25c619177e0267860c096fcfe1))
+* make file collection for indexing non blocking ([#1701](https://github.com/aws/language-servers/issues/1701)) ([036efde](https://github.com/aws/language-servers/commit/036efdead9c68c4ee6e6590ee2e877ace4cabce6))
+* undefined path causing the loop to break ([#1718](https://github.com/aws/language-servers/issues/1718)) ([8e48b86](https://github.com/aws/language-servers/commit/8e48b866221c70c79156b714f036413816748b6c))
+
+## [0.0.56](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.55...lsp-codewhisperer/v0.0.56) (2025-06-19)
+
+
+### Bug Fixes
+
+* **amazonq:** add ignore pattern for file events from workspace context server ([#1703](https://github.com/aws/language-servers/issues/1703)) ([7a0dd88](https://github.com/aws/language-servers/commit/7a0dd88a2f5251af8018084c55406cd8b9eaf51a))
+
+## [0.0.55](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.54...lsp-codewhisperer/v0.0.55) (2025-06-19)
+
+
+### Bug Fixes
+
+* **amazonq:** serialize S3 uploads for file events from workspace context server ([#1700](https://github.com/aws/language-servers/issues/1700)) ([1884c57](https://github.com/aws/language-servers/commit/1884c5793d46227d871e8cf25c940f7a87795f04))
+
+## [0.0.54](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.53...lsp-codewhisperer/v0.0.54) (2025-06-19)
+
+
+### Features
+
+* adding current working directory to the stdio transport for mcp… ([#1691](https://github.com/aws/language-servers/issues/1691)) ([02c4d64](https://github.com/aws/language-servers/commit/02c4d645a8c2778deab7af9f5377c26e99d01f20))
+
+
+### Bug Fixes
+
+* add fsReplace tool to batch edits ([#1533](https://github.com/aws/language-servers/issues/1533)) ([4125134](https://github.com/aws/language-servers/commit/4125134f6e7eee8276d6146a507834b3309c2ec5))
+* **amazonq:** itemid was accidentally removed by [#1689](https://github.com/aws/language-servers/issues/1689) ([#1698](https://github.com/aws/language-servers/issues/1698)) ([33524c0](https://github.com/aws/language-servers/commit/33524c092af8088705a3cbae09c6249ad5940ce6))
+* **amazonq:** profile is not set after re-auth ([#1690](https://github.com/aws/language-servers/issues/1690)) ([2a445ee](https://github.com/aws/language-servers/commit/2a445eef4cc2a70471fd1fc49e6ca4e301051442))
+* diff reports no lines added or removed ([#1549](https://github.com/aws/language-servers/issues/1549)) ([562f13e](https://github.com/aws/language-servers/commit/562f13e0223a8a01fefc9ca449aad02da9734709))
+* thinking doesn't get removed if response is empty ([#1699](https://github.com/aws/language-servers/issues/1699)) ([9a63c99](https://github.com/aws/language-servers/commit/9a63c99b3195c9da0f537980324998138f25a3fa))
+
+
+### Reverts
+
+* **amazonq:** bring back [#1684](https://github.com/aws/language-servers/issues/1684) ([#1697](https://github.com/aws/language-servers/issues/1697)) ([5e7aa76](https://github.com/aws/language-servers/commit/5e7aa76b6ebcf8e0a7489d3574cc14ed3d0ceebe))
+* **amazonq:** bring back [#1689](https://github.com/aws/language-servers/issues/1689) ([5b84b0e](https://github.com/aws/language-servers/commit/5b84b0e4c42c344d91ef9c99a04d3a2671221aa1))
+
+## [0.0.53](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.52...lsp-codewhisperer/v0.0.53) (2025-06-18)
+
+
+### Reverts
+
+* **amazonq:** fix filter languages at workspace context server onDeleteFiles ([403c26a](https://github.com/aws/language-servers/commit/403c26a91f25d0035d92bfd21835b747a0dbafce))
+* **amazonq:** nep cherrypick codewhispererService.ts ([#1689](https://github.com/aws/language-servers/issues/1689))" ([#1692](https://github.com/aws/language-servers/issues/1692)) ([69f1071](https://github.com/aws/language-servers/commit/69f10717c2eff8d4479ffa8a18220e15c03f865d))
+
+## [0.0.52](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.51...lsp-codewhisperer/v0.0.52) (2025-06-17)
+
+
+### Bug Fixes
+
+* **amazonq:** filter languages at workspace context server onDeleteFiles ([#1684](https://github.com/aws/language-servers/issues/1684)) ([4272eec](https://github.com/aws/language-servers/commit/4272eec6ce4554560fdf8888d85d31315db2d964))
+* send AmazonQ.md as a rule, do not automatically send README.md ([#1688](https://github.com/aws/language-servers/issues/1688)) ([c7a0656](https://github.com/aws/language-servers/commit/c7a0656ae3624082062f697b1564e589e943e4a8))
+* update MCP tools implementation ([#1676](https://github.com/aws/language-servers/issues/1676)) ([51b7870](https://github.com/aws/language-servers/commit/51b7870d7144d593249a3da001b7f1047aa3b642))
+
+## [0.0.51](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.50...lsp-codewhisperer/v0.0.51) (2025-06-17)
+
+
+### Features
+
+* add packageId property to references in req.json ([#1570](https://github.com/aws/language-servers/issues/1570)) ([3b14b17](https://github.com/aws/language-servers/commit/3b14b173369936fe9bcee130a15f2ae1d39c9cb9))
+* support per region model selection ([#1683](https://github.com/aws/language-servers/issues/1683)) ([0b81b37](https://github.com/aws/language-servers/commit/0b81b37c15a8c407ec04904abb4bdccf829aa1c1))
+
+
+### Bug Fixes
+
+* add latency metrics for invokeLLM metric ([#1681](https://github.com/aws/language-servers/issues/1681)) ([0cac52c](https://github.com/aws/language-servers/commit/0cac52c3d037da8fc4403f030738256b07195e76))
+* adding normalizePathFromUri to mcpUtils to handle uri paths ([#1653](https://github.com/aws/language-servers/issues/1653)) ([20532bf](https://github.com/aws/language-servers/commit/20532bf276967c33c43a677e1c1621451c58b9a9))
+* **amazonq:** prevent workspace context server initialization workflow from overlapping ([#1668](https://github.com/aws/language-servers/issues/1668)) ([1625abd](https://github.com/aws/language-servers/commit/1625abd2a9fa969859236cfe1b57fa1cdd2dcc33))
+* clear IDE context for auto-retry requests not initiated by the user ([#1680](https://github.com/aws/language-servers/issues/1680)) ([13c9455](https://github.com/aws/language-servers/commit/13c94558706d0181c1a2d64b439be90a601e8f74))
+* timeout only works for the first time in the loop ([#1675](https://github.com/aws/language-servers/issues/1675)) ([ab50985](https://github.com/aws/language-servers/commit/ab50985eb0dac1888769f7fb703aa8d6f50c1b89))
+* use NodeHttpHandler when configuring requestHandler ([#1670](https://github.com/aws/language-servers/issues/1670)) ([7b620a8](https://github.com/aws/language-servers/commit/7b620a82b7acb4fbdbb5b88661be661dd575d152))
+* when user add a new server, it would load global persona at first time ([#1667](https://github.com/aws/language-servers/issues/1667)) ([a3cf388](https://github.com/aws/language-servers/commit/a3cf3880d178ae74f2136abb798f6a8f08fe76e2))
+
+## [0.0.50](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.49...lsp-codewhisperer/v0.0.50) (2025-06-16)
+
+
+### Features
+
+* add EnableWebFormsToBlazorTransform flag to support WebForms to Blazor transformation ([#1577](https://github.com/aws/language-servers/issues/1577)) ([8c6e9f6](https://github.com/aws/language-servers/commit/8c6e9f6e0a6fd1a7464b26572c1b613b3864b27a))
+* **amazonq:** edit predition auto trigger ([#1662](https://github.com/aws/language-servers/issues/1662)) ([cbcd82b](https://github.com/aws/language-servers/commit/cbcd82bf6632859539e46d1fbe12ec75ab505fb4))
+* **amazonq:** model throttling message as card instead of chat message ([#1657](https://github.com/aws/language-servers/issues/1657)) ([7ee1f2a](https://github.com/aws/language-servers/commit/7ee1f2ac0bdaa9f73fb63fc6d20d0de6d7b07523))
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+* update list of models and set default to 4 ([#1659](https://github.com/aws/language-servers/issues/1659)) ([1991658](https://github.com/aws/language-servers/commit/19916584d3f46049d30f0c23b41c3857a07bc622))
+
+
+### Bug Fixes
+
+* **agenticChat:** UX fixes for MCP ([#1661](https://github.com/aws/language-servers/issues/1661)) ([bbdb4b4](https://github.com/aws/language-servers/commit/bbdb4b451352af50a914df684d7654686142a13b))
+* **amazonq:** properly deposit workspace context server resources on exit ([#1647](https://github.com/aws/language-servers/issues/1647)) ([34efb2b](https://github.com/aws/language-servers/commit/34efb2b0e4ded031b33ed1ed7b96cf41fbe8e03b))
+* increase timeout value for the streaming client ([#1654](https://github.com/aws/language-servers/issues/1654)) ([439a488](https://github.com/aws/language-servers/commit/439a488fc95683ab0da2df18a5044d66b689f4ed))
+
 ## [0.0.49](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.48...lsp-codewhisperer/v0.0.49) (2025-06-13)
 
 

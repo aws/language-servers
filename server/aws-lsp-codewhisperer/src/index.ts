@@ -1,7 +1,7 @@
 export * from './language-server/securityScan/codeWhispererSecurityScanServer'
 export * from './language-server/inline-completion/codeWhispererServer'
 export * from './language-server/chat/qChatServer'
-export * as QAgenticChatServer from './language-server/agenticChat/qAgenticChatServer'
+export * from './language-server/agenticChat/qAgenticChatServer'
 export * from './shared/proxy-server'
 export * from './language-server/netTransform/netTransformServer'
 export { AmazonQServiceServer } from './shared/amazonQServer'

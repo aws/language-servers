@@ -1,4 +1,4 @@
-import { ChatTriggerType } from '@aws/codewhisperer-streaming-client'
+import { ChatTriggerType } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -76,6 +76,13 @@ type ChatHandlers = Omit<
     | 'chatOptionsUpdate'
     | 'onListMcpServers'
     | 'onMcpServerClick'
+    | 'onRuleClick'
+    | 'onListRules'
+    | 'sendPinnedContext'
+    | 'onActiveEditorChanged'
+    | 'onPinnedContextAdd'
+    | 'onPinnedContextRemove'
+    | 'onOpenFileDialog'
 >
 
 export class ChatController implements ChatHandlers {

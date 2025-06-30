@@ -62,10 +62,13 @@ import {
     InfoLinkClickParams,
     LINK_CLICK_NOTIFICATION_METHOD,
     LIST_CONVERSATIONS_REQUEST_METHOD,
+    LIST_RULES_REQUEST_METHOD,
     LIST_MCP_SERVERS_REQUEST_METHOD,
     LinkClickParams,
     ListConversationsParams,
     ListConversationsResult,
+    ListRulesParams,
+    ListRulesResult,
     ListMcpServersParams,
     ListMcpServersResult,
     MCP_SERVER_CLICK_REQUEST_METHOD,
@@ -74,11 +77,18 @@ import {
     OPEN_TAB_REQUEST_METHOD,
     OpenTabParams,
     OpenTabResult,
+    PINNED_CONTEXT_ADD_NOTIFICATION_METHOD,
+    PINNED_CONTEXT_NOTIFICATION_METHOD,
+    PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD,
     PROMPT_INPUT_OPTION_CHANGE_METHOD,
+    PinnedContextParams,
     PromptInputOptionChangeParams,
     QUICK_ACTION_REQUEST_METHOD,
     QuickActionParams,
     READY_NOTIFICATION_METHOD,
+    RULE_CLICK_REQUEST_METHOD,
+    RuleClickParams,
+    RuleClickResult,
     SOURCE_LINK_CLICK_NOTIFICATION_METHOD,
     SourceLinkClickParams,
     TAB_ADD_NOTIFICATION_METHOD,
@@ -97,6 +107,7 @@ import { InboundChatApi, createMynahUi } from './mynahUi'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { toMynahContextCommand, toMynahIcon } from './utils'
+import { modelSelectionForRegion } from './texts/modelSelection'
 
 const getDefaultTabConfig = (agenticMode?: boolean) => {
     return {
@@ -193,8 +204,17 @@ export const createChat = (
             case CONTEXT_COMMAND_NOTIFICATION_METHOD:
                 mynahApi.sendContextCommands(message.params as ContextCommandParams)
                 break
+            case PINNED_CONTEXT_NOTIFICATION_METHOD:
+                mynahApi.sendPinnedContext(message.params as PinnedContextParams)
+                break
             case LIST_CONVERSATIONS_REQUEST_METHOD:
                 mynahApi.listConversations(message.params as ListConversationsResult)
+                break
+            case LIST_RULES_REQUEST_METHOD:
+                mynahApi.listRules(message.params as ListRulesResult)
+                break
+            case RULE_CLICK_REQUEST_METHOD:
+                mynahApi.ruleClicked(message.params as RuleClickResult)
                 break
             case CONVERSATION_CLICK_REQUEST_METHOD:
                 mynahApi.conversationClicked(message.params as ConversationClickResult)
@@ -209,14 +229,36 @@ export const createChat = (
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
             case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
-                if (message.params.modelId !== undefined) {
+                if (message.params.modelId !== undefined || message.params.pairProgrammingMode !== undefined) {
                     const tabId = message.params.tabId
                     const options = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
                     mynahUi.updateStore(tabId, {
-                        promptInputOptions: options?.map(option =>
-                            option.id === 'model-selection' ? { ...option, value: message.params.modelId } : option
-                        ),
+                        promptInputOptions: options?.map(option => {
+                            if (option.id === 'model-selection' && message.params.modelId !== undefined) {
+                                return { ...option, value: message.params.modelId }
+                            }
+                            if (
+                                option.id === 'pair-programmer-mode' &&
+                                message.params.pairProgrammingMode !== undefined
+                            ) {
+                                return { ...option, value: message.params.pairProgrammingMode ? 'true' : 'false' }
+                            }
+                            return option
+                        }),
                     })
+                } else if (message.params.region) {
+                    // get all tabs and update region
+                    const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
+                    for (const tabId in allExistingTabs) {
+                        const options = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+                        mynahUi.updateStore(tabId, {
+                            promptInputOptions: options?.map(option =>
+                                option.id === 'model-selection'
+                                    ? modelSelectionForRegion[message.params.region]
+                                    : option
+                            ),
+                        })
+                    }
                 } else {
                     tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
                 }
@@ -431,6 +473,18 @@ export const createChat = (
         },
         onOpenSettings: (settingKey: string) => {
             sendMessageToClient({ command: OPEN_SETTINGS, params: { settingKey } })
+        },
+        onRuleClick: (params: RuleClickParams) => {
+            sendMessageToClient({ command: RULE_CLICK_REQUEST_METHOD, params })
+        },
+        listRules: (params: ListRulesParams) => {
+            sendMessageToClient({ command: LIST_RULES_REQUEST_METHOD, params })
+        },
+        onAddPinnedContext: (params: PinnedContextParams) => {
+            sendMessageToClient({ command: PINNED_CONTEXT_ADD_NOTIFICATION_METHOD, params })
+        },
+        onRemovePinnedContext: (params: PinnedContextParams) => {
+            sendMessageToClient({ command: PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD, params })
         },
     }
 

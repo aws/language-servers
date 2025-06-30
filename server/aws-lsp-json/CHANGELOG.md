@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.14](https://github.com/aws/language-servers/compare/lsp-json/v0.1.13...lsp-json/v0.1.14) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+
+## [0.1.13](https://github.com/aws/language-servers/compare/lsp-json/v0.1.12...lsp-json/v0.1.13) (2025-06-23)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.9 to ^0.0.10
+
+## [0.1.12](https://github.com/aws/language-servers/compare/lsp-json/v0.1.11...lsp-json/v0.1.12) (2025-06-16)
+
+
+### Features
+
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+
 ## [0.1.11](https://github.com/aws/language-servers/compare/lsp-json/v0.1.10...lsp-json/v0.1.11) (2025-06-10)
 
 

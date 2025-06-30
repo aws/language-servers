@@ -12,7 +12,12 @@ import {
     ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
+import {
+    QDeveloperStreaming,
+    SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
+    SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
+} from '@amzn/amazon-q-developer-streaming-client'
 import {
     ChatResult,
     LSPErrorCodes,
@@ -26,6 +31,7 @@ import {
     TextDocumentEdit,
     InlineChatResult,
     CancellationTokenSource,
+    ContextCommand,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -59,6 +65,7 @@ import {
 import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
+import * as sharedUtils from '../../shared/utils'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -233,10 +240,18 @@ describe('AgenticChatController', () => {
             ),
             addTool: sinon.stub().resolves(),
             removeTool: sinon.stub().resolves(),
-        }
+            getBuiltInToolNames: sinon.stub().returns(['fsRead']),
+            getBuiltInWriteToolNames: sinon.stub().returns(['fsWrite']),
+        } as any // Using 'as any' to prevent type errors when the Agent interface is updated with new methods
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
-        additionalContextProviderStub.resolves([])
+        additionalContextProviderStub.callsFake(async (triggerContext, _, context: ContextCommand[]) => {
+            // When @workspace is in the context, set hasWorkspace flag
+            if (context && context.some(item => item.command === '@workspace')) {
+                triggerContext.hasWorkspace = true
+            }
+            return []
+        })
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
             initializationOptions: {
@@ -348,7 +363,6 @@ describe('AgenticChatController', () => {
     it('onTabAdd updates model ID in chat options and session', () => {
         const modelId = 'test-model-id'
         sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
-
         chatController.onTabAdd({ tabId: mockTabId })
 
         sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
@@ -2582,6 +2596,137 @@ ${' '.repeat(8)}}
             sinon.assert.called(setModelIdStub)
 
             setModelIdStub.restore()
+        })
+    })
+
+    describe('IAM Authentication', () => {
+        let iamServiceManager: AmazonQServiceManager
+        let iamChatController: AgenticChatController
+        let iamChatSessionManagementService: ChatSessionManagementService
+
+        beforeEach(() => {
+            sendMessageStub = sinon.stub(QDeveloperStreaming.prototype, 'sendMessage').callsFake(() => {
+                return new Promise(resolve =>
+                    setTimeout(() => {
+                        resolve({
+                            $metadata: {
+                                requestId: mockMessageId,
+                            },
+                            sendMessageResponse: createIterableResponse(mockChatResponseList),
+                        })
+                    })
+                )
+            })
+            // Reset the singleton instance
+            ChatSessionManagementService.reset()
+
+            // Create IAM service manager
+            AmazonQServiceManager.resetInstance()
+            iamServiceManager = AmazonQServiceManager.initInstance(testFeatures)
+
+            // Create chat session management service with IAM service manager
+            iamChatSessionManagementService = ChatSessionManagementService.getInstance()
+            iamChatSessionManagementService.withAmazonQServiceManager(iamServiceManager)
+            // Create controller with IAM service manager
+            iamChatController = new AgenticChatController(
+                iamChatSessionManagementService,
+                testFeatures,
+                telemetryService,
+                iamServiceManager
+            )
+        })
+
+        afterEach(() => {
+            iamChatController.dispose()
+            ChatSessionManagementService.reset()
+            AmazonQServiceManager.resetInstance()
+        })
+
+        it('creates a session with IAM service manager', () => {
+            iamChatController.onTabAdd({ tabId: mockTabId })
+
+            const sessionResult = iamChatSessionManagementService.getSession(mockTabId)
+            sinon.assert.match(sessionResult, {
+                success: true,
+                data: sinon.match.instanceOf(ChatSessionService),
+            })
+        })
+
+        it('uses sendMessage instead of generateAssistantResponse with IAM service manager', async () => {
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
+
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
+            generateAssistantResponseStub.resetHistory()
+
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            // Verify sendMessage was called and generateAssistantResponse was not
+            sinon.assert.called(sendMessageStub)
+            sinon.assert.notCalled(generateAssistantResponseStub)
+        })
+
+        it('sets source to Origin.IDE when using IAM service manager', async () => {
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
+
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
+
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+
+            // Verify sendMessage was called with source set to IDE
+            sinon.assert.called(sendMessageStub)
+            const request = sendMessageStub.firstCall.args[0]
+            assert.strictEqual(request.source, 'IDE')
+        })
+
+        it('sets source to origin from client info when using IAM service manager', async () => {
+            // Stub getOriginFromClientInfo to return a specific value
+            const getOriginFromClientInfoStub = sinon
+                .stub(sharedUtils, 'getOriginFromClientInfo')
+                .returns('MD_IDE' as any)
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
+
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
+
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+            // Verify getOriginFromClientInfo was called
+            sinon.assert.calledOnce(getOriginFromClientInfoStub)
+            // Verify sendMessage was called with source set to IDE
+            sinon.assert.called(sendMessageStub)
+            const request = sendMessageStub.firstCall.args[0]
+            assert.strictEqual(request.source, 'MD_IDE')
+            // Restore the stub
+            getOriginFromClientInfoStub.restore()
+        })
+
+        it('does not call onManageSubscription with IAM service manager', async () => {
+            // Create a spy on onManageSubscription
+            const onManageSubscriptionSpy = sinon.spy(iamChatController, 'onManageSubscription')
+
+            // Call onManageSubscription directly
+            await iamChatController.onManageSubscription('tabId')
+
+            // Verify the method returns early without doing anything
+            sinon.assert.calledOnce(onManageSubscriptionSpy)
+            const returnValue = await onManageSubscriptionSpy.returnValues[0]
+            assert.strictEqual(returnValue, undefined)
         })
     })
 })

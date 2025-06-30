@@ -59,6 +59,9 @@ export const withAdapter = (
         onPromptInputOptionChange: addDefaultRouting('onPromptInputOptionChange'),
         onPromptInputButtonClick: addDefaultRouting('onPromptInputButtonClick'),
         onMessageDismiss: addDefaultRouting('onMessageDismiss'),
+        onPromptTopBarItemAdded: addDefaultRouting('onPromptTopBarItemAdded'),
+        onPromptTopBarItemRemoved: addDefaultRouting('onPromptTopBarItemRemoved'),
+        onPromptTopBarButtonClick: addDefaultRouting('onPromptTopBarButtonClick'),
 
         /**
          * Handler with special routing logic

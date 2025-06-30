@@ -536,11 +536,15 @@ export class RecentEditTracker implements Disposable {
     }
 
     public hasRecentEditInLine(
-        documentUri: string,
+        documentUri: string | undefined,
         lineNum: number,
         timeThresholdMs: number = 20000,
         lineRange: number = 5
     ): boolean {
+        if (!documentUri) {
+            return false
+        }
+
         // Check if we have snapshots for this document
         const snapshots = this.snapshots.get(documentUri)
         if (!snapshots || snapshots.length === 0) {

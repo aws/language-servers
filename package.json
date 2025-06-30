@@ -34,13 +34,14 @@
         "package": "npm run compile && npm run package --workspaces --if-present"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.96",
+        "@aws/language-server-runtimes": "^0.2.101",
         "@smithy/types": "4.2.0",
         "typescript": "^5.8.2"
     },
     "devDependencies": {
         "@commitlint/cli": "^19.8.0",
         "@commitlint/config-conventional": "^19.8.0",
+        "@types/ignore-walk": "^4.0.3",
         "@types/node": "^22.9.0",
         "@typescript-eslint/eslint-plugin": "^8.32.1",
         "@typescript-eslint/parser": "^8.32.1",

@@ -1,11 +1,10 @@
-import { EditorState, TextDocument as CwsprTextDocument } from '@aws/codewhisperer-streaming-client'
+import { EditorState, TextDocument as CwsprTextDocument } from '@amzn/codewhisperer-streaming'
 import { CursorState, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { getLanguageId } from '../../../shared/languageDetection'
 import { Features } from '../../types'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
-import path = require('path')
-import { URI } from 'vscode-uri'
+import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 
 export type DocumentContext = CwsprTextDocument & {
     cursorState?: EditorState['cursorState']
@@ -52,7 +51,12 @@ export class DocumentContextExtractor {
 
         const workspaceFolder = this.#workspace?.getWorkspaceFolder?.(document.uri)
 
-        const relativePath = this.getRelativePath(document)
+        let relativePath
+        if (workspaceFolder) {
+            relativePath = getRelativePathWithWorkspaceFolder(workspaceFolder, document.uri)
+        } else {
+            relativePath = getRelativePathWithUri(document.uri, workspaceFolder)
+        }
 
         const languageId = getLanguageId(document)
 
@@ -65,14 +69,5 @@ export class DocumentContextExtractor {
             totalEditorCharacters: document.getText().length,
             workspaceFolder,
         }
-    }
-
-    private getRelativePath(document: TextDocument): string {
-        const documentUri = URI.parse(document.uri)
-        const workspaceFolder = this.#workspace?.getWorkspaceFolder?.(document.uri)
-        const workspaceUri = workspaceFolder?.uri
-        const workspaceRoot = workspaceUri ? URI.parse(workspaceUri).fsPath : process.cwd()
-        const absolutePath = documentUri.fsPath
-        return path.relative(workspaceRoot, absolutePath)
     }
 }

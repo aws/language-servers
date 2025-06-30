@@ -20,6 +20,7 @@ import {
     UserIntent,
     InlineChatEvent,
     AgenticChatEventStatus,
+    IdeDiagnostic,
 } from '../../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
@@ -181,7 +182,15 @@ export class TelemetryService {
         return this.cwInteractionTypeMap[interactionType] || 'UNKNOWN'
     }
 
-    public emitUserTriggerDecision(session: CodeWhispererSession, timeSinceLastUserModification?: number) {
+    public emitUserTriggerDecision(
+        session: CodeWhispererSession,
+        timeSinceLastUserModification?: number,
+        addedCharacterCount?: number,
+        deletedCharacterCount?: number,
+        addedIdeDiagnostics?: IdeDiagnostic[],
+        removedIdeDiagnostics?: IdeDiagnostic[],
+        streakLength?: number
+    ) {
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {
                 codewhispererSessionId: session.codewhispererSessionId || '',
@@ -257,7 +266,11 @@ export class TelemetryService {
             generatedLine: generatedLines,
             numberOfRecommendations: session.suggestions.length,
             perceivedLatencyMilliseconds: perceivedLatencyMilliseconds,
-            acceptedCharacterCount: acceptedCharacterCount,
+            addedCharacterCount: addedCharacterCount,
+            deletedCharacterCount: deletedCharacterCount,
+            addedIdeDiagnostics: addedIdeDiagnostics,
+            removedIdeDiagnostics: removedIdeDiagnostics,
+            streakLength: streakLength,
         }
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
@@ -380,6 +393,8 @@ export class TelemetryService {
                 timestamp: params.timestamp,
                 acceptedCharacterCount: params.acceptedCharacterCount,
                 unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+                addedCharacterCount: params.acceptedCharacterCount,
+                unmodifiedAddedCharacterCount: params.unmodifiedAcceptedCharacterCount,
             },
         })
     }
@@ -420,6 +435,7 @@ export class TelemetryService {
             acceptedCharacterCount: params.acceptedCharacterCount,
             totalCharacterCount: params.totalCharacterCount,
             timestamp: new Date(Date.now()),
+            addedCharacterCount: params.acceptedCharacterCount,
             userWrittenCodeCharacterCount: params.userWrittenCodeCharacterCount,
             userWrittenCodeLineCount: params.userWrittenCodeLineCount,
         }
@@ -499,11 +515,16 @@ export class TelemetryService {
             cwsprChatFileContextLength: number
             cwsprChatRuleContextCount: number
             cwsprChatRuleContextLength: number
+            cwsprChatTotalRuleContextCount: number
             cwsprChatPromptContextCount: number
             cwsprChatPromptContextLength: number
             cwsprChatCodeContextCount: number
             cwsprChatCodeContextLength: number
             cwsprChatFocusFileContextLength: number
+            cwsprChatPinnedCodeContextCount?: number
+            cwsprChatPinnedFileContextCount?: number
+            cwsprChatPinnedFolderContextCount?: number
+            cwsprChatPinnedPromptContextCount?: number
             languageServerVersion?: string
             requestIds?: string[]
         }>
@@ -544,10 +565,15 @@ export class TelemetryService {
                     cwsprChatPromptContextCount: additionalParams.cwsprChatPromptContextCount,
                     cwsprChatFileContextLength: additionalParams.cwsprChatFileContextLength,
                     cwsprChatRuleContextLength: additionalParams.cwsprChatRuleContextLength,
+                    cwsprChatTotalRuleContextCount: additionalParams.cwsprChatTotalRuleContextCount,
                     cwsprChatPromptContextLength: additionalParams.cwsprChatPromptContextLength,
                     cwsprChatFocusFileContextLength: additionalParams.cwsprChatFocusFileContextLength,
                     cwsprChatCodeContextCount: additionalParams.cwsprChatCodeContextCount,
                     cwsprChatCodeContextLength: additionalParams.cwsprChatCodeContextLength,
+                    cwsprChatPinnedCodeContextCount: additionalParams.cwsprChatPinnedCodeContextCount,
+                    cwsprChatPinnedFileContextCount: additionalParams.cwsprChatPinnedFileContextCount,
+                    cwsprChatPinnedFolderContextCount: additionalParams.cwsprChatPinnedFolderContextCount,
+                    cwsprChatPinnedPromptContextCount: additionalParams.cwsprChatPinnedPromptContextCount,
                     result: params.result ?? 'Succeeded',
                     enabled: params.agenticCodingMode,
                     languageServerVersion: additionalParams.languageServerVersion,

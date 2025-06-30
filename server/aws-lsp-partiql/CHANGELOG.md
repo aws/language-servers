@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.14](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.13...lsp-partiql/v0.0.14) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+
+## [0.0.13](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.12...lsp-partiql/v0.0.13) (2025-06-16)
+
+
+### Features
+
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+
 ## [0.0.12](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.11...lsp-partiql/v0.0.12) (2025-06-10)
 
 

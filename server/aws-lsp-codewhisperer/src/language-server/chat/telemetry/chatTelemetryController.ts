@@ -15,7 +15,7 @@ import {
     RelevancyVoteType,
     isClientTelemetryEvent,
 } from './clientTelemetry'
-import { ToolUse, UserIntent } from '@aws/codewhisperer-streaming-client'
+import { ToolUse, UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
@@ -177,7 +177,10 @@ export class ChatTelemetryController {
         toolUseId: string[] | undefined,
         result: string,
         languageServerVersion: string,
-        latency?: number[],
+        latency?: number,
+        toolCallLatency?: number[],
+        cwsprChatTimeToFirstChunk?: number,
+        cwsprChatTimeBetweenChunks?: number[],
         agenticCodingMode?: boolean
     ) {
         this.#telemetry.emitMetric({
@@ -186,11 +189,14 @@ export class ChatTelemetryController {
                 [CONVERSATION_ID_METRIC_KEY]: conversationId,
                 cwsprChatConversationType: conversationType,
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
-                cwsprToolName: toolNames?.join(','),
-                cwsprToolUseId: toolUseId?.join(','),
+                cwsprToolName: toolNames?.join(',') ?? '',
+                cwsprToolUseId: toolUseId?.join(',') ?? '',
                 result,
                 languageServerVersion: languageServerVersion,
-                latency: latency?.join(','),
+                latency: latency,
+                toolCallLatency: toolCallLatency?.join(','),
+                cwsprChatTimeToFirstChunk: cwsprChatTimeToFirstChunk,
+                cwsprChatTimeBetweenChunks: cwsprChatTimeBetweenChunks?.join(','),
                 requestId,
                 enabled: agenticCodingMode,
             },
@@ -281,10 +287,15 @@ export class ChatTelemetryController {
                 cwsprChatPromptContextCount: metric.cwsprChatPromptContextCount,
                 cwsprChatFileContextLength: metric.cwsprChatFileContextLength,
                 cwsprChatRuleContextLength: metric.cwsprChatRuleContextLength,
+                cwsprChatTotalRuleContextCount: metric.cwsprChatTotalRuleContextCount,
                 cwsprChatPromptContextLength: metric.cwsprChatPromptContextLength,
                 cwsprChatCodeContextLength: metric.cwsprChatCodeContextLength,
                 cwsprChatCodeContextCount: metric.cwsprChatCodeContextCount,
                 cwsprChatFocusFileContextLength: metric.cwsprChatFocusFileContextLength,
+                cwsprChatPinnedCodeContextCount: metric.cwsprChatPinnedCodeContextCount,
+                cwsprChatPinnedFileContextCount: metric.cwsprChatPinnedFileContextCount,
+                cwsprChatPinnedFolderContextCount: metric.cwsprChatPinnedFolderContextCount,
+                cwsprChatPinnedPromptContextCount: metric.cwsprChatPinnedPromptContextCount,
                 languageServerVersion: metric.languageServerVersion,
                 requestIds: metric.requestIds,
             }

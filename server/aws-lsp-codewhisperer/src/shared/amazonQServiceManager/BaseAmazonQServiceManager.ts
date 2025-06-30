@@ -130,6 +130,15 @@ export abstract class BaseAmazonQServiceManager<
         }
     }
 
+    public onRegionChange(_listener: (region: string) => void): () => void {
+        // Default implementation - no-op
+        return () => {}
+    }
+
+    public getActiveProfileArn(): string | undefined {
+        return undefined // No-op / default implementation
+    }
+
     protected updateCachedServiceConfig(): void {
         if (this.cachedCodewhispererService) {
             const customizationArn = this.configurationCache.getProperty('customizationArn')

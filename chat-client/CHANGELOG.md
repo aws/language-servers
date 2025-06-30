@@ -1,5 +1,49 @@
 # Changelog
 
+## [0.1.20](https://github.com/aws/language-servers/compare/chat-client/v0.1.19...chat-client/v0.1.20) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+* Implement dynamic model selection based on extension capabilities and improve error handling ([#1737](https://github.com/aws/language-servers/issues/1737)) ([97db5d8](https://github.com/aws/language-servers/commit/97db5d8dd0a2c8214d37429375ec57aa68a462ee))
+
+
+### Bug Fixes
+
+* Add persistent pair programming mode setting with database storage and UI synchronization([#1757](https://github.com/aws/language-servers/issues/1757)) ([ba683cc](https://github.com/aws/language-servers/commit/ba683cc6dc120863350025a4a082ecf3a95b5905))
+* **amazonq:** fix the order of publishing the chat stop ack message ([#1761](https://github.com/aws/language-servers/issues/1761)) ([20c2263](https://github.com/aws/language-servers/commit/20c22638a34d557fc755e33aed798abc1ce3a6d9))
+* **amazonq:** updated stopping message to a better string for new chat ([#1765](https://github.com/aws/language-servers/issues/1765)) ([814bff8](https://github.com/aws/language-servers/commit/814bff848b970ec0192e36b8764c9cb08508f6ce))
+
+## [0.1.19](https://github.com/aws/language-servers/compare/chat-client/v0.1.18...chat-client/v0.1.19) (2025-06-23)
+
+
+### Bug Fixes
+
+* change model unavailable message ([#1711](https://github.com/aws/language-servers/issues/1711)) ([d4e1298](https://github.com/aws/language-servers/commit/d4e1298a5e00b2c3466ba1378aaaa28b89d75fb9))
+* intermediate file card does not have border ([#1734](https://github.com/aws/language-servers/issues/1734)) ([24e0497](https://github.com/aws/language-servers/commit/24e049705ce4ab982700839d012afb35786d8e4f))
+
+## [0.1.18](https://github.com/aws/language-servers/compare/chat-client/v0.1.17...chat-client/v0.1.18) (2025-06-17)
+
+
+### Features
+
+* support per region model selection ([#1683](https://github.com/aws/language-servers/issues/1683)) ([0b81b37](https://github.com/aws/language-servers/commit/0b81b37c15a8c407ec04904abb4bdccf829aa1c1))
+
+## [0.1.17](https://github.com/aws/language-servers/compare/chat-client/v0.1.16...chat-client/v0.1.17) (2025-06-16)
+
+
+### Features
+
+* **amazonq:** model throttling message as card instead of chat message ([#1657](https://github.com/aws/language-servers/issues/1657)) ([7ee1f2a](https://github.com/aws/language-servers/commit/7ee1f2ac0bdaa9f73fb63fc6d20d0de6d7b07523))
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+* update list of models and set default to 4 ([#1659](https://github.com/aws/language-servers/issues/1659)) ([1991658](https://github.com/aws/language-servers/commit/19916584d3f46049d30f0c23b41c3857a07bc622))
+
+
+### Bug Fixes
+
+* **agenticChat:** UX fixes for MCP ([#1661](https://github.com/aws/language-servers/issues/1661)) ([bbdb4b4](https://github.com/aws/language-servers/commit/bbdb4b451352af50a914df684d7654686142a13b))
+
 ## [0.1.16](https://github.com/aws/language-servers/compare/chat-client/v0.1.15...chat-client/v0.1.16) (2025-06-12)
 
 

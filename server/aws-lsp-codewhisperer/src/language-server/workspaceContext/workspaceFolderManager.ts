@@ -138,16 +138,6 @@ export class WorkspaceFolderManager {
     }
 
     async processNewWorkspaceFolders(folders: WorkspaceFolder[]) {
-        // Check if user is opted in before trying to process any files
-        const { optOut } = await this.listWorkspaceMetadata()
-        if (optOut) {
-            this.logging.log('User is opted out, clearing resources and starting opt-out monitor')
-            this.isOptedOut = true
-            await this.clearAllWorkspaceResources()
-            await this.startOptOutMonitor()
-            return
-        }
-
         // Wait for remote workspace id
         await this.waitForRemoteWorkspaceId()
 

@@ -6,6 +6,7 @@
 import * as path from 'path'
 import {
     ChatMessage,
+    ContextCommand,
     ConversationItem,
     ConversationItemGroup,
     IconType,
@@ -19,8 +20,9 @@ import {
     ToolUse,
     UserInputMessage,
     AssistantResponseMessage,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { activeFileCmd } from '../../context/addtionalContextProvider'
 import { ChatItemType } from '@aws/mynah-ui'
 import { PriorityQueue } from 'typescript-collections'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
@@ -55,10 +57,32 @@ export type Tab = {
     tabType: TabType
     title: string
     conversations: Conversation[]
+    tabContext?: TabContext
+}
+
+export const DEFAULT_PINNED_CONTEXT: ContextCommand[] = [activeFileCmd]
+
+/**
+ * Stores context scoped to a conversation, such as pinned context and rules.
+ */
+export type TabContext = {
+    pinnedContext?: ContextCommand[]
+    rules?: Rules
+}
+
+/**
+ * Stores active/inactive state of workspace rules.
+ */
+export type Rules = {
+    // Track folder states by folder name
+    folders: Record<string, boolean>
+    // Track individual rule states by rule ID
+    rules: Record<string, boolean>
 }
 
 export type Settings = {
     modelId: string | undefined
+    pairProgrammingMode?: boolean
 }
 
 export type Conversation = {

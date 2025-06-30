@@ -7,10 +7,11 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import * as fs from 'fs/promises'
 import { TextDocument } from 'vscode-languageserver-textdocument'
+import * as path from 'path'
 import * as sinon from 'sinon'
 import { AgenticChatTriggerContext } from './agenticChatTriggerContext'
 import { DocumentContext, DocumentContextExtractor } from '../../chat/contexts/documentContext'
-import { ChatTriggerType, CursorState } from '@aws/codewhisperer-streaming-client'
+import { ChatTriggerType, CursorState } from '@amzn/codewhisperer-streaming'
 import { URI } from 'vscode-uri'
 import { InitializeParams } from '@aws/language-server-runtimes/protocol'
 import { TestFolder } from '@aws/lsp-core/out/test/testFolder'
@@ -146,7 +147,6 @@ describe('AgenticChatTriggerContext', () => {
             undefined,
             modelId
         )
-
         assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, modelId)
     })
 
@@ -157,7 +157,6 @@ describe('AgenticChatTriggerContext', () => {
             {},
             ChatTriggerType.MANUAL
         )
-
         assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, undefined)
     })
 
@@ -194,11 +193,19 @@ describe('AgenticChatTriggerContext', () => {
         )
         assert.deepStrictEqual(chatParamsWithMore.conversationState?.workspaceId, 'test-workspace-123')
     })
-    describe('getTextDocument', function () {
+    describe('getTextDocument*', function () {
         let tempFolder: TestFolder
+
+        const mockDocument = {
+            uri: 'file://this/is/my/file.py',
+            languageId: 'python',
+            version: 0,
+        } as TextDocument
+        let mockDocumentFilepath: string
 
         before(async () => {
             tempFolder = await TestFolder.create()
+            mockDocumentFilepath = path.join(tempFolder.path, 'this/is/my/file.py')
         })
 
         afterEach(async () => {
@@ -209,44 +216,166 @@ describe('AgenticChatTriggerContext', () => {
             await tempFolder.delete()
         })
 
-        it('returns text document if it is synced', async function () {
-            const mockDocument = {
-                uri: 'file://this/is/my/file.py',
-                languageId: 'python',
-                version: 0,
-            } as TextDocument
-            testFeatures.workspace.getTextDocument.resolves(mockDocument)
+        describe('getTextDocumentFromUri', function () {
+            it('returns text document if it is synced', async function () {
+                testFeatures.workspace.getTextDocument.resolves(mockDocument)
 
-            const result = await new AgenticChatTriggerContext(testFeatures).getTextDocument(mockDocument.uri)
-            assert.deepStrictEqual(result, mockDocument)
+                const result = await new AgenticChatTriggerContext(testFeatures).getTextDocumentFromUri(
+                    mockDocument.uri
+                )
+                assert.deepStrictEqual(result, mockDocument)
+            })
+
+            it('falls back to file system if it is not synced', async function () {
+                const pythonContent = 'print("hello")'
+                const pythonFilePath = await tempFolder.write('pythonFile.py', pythonContent)
+                const uri = URI.file(pythonFilePath).toString()
+                testFeatures.workspace.getTextDocument.resolves(undefined)
+                testFeatures.workspace = {
+                    ...testFeatures.workspace,
+                    fs: {
+                        ...testFeatures.workspace.fs,
+                        readFile: path => fs.readFile(path, { encoding: 'utf-8' }),
+                    },
+                }
+                const result = await new AgenticChatTriggerContext(testFeatures).getTextDocumentFromUri(uri)
+
+                assert.ok(result)
+                assert.strictEqual(result.uri, uri)
+                assert.strictEqual(result.getText(), pythonContent)
+            })
+
+            it('returns undefined if both sync and fs fails', async function () {
+                const uri = 'file://not/a/real/path'
+                testFeatures.workspace.getTextDocument.resolves(undefined)
+
+                const result = await new AgenticChatTriggerContext(testFeatures).getTextDocumentFromUri(uri)
+
+                assert.deepStrictEqual(result, undefined)
+            })
         })
 
-        it('falls back to file system if it is not synced', async function () {
-            const pythonContent = 'print("hello")'
-            const pythonFilePath = await tempFolder.write('pythonFile.py', pythonContent)
-            const uri = URI.file(pythonFilePath).toString()
-            testFeatures.workspace.getTextDocument.resolves(undefined)
-            testFeatures.workspace = {
-                ...testFeatures.workspace,
-                fs: {
-                    ...testFeatures.workspace.fs,
-                    readFile: path => fs.readFile(path, { encoding: 'utf-8' }),
-                },
-            }
-            const result = await new AgenticChatTriggerContext(testFeatures).getTextDocument(uri)
+        describe('getTextDocumentFromPath', function () {
+            let fsContent: string
+            let fsPath: string
 
-            assert.ok(result)
-            assert.strictEqual(result.uri, uri)
-            assert.strictEqual(result.getText(), pythonContent)
-        })
+            this.beforeEach(async () => {
+                fsContent = 'print("hello")'
+                fsPath = await tempFolder.write('pythonFile.py', fsContent)
 
-        it('returns undefined if both sync and fs fails', async function () {
-            const uri = 'file://not/a/real/path'
-            testFeatures.workspace.getTextDocument.resolves(undefined)
+                testFeatures.workspace = {
+                    ...testFeatures.workspace,
+                    fs: {
+                        ...testFeatures.workspace.fs,
+                        readFile: path => fs.readFile(path, { encoding: 'utf-8' }),
+                    },
+                }
+            })
 
-            const result = await new AgenticChatTriggerContext(testFeatures).getTextDocument(uri)
+            describe('when text document is synced', function () {
+                this.beforeEach(async () => {
+                    testFeatures.workspace.getTextDocument.resolves(mockDocument)
+                })
 
-            assert.deepStrictEqual(result, undefined)
+                it('returns text document', async function () {
+                    const result = await new AgenticChatTriggerContext(testFeatures).getTextDocumentFromPath(
+                        mockDocumentFilepath,
+                        true,
+                        true
+                    )
+                    assert.deepStrictEqual(result, mockDocument)
+                })
+
+                it('loads from file system if workspace is not used', async function () {
+                    const result = await new AgenticChatTriggerContext(testFeatures).getTextDocumentFromPath(
+                        fsPath,
+                        false,
+                        true
+                    )
+
+                    assert.ok(result)
+                    assert.strictEqual(result.uri, fsPath)
+                    assert.strictEqual(result.getText(), fsContent)
+                })
+
+                if (process.platform === 'win32') {
+                    describe('Windows path to uri combinations', function () {
+                        for (const workspaceUri of [
+                            'file:///c%3A/Foo/bar.txt',
+                            'file:///C%3A/Foo/bar.txt',
+                            'file:///c:/Foo/bar.txt',
+                            'file:///C:/Foo/bar.txt',
+                        ]) {
+                            describe(`when workspace uri is: ${workspaceUri}`, function () {
+                                for (const path of ['c:\\Foo\\bar.txt', 'C:\\Foo\\bar.txt']) {
+                                    it(`loads when path is ${path}`, async function () {
+                                        const storedDocument = {
+                                            uri: workspaceUri,
+                                            languageId: 'python',
+                                            version: 0,
+                                        } as TextDocument
+
+                                        testFeatures.workspace.getTextDocument.callsFake((uri: string) => {
+                                            if (uri === workspaceUri) {
+                                                return Promise.resolve(storedDocument)
+                                            }
+                                            return Promise.resolve(undefined)
+                                        })
+
+                                        const result = await new AgenticChatTriggerContext(
+                                            testFeatures
+                                        ).getTextDocumentFromPath(path, true, false)
+
+                                        assert.ok(result)
+                                        assert.strictEqual(result.uri, workspaceUri)
+                                        assert.strictEqual(result, storedDocument)
+                                    })
+                                }
+                            })
+                        }
+                    })
+                }
+            })
+
+            describe('when text document is not synced', function () {
+                this.beforeEach(async () => {
+                    testFeatures.workspace.getTextDocument.resolves(undefined)
+                })
+
+                it('falls back to file system', async function () {
+                    const result = await new AgenticChatTriggerContext(testFeatures).getTextDocumentFromPath(
+                        fsPath,
+                        true,
+                        true
+                    )
+
+                    assert.ok(result)
+                    assert.strictEqual(result.uri, fsPath)
+                    assert.strictEqual(result.getText(), fsContent)
+                })
+
+                it('returns undefined if the file system is not used', async function () {
+                    const result = await new AgenticChatTriggerContext(testFeatures).getTextDocumentFromPath(
+                        fsPath,
+                        true,
+                        false
+                    )
+
+                    assert.deepStrictEqual(result, undefined)
+                })
+
+                it('returns undefined if fs fails', async function () {
+                    const filePath = path.join(tempFolder.path, 'not-a-real-path.txt')
+
+                    const result = await new AgenticChatTriggerContext(testFeatures).getTextDocumentFromPath(
+                        filePath,
+                        true,
+                        true
+                    )
+
+                    assert.deepStrictEqual(result, undefined)
+                })
+            })
         })
     })
 })
