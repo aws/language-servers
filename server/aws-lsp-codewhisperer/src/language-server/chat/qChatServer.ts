@@ -6,8 +6,6 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { getOrThrowBaseServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
-import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
-
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { safeGet } from '../../shared/utils'
@@ -127,5 +125,4 @@ export const QChatServerFactory =
         }
     }
 
-export const QChatServerIAM = QChatServerFactory(getOrThrowBaseIAMServiceManager)
-export const QChatServerToken = QChatServerFactory(getOrThrowBaseServiceManager)
+export const QChatServer = QChatServerFactory(getOrThrowBaseServiceManager)

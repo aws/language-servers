@@ -102,68 +102,6 @@ export abstract class CodeWhispererServiceBase {
     generateItemId = () => uuidv4()
 }
 
-export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
-    client: CodeWhispererSigv4Client
-    constructor(
-        credentialsProvider: CredentialsProvider,
-        workspace: Workspace,
-        logging: Logging,
-        codeWhispererRegion: string,
-        codeWhispererEndpoint: string,
-        sdkInitializator: SDKInitializator
-    ) {
-        // done
-        super(codeWhispererRegion, codeWhispererEndpoint)
-        // done
-        const options: CodeWhispererSigv4ClientConfigurationOptions = {
-            region: this.codeWhispererRegion,
-            endpoint: this.codeWhispererEndpoint,
-            credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials() as Credentials,
-            ]),
-        }
-        // done
-        this.client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
-        // Avoid overwriting any existing client listeners
-        // done
-        const clientRequestListeners = this.client.setupRequestListeners
-        this.client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
-            if (clientRequestListeners) {
-                clientRequestListeners.call(this.client, request)
-            }
-            request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
-        }
-    }
-
-    // merged
-    getCredentialsType(): CredentialsType {
-        return 'iam'
-    }
-
-    // merged
-    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
-        // add cancellation check
-        // add error check
-        if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
-
-        const response = await this.client.generateRecommendations(request).promise()
-        const responseContext = {
-            requestId: response?.$response?.requestId,
-            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
-            nextToken: response.nextToken,
-        }
-
-        for (const recommendation of response?.recommendations ?? []) {
-            Object.assign(recommendation, { itemId: this.generateItemId() })
-        }
-
-        return {
-            suggestions: response.recommendations as Suggestion[],
-            responseContext,
-        }
-    }
-}
-
 /**
  * Hint: to get an instance of this: `AmazonQServiceManager.getInstance().getCodewhispererService()`
  */

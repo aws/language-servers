@@ -49,7 +49,6 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { getOrThrowBaseServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { hasConnectionExpired } from '../../shared/utils'
-import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import path = require('path')
 import { getRelativePath } from '../workspaceContext/util'
@@ -716,9 +715,9 @@ export const CodewhispererServerFactory =
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                                */
+                                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                    */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -812,5 +811,4 @@ export const CodewhispererServerFactory =
         }
     }
 
-export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
-export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseServiceManager)
+export const CodeWhispererServer = CodewhispererServerFactory(getOrThrowBaseServiceManager)
