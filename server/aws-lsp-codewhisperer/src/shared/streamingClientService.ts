@@ -97,12 +97,16 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
                 customUserAgent: customUserAgent,
             }) as CodeWhispererStreaming
         } else if (credentialsProvider.getCredentialsType() === 'iam') {
+            const credentials = credentialsProvider.getCredentials() as Credentials
             this.client = sdkInitializator(QDeveloperStreaming, {
                 region: region,
                 endpoint: endpoint,
-                credentialProvider: new CredentialProviderChain([
-                    () => credentialsProvider.getCredentials() as Credentials,
-                ]),
+                // Do not pass credentials directly or you will get "object is not extensible" error when AWS SDK tries to modify frozen credentials
+                credentials: {
+                    accessKeyId: credentials.accessKeyId,
+                    secretAccessKey: credentials.secretAccessKey,
+                    sessionToken: credentials.sessionToken,
+                },
                 retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
             }) as QDeveloperStreaming
         } else {
