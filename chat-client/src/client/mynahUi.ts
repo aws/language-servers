@@ -226,10 +226,10 @@ export const handleChatPrompt = (
             let defaultPrompt = userPrompt
             switch (prompt.command) {
                 case '/dev':
-                    defaultPrompt = 'Help me with code development' //TODO: Change the /dev prompt
+                    defaultPrompt = DEFAULT_DEV_PROMPT
                     break
                 case '/test':
-                    defaultPrompt = 'Help me generate unit tests'
+                    defaultPrompt = DEFAULT_TEST_PROMPT
                     break
                 case '/doc':
                     defaultPrompt = DEFAULT_DOC_PROMPT
@@ -1513,7 +1513,11 @@ const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
 export const DEFAULT_HELP_PROMPT = 'What can Amazon Q help me with?'
 
-export const DEFAULT_DOC_PROMPT = `You are a Amazon Q. Start with a warm greeting, then ask the user to specify what kind of documentation they need. Present common documentation types (like API docs, README, user guides, developer guides, or configuration guides) as clear options. Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
+const DEFAULT_DOC_PROMPT = `You are a Amazon Q. Start with a warm greeting, then ask the user to specify what kind of documentation they need. Present common documentation types (like API docs, README, user guides, developer guides, or configuration guides) as clear options. Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
+
+const DEFAULT_TEST_PROMPT = `Help me generate unit tests`
+
+const DEFAULT_DEV_PROMPT = `You are a Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
 
 const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
