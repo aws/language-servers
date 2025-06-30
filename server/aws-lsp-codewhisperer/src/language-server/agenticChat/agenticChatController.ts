@@ -1455,7 +1455,7 @@ export class AgenticChatController implements ChatHandlers {
                                 },
                                 status: {
                                     status: 'error',
-                                    icon: 'error',
+                                    icon: 'cancel-circle',
                                     text: 'Error',
                                     description: customerFacingError,
                                 },
