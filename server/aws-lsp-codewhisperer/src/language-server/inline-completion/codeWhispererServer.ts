@@ -494,6 +494,9 @@ export const CodewhispererServerFactory =
                             ]
 
                             if (predictionTypes.length === 0) {
+                                logging.info(
+                                    `[NEP]: return early with empty since there is no predictionType specified`
+                                )
                                 return EMPTY_RESULT
                             }
 

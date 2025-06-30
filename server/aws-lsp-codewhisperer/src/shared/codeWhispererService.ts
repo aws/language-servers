@@ -255,6 +255,18 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
+        this.logging.info(`[NEP]: generateCompletion payload: 
+    "lsp-version": '6/30; mainline; commit id 8a5322a1f2e2452d5535d5cfcacd6c2bfd595b0e',
+    "requestId": ${response.$response.requestId},
+    "responseCompletionCount": ${response.completions?.length ?? 0},
+    "responsePredictionCount": ${response.predictions?.length ?? 0},
+    "suggestionType": ${request.predictionTypes?.toString() ?? '[]'},
+    "filename": ${request.fileContext.filename},
+    "language": ${request.fileContext.programmingLanguage.languageName},
+    "editorState.cursorState": ${request.editorState?.cursorState},
+    "editorState.document" :${JSON.stringify(request.editorState?.document)}
+    "supplementalContextLength": ${request.supplementalContexts?.length ?? 0},
+    "supplementalContext": ${JSON.stringify(request.supplementalContexts)}`)
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
