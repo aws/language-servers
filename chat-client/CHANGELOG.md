@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.21](https://github.com/aws/language-servers/compare/chat-client/v0.1.20...chat-client/v0.1.21) (2025-06-30)
+
+
+### Bug Fixes
+
+* **amazonq:** change the icon for error and reduce the count ([#1789](https://github.com/aws/language-servers/issues/1789)) ([758d31c](https://github.com/aws/language-servers/commit/758d31c186b163712312fdffb04ee692cfe11de8))
+* **amazonq:** change the icon for error and reduce the count ([#1789](https://github.com/aws/language-servers/issues/1789)) ([758d31c](https://github.com/aws/language-servers/commit/758d31c186b163712312fdffb04ee692cfe11de8))
+
 ## [0.1.20](https://github.com/aws/language-servers/compare/chat-client/v0.1.19...chat-client/v0.1.20) (2025-06-26)
 
 
