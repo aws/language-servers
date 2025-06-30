@@ -15,7 +15,7 @@ import * as sinon from 'sinon'
 import * as assert from 'assert'
 import {
     CodeWhispererServiceBase,
-    CodeWhispererServiceToken,
+    CodeWhispererService,
     CodeWhispererServiceIAM,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
@@ -280,8 +280,8 @@ describe('CodeWhispererService', function () {
         })
     })
 
-    describe('CodeWhispererServiceToken', function () {
-        let service: CodeWhispererServiceToken
+    describe('CodeWhispererService', function () {
+        let service: CodeWhispererService
         let mockClient: any
 
         beforeEach(function () {
@@ -320,7 +320,7 @@ describe('CodeWhispererService', function () {
                 token: 'mock-bearer-token',
             })
 
-            service = new CodeWhispererServiceToken(
+            service = new CodeWhispererService(
                 mockCredentialsProvider as any,
                 mockWorkspace as any,
                 mockLogging as any,

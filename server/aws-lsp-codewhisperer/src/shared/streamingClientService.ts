@@ -61,7 +61,7 @@ export abstract class StreamingClientServiceBase {
     }
 }
 
-export class StreamingClientServiceToken extends StreamingClientServiceBase {
+export class StreamingClientService extends StreamingClientServiceBase {
     client: StreamingClient
     public profileArn?: string
     constructor(

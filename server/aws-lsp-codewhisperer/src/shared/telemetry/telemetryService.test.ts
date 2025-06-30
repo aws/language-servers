@@ -16,7 +16,7 @@ import { CodeWhispererSession } from '../../language-server/inline-completion/se
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { BUILDER_ID_START_URL } from '../constants'
 import { ChatInteractionType } from './types'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererService } from '../codeWhispererService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../amazonQServiceManager/testUtils'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 
@@ -83,7 +83,7 @@ describe('TelemetryService', () => {
     let telemetryService: TelemetryService
     let mockCredentialsProvider: MockCredentialsProvider
     let serviceManagerStub: TestAmazonQServiceManager
-    let codeWhisperServiceStub: StubbedInstance<CodeWhispererServiceToken>
+    let codeWhisperServiceStub: StubbedInstance<CodeWhispererService>
 
     const logging: Logging = {
         log: (message: string) => {
@@ -134,7 +134,7 @@ describe('TelemetryService', () => {
             onClientTelemetry: sinon.stub(),
         }
 
-        codeWhisperServiceStub = stubInterface<CodeWhispererServiceToken>()
+        codeWhisperServiceStub = stubInterface<CodeWhispererService>()
         codeWhisperServiceStub.getCredentialsType.returns('bearer')
 
         const features = new TestFeatures()

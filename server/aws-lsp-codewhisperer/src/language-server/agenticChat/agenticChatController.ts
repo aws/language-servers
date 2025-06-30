@@ -97,7 +97,7 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
@@ -177,7 +177,7 @@ export class AgenticChatController implements ChatHandlers {
     #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #serviceManager?: AmazonQTokenServiceManager
+    #serviceManager?: AmazonQServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
@@ -205,7 +205,7 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        serviceManager?: AmazonQTokenServiceManager
+        serviceManager?: AmazonQServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
@@ -597,7 +597,7 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream
     ): Promise<GenerateAssistantResponseCommandInput> {
         this.#debug('Preparing request input')
-        const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+        const profileArn = AmazonQServiceManager.getInstance().getActiveProfileArn()
         const requestInput = await this.#triggerContext.getChatParamsFromTrigger(
             params,
             triggerContext,
@@ -2076,7 +2076,7 @@ export class AgenticChatController implements ChatHandlers {
         metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
         metric.setDimension('enabled', session.pairProgrammingMode)
-        const profileArn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+        const profileArn = AmazonQServiceManager.getInstance().getActiveProfileArn()
         if (profileArn) {
             this.#telemetryService.updateProfileArn(profileArn)
         }
@@ -2691,7 +2691,7 @@ export class AgenticChatController implements ChatHandlers {
             this.showFreeTierLimitMsgOnClient(tabId)
         } else if (!mode) {
             // Note: intentionally async.
-            AmazonQTokenServiceManager.getInstance()
+            AmazonQServiceManager.getInstance()
                 .getCodewhispererService()
                 .getSubscriptionStatus(true)
                 .then(o => {
@@ -2738,7 +2738,7 @@ export class AgenticChatController implements ChatHandlers {
      * @returns `undefined` on success, or error message on failure.
      */
     async onManageSubscription(tabId: string, awsAccountId?: string): Promise<string | undefined> {
-        const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+        const client = AmazonQServiceManager.getInstance().getCodewhispererService()
 
         if (!awsAccountId) {
             // If no awsAccountId was provided:

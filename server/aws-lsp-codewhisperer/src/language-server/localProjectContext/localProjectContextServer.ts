@@ -1,5 +1,5 @@
 import { InitializeParams, Server, TextDocumentSyncKind } from '@aws/language-server-runtimes/server-interface'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
@@ -10,7 +10,7 @@ export const LocalProjectContextServer =
     (): Server =>
     ({ credentialsProvider, telemetry, logging, lsp, workspace }) => {
         let localProjectContextController: LocalProjectContextController
-        let amazonQServiceManager: AmazonQTokenServiceManager
+        let amazonQServiceManager: AmazonQServiceManager
         let telemetryService: TelemetryService
 
         let localProjectContextEnabled: boolean = false
@@ -60,7 +60,7 @@ export const LocalProjectContextServer =
 
         lsp.onInitialized(async () => {
             try {
-                amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+                amazonQServiceManager = AmazonQServiceManager.getInstance()
                 telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
                 await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)

@@ -2,7 +2,7 @@ import { InitializeParams, Server } from '@aws/language-server-runtimes/server-i
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon from 'ts-sinon'
 import { WorkspaceContextServer } from './workspaceContextServer'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 
 describe('WorkspaceContext Server', () => {
     let features: TestFeatures

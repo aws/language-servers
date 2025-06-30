@@ -1,7 +1,7 @@
 import { standalone } from '@aws/language-server-runtimes/runtimes'
 import {
     CodeWhispererSecurityScanServerTokenProxy,
-    CodeWhispererServerTokenProxy,
+    CodeWhispererServerProxy,
     QChatServerTokenProxy,
     QConfigurationServerTokenProxy,
     QNetTransformServerTokenProxy,
@@ -17,7 +17,7 @@ const PATCH = 0
 const VERSION = `${MAJOR}.${MINOR}.${PATCH}`
 
 const props = createTokenRuntimeProps(VERSION, [
-    CodeWhispererServerTokenProxy,
+    CodeWhispererServerProxy,
     CodeWhispererSecurityScanServerTokenProxy,
     QConfigurationServerTokenProxy,
     QNetTransformServerTokenProxy,

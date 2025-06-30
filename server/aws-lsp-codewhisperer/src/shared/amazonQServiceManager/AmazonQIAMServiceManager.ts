@@ -1,3 +1,5 @@
+// TODO: delete this when IAM bundles are updated to use unified classes.
+
 import { CodeWhispererServiceIAM } from '../codeWhispererService'
 import {
     AmazonQBaseServiceManager,

@@ -7,7 +7,7 @@ import {
     ServerConfigurationProvider,
 } from './qConfigurationServer'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { CodeWhispererService } from '../../shared/codeWhispererService'
 import {
     CancellationToken,
     CancellationTokenSource,
@@ -16,8 +16,8 @@ import {
     ResponseError,
     Server,
 } from '@aws/language-server-runtimes/server-interface'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
+import { setCredentialsForAmazonQServiceManagerFactory } from '../../shared/testUtils'
 import { Q_CONFIGURATION_SECTION, AWS_Q_ENDPOINTS } from '../../shared/constants'
 import { AmazonQDeveloperProfile } from '../../shared/amazonQServiceManager/qDeveloperProfiles'
 
@@ -72,7 +72,7 @@ const mockCustomizations = [
 
 describe('QConfigurationServerToken', () => {
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let amazonQServiceManager: AmazonQServiceManager
     let listAvailableProfilesStub: sinon.SinonStub
     let listAvailableCustomizationsStub: sinon.SinonStub
     let listAllAvailableCustomizationsWithMetadataStub: sinon.SinonStub
@@ -82,11 +82,11 @@ describe('QConfigurationServerToken', () => {
         testFeatures = new TestFeatures()
         testFeatures.setClientParams(getInitializeParams(customizationsWithMetadata, developerProfiles))
 
-        AmazonQTokenServiceManager.resetInstance()
-        AmazonQTokenServiceManager.initInstance(testFeatures)
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+        AmazonQServiceManager.resetInstance()
+        AmazonQServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQServiceManager.getInstance()
 
-        const codeWhispererService = stubInterface<CodeWhispererServiceToken>()
+        const codeWhispererService = stubInterface<CodeWhispererService>()
         const configurationServer: Server = QConfigurationServerToken()
 
         amazonQServiceManager.setServiceFactory(sinon.stub().returns(codeWhispererService))
@@ -215,21 +215,21 @@ describe('QConfigurationServerToken', () => {
 
 describe('ServerConfigurationProvider', () => {
     let serverConfigurationProvider: ServerConfigurationProvider
-    let amazonQServiceManager: AmazonQTokenServiceManager
-    let codeWhispererService: StubbedInstance<CodeWhispererServiceToken>
+    let amazonQServiceManager: AmazonQServiceManager
+    let codeWhispererService: StubbedInstance<CodeWhispererService>
     let testFeatures: TestFeatures
     let listAvailableProfilesHandlerSpy: sinon.SinonSpy
     let tokenSource: CancellationTokenSource
     let serviceFactoryStub: sinon.SinonStub
 
-    const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
+    const setCredentials = setCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
 
     const setupServerConfigurationProvider = (developerProfiles = true) => {
         testFeatures.setClientParams(getInitializeParams(false, developerProfiles))
 
-        AmazonQTokenServiceManager.resetInstance()
-        AmazonQTokenServiceManager.initInstance(testFeatures)
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+        AmazonQServiceManager.resetInstance()
+        AmazonQServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQServiceManager.getInstance()
 
         serviceFactoryStub = sinon.stub().returns(codeWhispererService)
         amazonQServiceManager.setServiceFactory(serviceFactoryStub)
@@ -248,7 +248,7 @@ describe('ServerConfigurationProvider', () => {
 
     beforeEach(() => {
         tokenSource = new CancellationTokenSource()
-        codeWhispererService = stubInterface<CodeWhispererServiceToken>()
+        codeWhispererService = stubInterface<CodeWhispererService>()
         codeWhispererService.listAvailableCustomizations.resolves({
             customizations: mockCustomizations,
             $response: {} as any,

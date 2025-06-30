@@ -1,4 +1,4 @@
-import { StreamingClientServiceToken } from './streamingClientService'
+import { StreamingClientService } from './streamingClientService'
 import sinon from 'ts-sinon'
 import { expect } from 'chai'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
@@ -14,7 +14,7 @@ import { rejects } from 'assert'
 const TIME_TO_ADVANCE_MS = 100
 
 describe('StreamingClientService', () => {
-    let streamingClientService: StreamingClientServiceToken
+    let streamingClientService: StreamingClientService
     let features: TestFeatures
     let clock: sinon.SinonFakeTimers
     let sendMessageStub: sinon.SinonStub
@@ -50,7 +50,7 @@ describe('StreamingClientService', () => {
         sendMessageStub = sinon
             .stub(CodeWhispererStreaming.prototype, 'sendMessage')
             .callsFake(() => Promise.resolve(MOCKED_SEND_MESSAGE_RESPONSE))
-        streamingClientService = new StreamingClientServiceToken(
+        streamingClientService = new StreamingClientService(
             features.credentialsProvider,
             features.sdkInitializator,
             features.logging,

@@ -6,7 +6,7 @@ import {
     ToolUse,
 } from '@aws/codewhisperer-streaming-client'
 import {
-    StreamingClientServiceToken,
+    StreamingClientService,
     SendMessageCommandInput,
     SendMessageCommandOutput,
 } from '../../shared/streamingClientService'
@@ -153,7 +153,7 @@ export class ChatSessionService {
 
         const client = this.#serviceManager.getStreamingClient()
 
-        if (client instanceof StreamingClientServiceToken && client.getCredentialsType() === 'bearer') {
+        if (client instanceof StreamingClientService && client.getCredentialsType() === 'bearer') {
             try {
                 return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {

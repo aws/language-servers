@@ -18,7 +18,7 @@ import {
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
 import {
-    CodeWhispererServiceToken,
+    CodeWhispererService,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     Suggestion,
@@ -46,7 +46,7 @@ import {
     AmazonQServiceInitializationError,
 } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { getOrThrowBaseServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { hasConnectionExpired } from '../../shared/utils'
 import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
@@ -276,7 +276,7 @@ export const CodewhispererServerFactory =
 
         const sessionManager = SessionManager.getInstance()
 
-        // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
+        // AmazonQServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
         let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
 
@@ -391,7 +391,7 @@ export const CodewhispererServerFactory =
 
                     // supplementalContext available only via token authentication
                     const supplementalContextPromise =
-                        codeWhispererService instanceof CodeWhispererServiceToken
+                        codeWhispererService instanceof CodeWhispererService
                             ? fetchSupplementalContext(
                                   textDocument,
                                   params.position,
@@ -409,7 +409,7 @@ export const CodewhispererServerFactory =
 
                     const supplementalContext = await supplementalContextPromise
                     // TODO: logging
-                    if (codeWhispererService instanceof CodeWhispererServiceToken) {
+                    if (codeWhispererService instanceof CodeWhispererService) {
                         requestContext.supplementalContexts = supplementalContext?.supplementalContextItems
                             ? supplementalContext.supplementalContextItems.map(v => ({
                                   content: v.content,
@@ -716,9 +716,9 @@ export const CodewhispererServerFactory =
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                            */
+                                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                                */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -813,4 +813,4 @@ export const CodewhispererServerFactory =
     }
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
-export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
+export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseServiceManager)

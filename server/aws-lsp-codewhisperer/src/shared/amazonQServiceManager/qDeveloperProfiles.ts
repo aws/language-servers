@@ -7,7 +7,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { isBool, isObject, SsoConnectionType } from '../utils'
 import { AWS_Q_ENDPOINTS } from '../../shared/constants'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererService } from '../codeWhispererService'
 import { AmazonQServiceProfileThrottlingError } from './errors'
 
 export interface AmazonQDeveloperProfile {
@@ -35,7 +35,7 @@ export const MAX_Q_DEVELOPER_PROFILE_PAGES = 10
 const MAX_Q_DEVELOPER_PROFILES_PER_PAGE = 10
 
 export const getListAllAvailableProfilesHandler =
-    (service: (region: string, endpoint: string) => CodeWhispererServiceToken): ListAllAvailableProfilesHandler =>
+    (service: (region: string, endpoint: string) => CodeWhispererService): ListAllAvailableProfilesHandler =>
     async ({ connectionType, logging, endpoints, token }): Promise<AmazonQDeveloperProfile[]> => {
         if (!connectionType || connectionType !== 'identityCenter') {
             logging.debug('Connection type is not set or not identityCenter - returning empty response.')
@@ -87,7 +87,7 @@ export const getListAllAvailableProfilesHandler =
     }
 
 async function fetchProfilesFromRegion(
-    service: CodeWhispererServiceToken,
+    service: CodeWhispererService,
     region: string,
     logging: Logging,
     token: CancellationToken

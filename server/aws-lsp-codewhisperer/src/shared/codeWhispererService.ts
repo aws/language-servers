@@ -165,9 +165,9 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 }
 
 /**
- * Hint: to get an instance of this: `AmazonQTokenServiceManager.getInstance().getCodewhispererService()`
+ * Hint: to get an instance of this: `AmazonQServiceManager.getInstance().getCodewhispererService()`
  */
-export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
+export class CodeWhispererService extends CodeWhispererServiceBase {
     client: CodeWhispererClient
     /** Debounce createSubscriptionToken by storing the current, pending promise (if any). */
     #createSubscriptionTokenPromise?: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse>
@@ -196,7 +196,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 endpoint: this.codeWhispererEndpoint,
                 onRequestSetup: [
                     req => {
-                        this.logging.debug(`CodeWhispererServiceToken: req=${req.operation}`)
+                        this.logging.debug(`CodeWhispererService: req=${req.operation}`)
                         this.trackRequest(req)
                         req.on('build', async ({ httpRequest }) => {
                             try {
