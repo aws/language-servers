@@ -489,7 +489,7 @@ export const CodewhispererServerFactory =
                                 recentEdits: recentEditTracker,
                             })
                             predictionTypes = [
-                                // ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
+                                ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
                                 ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
                             ]
 

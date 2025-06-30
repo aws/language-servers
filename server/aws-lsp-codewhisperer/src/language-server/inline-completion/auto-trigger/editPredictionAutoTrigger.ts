@@ -93,6 +93,13 @@ export const editPredictionAutoTrigger = ({
     // Determine if we should trigger
     const requiredConditionsMet =
         (hasRecentEdit && isNotInMiddleOfWord && isPreviousDecisionNotReject && hasNonEmptySuffix) || false
+
+    console.log(`[NEP]: editPredictionAutoTrigger required conditions
+- "hasRecentEdit": ${hasRecentEdit},
+- "isNotInMiddleOfWord": ${isNotInMiddleOfWord},
+- "isPreviousDecisionNotReject": ${isPreviousDecisionNotReject},
+- "hasNonEmptySuffix": ${hasNonEmptySuffix}
+`)
     // const optionalConditionsMet = isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
     const shouldTrigger = requiredConditionsMet
 
