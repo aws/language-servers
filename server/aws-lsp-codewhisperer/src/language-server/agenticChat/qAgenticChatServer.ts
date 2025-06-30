@@ -17,7 +17,7 @@ import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/confi
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { isUsingIAMAuth, safeGet, enabledModelSelection } from '../../shared/utils'
-import { enabledMCP } from './tools/mcp/mcpUtils'
+import { enabledMCP, enabledReroute } from './tools/mcp/mcpUtils'
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -32,6 +32,8 @@ export const QAgenticChatServer =
         let chatSessionManagementService: ChatSessionManagementService
 
         lsp.addInitializer((params: InitializeParams) => {
+            const rerouteEnabled = enabledReroute(params)
+
             return {
                 capabilities: {
                     executeCommandProvider: {
@@ -53,7 +55,8 @@ export const QAgenticChatServer =
                         // we should set it as true for current VSC and VS clients
                         modelSelection: true,
                         history: true,
-                        export: TabBarController.enableChatExport(params)
+                        export: TabBarController.enableChatExport(params),
+                        reroute: rerouteEnabled
                     },
                 },
             }
