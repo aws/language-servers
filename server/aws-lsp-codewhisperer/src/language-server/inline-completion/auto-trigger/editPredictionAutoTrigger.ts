@@ -63,7 +63,7 @@ export const editPredictionAutoTrigger = ({
         return char === '' || /\s/.test(char) || /[^\w\s]/.test(char)
     }
 
-    // TODO: remove this once we are sure it's not needed anymore
+    // TODO: Remove this once we are sure it's not needed anymore
     // const isNotInMiddleOfWord = isWhitespaceOrSpecial(charToLeft) || isWhitespaceOrSpecial(charToRight)
     const isNotInMiddleOfWord = true
 
@@ -97,6 +97,8 @@ export const editPredictionAutoTrigger = ({
     // Determine if we should trigger
     const requiredConditionsMet =
         (hasRecentEdit && isNotInMiddleOfWord && isPreviousDecisionNotReject && hasNonEmptySuffix) || false
+
+    // TODO: Remove this once we are sure it's not needed anymore
     // const optionalConditionsMet = isAfterKeyword || isAfterOperatorOrDelimiter || hasUserPaused || isAtLineBeginning
     const shouldTrigger = requiredConditionsMet
 
