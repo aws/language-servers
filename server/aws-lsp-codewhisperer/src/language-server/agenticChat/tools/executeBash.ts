@@ -52,6 +52,7 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['diff', CommandCategory.ReadOnly],
     ['head', CommandCategory.ReadOnly],
     ['tail', CommandCategory.ReadOnly],
+    ['grep', CommandCategory.ReadOnly],
 
     // Mutable commands
     ['chmod', CommandCategory.Mutate],

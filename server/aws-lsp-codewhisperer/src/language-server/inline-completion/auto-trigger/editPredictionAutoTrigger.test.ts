@@ -90,7 +90,8 @@ describe('editPredictionAutoTrigger', function () {
         sinon.assert.called(mockRecentEdits.hasRecentEditInLine as sinon.SinonStub)
     })
 
-    it('should not trigger when cursor is in middle of word', function () {
+    // TODO: As this rule is temporarily disabled, remove this test case or reenable it once we bring back the rule
+    it.skip('should not trigger when cursor is in middle of word', function () {
         // Arrange
         const fileContext = createMockFileContext('someWord', 'moreWord\nnon-empty-suffix')
 
@@ -378,7 +379,8 @@ describe('editPredictionAutoTrigger', function () {
             assert.strictEqual(result.shouldTrigger, true)
         })
 
-        it('should not trigger when user has not paused long enough', function () {
+        // TODO: As this rule is temporarily disabled, remove this test case or reenable it once we bring back the rule
+        it.skip('should not trigger when user has not paused long enough', function () {
             // Arrange
             const fileContext = {
                 leftFileContent: 'word ',

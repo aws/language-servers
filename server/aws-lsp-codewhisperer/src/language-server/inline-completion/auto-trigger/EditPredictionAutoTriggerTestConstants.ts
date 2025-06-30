@@ -114,16 +114,17 @@ export const TestScenarios: Record<string, TestScenario> = {
                 expectedTrigger: true,
                 isAfterOperatorOrDelimiter: true,
             },
-            {
-                // "System.out.print█ln("Hello World");"
-                name: 'middle of word',
-                position: { line: 2, character: 18 },
-                expectedTrigger: false,
-                // Force this test to use the actual content check
-                isAfterKeyword: false,
-                isAfterOperatorOrDelimiter: false,
-                isAtLineBeginning: false,
-            },
+            // TODO: As this rule is temporarily disabled, remove this test case or reenable it once we bring back the rule
+            // {
+            //     // "System.out.print█ln("Hello World");"
+            //     name: 'middle of word',
+            //     position: { line: 2, character: 18 },
+            //     expectedTrigger: false,
+            //     // Force this test to use the actual content check
+            //     isAfterKeyword: false,
+            //     isAfterOperatorOrDelimiter: false,
+            //     isAtLineBeginning: false,
+            // },
         ],
     },
     PYTHON: {
