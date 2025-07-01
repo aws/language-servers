@@ -29,6 +29,7 @@ import {
     SsoFlowParams,
 } from '../sso/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
+import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
@@ -162,12 +163,16 @@ export class IdentityService {
                 throw new AwsError('Profile IAM credentials not found.', AwsErrorCodes.E_INVALID_PROFILE)
             }
 
-            // Convert config file credentials into IamCredentials object
+            // Convert profile credentials into IamCredentials object
             const iamCredentials: IamCredentials = {
                 accessKeyId: profile.settings.aws_access_key_id,
                 secretAccessKey: profile.settings.aws_secret_access_key,
                 sessionToken: profile.settings.aws_session_token,
             }
+
+            // Check if the IAM credential is valid by calling the STS API
+            const client = new STSClient({ region: 'us-east-1', credentials: iamCredentials })
+            await client.send(new GetCallerIdentityCommand({}))
 
             return {
                 id: profile.name,
@@ -229,7 +234,6 @@ export class IdentityService {
         })
 
         try {
-
             emitMetric('Succeeded')
             this.observability.logging.log('Successfully invalidated Iam Credential.')
             return {}

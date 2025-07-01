@@ -12,7 +12,6 @@ import { SectionHeader } from '../../sharedConfig/types'
 import { saveKnownFiles } from '../../sharedConfig'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { StubbedInstance, stubInterface } from 'ts-sinon'
 
 // Uses AWS SDK for JavaScript v3
 // Applies shared config files location resolution, but JVM system properties are not supported
@@ -65,7 +64,9 @@ export class SharedConfigProfileStore implements ProfileStore {
                                 // Only apply settings expected on IamCredentialProfile
                                 aws_access_key_id: settings.aws_access_key_id!,
                                 aws_secret_access_key: settings.aws_secret_access_key!,
-                                ...(settings.aws_session_token ? { session_token: settings.aws_session_token } : {}),
+                                ...(settings.aws_session_token
+                                    ? { aws_session_token: settings.aws_session_token }
+                                    : {}),
                             },
                         })
                     } else {
