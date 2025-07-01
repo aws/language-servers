@@ -655,19 +655,22 @@ export const createMynahUi = (
         onStopChatResponse: tabId => {
             messager.onStopChatResponse(tabId)
 
-            // Add cancellation message when stop button is clicked
-            mynahUi.addChatItem(tabId, {
-                type: ChatItemType.DIRECTIVE,
-                messageId: 'stopped' + Date.now(),
-                body: 'You stopped your current work, please provide additional examples or ask another question.',
-            })
-
             // Reset loading state
             mynahUi.updateStore(tabId, {
                 loadingChat: false,
                 cancelButtonWhenLoading: true,
                 promptInputDisabledState: false,
             })
+
+            // Add a small delay before adding the chat item
+            setTimeout(() => {
+                // Add cancellation message when stop button is clicked
+                mynahUi.addChatItem(tabId, {
+                    type: ChatItemType.DIRECTIVE,
+                    messageId: 'stopped' + Date.now(),
+                    body: 'You stopped your current work, please provide additional examples or ask another question.',
+                })
+            }, 500) // 500ms delay
         },
     }
 

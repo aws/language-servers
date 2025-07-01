@@ -93,7 +93,7 @@ export const getRelativePathWithUri = (uri: string, workspaceFolder?: WorkspaceF
 export const getRelativePathWithWorkspaceFolder = (workspaceFolder: WorkspaceFolder, filePath: string): string => {
     const workspaceUri = URI.parse(workspaceFolder.uri)
     const fileUri = URI.parse(filePath)
-    const relativePath = path.relative(workspaceUri.path, fileUri.path)
-    const workspaceFolderName = path.basename(workspaceUri.path)
+    const relativePath = path.relative(workspaceUri.fsPath, fileUri.fsPath)
+    const workspaceFolderName = path.basename(workspaceUri.fsPath)
     return path.join(workspaceFolderName, relativePath)
 }
