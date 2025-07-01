@@ -774,7 +774,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
                     // Adding a conditional check to not add /test, /doc and /dev prompts to history.
-                    if (!currentMessage.userInputMessage?.content?.startsWith('You are a Amazon Q')) {
+                    if (!currentMessage.userInputMessage?.content?.startsWith('You are Amazon Q')) {
                         this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
                             body: currentMessage.userInputMessage?.content ?? '',
                             type: 'prompt' as any,

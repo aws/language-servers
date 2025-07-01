@@ -77,13 +77,12 @@ export const withAdapter = (
 
             // Only /review and /transform commands for chatClientAdapter handling
             // Let /dev, /test, /doc use default event handler routing(agentic chat)
-            if (!tabFactory.isRerouteEnabled()) {
-                if (prompt.command && chatClientAdapter.isSupportedQuickAction(prompt.command)) {
-                    chatClientAdapter.handleQuickAction(prompt, tabId, eventId)
-                    return
-                }
-            } else {
-                if (prompt.command && ['/review', '/transform'].includes(prompt.command)) {
+            if (prompt.command) {
+                const shouldHandleQuickAction = !tabFactory.isRerouteEnabled()
+                    ? chatClientAdapter.isSupportedQuickAction(prompt.command)
+                    : ['/review', '/transform'].includes(prompt.command)
+
+                if (shouldHandleQuickAction) {
                     chatClientAdapter.handleQuickAction(prompt, tabId, eventId)
                     return
                 }

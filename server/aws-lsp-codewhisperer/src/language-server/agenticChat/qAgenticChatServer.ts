@@ -17,7 +17,15 @@ import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/confi
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { isUsingIAMAuth, safeGet, enabledModelSelection } from '../../shared/utils'
-import { enabledMCP, enabledReroute } from './tools/mcp/mcpUtils'
+import { enabledMCP } from './tools/mcp/mcpUtils'
+import { QClientCapabilities } from '../configuration/qConfigurationServer'
+
+export function enabledReroute(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.reroute || false
+}
 
 export const QAgenticChatServer =
     // prettier-ignore
