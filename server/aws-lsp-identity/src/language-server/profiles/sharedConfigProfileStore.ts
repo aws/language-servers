@@ -64,9 +64,8 @@ export class SharedConfigProfileStore implements ProfileStore {
                                 // Only apply settings expected on IamCredentialProfile
                                 aws_access_key_id: settings.aws_access_key_id!,
                                 aws_secret_access_key: settings.aws_secret_access_key!,
-                                ...(settings.aws_session_token
-                                    ? { aws_session_token: settings.aws_session_token }
-                                    : {}),
+                                aws_session_token: settings.aws_session_token,
+                                role_arn: settings.role_arn,
                             },
                         })
                     } else {

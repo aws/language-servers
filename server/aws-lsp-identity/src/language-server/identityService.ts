@@ -6,6 +6,7 @@ import {
     GetIamCredentialParams,
     GetIamCredentialResult,
     getSsoTokenOptionsDefaults,
+    getIamCredentialOptionsDefaults,
     GetSsoTokenParams,
     GetSsoTokenResult,
     IamCredentials,
@@ -156,6 +157,8 @@ export class IdentityService {
         )
 
         try {
+            const options = { ...getIamCredentialOptionsDefaults, ...params.options }
+
             // Get the profile with provided name
             const profileData = await this.profileStore.load()
             const profile = profileData.profiles.find(profile => profile.name === params.profileName)
@@ -169,20 +172,23 @@ export class IdentityService {
             }
 
             // Convert config file credentials into IamCredentials object
-            let iamCredentials: IamCredentials = {
+            let credentials: IamCredentials = {
                 accessKeyId: profile.settings.aws_access_key_id,
                 secretAccessKey: profile.settings.aws_secret_access_key,
                 sessionToken: profile.settings.aws_session_token,
             }
 
             // Check if the IAM credential is valid by calling the STS API
-            const client = new STSClient({ region: 'us-east-1', credentials: iamCredentials })
-            await client.send(new GetCallerIdentityCommand({}))
+            const stsClient = new STSClient({
+                region: profile.settings.region || 'us-east-1',
+                credentials: credentials,
+            })
+            await stsClient.send(new GetCallerIdentityCommand({}))
 
-            // If STS workflow is requested and role_arn is configured
-            if (params.options?.generateSts && profile.settings?.role_arn) {
-                iamCredentials = await this.getStsCredentials(
-                    iamCredentials,
+            // If role_arn is configured
+            if (profile.settings?.role_arn) {
+                credentials = await this.getStsCredentials(
+                    stsClient,
                     profile.settings.role_arn,
                     profile.name,
                     profile.settings.region
@@ -192,8 +198,8 @@ export class IdentityService {
             emitMetric('Succeeded')
             return {
                 id: profile.name,
-                credentials: iamCredentials,
-                updateCredentialsParams: { data: iamCredentials, encrypted: false },
+                credentials: credentials,
+                updateCredentialsParams: { data: credentials, encrypted: false },
             }
         } catch (e) {
             emitMetric('Failed', e)
@@ -202,7 +208,7 @@ export class IdentityService {
     }
 
     private async getStsCredentials(
-        baseCredentials: IamCredentials,
+        stsClient: STSClient,
         roleArn: string,
         profileName: string,
         region?: string
@@ -214,7 +220,7 @@ export class IdentityService {
 
         if (!stsCredentials) {
             // Generate new STS credentials
-            stsCredentials = await this.generateStsCredentials(baseCredentials, roleArn, region)
+            stsCredentials = await this.generateStsCredentials(stsClient, roleArn)
 
             // Cache the new credentials
             await this.stsCache.setStsCredentials(this.clientName, stsSession, stsCredentials)
@@ -222,7 +228,7 @@ export class IdentityService {
 
         // Set up auto-refresh
         await this.stsAutoRefresher
-            .watch(this.clientName, stsSession, () => this.generateStsCredentials(baseCredentials, roleArn, region))
+            .watch(this.clientName, stsSession, () => this.generateStsCredentials(stsClient, roleArn))
             .catch(reason => {
                 this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
             })
@@ -230,39 +236,30 @@ export class IdentityService {
         return stsCredentials
     }
 
-    private async generateStsCredentials(
-        baseCredentials: IamCredentials,
-        roleArn: string,
-        region?: string
-    ): Promise<IamCredentials> {
-        // STS client can use regular IAM credentials (without sessionToken) to assume roles
-        const stsClient = new STSClient({
-            region: region || 'us-east-1',
-            credentials: {
-                accessKeyId: baseCredentials.accessKeyId,
-                secretAccessKey: baseCredentials.secretAccessKey,
-                sessionToken: baseCredentials.sessionToken, // Can be undefined for regular IAM creds
-            },
-        })
+    private async generateStsCredentials(stsClient: STSClient, roleArn: string): Promise<IamCredentials> {
+        try {
+            const command = new AssumeRoleCommand({
+                RoleArn: roleArn,
+                RoleSessionName: `session-${Date.now()}`,
+                DurationSeconds: 3600,
+            })
 
-        const command = new AssumeRoleCommand({
-            RoleArn: roleArn,
-            RoleSessionName: `session-${Date.now()}`,
-            DurationSeconds: 3600,
-        })
+            const response = await stsClient.send(command)
 
-        const response = await stsClient.send(command)
+            if (!response.Credentials) {
+                throw new AwsError('Failed to assume role: No credentials returned', 'E_STS_ASSUME_ROLE_FAILED')
+            }
 
-        if (!response.Credentials) {
-            throw new AwsError('Failed to assume role: No credentials returned', 'E_STS_ASSUME_ROLE_FAILED')
-        }
-
-        // STS AssumeRole ALWAYS returns temporary credentials with sessionToken
-        return {
-            accessKeyId: response.Credentials.AccessKeyId!,
-            secretAccessKey: response.Credentials.SecretAccessKey!,
-            sessionToken: response.Credentials.SessionToken!, // Always present in STS response
-            expiration: response.Credentials.Expiration!,
+            // STS AssumeRole ALWAYS returns temporary credentials with sessionToken
+            return {
+                accessKeyId: response.Credentials.AccessKeyId!,
+                secretAccessKey: response.Credentials.SecretAccessKey!,
+                sessionToken: response.Credentials.SessionToken!, // Always present in STS response
+                expiration: response.Credentials.Expiration!,
+            }
+        } catch (e) {
+            this.observability.logging.log(`Error generating STS credentials.`)
+            throw new AwsError(`Error generating STS credentials.`, AwsErrorCodes.E_CANNOT_CREATE_STS_CREDENTIAL)
         }
     }
 

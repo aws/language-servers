@@ -196,12 +196,15 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
             }
             return options
         } else if (credentialsType === 'iam') {
+            const credentials = this.credentialsProvider.getCredentials() as Credentials
             const options: CodeWhispererSigv4ClientConfigurationOptions = {
                 region: this.codeWhispererRegion,
                 endpoint: this.codeWhispererEndpoint,
-                credentialProvider: new CredentialProviderChain([
-                    () => this.credentialsProvider.getCredentials() as Credentials,
-                ]),
+                credentials: {
+                    accessKeyId: credentials.accessKeyId,
+                    secretAccessKey: credentials.secretAccessKey,
+                    sessionToken: credentials.sessionToken,
+                },
             }
             return options
         } else {
