@@ -49,7 +49,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { TabBarController } from './tabBarController'
 import { getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
-import { AdditionalContextProvider } from './context/addtionalContextProvider'
+import { AdditionalContextProvider } from './context/additionalContextProvider'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'

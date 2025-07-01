@@ -22,7 +22,7 @@
         "coverage:report": "c8 report --reporter=html --reporter=text"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.101",
+        "@aws/language-server-runtimes": "^0.2.102",
         "@aws/lsp-core": "^0.0.10",
         "vscode-languageserver": "^9.0.1"
     },

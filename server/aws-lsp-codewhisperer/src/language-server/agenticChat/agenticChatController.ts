@@ -123,7 +123,7 @@ import {
     AgenticChatTriggerContext,
     TriggerContext,
 } from './context/agenticChatTriggerContext'
-import { AdditionalContextProvider } from './context/addtionalContextProvider'
+import { AdditionalContextProvider } from './context/additionalContextProvider'
 import {
     getNewPromptFilePath,
     getNewRuleFilePath,
@@ -197,6 +197,7 @@ type ChatHandlers = Omit<
     | 'onPinnedContextAdd'
     | 'onPinnedContextRemove'
     | 'onOpenFileDialog'
+    | 'onListAvailableModels'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -578,10 +579,25 @@ export class AgenticChatController implements ChatHandlers {
                 params.tabId,
                 params.context
             )
-            if (additionalContext.length) {
-                triggerContext.documentReference =
-                    this.#additionalContextProvider.getFileListFromContext(additionalContext)
-            }
+            // Add active file to context list if it exists
+            const activeFile =
+                triggerContext.text && triggerContext.relativeFilePath && triggerContext.activeFilePath
+                    ? [
+                          {
+                              name: path.basename(triggerContext.relativeFilePath),
+                              description: '',
+                              type: 'file',
+                              relativePath: triggerContext.relativeFilePath,
+                              path: triggerContext.activeFilePath,
+                              startLine: -1,
+                              endLine: -1,
+                          },
+                      ]
+                    : []
+
+            // Combine additional context with active file and get file list to display at top of response
+            const contextItems = [...additionalContext, ...activeFile]
+            triggerContext.documentReference = this.#additionalContextProvider.getFileListFromContext(contextItems)
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
                 params,
@@ -605,7 +621,8 @@ export class AgenticChatController implements ChatHandlers {
                 promptId,
                 session.conversationId,
                 token,
-                triggerContext.documentReference
+                triggerContext.documentReference,
+                additionalContext.filter(item => item.pinned)
             )
 
             // Phase 5: Result Handling - This happens only once
@@ -697,7 +714,8 @@ export class AgenticChatController implements ChatHandlers {
         promptId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
-        documentReference?: FileList
+        documentReference?: FileList,
+        pinnedContext?: AdditionalContentEntryAddition[]
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
@@ -719,7 +737,7 @@ export class AgenticChatController implements ChatHandlers {
                 throw new CancellationError('user')
             }
 
-            this.truncateRequest(currentRequestInput)
+            this.truncateRequest(currentRequestInput, pinnedContext)
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
             if (!currentMessage || !conversationId) {
@@ -728,10 +746,17 @@ export class AgenticChatController implements ChatHandlers {
                 )
             }
             let messages: DbMessage[] = []
+            // Prepend pinned context to history as a fake message pair
+            // This ensures pinned context doesn't get added to history file, and fulfills API contract requiring message pairs.
+            let pinnedContextMessages = await this.#additionalContextProvider.convertPinnedContextToChatMessages(
+                pinnedContext,
+                this.#features.workspace.getWorkspaceFolder
+            )
+
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage)
+                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, pinnedContextMessages)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
                         this.#features.logging.warn(`Tool validation error: ${err.message}`)
@@ -952,12 +977,32 @@ export class AgenticChatController implements ChatHandlers {
         )
     }
 
+    truncatePinnedContext(remainingCharacterBudget: number, pinnedContext?: AdditionalContentEntryAddition[]): number {
+        if (!pinnedContext) {
+            return remainingCharacterBudget
+        }
+
+        for (const [i, pinnedContextEntry] of pinnedContext.entries()) {
+            const pinnedContextEntryLength = pinnedContextEntry.innerContext?.length || 0
+            if (remainingCharacterBudget >= pinnedContextEntryLength) {
+                remainingCharacterBudget -= pinnedContextEntryLength
+            } else {
+                // Budget exceeded, truncate the array at this point
+                pinnedContext.splice(i)
+                remainingCharacterBudget = 0
+                break
+            }
+        }
+
+        return remainingCharacterBudget
+    }
+
     /**
      * performs truncation of request before sending to backend service.
      * Returns the remaining character budget for chat history.
      * @param request
      */
-    truncateRequest(request: ChatCommandInput): number {
+    truncateRequest(request: ChatCommandInput, pinnedContext?: AdditionalContentEntryAddition[]): number {
         // TODO: Confirm if this limit applies to SendMessage and rename this constant
         let remainingCharacterBudget = generateAssistantResponseInputLimit
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
@@ -1010,6 +1055,11 @@ export class AgenticChatController implements ChatHandlers {
             }
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
                 truncatedCurrentDocument
+        }
+
+        // 4. try to fit pinned context into budget
+        if (pinnedContext && pinnedContext.length > 0) {
+            remainingCharacterBudget = this.truncatePinnedContext(remainingCharacterBudget, pinnedContext)
         }
         return remainingCharacterBudget
     }
