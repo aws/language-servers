@@ -147,13 +147,16 @@ export const WorkspaceContextServer = (): Server => features => {
                 workspaceContextConfig = workspaceContextConfig || configJetBrains['workspaceContext']
             }
 
-            // TODO, removing client side opt in temporarily
-            isOptedIn = true
-            // isOptedIn = workspaceContextConfig === true
+            isOptedIn = workspaceContextConfig === true
+            logging.log(`Workspace context server opt-in flag is: ${workspaceContextConfig}`)
 
             if (!isOptedIn) {
                 isWorkflowInitialized = false
+                fileUploadJobManager?.dispose()
+                dependencyEventBundler?.dispose()
                 await workspaceFolderManager.clearAllWorkspaceResources()
+                // Delete remote workspace when user chooses to opt-out
+                await workspaceFolderManager.deleteRemoteWorkspace()
             }
         } catch (error) {
             logging.error(`Error in getConfiguration: ${error}`)
@@ -304,6 +307,8 @@ export const WorkspaceContextServer = (): Server => features => {
                     if (isWorkflowInitialized) {
                         // If user is not logged in but the workflow is marked as initialized, it means user was logged in and is now logged out
                         // In this case, clear the resources and stop the monitoring
+                        fileUploadJobManager?.dispose()
+                        dependencyEventBundler?.dispose()
                         await workspaceFolderManager.clearAllWorkspaceResources()
                     }
                     isWorkflowInitialized = false

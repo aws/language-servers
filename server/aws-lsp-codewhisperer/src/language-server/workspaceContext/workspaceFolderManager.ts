@@ -204,7 +204,6 @@ export class WorkspaceFolderManager {
     async clearAllWorkspaceResources() {
         this.stopContinuousMonitoring()
         this.stopMessageQueueConsumer()
-        this.resetRemoteWorkspaceId()
         this.workspaceState.webSocketClient?.destroyClient()
         this.dependencyDiscoverer.dispose()
     }
@@ -640,14 +639,19 @@ export class WorkspaceFolderManager {
         }
     }
 
-    // TODO, this function is unused at the moment
-    private async deleteWorkspace(workspaceId: string) {
+    public async deleteRemoteWorkspace() {
+        const workspaceId = this.workspaceState.workspaceId
+        this.resetRemoteWorkspaceId()
         try {
+            if (!workspaceId) {
+                this.logging.warn(`No remote workspaceId found, skipping workspace deletion`)
+                return
+            }
             if (isLoggedInUsingBearerToken(this.credentialsProvider)) {
                 await this.serviceManager.getCodewhispererService().deleteWorkspace({
                     workspaceId: workspaceId,
                 })
-                this.logging.log(`Workspace (${workspaceId}) deleted successfully`)
+                this.logging.log(`Remote workspace (${workspaceId}) deleted successfully`)
             } else {
                 this.logging.log(`Skipping workspace (${workspaceId}) deletion because user is not logged in`)
             }
