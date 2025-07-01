@@ -14,6 +14,8 @@ import {
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { Observability } from '@aws/lsp-core'
+import { StsCache } from '../sts/cache/stsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -22,7 +24,9 @@ let sut: IdentityService
 
 let profileStore: StubbedInstance<ProfileStore>
 let ssoCache: StubbedInstance<SsoCache>
+let stsCache: StubbedInstance<StsCache>
 let autoRefresher: StubbedInstance<SsoTokenAutoRefresher>
+let stsAutoRefresher: StubbedInstance<StsAutoRefresher>
 let observability: StubbedInstance<Observability>
 let authFlowFn: SinonSpy
 
@@ -65,10 +69,17 @@ describe('IdentityService', () => {
             setSsoToken: Promise.resolve(),
         })
 
+        stsCache = stubInterface<StsCache>()
+
         autoRefresher = createStubInstance(SsoTokenAutoRefresher, {
             watch: Promise.resolve(),
             unwatch: undefined,
         }) as StubbedInstance<SsoTokenAutoRefresher>
+
+        stsAutoRefresher = createStubInstance(StsAutoRefresher, {
+            watch: Promise.resolve(),
+            unwatch: undefined,
+        }) as StubbedInstance<StsAutoRefresher>
 
         authFlowFn = spy(() =>
             Promise.resolve({
@@ -85,6 +96,8 @@ describe('IdentityService', () => {
             profileStore,
             ssoCache,
             autoRefresher,
+            stsCache,
+            stsAutoRefresher,
             {
                 showUrl: _ => {},
                 showMessageRequest: _ => Promise.resolve({ title: 'client-response' }),

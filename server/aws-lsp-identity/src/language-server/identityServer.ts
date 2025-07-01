@@ -18,6 +18,8 @@ import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { InMemoryStsCache } from '../sts/cache/stsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
@@ -53,10 +55,15 @@ export class IdentityServer extends ServerBase {
 
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
 
+        const stsCache = new InMemoryStsCache()
+        const stsAutoRefresher = new StsAutoRefresher(stsCache, this.observability)
+
         const identityService = new IdentityService(
             profileStore,
             ssoCache,
             autoRefresher,
+            stsCache,
+            stsAutoRefresher,
             { showUrl, showMessageRequest, showProgress },
             this.getClientName(params),
             this.observability
@@ -122,6 +129,7 @@ export class IdentityServer extends ServerBase {
         )
 
         this.disposables.push(autoRefresher)
+        this.disposables.push(stsAutoRefresher)
 
         return {
             ...result,

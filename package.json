@@ -36,6 +36,7 @@
     "dependencies": {
         "@aws-sdk/client-sts": "^3.840.0",
         "@aws/language-server-runtimes": "^0.2.97",
+        "@aws-sdk/client-sts": "^3.840.0",
         "@smithy/types": "4.2.0",
         "typescript": "^5.8.2"
     },
