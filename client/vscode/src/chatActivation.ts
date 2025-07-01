@@ -93,14 +93,6 @@ export function registerChat(
                             })
                             break
                         }
-                        case OPEN_FILE_DIALOG_METHOD:
-                            await handleRequest(
-                                languageClient,
-                                message.params,
-                                webviewView,
-                                openFileDialogRequestType.method
-                            )
-                            break
                         case AUTH_FOLLOW_UP_CLICKED:
                             languageClient.info('[VSCode Client] AuthFollowUp clicked')
                             break
@@ -364,6 +356,19 @@ export function registerChat(
 
     languageClient.onTelemetry(e => {
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
+    })
+
+    languageClient.onRequest(ShowOpenDialogRequestType.method, async (params: ShowOpenDialogParams) => {
+        const uris = await vscode.window.showOpenDialog({
+            canSelectFiles: params.canSelectFiles ?? true,
+            canSelectFolders: params.canSelectFolders ?? false,
+            canSelectMany: params.canSelectMany ?? false,
+            filters: params.filters,
+            defaultUri: params.defaultUri ? Uri.parse(params.defaultUri) : undefined,
+            title: params.title,
+        })
+        const urisString = uris?.map(uri => uri.toString())
+        return { uris: urisString || [] }
     })
 
     languageClient.onRequest(ShowSaveFileDialogRequestType.method, async (params: ShowSaveFileDialogParams) => {
