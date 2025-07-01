@@ -1,3 +1,4 @@
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { FileContext } from '../../../shared/codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
 
@@ -83,15 +84,10 @@ type AutoTriggerParams = {
  * and previous recommendation decisions from the user to determine whether a new recommendation
  * should be shown. The auto-trigger is not stateful and does not keep track of past invocations.
  */
-export const autoTrigger = ({
-    fileContext,
-    char,
-    triggerType,
-    os,
-    previousDecision,
-    ide,
-    lineNum,
-}: AutoTriggerParams): {
+export const autoTrigger = (
+    { fileContext, char, triggerType, os, previousDecision, ide, lineNum }: AutoTriggerParams,
+    logging: Logging
+): {
     shouldTrigger: boolean
     classifierResult: number
     classifierThreshold: number
@@ -104,13 +100,14 @@ export const autoTrigger = ({
     // we do not want to trigger when there is immediate right context on the same line
     // with "}" being an exception because of IDE auto-complete
     // this was from product spec for VSC and JB
-    const isValidRightContext = (context: string) =>
-        context.trim() === '}' || context.trim() === ')' || context.startsWith(' ')
     if (
         rightContextAtCurrentLine.length &&
-        !isValidRightContext(rightContextAtCurrentLine) &&
+        !rightContextAtCurrentLine.startsWith(' ') &&
+        rightContextAtCurrentLine.trim() !== '}' &&
+        rightContextAtCurrentLine.trim() !== ')' &&
         ['VSCODE', 'JETBRAINS'].includes(ide)
     ) {
+        logging.debug(`Skip auto trigger: immediate right context`)
         return {
             shouldTrigger: false,
             classifierResult: 0,

@@ -111,7 +111,7 @@ describe('Auto Trigger', async () => {
                 ide: 'VSCODE',
             })
 
-            const result = autoTrigger(params)
+            const result = autoTrigger(params, console)
             assert.strictEqual(result.shouldTrigger, false)
         })
 
@@ -120,7 +120,7 @@ describe('Auto Trigger', async () => {
                 fileContext: createBasicFileContext('console.', ' log()'),
             })
 
-            const result = autoTrigger(params)
+            const result = autoTrigger(params, console)
             assert.strictEqual(result.shouldTrigger, true)
         })
 
@@ -129,7 +129,7 @@ describe('Auto Trigger', async () => {
                 fileContext: createBasicFileContext('console.', '  '),
             })
 
-            const result = autoTrigger(params)
+            const result = autoTrigger(params, console)
             assert.strictEqual(result.shouldTrigger, true)
         })
     })
