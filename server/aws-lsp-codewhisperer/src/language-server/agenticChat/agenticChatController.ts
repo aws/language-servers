@@ -2431,7 +2431,7 @@ export class AgenticChatController implements ChatHandlers {
                             : commandCategory === CommandCategory.Mutate
                               ? 'Mutating commands'
                               : 'Read-only commands',
-                    description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
+                    description: 'Configure for this session only. To edit globally, go to',
                     messageId: toolUse.toolUseId!,
                     tabId: tabId!,
                     icon:

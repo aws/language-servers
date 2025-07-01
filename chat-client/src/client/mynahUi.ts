@@ -56,7 +56,7 @@ import {
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
-import { McpMynahUi } from './mcpMynahUi'
+import { MCP_IDS, McpMynahUi } from './mcpMynahUi'
 import { ExportTabBarButtonId, ShowLogsTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
@@ -687,6 +687,10 @@ export const createMynahUi = (
             }
             messager.onButtonClick(payload)
         },
+        onDropDownLinkClick: (tabId: string, actionId: string) => {
+            console.log('Dropdown linked in flare clicked')
+            messager.onMcpServerClick(actionId, 'Built-in')
+        },
         onPromptInputOptionChange: (tabId, optionsValues) => {
             console.log('PromptOptions', optionsValues)
             if (agenticMode) {
@@ -977,6 +981,10 @@ export const createMynahUi = (
                               tabId: am.dropdown.tabId,
                               titleIcon: toMynahIcon(am.dropdown.icon),
                               description: am.dropdown.description,
+                              descriptionLink: {
+                                  text: 'Auto-approve settings',
+                                  id: MCP_IDS.OPEN_SERVER,
+                              },
                               options: am.dropdown.option || [],
                           }
                         : undefined,

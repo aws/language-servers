@@ -65,6 +65,7 @@ export const withAdapter = (
         onPromptTopBarItemRemoved: addDefaultRouting('onPromptTopBarItemRemoved'),
         onPromptTopBarButtonClick: addDefaultRouting('onPromptTopBarButtonClick'),
         onDropDownOptionChange: addDefaultRouting('onDropDownOptionChange'),
+        onDropDownLinkClick: addDefaultRouting('onDropDownLinkClick'),
 
         /**
          * Handler with special routing logic
