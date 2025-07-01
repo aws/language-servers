@@ -10,6 +10,7 @@ import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { Message } from './util'
 import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import * as fs from 'fs'
+import * as util from './util'
 
 describe('ChatDatabase', () => {
     let mockFeatures: Features
@@ -427,6 +428,137 @@ describe('ChatDatabase', () => {
             assert.throws(() => {
                 chatDb.validateAndFixNewMessageToolResults(messages, newUserMessage)
             }, ToolResultValidationError)
+        })
+    })
+
+    describe('getWorkspaceIdentifier', () => {
+        const MOCK_MD5_HASH = '5bc032692b81700eb516f317861fbf32'
+        const MOCK_SHA256_HASH = 'bb6b72d3eab82acaabbda8ca6c85658b83e178bb57760913ccdd938bbeaede9f'
+
+        let existsSyncStub: sinon.SinonStub
+        let renameSyncStub: sinon.SinonStub
+        let getMd5WorkspaceIdStub: sinon.SinonStub
+        let getSha256WorkspaceIdStub: sinon.SinonStub
+
+        beforeEach(() => {
+            existsSyncStub = sinon.stub(fs, 'existsSync')
+            renameSyncStub = sinon.stub(fs, 'renameSync')
+
+            // Mock hash functions
+            getMd5WorkspaceIdStub = sinon.stub(util, 'getMd5WorkspaceId')
+            getMd5WorkspaceIdStub.withArgs('/path/to/workspace').returns(MOCK_MD5_HASH)
+
+            getSha256WorkspaceIdStub = sinon.stub(util, 'getSha256WorkspaceId')
+            getSha256WorkspaceIdStub.withArgs('/path/to/workspace.code-workspace').returns(MOCK_SHA256_HASH)
+        })
+
+        afterEach(() => {
+            existsSyncStub.restore()
+            renameSyncStub.restore()
+            getMd5WorkspaceIdStub.restore()
+            getSha256WorkspaceIdStub.restore()
+        })
+
+        it('case 1: old plugin, workspaceFilePath is not provided. Should return folder based ID', () => {
+            // Setup: workspaceFilePath is undefined
+            const lspStub = mockFeatures.lsp.getClientInitializeParams as sinon.SinonStub
+            lspStub.returns({
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            q: {},
+                        },
+                    },
+                },
+            })
+
+            // Setup: single workspace folder
+            const workspaceStub = mockFeatures.workspace.getAllWorkspaceFolders as sinon.SinonStub
+            workspaceStub.returns([{ uri: 'file:///path/to/workspace' }])
+
+            // Verify: should use folder-based identifier (MD5 hash)
+            assert.strictEqual(
+                MOCK_MD5_HASH,
+                chatDb.getWorkspaceIdentifier(),
+                'should use md5 hash for workspace folder'
+            )
+        })
+
+        it('case 2: new plugin, workspaceFilePath is provided, no existing folder based history file. Should return ws file based ID', () => {
+            // Setup: workspaceFilePath is provided
+            const lspStub = mockFeatures.lsp.getClientInitializeParams as sinon.SinonStub
+            lspStub.returns({
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            q: {
+                                workspaceFilePath: '/path/to/workspace.code-workspace',
+                            },
+                        },
+                    },
+                },
+            })
+
+            // Setup: new DB file exists, so no migration needed
+            existsSyncStub.returns(true)
+
+            // Verify: should use workspace file based identifier (sha256 hash)
+            assert.strictEqual(
+                MOCK_SHA256_HASH,
+                chatDb.getWorkspaceIdentifier(),
+                'should use sha256 hash for workspace file'
+            )
+            // Verify: should not attempt migration since new file exists
+            assert.strictEqual(renameSyncStub.callCount, 0, 'Should not attempt migration when new file exists')
+        })
+
+        it('case 3: new plugin, workspaceFilePath is provided, folder based history file exists. Should migrate to ws file based ID', () => {
+            // Setup: workspaceFilePath is provided
+            const lspStub = mockFeatures.lsp.getClientInitializeParams as sinon.SinonStub
+            lspStub.returns({
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            q: {
+                                workspaceFilePath: '/path/to/workspace.code-workspace',
+                            },
+                        },
+                    },
+                },
+            })
+
+            // Setup: single workspace folder
+            const workspaceStub = mockFeatures.workspace.getAllWorkspaceFolders as sinon.SinonStub
+            workspaceStub.returns([{ uri: 'file:///path/to/workspace' }])
+
+            // Setup: new DB file doesn't exist, but old file exists
+            // Use callsFake with a counter to control return values consistently
+            let callCount = 0
+            existsSyncStub.callsFake(() => {
+                // First call returns false (new file doesn't exist)
+                // All subsequent calls return true (old file exists)
+                return callCount++ === 0 ? false : true
+            })
+
+            // Verify: should attempt migration
+            assert.strictEqual(
+                'bb6b72d3eab82acaabbda8ca6c85658b83e178bb57760913ccdd938bbeaede9f',
+                chatDb.getWorkspaceIdentifier(),
+                'should use sha256 hash for workspace file'
+            )
+            assert.strictEqual(renameSyncStub.callCount, 1, 'Should attempt migration when old file exists')
+            // Verify: migration should rename old file to new file
+            const renameCall = renameSyncStub.getCall(0)
+            assert.ok(
+                renameCall.args[0].endsWith('chat-history-5bc032692b81700eb516f317861fbf32.json'),
+                'Should rename from old file path'
+            )
+            assert.ok(
+                renameCall.args[1].endsWith(
+                    'chat-history-bb6b72d3eab82acaabbda8ca6c85658b83e178bb57760913ccdd938bbeaede9f.json'
+                ),
+                'Should rename to new file path'
+            )
         })
     })
 })
