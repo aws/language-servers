@@ -260,11 +260,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "requestId": ${response.$response.requestId},
     "responseCompletionCount": ${response.completions?.length ?? 0},
     "responsePredictionCount": ${response.predictions?.length ?? 0},
-    "suggestionType": ${request.predictionTypes?.toString() ?? '[]'},
+    "suggestionType": ${request.predictionTypes?.toString() ?? ''},
     "filename": ${request.fileContext.filename},
     "language": ${request.fileContext.programmingLanguage.languageName},
-    "editorState.cursorState": ${request.editorState?.cursorState},
-    "editorState.document" :${JSON.stringify(request.editorState?.document)}
+    "editorState.cursorPosition": ${JSON.stringify(request.editorState?.cursorState?.position)},
+    "editorState.range": ${JSON.stringify(request.editorState?.cursorState?.range)},
+    "editorState.document.relativeFilePath" :${JSON.stringify(request.editorState?.document?.relativeFilePath)}
     "supplementalContextLength": ${request.supplementalContexts?.length ?? 0},
     "supplementalContext": ${JSON.stringify(request.supplementalContexts)}`)
         const responseContext = {
