@@ -1821,7 +1821,7 @@ export class AgenticChatController implements ChatHandlers {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 buttons = requiresAcceptance
                     ? [
-                          { id: 'run-shell-command', text: 'Allow', icon: 'play' },
+                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
                           {
                               id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,

@@ -117,11 +117,9 @@ export class McpEventHandler {
         // Transform server configs into DetailedListItem objects
         const activeItems: DetailedListItem[] = []
         const disabledItems: DetailedListItem[] = []
-        // const builtInItems: DetailedListItem[] = []
 
         // Get built-in tools programmatically
         const allTools = this.#features.agent.getTools({ format: 'bedrock' })
-        // const mcpToolNames = new Set(mcpManager.getAllTools().map(tool => tool.toolName))
         const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
         const builtInTools = allTools
             .filter(tool => {
@@ -715,7 +713,6 @@ export class McpEventHandler {
         if (serverName === 'Built-in') {
             // Handle Built-in server specially
             const allTools = this.#features.agent.getTools({ format: 'bedrock' })
-            // const mcpToolNames = new Set(McpManager.instance.getAllTools().map(tool => tool.toolName))
             const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
             const builtInTools = allTools
                 .filter(tool => {
