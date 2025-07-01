@@ -139,7 +139,7 @@ export class TabFactory {
                               "You can now ask Q directly in the chat to generate code, documentation, and unit tests. You don't need to explicitly use /dev, /test, or /doc",
                       } as QuickActionCommandsHeader,
                   }
-                : { quickActionCommandsHeader: {} }),
+                : {}),
         }
 
         tabData.tabBarButtons = this.getTabBarButtons()
