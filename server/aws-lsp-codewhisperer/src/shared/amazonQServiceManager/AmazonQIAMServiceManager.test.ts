@@ -1,17 +1,17 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { deepStrictEqual } from 'assert'
 import sinon from 'ts-sinon'
-import { AmazonQIAMServiceManager } from './AmazonQIAMServiceManager'
+import { AmazonQServiceManager } from './AmazonQServiceManager'
 import { generateSingletonInitializationTests } from './testUtils'
 import * as utils from '../utils'
 
-describe('AmazonQIAMServiceManager', () => {
+describe('AmazonQServiceManager', () => {
     describe('Initialization process', () => {
-        generateSingletonInitializationTests(AmazonQIAMServiceManager)
+        generateSingletonInitializationTests(AmazonQServiceManager)
     })
 
     describe('Service caching', () => {
-        let serviceManager: AmazonQIAMServiceManager
+        let serviceManager: AmazonQServiceManager
         let features: TestFeatures
         let updateCachedServiceConfigSpy: sinon.SinonSpy
 
@@ -19,16 +19,16 @@ describe('AmazonQIAMServiceManager', () => {
             features = new TestFeatures()
 
             updateCachedServiceConfigSpy = sinon.spy(
-                AmazonQIAMServiceManager.prototype,
-                'updateCachedServiceConfig' as keyof AmazonQIAMServiceManager
+                AmazonQServiceManager.prototype,
+                'updateCachedServiceConfig' as keyof AmazonQServiceManager
             )
 
-            AmazonQIAMServiceManager.resetInstance()
-            serviceManager = AmazonQIAMServiceManager.initInstance(features)
+            AmazonQServiceManager.resetInstance()
+            serviceManager = AmazonQServiceManager.initInstance(features)
         })
 
         afterEach(() => {
-            AmazonQIAMServiceManager.resetInstance()
+            AmazonQServiceManager.resetInstance()
             features.dispose()
             sinon.restore()
         })

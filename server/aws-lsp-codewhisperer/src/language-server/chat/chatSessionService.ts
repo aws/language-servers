@@ -8,10 +8,9 @@ import {
     ToolUse,
 } from '@amzn/codewhisperer-streaming'
 import {
-    StreamingClientServiceToken,
+    StreamingClientService,
     SendMessageCommandInput,
     SendMessageCommandOutput,
-    StreamingClientServiceIAM,
     ChatCommandInput,
     ChatCommandOutput,
 } from '../../shared/streamingClientService'
@@ -172,7 +171,7 @@ export class ChatSessionService {
 
         const client = this.#serviceManager.getStreamingClient()
 
-        if (client instanceof StreamingClientServiceToken) {
+        if (client instanceof StreamingClientService && client.getCredentialsType() === 'bearer') {
             try {
                 return await client.generateAssistantResponse(request, this.#abortController)
             } catch (e) {
@@ -228,7 +227,7 @@ export class ChatSessionService {
 
                 throw error
             }
-        } else if (client instanceof StreamingClientServiceIAM) {
+        } else if (client instanceof StreamingClientService && client.getCredentialsType() === 'iam') {
             try {
                 // @ts-ignore
                 // SendMessageStreaming checks for origin from request source
@@ -278,10 +277,23 @@ export class ChatSessionService {
                 throw error
             }
         } else {
-            // error
-            return Promise.reject(
-                'Client is not instance of StreamingClientServiceToken, generateAssistantResponse not available for IAM client.'
-            )
+            try {
+                // TODO: merge cleaner implementation from iam-auth branch into this
+                let sendMessageRequest = request as SendMessageCommandInput
+                sendMessageRequest.source = 'IDE'
+                const { sendMessageResponse, ...rest } = await client.sendMessage(
+                    sendMessageRequest,
+                    this.#abortController
+                )
+                return {
+                    generateAssistantResponseResponse: sendMessageResponse,
+                    conversationId: this.#conversationId,
+                    ...rest,
+                }
+            } catch (e) {
+                let error = wrapErrorWithCode(e, 'QModelResponse')
+                throw error
+            }
         }
     }
 

@@ -10,6 +10,8 @@ import {
     updateProfileOptionsDefaults,
     UpdateProfileParams,
     UpdateProfileResult,
+    DeleteProfileParams,
+    DeleteProfileResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
@@ -23,6 +25,7 @@ export interface ProfileData {
 export interface ProfileStore {
     load(init?: SharedConfigInit): Promise<ProfileData>
     save(data: ProfileData, init?: SharedConfigInit): Promise<void>
+    deleteProfile(profileName: string, init?: SharedConfigInit): Promise<void>
 }
 
 export const ProfileFields = {
@@ -30,6 +33,9 @@ export const ProfileFields = {
     sso_account_id: 'sso_account_id',
     sso_role_name: 'sso_role_name',
     sso_session: 'sso_session',
+    aws_access_key_id: 'aws_access_key_id',
+    aws_secret_access_key: 'aws_secret_access_key',
+    aws_session_token: 'aws_session_token',
 } as const
 
 export const SsoSessionFields = {
@@ -41,6 +47,16 @@ export const SsoSessionFields = {
 export const profileDuckTypers = {
     SsoTokenProfile: new DuckTyper()
         .requireProperty(ProfileFields.sso_session)
+        .disallowProperty(ProfileFields.sso_account_id)
+        .disallowProperty(ProfileFields.sso_role_name)
+        .disallowProperty(ProfileFields.aws_access_key_id)
+        .disallowProperty(ProfileFields.aws_secret_access_key)
+        .disallowProperty(ProfileFields.aws_session_token),
+    IamCredentialProfile: new DuckTyper()
+        .requireProperty(ProfileFields.aws_access_key_id)
+        .requireProperty(ProfileFields.aws_secret_access_key)
+        .optionalProperty(ProfileFields.aws_session_token)
+        .disallowProperty(ProfileFields.sso_session)
         .disallowProperty(ProfileFields.sso_account_id)
         .disallowProperty(ProfileFields.sso_role_name),
 }
@@ -94,53 +110,62 @@ export class ProfileService {
         const profile = params.profile!
 
         this.throwOnInvalidProfile(
-            !profile.kinds.includes(ProfileKind.SsoTokenProfile),
-            'Profile must be non-legacy sso-session type.'
+            !profile.kinds.includes(ProfileKind.SsoTokenProfile) &&
+                !profile.kinds.includes(ProfileKind.IamCredentialProfile),
+            'Profile must be non-legacy sso-session or iam-credentials type.'
         )
         this.throwOnInvalidProfile(!profile.name, 'Profile name required.')
         this.throwOnInvalidProfile(!profile.settings, 'Settings required on profile.')
         const profileSettings = profile.settings!
 
-        this.throwOnInvalidProfile(!profileSettings.sso_session, 'Sso-session name required on profile.')
-
-        // Validate sso-session
-        this.throwOnInvalidSsoSession(!params.ssoSession, 'Sso-session required.')
-        const ssoSession: SsoSession = params.ssoSession!
-
-        this.throwOnInvalidSsoSession(!ssoSession.name, 'Sso-session name required.')
-        this.throwOnInvalidSsoSession(!ssoSession.settings, 'Settings required on sso-session.')
-        const ssoSessionSettings = ssoSession.settings!
-
-        this.throwOnInvalidSsoSession(!ssoSessionSettings.sso_region, 'Sso-session region required.')
-        this.throwOnInvalidSsoSession(!ssoSessionSettings.sso_start_url, 'Sso-session start URL required.')
-
-        this.throwOnInvalidProfile(
-            profileSettings.sso_session !== ssoSession.name,
-            'Profile sso-session name must be the same as provided sso-session.'
-        )
-
+        // Get profiles and SSO sessions to check whether a duplicate will be created
         const { profiles, ssoSessions } = await this.profileStore.load().catch(reason => {
             throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
         })
 
-        // Enforce options
         if (!options.createNonexistentProfile && !profiles.some(p => p.name === profile.name)) {
             this.observability.logging.log(`Cannot create profile. options: ${JSON.stringify(options)}`)
             throw new AwsError('Cannot create profile.', AwsErrorCodes.E_CANNOT_CREATE_PROFILE)
         }
 
-        if (!options.createNonexistentSsoSession && !ssoSessions.some(s => s.name === ssoSession.name)) {
-            this.observability.logging.log(`Cannot create sso-session. options: ${JSON.stringify(options)}`)
-            throw new AwsError('Cannot create sso-session.', AwsErrorCodes.E_CANNOT_CREATE_SSO_SESSION)
+        // Validate sso-session
+        if (profile.kinds.includes(ProfileKind.SsoTokenProfile)) {
+            this.throwOnInvalidProfile(!profileSettings.sso_session, 'Sso-session required on profile.')
+            this.throwOnInvalidSsoSession(!params.ssoSession, 'Sso-session required.')
+            const ssoSession: SsoSession = params.ssoSession!
+
+            this.throwOnInvalidSsoSession(!ssoSession.name, 'Sso-session name required.')
+            this.throwOnInvalidSsoSession(!ssoSession.settings, 'Settings required on sso-session.')
+            const ssoSessionSettings = ssoSession.settings!
+
+            this.throwOnInvalidSsoSession(!ssoSessionSettings.sso_region, 'Sso-session region required.')
+            this.throwOnInvalidSsoSession(!ssoSessionSettings.sso_start_url, 'Sso-session start URL required.')
+
+            this.throwOnInvalidProfile(
+                profileSettings.sso_session !== ssoSession.name,
+                'Profile sso-session name must be the same as provided sso-session.'
+            )
+
+            // Enforce options
+            if (!options.createNonexistentSsoSession && !ssoSessions.some(s => s.name === ssoSession.name)) {
+                this.observability.logging.log(`Cannot create sso-session. options: ${JSON.stringify(options)}`)
+                throw new AwsError('Cannot create sso-session.', AwsErrorCodes.E_CANNOT_CREATE_SSO_SESSION)
+            }
+
+            if (
+                !options.updateSharedSsoSession &&
+                this.isSharedSsoSession(ssoSession.name, profiles, profile.name) &&
+                this.willUpdateExistingSsoSession(ssoSession, ssoSessions)
+            ) {
+                this.observability.logging.log(`Cannot update shared sso-session. options: ${JSON.stringify(options)}`)
+                throw new AwsError('Cannot update shared sso-session.', AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION)
+            }
         }
 
-        if (
-            !options.updateSharedSsoSession &&
-            this.isSharedSsoSession(ssoSession.name, profiles, profile.name) &&
-            this.willUpdateExistingSsoSession(ssoSession, ssoSessions)
-        ) {
-            this.observability.logging.log(`Cannot update shared sso-session. options: ${JSON.stringify(options)}`)
-            throw new AwsError('Cannot update shared sso-session.', AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION)
+        // Validate credentials
+        if (profile.kinds.includes(ProfileKind.IamCredentialProfile)) {
+            this.throwOnInvalidProfile(!profileSettings.aws_access_key_id, 'Access key required on profile.')
+            this.throwOnInvalidProfile(!profileSettings.aws_secret_access_key, 'Secret key required on profile.')
         }
 
         await this.profileStore
@@ -151,6 +176,16 @@ export class ProfileService {
             .catch(reason => {
                 throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
             })
+
+        return result
+    }
+
+    async deleteProfile(params: DeleteProfileParams, token?: CancellationToken): Promise<DeleteProfileResult> {
+        const result: DeleteProfileResult = {}
+
+        await this.profileStore.deleteProfile(params.profileName).catch(reason => {
+            throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
+        })
 
         return result
     }

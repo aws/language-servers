@@ -51,7 +51,7 @@ describe('QChatServer', () => {
         testFeatures.dispose()
     })
 
-    it('should initialize ChatSessionManagementService with AmazonQTokenServiceManager instance', () => {
+    it('should initialize ChatSessionManagementService with AmazonQServiceManager instance', () => {
         sinon.assert.calledOnceWithExactly(withAmazonQServiceSpy, amazonQServiceManager)
     })
 

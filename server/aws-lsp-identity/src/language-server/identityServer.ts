@@ -3,18 +3,23 @@ import {
     CancellationToken,
     ListProfilesParams,
     UpdateProfileParams,
+    DeleteProfileParams,
     AwsResponseError,
     AwsErrorCodes,
     GetSsoTokenParams,
     InvalidateSsoTokenParams,
+    InvalidateIamCredentialParams,
     InitializeParams,
     PartialInitializeResult,
     ShowMessageRequestParams,
+    GetIamCredentialParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { InMemoryStsCache } from '../sts/cache/stsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
@@ -50,10 +55,15 @@ export class IdentityServer extends ServerBase {
 
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
 
+        const stsCache = new InMemoryStsCache()
+        const stsAutoRefresher = new StsAutoRefresher(stsCache, this.observability)
+
         const identityService = new IdentityService(
             profileStore,
             ssoCache,
             autoRefresher,
+            stsCache,
+            stsAutoRefresher,
             { showUrl, showMessageRequest, showProgress },
             this.getClientName(params),
             this.observability
@@ -70,10 +80,26 @@ export class IdentityServer extends ServerBase {
                 })
         )
 
+        this.features.identityManagement.onGetIamCredential(
+            async (params: GetIamCredentialParams, token: CancellationToken) =>
+                await identityService.getIamCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`GetIamCredential failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
         this.features.identityManagement.onInvalidateSsoToken(
             async (params: InvalidateSsoTokenParams, token: CancellationToken) =>
                 await identityService.invalidateSsoToken(params, token).catch(reason => {
                     this.observability.logging.log(`InvalidateSsoToken failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.features.identityManagement.onInvalidateIamCredential(
+            async (params: InvalidateIamCredentialParams, token: CancellationToken) =>
+                await identityService.invalidateIamCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`InvalidateIamCredentials failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })
         )
@@ -94,7 +120,16 @@ export class IdentityServer extends ServerBase {
                 })
         )
 
+        this.features.identityManagement.onDeleteProfile(
+            async (params: DeleteProfileParams, token: CancellationToken) =>
+                await profileService.deleteProfile(params, token).catch(reason => {
+                    this.observability.logging.log(`UpdateProfile failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
         this.disposables.push(autoRefresher)
+        this.disposables.push(stsAutoRefresher)
 
         return {
             ...result,
