@@ -5,7 +5,7 @@ export const EXAMPLE_REQUEST: StartTransformRequest = {
     SolutionConfigPaths: [],
     TransformNetStandardProjects: true,
     EnableRazorViewTransform: true,
-    EnableWebFormsToBlazorTransform: false,
+    EnableWebFormsTransform: false,
     SolutionRootPath: 'D:\\TestProjects-master\\TestProjects-master\\netcoreapp3.1\\CoreMVC',
     TargetFramework: 'net8.0',
     ProgramLanguage: 'csharp',
