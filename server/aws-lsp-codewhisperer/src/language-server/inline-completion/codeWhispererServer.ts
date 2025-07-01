@@ -423,15 +423,18 @@ export const CodewhispererServerFactory =
                     if (initializeParams !== undefined) {
                         ideCategory = getIdeCategory(initializeParams)
                     }
-                    const autoTriggerResult = autoTrigger({
-                        fileContext, // The left/right file context and programming language
-                        lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                        char: triggerCharacter, // Add the character just inserted, if any, before the invication position
-                        ide: ideCategory ?? '',
-                        os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
-                        previousDecision, // The last decision by the user on the previous invocation
-                        triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
-                    })
+                    const autoTriggerResult = autoTrigger(
+                        {
+                            fileContext, // The left/right file context and programming language
+                            lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
+                            char: triggerCharacter, // Add the character just inserted, if any, before the invication position
+                            ide: ideCategory ?? '',
+                            os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                            previousDecision, // The last decision by the user on the previous invocation
+                            triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
+                        },
+                        logging
+                    )
 
                     if (
                         isAutomaticLspTriggerKind &&
