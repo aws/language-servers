@@ -73,10 +73,7 @@ export class SharedConfigProfileStore implements ProfileStore {
                         result.profiles.push({
                             kinds: [ProfileKind.Unknown],
                             name: sectionHeader.name,
-                            settings: {
-                                region: settings.region,
-                                sso_session: settings.sso_session,
-                            },
+                            settings: {},
                         })
                     }
                     break
@@ -140,6 +137,8 @@ export class SharedConfigProfileStore implements ProfileStore {
                         return profileDuckTypers.SsoTokenProfile.eval(parsedSection)
                     } else if (section.kinds.includes(ProfileKind.IamCredentialProfile)) {
                         return profileDuckTypers.IamCredentialProfile.eval(parsedSection)
+                    } else if (section.kinds.includes(ProfileKind.EmptyProfile)) {
+                        return profileDuckTypers.EmptyProfile.eval(parsedSection)
                     } else {
                         return true
                     }
@@ -162,35 +161,6 @@ export class SharedConfigProfileStore implements ProfileStore {
         })
 
         this.observability.logging.log('Saved shared config.')
-    }
-
-    async deleteProfile(profileName: string): Promise<void> {
-        // Create a profile object with empty settings to trigger deletion
-        const profileStore = new SharedConfigProfileStore(this.observability)
-
-        const profileToDelete = {
-            profiles: [
-                {
-                    kinds: [ProfileKind.IamCredentialProfile],
-                    name: profileName,
-                    settings: undefined, // Setting to null will remove the entire section
-                },
-            ],
-            ssoSessions: [
-                {
-                    name: profileName,
-                    settings: undefined,
-                },
-            ],
-        }
-
-        // Save the changes, which will delete the profile
-        try {
-            await profileStore.save(profileToDelete)
-            this.observability.logging.log('Successfully deleted profile.')
-        } catch (error) {
-            throw `Failed to delete profile`
-        }
     }
 
     private applySectionsToParsedIni<T extends Section>(

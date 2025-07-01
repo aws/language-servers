@@ -3,7 +3,6 @@ import {
     CancellationToken,
     ListProfilesParams,
     UpdateProfileParams,
-    DeleteProfileParams,
     AwsResponseError,
     AwsErrorCodes,
     GetSsoTokenParams,
@@ -115,14 +114,6 @@ export class IdentityServer extends ServerBase {
         this.features.identityManagement.onUpdateProfile(
             async (params: UpdateProfileParams, token: CancellationToken) =>
                 await profileService.updateProfile(params, token).catch(reason => {
-                    this.observability.logging.log(`UpdateProfile failed. ${reason}`)
-                    throw awsResponseErrorWrap(reason)
-                })
-        )
-
-        this.features.identityManagement.onDeleteProfile(
-            async (params: DeleteProfileParams, token: CancellationToken) =>
-                await profileService.deleteProfile(params, token).catch(reason => {
                     this.observability.logging.log(`UpdateProfile failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })

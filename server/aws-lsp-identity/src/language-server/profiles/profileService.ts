@@ -10,8 +10,6 @@ import {
     updateProfileOptionsDefaults,
     UpdateProfileParams,
     UpdateProfileResult,
-    DeleteProfileParams,
-    DeleteProfileResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
@@ -25,7 +23,6 @@ export interface ProfileData {
 export interface ProfileStore {
     load(init?: SharedConfigInit): Promise<ProfileData>
     save(data: ProfileData, init?: SharedConfigInit): Promise<void>
-    deleteProfile(profileName: string, init?: SharedConfigInit): Promise<void>
 }
 
 export const ProfileFields = {
@@ -56,6 +53,13 @@ export const profileDuckTypers = {
         .requireProperty(ProfileFields.aws_access_key_id)
         .requireProperty(ProfileFields.aws_secret_access_key)
         .optionalProperty(ProfileFields.aws_session_token)
+        .disallowProperty(ProfileFields.sso_session)
+        .disallowProperty(ProfileFields.sso_account_id)
+        .disallowProperty(ProfileFields.sso_role_name),
+    EmptyProfile: new DuckTyper()
+        .disallowProperty(ProfileFields.aws_access_key_id)
+        .disallowProperty(ProfileFields.aws_secret_access_key)
+        .disallowProperty(ProfileFields.aws_session_token)
         .disallowProperty(ProfileFields.sso_session)
         .disallowProperty(ProfileFields.sso_account_id)
         .disallowProperty(ProfileFields.sso_role_name),
@@ -109,9 +113,11 @@ export class ProfileService {
         this.throwOnInvalidProfile(!params.profile, 'Profile required.')
         const profile = params.profile!
 
+        // Removing this check for profile deletion
         this.throwOnInvalidProfile(
             !profile.kinds.includes(ProfileKind.SsoTokenProfile) &&
-                !profile.kinds.includes(ProfileKind.IamCredentialProfile),
+                !profile.kinds.includes(ProfileKind.IamCredentialProfile) &&
+                !profile.kinds.includes(ProfileKind.EmptyProfile),
             'Profile must be non-legacy sso-session or iam-credentials type.'
         )
         this.throwOnInvalidProfile(!profile.name, 'Profile name required.')
@@ -168,6 +174,17 @@ export class ProfileService {
             this.throwOnInvalidProfile(!profileSettings.aws_secret_access_key, 'Secret key required on profile.')
         }
 
+        // Validate empty profile
+        if (profile.kinds.includes(ProfileKind.EmptyProfile)) {
+            this.throwOnInvalidProfile(
+                !!profileSettings.aws_access_key_id &&
+                    !!profileSettings.aws_secret_access_key &&
+                    !!profileSettings.aws_session_token &&
+                    !!profileSettings.sso_session,
+                'Empty profile must not contain auth fields.'
+            )
+        }
+
         await this.profileStore
             .save({
                 profiles: [params.profile],
@@ -176,16 +193,6 @@ export class ProfileService {
             .catch(reason => {
                 throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
             })
-
-        return result
-    }
-
-    async deleteProfile(params: DeleteProfileParams, token?: CancellationToken): Promise<DeleteProfileResult> {
-        const result: DeleteProfileResult = {}
-
-        await this.profileStore.deleteProfile(params.profileName).catch(reason => {
-            throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SHARED_CONFIG)
-        })
 
         return result
     }
