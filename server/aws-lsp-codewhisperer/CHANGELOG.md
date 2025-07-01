@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.0.60](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.59...lsp-codewhisperer/v0.0.60) (2025-06-30)
+
+
+### Bug Fixes
+
+* **amazonq:** change the icon for error and reduce the count ([#1789](https://github.com/aws/language-servers/issues/1789)) ([758d31c](https://github.com/aws/language-servers/commit/758d31c186b163712312fdffb04ee692cfe11de8))
+* **amazonq:** change the icon for error and reduce the count ([#1789](https://github.com/aws/language-servers/issues/1789)) ([758d31c](https://github.com/aws/language-servers/commit/758d31c186b163712312fdffb04ee692cfe11de8))
+* **amazonq:** fix to add grep to read only commands ([#1787](https://github.com/aws/language-servers/issues/1787)) ([6762b27](https://github.com/aws/language-servers/commit/6762b275e9b21de268a7c89e5dc0f37e3295ee60))
+* put streakLength under feature flag ([#1796](https://github.com/aws/language-servers/issues/1796)) ([dc4a8fd](https://github.com/aws/language-servers/commit/dc4a8fdd6e94fafe9b1dbe6cb1419c55a285df70))
+
+
+### Reverts
+
+* Revert "fix: adding files on windows properly triggers reindexing ([#1755](https://github.com/aws/language-servers/issues/1755))" ([#1794](https://github.com/aws/language-servers/issues/1794)) ([bb4fb25](https://github.com/aws/language-servers/commit/bb4fb25e3e8c9b0a99b75cde08e9617053d69993))
+
 ## [0.0.59](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.58...lsp-codewhisperer/v0.0.59) (2025-06-26)
 
 
