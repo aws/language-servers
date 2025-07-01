@@ -58,7 +58,7 @@ const sampleUserInputRequest: StartTransformRequest = {
     ],
     TransformNetStandardProjects: false,
     EnableRazorViewTransform: false,
-    EnableWebFormsTransform: false,
+    EnableWebFormsToBlazorTransform: false,
     command: '',
     PackageReferences: [],
 }

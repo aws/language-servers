@@ -22,7 +22,7 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     ProjectMetadata: TransformProjectMetadata[]
     TransformNetStandardProjects: boolean
     EnableRazorViewTransform: boolean
-    EnableWebFormsTransform: boolean
+    EnableWebFormsToBlazorTransform: boolean
     PackageReferences?: PackageReferenceMetadata[]
 }
 
@@ -103,7 +103,7 @@ export interface RequirementJson {
     Projects: Project[]
     TransformNetStandardProjects: boolean
     EnableRazorViewTransform: boolean
-    EnableWebFormsTransform: boolean
+    EnableWebFormsToBlazorTransform: boolean
 }
 
 export interface ExternalReference {

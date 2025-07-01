@@ -171,8 +171,8 @@ export class ArtifactManager {
             ...(request.EnableRazorViewTransform !== undefined && {
                 EnableRazorViewTransform: request.EnableRazorViewTransform,
             }),
-            ...(request.EnableWebFormsTransform !== undefined && {
-                EnableWebFormsTransform: request.EnableWebFormsTransform,
+            ...(request.EnableWebFormsToBlazorTransform !== undefined && {
+                EnableWebFormsToBlazorTransform: request.EnableWebFormsToBlazorTransform,
             }),
             Packages: packages,
         } as RequirementJson
