@@ -552,6 +552,7 @@ export const CodewhispererServerFactory =
                             )
 
                             if (mergedSuggestions.length > 0) {
+                                logging.info(`[NEP]: returning suggestion from previous session as context matches`)
                                 return {
                                     items: mergedSuggestions,
                                     sessionId: currentSession.id,
@@ -559,6 +560,7 @@ export const CodewhispererServerFactory =
                             }
                         }
                         // Emit user trigger decision at session close time for active session
+                        logging.info(`[NEP]: discard current session`)
                         sessionManager.discardSession(currentSession)
                         // TODO add streakLength back once the model is updated
                         // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
