@@ -798,15 +798,18 @@ export class AgenticChatController implements ChatHandlers {
                     // Only skip adding message to history, continue executing to avoid unexpected stop for the conversation
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
-                    this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                        body: currentMessage.userInputMessage?.content ?? '',
-                        type: 'prompt' as any,
-                        userIntent: currentMessage.userInputMessage?.userIntent,
-                        origin: currentMessage.userInputMessage?.origin,
-                        userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
-                        shouldDisplayMessage: shouldDisplayMessage,
-                        timestamp: new Date(),
-                    })
+                    // Adding a conditional check to not add /test, /doc and /dev prompts to history.
+                    if (!currentMessage.userInputMessage?.content?.startsWith('You are Amazon Q')) {
+                        this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
+                            body: currentMessage.userInputMessage?.content ?? '',
+                            type: 'prompt' as any,
+                            userIntent: currentMessage.userInputMessage?.userIntent,
+                            origin: currentMessage.userInputMessage?.origin,
+                            userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
+                            shouldDisplayMessage: shouldDisplayMessage,
+                            timestamp: new Date(),
+                        })
+                    }
                 }
             }
             shouldDisplayMessage = true

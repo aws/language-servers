@@ -270,6 +270,11 @@ export const createChat = (
                     tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
                 }
 
+                // Enable reroute FIRST before processing other options
+                if ((params as any)?.reroute) {
+                    tabFactory.enableReroute()
+                }
+
                 if (params?.quickActions?.quickActionsCommandGroups) {
                     const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
                         ...group,
