@@ -98,6 +98,25 @@ export const autoTrigger = ({
 } => {
     const leftContextLines = fileContext.leftFileContent.split(/\r?\n/)
     const leftContextAtCurrentLine = leftContextLines[leftContextLines.length - 1]
+    const rightContextLines = fileContext.rightFileContent.split(/\r?\n/)
+    const rightContextAtCurrentLine = rightContextLines[0]
+    // reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L102
+    // we do not want to trigger when there is immediate right context on the same line
+    // with "}" being an exception because of IDE auto-complete
+    // this was from product spec for VSC and JB
+    const isValidRightContext = (context: string) =>
+        context.trim() === '}' || context.trim() === ')' || context.startsWith(' ')
+    if (
+        rightContextAtCurrentLine.length &&
+        !isValidRightContext(rightContextAtCurrentLine) &&
+        ['VSCODE', 'JETBRAINS'].includes(ide)
+    ) {
+        return {
+            shouldTrigger: false,
+            classifierResult: 0,
+            classifierThreshold: TRIGGER_THRESHOLD,
+        }
+    }
     const tokens = leftContextAtCurrentLine.trim().split(' ')
     const lastToken = tokens[tokens.length - 1]
 
