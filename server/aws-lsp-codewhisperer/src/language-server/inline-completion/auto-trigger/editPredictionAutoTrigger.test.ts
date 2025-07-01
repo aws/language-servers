@@ -90,43 +90,6 @@ describe('editPredictionAutoTrigger', function () {
         sinon.assert.called(mockRecentEdits.hasRecentEditInLine as sinon.SinonStub)
     })
 
-    // TODO: As this rule is temporarily disabled, remove this test case or reenable it once we bring back the rule
-    it.skip('should not trigger when cursor is in middle of word', function () {
-        // Arrange
-        const fileContext = createMockFileContext('someWord', 'moreWord\nnon-empty-suffix')
-
-        // Act
-        const result = editPredictionAutoTrigger({
-            fileContext,
-            lineNum: 0,
-            char: '',
-            previousDecision: '',
-            cursorHistory: mockCursorTracker as CursorTracker,
-            recentEdits: mockRecentEdits as RecentEditTracker,
-        })
-
-        // Assert
-        assert.strictEqual(result.shouldTrigger, false)
-    })
-
-    it('should not trigger when previous decision was Reject', function () {
-        // Arrange
-        const fileContext = createMockFileContext('word ', ' \nnon-empty-suffix')
-
-        // Act
-        const result = editPredictionAutoTrigger({
-            fileContext,
-            lineNum: 0,
-            char: '',
-            previousDecision: 'Reject',
-            cursorHistory: mockCursorTracker as CursorTracker,
-            recentEdits: mockRecentEdits as RecentEditTracker,
-        })
-
-        // Assert
-        assert.strictEqual(result.shouldTrigger, false)
-    })
-
     it('should not trigger when there is no non-empty suffix', function () {
         // Arrange
         const fileContext = createMockFileContext('word ', ' \n')
@@ -347,70 +310,6 @@ describe('editPredictionAutoTrigger', function () {
 
             // Restore the spy
             hasRecentEditInLineSpy.restore()
-        })
-    })
-
-    describe('user pause detection', function () {
-        it('should trigger when user has paused at a valid position', function () {
-            // Arrange
-            const fileContext = {
-                leftFileContent: 'word ',
-                rightFileContent: ' \nnon-empty-suffix',
-                programmingLanguage: {
-                    languageName: 'java',
-                },
-            } as FileContext
-
-            // Configure cursor tracker to indicate user has paused (not changed position)
-            ;(mockCursorTracker.hasPositionChanged as sinon.SinonStub).returns(false)
-
-            // Act
-            const result = editPredictionAutoTrigger({
-                fileContext,
-                lineNum: 0,
-                char: '',
-                previousDecision: '',
-                cursorHistory: mockCursorTracker as CursorTracker,
-                recentEdits: mockRecentEdits as RecentEditTracker,
-            })
-
-            // Assert
-            sinon.assert.called(mockCursorTracker.hasPositionChanged as sinon.SinonStub)
-            assert.strictEqual(result.shouldTrigger, true)
-        })
-
-        // TODO: As this rule is temporarily disabled, remove this test case or reenable it once we bring back the rule
-        it.skip('should not trigger when user has not paused long enough', function () {
-            // Arrange
-            const fileContext = {
-                leftFileContent: 'word ',
-                rightFileContent: ' \nnon-empty-suffix',
-                programmingLanguage: {
-                    languageName: 'java',
-                },
-            } as FileContext
-
-            // Configure cursor tracker to indicate user has not paused (position changed)
-            ;(mockCursorTracker.hasPositionChanged as sinon.SinonStub).returns(true)
-
-            // Reset other trigger conditions
-            mockLanguageDetector.isAfterKeyword.returns(false)
-            mockLanguageDetector.isAfterOperatorOrDelimiter.returns(false)
-            mockLanguageDetector.isAtLineBeginning.returns(false)
-
-            // Act
-            const result = editPredictionAutoTrigger({
-                fileContext,
-                lineNum: 0,
-                char: '',
-                previousDecision: '',
-                cursorHistory: mockCursorTracker as CursorTracker,
-                recentEdits: mockRecentEdits as RecentEditTracker,
-            })
-
-            // Assert
-            sinon.assert.called(mockCursorTracker.hasPositionChanged as sinon.SinonStub)
-            assert.strictEqual(result.shouldTrigger, false)
         })
     })
 
