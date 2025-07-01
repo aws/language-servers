@@ -366,19 +366,6 @@ export function registerChat(
         languageClient.info(`[VSCode Client] Received telemetry event from server ${JSON.stringify(e)}`)
     })
 
-    languageClient.onRequest(ShowOpenDialogRequestType.method, async (params: ShowOpenDialogParams) => {
-        const uris = await vscode.window.showOpenDialog({
-            canSelectFiles: params.canSelectFiles ?? true,
-            canSelectFolders: params.canSelectFolders ?? false,
-            canSelectMany: params.canSelectMany ?? false,
-            filters: params.filters,
-            defaultUri: params.defaultUri ? Uri.parse(params.defaultUri) : undefined,
-            title: params.title,
-        })
-        const urisString = uris?.map(uri => uri.toString())
-        return { uris: urisString || [] }
-    })
-
     languageClient.onRequest(ShowSaveFileDialogRequestType.method, async (params: ShowSaveFileDialogParams) => {
         // Show native Save File dialog
         const filters: Record<string, string[]> = {}

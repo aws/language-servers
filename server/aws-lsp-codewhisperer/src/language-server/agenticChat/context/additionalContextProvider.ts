@@ -429,9 +429,7 @@ export class AdditionalContextProvider {
         for (const context of mergedContext) {
             if (context.label === 'image' && context.route && context.route.length > 0) {
                 try {
-                    const imagePath = context.route[0].startsWith('file://')
-                        ? context.route[0].substring(7)
-                        : context.route[0]
+                    const imagePath = context.route[0]
                     const format = imagePath.split('.').pop()?.toLowerCase() || ''
                     if (!isSupportedImageExtension(format)) {
                         this.features.logging.warn(`Unsupported image format: ${format}`)
