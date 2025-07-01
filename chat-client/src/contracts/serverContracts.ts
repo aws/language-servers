@@ -46,6 +46,7 @@ import {
     PINNED_CONTEXT_ADD_NOTIFICATION_METHOD,
     PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD,
     PinnedContextParams,
+    LIST_AVAILABLE_MODELS_REQUEST_METHOD,
 } from '@aws/language-server-runtimes-types'
 
 export const TELEMETRY = 'telemetry/event'
@@ -78,6 +79,7 @@ export type ServerMessageCommand =
     | typeof RULE_CLICK_REQUEST_METHOD
     | typeof PINNED_CONTEXT_ADD_NOTIFICATION_METHOD
     | typeof PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD
+    | typeof LIST_AVAILABLE_MODELS_REQUEST_METHOD
 
 export interface ServerMessage {
     command: ServerMessageCommand

@@ -213,6 +213,10 @@ export const QAgenticChatServer =
             return chatController.onPinnedContextRemove(params)
         })
 
+        chat.onListAvailableModels(params => {
+            return chatController.onListAvailableModels(params)
+        })
+
         logging.log('Q Chat server has been initialized')
 
         return () => {

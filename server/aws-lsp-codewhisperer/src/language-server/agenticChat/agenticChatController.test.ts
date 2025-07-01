@@ -2599,6 +2599,137 @@ ${' '.repeat(8)}}
         })
     })
 
+    describe('onListAvailableModels', () => {
+        let tokenServiceManagerStub: sinon.SinonStub
+
+        beforeEach(() => {
+            // Create a session with a model ID
+            chatController.onTabAdd({ tabId: mockTabId })
+            const session = chatSessionManagementService.getSession(mockTabId).data!
+            session.modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
+
+            // Stub the getRegion method
+            tokenServiceManagerStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getRegion')
+        })
+
+        afterEach(() => {
+            tokenServiceManagerStub.restore()
+        })
+
+        it('should return all available models for us-east-1 region', async () => {
+            // Set up the region to be us-east-1
+            tokenServiceManagerStub.returns('us-east-1')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_SONNET_4_20250514_V1_0')
+
+            // Check that the models include both Claude versions
+            const modelIds = result.models.map(model => model.id)
+            assert.ok(modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
+            assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
+        })
+
+        it('should return limited models for eu-central-1 region', async () => {
+            // Set up the region to be eu-central-1
+            tokenServiceManagerStub.returns('eu-central-1')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 1)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            // Check that the models only include Claude 3.7
+            const modelIds = result.models.map(model => model.id)
+            assert.ok(!modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
+            assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
+        })
+
+        it('should return all models when region is unknown', async () => {
+            // Set up the region to be unknown
+            tokenServiceManagerStub.returns('unknown-region')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+        })
+
+        it('should return undefined for selectedModelId when no session data exists', async () => {
+            // Set up the session to return no session (failure case)
+            const getSessionStub = sinon.stub(chatSessionManagementService, 'getSession')
+            getSessionStub.returns({
+                data: undefined,
+                success: false,
+                error: 'error',
+            })
+
+            // Call the method
+            const params = { tabId: 'non-existent-tab' }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result
+            assert.strictEqual(result.tabId, 'non-existent-tab')
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, undefined)
+
+            getSessionStub.restore()
+        })
+
+        it('should fallback to latest available model when saved model is not available in current region', async () => {
+            // Set up the region to be eu-central-1 (which only has Claude 3.7)
+            tokenServiceManagerStub.returns('eu-central-1')
+
+            // Mock database to return Claude Sonnet 4 (not available in eu-central-1)
+            const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
+            getModelIdStub.returns('CLAUDE_SONNET_4_20250514_V1_0')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result falls back to available model
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 1)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            getModelIdStub.restore()
+        })
+
+        it('should use saved model when it is available in current region', async () => {
+            // Set up the region to be us-east-1 (which has both models)
+            tokenServiceManagerStub.returns('us-east-1')
+
+            // Mock database to return Claude 3.7 (available in us-east-1)
+            const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
+            getModelIdStub.returns('CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result uses the saved model
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            getModelIdStub.restore()
+        })
+    })
+
     describe('IAM Authentication', () => {
         let iamServiceManager: AmazonQIAMServiceManager
         let iamChatController: AgenticChatController

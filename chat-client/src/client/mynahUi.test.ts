@@ -12,10 +12,9 @@ import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { ChatMessage } from '@aws/language-server-runtimes-types'
+import { ChatMessage, ListAvailableModelsResult } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from './features/history'
 import { pairProgrammingModeOn, pairProgrammingModeOff } from './texts/pairProgramming'
-import { BedrockModel } from './texts/modelSelection'
 
 describe('MynahUI', () => {
     let messager: Messager
@@ -74,6 +73,7 @@ describe('MynahUI', () => {
             listRules: sinon.stub(),
             onAddPinnedContext: sinon.stub(),
             onRemovePinnedContext: sinon.stub(),
+            onListAvailableModels: sinon.stub(),
         }
 
         messager = new Messager(outboundChatApi)
@@ -431,18 +431,61 @@ describe('MynahUI', () => {
 
             const newValues = {
                 'pair-programmer-mode': 'true',
-                'model-selection': BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0,
+                'model-selection': 'CLAUDE_3_7_SONNET_20250219_V1_0',
             }
 
             handlePromptInputChange(mynahUi, tabId, newValues)
 
             const expectedOptions = [
                 { id: 'pair-programmer-mode', value: 'true' },
-                { id: 'model-selection', value: BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0 },
+                { id: 'model-selection', value: 'CLAUDE_3_7_SONNET_20250219_V1_0' },
             ]
 
             sinon.assert.calledWith(updateStoreSpy, tabId, {
                 promptInputOptions: expectedOptions,
+            })
+        })
+
+        it('should add model selection notification when model is changed', () => {
+            const tabId = 'tab-1'
+            const modelOptions = [
+                { value: 'CLAUDE_3_7_SONNET_20250219_V1_0', label: 'Claude Sonnet 3.7' },
+                { value: 'CLAUDE_SONNET_4_20250514_V1_0', label: 'Claude Sonnet 4' },
+            ]
+            const promptInputOptions = [
+                {
+                    id: 'model-selection',
+                    type: 'select',
+                    value: 'CLAUDE_3_7_SONNET_20250219_V1_0',
+                    options: modelOptions,
+                },
+            ]
+
+            const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
+            getTabDataStub.returns({
+                getStore: () => ({
+                    // @ts-expect-error partial object
+                    promptInputOptions,
+                }),
+            })
+
+            // Reset addChatItem spy to track new calls
+            addChatItemSpy.resetHistory()
+
+            // Change model from Claude 3.7 to Claude 4
+            const newValues = {
+                'model-selection': 'CLAUDE_SONNET_4_20250514_V1_0',
+            }
+
+            handlePromptInputChange(mynahUi, tabId, newValues)
+
+            // Verify that a model selection notification was added
+            sinon.assert.calledOnce(addChatItemSpy)
+            sinon.assert.calledWithMatch(addChatItemSpy, tabId, {
+                type: ChatItemType.DIRECTIVE,
+                contentHorizontalAlignment: 'center',
+                fullWidth: true,
+                body: 'Switched model to Claude Sonnet 4',
             })
         })
     })
@@ -480,6 +523,51 @@ describe('MynahUI', () => {
             })
         })
     })
+
+    describe('listAvailableModels', () => {
+        it('should update promptInputOptions with available models', () => {
+            const tabId = 'tab-1'
+
+            // Setup tab data with existing promptInputOptions
+            const getTabDataStub = sinon.stub(mynahUi, 'getTabData')
+            getTabDataStub.returns({
+                getStore: () => ({
+                    // @ts-expect-error partial object
+                    promptInputOptions: [{ id: 'model-selection', options: [] }],
+                }),
+            })
+
+            // Simulate the response from the server
+            const models = [
+                { id: 'CLAUDE_3_7_SONNET_20250219_V1_0', name: 'Claude Sonnet 3.7' },
+                { id: 'CLAUDE_SONNET_4_20250514_V1_0', name: 'Claude Sonnet 4' },
+            ]
+
+            const result: ListAvailableModelsResult = {
+                tabId,
+                models,
+                selectedModelId: 'CLAUDE_3_7_SONNET_20250219_V1_0',
+            }
+
+            // Call the listAvailableModels method
+            inboundChatApi.listAvailableModels(result)
+
+            // Verify updateStore was called with the correct options
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptInputOptions: [
+                    {
+                        id: 'model-selection',
+                        options: [
+                            { value: 'CLAUDE_3_7_SONNET_20250219_V1_0', label: 'Claude Sonnet 3.7' },
+                            { value: 'CLAUDE_SONNET_4_20250514_V1_0', label: 'Claude Sonnet 4' },
+                        ],
+                        type: 'select',
+                        value: 'CLAUDE_3_7_SONNET_20250219_V1_0',
+                    },
+                ],
+            })
+        })
+    })
 })
 
 describe('withAdapter', () => {
@@ -506,6 +594,7 @@ describe('withAdapter', () => {
             uiReady: sinon.stub(),
             tabAdded: sinon.stub(),
             telemetry: sinon.stub(),
+            onListAvailableModels: sinon.stub(),
         } as OutboundChatApi)
         const tabFactory = new TabFactory({})
         const mynahUiResult = createMynahUi(

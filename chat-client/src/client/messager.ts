@@ -47,6 +47,7 @@ import {
     TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
+    ListAvailableModelsParams,
 } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
 import {
@@ -107,6 +108,7 @@ export interface OutboundChatApi {
     listRules(params: ListRulesParams): void
     onAddPinnedContext(params: PinnedContextParams): void
     onRemovePinnedContext(params: PinnedContextParams): void
+    onListAvailableModels(params: ListAvailableModelsParams): void
 }
 
 export class Messager {
@@ -279,5 +281,9 @@ export class Messager {
 
     onRemovePinnedContext = (params: PinnedContextParams) => {
         this.chatApi.onRemovePinnedContext(params)
+    }
+
+    onListAvailableModels = (params: ListAvailableModelsParams): void => {
+        this.chatApi.onListAvailableModels(params)
     }
 }
