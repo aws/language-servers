@@ -185,14 +185,39 @@ export class IdentityService {
             })
             await stsClient.send(new GetCallerIdentityCommand({}))
 
-            // If role_arn is configured
-            if (profile.settings?.role_arn) {
-                credentials = await this.getStsCredentials(
-                    stsClient,
-                    profile.settings.role_arn,
-                    profile.name,
-                    profile.settings.region
-                )
+            if (options.assumeRole && profile.settings.role_arn) {
+                // Try to get the STS credentials from cache
+                const roleArn = profile.settings.role_arn
+                const stsSession: StsSession = {
+                    profileName: profile.name,
+                    roleArn: roleArn,
+                    region: profile.settings.region,
+                }
+                const stsCredentials = await this.stsCache
+                    .getStsCredentials(this.clientName, stsSession)
+                    .catch(_ => undefined)
+
+                if (stsCredentials) {
+                    // Use the found STS credential
+                    credentials = stsCredentials
+                } else if (options.generateOnInvalidStsCredential) {
+                    // Generate and cache the new STS credentials
+                    credentials = await this.generateStsCredentials(stsClient, roleArn)
+                    await this.stsCache.setStsCredentials(this.clientName, stsSession, credentials)
+                } else {
+                    // If we could not get the cached STS credential and cannot generate a new credential, give up
+                    this.observability.logging.log(
+                        'STS credential not found an generateOnInvalidStsCredential = false, returning no credential.'
+                    )
+                    throw new AwsError('STS credential not found.', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)
+                }
+
+                // Set up auto-refresh
+                await this.stsAutoRefresher
+                    .watch(this.clientName, stsSession, () => this.generateStsCredentials(stsClient, roleArn))
+                    .catch(reason => {
+                        this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
+                    })
             }
 
             emitMetric('Succeeded')
@@ -205,35 +230,6 @@ export class IdentityService {
             emitMetric('Failed', e)
             throw e
         }
-    }
-
-    private async getStsCredentials(
-        stsClient: STSClient,
-        roleArn: string,
-        profileName: string,
-        region?: string
-    ): Promise<IamCredentials> {
-        const stsSession: StsSession = { profileName, roleArn, region }
-
-        // Try to get cached STS credentials first
-        let stsCredentials = await this.stsCache.getStsCredentials(this.clientName, stsSession).catch(_ => undefined)
-
-        if (!stsCredentials) {
-            // Generate new STS credentials
-            stsCredentials = await this.generateStsCredentials(stsClient, roleArn)
-
-            // Cache the new credentials
-            await this.stsCache.setStsCredentials(this.clientName, stsSession, stsCredentials)
-        }
-
-        // Set up auto-refresh
-        await this.stsAutoRefresher
-            .watch(this.clientName, stsSession, () => this.generateStsCredentials(stsClient, roleArn))
-            .catch(reason => {
-                this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
-            })
-
-        return stsCredentials
     }
 
     private async generateStsCredentials(stsClient: STSClient, roleArn: string): Promise<IamCredentials> {
