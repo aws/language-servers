@@ -91,6 +91,9 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     async mapContextCommandItems(items: ContextCommandItem[]): Promise<ContextCommandGroup[]> {
+        let imageContextEnabled =
+            this.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.imageContextEnabled === true
         const folderCmds: ContextCommand[] = []
         const folderCmdGroup: ContextCommand = {
             command: 'Folders',
@@ -142,12 +145,24 @@ export class ContextCommandsProvider implements Disposable {
             description: 'Add a saved prompt to context',
             icon: 'magic',
         }
+
+        const imageCmdGroup: ContextCommand = {
+            command: 'Image',
+            description: 'Add a image to context',
+            icon: 'image',
+            placeholder: 'Select an image file',
+        }
         const workspaceCmd = {
             command: '@workspace',
             id: '@workspace',
             description: 'Reference all code in workspace',
         }
         const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
+
+        if (imageContextEnabled) {
+            commands.push(imageCmdGroup)
+        }
+
         const allCommands: ContextCommandGroup[] = [
             {
                 commands: commands,

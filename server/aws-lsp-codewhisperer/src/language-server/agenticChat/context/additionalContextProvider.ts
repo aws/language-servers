@@ -29,8 +29,9 @@ import {
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { Features } from '../../types'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
-import { ChatMessage } from '@amzn/codewhisperer-streaming'
+import { ChatMessage, ImageBlock, ImageFormat } from '@amzn/codewhisperer-streaming'
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
+import { isSupportedImageExtension } from '../../../shared/imageVerification'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
@@ -397,6 +398,69 @@ export class AdditionalContextProvider {
                 showRules: workspaceUtils.getWorkspaceFolderPaths(this.features.workspace).length > 0,
             })
         }
+    }
+
+    /**
+     * Extracts image blocks from a context array, reading image files and returning them as ImageBlock objects.
+     * Optionally, appends pinned image context from chatDb for the given tabId.
+     * @param contextArr The context array to extract image blocks from.
+     * @param tabId Optional tabId to fetch pinned image context from chatDb.
+     */
+    public async getImageBlocksFromContext(contextArr?: ContextCommand[], tabId?: string): Promise<ImageBlock[]> {
+        const imageBlocks: ImageBlock[] = []
+
+        // 1. Start with the provided contextArr or an empty array
+        let mergedContext: ContextCommand[] = contextArr ? [...contextArr] : []
+
+        // 2. If tabId is provided, append pinned image context from chatDb (avoid duplicates)
+        if (tabId) {
+            const pinnedContext = this.chatDb.getPinnedContext(tabId)
+            for (const pc of pinnedContext) {
+                if (pc.label === 'image' && !mergedContext.some(c => c.label === 'image' && c.id === pc.id)) {
+                    mergedContext.push(pc)
+                }
+            }
+        }
+
+        // 3. Limit mergedContext to 20 items
+        mergedContext = mergedContext.slice(0, 20)
+
+        // 4. Process all image contexts in mergedContext
+        for (const context of mergedContext) {
+            if (context.label === 'image' && context.route && context.route.length > 0) {
+                try {
+                    const imagePath = context.route[0]
+                    const format = imagePath.split('.').pop()?.toLowerCase() || ''
+                    if (!isSupportedImageExtension(format)) {
+                        this.features.logging.warn(`Unsupported image format: ${format}`)
+                        continue
+                    }
+                    if ('content' in context && context.content) {
+                        imageBlocks.push({
+                            format: format as ImageFormat,
+                            source: {
+                                bytes: new Uint8Array(Object.values(context.content)),
+                            },
+                        })
+                        continue
+                    }
+                    const fileContent = await this.features.workspace.fs.readFile(imagePath, {
+                        encoding: 'binary',
+                    })
+                    const imageBuffer = Buffer.from(fileContent, 'binary')
+                    const imageBytes = new Uint8Array(imageBuffer)
+                    imageBlocks.push({
+                        format: format as ImageFormat,
+                        source: {
+                            bytes: imageBytes,
+                        },
+                    })
+                } catch (err) {
+                    this.features.logging.error(`Failed to read image file: ${err}`)
+                }
+            }
+        }
+        return imageBlocks
     }
 
     async getRulesFolders(tabId: string): Promise<RulesFolder[]> {

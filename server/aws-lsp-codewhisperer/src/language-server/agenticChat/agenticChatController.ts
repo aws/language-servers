@@ -13,6 +13,7 @@ import {
     ToolResultStatus,
     ToolUse,
     ToolUseEvent,
+    ImageBlock,
 } from '@amzn/codewhisperer-streaming'
 import {
     SendMessageCommandInput,
@@ -39,6 +40,8 @@ import {
     MessageType,
     ExecuteCommandParams,
     FollowUpClickParams,
+    OpenFileDialogParams,
+    OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -176,6 +179,8 @@ import {
     qProName,
 } from '../paidTier/paidTier'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
+import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
+import { sanitize } from '@aws/lsp-core/out/util/path'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -442,6 +447,78 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
+        if (params.fileType === 'image') {
+            // 1. Prompt user for file selection
+            const supportedExtensions = DEFAULT_IMAGE_VERIFICATION_OPTIONS.supportedExtensions
+            const filters = { 'Image Files': supportedExtensions.map(ext => `*.${ext}`) }
+            const result = await this.#features.lsp.window.showOpenDialog({
+                canSelectFiles: true,
+                canSelectFolders: false,
+                canSelectMany: false,
+                filters,
+            })
+
+            if (!result.uris || result.uris.length === 0) {
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                    errorMessage: 'No file selected.',
+                }
+            }
+
+            const validFilePaths: string[] = []
+            let errorMessage: string | undefined
+            for (const filePath of result.uris) {
+                // Extract filename from the URI for error messages
+                const fileName = filePath.split('/').pop() || ''
+                const sanitizedPath = sanitize(filePath)
+
+                // Get file size and content for verification
+                const size = await this.#features.workspace.fs.getFileSize(sanitizedPath)
+                const fileContent = await this.#features.workspace.fs.readFile(sanitizedPath, {
+                    encoding: 'binary',
+                })
+                const imageBuffer = Buffer.from(fileContent, 'binary')
+
+                // Use centralized verification utility
+                const verificationResult = await verifyServerImage(fileName, size.size, imageBuffer)
+
+                if (verificationResult.isValid) {
+                    validFilePaths.push(filePath)
+                } else {
+                    errorMessage = verificationResult.errors[0] // Use first error message
+                }
+            }
+
+            if (validFilePaths.length === 0) {
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                    errorMessage: errorMessage || 'No valid image selected.',
+                }
+            }
+
+            // All valid files
+            return {
+                tabId: params.tabId,
+                filePaths: validFilePaths,
+                fileType: params.fileType,
+                insertPosition: params.insertPosition,
+            }
+        }
+        return {
+            tabId: params.tabId,
+            filePaths: [],
+            fileType: params.fileType,
+            insertPosition: params.insertPosition,
+        }
+    }
+
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
         if (params.isRule) {
             let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
@@ -598,13 +675,20 @@ export class AgenticChatController implements ChatHandlers {
             // Combine additional context with active file and get file list to display at top of response
             const contextItems = [...additionalContext, ...activeFile]
             triggerContext.documentReference = this.#additionalContextProvider.getFileListFromContext(contextItems)
+
+            const customContext = await this.#additionalContextProvider.getImageBlocksFromContext(
+                params.context,
+                params.tabId
+            )
+
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
                 params,
                 session,
                 triggerContext,
                 additionalContext,
-                chatResultStream
+                chatResultStream,
+                customContext
             )
 
             // Generate a unique ID for this prompt
@@ -681,7 +765,8 @@ export class AgenticChatController implements ChatHandlers {
         session: ChatSessionService,
         triggerContext: TriggerContext,
         additionalContext: AdditionalContentEntryAddition[],
-        chatResultStream: AgenticChatResultStream
+        chatResultStream: AgenticChatResultStream,
+        customContext: ImageBlock[]
     ): Promise<ChatCommandInput> {
         this.#debug('Preparing request input')
         // Get profileArn from the service manager if available
@@ -697,7 +782,8 @@ export class AgenticChatController implements ChatHandlers {
             this.#getTools(session),
             additionalContext,
             session.modelId,
-            this.#origin
+            this.#origin,
+            customContext
         )
         return requestInput
     }
@@ -804,7 +890,9 @@ export class AgenticChatController implements ChatHandlers {
                         userIntent: currentMessage.userInputMessage?.userIntent,
                         origin: currentMessage.userInputMessage?.origin,
                         userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
-                        shouldDisplayMessage: shouldDisplayMessage,
+                        shouldDisplayMessage:
+                            shouldDisplayMessage &&
+                            !currentMessage.userInputMessage?.content?.startsWith('You are Amazon Q'),
                         timestamp: new Date(),
                     })
                 }

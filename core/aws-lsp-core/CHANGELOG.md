@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.11](https://github.com/aws/language-servers/compare/lsp-core/v0.0.10...lsp-core/v0.0.11) (2025-07-02)
+
+
+### Bug Fixes
+
+* **amazonq:** add handling for relative paths for isInWorkspace ([#1801](https://github.com/aws/language-servers/issues/1801)) ([3c273a7](https://github.com/aws/language-servers/commit/3c273a7aeac88a7afe40abaf490bc0950e517c01))
+
 ## [0.0.10](https://github.com/aws/language-servers/compare/lsp-core/v0.0.9...lsp-core/v0.0.10) (2025-06-23)
 
 
