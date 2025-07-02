@@ -1131,9 +1131,10 @@ export class AgenticChatController implements ChatHandlers {
                             toolUse.input as any,
                             approvedPaths
                         )
-
+                        // check if tool execution's path is out of workspace
+                        const isOutOfWorkSpace = warning === outOfWorkspaceWarningmessage
                         // Honor built-in permission if available, otherwise use tool's requiresAcceptance
-                        const toolRequiresAcceptance = builtInPermission || requiresAcceptance
+                        const toolRequiresAcceptance = (builtInPermission ?? isOutOfWorkSpace) || requiresAcceptance
 
                         if (toolRequiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -1147,7 +1148,6 @@ export class AgenticChatController implements ChatHandlers {
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
-                            const isOutOfWorkSpace = warning === outOfWorkspaceWarningmessage
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -1156,7 +1156,7 @@ export class AgenticChatController implements ChatHandlers {
                                     session.getConversationType()
                                 )
                             }
-                            if (toolRequiresAcceptance || (isExecuteBash && isOutOfWorkSpace)) {
+                            if (toolRequiresAcceptance) {
                                 await this.waitForToolApproval(
                                     toolUse,
                                     chatResultStream,
