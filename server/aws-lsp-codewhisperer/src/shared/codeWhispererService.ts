@@ -256,7 +256,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         if (this.customizationArn) request.customizationArn = this.customizationArn
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         this.logging.info(`[NEP]: generateCompletion payload: 
-    "lsp-version": '7/1; edits-only',
+    "lsp-version": '7/2; edits-only - fe1156cdd6becbda4b7218cbb06f615a5d919def',
     "requestId": ${response.$response.requestId},
     "responseCompletionCount": ${response.completions?.length ?? 0},
     "responsePredictionCount": ${response.predictions?.length ?? 0},
