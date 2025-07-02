@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.0.61](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.60...lsp-codewhisperer/v0.0.61) (2025-07-02)
+
+
+### Features
+
+* add logic to merge with previous suggestions for EDITS ([#1791](https://github.com/aws/language-servers/issues/1791)) ([072d13b](https://github.com/aws/language-servers/commit/072d13b08168f256ea3695bea03cf37b27d91f81))
+* **amazonq:** migrating / agents to q agentic chat ([#1799](https://github.com/aws/language-servers/issues/1799)) ([559b2ba](https://github.com/aws/language-servers/commit/559b2baec7da7b8fffb697990e3b249ffffcb85c))
+* **amazonq:** read and validate the images as context ([#1716](https://github.com/aws/language-servers/issues/1716)) ([7a5d41f](https://github.com/aws/language-servers/commit/7a5d41f3cff7309d04d952fbb5dc063fb8658a06))
+
+
+### Bug Fixes
+
+* adjust vs code auto trigger coefficients ([#1806](https://github.com/aws/language-servers/issues/1806)) ([25b1d1a](https://github.com/aws/language-servers/commit/25b1d1a1930f7d0cb922d3a085cbaac2a09340b9))
+* **amazonq:** remove the stack trace check from service unavailable exceptions ([#1810](https://github.com/aws/language-servers/issues/1810)) ([a5677f0](https://github.com/aws/language-servers/commit/a5677f03d54aa8e42a71e71c524700c23825ed35))
+* **amazonq:** send pinned context and rules as message pair ([#1762](https://github.com/aws/language-servers/issues/1762)) ([322add6](https://github.com/aws/language-servers/commit/322add6f8b3b6edd5b3e4b37fc783a1079f15596))
+* connect chat history to workspace file ([#1767](https://github.com/aws/language-servers/issues/1767)) ([4575727](https://github.com/aws/language-servers/commit/4575727911a4efb21a3f24a3d400c7844451c243))
+* do not auto trigger when there is immediate right context for VSC/JB ([#1802](https://github.com/aws/language-servers/issues/1802)) ([fdb29d4](https://github.com/aws/language-servers/commit/fdb29d472c5a0bc7e0a89f5611245248c380cfe8))
+* setting shouldDisplayMessage to false for /agents ([#1811](https://github.com/aws/language-servers/issues/1811)) ([4a72cf7](https://github.com/aws/language-servers/commit/4a72cf7bbc9081f65c4e88c3ab42441a21ec6e03))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.10 to ^0.0.11
+
 ## [0.0.60](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.59...lsp-codewhisperer/v0.0.60) (2025-06-30)
 
 
