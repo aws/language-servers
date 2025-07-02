@@ -139,6 +139,11 @@ export const QAgenticChatServer =
             return chatController.onChatPrompt(params, token)
         })
 
+        chat.onOpenFileDialog((params, token) => {
+            logging.log("Open File System")
+            return chatController.onOpenFileDialog(params, token)
+        })
+
         chat.onInlineChatPrompt((...params) => {
             logging.log('Received inline chat prompt')
             return chatController.onInlineChatPrompt(...params)
