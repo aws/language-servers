@@ -439,7 +439,8 @@ export const CodewhispererServerFactory =
                     if (
                         isAutomaticLspTriggerKind &&
                         codewhispererAutoTriggerType === 'Classifier' &&
-                        !autoTriggerResult.shouldTrigger
+                        !autoTriggerResult.shouldTrigger &&
+                        !(editsEnabled && codeWhispererService instanceof CodeWhispererServiceToken) // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
                     ) {
                         return EMPTY_RESULT
                     }
