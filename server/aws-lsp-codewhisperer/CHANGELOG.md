@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.62](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.61...lsp-codewhisperer/v0.0.62) (2025-07-02)
+
+
+### Bug Fixes
+
+* **amazonq:** show active file in Context dropdown ([#1815](https://github.com/aws/language-servers/issues/1815)) ([fe1156c](https://github.com/aws/language-servers/commit/fe1156cdd6becbda4b7218cbb06f615a5d919def))
+
 ## [0.0.61](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.60...lsp-codewhisperer/v0.0.61) (2025-07-02)
 
 
