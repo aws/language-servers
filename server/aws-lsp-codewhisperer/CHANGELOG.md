@@ -14,6 +14,7 @@
 
 * adjust vs code auto trigger coefficients ([#1806](https://github.com/aws/language-servers/issues/1806)) ([25b1d1a](https://github.com/aws/language-servers/commit/25b1d1a1930f7d0cb922d3a085cbaac2a09340b9))
 * **amazonq:** remove the stack trace check from service unavailable exceptions ([#1810](https://github.com/aws/language-servers/issues/1810)) ([a5677f0](https://github.com/aws/language-servers/commit/a5677f03d54aa8e42a71e71c524700c23825ed35))
+
 * **amazonq:** send pinned context and rules as message pair ([#1762](https://github.com/aws/language-servers/issues/1762)) ([322add6](https://github.com/aws/language-servers/commit/322add6f8b3b6edd5b3e4b37fc783a1079f15596))
 * connect chat history to workspace file ([#1767](https://github.com/aws/language-servers/issues/1767)) ([4575727](https://github.com/aws/language-servers/commit/4575727911a4efb21a3f24a3d400c7844451c243))
 * do not auto trigger when there is immediate right context for VSC/JB ([#1802](https://github.com/aws/language-servers/issues/1802)) ([fdb29d4](https://github.com/aws/language-servers/commit/fdb29d472c5a0bc7e0a89f5611245248c380cfe8))
