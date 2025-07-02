@@ -185,7 +185,7 @@ export class IdentityService {
             })
             await stsClient.send(new GetCallerIdentityCommand({}))
 
-            if (options.assumeRole && profile.settings.role_arn) {
+            if (profile.settings.role_arn) {
                 // Try to get the STS credentials from cache
                 const roleArn = profile.settings.role_arn
                 const stsSession: StsSession = {
