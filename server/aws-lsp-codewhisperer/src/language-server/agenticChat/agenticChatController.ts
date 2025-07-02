@@ -1407,7 +1407,12 @@ export class AgenticChatController implements ChatHandlers {
                 if (toolUse.name === QCodeReview.toolName) {
                     try {
                         let initialInput = JSON.parse(JSON.stringify(toolUse.input))
+                        let ruleArtifacts = this.#additionalContextProvider.collectWorkspaceRules(tabId)
+                        if (ruleArtifacts !== undefined || ruleArtifacts !== null) {
+                            this.#features.logging.info(`RuleArtifacts: ${JSON.stringify(ruleArtifacts)}`)
+                        }
                         if (pathsToRules != undefined) {
+                            this.#features.logging.info(`PathsToRules: ${JSON.stringify(pathsToRules)}`)
                             initialInput['ruleArtifacts'] = pathsToRules
                         }
                         toolUse.input = initialInput

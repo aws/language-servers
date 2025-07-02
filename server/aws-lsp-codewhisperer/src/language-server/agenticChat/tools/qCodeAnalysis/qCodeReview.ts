@@ -364,13 +364,16 @@ export class QCodeReview {
     }
 
     private emitMetric(metricSuffix: string, metricData: any) {
-        this.telemetry?.emitMetric({
-            name: `${Q_CODE_REVIEW_TOOL_NAME}_${metricSuffix}`,
+        const metricName = `${Q_CODE_REVIEW_TOOL_NAME}_${metricSuffix}`
+        const metricPayload = {
+            name: metricName,
             data: {
                 credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 ...metricData,
             },
-        })
+        }
+        this.logging.info(`Emitting telemetry metric: ${metricName} with data: ${JSON.stringify(metricPayload.data)}`)
+        this.telemetry.emitMetric(metricPayload)
     }
 
     /**
