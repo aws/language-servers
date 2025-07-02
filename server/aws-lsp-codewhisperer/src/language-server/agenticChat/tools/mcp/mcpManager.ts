@@ -388,13 +388,11 @@ export class McpManager {
         // handle special case for built-in tools
         if (server === 'Built-in') {
             result =
-                (srv?.toolPerms[tool] ??
+                srv?.toolPerms[tool] ??
                 srv?.toolPerms['*'] ??
                 star?.toolPerms[tool] ??
                 star?.toolPerms['*'] ??
-                tool !== 'executeBash')
-                    ? McpPermissionType.alwaysAllow
-                    : McpPermissionType.ask
+                (tool !== 'executeBash' ? McpPermissionType.alwaysAllow : McpPermissionType.ask)
         }
 
         return result
