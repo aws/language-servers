@@ -313,6 +313,7 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
+        const timeSinceCloseTimeEditStreakThreshold: number = 2000
 
         const sessionManager = SessionManager.getInstance()
 
@@ -416,8 +417,10 @@ export const CodewhispererServerFactory =
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
                     const codewhispererAutoTriggerType = triggerType(fileContext)
-                    const previousDecision =
-                        sessionManager.getPreviousSession()?.getAggregatedUserTriggerDecision() ?? ''
+                    const previousSession = sessionManager.getPreviousSession()
+                    const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
+                    const previousSuggestionType = previousSession?.suggestionType ?? ''
+                    const previousCloseTime = previousSession?.closeTime
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
@@ -439,14 +442,14 @@ export const CodewhispererServerFactory =
                     if (
                         isAutomaticLspTriggerKind &&
                         codewhispererAutoTriggerType === 'Classifier' &&
-                        !autoTriggerResult.shouldTrigger
+                        !autoTriggerResult.shouldTrigger &&
+                        !(editsEnabled && codeWhispererService instanceof CodeWhispererServiceToken) // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
                     ) {
                         return EMPTY_RESULT
                     }
 
                     // Get supplemental context from recent edits if available.
                     let supplementalContextFromEdits = undefined
-                    let predictionTypes = [['COMPLETIONS']]
 
                     // supplementalContext available only via token authentication
                     const supplementalContextPromise =
@@ -478,26 +481,55 @@ export const CodewhispererServerFactory =
                         ]
 
                         if (editsEnabled) {
-                            // Step 0: Determine if we have "Rcent Edit context"
-                            if (recentEditTracker) {
-                                supplementalContextFromEdits =
-                                    await recentEditTracker.generateEditBasedContext(textDocument)
+                            const predictionTypes: string[][] = []
+
+                            // if previous decision is Accept and previous suggestionType is EDIT, automatically trigger EDIT suggestion
+                            if (
+                                previousDecision === 'Accept' &&
+                                previousSuggestionType === SuggestionType.EDIT &&
+                                previousCloseTime &&
+                                new Date().getTime() - previousCloseTime < timeSinceCloseTimeEditStreakThreshold
+                            ) {
+                                predictionTypes.push(['EDITS'])
+                            } else {
+                                /**
+                                 * Manual trigger - should always have 'Completions'
+                                 * Auto trigger
+                                 *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
+                                 *  - Others - should always have 'Completions'
+                                 */
+                                if (
+                                    !isAutomaticLspTriggerKind ||
+                                    (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
+                                    (isAutomaticLspTriggerKind &&
+                                        codewhispererAutoTriggerType === 'Classifier' &&
+                                        autoTriggerResult.shouldTrigger)
+                                ) {
+                                    predictionTypes.push(['COMPLETIONS'])
+                                }
+
+                                const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
+                                    fileContext: fileContext,
+                                    lineNum: params.position.line,
+                                    char: triggerCharacter,
+                                    previousDecision: previousDecision,
+                                    cursorHistory: cursorTracker,
+                                    recentEdits: recentEditTracker,
+                                })
+
+                                if (editPredictionAutoTriggerResult.shouldTrigger) {
+                                    predictionTypes.push(['EDITS'])
+                                }
                             }
-                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
-                                fileContext: fileContext,
-                                lineNum: params.position.line,
-                                char: triggerCharacter,
-                                previousDecision: previousDecision,
-                                cursorHistory: cursorTracker,
-                                recentEdits: recentEditTracker,
-                            })
-                            predictionTypes = [
-                                ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
-                                ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
-                            ]
 
                             if (predictionTypes.length === 0) {
                                 return EMPTY_RESULT
+                            }
+
+                            // Step 0: Determine if we have "Recent Edit context"
+                            if (recentEditTracker) {
+                                supplementalContextFromEdits =
+                                    await recentEditTracker.generateEditBasedContext(textDocument)
                             }
 
                             // Step 1: Recent Edits context
