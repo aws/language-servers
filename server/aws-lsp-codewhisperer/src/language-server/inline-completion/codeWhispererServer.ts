@@ -447,7 +447,6 @@ export const CodewhispererServerFactory =
 
                     // Get supplemental context from recent edits if available.
                     let supplementalContextFromEdits = undefined
-                    let predictionTypes = [['COMPLETIONS']]
 
                     // supplementalContext available only via token authentication
                     const supplementalContextPromise =
@@ -479,6 +478,24 @@ export const CodewhispererServerFactory =
                         ]
 
                         if (editsEnabled) {
+                            const predictionTypes: string[][] = []
+
+                            /**
+                             * Manual trigger - should always have 'Completions'
+                             * Auto trigger
+                             *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
+                             *  - Others - should always have 'Completions'
+                             */
+                            if (
+                                !isAutomaticLspTriggerKind ||
+                                (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
+                                (isAutomaticLspTriggerKind &&
+                                    codewhispererAutoTriggerType === 'Classifier' &&
+                                    autoTriggerResult.shouldTrigger)
+                            ) {
+                                predictionTypes.push(['COMPLETIONS'])
+                            }
+
                             // Step 0: Determine if we have "Rcent Edit context"
                             if (recentEditTracker) {
                                 supplementalContextFromEdits =
@@ -492,10 +509,10 @@ export const CodewhispererServerFactory =
                                 cursorHistory: cursorTracker,
                                 recentEdits: recentEditTracker,
                             })
-                            predictionTypes = [
-                                // ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
-                                ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
-                            ]
+
+                            if (editPredictionAutoTriggerResult.shouldTrigger) {
+                                predictionTypes.push(['EDITS'])
+                            }
 
                             if (predictionTypes.length === 0) {
                                 logging.info(
