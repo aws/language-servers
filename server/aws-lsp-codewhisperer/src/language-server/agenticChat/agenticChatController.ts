@@ -2010,7 +2010,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 body = builtInPermission
                     ? `I need permission to modify files.\n\`${writeFilePath}\``
-                    : `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
+                    : `I need permission to modify files outside of your workspace.\n\`${writeFilePath}\``
                 break
             }
 
