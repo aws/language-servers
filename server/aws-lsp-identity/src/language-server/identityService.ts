@@ -24,7 +24,7 @@ import { normalizeSettingList, ProfileStore } from './profiles/profileService'
 import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion } from '../sso'
 import { SsoCache, SsoClientRegistration } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
-import { StsCache, StsSession } from '../sts/cache/stsCache'
+import { StsCache, StsCredential } from '../sts/cache/stsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import {
     throwOnInvalidClientRegistration,
@@ -188,22 +188,29 @@ export class IdentityService {
             if (profile.settings.role_arn) {
                 // Try to get the STS credentials from cache
                 const roleArn = profile.settings.role_arn
-                const stsSession: StsSession = {
-                    profileName: profile.name,
-                    roleArn: roleArn,
-                    region: profile.settings.region,
-                }
-                const stsCredentials = await this.stsCache
-                    .getStsCredentials(this.clientName, stsSession)
-                    .catch(_ => undefined)
+                const stsCredentials = await this.stsCache.getStsCredential(profile.name).catch(_ => undefined)
 
-                if (stsCredentials) {
+                if (stsCredentials?.Credentials) {
                     // Use the found STS credential
-                    credentials = stsCredentials
+                    credentials = {
+                        accessKeyId: stsCredentials.Credentials.AccessKeyId!,
+                        secretAccessKey: stsCredentials.Credentials.SecretAccessKey!,
+                        sessionToken: stsCredentials.Credentials.SessionToken!,
+                        expiration: stsCredentials.Credentials.Expiration!,
+                    }
                 } else if (options.generateOnInvalidStsCredential) {
                     // Generate and cache the new STS credentials
-                    credentials = await this.generateStsCredentials(stsClient, roleArn)
-                    await this.stsCache.setStsCredentials(this.clientName, stsSession, credentials)
+                    const response = await this.generateStsCredential(stsClient, roleArn)
+                    if (!response.Credentials) {
+                        throw new AwsError('Failed to assume role: No credentials returned', 'E_STS_ASSUME_ROLE_FAILED')
+                    }
+                    await this.stsCache.setStsCredential(profile.name, response)
+                    credentials = {
+                        accessKeyId: response.Credentials.AccessKeyId!,
+                        secretAccessKey: response.Credentials.SecretAccessKey!,
+                        sessionToken: response.Credentials.SessionToken!, // Always present in STS response
+                        expiration: response.Credentials.Expiration!,
+                    }
                 } else {
                     // If we could not get the cached STS credential and cannot generate a new credential, give up
                     this.observability.logging.log(
@@ -214,7 +221,7 @@ export class IdentityService {
 
                 // Set up auto-refresh
                 await this.stsAutoRefresher
-                    .watch(this.clientName, stsSession, () => this.generateStsCredentials(stsClient, roleArn))
+                    .watch(profile.name, () => this.generateStsCredential(stsClient, roleArn))
                     .catch(reason => {
                         this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
                     })
@@ -232,7 +239,7 @@ export class IdentityService {
         }
     }
 
-    private async generateStsCredentials(stsClient: STSClient, roleArn: string): Promise<IamCredentials> {
+    private async generateStsCredential(stsClient: STSClient, roleArn: string): Promise<StsCredential> {
         try {
             const command = new AssumeRoleCommand({
                 RoleArn: roleArn,
@@ -240,19 +247,8 @@ export class IdentityService {
                 DurationSeconds: 3600,
             })
 
-            const response = await stsClient.send(command)
-
-            if (!response.Credentials) {
-                throw new AwsError('Failed to assume role: No credentials returned', 'E_STS_ASSUME_ROLE_FAILED')
-            }
-
-            // STS AssumeRole ALWAYS returns temporary credentials with sessionToken
-            return {
-                accessKeyId: response.Credentials.AccessKeyId!,
-                secretAccessKey: response.Credentials.SecretAccessKey!,
-                sessionToken: response.Credentials.SessionToken!, // Always present in STS response
-                expiration: response.Credentials.Expiration!,
-            }
+            const { Credentials, AssumedRoleUser } = await stsClient.send(command)
+            return { Credentials, AssumedRoleUser }
         } catch (e) {
             this.observability.logging.log(`Error generating STS credentials.`)
             throw new AwsError(`Error generating STS credentials.`, AwsErrorCodes.E_CANNOT_CREATE_STS_CREDENTIAL)

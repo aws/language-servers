@@ -1,5 +1,4 @@
-import { IamCredentials } from '@aws/language-server-runtimes-types'
-import { StsCache, StsSession } from './cache/stsCache'
+import { StsCache, StsCredential } from './cache/stsCache'
 import { Observability } from '@aws/lsp-core'
 
 const refreshWindowMillis = 5 * 60 * 1000 // 5 minutes
@@ -20,17 +19,13 @@ export class StsAutoRefresher implements Disposable {
         }
     }
 
-    async watch(
-        clientName: string,
-        stsSession: StsSession,
-        refreshCallback: () => Promise<IamCredentials>
-    ): Promise<void> {
+    async watch(name: string, refreshCallback: () => Promise<StsCredential>): Promise<void> {
         try {
-            this.unwatch(stsSession.profileName)
+            this.unwatch(name)
 
-            const stsCredentials = await this.stsCache.getStsCredentials(clientName, stsSession).catch(_ => undefined)
+            const stsCredentials = await this.stsCache.getStsCredential(name).catch(_ => undefined)
 
-            if (!stsCredentials || !stsCredentials.expiration) {
+            if (!stsCredentials || !stsCredentials.Credentials?.Expiration) {
                 this.observability.logging.log(
                     'STS credentials do not exist or have no expiration, will not be auto-refreshed.'
                 )
@@ -38,7 +33,7 @@ export class StsAutoRefresher implements Disposable {
             }
 
             const nowMillis = Date.now()
-            const expirationMillis = stsCredentials.expiration.getTime()
+            const expirationMillis = stsCredentials.Credentials?.Expiration.getTime()
             let delayMs: number
 
             if (nowMillis < expirationMillis - refreshWindowMillis) {
@@ -55,11 +50,11 @@ export class StsAutoRefresher implements Disposable {
             }
 
             this.observability.logging.log(`Auto-refreshing STS credentials in ${delayMs} milliseconds.`)
-            this.timeouts[stsSession.profileName] = setTimeout(async () => {
+            this.timeouts[name] = setTimeout(async () => {
                 try {
                     const newCredentials = await refreshCallback()
-                    await this.stsCache.setStsCredentials(clientName, stsSession, newCredentials)
-                    this.watch(clientName, stsSession, refreshCallback)
+                    await this.stsCache.setStsCredential(name, newCredentials)
+                    this.watch(name, refreshCallback)
                 } catch (error) {
                     this.observability.logging.log(`Failed to refresh STS credentials: ${error}`)
                 }
