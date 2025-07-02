@@ -1134,7 +1134,7 @@ export class AgenticChatController implements ChatHandlers {
                         // check if tool execution's path is out of workspace
                         const isOutOfWorkSpace = warning === outOfWorkspaceWarningmessage
                         // Honor built-in permission if available, otherwise use tool's requiresAcceptance
-                        const toolRequiresAcceptance = (builtInPermission ?? isOutOfWorkSpace) || requiresAcceptance
+                        const toolRequiresAcceptance = (builtInPermission || isOutOfWorkSpace) ?? requiresAcceptance
 
                         if (toolRequiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
