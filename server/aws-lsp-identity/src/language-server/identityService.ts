@@ -225,6 +225,10 @@ export class IdentityService {
                     .catch(reason => {
                         this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
                     })
+
+                this.observability.logging.info(`Successfully retrieved STS credential from role assumption`)
+            } else {
+                this.observability.logging.info(`Successfully retrieved IAM/STS credential.`)
             }
 
             emitMetric('Succeeded')
