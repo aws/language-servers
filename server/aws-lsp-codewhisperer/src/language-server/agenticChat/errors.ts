@@ -258,12 +258,8 @@ export function isThrottlingRelated(error: unknown): boolean {
     }
 
     if (error instanceof Error) {
-        //  This is fragile (breaks if the backend changes their error message wording)
-        return (
-            error.name === 'ServiceUnavailableException' &&
-            !(error.stack == null) &&
-            error.stack.includes('OperationMaxRequestsHandler')
-        )
+        //  Only depend on the exception name, not the stack trace
+        return error.name === 'ServiceUnavailableException'
     }
     return false
 }
