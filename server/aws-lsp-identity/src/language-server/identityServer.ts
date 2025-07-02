@@ -7,7 +7,7 @@ import {
     AwsErrorCodes,
     GetSsoTokenParams,
     InvalidateSsoTokenParams,
-    InvalidateIamCredentialParams,
+    InvalidateStsCredentialParams,
     InitializeParams,
     PartialInitializeResult,
     ShowMessageRequestParams,
@@ -95,9 +95,9 @@ export class IdentityServer extends ServerBase {
                 })
         )
 
-        this.features.identityManagement.onInvalidateIamCredential(
-            async (params: InvalidateIamCredentialParams, token: CancellationToken) =>
-                await identityService.invalidateIamCredential(params, token).catch(reason => {
+        this.features.identityManagement.onInvalidateStsCredential(
+            async (params: InvalidateStsCredentialParams, token: CancellationToken) =>
+                await identityService.invalidateStsCredential(params, token).catch(reason => {
                     this.observability.logging.log(`InvalidateIamCredentials failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })

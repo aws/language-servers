@@ -13,8 +13,8 @@ import {
     IamIdentityCenterSsoTokenSource,
     InvalidateSsoTokenParams,
     InvalidateSsoTokenResult,
-    InvalidateIamCredentialParams,
-    InvalidateIamCredentialResult,
+    InvalidateStsCredentialParams,
+    InvalidateStsCredentialResult,
     MetricEvent,
     SsoSession,
     SsoTokenSourceKind,
@@ -287,14 +287,40 @@ export class IdentityService {
         }
     }
 
-    async invalidateIamCredential(
-        params: InvalidateIamCredentialParams,
+    // async invalidateIamCredential(
+    //     params: InvalidateStsCredentialParams,
+    //     token: CancellationToken
+    // ): Promise<InvalidateStsCredentialResult> {
+    //     const emitMetric = this.emitMetric.bind(
+    //         this,
+    //         'flareIdentity_invalidateIamCredential',
+    //         this.invalidateIamCredential.name,
+    //         Date.now()
+    //     )
+
+    //     token.onCancellationRequested(_ => {
+    //         emitMetric('Cancelled')
+    //     })
+
+    //     try {
+    //         emitMetric('Succeeded')
+    //         this.observability.logging.log('Successfully invalidated Iam Credential.')
+    //         return {}
+    //     } catch (e) {
+    //         emitMetric('Failed', e)
+
+    //         throw e
+    //     }
+    // }
+
+    async invalidateStsCredential(
+        params: InvalidateStsCredentialParams,
         token: CancellationToken
-    ): Promise<InvalidateIamCredentialResult> {
+    ): Promise<InvalidateStsCredentialResult> {
         const emitMetric = this.emitMetric.bind(
             this,
-            'flareIdentity_invalidateIamCredential',
-            this.invalidateIamCredential.name,
+            'flareIdentity_invalidateStsCredential',
+            this.invalidateStsCredential.name,
             Date.now()
         )
 
@@ -303,12 +329,19 @@ export class IdentityService {
         })
 
         try {
+            if (!params?.profileName?.trim()) {
+                throw new AwsError('Profile name is invalid.', AwsErrorCodes.E_INVALID_PROFILE)
+            }
+
+            this.stsAutoRefresher.unwatch(params.profileName)
+
+            await this.stsCache.removeStsCredential(params.profileName)
+
             emitMetric('Succeeded')
-            this.observability.logging.log('Successfully invalidated Iam Credential.')
+            this.observability.logging.log('Successfully invalidated STS credentials.')
             return {}
         } catch (e) {
             emitMetric('Failed', e)
-
             throw e
         }
     }
