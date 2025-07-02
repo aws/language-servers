@@ -291,32 +291,6 @@ export class IdentityService {
         }
     }
 
-    // async invalidateIamCredential(
-    //     params: InvalidateStsCredentialParams,
-    //     token: CancellationToken
-    // ): Promise<InvalidateStsCredentialResult> {
-    //     const emitMetric = this.emitMetric.bind(
-    //         this,
-    //         'flareIdentity_invalidateIamCredential',
-    //         this.invalidateIamCredential.name,
-    //         Date.now()
-    //     )
-
-    //     token.onCancellationRequested(_ => {
-    //         emitMetric('Cancelled')
-    //     })
-
-    //     try {
-    //         emitMetric('Succeeded')
-    //         this.observability.logging.log('Successfully invalidated Iam Credential.')
-    //         return {}
-    //     } catch (e) {
-    //         emitMetric('Failed', e)
-
-    //         throw e
-    //     }
-    // }
-
     async invalidateStsCredential(
         params: InvalidateStsCredentialParams,
         token: CancellationToken
