@@ -542,7 +542,7 @@ export class ChatDatabase {
             const tabTitle =
                 (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
                     ? message.body
-                    : tabData?.title) || 'Amazon Q Chat'
+                    : tabData?.title) || 'Amazon Q Chat Agent' // Show default message in place of IDE-to-LLM prompts for generating test/documentation/development content
             message = this.formatChatHistoryMessage(message)
             if (tabData) {
                 this.#features.logging.log(`Updating existing tab with historyId=${historyId}`)
@@ -596,7 +596,7 @@ export class ChatDatabase {
      * 3. The toolUse and toolResult relationship is valid
      * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage) {
+    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage, pinnedContextMessages: ChatMessage[]) {
         if (!this.isInitialized()) {
             return []
         }
@@ -605,29 +605,32 @@ export class ChatDatabase {
 
         // 1. Make sure the length of the history messages don't exceed MaxConversationHistoryMessages
         let allMessages = this.getMessages(tabId, maxConversationHistoryMessages)
-        if (allMessages.length === 0) {
-            return []
+        if (allMessages.length > 0) {
+            // 2. Fix history: Ensure messages in history is valid for server side checks
+            this.ensureValidMessageSequence(tabId, allMessages)
+
+            // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
+            this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
+
+            // 4. NOTE: Keep this trimming logic at the end of the preprocess.
+            // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
+            allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage, pinnedContextMessages)
+
+            // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
+            if (
+                allMessages.length === 0 &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
+            ) {
+                this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
+                newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
+                newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+            }
         }
 
-        // 2. Fix history: Ensure messages in history is valid for server side checks
-        this.ensureValidMessageSequence(tabId, allMessages)
-
-        // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
-        this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
-
-        // 4. NOTE: Keep this trimming logic at the end of the preprocess.
-        // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
-        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage)
-
-        // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
-        if (
-            allMessages.length === 0 &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
-        ) {
-            this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
-            newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
-            newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+        // Prepend pinned context fake message pair to beginning of history
+        if (pinnedContextMessages.length === 2) {
+            allMessages = [...pinnedContextMessages.map(msg => chatMessageToMessage(msg)), ...allMessages]
         }
 
         return allMessages
@@ -659,11 +662,16 @@ export class ChatDatabase {
         return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
     }
 
-    private trimMessagesToMaxLength(messages: Message[], newUserMessage: ChatMessage): Message[] {
+    private trimMessagesToMaxLength(
+        messages: Message[],
+        newUserMessage: ChatMessage,
+        pinnedContextMessages: ChatMessage[]
+    ): Message[] {
         let totalCharacters = this.calculateMessagesCharacterCount(messages)
         this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
         const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
             chatMessageToMessage(newUserMessage),
+            ...pinnedContextMessages.map(msg => chatMessageToMessage(msg)),
         ])
         const currentInputToolSpecCount = this.calculateToolSpecCharacterCount(newUserMessage)
         const currentUserInputCount = currentUserInputCharacterCount + currentInputToolSpecCount

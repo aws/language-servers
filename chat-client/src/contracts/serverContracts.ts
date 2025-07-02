@@ -39,6 +39,8 @@ import {
     GetSerializedChatResult,
     PROMPT_INPUT_OPTION_CHANGE_METHOD,
     BUTTON_CLICK_REQUEST_METHOD,
+    OPEN_FILE_DIALOG_METHOD,
+    OpenFileDialogParams,
     RULE_CLICK_REQUEST_METHOD,
     RuleClickParams,
     ListRulesParams,
@@ -80,6 +82,7 @@ export type ServerMessageCommand =
     | typeof PINNED_CONTEXT_ADD_NOTIFICATION_METHOD
     | typeof PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD
     | typeof LIST_AVAILABLE_MODELS_REQUEST_METHOD
+    | typeof OPEN_FILE_DIALOG_METHOD
 
 export interface ServerMessage {
     command: ServerMessageCommand
@@ -115,3 +118,4 @@ export type ServerMessageParams =
     | RuleClickParams
     | ListRulesParams
     | PinnedContextParams
+    | OpenFileDialogParams

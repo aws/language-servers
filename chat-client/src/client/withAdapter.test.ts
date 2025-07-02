@@ -5,6 +5,7 @@ import { withAdapter } from './withAdapter'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { MynahUI, MynahUIProps, RelevancyVoteType } from '@aws/mynah-ui'
 import { disclaimerAcknowledgeButtonId } from './texts/disclaimer'
+import { TabFactory } from './tabs/tabFactory'
 
 describe('withAdapter', () => {
     let defaultEventHandlers: ChatEventHandler
@@ -12,6 +13,7 @@ describe('withAdapter', () => {
     let chatClientAdapter: ChatClientAdapter
     let customEventHandlers: ChatEventHandler
     let mynahUiPropsWithAdapter: MynahUIProps
+    let tabFactory: TabFactory
 
     beforeEach(() => {
         // Set up base MynahUIProps with stub methods
@@ -102,8 +104,13 @@ describe('withAdapter', () => {
             handleQuickAction: sinon.stub(),
         }
 
+        // Set up tab factory
+        tabFactory = {
+            isRerouteEnabled: sinon.stub().returns(false),
+        } as unknown as TabFactory
+
         // Create the enhanced props
-        mynahUiPropsWithAdapter = withAdapter(defaultEventHandlers, mynahUIRef, chatClientAdapter)
+        mynahUiPropsWithAdapter = withAdapter(defaultEventHandlers, mynahUIRef, chatClientAdapter, tabFactory)
     })
 
     afterEach(() => {
@@ -159,7 +166,7 @@ describe('withAdapter', () => {
         }
 
         assert.throws(() => {
-            withAdapter(defaultEventHandlers, mynahUIRef, invalidAdapter)
+            withAdapter(defaultEventHandlers, mynahUIRef, invalidAdapter, tabFactory)
         }, new Error('Custom ChatEventHandler is not defined'))
     })
 
@@ -564,7 +571,8 @@ describe('withAdapter', () => {
                     // @ts-ignore
                     {
                         createChatEventHandler: () => ({}),
-                    }
+                    },
+                    tabFactory
                 )
 
                 const customOnFormLinkClickHandler = customEventHandlers.onFileActionClick

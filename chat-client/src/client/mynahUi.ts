@@ -30,6 +30,8 @@ import {
     ListMcpServersResult,
     McpServerClickResult,
     OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID,
+    OpenFileDialogParams,
+    OpenFileDialogResult,
     OpenTabParams,
     PinnedContextParams,
     RuleClickResult,
@@ -46,6 +48,8 @@ import {
     MynahUIProps,
     QuickActionCommand,
     ChatItemButton,
+    MynahIcons,
+    CustomQuickActionCommand,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -63,7 +67,12 @@ import {
     toMynahIcon,
 } from './utils'
 import { ChatHistory, ChatHistoryList } from './features/history'
-import { pairProgrammingModeOff, pairProgrammingModeOn, programmerModeCard } from './texts/pairProgramming'
+import {
+    pairProgrammingModeOff,
+    pairProgrammingModeOn,
+    programmerModeCard,
+    createRerouteCard,
+} from './texts/pairProgramming'
 import { ContextRule, RulesList } from './features/rules'
 import { getModelSelectionChatItem, modelUnavailableBanner, modelThrottledBanner } from './texts/modelSelection'
 import {
@@ -73,6 +82,7 @@ import {
     plansAndPricingTitle,
     freeTierLimitDirective,
 } from './texts/paidTier'
+import { isSupportedImageExtension, MAX_IMAGE_CONTEXT, verifyClientImages } from './imageVerification'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -90,6 +100,7 @@ export interface InboundChatApi {
     mcpServerClick(params: McpServerClickResult): void
     getSerializedChat(requestId: string, params: GetSerializedChatParams): void
     createTabId(openTab?: boolean): string | undefined
+    addSelectedFilesToContext(params: OpenFileDialogParams): void
     sendPinnedContext(params: PinnedContextParams): void
     listAvailableModels(params: ListAvailableModelsResult): void
 }
@@ -152,7 +163,8 @@ export const handleChatPrompt = (
     messager: Messager,
     triggerType?: TriggerType,
     _eventId?: string,
-    agenticMode?: boolean
+    agenticMode?: boolean,
+    tabFactory?: TabFactory
 ) => {
     let userPrompt = prompt.escapedPrompt
 
@@ -181,7 +193,14 @@ export const handleChatPrompt = (
         messager.onStopChatResponse(tabId)
     }
 
-    if (prompt.command) {
+    const isReroutedCommand =
+        agenticMode &&
+        tabFactory?.isRerouteEnabled() &&
+        prompt.command &&
+        ['/dev', '/test', '/doc'].includes(prompt.command)
+
+    if (prompt.command && !isReroutedCommand) {
+        // Handle non-rerouted commands (/clear, /help, /transform, /review) as quick actions
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
             mynahUi.updateStore(tabId, {
@@ -202,12 +221,60 @@ export const handleChatPrompt = (
             return
         }
     } else {
-        // Send chat prompt to server
-        const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
-        messager.onChatPrompt({ prompt, tabId, context }, triggerType)
+        // Go agentic chat workflow when:
+        // 1. Regular prompts without commands
+        // 2. Rerouted commands (/dev, /test, /doc) when feature flag: reroute is enabled
+
+        // Special handling for /doc command - always send fixed prompt for fixed response
+        if (isReroutedCommand && prompt.command === '/doc') {
+            const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
+            messager.onChatPrompt(
+                {
+                    prompt: { ...prompt, escapedPrompt: DEFAULT_DOC_PROMPT, prompt: DEFAULT_DOC_PROMPT },
+                    tabId,
+                    context,
+                },
+                triggerType
+            )
+        } else if (isReroutedCommand && (!userPrompt || userPrompt.trim() === '')) {
+            // For /dev and /test commands, provide meaningful defaults if no additional text
+            let defaultPrompt = userPrompt
+            switch (prompt.command) {
+                case '/dev':
+                    defaultPrompt = DEFAULT_DEV_PROMPT
+                    break
+                case '/test':
+                    defaultPrompt = DEFAULT_TEST_PROMPT
+                    break
+                case '/doc':
+                    defaultPrompt = DEFAULT_DOC_PROMPT
+                    break
+            }
+
+            // Send the updated prompt with default text to server
+            const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
+            messager.onChatPrompt(
+                {
+                    prompt: { ...prompt, escapedPrompt: defaultPrompt, prompt: defaultPrompt },
+                    tabId,
+                    context,
+                },
+                triggerType
+            )
+        } else {
+            const context = prompt.context?.map(c => (typeof c === 'string' ? { command: c } : c))
+            messager.onChatPrompt({ prompt, tabId, context }, triggerType)
+        }
     }
 
-    initializeChatResponse(mynahUi, tabId, userPrompt, agenticMode)
+    // For /doc command, don't show any prompt in UI
+    const displayPrompt = isReroutedCommand && prompt.command === '/doc' ? '' : userPrompt
+    initializeChatResponse(mynahUi, tabId, displayPrompt, agenticMode)
+
+    // If this is a rerouted command AND reroute feature is enabled, show the reroute card after the prompt
+    if (isReroutedCommand && tabFactory?.isRerouteEnabled() && prompt.command) {
+        mynahUi.addChatItem(tabId, createRerouteCard(prompt.command))
+    }
 }
 
 const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: string, agenticMode?: boolean) => {
@@ -293,7 +360,8 @@ export const createMynahUi = (
                     messager,
                     'click',
                     eventId,
-                    agenticMode
+                    agenticMode,
+                    tabFactory
                 )
 
                 const payload: FollowUpClickParams = {
@@ -305,7 +373,7 @@ export const createMynahUi = (
             }
         },
         onChatPrompt(tabId, prompt, eventId) {
-            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId, agenticMode)
+            handleChatPrompt(mynahUi, tabId, prompt, messager, 'click', eventId, agenticMode, tabFactory)
         },
         onReady: () => {
             messager.onUiReady()
@@ -319,6 +387,9 @@ export const createMynahUi = (
             const defaultTabBarData = tabFactory.getDefaultTabData()
             const defaultTabConfig: Partial<MynahUIDataModel> = {
                 quickActionCommands: defaultTabBarData.quickActionCommands,
+                ...(tabFactory.isRerouteEnabled()
+                    ? { quickActionCommandsHeader: defaultTabBarData.quickActionCommandsHeader }
+                    : {}),
                 tabBarButtons: defaultTabBarData.tabBarButtons,
                 contextCommands: [
                     ...(contextCommandGroups || []),
@@ -477,6 +548,22 @@ export const createMynahUi = (
             }
         },
         onContextSelected: (contextItem, tabId) => {
+            if (contextItem.command === 'Image') {
+                const imageContext = getImageContextCount(tabId)
+                if (imageContext >= MAX_IMAGE_CONTEXT) {
+                    mynahUi.notify({
+                        content: `A maximum of ${MAX_IMAGE_CONTEXT} images can be added to a single message.`,
+                        type: NotificationType.WARNING,
+                    })
+                    return false
+                }
+                const payload: OpenFileDialogParams = {
+                    tabId,
+                    fileType: contextItem.command.toLowerCase() as 'image' | '',
+                }
+                messager.onOpenFileDialogClick(payload)
+                return false
+            }
             if (contextItem.id === ContextPrompt.CreateItemId) {
                 mynahUi.showCustomForm(
                     tabId,
@@ -618,6 +705,83 @@ export const createMynahUi = (
                 })
             }, 500) // 500ms delay
         },
+        onOpenFileDialogClick: (tabId, fileType, insertPosition) => {
+            const imageContext = getImageContextCount(tabId)
+            if (imageContext >= MAX_IMAGE_CONTEXT) {
+                mynahUi.notify({
+                    content: `A maximum of ${MAX_IMAGE_CONTEXT} images can be added to a single message.`,
+                    type: NotificationType.WARNING,
+                })
+                return
+            }
+            const payload: OpenFileDialogParams = {
+                tabId,
+                fileType: fileType as 'image' | '',
+                insertPosition,
+            }
+            messager.onOpenFileDialogClick(payload)
+        },
+        onFilesDropped: async (tabId: string, files: FileList, insertPosition: number) => {
+            const imageContextCount = getImageContextCount(tabId)
+            if (imageContextCount >= MAX_IMAGE_CONTEXT) {
+                mynahUi.notify({
+                    content: `A maximum of ${MAX_IMAGE_CONTEXT} images can be added to a single message.`,
+                    type: NotificationType.WARNING,
+                })
+                return
+            }
+            // Verify dropped files and add valid ones to context
+            const { validFiles, errors } = await verifyClientImages(files)
+            if (validFiles.length > 0) {
+                // Calculate how many files we can actually add
+                const availableSlots = MAX_IMAGE_CONTEXT - imageContextCount
+                const filesToAdd = validFiles.slice(0, availableSlots)
+                const filesExceeded = validFiles.length - availableSlots
+
+                // Add error message if we exceed the limit
+                if (filesExceeded > 0) {
+                    errors.push(`A maximum of ${MAX_IMAGE_CONTEXT} images can be added to a single message.`)
+                }
+
+                const commands: CustomQuickActionCommand[] = await Promise.all(
+                    filesToAdd.map(async (file: File) => {
+                        const fileName = file.name || 'Unknown file'
+                        const filePath = file.name || ''
+
+                        // Determine file type and appropriate icon
+                        const fileExtension = filePath.split('.').pop()?.toLowerCase() || ''
+                        const isImage = isSupportedImageExtension(fileExtension)
+
+                        let icon = MynahIcons.FILE
+                        if (isImage) {
+                            icon = MynahIcons.IMAGE
+                        }
+
+                        const arrayBuffer = await file.arrayBuffer()
+                        const bytes = new Uint8Array(arrayBuffer)
+
+                        return {
+                            command: fileName,
+                            description: filePath,
+                            route: [filePath],
+                            label: 'image',
+                            icon: icon,
+                            content: bytes,
+                        }
+                    })
+                )
+
+                // Add valid files to context commands
+                mynahUi.addCustomContextToPrompt(tabId, commands, insertPosition)
+            }
+            const uniqueErrors = [...new Set(errors)]
+            for (const error of uniqueErrors) {
+                mynahUi.notify({
+                    content: error,
+                    type: NotificationType.WARNING,
+                })
+            }
+        },
     }
 
     const mynahUiProps: MynahUIProps = {
@@ -653,7 +817,7 @@ export const createMynahUi = (
     const mynahUiRef = { mynahUI: undefined as MynahUI | undefined }
     if (customChatClientAdapter) {
         // Attach routing to custom adapter top of default message handlers
-        chatEventHandlers = withAdapter(chatEventHandlers, mynahUiRef, customChatClientAdapter)
+        chatEventHandlers = withAdapter(chatEventHandlers, mynahUiRef, customChatClientAdapter, tabFactory)
     }
 
     const mynahUi = new MynahUI({
@@ -726,6 +890,20 @@ export const createMynahUi = (
                 ),
             },
         }
+    }
+
+    const getImageContextCount = (tabId: string) => {
+        const imageContextInPrompt =
+            mynahUi
+                .getTabData(tabId)
+                ?.getStore()
+                ?.customContextCommand?.filter(cm => cm.label === 'image').length || 0
+        const imageContextInPin =
+            mynahUi
+                .getTabData(tabId)
+                ?.getStore()
+                ?.promptTopBarContextItems?.filter(cm => cm.label === 'image').length || 0
+        return imageContextInPrompt + imageContextInPin
     }
 
     const addChatResponse = (chatResult: ChatResult, tabId: string, isPartialResult: boolean) => {
@@ -1242,7 +1420,7 @@ export const createMynahUi = (
         ].join('')
         const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
 
-        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode)
+        handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode, tabFactory)
     }
 
     const showError = (params: ErrorParams) => {
@@ -1251,7 +1429,7 @@ export const createMynahUi = (
 
         const answer: ChatItem = {
             type: ChatItemType.ANSWER,
-            body: `**${params.title}** 
+            body: `**${params.title}**
 ${params.message}`,
         }
 
@@ -1345,6 +1523,31 @@ ${params.message}`,
                 ],
             })
         })
+    }
+
+    const addSelectedFilesToContext = (params: OpenFileDialogResult) => {
+        if (params.errorMessage) {
+            mynahUi.notify({
+                content: params.errorMessage,
+                type: NotificationType.ERROR,
+            })
+            return
+        }
+        const commands: QuickActionCommand[] = []
+        for (const filePath of params.filePaths) {
+            const fileName = filePath.split('/').pop() || filePath
+            if (params.fileType === 'image') {
+                commands.push({
+                    command: fileName,
+                    description: filePath,
+                    label: 'image',
+                    route: [filePath],
+                    icon: MynahIcons.IMAGE,
+                })
+            }
+        }
+
+        mynahUi.addCustomContextToPrompt(params.tabId, commands, params.insertPosition)
     }
 
     const chatHistoryList = new ChatHistoryList(mynahUi, messager)
@@ -1471,6 +1674,7 @@ ${params.message}`,
         createTabId: createTabId,
         ruleClicked: ruleClicked,
         listAvailableModels: listAvailableModels,
+        addSelectedFilesToContext: addSelectedFilesToContext,
     }
 
     return [mynahUi, api]
@@ -1479,6 +1683,13 @@ ${params.message}`,
 const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
 export const DEFAULT_HELP_PROMPT = 'What can Amazon Q help me with?'
+
+const DEFAULT_DOC_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of documentation they need. Present common documentation types (like API docs, README, user guides, developer guides, or configuration guides) as clear options. Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
+
+const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then help me generate unit tests`
+
+const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
+
 const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
     copy: 'Copy',

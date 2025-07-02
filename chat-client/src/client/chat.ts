@@ -32,6 +32,8 @@ import {
     CHAT_PROMPT_OPTION_ACKNOWLEDGED,
     STOP_CHAT_RESPONSE,
     OPEN_SETTINGS,
+    OPEN_FILE_DIALOG,
+    FILES_DROPPED,
 } from '@aws/chat-client-ui-types'
 import {
     BUTTON_CLICK_REQUEST_METHOD,
@@ -102,6 +104,9 @@ import {
     ListAvailableModelsParams,
     LIST_AVAILABLE_MODELS_REQUEST_METHOD,
     ListAvailableModelsResult,
+    OpenFileDialogParams,
+    OPEN_FILE_DIALOG_METHOD,
+    OpenFileDialogResult,
 } from '@aws/language-server-runtimes-types'
 import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
@@ -228,6 +233,9 @@ export const createChat = (
             case MCP_SERVER_CLICK_REQUEST_METHOD:
                 mynahApi.mcpServerClick(message.params as McpServerClickResult)
                 break
+            case OPEN_FILE_DIALOG_METHOD:
+                mynahApi.addSelectedFilesToContext(message.params as OpenFileDialogResult)
+                break
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
@@ -275,6 +283,11 @@ export const createChat = (
 
                 if (params?.chatNotifications) {
                     tabFactory.setInfoMessages((message.params as ChatOptionsUpdateParams).chatNotifications)
+                }
+
+                // Enable reroute FIRST before processing other options
+                if ((params as any)?.reroute) {
+                    tabFactory.enableReroute()
                 }
 
                 if (params?.quickActions?.quickActionsCommandGroups) {
@@ -495,6 +508,12 @@ export const createChat = (
         },
         onListAvailableModels(params: ListAvailableModelsParams) {
             sendMessageToClient({ command: LIST_AVAILABLE_MODELS_REQUEST_METHOD, params })
+        },
+        onOpenFileDialogClick: (params: OpenFileDialogParams) => {
+            sendMessageToClient({ command: OPEN_FILE_DIALOG, params: params })
+        },
+        onFilesDropped: (params: { tabId: string; files: FileList; insertPosition: number }) => {
+            sendMessageToClient({ command: FILES_DROPPED, params: params })
         },
     }
 
