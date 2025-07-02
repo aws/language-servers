@@ -368,12 +368,14 @@ export class McpEventHandler {
                     id: 'name',
                     title: 'Name',
                     value: existingValues.name || '',
+                    hideMandatoryIcon: true,
                     mandatory: true,
                 },
                 {
                     type: 'select',
                     id: 'transport',
                     title: 'Transport',
+                    hideMandatoryIcon: true,
                     mandatory: true,
                     options: [
                         {
@@ -387,6 +389,7 @@ export class McpEventHandler {
                     id: 'command',
                     title: 'Command',
                     value: existingValues.command || '',
+                    hideMandatoryIcon: true,
                     mandatory: true,
                 },
                 {
