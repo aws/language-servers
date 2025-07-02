@@ -378,12 +378,24 @@ export class McpManager {
         const srv = this.mcpServerPermissions.get(server)
         const star = this.mcpServerPermissions.get('*')
 
-        const result =
+        let result =
             srv?.toolPerms[tool] ??
             srv?.toolPerms['*'] ??
             star?.toolPerms[tool] ??
             star?.toolPerms['*'] ??
             McpPermissionType.ask
+
+        // handle special case for built-in tools
+        if (server === 'Built-in') {
+            result =
+                (srv?.toolPerms[tool] ??
+                srv?.toolPerms['*'] ??
+                star?.toolPerms[tool] ??
+                star?.toolPerms['*'] ??
+                tool !== 'executeBash')
+                    ? McpPermissionType.alwaysAllow
+                    : McpPermissionType.ask
+        }
 
         return result
     }
