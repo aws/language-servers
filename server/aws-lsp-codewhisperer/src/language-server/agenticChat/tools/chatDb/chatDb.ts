@@ -19,6 +19,9 @@ import {
     TabType,
     calculateDatabaseSize,
     updateOrCreateConversation,
+    getChatDbNameFromWorkspaceId,
+    getSha256WorkspaceId,
+    getMd5WorkspaceId,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -28,6 +31,7 @@ import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
 import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
+import { existsSync, renameSync } from 'fs'
 
 export class ToolResultValidationError extends Error {
     constructor(message?: string) {
@@ -136,7 +140,7 @@ export class ChatDatabase {
     /**
      * Generates an identifier for the open workspace folder(s).
      */
-    getWorkspaceIdentifier() {
+    private getFolderBasedWorkspaceIdentifier() {
         let workspaceFolderPaths = this.#features.workspace
             .getAllWorkspaceFolders()
             ?.map(({ uri }) => new URL(uri).pathname)
@@ -146,16 +150,60 @@ export class ChatDatabase {
             const pathsString = workspaceFolderPaths
                 .sort() // Sort to ensure consistent hash regardless of folder order
                 .join('|')
-            return crypto.createHash('md5').update(pathsString).digest('hex')
+            return getMd5WorkspaceId(pathsString)
         }
 
         // Case 2: Single folder workspace
         if (workspaceFolderPaths && workspaceFolderPaths[0]) {
-            return crypto.createHash('md5').update(workspaceFolderPaths[0]).digest('hex')
+            return getMd5WorkspaceId(workspaceFolderPaths[0])
         }
 
         // Case 3: No workspace open
         return 'no-workspace'
+    }
+
+    /**
+     * Generates an identifier for the open workspace.
+     */
+    getWorkspaceIdentifier() {
+        const workspaceFilePath =
+            this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.workspaceFilePath
+
+        if (workspaceFilePath) {
+            // Case 1: The latest plugins provide workspaceFilePath - should use workspace file-based SHA256 hash for workspace ID.
+            // This distinguishes from older plugins that used MD5 of workspaceFilePath.
+            const workspaceId = getSha256WorkspaceId(workspaceFilePath)
+            const dbFilePath = path.join(this.#dbDirectory, getChatDbNameFromWorkspaceId(workspaceId))
+
+            const dbFileExists = existsSync(dbFilePath)
+            if (!dbFileExists) {
+                // Migrate the history file from folder-based to workspace file-based.
+                this.migrateHistoryFile(dbFilePath)
+            }
+
+            this.#features.logging.debug(`workspaceFilePath is set: ${workspaceFilePath}, workspaceId: ${workspaceId}`)
+            return workspaceId
+        } else {
+            // Case 2: workspaceFilePath is not set, use folder-based workspaceId
+            return this.getFolderBasedWorkspaceIdentifier()
+        }
+    }
+
+    /**
+     * Migrate the workspace folder based history file to workspaceFile based history file
+     * @param newDbFilePath workspaceFile based history file path
+     */
+    private migrateHistoryFile(newDbFilePath: string) {
+        // Check if old folder-based history file exists and migrate it to the new workspace file-based location.
+        // If no old file exists, we'll simply use the new workspace ID for the history file.
+        const oldWorkspaceIdentifier = this.getFolderBasedWorkspaceIdentifier()
+        const oldDbFilePath = path.join(this.#dbDirectory, getChatDbNameFromWorkspaceId(oldWorkspaceIdentifier))
+        const oldDbFileExists = existsSync(oldDbFilePath)
+        if (oldDbFileExists) {
+            this.#features.logging.log(`Migrating history file from ${oldDbFilePath} to ${newDbFilePath}`)
+            renameSync(oldDbFilePath, newDbFilePath)
+        }
     }
 
     /**
@@ -494,7 +542,7 @@ export class ChatDatabase {
             const tabTitle =
                 (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
                     ? message.body
-                    : tabData?.title) || 'Amazon Q Chat'
+                    : tabData?.title) || 'Amazon Q Chat Agent' // Show default message in place of IDE-to-LLM prompts for generating test/documentation/development content
             message = this.formatChatHistoryMessage(message)
             if (tabData) {
                 this.#features.logging.log(`Updating existing tab with historyId=${historyId}`)
@@ -548,7 +596,7 @@ export class ChatDatabase {
      * 3. The toolUse and toolResult relationship is valid
      * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage) {
+    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage, pinnedContextMessages: ChatMessage[]) {
         if (!this.isInitialized()) {
             return []
         }
@@ -557,29 +605,32 @@ export class ChatDatabase {
 
         // 1. Make sure the length of the history messages don't exceed MaxConversationHistoryMessages
         let allMessages = this.getMessages(tabId, maxConversationHistoryMessages)
-        if (allMessages.length === 0) {
-            return []
+        if (allMessages.length > 0) {
+            // 2. Fix history: Ensure messages in history is valid for server side checks
+            this.ensureValidMessageSequence(tabId, allMessages)
+
+            // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
+            this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
+
+            // 4. NOTE: Keep this trimming logic at the end of the preprocess.
+            // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
+            allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage, pinnedContextMessages)
+
+            // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
+            if (
+                allMessages.length === 0 &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
+            ) {
+                this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
+                newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
+                newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+            }
         }
 
-        // 2. Fix history: Ensure messages in history is valid for server side checks
-        this.ensureValidMessageSequence(tabId, allMessages)
-
-        // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
-        this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
-
-        // 4. NOTE: Keep this trimming logic at the end of the preprocess.
-        // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
-        allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage)
-
-        // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
-        if (
-            allMessages.length === 0 &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
-        ) {
-            this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
-            newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
-            newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
+        // Prepend pinned context fake message pair to beginning of history
+        if (pinnedContextMessages.length === 2) {
+            allMessages = [...pinnedContextMessages.map(msg => chatMessageToMessage(msg)), ...allMessages]
         }
 
         return allMessages
@@ -611,11 +662,16 @@ export class ChatDatabase {
         return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
     }
 
-    private trimMessagesToMaxLength(messages: Message[], newUserMessage: ChatMessage): Message[] {
+    private trimMessagesToMaxLength(
+        messages: Message[],
+        newUserMessage: ChatMessage,
+        pinnedContextMessages: ChatMessage[]
+    ): Message[] {
         let totalCharacters = this.calculateMessagesCharacterCount(messages)
         this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
         const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
             chatMessageToMessage(newUserMessage),
+            ...pinnedContextMessages.map(msg => chatMessageToMessage(msg)),
         ])
         const currentInputToolSpecCount = this.calculateToolSpecCharacterCount(newUserMessage)
         const currentUserInputCount = currentUserInputCharacterCount + currentInputToolSpecCount

@@ -1,3 +1,4 @@
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { FileContext } from '../../../shared/codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
 
@@ -83,21 +84,36 @@ type AutoTriggerParams = {
  * and previous recommendation decisions from the user to determine whether a new recommendation
  * should be shown. The auto-trigger is not stateful and does not keep track of past invocations.
  */
-export const autoTrigger = ({
-    fileContext,
-    char,
-    triggerType,
-    os,
-    previousDecision,
-    ide,
-    lineNum,
-}: AutoTriggerParams): {
+export const autoTrigger = (
+    { fileContext, char, triggerType, os, previousDecision, ide, lineNum }: AutoTriggerParams,
+    logging: Logging
+): {
     shouldTrigger: boolean
     classifierResult: number
     classifierThreshold: number
 } => {
     const leftContextLines = fileContext.leftFileContent.split(/\r?\n/)
     const leftContextAtCurrentLine = leftContextLines[leftContextLines.length - 1]
+    const rightContextLines = fileContext.rightFileContent.split(/\r?\n/)
+    const rightContextAtCurrentLine = rightContextLines[0]
+    // reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L102
+    // we do not want to trigger when there is immediate right context on the same line
+    // with "}" being an exception because of IDE auto-complete
+    // this was from product spec for VSC and JB
+    if (
+        rightContextAtCurrentLine.length &&
+        !rightContextAtCurrentLine.startsWith(' ') &&
+        rightContextAtCurrentLine.trim() !== '}' &&
+        rightContextAtCurrentLine.trim() !== ')' &&
+        ['VSCODE', 'JETBRAINS'].includes(ide)
+    ) {
+        logging.debug(`Skip auto trigger: immediate right context`)
+        return {
+            shouldTrigger: false,
+            classifierResult: 0,
+            classifierThreshold: TRIGGER_THRESHOLD,
+        }
+    }
     const tokens = leftContextAtCurrentLine.trim().split(' ')
     const lastToken = tokens[tokens.length - 1]
 

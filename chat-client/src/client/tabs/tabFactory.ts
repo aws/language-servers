@@ -4,6 +4,7 @@ import {
     MynahIcons,
     MynahUIDataModel,
     QuickActionCommandGroup,
+    QuickActionCommandsHeader,
     TabBarMainAction,
 } from '@aws/mynah-ui'
 import { disclaimerCard } from '../texts/disclaimer'
@@ -24,6 +25,7 @@ export class TabFactory {
     private agenticMode: boolean = false
     private mcp: boolean = false
     private modelSelectionEnabled: boolean = false
+    private reroute: boolean = false
     initialTabId: string
 
     public static generateUniqueId() {
@@ -111,10 +113,33 @@ export class TabFactory {
         this.modelSelectionEnabled = true
     }
 
+    public enableReroute() {
+        this.reroute = true
+    }
+
+    public isRerouteEnabled(): boolean {
+        return this.reroute
+    }
+
     public getDefaultTabData(): DefaultTabData {
         const tabData = {
             ...this.defaultTabData,
-            ...(this.quickActionCommands ? { quickActionCommands: this.quickActionCommands } : {}),
+            ...(this.quickActionCommands
+                ? {
+                      quickActionCommands: this.quickActionCommands,
+                  }
+                : {}),
+            ...(this.reroute
+                ? {
+                      quickActionCommandsHeader: {
+                          status: 'warning',
+                          icon: MynahIcons.INFO,
+                          title: 'Q Developer agentic capabilities',
+                          description:
+                              "You can now ask Q directly in the chat to generate code, documentation, and unit tests. You don't need to explicitly use /dev, /test, or /doc",
+                      } as QuickActionCommandsHeader,
+                  }
+                : {}),
         }
 
         tabData.tabBarButtons = this.getTabBarButtons()

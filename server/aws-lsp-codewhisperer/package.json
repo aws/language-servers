@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.60",
+    "version": "0.0.61",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -36,8 +36,8 @@
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
         "@aws/chat-client-ui-types": "^0.1.40",
-        "@aws/language-server-runtimes": "^0.2.101",
-        "@aws/lsp-core": "^0.0.10",
+        "@aws/language-server-runtimes": "^0.2.102",
+        "@aws/lsp-core": "^0.0.11",
         "@modelcontextprotocol/sdk": "^1.9.0",
         "@smithy/node-http-handler": "^2.5.0",
         "adm-zip": "^0.5.10",
@@ -65,7 +65,8 @@
         "vscode-uri": "^3.1.0",
         "ws": "^8.18.0",
         "xml2js": "^0.6.2",
-        "xmlbuilder2": "^3.1.1"
+        "xmlbuilder2": "^3.1.1",
+        "image-size": "^2.0.2"
     },
     "devDependencies": {
         "@types/adm-zip": "^0.5.5",

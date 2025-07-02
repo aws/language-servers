@@ -26,7 +26,7 @@ import {
     SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodewhispererLanguage, getRuntimeLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { truncateOverlapWithRightContext } from './mergeRightUtils'
+import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
@@ -423,15 +423,18 @@ export const CodewhispererServerFactory =
                     if (initializeParams !== undefined) {
                         ideCategory = getIdeCategory(initializeParams)
                     }
-                    const autoTriggerResult = autoTrigger({
-                        fileContext, // The left/right file context and programming language
-                        lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                        char: triggerCharacter, // Add the character just inserted, if any, before the invication position
-                        ide: ideCategory ?? '',
-                        os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
-                        previousDecision, // The last decision by the user on the previous invocation
-                        triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
-                    })
+                    const autoTriggerResult = autoTrigger(
+                        {
+                            fileContext, // The left/right file context and programming language
+                            lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
+                            char: triggerCharacter, // Add the character just inserted, if any, before the invication position
+                            ide: ideCategory ?? '',
+                            os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                            previousDecision, // The last decision by the user on the previous invocation
+                            triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
+                        },
+                        logging
+                    )
 
                     if (
                         isAutomaticLspTriggerKind &&
@@ -538,6 +541,20 @@ export const CodewhispererServerFactory =
 
                     // Close ACTIVE session and record Discard trigger decision immediately
                     if (currentSession && currentSession.state === 'ACTIVE') {
+                        if (editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
+                            const mergedSuggestions = mergeEditSuggestionsWithFileContext(
+                                currentSession,
+                                textDocument,
+                                fileContext
+                            )
+
+                            if (mergedSuggestions.length > 0) {
+                                return {
+                                    items: mergedSuggestions,
+                                    sessionId: currentSession.id,
+                                }
+                            }
+                        }
                         // Emit user trigger decision at session close time for active session
                         sessionManager.discardSession(currentSession)
                         // TODO add streakLength back once the model is updated
@@ -642,6 +659,7 @@ export const CodewhispererServerFactory =
                 session.responseContext = suggestionResponse.responseContext
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
                 session.timeToFirstRecommendation = new Date().getTime() - session.startTime
+                session.suggestionType = suggestionResponse.suggestionType
             } else {
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
             }
