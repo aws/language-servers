@@ -296,7 +296,7 @@ export function getCodeWhispererLanguageIdFromPath(filePath: string): Codewhispe
 
     for (const [extension, languageId] of Object.entries(languageByExtension)) {
         if (filePath.endsWith(extension)) {
-            return languageId
+            return getRuntimeLanguage(languageId)
         }
     }
 

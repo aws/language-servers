@@ -677,10 +677,6 @@ export class AgenticChatController implements ChatHandlers {
             // Combine additional context with active file and get file list to display at top of response
             const contextItems = [...additionalContext, ...activeFile]
             triggerContext.documentReference = this.#additionalContextProvider.getFileListFromContext(contextItems)
-            if (additionalContext.length) {
-                triggerContext.documentReference =
-                    this.#additionalContextProvider.getFileListFromContext(additionalContext)
-            }
 
             const customContext = await this.#additionalContextProvider.getImageBlocksFromContext(
                 params.context,
@@ -2058,7 +2054,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 body = builtInPermission
                     ? `I need permission to modify files.\n\`${writeFilePath}\``
-                    : `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
+                    : `I need permission to modify files outside of your workspace.\n\`${writeFilePath}\``
                 break
             }
 

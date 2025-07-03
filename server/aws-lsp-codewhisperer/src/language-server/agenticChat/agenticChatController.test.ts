@@ -1404,6 +1404,102 @@ describe('AgenticChatController', () => {
                     }
                 )
             })
+
+            it('includes both additional context and active file in context transparency list', async () => {
+                const mockAdditionalContext = [
+                    {
+                        name: 'additional.ts',
+                        description: '',
+                        type: 'file',
+                        relativePath: 'src/additional.ts',
+                        path: '/workspace/src/additional.ts',
+                        startLine: -1,
+                        endLine: -1,
+                        innerContext: 'additional content',
+                        pinned: false,
+                    },
+                ]
+
+                // Mock getAdditionalContext to return additional context
+                additionalContextProviderStub.resolves(mockAdditionalContext)
+
+                // Mock the expected return value from getFileListFromContext
+                const expectedFileList = {
+                    filePaths: ['src/additional.ts', 'src/active.ts'],
+                    details: {
+                        'src/additional.ts': { description: '/workspace/src/additional.ts' },
+                        'src/active.ts': { description: '/workspace/src/active.ts' },
+                    },
+                }
+
+                // Mock getFileListFromContext to capture what gets passed to it
+                const getFileListFromContextStub = sinon.stub(
+                    AdditionalContextProvider.prototype,
+                    'getFileListFromContext'
+                )
+                getFileListFromContextStub.returns(expectedFileList)
+
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: 'src/active.ts',
+                    activeFilePath: '/workspace/src/active.ts',
+                    text: 'active file content',
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onChatPrompt(
+                    {
+                        tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///workspace/src/active.ts' },
+                        cursorState: [mockCursorState],
+                        context: [{ command: 'Additional File', description: 'file.txt' }],
+                        partialResultToken: 1, // Enable progress updates
+                    },
+                    mockCancellationToken
+                )
+
+                // Verify getFileListFromContext was called with combined context (additional + active file)
+                sinon.assert.calledOnce(getFileListFromContextStub)
+                const contextItemsPassedToGetFileList = getFileListFromContextStub.firstCall.args[0]
+
+                // Should include both additional context and active file
+                assert.strictEqual(contextItemsPassedToGetFileList.length, 2)
+
+                // Find the additional context item
+                const additionalContextItem = contextItemsPassedToGetFileList.find(
+                    (item: any) => item.relativePath === 'src/additional.ts'
+                )
+                assert.ok(additionalContextItem, 'Additional context should be included')
+
+                // Find the active file item
+                const activeFileItem = contextItemsPassedToGetFileList.find(
+                    (item: any) => item.relativePath === 'src/active.ts'
+                )
+                assert.ok(activeFileItem, 'Active file should be included in context transparency list')
+
+                // Verify that sendProgress was called with a message containing the expected context list
+                sinon.assert.called(testFeatures.lsp.sendProgress)
+
+                // Find the progress call that contains contextList
+                const progressCallWithContext = (testFeatures.lsp.sendProgress as sinon.SinonStub)
+                    .getCalls()
+                    .find(call => {
+                        const progressData = call.args[2] // Third argument is the progress data
+                        return progressData && progressData.contextList
+                    })
+
+                assert.ok(progressCallWithContext, 'Should have sent progress with contextList')
+                const contextList = progressCallWithContext.args[2].contextList
+                assert.deepStrictEqual(
+                    contextList,
+                    expectedFileList,
+                    'Context list in progress update should match expected file list'
+                )
+
+                getFileListFromContextStub.restore()
+            })
         })
     })
     describe('truncateRequest', () => {
