@@ -344,10 +344,12 @@ export class QCodeReview {
                 errorMessage:
                     error === 'Failed' ? QCodeReview.ERROR_MESSAGES.SCAN_FAILED : `Unexpected status: ${error}`,
             }
-        }
-
-        return {
-            errorMessage: `${Q_CODE_REVIEW_TOOL_NAME} tool failed with error - ${JSON.stringify(error)}`,
+        } else {
+            return {
+                codeReviewId: jobId,
+                status: 'Failed',
+                errorMessage: `${Q_CODE_REVIEW_TOOL_NAME} tool failed with error - ${JSON.stringify(error)}`,
+            }
         }
     }
 

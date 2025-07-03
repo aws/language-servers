@@ -15,7 +15,7 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
     properties: {
         scopeOfReview: {
             type: <const>'string',
-            description: `After analyzing user request, determine if they are explicitly asking for a full review of code.
+            description: `After analyzing user request, determine value of scopeOfReview.
 
                 FULL FILE REVIEW indicators - User is asking for complete file analysis when they use phrases like:
                 - "review the entire file"
