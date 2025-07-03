@@ -421,7 +421,7 @@ export class AdditionalContextProvider {
     }
 
     public async appendCustomContextToTriggerContext(
-        triggerContext: any,
+        triggerContext: TriggerContext,
         contextArr?: ContextCommand[],
         tabId?: string
     ) {
