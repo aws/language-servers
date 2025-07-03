@@ -21,7 +21,7 @@ import * as crypto from 'crypto'
 import * as path from 'path'
 import * as https from 'https'
 import * as JSZip from 'jszip'
-import { existsSync, statSync, readFileSync } from 'fs'
+import { existsSync, statSync } from 'fs'
 
 export class QCodeReview {
     private static readonly CUSTOMER_CODE_BASE_PATH = 'customerCodeBaseFolder'
@@ -29,12 +29,7 @@ export class QCodeReview {
     private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
     private static readonly CODE_DIFF_PATH = 'code_artifact/codeDiff/customerCodeDiff.diff'
     private static readonly RULE_ARTIFACT_PATH = '.amazonq/rules'
-    private static readonly ZIP_COMPRESSION_OPTIONS = {
-        type: 'nodebuffer' as const,
-        compression: 'DEFLATE' as const,
-        compressionOptions: { level: 9 },
-    }
-    private static readonly MAX_POLLING_ATTEMPTS = 12
+    private static readonly MAX_POLLING_ATTEMPTS = 30
     private static readonly POLLING_INTERVAL_MS = 10000
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
@@ -252,7 +247,7 @@ export class QCodeReview {
             this.emitMetric('codeAnalysisTimeout', {
                 codeScanName: scanName,
                 codeReviewId: jobId,
-                status,
+                status: 'Timeout',
                 maxAttempts: QCodeReview.MAX_POLLING_ATTEMPTS,
             })
             return {
@@ -307,6 +302,10 @@ export class QCodeReview {
     ): Promise<any[]> {
         let totalFindings: any[] = []
         let nextFindingToken = undefined
+
+        this.logging.info(
+            `Collect findings for jobId: ${jobId}, isFullReviewRequest: ${isFullReviewRequest}, isCodeDiffPresent: ${isCodeDiffPresent}`
+        )
 
         do {
             this.logging.info(`Getting findings for job ID: ${jobId}, next token: ${nextFindingToken}`)
