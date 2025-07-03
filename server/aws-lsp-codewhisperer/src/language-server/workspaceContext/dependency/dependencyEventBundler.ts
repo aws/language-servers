@@ -21,9 +21,9 @@ export class DependencyEventBundler {
     }
 
     /**
-     * Start the bundler process
-     * Bundler process will process all the events in the queue every 500ms
-     * and concatenate all the paths within the same language and workspaceFolder
+     * Starts the dependency event bundler that processes the eventQueue every 500ms.
+     * Skips execution if previous work hasn't finished to prevent concurrent processing.
+     * Groups events by language and workspaceFolder, then processes them as batches.
      */
     public startDependencyEventBundler() {
         this.eventBundlerInterval = setInterval(async () => {
