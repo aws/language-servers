@@ -176,7 +176,10 @@ export const WorkspaceContextServer = (): Server => features => {
             logging.log(`${JSON.stringify(result)}`)
             abTestingEnabled =
                 result.featureEvaluations?.some(
-                    feature => feature.feature === 'ServiceSideWorkspaceContext' && feature.variation === 'TREATMENT'
+                    feature =>
+                        (feature.feature === 'ServiceSideWorkspaceContext' ||
+                            feature.feature === 'BuilderIdServiceSideProjectContext') &&
+                        feature.variation === 'TREATMENT'
                 ) ?? false
             logging.info(`A/B testing enabled: ${abTestingEnabled}`)
             abTestingEvaluated = true
