@@ -141,6 +141,7 @@ import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
+import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
@@ -1996,9 +1997,36 @@ export class AgenticChatController implements ChatHandlers {
                 body = '```shell\n' + commandString
                 break
             }
-            case 'fsReplace':
+
             case 'fsWrite': {
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams | FsReplaceParams).path
+                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
+
+                // Validate the path using our synchronous utility
+                validatePathBasic(writeFilePath)
+
+                this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
+                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                header = {
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
+                    body: builtInPermission
+                        ? '#### Allow file modification'
+                        : '#### Allow file modification outside of your workspace',
+                    buttons,
+                }
+                body = builtInPermission
+                    ? `I need permission to modify files.\n\`${writeFilePath}\``
+                    : `I need permission to modify files outside of your workspace.\n\`${writeFilePath}\``
+                break
+            }
+
+            case 'fsReplace': {
+                const writeFilePath = (toolUse.input as unknown as FsReplaceParams).path
+
+                // For replace, we need to verify the file exists
+                validatePathExists(writeFilePath)
+
+                this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
                 buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
@@ -2028,6 +2056,11 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (toolName === 'fsRead') {
                     const paths = (toolUse.input as unknown as FsReadParams).paths
+
+                    // Validate paths using our synchronous utility
+                    validatePathsSync(paths)
+
+                    this.#debug(`Processing ${toolUse.name} for paths: ${JSON.stringify(paths)}`)
                     const formattedPaths: string[] = []
                     paths.forEach(element => formattedPaths.push(`\`${element}\``))
                     body = builtInPermission
@@ -2035,6 +2068,11 @@ export class AgenticChatController implements ChatHandlers {
                         : `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
                 } else {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
+
+                    // Validate the path using our synchronous utility
+                    validatePathExists(readFilePath)
+
+                    this.#debug(`Processing ${toolUse.name} for path: ${readFilePath}`)
                     body = builtInPermission
                         ? `I need permission to list directories.\n\`${readFilePath}\``
                         : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
