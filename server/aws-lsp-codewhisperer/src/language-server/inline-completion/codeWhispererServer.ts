@@ -505,7 +505,7 @@ export const CodewhispererServerFactory =
                                         codewhispererAutoTriggerType === 'Classifier' &&
                                         autoTriggerResult.shouldTrigger)
                                 ) {
-                                    predictionTypes.push(['COMPLETIONS'])
+                                    // predictionTypes.push(['COMPLETIONS'])
                                 }
 
                                 const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
