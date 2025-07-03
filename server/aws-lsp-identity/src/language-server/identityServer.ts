@@ -56,7 +56,11 @@ export class IdentityServer extends ServerBase {
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
 
         const stsCache = new RefreshingStsCache(new FileSystemStsCache(this.observability), this.observability)
-        const stsAutoRefresher = new StsAutoRefresher(stsCache, this.observability)
+        const stsAutoRefresher = new StsAutoRefresher(
+            stsCache,
+            this.features.identityManagement.sendStsCredentialChanged,
+            this.observability
+        )
 
         const identityService = new IdentityService(
             profileStore,
