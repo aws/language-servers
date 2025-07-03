@@ -554,6 +554,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatHistoryDb.close()
         this.#contextCommandsProvider?.dispose()
         this.#userWrittenCodeTracker?.dispose()
+        this.#mcpEventHandler.dispose()
     }
 
     async onListConversations(params: ListConversationsParams) {
@@ -2010,7 +2011,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 body = builtInPermission
                     ? `I need permission to modify files.\n\`${writeFilePath}\``
-                    : `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
+                    : `I need permission to modify files outside of your workspace.\n\`${writeFilePath}\``
                 break
             }
 

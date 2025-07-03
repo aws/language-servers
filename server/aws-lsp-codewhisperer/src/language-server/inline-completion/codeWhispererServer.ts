@@ -313,6 +313,7 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
+        // Threshold to avoid getting the same suggestion type due to unexpected issue
         const timeSinceCloseTimeEditStreakThreshold: number = 2000
 
         const sessionManager = SessionManager.getInstance()
@@ -483,7 +484,6 @@ export const CodewhispererServerFactory =
                         if (editsEnabled) {
                             const predictionTypes: string[][] = []
 
-                            // if previous decision is Accept and previous suggestionType is EDIT, automatically trigger EDIT suggestion
                             if (
                                 previousDecision === 'Accept' &&
                                 previousSuggestionType === SuggestionType.EDIT &&
