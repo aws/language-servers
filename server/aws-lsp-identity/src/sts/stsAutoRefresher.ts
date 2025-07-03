@@ -3,7 +3,7 @@ import { Observability } from '@aws/lsp-core'
 import { StsCredentialChangedKind, StsCredentialChangedParams } from '@aws/language-server-runtimes/protocol'
 
 // Modified to match SSO token refresh behavior
-const refreshWindowMillis = 14 * 60 * 1000 // 14 minutes (matching SSO)
+const refreshWindowMillis = 5 * 60 * 1000 // 5 minutes (matching SSO)
 const retryCooldownWindowMillis = 30000 // 30 seconds (matching SSO)
 const bufferedRefreshWindowMillis = refreshWindowMillis * 0.95 // 4.75 minutes
 const bufferedRetryCooldownWindowMillis = retryCooldownWindowMillis * 1.05 // 31.5 seconds

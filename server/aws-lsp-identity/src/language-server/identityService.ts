@@ -266,7 +266,7 @@ export class IdentityService {
             const command = new AssumeRoleCommand({
                 RoleArn: roleArn,
                 RoleSessionName: `session-${Date.now()}`,
-                DurationSeconds: 900,
+                DurationSeconds: 3600,
             })
 
             const { Credentials, AssumedRoleUser } = await stsClient.send(command)
