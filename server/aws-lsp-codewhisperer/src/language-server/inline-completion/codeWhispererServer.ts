@@ -1078,8 +1078,6 @@ export const CodewhispererServerFactory =
                 return
             }
 
-            logging.log(`Document changed: ${p.textDocument.uri}`)
-
             p.contentChanges.forEach(change => {
                 codePercentageTracker.countTotalTokens(languageId, change.text, false)
 
