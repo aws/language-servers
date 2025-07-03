@@ -1,9 +1,13 @@
 import { StsCache, StsCredential } from './cache/stsCache'
 import { Observability } from '@aws/lsp-core'
+import { StsCredentialChangedParams } from '@aws/language-server-runtimes/protocol'
 
 const refreshWindowMillis = 5 * 60 * 1000 // 5 minutes
+// const refreshWindowMillis = 220 * 10 * 1000 // 10 seconds
 const bufferedRefreshWindowMillis = refreshWindowMillis * 0.95
 const maxRefreshJitterMillis = 10000
+
+export type RaiseStsChanged = (params: StsCredentialChangedParams) => void
 
 export class StsAutoRefresher implements Disposable {
     private readonly timeouts: Record<string, NodeJS.Timeout> = {}
@@ -33,7 +37,7 @@ export class StsAutoRefresher implements Disposable {
             }
 
             const nowMillis = Date.now()
-            const expirationMillis = stsCredentials.Credentials?.Expiration.getTime()
+            const expirationMillis = new Date(stsCredentials.Credentials?.Expiration).getTime()
             let delayMs: number
 
             if (nowMillis < expirationMillis - refreshWindowMillis) {
@@ -53,6 +57,7 @@ export class StsAutoRefresher implements Disposable {
             this.timeouts[name] = setTimeout(async () => {
                 try {
                     const newCredentials = await refreshCallback()
+                    this.observability.logging.log(`Generated new STS credentials`)
                     await this.stsCache.setStsCredential(name, newCredentials)
                     this.watch(name, refreshCallback)
                 } catch (error) {

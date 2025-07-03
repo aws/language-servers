@@ -16,6 +16,7 @@ import {
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
+import { RefreshingStsCache } from '../sts/cache/refreshingStsCache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { FileSystemStsCache } from '../sts/cache/fileSystemStsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
@@ -54,7 +55,7 @@ export class IdentityServer extends ServerBase {
 
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
 
-        const stsCache = new FileSystemStsCache(this.observability)
+        const stsCache = new RefreshingStsCache(new FileSystemStsCache(this.observability), this.observability)
         const stsAutoRefresher = new StsAutoRefresher(stsCache, this.observability)
 
         const identityService = new IdentityService(
