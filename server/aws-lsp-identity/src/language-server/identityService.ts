@@ -160,6 +160,12 @@ export class IdentityService {
         try {
             const options = { ...getIamCredentialOptionsDefaults, ...params.options }
 
+            token.onCancellationRequested(_ => {
+                if (options.generateOnInvalidStsCredential) {
+                    emitMetric('Cancelled', null)
+                }
+            })
+
             // Get the profile with provided name
             const profileData = await this.profileStore.load()
             const profile = profileData.profiles.find(profile => profile.name === params.profileName)
@@ -184,24 +190,28 @@ export class IdentityService {
                 const roleArn = profile.settings.role_arn
                 const stsCredentials = await this.stsCache.getStsCredential(profile.name).catch(_ => undefined)
 
+                // Create STS client for role assumption
+                const stsClient = new STSClient({
+                    region: profile.settings.region || 'us-east-1',
+                    credentials: credentials,
+                })
+
                 if (stsCredentials?.Credentials) {
                     // Use the found STS credential
                     credentials = {
                         accessKeyId: stsCredentials.Credentials.AccessKeyId!,
                         secretAccessKey: stsCredentials.Credentials.SecretAccessKey!,
                         sessionToken: stsCredentials.Credentials.SessionToken!,
-                        expiration: stsCredentials.Credentials.Expiration!,
+                        expiration: new Date(stsCredentials.Credentials.Expiration!),
                     }
                 } else if (options.generateOnInvalidStsCredential) {
-                    // Create STS client for role assumption
-                    const stsClient = new STSClient({
-                        region: profile.settings.region || 'us-east-1',
-                        credentials: credentials,
-                    })
-                    // Generate and cache the new STS credentials
+                    // Generate STS credentials and cache them
                     const response = await this.generateStsCredential(stsClient, roleArn)
                     if (!response.Credentials) {
-                        throw new AwsError('Failed to assume role: No credentials returned', 'E_STS_ASSUME_ROLE_FAILED')
+                        throw new AwsError(
+                            'Failed to assume role: No credentials returned',
+                            AwsErrorCodes.E_INVALID_STS_CREDENTIAL
+                        )
                     }
                     await this.stsCache.setStsCredential(profile.name, response)
                     credentials = {
@@ -230,42 +240,14 @@ export class IdentityService {
                 this.observability.logging.info(`Successfully retrieved IAM/STS credential.`)
             }
 
-            // Validate whether the provided identity has all required permissions
-            const stsClient = new STSClient({
-                region: profile.settings.region || 'us-east-1',
-                credentials: credentials,
-            })
-            const callerIdentity = await stsClient.send(new GetCallerIdentityCommand({}))
-            const iamClient = new IAMClient({
-                region: profile.settings.region || 'us-east-1',
-                credentials: credentials,
-            })
-            // Convert assumed role ARN to IAM role ARN for simulation
-            // From: arn:aws:sts::123456789012:assumed-role/RoleName/SessionName
-            // To:   arn:aws:iam::123456789012:role/RoleName
-            const simulationArn = callerIdentity.Arn!.replace(/:sts:.*?assumed-role\/(.*?)\/.*$/, ':iam::$1:role/')
-            const response = await iamClient.send(
-                new SimulatePrincipalPolicyCommand({
-                    PolicySourceArn: simulationArn,
-                    ActionNames: [
-                        'q:StartConversation',
-                        'q:SendMessage',
-                        'q:GetConversation',
-                        'q:ListConversations',
-                        'q:UpdateConversation',
-                        'q:DeleteConversation',
-                        'q:PassRequest',
-                        'q:StartTroubleshootingAnalysis',
-                        'q:StartTroubleshootingResolutionExplanation',
-                        'q:GetTroubleshootingResults',
-                        'q:UpdateTroubleshootingCommandResult',
-                        'q:GetIdentityMetaData',
-                        'q:GenerateCodeFromCommands',
-                        'q:UsePlugin',
-                        'codewhisperer:GenerateRecommendations',
-                    ],
-                })
-            )
+            // Validate permissions on user or assumed role
+            const hasPermissions = await this.validatePermissions(credentials, profile.settings.region)
+            if (!hasPermissions) {
+                throw new AwsError(
+                    `User or assumed role has insufficient permissions.`,
+                    AwsErrorCodes.E_INVALID_PROFILE
+                )
+            }
 
             emitMetric('Succeeded')
             return {
@@ -438,5 +420,55 @@ export class IdentityService {
         ;(ssoSession.settings ||= {}).sso_registration_scopes = ssoSession.settings.sso_registration_scopes
 
         return ssoSession
+    }
+
+    // Returns whether the identity associated with the provided credentials has sufficient permissions
+    private async validatePermissions(
+        credentials: IamCredentials,
+        region: string | undefined
+    ): Promise<boolean | undefined> {
+        // Get the identity associated with the credentials
+        const stsClient = new STSClient({ region: region || 'us-east-1', credentials: credentials })
+        const identity = await stsClient.send(new GetCallerIdentityCommand({}))
+        if (!identity.Arn) {
+            throw new AwsError('Caller identity ARN not found.', AwsErrorCodes.E_INVALID_PROFILE)
+        }
+
+        // Check the permissions attached to the identity
+        const iamClient = new IAMClient({ region: region || 'us-east-1', credentials: credentials })
+        const response = await iamClient.send(
+            new SimulatePrincipalPolicyCommand({
+                PolicySourceArn: this.convertToIamArn(identity.Arn),
+                ActionNames: [
+                    'q:StartConversation',
+                    'q:SendMessage',
+                    'q:GetConversation',
+                    'q:ListConversations',
+                    'q:UpdateConversation',
+                    'q:DeleteConversation',
+                    'q:PassRequest',
+                    'q:StartTroubleshootingAnalysis',
+                    'q:StartTroubleshootingResolutionExplanation',
+                    'q:GetTroubleshootingResults',
+                    'q:UpdateTroubleshootingCommandResult',
+                    'q:GetIdentityMetaData',
+                    'q:GenerateCodeFromCommands',
+                    'q:UsePlugin',
+                    'codewhisperer:GenerateRecommendations',
+                ],
+            })
+        )
+        return response.EvaluationResults?.every(result => result.EvalDecision === 'allowed')
+    }
+
+    // Converts an assumed role ARN into an IAM role ARN
+    private convertToIamArn(arn: string) {
+        if (arn.includes(':assumed-role/')) {
+            const parts = arn.split(':')
+            const roleName = parts[5].split('/')[1]
+            return `arn:aws:iam::${parts[4]}:role/${roleName}`
+        } else {
+            return arn
+        }
     }
 }
