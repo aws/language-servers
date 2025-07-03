@@ -212,7 +212,7 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             agent.addTool(
                 {
                     name: namespaced,
-                    description: def.description?.trim() || 'undefined',
+                    description: (def.description?.trim() || 'undefined').substring(0, 10240),
                     inputSchema: inputSchemaWithExplanation,
                 },
                 input => tool.invoke(input),

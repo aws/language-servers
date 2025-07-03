@@ -556,6 +556,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatHistoryDb.close()
         this.#contextCommandsProvider?.dispose()
         this.#userWrittenCodeTracker?.dispose()
+        this.#mcpEventHandler.dispose()
     }
 
     async onListConversations(params: ListConversationsParams) {
