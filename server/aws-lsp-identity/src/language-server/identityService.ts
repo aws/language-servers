@@ -37,6 +37,7 @@ import { GetCallerIdentityCommand, STSClient, AssumeRoleCommand } from '@aws-sdk
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
+import { IAMClient, SimulatePrincipalPolicyCommand } from '@aws-sdk/client-iam'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
@@ -178,13 +179,6 @@ export class IdentityService {
                 sessionToken: profile.settings.aws_session_token,
             }
 
-            // Check if the IAM credential is valid by calling the STS API
-            const stsClient = new STSClient({
-                region: profile.settings.region || 'us-east-1',
-                credentials: credentials,
-            })
-            await stsClient.send(new GetCallerIdentityCommand({}))
-
             if (profile.settings.role_arn) {
                 // Try to get the STS credentials from cache
                 const roleArn = profile.settings.role_arn
@@ -199,6 +193,11 @@ export class IdentityService {
                         expiration: stsCredentials.Credentials.Expiration!,
                     }
                 } else if (options.generateOnInvalidStsCredential) {
+                    // Create STS client for role assumption
+                    const stsClient = new STSClient({
+                        region: profile.settings.region || 'us-east-1',
+                        credentials: credentials,
+                    })
                     // Generate and cache the new STS credentials
                     const response = await this.generateStsCredential(stsClient, roleArn)
                     if (!response.Credentials) {
@@ -230,6 +229,43 @@ export class IdentityService {
             } else {
                 this.observability.logging.info(`Successfully retrieved IAM/STS credential.`)
             }
+
+            // Validate whether the provided identity has all required permissions
+            const stsClient = new STSClient({
+                region: profile.settings.region || 'us-east-1',
+                credentials: credentials,
+            })
+            const callerIdentity = await stsClient.send(new GetCallerIdentityCommand({}))
+            const iamClient = new IAMClient({
+                region: profile.settings.region || 'us-east-1',
+                credentials: credentials,
+            })
+            // Convert assumed role ARN to IAM role ARN for simulation
+            // From: arn:aws:sts::123456789012:assumed-role/RoleName/SessionName
+            // To:   arn:aws:iam::123456789012:role/RoleName
+            const simulationArn = callerIdentity.Arn!.replace(/:sts:.*?assumed-role\/(.*?)\/.*$/, ':iam::$1:role/')
+            const response = await iamClient.send(
+                new SimulatePrincipalPolicyCommand({
+                    PolicySourceArn: simulationArn,
+                    ActionNames: [
+                        'q:StartConversation',
+                        'q:SendMessage',
+                        'q:GetConversation',
+                        'q:ListConversations',
+                        'q:UpdateConversation',
+                        'q:DeleteConversation',
+                        'q:PassRequest',
+                        'q:StartTroubleshootingAnalysis',
+                        'q:StartTroubleshootingResolutionExplanation',
+                        'q:GetTroubleshootingResults',
+                        'q:UpdateTroubleshootingCommandResult',
+                        'q:GetIdentityMetaData',
+                        'q:GenerateCodeFromCommands',
+                        'q:UsePlugin',
+                        'codewhisperer:GenerateRecommendations',
+                    ],
+                })
+            )
 
             emitMetric('Succeeded')
             return {
