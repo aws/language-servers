@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/aws/language-servers/compare/chat-client/v0.1.22...chat-client/v0.1.23) (2025-07-04)
+
+
+### Features
+
+* support listAvailableModels server request ([#1808](https://github.com/aws/language-servers/issues/1808)) ([9f1ddb3](https://github.com/aws/language-servers/commit/9f1ddb327778dba6da49337b79c5fef19023b52d))
+
 ## [0.1.22](https://github.com/aws/language-servers/compare/chat-client/v0.1.21...chat-client/v0.1.22) (2025-07-02)
 
 
