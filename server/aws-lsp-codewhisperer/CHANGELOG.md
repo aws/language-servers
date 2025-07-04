@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.63](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.62...lsp-codewhisperer/v0.0.63) (2025-07-04)
+
+
+### Features
+
+* added file watchers to listen to mcp and persona config ([#1714](https://github.com/aws/language-servers/issues/1714)) ([4c5a7f8](https://github.com/aws/language-servers/commit/4c5a7f893bad37bea1946d37d06f57197c3ef04b))
+* **amazonq:** update workspace context server A/B testing filter ([#1830](https://github.com/aws/language-servers/issues/1830)) ([faeeee3](https://github.com/aws/language-servers/commit/faeeee3da7a8712f3501055ba8d485528185cdb6))
+* support listAvailableModels server request ([#1808](https://github.com/aws/language-servers/issues/1808)) ([9f1ddb3](https://github.com/aws/language-servers/commit/9f1ddb327778dba6da49337b79c5fef19023b52d))
+
+
+### Bug Fixes
+
+* **amazonq:** change the customer UI message to out of the workspace ([#1822](https://github.com/aws/language-servers/issues/1822)) ([624def5](https://github.com/aws/language-servers/commit/624def51e4d9e21ee8d045ffe528455b69cdfecb))
+* **amazonq:** fix to add upper limit validation for tool description ([#1760](https://github.com/aws/language-servers/issues/1760)) ([2d18a3b](https://github.com/aws/language-servers/commit/2d18a3ba69d22b26dea5170656d79b9eacc202b1))
+* **amazonq:** handle undefined paths gracefully and retry ([#1825](https://github.com/aws/language-servers/issues/1825)) ([c52b017](https://github.com/aws/language-servers/commit/c52b017eef0666433cbb0b6d8086254dc1af5fee))
+* **amazonq:** include tsx and jsx files in workspace context server ([#1790](https://github.com/aws/language-servers/issues/1790)) ([79691ef](https://github.com/aws/language-servers/commit/79691ef607d9bc98032fe2e59a5031601a4dba9a))
+* **amazonq:** make workspace context server upload dependency chunks sequentially ([#1769](https://github.com/aws/language-servers/issues/1769)) ([c8329e6](https://github.com/aws/language-servers/commit/c8329e6b90be2c24d72a4525b8903384746de2ab))
+* **amazonq:** prevent WCS matching workspaceFolder with only prefix ([#1782](https://github.com/aws/language-servers/issues/1782)) ([988d952](https://github.com/aws/language-servers/commit/988d952485b0f026200a19d17cacd323cd9e359e))
+* **amazonq:** shouldn't exit inline  flow before we're sure there is no Edit/Completion trigger ([#1819](https://github.com/aws/language-servers/issues/1819)) ([dc8d89b](https://github.com/aws/language-servers/commit/dc8d89b39ee230aba6cfb032f81bda3476a5cc84))
+* should always trigger EDIT suggestion if triggering via acceptance ([#1826](https://github.com/aws/language-servers/issues/1826)) ([6c9e522](https://github.com/aws/language-servers/commit/6c9e5225a58d7cf43931d84e7ae63275d6f9c066))
+
 ## [0.0.62](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.61...lsp-codewhisperer/v0.0.62) (2025-07-02)
 
 
