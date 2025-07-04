@@ -36,6 +36,7 @@ import {
     PinnedContextParams,
     RuleClickResult,
     SourceLinkClickParams,
+    ListAvailableModelsResult,
 } from '@aws/language-server-runtimes-types'
 import {
     ChatItem,
@@ -101,6 +102,7 @@ export interface InboundChatApi {
     createTabId(openTab?: boolean): string | undefined
     addSelectedFilesToContext(params: OpenFileDialogParams): void
     sendPinnedContext(params: PinnedContextParams): void
+    listAvailableModels(params: ListAvailableModelsResult): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -134,11 +136,18 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
     const previousModelSelectionValue = getTabModelSelection(mynahUi, tabId)
     const currentModelSelectionValue = optionsValues['model-selection']
 
+    const promptInputOptions = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
     if (currentModelSelectionValue !== previousModelSelectionValue) {
-        mynahUi.addChatItem(tabId, getModelSelectionChatItem(currentModelSelectionValue))
+        const modelSelectionPromptOption = promptInputOptions?.find(({ id }) => id === 'model-selection')
+        if (modelSelectionPromptOption && modelSelectionPromptOption.type === 'select') {
+            const selectedModelName = modelSelectionPromptOption.options?.find(
+                ({ value }) => value === currentModelSelectionValue
+            )?.label
+
+            mynahUi.addChatItem(tabId, getModelSelectionChatItem(selectedModelName ?? currentModelSelectionValue))
+        }
     }
 
-    const promptInputOptions = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
     mynahUi.updateStore(tabId, {
         promptInputOptions: promptInputOptions?.map(option => {
             option.value = optionsValues[option.id]
@@ -369,6 +378,7 @@ export const createMynahUi = (
         onReady: () => {
             messager.onUiReady()
             messager.onTabAdd(tabFactory.initialTabId)
+            messager.onListAvailableModels({ tabId: tabFactory.initialTabId })
         },
         onFileClick: (tabId, filePath, deleted, messageId, eventId, fileDetails) => {
             messager.onFileClick({ tabId, filePath, messageId, fullPath: fileDetails?.data?.['fullPath'] })
@@ -406,6 +416,7 @@ export const createMynahUi = (
             }
             mynahUi.updateStore(tabId, defaultTabConfig)
             messager.onTabAdd(tabId, undefined, tabStore?.tabMetadata?.openTabKey === true)
+            messager.onListAvailableModels({ tabId })
         },
         onTabRemove: (tabId: string) => {
             messager.onStopChatResponse(tabId)
@@ -1418,7 +1429,7 @@ export const createMynahUi = (
 
         const answer: ChatItem = {
             type: ChatItemType.ANSWER,
-            body: `**${params.title}** 
+            body: `**${params.title}**
 ${params.message}`,
         }
 
@@ -1628,6 +1639,23 @@ ${params.message}`,
         }
     }
 
+    const listAvailableModels = (params: ListAvailableModelsResult) => {
+        const tabId = params.tabId
+        const promptInputOptions = mynahUi.getTabData(tabId).getStore()?.promptInputOptions
+        mynahUi.updateStore(tabId, {
+            promptInputOptions: promptInputOptions?.map(option =>
+                option.id === 'model-selection'
+                    ? {
+                          ...option,
+                          type: 'select',
+                          options: params.models.map(model => ({ value: model.id, label: model.name })),
+                          value: params.selectedModelId,
+                      }
+                    : option
+            ),
+        })
+    }
+
     const api = {
         addChatResponse: addChatResponse,
         updateChat: updateChat,
@@ -1645,6 +1673,7 @@ ${params.message}`,
         getSerializedChat: getSerializedChat,
         createTabId: createTabId,
         ruleClicked: ruleClicked,
+        listAvailableModels: listAvailableModels,
         addSelectedFilesToContext: addSelectedFilesToContext,
     }
 

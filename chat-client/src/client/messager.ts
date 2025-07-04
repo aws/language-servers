@@ -48,6 +48,7 @@ import {
     TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
+    ListAvailableModelsParams,
 } from '@aws/language-server-runtimes-types'
 import { TelemetryParams } from '../contracts/serverContracts'
 import {
@@ -108,6 +109,7 @@ export interface OutboundChatApi {
     listRules(params: ListRulesParams): void
     onAddPinnedContext(params: PinnedContextParams): void
     onRemovePinnedContext(params: PinnedContextParams): void
+    onListAvailableModels(params: ListAvailableModelsParams): void
     onOpenFileDialogClick(params: OpenFileDialogParams): void
     onFilesDropped(params: { tabId: string; files: FileList; insertPosition: number }): void
 }
@@ -282,6 +284,10 @@ export class Messager {
 
     onRemovePinnedContext = (params: PinnedContextParams) => {
         this.chatApi.onRemovePinnedContext(params)
+    }
+
+    onListAvailableModels = (params: ListAvailableModelsParams): void => {
+        this.chatApi.onListAvailableModels(params)
     }
 
     onOpenFileDialogClick = (params: OpenFileDialogParams): void => {

@@ -40,6 +40,9 @@ import {
     MessageType,
     ExecuteCommandParams,
     FollowUpClickParams,
+    ListAvailableModelsParams,
+    ListAvailableModelsResult,
+    Model,
     OpenFileDialogParams,
     OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
@@ -141,6 +144,7 @@ import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
+import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
@@ -181,6 +185,7 @@ import {
     qProName,
 } from '../paidTier/paidTier'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
+import { modelOptions, modelOptionsForRegion } from './modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 
@@ -196,8 +201,6 @@ type ChatHandlers = Omit<
     | 'onTabBarAction'
     | 'getSerializedChat'
     | 'chatOptionsUpdate'
-    | 'onListMcpServers'
-    | 'onMcpServerClick'
     | 'onListRules'
     | 'sendPinnedContext'
     | 'onActiveEditorChanged'
@@ -581,6 +584,37 @@ export class AgenticChatController implements ChatHandlers {
 
     async onMcpServerClick(params: McpServerClickParams) {
         return this.#mcpEventHandler.onMcpServerClick(params)
+    }
+
+    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
+        const region = AmazonQTokenServiceManager.getInstance().getRegion()
+        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
+
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+        if (!success) {
+            return {
+                tabId: params.tabId,
+                models: models,
+            }
+        }
+
+        const savedModelId = this.#chatHistoryDb.getModelId()
+        const selectedModelId =
+            savedModelId && models.some(model => model.id === savedModelId)
+                ? savedModelId
+                : this.#getLatestAvailableModel(region).id
+        session.modelId = selectedModelId
+        return {
+            tabId: params.tabId,
+            models: models,
+            selectedModelId: selectedModelId,
+        }
+    }
+
+    #getLatestAvailableModel(region: string | undefined, exclude?: string): Model {
+        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
+        return models.reverse().find(model => model.id !== exclude) ?? models[models.length - 1]
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {
@@ -986,6 +1020,7 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
                     llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
@@ -1028,6 +1063,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseIds ?? undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
                     llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
@@ -1049,6 +1085,7 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Failed',
                     this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
                     llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
@@ -2041,9 +2078,36 @@ export class AgenticChatController implements ChatHandlers {
                 body = '```shell\n' + commandString
                 break
             }
-            case 'fsReplace':
+
             case 'fsWrite': {
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams | FsReplaceParams).path
+                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
+
+                // Validate the path using our synchronous utility
+                validatePathBasic(writeFilePath)
+
+                this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
+                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                header = {
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
+                    body: builtInPermission
+                        ? '#### Allow file modification'
+                        : '#### Allow file modification outside of your workspace',
+                    buttons,
+                }
+                body = builtInPermission
+                    ? `I need permission to modify files.\n\`${writeFilePath}\``
+                    : `I need permission to modify files outside of your workspace.\n\`${writeFilePath}\``
+                break
+            }
+
+            case 'fsReplace': {
+                const writeFilePath = (toolUse.input as unknown as FsReplaceParams).path
+
+                // For replace, we need to verify the file exists
+                validatePathExists(writeFilePath)
+
+                this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
                 buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
@@ -2073,6 +2137,11 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (toolName === 'fsRead') {
                     const paths = (toolUse.input as unknown as FsReadParams).paths
+
+                    // Validate paths using our synchronous utility
+                    validatePathsSync(paths)
+
+                    this.#debug(`Processing ${toolUse.name} for paths: ${JSON.stringify(paths)}`)
                     const formattedPaths: string[] = []
                     paths.forEach(element => formattedPaths.push(`\`${element}\``))
                     body = builtInPermission
@@ -2080,6 +2149,11 @@ export class AgenticChatController implements ChatHandlers {
                         : `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
                 } else {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
+
+                    // Validate the path using our synchronous utility
+                    validatePathExists(readFilePath)
+
+                    this.#debug(`Processing ${toolUse.name} for path: ${readFilePath}`)
                     body = builtInPermission
                         ? `I need permission to list directories.\n\`${readFilePath}\``
                         : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
@@ -2811,9 +2885,10 @@ export class AgenticChatController implements ChatHandlers {
 
     onSourceLinkClick() {}
 
-    onTabAdd(params: TabAddParams) {
-        this.#telemetryController.activeTabId = params.tabId
-
+    /**
+     * @deprecated use aws/chat/listAvailableModels server request instead
+     */
+    #legacySetModelId(tabId: string, session: ChatSessionService) {
         // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
         // In that case, we use the default modelId.
         let modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
@@ -2825,7 +2900,12 @@ export class AgenticChatController implements ChatHandlers {
             // @ts-ignore
             this.#features.chat.chatOptionsUpdate({ region })
         }
-        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
+        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: tabId })
+        session.modelId = modelId
+    }
+
+    onTabAdd(params: TabAddParams) {
+        this.#telemetryController.activeTabId = params.tabId
 
         if (!params.restoredTab) {
             this.sendPinnedContext(params.tabId)
@@ -2836,7 +2916,7 @@ export class AgenticChatController implements ChatHandlers {
         if (!success) {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
-        session.modelId = modelId
+        this.#legacySetModelId(params.tabId, session)
 
         // Get the saved pair programming mode from the database or default to true if not found
         const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()

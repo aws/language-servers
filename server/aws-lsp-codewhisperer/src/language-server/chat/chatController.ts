@@ -77,8 +77,6 @@ type ChatHandlers = Omit<
     | 'getSerializedChat'
     | 'onTabBarAction'
     | 'chatOptionsUpdate'
-    | 'onListMcpServers'
-    | 'onMcpServerClick'
     | 'onRuleClick'
     | 'onListRules'
     | 'sendPinnedContext'
