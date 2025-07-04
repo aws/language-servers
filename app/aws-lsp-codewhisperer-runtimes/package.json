@@ -5,7 +5,7 @@
     "main": "out/index.js",
     "scripts": {
         "clean": "rm -rf out/ bin/ node_modules/ build/ dist/ tsconfig.tsbuildinfo .tsbuildinfo",
-        "compile": "tsc --build",
+        "compile": "tsc --build && copyfiles -f src/version.json out/",
         "package": "npm run compile && cross-env NODE_OPTIONS=--max_old_space_size=8172 npm run webpack",
         "webpack": "webpack",
         "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 node scripts/dev-server.js start",
