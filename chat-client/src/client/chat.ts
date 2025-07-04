@@ -101,6 +101,9 @@ import {
     TabBarActionParams,
     TabChangeParams,
     TabRemoveParams,
+    ListAvailableModelsParams,
+    LIST_AVAILABLE_MODELS_REQUEST_METHOD,
+    ListAvailableModelsResult,
     OpenFileDialogParams,
     OPEN_FILE_DIALOG_METHOD,
     OpenFileDialogResult,
@@ -236,6 +239,9 @@ export const createChat = (
             case GET_SERIALIZED_CHAT_REQUEST_METHOD:
                 mynahApi.getSerializedChat(message.requestId, message.params as GetSerializedChatParams)
                 break
+            case LIST_AVAILABLE_MODELS_REQUEST_METHOD:
+                mynahApi.listAvailableModels(message.params as ListAvailableModelsResult)
+                break
             case CHAT_OPTIONS_UPDATE_NOTIFICATION_METHOD:
                 if (message.params.modelId !== undefined || message.params.pairProgrammingMode !== undefined) {
                     const tabId = message.params.tabId
@@ -255,6 +261,7 @@ export const createChat = (
                         }),
                     })
                 } else if (message.params.region) {
+                    // TODO: This can be removed after all clients support aws/chat/listAvailableModels
                     // get all tabs and update region
                     const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
                     for (const tabId in allExistingTabs) {
@@ -498,6 +505,9 @@ export const createChat = (
         },
         onRemovePinnedContext: (params: PinnedContextParams) => {
             sendMessageToClient({ command: PINNED_CONTEXT_REMOVE_NOTIFICATION_METHOD, params })
+        },
+        onListAvailableModels(params: ListAvailableModelsParams) {
+            sendMessageToClient({ command: LIST_AVAILABLE_MODELS_REQUEST_METHOD, params })
         },
         onOpenFileDialogClick: (params: OpenFileDialogParams) => {
             sendMessageToClient({ command: OPEN_FILE_DIALOG, params: params })

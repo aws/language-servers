@@ -40,6 +40,9 @@ import {
     MessageType,
     ExecuteCommandParams,
     FollowUpClickParams,
+    ListAvailableModelsParams,
+    ListAvailableModelsResult,
+    Model,
     OpenFileDialogParams,
     OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
@@ -180,6 +183,7 @@ import {
     qProName,
 } from '../paidTier/paidTier'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
+import { modelOptions, modelOptionsForRegion } from './modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 
@@ -195,8 +199,6 @@ type ChatHandlers = Omit<
     | 'onTabBarAction'
     | 'getSerializedChat'
     | 'chatOptionsUpdate'
-    | 'onListMcpServers'
-    | 'onMcpServerClick'
     | 'onListRules'
     | 'sendPinnedContext'
     | 'onActiveEditorChanged'
@@ -580,6 +582,37 @@ export class AgenticChatController implements ChatHandlers {
 
     async onMcpServerClick(params: McpServerClickParams) {
         return this.#mcpEventHandler.onMcpServerClick(params)
+    }
+
+    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
+        const region = AmazonQTokenServiceManager.getInstance().getRegion()
+        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
+
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+        if (!success) {
+            return {
+                tabId: params.tabId,
+                models: models,
+            }
+        }
+
+        const savedModelId = this.#chatHistoryDb.getModelId()
+        const selectedModelId =
+            savedModelId && models.some(model => model.id === savedModelId)
+                ? savedModelId
+                : this.#getLatestAvailableModel(region).id
+        session.modelId = selectedModelId
+        return {
+            tabId: params.tabId,
+            models: models,
+            selectedModelId: selectedModelId,
+        }
+    }
+
+    #getLatestAvailableModel(region: string | undefined, exclude?: string): Model {
+        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
+        return models.reverse().find(model => model.id !== exclude) ?? models[models.length - 1]
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {
@@ -2808,9 +2841,10 @@ export class AgenticChatController implements ChatHandlers {
 
     onSourceLinkClick() {}
 
-    onTabAdd(params: TabAddParams) {
-        this.#telemetryController.activeTabId = params.tabId
-
+    /**
+     * @deprecated use aws/chat/listAvailableModels server request instead
+     */
+    #legacySetModelId(tabId: string, session: ChatSessionService) {
         // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
         // In that case, we use the default modelId.
         let modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
@@ -2822,7 +2856,12 @@ export class AgenticChatController implements ChatHandlers {
             // @ts-ignore
             this.#features.chat.chatOptionsUpdate({ region })
         }
-        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
+        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: tabId })
+        session.modelId = modelId
+    }
+
+    onTabAdd(params: TabAddParams) {
+        this.#telemetryController.activeTabId = params.tabId
 
         if (!params.restoredTab) {
             this.sendPinnedContext(params.tabId)
@@ -2833,7 +2872,7 @@ export class AgenticChatController implements ChatHandlers {
         if (!success) {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
-        session.modelId = modelId
+        this.#legacySetModelId(params.tabId, session)
 
         // Get the saved pair programming mode from the database or default to true if not found
         const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
