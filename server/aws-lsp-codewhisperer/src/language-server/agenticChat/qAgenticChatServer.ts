@@ -18,6 +18,14 @@ import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { isUsingIAMAuth, safeGet, enabledModelSelection } from '../../shared/utils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
+import { QClientCapabilities } from '../configuration/qConfigurationServer'
+
+export function enabledReroute(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.reroute || false
+}
 
 export const QAgenticChatServer =
     // prettier-ignore
@@ -32,6 +40,8 @@ export const QAgenticChatServer =
         let chatSessionManagementService: ChatSessionManagementService
 
         lsp.addInitializer((params: InitializeParams) => {
+            const rerouteEnabled = enabledReroute(params)
+
             return {
                 capabilities: {
                     executeCommandProvider: {
@@ -53,7 +63,8 @@ export const QAgenticChatServer =
                         // we should set it as true for current VSC and VS clients
                         modelSelection: true,
                         history: true,
-                        export: TabBarController.enableChatExport(params)
+                        export: TabBarController.enableChatExport(params),
+                        reroute: rerouteEnabled
                     },
                 },
             }
@@ -126,6 +137,11 @@ export const QAgenticChatServer =
         chat.onChatPrompt((params, token) => {
             logging.log('Received chat prompt')
             return chatController.onChatPrompt(params, token)
+        })
+
+        chat.onOpenFileDialog((params, token) => {
+            logging.log("Open File System")
+            return chatController.onOpenFileDialog(params, token)
         })
 
         chat.onInlineChatPrompt((...params) => {
@@ -211,6 +227,10 @@ export const QAgenticChatServer =
 
         chat.onPinnedContextRemove(params => {
             return chatController.onPinnedContextRemove(params)
+        })
+
+        chat.onListAvailableModels(params => {
+            return chatController.onListAvailableModels(params)
         })
 
         logging.log('Q Chat server has been initialized')

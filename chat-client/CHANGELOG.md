@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.22](https://github.com/aws/language-servers/compare/chat-client/v0.1.21...chat-client/v0.1.22) (2025-07-02)
+
+
+### Features
+
+* **amazonq:** migrating / agents to q agentic chat ([#1799](https://github.com/aws/language-servers/issues/1799)) ([559b2ba](https://github.com/aws/language-servers/commit/559b2baec7da7b8fffb697990e3b249ffffcb85c))
+* **amazonq:** read and validate the images as context ([#1716](https://github.com/aws/language-servers/issues/1716)) ([7a5d41f](https://github.com/aws/language-servers/commit/7a5d41f3cff7309d04d952fbb5dc063fb8658a06))
+
+
+### Bug Fixes
+
+* **amazonq:** add slight delay to print chat string after card ([#1800](https://github.com/aws/language-servers/issues/1800)) ([c7d08ab](https://github.com/aws/language-servers/commit/c7d08abd7cac95b5aad83fe93157a815522338ac))
+
+## [0.1.21](https://github.com/aws/language-servers/compare/chat-client/v0.1.20...chat-client/v0.1.21) (2025-06-30)
+
+
+### Bug Fixes
+
+* **amazonq:** change the icon for error and reduce the count ([#1789](https://github.com/aws/language-servers/issues/1789)) ([758d31c](https://github.com/aws/language-servers/commit/758d31c186b163712312fdffb04ee692cfe11de8))
+* **amazonq:** change the icon for error and reduce the count ([#1789](https://github.com/aws/language-servers/issues/1789)) ([758d31c](https://github.com/aws/language-servers/commit/758d31c186b163712312fdffb04ee692cfe11de8))
+
 ## [0.1.20](https://github.com/aws/language-servers/compare/chat-client/v0.1.19...chat-client/v0.1.20) (2025-06-26)
 
 

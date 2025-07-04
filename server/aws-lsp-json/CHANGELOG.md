@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.15](https://github.com/aws/language-servers/compare/lsp-json/v0.1.14...lsp-json/v0.1.15) (2025-07-02)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.10 to ^0.0.11
+
 ## [0.1.14](https://github.com/aws/language-servers/compare/lsp-json/v0.1.13...lsp-json/v0.1.14) (2025-06-26)
 
 

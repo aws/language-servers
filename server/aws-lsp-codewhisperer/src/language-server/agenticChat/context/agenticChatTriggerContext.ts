@@ -13,6 +13,7 @@ import {
     ProgrammingLanguage,
     EnvState,
     Origin,
+    ImageBlock,
 } from '@amzn/codewhisperer-streaming'
 import {
     BedrockTools,
@@ -41,6 +42,9 @@ export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
     triggerType?: TriggerType
     contextInfo?: ContextInfo
+    /**
+     * Represents the context transparency list displayed at the top of the assistant response.
+     */
     documentReference?: FileList
     hasWorkspace?: boolean
 }
@@ -50,6 +54,7 @@ export type AdditionalContentEntryAddition = AdditionalContentEntry & {
     type: string
     relativePath: string
     path: string
+    pinned?: boolean
 } & LineInfo
 
 export type RelevantTextDocumentAddition = RelevantTextDocument & LineInfo & { path: string }
@@ -113,6 +118,7 @@ export class AgenticChatTriggerContext {
      * @param tools Optional Bedrock tools
      * @param additionalContent Optional additional content entries
      * @param modelId Optional model ID
+     * @param imageContext Optional image block for image context
      * @returns ChatCommandInput - which is either SendMessageInput or GenerateAssistantResponseInput
      */
     async getChatParamsFromTrigger(
@@ -126,7 +132,8 @@ export class AgenticChatTriggerContext {
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[],
         modelId?: string,
-        origin?: Origin
+        origin?: Origin,
+        imageContext?: ImageBlock[]
     ): Promise<ChatCommandInput> {
         const { prompt } = params
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#workspace).slice(0, maxWorkspaceFolders)
@@ -166,9 +173,9 @@ export class AgenticChatTriggerContext {
         triggerContext.documentReference = triggerContext.documentReference
             ? mergeFileLists(triggerContext.documentReference, workspaceFileList)
             : workspaceFileList
-        // Process additionalContent items if present
+        // Add @context in prompt to relevantDocuments
         if (additionalContent) {
-            for (const item of additionalContent) {
+            for (const item of additionalContent.filter(item => !item.pinned)) {
                 // Determine programming language from file extension or type
                 let programmingLanguage: ProgrammingLanguage | undefined = undefined
 
@@ -243,6 +250,7 @@ export class AgenticChatTriggerContext {
                         userIntent: triggerContext.userIntent,
                         origin: origin ? origin : 'IDE',
                         modelId,
+                        images: imageContext,
                     },
                 },
                 customizationArn,

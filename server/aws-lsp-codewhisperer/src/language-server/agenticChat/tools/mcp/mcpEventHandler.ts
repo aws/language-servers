@@ -1,6 +1,9 @@
 import { Features } from '../../../types'
 import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
+import { ChokidarFileWatcher } from './chokidarFileWatcher'
+// eslint-disable-next-line import/no-nodejs-modules
+import * as path from 'path'
 import {
     DetailedListGroup,
     DetailedListItem,
@@ -41,6 +44,8 @@ export class McpEventHandler {
     #telemetryController: ChatTelemetryController
     #pendingPermissionConfig: { serverName: string; permission: MCPServerPermission } | undefined
     #newlyAddedServers: Set<string> = new Set()
+    #fileWatcher: ChokidarFileWatcher
+    #isProgrammaticChange: boolean = false
 
     constructor(features: Features, telemetryService: TelemetryService) {
         this.#features = features
@@ -49,6 +54,8 @@ export class McpEventHandler {
         this.#shouldDisplayListMCPServers = true
         this.#telemetryController = new ChatTelemetryController(features, telemetryService)
         this.#pendingPermissionConfig = undefined
+        this.#fileWatcher = new ChokidarFileWatcher(features.logging)
+        this.#setupFileWatchers()
     }
 
     /**
@@ -647,13 +654,21 @@ export class McpEventHandler {
         // needs to false BEFORE changing any server state, to prevent going to list servers page after clicking save button
         this.#shouldDisplayListMCPServers = false
 
-        if (isEditMode && originalServerName) {
-            await McpManager.instance.removeServer(originalServerName)
-            await McpManager.instance.addServer(serverName, config, configPath, personaPath)
-        } else {
-            // Create new server
-            await McpManager.instance.addServer(serverName, config, configPath, personaPath)
-            this.#newlyAddedServers.add(serverName)
+        // Set flag to ignore file changes during server operations
+        this.#isProgrammaticChange = true
+
+        try {
+            if (isEditMode && originalServerName) {
+                await McpManager.instance.removeServer(originalServerName)
+                await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+            } else {
+                // Create new server
+                await McpManager.instance.addServer(serverName, config, configPath, personaPath)
+                this.#newlyAddedServers.add(serverName)
+            }
+        } finally {
+            // Reset flag after operations
+            this.#isProgrammaticChange = false
         }
 
         this.#currentEditingServerName = undefined
@@ -791,11 +806,17 @@ export class McpEventHandler {
             __configPath__: personaPath,
         }
 
+        // Set flag to ignore file changes during permission update
+        this.#isProgrammaticChange = true
+
         try {
             await McpManager.instance.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to enable MCP server: ${error}`)
+        } finally {
+            // Reset flag after operations
+            this.#isProgrammaticChange = false
         }
         return { id: params.id }
     }
@@ -818,11 +839,17 @@ export class McpEventHandler {
             __configPath__: personaPath,
         }
 
+        // Set flag to ignore file changes during permission update
+        this.#isProgrammaticChange = true
+
         try {
             await McpManager.instance.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to disable MCP server: ${error}`)
+        } finally {
+            // Reset flag after operations
+            this.#isProgrammaticChange = false
         }
 
         return { id: params.id }
@@ -837,10 +864,16 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
+        // Set flag to ignore file changes during server deletion
+        this.#isProgrammaticChange = true
+
         try {
             await McpManager.instance.removeServer(serverName)
         } catch (error) {
             this.#features.logging.error(`Failed to delete MCP server: ${error}`)
+        } finally {
+            // Reset flag after operations
+            this.#isProgrammaticChange = false
         }
 
         return { id: params.id }
@@ -1038,6 +1071,9 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
+        // Set flag to ignore file changes during permission update
+        this.#isProgrammaticChange = true
+
         try {
             const { serverName, permission } = this.#pendingPermissionConfig
 
@@ -1074,6 +1110,9 @@ export class McpEventHandler {
         } catch (error) {
             this.#features.logging.error(`Failed to save MCP permissions: ${error}`)
             return { id: params.id }
+        } finally {
+            // Reset flag after operations
+            this.#isProgrammaticChange = false
         }
     }
 
@@ -1138,17 +1177,31 @@ export class McpEventHandler {
 
     /**
      * Handled refresh MCP list events
+     * @param params The click parameters
+     * @param isProgrammatic Whether this refresh was triggered by a programmatic change
      */
-    async #handleRefreshMCPList(params: McpServerClickParams) {
+    async #handleRefreshMCPList(params: McpServerClickParams, isProgrammatic: boolean = false) {
         this.#shouldDisplayListMCPServers = true
+
+        // Set flag to ignore file changes during reinitialization if this is a programmatic change
+        this.#isProgrammaticChange = isProgrammatic
+
         try {
             await McpManager.instance.reinitializeMcpServers()
             this.#emitMCPConfigEvent()
+
+            // Reset flag after reinitialization
+            this.#isProgrammaticChange = false
+
             return {
                 id: params.id,
             }
         } catch (err) {
             this.#features.logging.error(`Failed to reinitialize MCP servers: ${err}`)
+
+            // Reset flag in case of error
+            this.#isProgrammaticChange = false
+
             return {
                 id: params.id,
             }
@@ -1258,5 +1311,43 @@ export class McpEventHandler {
         }
 
         return undefined
+    }
+
+    /**
+     * Setup file watchers for MCP config and persona files
+     */
+    #setupFileWatchers(): void {
+        const wsUris = this.#features.workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
+        let homeDir: string | undefined
+        try {
+            homeDir = this.#features.workspace.fs.getUserHomeDir?.()
+        } catch (e) {
+            this.#features.logging.warn(`Failed to get user home directory: ${e}`)
+        }
+
+        const configPaths = [
+            ...getWorkspaceMcpConfigPaths(wsUris),
+            ...(homeDir ? [getGlobalMcpConfigPath(homeDir)] : []),
+        ]
+        const personaPaths = [
+            ...getWorkspacePersonaConfigPaths(wsUris),
+            ...(homeDir ? [getGlobalPersonaConfigPath(homeDir)] : []),
+        ]
+
+        const allPaths = [...configPaths, ...personaPaths]
+
+        this.#fileWatcher.watchPaths(allPaths, async () => {
+            if (this.#isProgrammaticChange) {
+                return
+            }
+            await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
+        })
+    }
+
+    /**
+     * Cleanup file watchers
+     */
+    dispose(): void {
+        this.#fileWatcher.close()
     }
 }

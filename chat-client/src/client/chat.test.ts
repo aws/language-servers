@@ -72,26 +72,31 @@ describe('Chat', () => {
     })
 
     it('publishes ready event when initialized', () => {
-        assert.callCount(clientApi.postMessage, 4)
+        assert.callCount(clientApi.postMessage, 5)
 
-        assert.calledWithExactly(clientApi.postMessage.firstCall, {
+        assert.calledWithExactly(clientApi.postMessage.getCall(0), {
             command: TELEMETRY,
             params: { name: 'enterFocus' },
         })
-        assert.calledWithExactly(clientApi.postMessage.secondCall, { command: READY_NOTIFICATION_METHOD })
+        assert.calledWithExactly(clientApi.postMessage.getCall(1), { command: READY_NOTIFICATION_METHOD })
 
-        assert.calledWithExactly(clientApi.postMessage.thirdCall, {
+        assert.calledWithExactly(clientApi.postMessage.getCall(2), {
             command: TAB_ADD_NOTIFICATION_METHOD,
             params: { tabId: initialTabId, restoredTab: undefined },
         })
 
-        assert.calledWithExactly(clientApi.postMessage.lastCall, {
+        assert.calledWithExactly(clientApi.postMessage.getCall(3), {
             command: TELEMETRY,
             params: {
                 triggerType: 'click',
                 name: TAB_ADD_TELEMETRY_EVENT,
                 tabId: initialTabId,
             },
+        })
+
+        assert.calledWithMatch(clientApi.postMessage.getCall(4), {
+            command: 'aws/chat/listAvailableModels',
+            params: { tabId: initialTabId },
         })
     })
 

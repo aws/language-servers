@@ -1,5 +1,8 @@
 import { ChatItem, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
 
+/**
+ * @deprecated use aws/chat/listAvailableModels server request instead
+ */
 export enum BedrockModel {
     CLAUDE_SONNET_4_20250514_V1_0 = 'CLAUDE_SONNET_4_20250514_V1_0',
     CLAUDE_3_7_SONNET_20250219_V1_0 = 'CLAUDE_3_7_SONNET_20250219_V1_0',
@@ -29,6 +32,9 @@ const modelSelection: ChatItemFormItem = {
     autoWidth: true,
 }
 
+/**
+ * @deprecated use aws/chat/listAvailableModels server request instead
+ */
 export const modelSelectionForRegion: Record<string, ChatItemFormItem> = {
     'us-east-1': modelSelection,
     'eu-central-1': {
@@ -37,11 +43,11 @@ export const modelSelectionForRegion: Record<string, ChatItemFormItem> = {
     },
 }
 
-export const getModelSelectionChatItem = (modelId: string): ChatItem => ({
+export const getModelSelectionChatItem = (modelName: string): ChatItem => ({
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
     fullWidth: true,
-    body: `Switched model to ${modelRecord[modelId as BedrockModel].label}`,
+    body: `Switched model to ${modelName}`,
 })
 
 export const modelUnavailableBanner: Partial<ChatItem> = {

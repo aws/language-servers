@@ -120,49 +120,17 @@ describe('errors', () => {
             assert.strictEqual(isThrottlingRelated(error), true)
         })
 
-        it('should return true for ServiceUnavailableException with OperationMaxRequestsHandler in stack', () => {
+        it('should return true for ServiceUnavailableException', () => {
             const error = new Error('Service Unavailable')
             error.name = 'ServiceUnavailableException'
-            error.stack = 'Error: Service Unavailable\n    at OperationMaxRequestsHandler.handle'
-
             assert.strictEqual(isThrottlingRelated(error), true)
         })
 
-        it('should return false for ServiceUnavailableException without OperationMaxRequestsHandler in stack', () => {
-            const error = new Error('Service Unavailable')
-            error.name = 'ServiceUnavailableException'
-            error.stack = 'Error: Service Unavailable\n    at SomeOtherHandler.handle'
-
-            assert.strictEqual(isThrottlingRelated(error), false)
-        })
-
-        it('should return false for ServiceUnavailableException with null stack', () => {
-            const error = new Error('Service Unavailable')
-            error.name = 'ServiceUnavailableException'
-            error.stack = null as unknown as string
-
-            assert.strictEqual(isThrottlingRelated(error), false)
-        })
-
-        it('should return false for ServiceUnavailableException with undefined stack', () => {
-            const error = new Error('Service Unavailable')
-            error.name = 'ServiceUnavailableException'
-            error.stack = undefined as unknown as string
-
-            assert.strictEqual(isThrottlingRelated(error), false)
-        })
-
-        it('should return false for non-throttling related errors', () => {
+        it('should return false for other errors', () => {
             const error = new Error('Some other error')
             assert.strictEqual(isThrottlingRelated(error), false)
-        })
-
-        it('should return false for non-Error objects', () => {
             assert.strictEqual(isThrottlingRelated('not an error'), false)
             assert.strictEqual(isThrottlingRelated(null), false)
-            assert.strictEqual(isThrottlingRelated(undefined), false)
-            assert.strictEqual(isThrottlingRelated({}), false)
-            assert.strictEqual(isThrottlingRelated(42), false)
         })
     })
 })

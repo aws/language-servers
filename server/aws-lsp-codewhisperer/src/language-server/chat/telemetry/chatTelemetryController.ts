@@ -177,6 +177,7 @@ export class ChatTelemetryController {
         toolUseId: string[] | undefined,
         result: string,
         languageServerVersion: string,
+        modelId: string | undefined,
         latency?: number,
         toolCallLatency?: number[],
         cwsprChatTimeToFirstChunk?: number,
@@ -199,6 +200,7 @@ export class ChatTelemetryController {
                 cwsprChatTimeBetweenChunks: cwsprChatTimeBetweenChunks?.join(','),
                 requestId,
                 enabled: agenticCodingMode,
+                modelId,
             },
         })
     }

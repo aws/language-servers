@@ -2,6 +2,7 @@ export const MISSING_BEARER_TOKEN_ERROR = 'credentialsProvider does not have bea
 export const INVALID_TOKEN = 'The bearer token included in the request is invalid.'
 export const GENERIC_UNAUTHORIZED_ERROR = 'User is not authorized to make this call'
 export const BUILDER_ID_START_URL = 'https://view.awsapps.com/start'
+export const INTERNAL_USER_START_URL = 'https://amzn.awsapps.com/start'
 export const DEFAULT_AWS_Q_ENDPOINT_URL = 'https://codewhisperer.us-east-1.amazonaws.com/'
 export const DEFAULT_AWS_Q_REGION = 'us-east-1'
 

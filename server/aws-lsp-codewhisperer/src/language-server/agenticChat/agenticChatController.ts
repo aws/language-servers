@@ -13,6 +13,7 @@ import {
     ToolResultStatus,
     ToolUse,
     ToolUseEvent,
+    ImageBlock,
 } from '@amzn/codewhisperer-streaming'
 import {
     SendMessageCommandInput,
@@ -39,6 +40,11 @@ import {
     MessageType,
     ExecuteCommandParams,
     FollowUpClickParams,
+    ListAvailableModelsParams,
+    ListAvailableModelsResult,
+    Model,
+    OpenFileDialogParams,
+    OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -123,7 +129,7 @@ import {
     AgenticChatTriggerContext,
     TriggerContext,
 } from './context/agenticChatTriggerContext'
-import { AdditionalContextProvider } from './context/addtionalContextProvider'
+import { AdditionalContextProvider } from './context/additionalContextProvider'
 import {
     getNewPromptFilePath,
     getNewRuleFilePath,
@@ -138,6 +144,7 @@ import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams, outOfWorkspaceWarningmessage } from './tools/executeBash'
 import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
+import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
@@ -176,6 +183,9 @@ import {
     qProName,
 } from '../paidTier/paidTier'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
+import { modelOptions, modelOptionsForRegion } from './modelSelection'
+import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
+import { sanitize } from '@aws/lsp-core/out/util/path'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -189,14 +199,13 @@ type ChatHandlers = Omit<
     | 'onTabBarAction'
     | 'getSerializedChat'
     | 'chatOptionsUpdate'
-    | 'onListMcpServers'
-    | 'onMcpServerClick'
     | 'onListRules'
     | 'sendPinnedContext'
     | 'onActiveEditorChanged'
     | 'onPinnedContextAdd'
     | 'onPinnedContextRemove'
     | 'onOpenFileDialog'
+    | 'onListAvailableModels'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -441,6 +450,78 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
+        if (params.fileType === 'image') {
+            // 1. Prompt user for file selection
+            const supportedExtensions = DEFAULT_IMAGE_VERIFICATION_OPTIONS.supportedExtensions
+            const filters = { 'Image Files': supportedExtensions.map(ext => `*.${ext}`) }
+            const result = await this.#features.lsp.window.showOpenDialog({
+                canSelectFiles: true,
+                canSelectFolders: false,
+                canSelectMany: false,
+                filters,
+            })
+
+            if (!result.uris || result.uris.length === 0) {
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                    errorMessage: 'No file selected.',
+                }
+            }
+
+            const validFilePaths: string[] = []
+            let errorMessage: string | undefined
+            for (const filePath of result.uris) {
+                // Extract filename from the URI for error messages
+                const fileName = filePath.split('/').pop() || ''
+                const sanitizedPath = sanitize(filePath)
+
+                // Get file size and content for verification
+                const size = await this.#features.workspace.fs.getFileSize(sanitizedPath)
+                const fileContent = await this.#features.workspace.fs.readFile(sanitizedPath, {
+                    encoding: 'binary',
+                })
+                const imageBuffer = Buffer.from(fileContent, 'binary')
+
+                // Use centralized verification utility
+                const verificationResult = await verifyServerImage(fileName, size.size, imageBuffer)
+
+                if (verificationResult.isValid) {
+                    validFilePaths.push(filePath)
+                } else {
+                    errorMessage = verificationResult.errors[0] // Use first error message
+                }
+            }
+
+            if (validFilePaths.length === 0) {
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                    errorMessage: errorMessage || 'No valid image selected.',
+                }
+            }
+
+            // All valid files
+            return {
+                tabId: params.tabId,
+                filePaths: validFilePaths,
+                fileType: params.fileType,
+                insertPosition: params.insertPosition,
+            }
+        }
+        return {
+            tabId: params.tabId,
+            filePaths: [],
+            fileType: params.fileType,
+            insertPosition: params.insertPosition,
+        }
+    }
+
     async onCreatePrompt(params: CreatePromptParams): Promise<void> {
         if (params.isRule) {
             let workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
@@ -476,6 +557,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#chatHistoryDb.close()
         this.#contextCommandsProvider?.dispose()
         this.#userWrittenCodeTracker?.dispose()
+        this.#mcpEventHandler.dispose()
     }
 
     async onListConversations(params: ListConversationsParams) {
@@ -500,6 +582,37 @@ export class AgenticChatController implements ChatHandlers {
 
     async onMcpServerClick(params: McpServerClickParams) {
         return this.#mcpEventHandler.onMcpServerClick(params)
+    }
+
+    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
+        const region = AmazonQTokenServiceManager.getInstance().getRegion()
+        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
+
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+        if (!success) {
+            return {
+                tabId: params.tabId,
+                models: models,
+            }
+        }
+
+        const savedModelId = this.#chatHistoryDb.getModelId()
+        const selectedModelId =
+            savedModelId && models.some(model => model.id === savedModelId)
+                ? savedModelId
+                : this.#getLatestAvailableModel(region).id
+        session.modelId = selectedModelId
+        return {
+            tabId: params.tabId,
+            models: models,
+            selectedModelId: selectedModelId,
+        }
+    }
+
+    #getLatestAvailableModel(region: string | undefined, exclude?: string): Model {
+        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
+        return models.reverse().find(model => model.id !== exclude) ?? models[models.length - 1]
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {
@@ -578,17 +691,39 @@ export class AgenticChatController implements ChatHandlers {
                 params.tabId,
                 params.context
             )
-            if (additionalContext.length) {
-                triggerContext.documentReference =
-                    this.#additionalContextProvider.getFileListFromContext(additionalContext)
-            }
+            // Add active file to context list if it exists
+            const activeFile =
+                triggerContext.text && triggerContext.relativeFilePath && triggerContext.activeFilePath
+                    ? [
+                          {
+                              name: path.basename(triggerContext.relativeFilePath),
+                              description: '',
+                              type: 'file',
+                              relativePath: triggerContext.relativeFilePath,
+                              path: triggerContext.activeFilePath,
+                              startLine: -1,
+                              endLine: -1,
+                          },
+                      ]
+                    : []
+
+            // Combine additional context with active file and get file list to display at top of response
+            const contextItems = [...additionalContext, ...activeFile]
+            triggerContext.documentReference = this.#additionalContextProvider.getFileListFromContext(contextItems)
+
+            const customContext = await this.#additionalContextProvider.getImageBlocksFromContext(
+                params.context,
+                params.tabId
+            )
+
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
                 params,
                 session,
                 triggerContext,
                 additionalContext,
-                chatResultStream
+                chatResultStream,
+                customContext
             )
 
             // Generate a unique ID for this prompt
@@ -605,7 +740,8 @@ export class AgenticChatController implements ChatHandlers {
                 promptId,
                 session.conversationId,
                 token,
-                triggerContext.documentReference
+                triggerContext.documentReference,
+                additionalContext.filter(item => item.pinned)
             )
 
             // Phase 5: Result Handling - This happens only once
@@ -664,7 +800,8 @@ export class AgenticChatController implements ChatHandlers {
         session: ChatSessionService,
         triggerContext: TriggerContext,
         additionalContext: AdditionalContentEntryAddition[],
-        chatResultStream: AgenticChatResultStream
+        chatResultStream: AgenticChatResultStream,
+        customContext: ImageBlock[]
     ): Promise<ChatCommandInput> {
         this.#debug('Preparing request input')
         // Get profileArn from the service manager if available
@@ -680,7 +817,8 @@ export class AgenticChatController implements ChatHandlers {
             this.#getTools(session),
             additionalContext,
             session.modelId,
-            this.#origin
+            this.#origin,
+            customContext
         )
         return requestInput
     }
@@ -697,7 +835,8 @@ export class AgenticChatController implements ChatHandlers {
         promptId: string,
         conversationIdentifier?: string,
         token?: CancellationToken,
-        documentReference?: FileList
+        documentReference?: FileList,
+        pinnedContext?: AdditionalContentEntryAddition[]
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
@@ -719,7 +858,7 @@ export class AgenticChatController implements ChatHandlers {
                 throw new CancellationError('user')
             }
 
-            this.truncateRequest(currentRequestInput)
+            this.truncateRequest(currentRequestInput, pinnedContext)
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
             if (!currentMessage || !conversationId) {
@@ -728,10 +867,17 @@ export class AgenticChatController implements ChatHandlers {
                 )
             }
             let messages: DbMessage[] = []
+            // Prepend pinned context to history as a fake message pair
+            // This ensures pinned context doesn't get added to history file, and fulfills API contract requiring message pairs.
+            let pinnedContextMessages = await this.#additionalContextProvider.convertPinnedContextToChatMessages(
+                pinnedContext,
+                this.#features.workspace.getWorkspaceFolder
+            )
+
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage)
+                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, pinnedContextMessages)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
                         this.#features.logging.warn(`Tool validation error: ${err.message}`)
@@ -779,7 +925,9 @@ export class AgenticChatController implements ChatHandlers {
                         userIntent: currentMessage.userInputMessage?.userIntent,
                         origin: currentMessage.userInputMessage?.origin,
                         userInputMessageContext: currentMessage.userInputMessage?.userInputMessageContext,
-                        shouldDisplayMessage: shouldDisplayMessage,
+                        shouldDisplayMessage:
+                            shouldDisplayMessage &&
+                            !currentMessage.userInputMessage?.content?.startsWith('You are Amazon Q'),
                         timestamp: new Date(),
                     })
                 }
@@ -866,6 +1014,7 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
                     llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
@@ -901,6 +1050,7 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseIds ?? undefined,
                     'Succeeded',
                     this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
                     llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
@@ -922,6 +1072,7 @@ export class AgenticChatController implements ChatHandlers {
                     undefined,
                     'Failed',
                     this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
                     llmLatency,
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
@@ -952,12 +1103,32 @@ export class AgenticChatController implements ChatHandlers {
         )
     }
 
+    truncatePinnedContext(remainingCharacterBudget: number, pinnedContext?: AdditionalContentEntryAddition[]): number {
+        if (!pinnedContext) {
+            return remainingCharacterBudget
+        }
+
+        for (const [i, pinnedContextEntry] of pinnedContext.entries()) {
+            const pinnedContextEntryLength = pinnedContextEntry.innerContext?.length || 0
+            if (remainingCharacterBudget >= pinnedContextEntryLength) {
+                remainingCharacterBudget -= pinnedContextEntryLength
+            } else {
+                // Budget exceeded, truncate the array at this point
+                pinnedContext.splice(i)
+                remainingCharacterBudget = 0
+                break
+            }
+        }
+
+        return remainingCharacterBudget
+    }
+
     /**
      * performs truncation of request before sending to backend service.
      * Returns the remaining character budget for chat history.
      * @param request
      */
-    truncateRequest(request: ChatCommandInput): number {
+    truncateRequest(request: ChatCommandInput, pinnedContext?: AdditionalContentEntryAddition[]): number {
         // TODO: Confirm if this limit applies to SendMessage and rename this constant
         let remainingCharacterBudget = generateAssistantResponseInputLimit
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
@@ -1010,6 +1181,11 @@ export class AgenticChatController implements ChatHandlers {
             }
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
                 truncatedCurrentDocument
+        }
+
+        // 4. try to fit pinned context into budget
+        if (pinnedContext && pinnedContext.length > 0) {
+            remainingCharacterBudget = this.truncatePinnedContext(remainingCharacterBudget, pinnedContext)
         }
         return remainingCharacterBudget
     }
@@ -1409,7 +1585,7 @@ export class AgenticChatController implements ChatHandlers {
                                 },
                                 status: {
                                     status: 'error',
-                                    icon: 'error',
+                                    icon: 'cancel-circle',
                                     text: 'Error',
                                     description: customerFacingError,
                                 },
@@ -1861,9 +2037,14 @@ export class AgenticChatController implements ChatHandlers {
                 body = '```shell\n' + commandString
                 break
             }
-            case 'fsReplace':
+
             case 'fsWrite': {
-                const writeFilePath = (toolUse.input as unknown as FsWriteParams | FsReplaceParams).path
+                const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
+
+                // Validate the path using our synchronous utility
+                validatePathBasic(writeFilePath)
+
+                this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
                 buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
@@ -1875,7 +2056,29 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 body = builtInPermission
                     ? `I need permission to modify files.\n\`${writeFilePath}\``
-                    : `I need permission to modify files in your workspace.\n\`${writeFilePath}\``
+                    : `I need permission to modify files outside of your workspace.\n\`${writeFilePath}\``
+                break
+            }
+
+            case 'fsReplace': {
+                const writeFilePath = (toolUse.input as unknown as FsReplaceParams).path
+
+                // For replace, we need to verify the file exists
+                validatePathExists(writeFilePath)
+
+                this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
+                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                header = {
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
+                    body: builtInPermission
+                        ? '#### Allow file modification'
+                        : '#### Allow file modification outside of your workspace',
+                    buttons,
+                }
+                body = builtInPermission
+                    ? `I need permission to modify files.\n\`${writeFilePath}\``
+                    : `I need permission to modify files outside of your workspace.\n\`${writeFilePath}\``
                 break
             }
 
@@ -1894,6 +2097,11 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (toolName === 'fsRead') {
                     const paths = (toolUse.input as unknown as FsReadParams).paths
+
+                    // Validate paths using our synchronous utility
+                    validatePathsSync(paths)
+
+                    this.#debug(`Processing ${toolUse.name} for paths: ${JSON.stringify(paths)}`)
                     const formattedPaths: string[] = []
                     paths.forEach(element => formattedPaths.push(`\`${element}\``))
                     body = builtInPermission
@@ -1901,6 +2109,11 @@ export class AgenticChatController implements ChatHandlers {
                         : `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
                 } else if (toolName === 'listDirectory') {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
+
+                    // Validate the path using our synchronous utility
+                    validatePathExists(readFilePath)
+
+                    this.#debug(`Processing ${toolUse.name} for path: ${readFilePath}`)
                     body = builtInPermission
                         ? `I need permission to list directories.\n\`${readFilePath}\``
                         : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
@@ -2637,9 +2850,10 @@ export class AgenticChatController implements ChatHandlers {
 
     onSourceLinkClick() {}
 
-    onTabAdd(params: TabAddParams) {
-        this.#telemetryController.activeTabId = params.tabId
-
+    /**
+     * @deprecated use aws/chat/listAvailableModels server request instead
+     */
+    #legacySetModelId(tabId: string, session: ChatSessionService) {
         // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
         // In that case, we use the default modelId.
         let modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
@@ -2651,7 +2865,12 @@ export class AgenticChatController implements ChatHandlers {
             // @ts-ignore
             this.#features.chat.chatOptionsUpdate({ region })
         }
-        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: params.tabId })
+        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: tabId })
+        session.modelId = modelId
+    }
+
+    onTabAdd(params: TabAddParams) {
+        this.#telemetryController.activeTabId = params.tabId
 
         if (!params.restoredTab) {
             this.sendPinnedContext(params.tabId)
@@ -2662,7 +2881,7 @@ export class AgenticChatController implements ChatHandlers {
         if (!success) {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
-        session.modelId = modelId
+        this.#legacySetModelId(params.tabId, session)
 
         // Get the saved pair programming mode from the database or default to true if not found
         const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()

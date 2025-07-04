@@ -95,12 +95,10 @@ export class WorkspaceFolderManager {
         this.workspaceIdentifier = workspaceIdentifier
 
         this.dependencyDiscoverer.dependencyHandlerRegistry.forEach(handler => {
-            handler.onDependencyChange(async (workspaceFolder, zips, addWSFolderPathInS3) => {
+            handler.onDependencyZipGenerated(async (workspaceFolder, zip, addWSFolderPathInS3) => {
                 try {
-                    this.logging.log(`Dependency change detected in ${workspaceFolder.uri}`)
-
-                    // Process the dependencies
-                    await this.handleDependencyChanges(zips, addWSFolderPathInS3)
+                    this.logging.log(`Uploading a dependency zip for: ${workspaceFolder.uri}`)
+                    await this.uploadDependencyZipAndQueueEvent(zip, addWSFolderPathInS3)
                 } catch (error) {
                     this.logging.warn(`Error handling dependency change: ${error}`)
                 }
@@ -248,35 +246,28 @@ export class WorkspaceFolderManager {
         await this.artifactManager.removeWorkspaceFolders(workspaceFolders)
     }
 
-    private async handleDependencyChanges(zips: FileMetadata[], addWSFolderPathInS3: boolean): Promise<void> {
-        this.logging.log(`Processing ${zips.length} dependency changes`)
-        for (const zip of zips) {
-            try {
-                const s3Url = await this.uploadToS3(zip, addWSFolderPathInS3)
-                if (!s3Url) {
-                    continue
-                }
-                this.notifyDependencyChange(zip, s3Url)
-            } catch (error) {
-                this.logging.warn(`Error processing dependency change ${zip.filePath}: ${error}`)
+    private async uploadDependencyZipAndQueueEvent(zip: FileMetadata, addWSFolderPathInS3: boolean): Promise<void> {
+        try {
+            const s3Url = await this.uploadToS3(zip, addWSFolderPathInS3)
+            if (!s3Url) {
+                return
             }
-        }
-    }
-
-    private notifyDependencyChange(fileMetadata: FileMetadata, s3Url: string) {
-        const message = JSON.stringify({
-            method: 'didChangeDependencyPaths',
-            params: {
-                event: { paths: [] },
-                workspaceChangeMetadata: {
-                    workspaceId: this.workspaceState.workspaceId,
-                    s3Path: cleanUrl(s3Url),
-                    programmingLanguage: fileMetadata.language,
+            const message = JSON.stringify({
+                method: 'didChangeDependencyPaths',
+                params: {
+                    event: { paths: [] },
+                    workspaceChangeMetadata: {
+                        workspaceId: this.workspaceState.workspaceId,
+                        s3Path: cleanUrl(s3Url),
+                        programmingLanguage: zip.language,
+                    },
                 },
-            },
-        })
-
-        this.workspaceState.messageQueue.push(message)
+            })
+            this.workspaceState.messageQueue.push(message)
+            this.logging.log(`Added didChangeDependencyPaths event to queue`)
+        } catch (error) {
+            this.logging.warn(`Error uploading and notifying dependency zip ${zip.filePath}: ${error}`)
+        }
     }
 
     private async establishConnection(existingMetadata: WorkspaceMetadata) {
