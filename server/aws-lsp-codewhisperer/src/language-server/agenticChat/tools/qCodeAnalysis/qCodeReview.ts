@@ -22,6 +22,9 @@ import * as path from 'path'
 import * as https from 'https'
 import * as JSZip from 'jszip'
 import { existsSync, statSync } from 'fs'
+import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
+import { InvokeOutput } from '../toolShared'
+import { CancellationError } from '@aws/lsp-core'
 
 export class QCodeReview {
     private static readonly CUSTOMER_CODE_BASE_PATH = 'customerCodeBaseFolder'
@@ -51,6 +54,8 @@ export class QCodeReview {
     private readonly telemetry: Features['telemetry']
     private readonly workspace: Features['workspace']
     private codeWhispererClient?: CodeWhispererServiceToken
+    private cancellationToken?: CancellationToken
+    private writableStream?: WritableStream
 
     constructor(
         features: Pick<
@@ -74,37 +79,88 @@ export class QCodeReview {
 
     static readonly inputSchema = Q_CODE_REVIEW_INPUT_SCHEMA
 
-    public async execute(input: any, context: any) {
+    private checkCancellation(message: string = 'Command execution cancelled'): void {
+        if (this.cancellationToken?.isCancellationRequested) {
+            this.logging.info(message)
+            throw new CancellationError('user')
+        }
+    }
+
+    public async execute(input: any, context: any): Promise<InvokeOutput> {
         try {
             this.logging.info(`Executing ${Q_CODE_REVIEW_TOOL_NAME}: ${JSON.stringify(input)}`)
 
             const setup = await this.validateInputAndSetup(input, context)
-            if ('errorMessage' in setup) return setup
+            if ('errorMessage' in setup) {
+                return this.createErrorOutput(setup)
+            }
+
+            this.checkCancellation()
 
             const uploadResult = await this.prepareAndUploadArtifacts(setup)
-            if ('errorMessage' in uploadResult) return uploadResult
+            if ('errorMessage' in uploadResult) {
+                return this.createErrorOutput(uploadResult)
+            }
+
+            this.checkCancellation()
 
             const analysisResult = await this.startCodeAnalysis(setup, uploadResult)
-            if ('errorMessage' in analysisResult) return analysisResult
+            if ('errorMessage' in analysisResult) {
+                return this.createErrorOutput(analysisResult)
+            }
+
+            this.checkCancellation()
 
             const completionResult = await this.pollForCompletion(
                 analysisResult.jobId,
                 setup.scanName,
                 setup.artifactType
             )
-            if ('errorMessage' in completionResult) return completionResult
+            if ('errorMessage' in completionResult) {
+                return this.createErrorOutput(completionResult)
+            }
 
-            return await this.processResults(
+            this.checkCancellation()
+
+            const results = await this.processResults(
                 completionResult,
                 { ...setup, isCodeDiffPresent: analysisResult.isCodeDiffPresent },
                 analysisResult.jobId
             )
+
+            return {
+                output: {
+                    kind: 'json',
+                    content: results,
+                    success: true,
+                },
+            }
         } catch (error) {
-            return this.handleFailure(error, input)
+            return {
+                output: {
+                    kind: 'json',
+                    content: this.handleFailure(error, input),
+                    success: false,
+                },
+            }
+        }
+    }
+
+    private createErrorOutput(errorObj: any): InvokeOutput {
+        return {
+            output: {
+                kind: 'json',
+                content: errorObj,
+                success: false,
+            },
         }
     }
 
     private async validateInputAndSetup(input: any, context: any) {
+        this.cancellationToken = context.cancellationToken as CancellationToken
+
+        this.writableStream = context.writableStream as WritableStream
+
         this.codeWhispererClient = context.codeWhispererClient as CodeWhispererServiceToken
         if (!this.codeWhispererClient) {
             throw new Error(QCodeReview.ERROR_MESSAGES.MISSING_CLIENT)
@@ -144,7 +200,8 @@ export class QCodeReview {
         const { zipBuffer, md5Hash, isCodeDiffPresent } = await this.prepareFilesAndFoldersForUpload(
             setup.fileArtifacts,
             setup.folderArtifacts,
-            setup.ruleArtifacts
+            setup.ruleArtifacts,
+            setup.isFullReviewRequest
         )
 
         const uploadUrlResponse = await this.codeWhispererClient!.createUploadUrl({
@@ -241,6 +298,8 @@ export class QCodeReview {
                     errorMessage: statusResponse.errorMessage,
                 }
             }
+
+            this.checkCancellation('Command execution cancelled while waiting for scan to complete')
         }
 
         if (status === 'Pending') {
@@ -263,7 +322,7 @@ export class QCodeReview {
 
     private async processResults(completionResult: any, setup: any, jobId: string) {
         if (completionResult.status !== 'Completed') {
-            return this.handleFailure(completionResult.status, setup.scanName, jobId)
+            return this.handleFailure(completionResult.status, null, setup.scanName, jobId)
         }
 
         const totalFindings = await this.collectFindings(jobId, setup.isFullReviewRequest, setup.isCodeDiffPresent)
@@ -403,12 +462,15 @@ export class QCodeReview {
      * Create a zip archive of the files and folders to be scanned and calculate MD5 hash
      * @param fileArtifacts Array of file artifacts containing path and programming language
      * @param folderArtifacts Array of folder artifacts containing path
+     * @param ruleArtifacts Array of file paths to customer selected rules
+     * @param isFullReviewRequest If customer asked for Full review or Partial review
      * @returns An object containing the zip file buffer and its MD5 hash
      */
     private async prepareFilesAndFoldersForUpload(
         fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
         folderArtifacts: Array<{ path: string }>,
-        ruleArtifacts: string[]
+        ruleArtifacts: string[],
+        isFullReviewRequest: boolean
     ): Promise<{ zipBuffer: Buffer; md5Hash: string; isCodeDiffPresent: boolean }> {
         try {
             this.logging.info(
@@ -419,7 +481,12 @@ export class QCodeReview {
             const customerCodeZip = new JSZip()
 
             // Process files and folders
-            const codeDiff = await this.processArtifacts(fileArtifacts, folderArtifacts, customerCodeZip, true)
+            const codeDiff = await this.processArtifacts(
+                fileArtifacts,
+                folderArtifacts,
+                customerCodeZip,
+                !isFullReviewRequest
+            )
 
             // Generate customer code zip buffer
             const customerCodeBuffer = await QCodeReviewUtils.generateZipBuffer(customerCodeZip)

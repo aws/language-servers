@@ -1532,11 +1532,13 @@ export class AgenticChatController implements ChatHandlers {
                         // no need to write tool result for code review, this is handled by model via chat
                         // Push result in message so that it is picked by IDE plugin to show in issues panel
                         const qCodeReviewJson = JSON.parse(JSON.stringify(result))
-                        await chatResultStream.writeResultBlock({
-                            type: 'tool',
-                            messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
-                            body: qCodeReviewJson['result']['findingsByFile'],
-                        })
+                        if (qCodeReviewJson['output']['success']) {
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
+                                body: qCodeReviewJson['output']['content']['result']['findingsByFile'],
+                            })
+                        }
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:

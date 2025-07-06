@@ -132,8 +132,12 @@ export const QCodeAnalysisServer: Server = ({
                 description: QCodeReview.toolDescription,
                 inputSchema: QCodeReview.inputSchema,
             },
-            async (input: any) => {
-                return await qCodeReviewTool.execute(input, { codeWhispererClient })
+            async (input: any, token?: CancellationToken, updates?: WritableStream) => {
+                return await qCodeReviewTool.execute(input, {
+                    codeWhispererClient: codeWhispererClient,
+                    cancellationToken: token,
+                    writableStream: updates,
+                })
             },
             ToolClassification.BuiltIn
         )

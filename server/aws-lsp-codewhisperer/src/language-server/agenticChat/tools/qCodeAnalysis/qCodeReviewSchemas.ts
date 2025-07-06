@@ -17,20 +17,7 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
             type: <const>'string',
             description: `After analyzing user request, determine value of scopeOfReview.
 
-                FULL FILE REVIEW indicators - User is asking for complete file analysis when they use phrases like:
-                - "review the entire file"
-                - "look at all the code in [filename/foldername/project/workspace]"
-                - "analyze the whole file"
-                - "check everything in this file/folder/project/workspace"
-                - "review all lines of code"
-                - "examine the complete file"
-                - "go through the entire file/folder/project/workspace"
-                - "review from top to bottom"
-                - "full code review of [filename/foldername/project/workspace]"
-                - "comprehensive review"
-                - "analyze all functions/classes in the file"
-
-                PARTIAL/CHANGE-ONLY REVIEW indicators - User is asking for limited scope when they use phrases like:
+                PARTIAL_REVIEW indicators - User is asking for limited scope when they use change-only phrases like:
                 - "review my changes"
                 - "look at what I modified"
                 - "check the uncommitted changes"
@@ -41,7 +28,7 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
                 - "check my latest commits"
                 - "review the modified lines"
 
-                AMBIGUOUS cases that default to PARTIAL_REVIEW:
+                AMBIGUOUS cases that default to FULL_REVIEW:
                 - "check my code" (without specifying scope)
                 - "look at [filename]" (without context about scope)
                 - "review this file / folder / workspace" (without explicit full-file language)
@@ -51,12 +38,11 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
                 - "look at this file / folder / workspace"
                 - "review my code"
                 - "look into it"
-                - Any review request without explicit "entire", "whole", "complete", "all", or "full" qualifiers
+                - Any review request without explicit "changes" or "modified" qualifiers
 
                 Decision framework to set value of 'scopeOfReview':
-                1. If explicit full-file language is used → FULL_REVIEW
-                2. If explicit change-only language is used → PARTIAL_REVIEW 
-                3. If ambiguous → PARTIAL_REVIEW`,
+                1. If explicit change-only language is used → PARTIAL_REVIEW 
+                2. If ambiguous or any other case → FULL_REVIEW`,
             enum: SCOPE_OF_CODE_REVIEW,
         },
         fileLevelArtifacts: {
