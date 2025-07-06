@@ -87,6 +87,8 @@ export class QCodeReview {
     }
 
     public async execute(input: any, context: any): Promise<InvokeOutput> {
+        let writer: WritableStreamDefaultWriter<any> | undefined
+
         try {
             this.logging.info(`Executing ${Q_CODE_REVIEW_TOOL_NAME}: ${JSON.stringify(input)}`)
 
@@ -94,22 +96,24 @@ export class QCodeReview {
             if ('errorMessage' in setup) {
                 return this.createErrorOutput(setup)
             }
-
             this.checkCancellation()
+
+            writer = this.writableStream?.getWriter()
+            await writer?.write('Initiating code review...')
 
             const uploadResult = await this.prepareAndUploadArtifacts(setup)
             if ('errorMessage' in uploadResult) {
                 return this.createErrorOutput(uploadResult)
             }
-
             this.checkCancellation()
 
             const analysisResult = await this.startCodeAnalysis(setup, uploadResult)
             if ('errorMessage' in analysisResult) {
                 return this.createErrorOutput(analysisResult)
             }
-
             this.checkCancellation()
+
+            await writer?.write('Reviewing your code...')
 
             const completionResult = await this.pollForCompletion(
                 analysisResult.jobId,
@@ -143,6 +147,9 @@ export class QCodeReview {
                     success: false,
                 },
             }
+        } finally {
+            await writer?.close()
+            writer?.releaseLock()
         }
     }
 

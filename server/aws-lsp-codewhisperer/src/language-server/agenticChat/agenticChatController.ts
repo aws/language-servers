@@ -1814,7 +1814,38 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    #getToolOverWritableStream(
+        chatResultStream: AgenticChatResultStream,
+        toolUse: ToolUse
+    ): WritableStream | undefined {
+        const toolMsgId = toolUse.toolUseId!
+
+        return new WritableStream({
+            write: async chunk => {
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
+                await chatResultStream.removeResultBlockAndUpdateUI(toolMsgId)
+
+                await chatResultStream.writeResultBlock({
+                    type: 'prompt',
+                    messageId: toolMsgId,
+                    body: chunk,
+                })
+            },
+            close: async () => {
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
+                await chatResultStream.removeResultBlockAndUpdateUI(toolMsgId)
+
+                this.#stoppedToolUses.add(toolMsgId)
+            },
+        })
+    }
+
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
+        if (toolUse.name === QCodeReview.toolName) {
+            return this.#getToolOverWritableStream(chatResultStream, toolUse)
+        }
         if (toolUse.name !== 'executeBash') {
             return
         }
