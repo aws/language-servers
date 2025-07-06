@@ -9,7 +9,7 @@ on:
         workflows: [Create agent-standalone bundles]
         types:
             - completed
-        branches: [main, feature/*]
+        branches: [main, feature/*, release/agentic/*]
 
 jobs:
     setup-vars:
@@ -19,7 +19,10 @@ jobs:
             serverversion: ${{ steps.build.outputs.serverversion }}
             prereleasename: ${{ steps.build.outputs.prereleasename }}
         steps:
-            - uses: actions/checkout@v4
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.workflow_run.head_sha }}
 
             # if user ran this action manually
             - if: github.event_name == 'workflow_dispatch'
@@ -31,15 +34,16 @@ jobs:
             # Set TAG_NAME and PRERELEASE_NAME based on branch name
             - if: github.event_name != 'workflow_dispatch'
               run: |
-                  if [[ "${{ github.ref_name }}" == "main" ]]; then
+                  BRANCH_NAME="${{ github.event.workflow_run.head_branch }}"
+                  if [[ "$BRANCH_NAME" == "main" ]]; then
                       echo "TAG_NAME=agentic-alpha" >> $GITHUB_ENV
                       echo "PRERELEASE_NAME=alpha" >> $GITHUB_ENV
-                  elif [[ "${{ github.ref_name }}" == feature/* ]]; then
-                      REMAINDER=$(echo "${{ github.ref_name }}" | sed 's/^feature\///')
+                  elif [[ "$BRANCH_NAME" == feature/* ]]; then
+                      REMAINDER=$(echo "$BRANCH_NAME" | sed 's/^feature\///')
                       echo "TAG_NAME=agentic-pre-$REMAINDER" >> $GITHUB_ENV
                       echo "PRERELEASE_NAME=$REMAINDER" >> $GITHUB_ENV
-                  elif [[ "${{ github.ref_name }}" == release/agentic/* ]]; then
-                      REMAINDER=$(echo "${{ github.ref_name }}" | sed 's/^release\/agentic\///')
+                  elif [[ "$BRANCH_NAME" == release/agentic/* ]]; then
+                      REMAINDER=$(echo "$BRANCH_NAME" | sed 's/^release\/agentic\///')
                       echo "TAG_NAME=agentic-rc-$REMAINDER" >> $GITHUB_ENV
                       echo "PRERELEASE_NAME=rc" >> $GITHUB_ENV
                   else
@@ -78,13 +82,12 @@ jobs:
             #
             # For `gh` cli.
             #
-            GH_REPO: ${{ github.repository }}
             GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             TAG_NAME: ${{ needs.setup-vars.outputs.tagname }}
             #
-            # Used in release_notes.md
+            # Used in release_notes.md and git tag
             #
-            BRANCH: ${{ github.ref_name }}
+            BRANCH: ${{ github.event.workflow_run.head_branch }}
             COMMIT_ID: ${{ github.event.workflow_run.head_sha }}
         permissions:
             contents: write
@@ -92,6 +95,8 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.event.workflow_run.head_sha }}
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -156,4 +161,4 @@ jobs:
 
                   # main and feature branches create alpha builds.
                   # In the future, release candidate branches will create preprod builds
-                  gh release create $TAG_NAME --prerelease --notes-file "$RUNNER_TEMP/release_notes.md" --title "Agentic Chat: $PRERELEASE_NAME ($BRANCH)" --target $GITHUB_SHA _release-artifacts/*
+                  gh release create $TAG_NAME --prerelease --notes-file "$RUNNER_TEMP/release_notes.md" --title "Agentic Chat: $PRERELEASE_NAME ($BRANCH)" --target $COMMIT_ID _release-artifacts/*
