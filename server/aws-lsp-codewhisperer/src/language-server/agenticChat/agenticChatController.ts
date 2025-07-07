@@ -454,7 +454,7 @@ export class AgenticChatController implements ChatHandlers {
         if (params.fileType === 'image') {
             // 1. Prompt user for file selection
             const supportedExtensions = DEFAULT_IMAGE_VERIFICATION_OPTIONS.supportedExtensions
-            const filters = { 'Image Files': supportedExtensions.map(ext => `*.${ext}`) }
+            const filters = { 'Image Files': supportedExtensions }
             const result = await this.#features.lsp.window.showOpenDialog({
                 canSelectFiles: true,
                 canSelectFolders: false,
