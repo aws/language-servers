@@ -74,6 +74,7 @@ export class CodeWhispererSession {
     customizationArn?: string
     includeImportsWithSuggestions?: boolean
     codewhispererSuggestionImportCount: number = 0
+    suggestionType?: string
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()

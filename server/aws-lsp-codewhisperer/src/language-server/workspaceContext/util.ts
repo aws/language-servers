@@ -21,7 +21,9 @@ export const findWorkspaceRootFolder = (
 
     const matchingFolder = sortedFolders.find(folder => {
         const parsedFolderUri = URI.parse(folder.uri)
-        return parsedFileUri.path.startsWith(parsedFolderUri.path)
+        // Paths are normalized to use forward slashes in the .path property regardless of the underlying OS
+        const folderPath = parsedFolderUri.path.endsWith('/') ? parsedFolderUri.path : parsedFolderUri.path + '/'
+        return parsedFileUri.path.startsWith(folderPath)
     })
 
     return matchingFolder
@@ -93,7 +95,7 @@ export const getRelativePathWithUri = (uri: string, workspaceFolder?: WorkspaceF
 export const getRelativePathWithWorkspaceFolder = (workspaceFolder: WorkspaceFolder, filePath: string): string => {
     const workspaceUri = URI.parse(workspaceFolder.uri)
     const fileUri = URI.parse(filePath)
-    const relativePath = path.relative(workspaceUri.path, fileUri.path)
-    const workspaceFolderName = path.basename(workspaceUri.path)
+    const relativePath = path.relative(workspaceUri.fsPath, fileUri.fsPath)
+    const workspaceFolderName = path.basename(workspaceUri.fsPath)
     return path.join(workspaceFolderName, relativePath)
 }

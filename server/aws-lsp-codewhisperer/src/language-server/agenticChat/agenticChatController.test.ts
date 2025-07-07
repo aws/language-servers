@@ -49,7 +49,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { TabBarController } from './tabBarController'
 import { getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
-import { AdditionalContextProvider } from './context/addtionalContextProvider'
+import { AdditionalContextProvider } from './context/additionalContextProvider'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
@@ -190,6 +190,11 @@ describe('AgenticChatController', () => {
             close: sinon.stub(),
         } as unknown as chokidar.FSWatcher)
 
+        // Mock getUserHomeDir function for McpEventHandler
+        const getUserHomeDirStub = sinon.stub().returns('/mock/home/dir')
+        testFeatures = new TestFeatures()
+        testFeatures.workspace.fs.getUserHomeDir = getUserHomeDirStub
+
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
             return new Promise(resolve =>
                 setTimeout(() => {
@@ -313,7 +318,9 @@ describe('AgenticChatController', () => {
     })
 
     afterEach(() => {
-        chatController.dispose()
+        if (chatController) {
+            chatController.dispose()
+        }
         sinon.restore()
         ChatSessionManagementService.reset()
     })
@@ -1403,6 +1410,102 @@ describe('AgenticChatController', () => {
                         useRelevantDocuments: false,
                     }
                 )
+            })
+
+            it('includes both additional context and active file in context transparency list', async () => {
+                const mockAdditionalContext = [
+                    {
+                        name: 'additional.ts',
+                        description: '',
+                        type: 'file',
+                        relativePath: 'src/additional.ts',
+                        path: '/workspace/src/additional.ts',
+                        startLine: -1,
+                        endLine: -1,
+                        innerContext: 'additional content',
+                        pinned: false,
+                    },
+                ]
+
+                // Mock getAdditionalContext to return additional context
+                additionalContextProviderStub.resolves(mockAdditionalContext)
+
+                // Mock the expected return value from getFileListFromContext
+                const expectedFileList = {
+                    filePaths: ['src/additional.ts', 'src/active.ts'],
+                    details: {
+                        'src/additional.ts': { description: '/workspace/src/additional.ts' },
+                        'src/active.ts': { description: '/workspace/src/active.ts' },
+                    },
+                }
+
+                // Mock getFileListFromContext to capture what gets passed to it
+                const getFileListFromContextStub = sinon.stub(
+                    AdditionalContextProvider.prototype,
+                    'getFileListFromContext'
+                )
+                getFileListFromContextStub.returns(expectedFileList)
+
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: 'src/active.ts',
+                    activeFilePath: '/workspace/src/active.ts',
+                    text: 'active file content',
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onChatPrompt(
+                    {
+                        tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///workspace/src/active.ts' },
+                        cursorState: [mockCursorState],
+                        context: [{ command: 'Additional File', description: 'file.txt' }],
+                        partialResultToken: 1, // Enable progress updates
+                    },
+                    mockCancellationToken
+                )
+
+                // Verify getFileListFromContext was called with combined context (additional + active file)
+                sinon.assert.calledOnce(getFileListFromContextStub)
+                const contextItemsPassedToGetFileList = getFileListFromContextStub.firstCall.args[0]
+
+                // Should include both additional context and active file
+                assert.strictEqual(contextItemsPassedToGetFileList.length, 2)
+
+                // Find the additional context item
+                const additionalContextItem = contextItemsPassedToGetFileList.find(
+                    (item: any) => item.relativePath === 'src/additional.ts'
+                )
+                assert.ok(additionalContextItem, 'Additional context should be included')
+
+                // Find the active file item
+                const activeFileItem = contextItemsPassedToGetFileList.find(
+                    (item: any) => item.relativePath === 'src/active.ts'
+                )
+                assert.ok(activeFileItem, 'Active file should be included in context transparency list')
+
+                // Verify that sendProgress was called with a message containing the expected context list
+                sinon.assert.called(testFeatures.lsp.sendProgress)
+
+                // Find the progress call that contains contextList
+                const progressCallWithContext = (testFeatures.lsp.sendProgress as sinon.SinonStub)
+                    .getCalls()
+                    .find(call => {
+                        const progressData = call.args[2] // Third argument is the progress data
+                        return progressData && progressData.contextList
+                    })
+
+                assert.ok(progressCallWithContext, 'Should have sent progress with contextList')
+                const contextList = progressCallWithContext.args[2].contextList
+                assert.deepStrictEqual(
+                    contextList,
+                    expectedFileList,
+                    'Context list in progress update should match expected file list'
+                )
+
+                getFileListFromContextStub.restore()
             })
         })
     })
@@ -2596,6 +2699,137 @@ ${' '.repeat(8)}}
             sinon.assert.called(setModelIdStub)
 
             setModelIdStub.restore()
+        })
+    })
+
+    describe('onListAvailableModels', () => {
+        let tokenServiceManagerStub: sinon.SinonStub
+
+        beforeEach(() => {
+            // Create a session with a model ID
+            chatController.onTabAdd({ tabId: mockTabId })
+            const session = chatSessionManagementService.getSession(mockTabId).data!
+            session.modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
+
+            // Stub the getRegion method
+            tokenServiceManagerStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getRegion')
+        })
+
+        afterEach(() => {
+            tokenServiceManagerStub.restore()
+        })
+
+        it('should return all available models for us-east-1 region', async () => {
+            // Set up the region to be us-east-1
+            tokenServiceManagerStub.returns('us-east-1')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_SONNET_4_20250514_V1_0')
+
+            // Check that the models include both Claude versions
+            const modelIds = result.models.map(model => model.id)
+            assert.ok(modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
+            assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
+        })
+
+        it('should return limited models for eu-central-1 region', async () => {
+            // Set up the region to be eu-central-1
+            tokenServiceManagerStub.returns('eu-central-1')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 1)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            // Check that the models only include Claude 3.7
+            const modelIds = result.models.map(model => model.id)
+            assert.ok(!modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
+            assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
+        })
+
+        it('should return all models when region is unknown', async () => {
+            // Set up the region to be unknown
+            tokenServiceManagerStub.returns('unknown-region')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+        })
+
+        it('should return undefined for selectedModelId when no session data exists', async () => {
+            // Set up the session to return no session (failure case)
+            const getSessionStub = sinon.stub(chatSessionManagementService, 'getSession')
+            getSessionStub.returns({
+                data: undefined,
+                success: false,
+                error: 'error',
+            })
+
+            // Call the method
+            const params = { tabId: 'non-existent-tab' }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result
+            assert.strictEqual(result.tabId, 'non-existent-tab')
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, undefined)
+
+            getSessionStub.restore()
+        })
+
+        it('should fallback to latest available model when saved model is not available in current region', async () => {
+            // Set up the region to be eu-central-1 (which only has Claude 3.7)
+            tokenServiceManagerStub.returns('eu-central-1')
+
+            // Mock database to return Claude Sonnet 4 (not available in eu-central-1)
+            const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
+            getModelIdStub.returns('CLAUDE_SONNET_4_20250514_V1_0')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result falls back to available model
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 1)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            getModelIdStub.restore()
+        })
+
+        it('should use saved model when it is available in current region', async () => {
+            // Set up the region to be us-east-1 (which has both models)
+            tokenServiceManagerStub.returns('us-east-1')
+
+            // Mock database to return Claude 3.7 (available in us-east-1)
+            const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
+            getModelIdStub.returns('CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result uses the saved model
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            getModelIdStub.restore()
         })
     })
 
