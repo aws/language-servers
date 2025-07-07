@@ -23,6 +23,22 @@ jobs:
             - name: Test
               run: |
                   npm run test
+    test-integ:
+        name: Integration Tests
+        runs-on: ubuntu-latest
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v3
+            - name: Set up Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18
+            - name: Build
+              run: |
+                  npm ci
+            - name: Run Integration Tests
+              run: |
+                  npm run test-integ
     build:
         name: Package
         runs-on: ubuntu-latest
