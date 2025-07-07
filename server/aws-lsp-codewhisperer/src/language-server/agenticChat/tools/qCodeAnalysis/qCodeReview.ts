@@ -391,6 +391,11 @@ export class QCodeReview {
     }
 
     private handleFailure(error: any, input?: any, scanName?: string, jobId?: string) {
+        // if error is of type CancellationError then throw
+        if (error instanceof CancellationError) {
+            throw error
+        }
+
         const errorData: any = { error: JSON.stringify(error) }
         if (input) errorData.input = input
         if (scanName) errorData.codeScanName = scanName
