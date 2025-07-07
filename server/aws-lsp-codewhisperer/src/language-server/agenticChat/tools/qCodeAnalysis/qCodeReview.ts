@@ -365,7 +365,10 @@ export class QCodeReview {
             setup.folderArtifacts
         )
 
-        this.logging.info(`Parsed findings successfully.`)
+        this.logging.info('Findings count grouped by file')
+        aggregatedCodeScanIssueList.forEach(item =>
+            this.logging.info(`File path - ${item.filePath} Findings count - ${item.issues.length}`)
+        )
 
         return {
             codeReviewId: jobId,
@@ -386,21 +389,22 @@ export class QCodeReview {
         let totalFindings: any[] = []
         let nextFindingToken = undefined
         let findingsExceededLimit = false
+        const lookForCodeDiffFindings = !isFullReviewRequest && isCodeDiffPresent
 
         this.logging.info(
             `Collect findings for jobId: ${jobId}, isFullReviewRequest: ${isFullReviewRequest}, isCodeDiffPresent: ${isCodeDiffPresent}`
         )
+        this.logging.info(`Look for code diff findings only - ${lookForCodeDiffFindings}`)
 
         do {
-            this.logging.info(`Getting findings for job ID: ${jobId}, next token: ${nextFindingToken}`)
+            this.logging.info(`GetFindings for job ID: ${jobId}`)
             const findingsResponse = await this.getCodeAnalysisFindings(jobId, nextFindingToken)
             nextFindingToken = findingsResponse.nextToken
 
             const parsedFindings = this.parseFindings(findingsResponse.codeAnalysisFindings) || []
-            const filteredFindings =
-                !isFullReviewRequest && isCodeDiffPresent
-                    ? parsedFindings.filter(finding => finding?.findingContext === 'CodeDiff')
-                    : parsedFindings
+            const filteredFindings = lookForCodeDiffFindings
+                ? parsedFindings.filter(finding => finding?.findingContext === 'CodeDiff')
+                : parsedFindings
             totalFindings = totalFindings.concat(filteredFindings)
 
             if (totalFindings.length > QCodeReview.MAX_FINDINGS_COUNT) {
@@ -732,7 +736,9 @@ export class QCodeReview {
         fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
         folderArtifacts: Array<{ path: string }>
     ): Promise<{ filePath: string; issues: ValidatedFinding[] }[]> {
+        this.logging.info(`Processing ${findings.length} findings for jobId - ${jobId}`)
         const validatedFindings = this.convertToValidatedFindings(findings, jobId, programmingLanguage)
+        this.logging.info(`Validated ${validatedFindings.length} findings for jobId - ${jobId}`)
         return this.aggregateFindingsByFile(validatedFindings, fileArtifacts, folderArtifacts)
     }
 
