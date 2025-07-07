@@ -109,7 +109,8 @@ export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     '- codeReviewId - internal code review job id ',
     '- status - code review status (Completed, Failed)',
     '- result - if the scan completes successfully, there will be message and findingsByFile',
-    '  - findingsByFile - contains findings grouped by impacted file path',
+    '  - message - contains information about the scan, can also contain some information that needs to be provided to the user',
+    '  - findingsByFile - contains findings grouped by impacted file path, do not provide a summary of these findings',
     '- errorMessage - if there is any failure, it will contain cause of failure',
     '',
     '**Format to display output**',
@@ -117,7 +118,7 @@ export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     'When there are lots of findings, the tool will limit the findings to a fixed value - 50.',
     'Use the following format strictly to display the result of the tool for different scenarios :',
     '- When findings are present, "I have completed the review of {file name / folder name / workspace} and found several issues that need attention. To inspect the details, and get fixes for these issues use the Code Issues panel above."',
-    '  - When findings are limited to 50 by the tool, include the following in the above message - "Since there were lots of findings, I have included the top 50 findings only."',
+    '  - When tool output message tells that findings were limited due to high count, include the following in the above message - "Since there were lots of findings, I have included the top 50 findings only."',
     '- When no findings, "I have completed the review of {file name / folder name / workspace} and found no issues. Great Job!"',
 ].join('\n')
 

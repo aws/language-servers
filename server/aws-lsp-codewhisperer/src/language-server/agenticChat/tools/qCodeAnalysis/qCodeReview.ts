@@ -33,6 +33,7 @@ export class QCodeReview {
     private static readonly CODE_DIFF_PATH = 'code_artifact/codeDiff/customerCodeDiff.diff'
     private static readonly RULE_ARTIFACT_PATH = '.amazonq/rules'
     private static readonly MAX_POLLING_ATTEMPTS = 30
+    private static readonly MID_POLLING_ATTEMPTS = 15
     private static readonly POLLING_INTERVAL_MS = 10000
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
@@ -121,7 +122,8 @@ export class QCodeReview {
             const completionResult = await this.pollForCompletion(
                 analysisResult.jobId,
                 setup.scanName,
-                setup.artifactType
+                setup.artifactType,
+                chatStreamWriter
             )
             if ('errorMessage' in completionResult) {
                 return this.createErrorOutput(completionResult)
@@ -235,8 +237,6 @@ export class QCodeReview {
             return { errorMessage: QCodeReview.ERROR_MESSAGES.UPLOAD_FAILED }
         }
 
-        this.logging.info(`Upload Url - ${uploadUrlResponse.uploadUrl}`)
-
         await this.uploadFileToPresignedUrl(
             uploadUrlResponse.uploadUrl,
             zipBuffer,
@@ -282,7 +282,12 @@ export class QCodeReview {
         }
     }
 
-    private async pollForCompletion(jobId: string, scanName: string, artifactType: string) {
+    private async pollForCompletion(
+        jobId: string,
+        scanName: string,
+        artifactType: string,
+        chatStreamWriter: WritableStreamDefaultWriter<any> | undefined
+    ) {
         let status = 'Pending'
         let attemptCount = 0
 
@@ -307,6 +312,10 @@ export class QCodeReview {
                     status: status,
                     errorMessage: statusResponse.errorMessage,
                 }
+            }
+
+            if (attemptCount == QCodeReview.MID_POLLING_ATTEMPTS) {
+                await chatStreamWriter?.write('Still reviewing your code, it is taking just a bit longer than usual...')
             }
 
             this.checkCancellation('Command execution cancelled while waiting for scan to complete')
@@ -335,7 +344,11 @@ export class QCodeReview {
             return this.handleFailure(new Error('Scan failed'), setup.scanName, jobId)
         }
 
-        const totalFindings = await this.collectFindings(jobId, setup.isFullReviewRequest, setup.isCodeDiffPresent)
+        const { totalFindings, findingsExceededLimit } = await this.collectFindings(
+            jobId,
+            setup.isFullReviewRequest,
+            setup.isCodeDiffPresent
+        )
         let totalFindingsCount = totalFindings.length
 
         this.emitMetric('codeAnalysisSucces', {
@@ -345,9 +358,7 @@ export class QCodeReview {
         })
 
         const aggregatedCodeScanIssueList = await this.processFindings(
-            totalFindingsCount > QCodeReview.MAX_FINDINGS_COUNT
-                ? totalFindings.slice(0, QCodeReview.MAX_FINDINGS_COUNT)
-                : totalFindings,
+            findingsExceededLimit ? totalFindings.slice(0, QCodeReview.MAX_FINDINGS_COUNT) : totalFindings,
             jobId,
             setup.programmingLanguage,
             setup.fileArtifacts,
@@ -361,7 +372,7 @@ export class QCodeReview {
             status: completionResult.status,
             scopeOfReview: setup.isFullReviewRequest ? FULL_REVIEW : PARTIAL_REVIEW,
             result: {
-                message: `${Q_CODE_REVIEW_TOOL_NAME} tool completed successfully.${totalFindingsCount > QCodeReview.MAX_FINDINGS_COUNT ? ` Inform the user that we are limiting findings to top ${QCodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
+                message: `${Q_CODE_REVIEW_TOOL_NAME} tool completed successfully. Do not show any summary of findings to the user.${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${QCodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
                 findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
             },
         }
@@ -371,9 +382,10 @@ export class QCodeReview {
         jobId: string,
         isFullReviewRequest: boolean,
         isCodeDiffPresent: boolean
-    ): Promise<any[]> {
+    ): Promise<{ totalFindings: any[]; findingsExceededLimit: boolean }> {
         let totalFindings: any[] = []
         let nextFindingToken = undefined
+        let findingsExceededLimit = false
 
         this.logging.info(
             `Collect findings for jobId: ${jobId}, isFullReviewRequest: ${isFullReviewRequest}, isCodeDiffPresent: ${isCodeDiffPresent}`
@@ -390,10 +402,15 @@ export class QCodeReview {
                     ? parsedFindings.filter(finding => finding?.findingContext === 'CodeDiff')
                     : parsedFindings
             totalFindings = totalFindings.concat(filteredFindings)
+
+            if (totalFindings.length > QCodeReview.MAX_FINDINGS_COUNT) {
+                findingsExceededLimit = true
+                break
+            }
         } while (nextFindingToken)
 
         this.logging.info(`Total findings: ${totalFindings.length}`)
-        return totalFindings
+        return { totalFindings, findingsExceededLimit }
     }
 
     private handleFailure(error: any, scanName?: string, jobId?: string) {
@@ -410,7 +427,7 @@ export class QCodeReview {
             data: errorData,
         })
 
-        this.logging.error(`Error in ${Q_CODE_REVIEW_TOOL_NAME} - ${JSON.stringify(error)}`)
+        this.logging.error(`Error in ${Q_CODE_REVIEW_TOOL_NAME} - ${error?.message}`)
 
         return {
             status: 'Failed',
@@ -499,7 +516,6 @@ export class QCodeReview {
             if (numberOfFilesInCustomerCodeZip > 0) {
                 this.logging.info(`Total files in customerCodeZip - ${numberOfFilesInCustomerCodeZip}`)
             } else {
-                this.logging.info(QCodeReview.ERROR_MESSAGES.MISSING_FILES_TO_SCAN)
                 throw new Error(QCodeReview.ERROR_MESSAGES.MISSING_FILES_TO_SCAN)
             }
 
