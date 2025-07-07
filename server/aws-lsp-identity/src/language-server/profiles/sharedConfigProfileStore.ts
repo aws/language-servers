@@ -72,7 +72,10 @@ export class SharedConfigProfileStore implements ProfileStore {
                         result.profiles.push({
                             kinds: [ProfileKind.Unknown],
                             name: sectionHeader.name,
-                            settings: {},
+                            settings: {
+                                region: settings.region,
+                                sso_session: settings.sso_session,
+                            },
                         })
                     }
                     break

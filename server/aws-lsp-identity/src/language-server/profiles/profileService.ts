@@ -138,7 +138,7 @@ export class ProfileService {
 
         // Validate sso-session
         if (profile.kinds.includes(ProfileKind.SsoTokenProfile)) {
-            this.throwOnInvalidProfile(!profileSettings.sso_session, 'Sso-session required on profile.')
+            this.throwOnInvalidProfile(!profileSettings.sso_session, 'Sso-session name required on profile.')
             this.throwOnInvalidSsoSession(!params.ssoSession, 'Sso-session required.')
             const ssoSession: SsoSession = params.ssoSession!
 
