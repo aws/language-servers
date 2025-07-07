@@ -476,7 +476,7 @@ export class AgenticChatController implements ChatHandlers {
             let errorMessage: string | undefined
             for (const filePath of result.uris) {
                 // Extract filename from the URI for error messages
-                const fileName = filePath.split('/').pop() || ''
+                const fileName = path.basename(filePath) || ''
                 const sanitizedPath = sanitize(filePath)
 
                 // Get file size and content for verification
