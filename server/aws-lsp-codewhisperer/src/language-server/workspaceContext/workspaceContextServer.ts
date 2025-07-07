@@ -23,6 +23,7 @@ import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/Amazon
 import { FileUploadJobManager, FileUploadJobType } from './fileUploadJobManager'
 import { DependencyEventBundler } from './dependency/dependencyEventBundler'
 import ignore = require('ignore')
+import { INTERNAL_USER_START_URL } from '../../shared/constants'
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
@@ -165,19 +166,30 @@ export const WorkspaceContextServer = (): Server => features => {
         }
 
         try {
-            const clientParams = safeGet(lsp.getClientInitializeParams())
-            const userContext = makeUserContextObject(clientParams, runtime.platform, 'CodeWhisperer') ?? {
-                ideCategory: 'VSCODE',
-                operatingSystem: 'MAC',
-                product: 'CodeWhisperer',
+            const startUrl = credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+            if (startUrl && startUrl.includes(INTERNAL_USER_START_URL)) {
+                // Overriding abTestingEnabled to true for all internal users
+                abTestingEnabled = true
+            } else {
+                const clientParams = safeGet(lsp.getClientInitializeParams())
+                const userContext = makeUserContextObject(clientParams, runtime.platform, 'CodeWhisperer') ?? {
+                    ideCategory: 'VSCODE',
+                    operatingSystem: 'MAC',
+                    product: 'CodeWhisperer',
+                }
+
+                const result = await amazonQServiceManager
+                    .getCodewhispererService()
+                    .listFeatureEvaluations({ userContext })
+                logging.log(`${JSON.stringify(result)}`)
+                abTestingEnabled =
+                    result.featureEvaluations?.some(
+                        feature =>
+                            feature.feature === 'BuilderIdServiceSideProjectContext' &&
+                            feature.variation === 'TREATMENT'
+                    ) ?? false
             }
 
-            const result = await amazonQServiceManager.getCodewhispererService().listFeatureEvaluations({ userContext })
-            logging.log(`${JSON.stringify(result)}`)
-            abTestingEnabled =
-                result.featureEvaluations?.some(
-                    feature => feature.feature === 'ServiceSideWorkspaceContext' && feature.variation === 'TREATMENT'
-                ) ?? false
             logging.info(`A/B testing enabled: ${abTestingEnabled}`)
             abTestingEvaluated = true
         } catch (error: any) {

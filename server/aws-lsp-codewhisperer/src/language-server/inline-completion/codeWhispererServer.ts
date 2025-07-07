@@ -26,7 +26,7 @@ import {
     SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodewhispererLanguage, getRuntimeLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { truncateOverlapWithRightContext } from './mergeRightUtils'
+import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
@@ -309,6 +309,8 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
+        // Threshold to avoid getting the same suggestion type due to unexpected issue
+        const timeSinceCloseTimeEditStreakThreshold: number = 2000
 
         const sessionManager = SessionManager.getInstance()
 
@@ -412,34 +414,39 @@ export const CodewhispererServerFactory =
                     // This picks the last non-whitespace character, if any, before the cursor
                     const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
                     const codewhispererAutoTriggerType = triggerType(fileContext)
-                    const previousDecision =
-                        sessionManager.getPreviousSession()?.getAggregatedUserTriggerDecision() ?? ''
+                    const previousSession = sessionManager.getPreviousSession()
+                    const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
+                    const previousSuggestionType = previousSession?.suggestionType ?? ''
+                    const previousCloseTime = previousSession?.closeTime
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
                         ideCategory = getIdeCategory(initializeParams)
                     }
-                    const autoTriggerResult = autoTrigger({
-                        fileContext, // The left/right file context and programming language
-                        lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                        char: triggerCharacter, // Add the character just inserted, if any, before the invication position
-                        ide: ideCategory ?? '',
-                        os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
-                        previousDecision, // The last decision by the user on the previous invocation
-                        triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
-                    })
+                    const autoTriggerResult = autoTrigger(
+                        {
+                            fileContext, // The left/right file context and programming language
+                            lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
+                            char: triggerCharacter, // Add the character just inserted, if any, before the invication position
+                            ide: ideCategory ?? '',
+                            os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                            previousDecision, // The last decision by the user on the previous invocation
+                            triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
+                        },
+                        logging
+                    )
 
                     if (
                         isAutomaticLspTriggerKind &&
                         codewhispererAutoTriggerType === 'Classifier' &&
-                        !autoTriggerResult.shouldTrigger
+                        !autoTriggerResult.shouldTrigger &&
+                        !(editsEnabled && codeWhispererService instanceof CodeWhispererService) // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
                     ) {
                         return EMPTY_RESULT
                     }
 
                     // Get supplemental context from recent edits if available.
                     let supplementalContextFromEdits = undefined
-                    let predictionTypes = [['COMPLETIONS']]
 
                     // supplementalContext available only via token authentication
                     const supplementalContextPromise =
@@ -471,26 +478,54 @@ export const CodewhispererServerFactory =
                         ]
 
                         if (editsEnabled) {
-                            // Step 0: Determine if we have "Rcent Edit context"
-                            if (recentEditTracker) {
-                                supplementalContextFromEdits =
-                                    await recentEditTracker.generateEditBasedContext(textDocument)
+                            const predictionTypes: string[][] = []
+
+                            if (
+                                previousDecision === 'Accept' &&
+                                previousSuggestionType === SuggestionType.EDIT &&
+                                previousCloseTime &&
+                                new Date().getTime() - previousCloseTime < timeSinceCloseTimeEditStreakThreshold
+                            ) {
+                                predictionTypes.push(['EDITS'])
+                            } else {
+                                /**
+                                 * Manual trigger - should always have 'Completions'
+                                 * Auto trigger
+                                 *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
+                                 *  - Others - should always have 'Completions'
+                                 */
+                                if (
+                                    !isAutomaticLspTriggerKind ||
+                                    (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
+                                    (isAutomaticLspTriggerKind &&
+                                        codewhispererAutoTriggerType === 'Classifier' &&
+                                        autoTriggerResult.shouldTrigger)
+                                ) {
+                                    predictionTypes.push(['COMPLETIONS'])
+                                }
+
+                                const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
+                                    fileContext: fileContext,
+                                    lineNum: params.position.line,
+                                    char: triggerCharacter,
+                                    previousDecision: previousDecision,
+                                    cursorHistory: cursorTracker,
+                                    recentEdits: recentEditTracker,
+                                })
+
+                                if (editPredictionAutoTriggerResult.shouldTrigger) {
+                                    predictionTypes.push(['EDITS'])
+                                }
                             }
-                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
-                                fileContext: fileContext,
-                                lineNum: params.position.line,
-                                char: triggerCharacter,
-                                previousDecision: previousDecision,
-                                cursorHistory: cursorTracker,
-                                recentEdits: recentEditTracker,
-                            })
-                            predictionTypes = [
-                                ...(autoTriggerResult.shouldTrigger ? [['COMPLETIONS']] : []),
-                                ...(editPredictionAutoTriggerResult.shouldTrigger && editsEnabled ? [['EDITS']] : []),
-                            ]
 
                             if (predictionTypes.length === 0) {
                                 return EMPTY_RESULT
+                            }
+
+                            // Step 0: Determine if we have "Recent Edit context"
+                            if (recentEditTracker) {
+                                supplementalContextFromEdits =
+                                    await recentEditTracker.generateEditBasedContext(textDocument)
                             }
 
                             // Step 1: Recent Edits context
@@ -534,9 +569,24 @@ export const CodewhispererServerFactory =
 
                     // Close ACTIVE session and record Discard trigger decision immediately
                     if (currentSession && currentSession.state === 'ACTIVE') {
+                        if (editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
+                            const mergedSuggestions = mergeEditSuggestionsWithFileContext(
+                                currentSession,
+                                textDocument,
+                                fileContext
+                            )
+
+                            if (mergedSuggestions.length > 0) {
+                                return {
+                                    items: mergedSuggestions,
+                                    sessionId: currentSession.id,
+                                }
+                            }
+                        }
                         // Emit user trigger decision at session close time for active session
                         sessionManager.discardSession(currentSession)
-                        const streakLength = sessionManager.getAndUpdateStreakLength(false)
+                        // TODO add streakLength back once the model is updated
+                        // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                         await emitUserTriggerDecisionTelemetry(
                             telemetry,
                             telemetryService,
@@ -545,8 +595,7 @@ export const CodewhispererServerFactory =
                             0,
                             0,
                             [],
-                            [],
-                            streakLength
+                            []
                         )
                     }
 
@@ -638,6 +687,7 @@ export const CodewhispererServerFactory =
                 session.responseContext = suggestionResponse.responseContext
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
                 session.timeToFirstRecommendation = new Date().getTime() - session.startTime
+                session.suggestionType = suggestionResponse.suggestionType
             } else {
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
             }
@@ -649,7 +699,8 @@ export const CodewhispererServerFactory =
             if (session.discardInflightSessionOnNewInvocation) {
                 session.discardInflightSessionOnNewInvocation = false
                 sessionManager.discardSession(session)
-                const streakLength = sessionManager.getAndUpdateStreakLength(false)
+                // TODO add streakLength back once the model is updated
+                // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
@@ -937,7 +988,8 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            const streakLength = sessionManager.getAndUpdateStreakLength(isAccepted)
+            // TODO add streakLength back once the model is updated
+            // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,
@@ -946,8 +998,7 @@ export const CodewhispererServerFactory =
                 addedCharactersForEditSuggestion.length,
                 deletedCharactersForEditSuggestion.length,
                 addedDiagnostics,
-                removedDiagnostics,
-                streakLength
+                removedDiagnostics
             )
         }
 
@@ -965,9 +1016,9 @@ export const CodewhispererServerFactory =
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-            */
+                    The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                    configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -1036,8 +1087,6 @@ export const CodewhispererServerFactory =
             if (!textDocument || !languageId) {
                 return
             }
-
-            logging.log(`Document changed: ${p.textDocument.uri}`)
 
             p.contentChanges.forEach(change => {
                 codePercentageTracker.countTotalTokens(languageId, change.text, false)
