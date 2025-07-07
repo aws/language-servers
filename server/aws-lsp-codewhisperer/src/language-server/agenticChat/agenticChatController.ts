@@ -715,7 +715,12 @@ export class AgenticChatController implements ChatHandlers {
                 params.context,
                 params.tabId
             )
-
+            // Add image context to triggerContext.documentReference for transparency
+            await this.#additionalContextProvider.appendCustomContextToTriggerContext(
+                triggerContext,
+                params.context,
+                params.tabId
+            )
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
                 params,
