@@ -36,14 +36,17 @@ export class QCodeReview {
     private static readonly POLLING_INTERVAL_MS = 10000
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
+    private static readonly MAX_FINDINGS_COUNT = 50
 
     private static readonly ERROR_MESSAGES = {
         MISSING_CLIENT: 'CodeWhisperer client not available',
-        MISSING_ARTIFACTS: `Missing fileLevelArtifacts and folderLevelArtifacts for ${Q_CODE_REVIEW_TOOL_NAME} tool. Need more information from user.`,
+        MISSING_ARTIFACTS: `Missing fileLevelArtifacts and folderLevelArtifacts for ${Q_CODE_REVIEW_TOOL_NAME} tool. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
+        MISSING_FILES_TO_SCAN: `There are no valid files to scan. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
         UPLOAD_FAILED: `Failed to upload artifact for code review in ${Q_CODE_REVIEW_TOOL_NAME} tool.`,
         ANALYSIS_FAILED: `Failed to start code analysis in ${Q_CODE_REVIEW_TOOL_NAME} tool.`,
         SCAN_FAILED: 'Code scan failed',
-        TIMEOUT: (attempts: number) => `Code scan timed out after ${attempts} attempts`,
+        TIMEOUT: (attempts: number) =>
+            `Code scan timed out after ${attempts} attempts. Ask user to provide a smaller size of code to scan.`,
     }
 
     private readonly chat: Features['chat']
@@ -143,7 +146,7 @@ export class QCodeReview {
             return {
                 output: {
                     kind: 'json',
-                    content: this.handleFailure(error, input),
+                    content: this.handleFailure(error),
                     success: false,
                 },
             }
@@ -301,7 +304,7 @@ export class QCodeReview {
                 })
                 return {
                     codeReviewId: jobId,
-                    status,
+                    status: status,
                     errorMessage: statusResponse.errorMessage,
                 }
             }
@@ -329,19 +332,22 @@ export class QCodeReview {
 
     private async processResults(completionResult: any, setup: any, jobId: string) {
         if (completionResult.status !== 'Completed') {
-            return this.handleFailure(completionResult.status, null, setup.scanName, jobId)
+            return this.handleFailure(new Error('Scan failed'), setup.scanName, jobId)
         }
 
         const totalFindings = await this.collectFindings(jobId, setup.isFullReviewRequest, setup.isCodeDiffPresent)
+        let totalFindingsCount = totalFindings.length
 
         this.emitMetric('codeAnalysisSucces', {
             codeScanName: setup.scanName,
             codeReviewId: jobId,
-            findingsCount: totalFindings.length,
+            findingsCount: totalFindingsCount,
         })
 
         const aggregatedCodeScanIssueList = await this.processFindings(
-            totalFindings,
+            totalFindingsCount > QCodeReview.MAX_FINDINGS_COUNT
+                ? totalFindings.slice(0, QCodeReview.MAX_FINDINGS_COUNT)
+                : totalFindings,
             jobId,
             setup.programmingLanguage,
             setup.fileArtifacts,
@@ -355,7 +361,7 @@ export class QCodeReview {
             status: completionResult.status,
             scopeOfReview: setup.isFullReviewRequest ? FULL_REVIEW : PARTIAL_REVIEW,
             result: {
-                message: `${Q_CODE_REVIEW_TOOL_NAME} tool completed successfully. It performed a ${setup.isFullReviewRequest ? 'full' : 'partial'} review and has attached findings.`,
+                message: `${Q_CODE_REVIEW_TOOL_NAME} tool completed successfully.${totalFindingsCount > QCodeReview.MAX_FINDINGS_COUNT ? ` Inform the user that we are limiting findings to top ${QCodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
                 findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
             },
         }
@@ -390,14 +396,13 @@ export class QCodeReview {
         return totalFindings
     }
 
-    private handleFailure(error: any, input?: any, scanName?: string, jobId?: string) {
+    private handleFailure(error: any, scanName?: string, jobId?: string) {
         // if error is of type CancellationError then throw
         if (error instanceof CancellationError) {
             throw error
         }
 
-        const errorData: any = { error: JSON.stringify(error) }
-        if (input) errorData.input = input
+        const errorData: any = { errorMessage: error?.message }
         if (scanName) errorData.codeScanName = scanName
         if (jobId) errorData.codeReviewId = jobId
 
@@ -407,19 +412,9 @@ export class QCodeReview {
 
         this.logging.error(`Error in ${Q_CODE_REVIEW_TOOL_NAME} - ${JSON.stringify(error)}`)
 
-        if (typeof error === 'string') {
-            return {
-                codeReviewId: jobId,
-                status: error,
-                errorMessage:
-                    error === 'Failed' ? QCodeReview.ERROR_MESSAGES.SCAN_FAILED : `Unexpected status: ${error}`,
-            }
-        } else {
-            return {
-                codeReviewId: jobId,
-                status: 'Failed',
-                errorMessage: `${Q_CODE_REVIEW_TOOL_NAME} tool failed with error - ${JSON.stringify(error)}`,
-            }
+        return {
+            status: 'Failed',
+            ...errorData,
         }
     }
 
@@ -474,8 +469,8 @@ export class QCodeReview {
      * Create a zip archive of the files and folders to be scanned and calculate MD5 hash
      * @param fileArtifacts Array of file artifacts containing path and programming language
      * @param folderArtifacts Array of folder artifacts containing path
-     * @param ruleArtifacts Array of file paths to customer selected rules
-     * @param isFullReviewRequest If customer asked for Full review or Partial review
+     * @param ruleArtifacts Array of file paths to user selected rules
+     * @param isFullReviewRequest If user asked for Full review or Partial review
      * @returns An object containing the zip file buffer and its MD5 hash
      */
     private async prepareFilesAndFoldersForUpload(
@@ -500,11 +495,19 @@ export class QCodeReview {
                 !isFullReviewRequest
             )
 
-            // Generate customer code zip buffer
-            const customerCodeBuffer = await QCodeReviewUtils.generateZipBuffer(customerCodeZip)
-            QCodeReviewUtils.logZipStructure(customerCodeZip, 'Customer code', this.logging)
+            let numberOfFilesInCustomerCodeZip = Object.keys(customerCodeZip.files).length
+            if (numberOfFilesInCustomerCodeZip > 0) {
+                this.logging.info(`Total files in customerCodeZip - ${numberOfFilesInCustomerCodeZip}`)
+            } else {
+                this.logging.info(QCodeReview.ERROR_MESSAGES.MISSING_FILES_TO_SCAN)
+                throw new Error(QCodeReview.ERROR_MESSAGES.MISSING_FILES_TO_SCAN)
+            }
 
-            // Add customer code zip to the main artifact zip
+            // Generate user code zip buffer
+            const customerCodeBuffer = await QCodeReviewUtils.generateZipBuffer(customerCodeZip)
+            QCodeReviewUtils.logZipStructure(customerCodeZip, 'user code', this.logging)
+
+            // Add user code zip to the main artifact zip
             codeArtifactZip.file(
                 `${QCodeReview.CODE_ARTIFACT_PATH}/${QCodeReview.CUSTOMER_CODE_ZIP_NAME}`,
                 customerCodeBuffer
@@ -569,8 +572,11 @@ export class QCodeReview {
 
             await QCodeReviewUtils.withErrorHandling(
                 async () => {
-                    const fileContent = await this.workspace.fs.readFile(artifact.path)
-                    customerCodeZip.file(`${QCodeReview.CUSTOMER_CODE_BASE_PATH}${artifact.path}`, fileContent)
+                    let fileName = path.basename(artifact.path)
+                    if (!fileName.startsWith('.') && !QCodeReviewUtils.shouldSkipFile(fileName)) {
+                        const fileContent = await this.workspace.fs.readFile(artifact.path)
+                        customerCodeZip.file(`${QCodeReview.CUSTOMER_CODE_BASE_PATH}${artifact.path}`, fileContent)
+                    }
                 },
                 'Failed to read file',
                 this.logging,

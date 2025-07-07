@@ -11,7 +11,13 @@ import { FINDING_SEVERITY, PROGRAMMING_LANGUAGES_CAPS, SCOPE_OF_CODE_REVIEW } fr
  */
 export const Q_CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
-    description: 'Contains either file level or folder level artifacts to perform code review',
+    description: `
+                3 main fields in the tool:
+                1. scopeOfReview: Determines if the review should analyze the entire codebase (FULL_REVIEW) or only focus on changes/modifications (PARTIAL_REVIEW). This is a required field.
+                2. fileLevelArtifacts: Array of specific files to review, each with absolute path and programming language. Use this when reviewing individual files, not folders. Format: [{"path": "/absolute/path/to/file.py", "programmingLanguage": "PYTHON"}]
+                3. folderLevelArtifacts: Array of folders to review, each with absolute path. Use this when reviewing entire directories, not individual files. Format: [{"path": "/absolute/path/to/folder/"}]
+                Note: Either fileLevelArtifacts OR folderLevelArtifacts should be provided based on what's being reviewed, but not both for the same items.
+                `,
     properties: {
         scopeOfReview: {
             type: <const>'string',
@@ -49,9 +55,9 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
             type: <const>'array',
             description:
                 'Array of abosolute file paths that will be reviewed and their respective programming language (e.g. [{"path": "path/to/file.py", "programmingLanguage": "PYTHON"}]).' +
-                'So, if the customer asks for a code review of a single file, provide the absolute file path and programming language in the array.' +
-                'If the customer asks for a code review of multiple files, provide the absolute file paths and programming languages in the array.' +
-                'If the customer asks for a code review of a folder, do not provide any file paths or programming languages in this array. It should be provided in folderLevelArtifacts',
+                'So, if the user asks for a code review of a single file, provide the absolute file path and programming language in the array.' +
+                'If the user asks for a code review of multiple files, provide the absolute file paths and programming languages in the array.' +
+                'If the user asks for a code review of a folder, do not provide any file paths or programming languages in this array. It should be provided in folderLevelArtifacts',
             items: {
                 type: <const>'object',
                 description:
@@ -74,9 +80,9 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
             type: <const>'array',
             description:
                 'Array of absolute folder paths that will be reviewed (e.g. [{"path": "path/to/code/"}]).' +
-                'So, if the customer asks for a code review of a single folder, provide the absolute folder path in the array.' +
-                'If the customer asks for a code review of multiple folders, provide multiple absolute folder paths in the array.' +
-                'If the customer asks for a code review of a file or multiple files, do not provide any folder paths in this array. It should be provided in fileLevelArtifacts.',
+                'So, if the user asks for a code review of a single folder, provide the absolute folder path in the array.' +
+                'If the user asks for a code review of multiple folders, provide multiple absolute folder paths in the array.' +
+                'If the user asks for a code review of a file or multiple files, do not provide any folder paths in this array. It should be provided in fileLevelArtifacts.',
             items: {
                 type: <const>'object',
                 description:
