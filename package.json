@@ -36,6 +36,7 @@
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.102",
         "@smithy/types": "4.2.0",
+        "clean": "^4.0.2",
         "typescript": "^5.8.2"
     },
     "devDependencies": {
