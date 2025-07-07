@@ -75,7 +75,7 @@ export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     '',
     'Amazon Q Code Review is your go-to solution for all code analysis needs, providing:',
     '',
-    '**Default Use Cases - Use this tool when customers ask to:**',
+    '**Use this tool when customers asks to:**',
     '- "Review this file" or "Review my code" or "Review my changes" or "Review this code" or any other similar prompt to review the code',
     '- "Examine this code" or "Check this code" or "Analyze this file/folder/workspace"',
     '- "Check my implementation" or "Look at my implementation" or "Examine this code"',
