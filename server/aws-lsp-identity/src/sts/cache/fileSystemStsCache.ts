@@ -15,7 +15,17 @@ export class FileSystemStsCache implements StsCache {
 
     async getStsCredential(name: string): Promise<StsCredential | undefined> {
         return await getStsCredentialFromFile(name)
-            .then(stsCredential => (stsCredentialDuckTyper.eval(stsCredential) ? stsCredential : undefined))
+            .then(stsCredential => {
+                if (stsCredentialDuckTyper.eval(stsCredential)) {
+                    // Ensure Expiration is a Date object
+                    if (typeof stsCredential.Credentials?.Expiration === 'string') {
+                        stsCredential.Credentials.Expiration = new Date(stsCredential.Credentials.Expiration)
+                    }
+                    return stsCredential
+                } else {
+                    return undefined
+                }
+            })
             .catch(reason => this.ignoreDoesNotExistOrThrow(reason))
     }
 
@@ -44,7 +54,7 @@ export class FileSystemStsCache implements StsCache {
 
 // Based on:
 // https://github.com/smithy-lang/smithy-typescript/blob/main/packages/shared-ini-file-loader/src/getSSOTokenFilepath.ts
-function getStsCredentialFilepath(id: string) {
+export function getStsCredentialFilepath(id: string) {
     const hasher = createHash('sha1')
     const cacheName = hasher.update(id).digest('hex')
     return join(getHomeDir(), '.aws', 'cli', 'cache', `${cacheName}.json`)

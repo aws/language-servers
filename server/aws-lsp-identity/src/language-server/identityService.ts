@@ -202,7 +202,7 @@ export class IdentityService {
                         accessKeyId: stsCredentials.Credentials.AccessKeyId!,
                         secretAccessKey: stsCredentials.Credentials.SecretAccessKey!,
                         sessionToken: stsCredentials.Credentials.SessionToken!,
-                        expiration: new Date(stsCredentials.Credentials.Expiration!),
+                        expiration: stsCredentials.Credentials.Expiration!,
                     }
                 } else if (options.generateOnInvalidStsCredential) {
                     // Generate STS credentials and cache them
