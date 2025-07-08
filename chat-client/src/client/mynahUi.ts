@@ -767,6 +767,7 @@ export const createMynahUi = (
                             label: 'image',
                             icon: icon,
                             content: bytes,
+                            id: fileName,
                         }
                     })
                 )
@@ -1535,7 +1536,7 @@ ${params.message}`,
         }
         const commands: QuickActionCommand[] = []
         for (const filePath of params.filePaths) {
-            const fileName = filePath.split('/').pop() || filePath
+            const fileName = filePath.split(/[\\/]/).pop() || filePath
             if (params.fileType === 'image') {
                 commands.push({
                     command: fileName,
@@ -1543,6 +1544,7 @@ ${params.message}`,
                     label: 'image',
                     route: [filePath],
                     icon: MynahIcons.IMAGE,
+                    id: fileName,
                 })
             }
         }
