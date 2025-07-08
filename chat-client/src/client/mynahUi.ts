@@ -93,6 +93,7 @@ export interface InboundChatApi {
     openTab(requestId: string, params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
+    executeShellCommandShortCut(params: any): void
     listRules(params: ListRulesResult): void
     conversationClicked(params: ConversationClickResult): void
     ruleClicked(params: RuleClickResult): void
@@ -1443,6 +1444,38 @@ ${params.message}`,
         messager.onError(params)
     }
 
+    const executeShellCommandShortCut = (params: any) => {
+        const tabId = mynahUi.getSelectedTabId()
+        if (!tabId) return
+
+        const chatItems = mynahUi.getTabData(tabId)?.getStore()?.chatItems || []
+        const buttonId = params.buttonId
+
+        let messageId
+        for (const item of chatItems) {
+            if (buttonId === 'stop-shell-command' && item.buttons && item.buttons.some(b => b.id === buttonId)) {
+                messageId = item.messageId
+                break
+            }
+            if (item.header?.buttons && item.header.buttons.some(b => b.id === buttonId)) {
+                messageId = item.messageId
+                break
+            }
+        }
+
+        if (messageId) {
+            const payload: ButtonClickParams = {
+                tabId,
+                messageId,
+                buttonId,
+            }
+            messager.onButtonClick(payload)
+            if (buttonId === 'stop-shell-command') {
+                messager.onStopChatResponse(tabId)
+            }
+        }
+    }
+
     const openTab = (requestId: string, params: OpenTabParams) => {
         if (params.tabId) {
             if (params.tabId !== mynahUi.getSelectedTabId()) {
@@ -1665,6 +1698,7 @@ ${params.message}`,
         openTab: openTab,
         sendContextCommands: sendContextCommands,
         sendPinnedContext: sendPinnedContext,
+        executeShellCommandShortCut: executeShellCommandShortCut,
         listConversations: listConversations,
         listRules: listRules,
         conversationClicked: conversationClicked,

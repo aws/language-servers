@@ -184,6 +184,9 @@ export const createChat = (
         }
 
         switch (message?.command) {
+            case 'executeShellCommandShortCut':
+                mynahApi.executeShellCommandShortCut(message.params)
+                break
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break

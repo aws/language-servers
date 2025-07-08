@@ -5,6 +5,7 @@
 
 import * as crypto from 'crypto'
 import * as path from 'path'
+import * as os from 'os'
 import {
     ChatTriggerType,
     Origin,
@@ -77,6 +78,8 @@ import {
     TabRemoveParams,
     TabChangeParams,
     InlineChatResult,
+    KeyBinding,
+    KeybindingResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuid } from 'uuid'
 import {
@@ -1963,6 +1966,92 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
+    #getKeybindingInfo(commandId: string): KeybindingResult {
+        const homeDir = os.homedir()
+        let keybindingsPath: string
+
+        // Get the correct keybindings.json path for the current platform
+        switch (os.platform()) {
+            case 'darwin':
+                keybindingsPath = path.join(homeDir, 'Library/Application Support/Code/User/keybindings.json')
+                break
+            case 'linux':
+                keybindingsPath = path.join(homeDir, '.config/Code/User/keybindings.json')
+                break
+            case 'win32':
+                keybindingsPath = path.join(homeDir, 'AppData/Roaming/Code/User/keybindings.json')
+                break
+            default:
+                return { key: null, isExplicitlyDisabled: false, isInKeybindingsFile: false }
+        }
+
+        try {
+            // Check if keybindings file exists
+            if (!this.#features.workspace.fs.exists(keybindingsPath)) {
+                return { key: null, isExplicitlyDisabled: false, isInKeybindingsFile: false }
+            }
+
+            // Read and parse the keybindings file
+            const content = this.#features.workspace.fs.readFileSync(keybindingsPath)
+            const keybindings: KeyBinding[] = JSON.parse(content)
+
+            let activeKey: string | null = null
+            let isExplicitlyDisabled = false
+            let isInKeybindingsFile = false
+
+            // Process all keybindings for this command
+            for (const binding of keybindings) {
+                if (binding.command === commandId) {
+                    // Positive entry - this is an active keybinding
+                    isInKeybindingsFile = true
+                    activeKey = binding.key || null
+
+                    // Check if key is empty (user removed the keybinding)
+                    if (!binding.key || binding.key.trim() === '') {
+                        isExplicitlyDisabled = true
+                        activeKey = null
+                    }
+                } else if (binding.command === `-${commandId}`) {
+                    // Negative entry - this command is explicitly disabled
+                    isInKeybindingsFile = true
+                    isExplicitlyDisabled = true
+                    activeKey = null
+                }
+            }
+
+            return {
+                key: activeKey,
+                isExplicitlyDisabled,
+                isInKeybindingsFile,
+            }
+        } catch (error) {
+            console.error('Error reading keybindings:', error)
+            return { key: null, isExplicitlyDisabled: false, isInKeybindingsFile: false }
+        }
+    }
+
+    #getKeybinding(commandId: string, defaultKey: string): string | null {
+        const info = this.#getKeybindingInfo(commandId)
+
+        if (info.isExplicitlyDisabled) {
+            // User explicitly disabled this keybinding
+            return null
+        }
+
+        if (info.isInKeybindingsFile && info.key) {
+            // User has a custom keybinding
+            return info.key
+        }
+
+        if (!info.isInKeybindingsFile) {
+            // Not in keybindings.json, use default
+            return defaultKey
+        }
+
+        // In keybindings.json but no key (shouldn't happen, but fallback to default)
+        return defaultKey
+    }
+
     #processToolConfirmation(
         toolUse: ToolUse,
         requiresAcceptance: Boolean,
@@ -1992,13 +2081,20 @@ export class AgenticChatController implements ChatHandlers {
         switch (toolName) {
             case 'executeBash': {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
+                // get user's keybinding.json depend on OS
+                // if this return null = user does not change default keybind
+                const runKey = this.#getKeybinding('aws.amazonq.runCmdExecution', '&#8984; &#8997; R')
+                const rejectKey = this.#getKeybinding('aws.amazonq.rejectCmdExecution', '&#8984; &#8997; H')
+                this.#log('run', JSON.stringify(runKey, null, 2))
+                this.#log('reject', JSON.stringify(rejectKey, null, 2))
                 buttons = requiresAcceptance
                     ? [
-                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
+                          { id: 'run-shell-command', text: 'Run', icon: 'play', description: `Run ${runKey}` },
                           {
                               id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
+                              description: `Run ${rejectKey}`,
                               icon: 'cancel',
                           },
                       ]
