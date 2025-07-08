@@ -185,9 +185,10 @@ import {
     qProName,
 } from '../paidTier/paidTier'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
-import { modelOptions, modelOptionsForRegion } from './modelSelection'
+import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
+import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -588,7 +589,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
         const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
+        const models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         const { data: session, success } = sessionResult
@@ -603,18 +604,13 @@ export class AgenticChatController implements ChatHandlers {
         const selectedModelId =
             savedModelId && models.some(model => model.id === savedModelId)
                 ? savedModelId
-                : this.#getLatestAvailableModel(region).id
+                : getLatestAvailableModel(region).id
         session.modelId = selectedModelId
         return {
             tabId: params.tabId,
             models: models,
             selectedModelId: selectedModelId,
         }
-    }
-
-    #getLatestAvailableModel(region: string | undefined, exclude?: string): Model {
-        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
-        return models.reverse().find(model => model.id !== exclude) ?? models[models.length - 1]
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {
@@ -684,6 +680,9 @@ export class AgenticChatController implements ChatHandlers {
                     session.pairProgrammingMode,
                     session.getConversationType()
                 )
+                metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+                metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+                metric.setDimension('enabled', session.pairProgrammingMode)
                 await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
             })
             session.setConversationType('AgenticChat')
@@ -2558,6 +2557,8 @@ export class AgenticChatController implements ChatHandlers {
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+        metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+        metric.setDimension('enabled', agenticCodingMode)
 
         metric.metric.requestIds = [requestID]
         metric.metric.cwsprChatMessageId = errorMessageId
