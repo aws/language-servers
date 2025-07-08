@@ -17,7 +17,7 @@
         "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 node scripts/dev-server.js start",
         "stop-dev-server": "node scripts/dev-server.js stop",
         "test": "node scripts/test-runner.js",
-        "test-integ": "npm run package && mocha --timeout 30000 \"./out/**/*Integ.test.js\" --retries 2",
+        "test-integ": "npm run package && npm run package:prod && mocha --timeout 30000 \"./out/**/*Integ.test.js\" --retries 2",
         "test-bundles": "node scripts/test-bundles.js",
         "local-build": "node scripts/local-build.js"
     },
