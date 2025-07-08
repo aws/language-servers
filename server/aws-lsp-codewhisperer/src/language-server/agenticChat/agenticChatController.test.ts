@@ -55,8 +55,8 @@ import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
-import * as constants from './constants'
-import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
+import * as constants from './constants/constants'
+import { GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT, GENERIC_ERROR_MS } from './constants/constants'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
     AmazonQError,
@@ -183,7 +183,7 @@ describe('AgenticChatController', () => {
 
     beforeEach(() => {
         // Override the response timeout for tests to avoid long waits
-        sinon.stub(constants, 'responseTimeoutMs').value(100)
+        sinon.stub(constants, 'RESPONSE_TIMEOUT_MS').value(100)
 
         sinon.stub(chokidar, 'watch').returns({
             on: sinon.stub(),
@@ -1129,7 +1129,7 @@ describe('AgenticChatController', () => {
         })
 
         it('truncate input to 500k character ', async function () {
-            const input = 'X'.repeat(generateAssistantResponseInputLimit + 10)
+            const input = 'X'.repeat(GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT + 10)
             generateAssistantResponseStub.restore()
             generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
             generateAssistantResponseStub.callsFake(() => {})
@@ -1139,7 +1139,7 @@ describe('AgenticChatController', () => {
                 generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(
                 calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
-                generateAssistantResponseInputLimit
+                GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
             )
         })
         it('shows generic errorMsg on internal errors', async function () {
@@ -1149,7 +1149,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
         })
 
         const authFollowUpTestCases = [
@@ -1209,7 +1209,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
             assert.strictEqual(typedChatResult.message, 'some error')
         })
 
@@ -1235,7 +1235,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
             assert.strictEqual(typedChatResult.message, 'invalid state')
         })
 
