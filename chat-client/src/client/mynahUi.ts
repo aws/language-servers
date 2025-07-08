@@ -805,7 +805,7 @@ export const createMynahUi = (
             dragOverlayIcon: MynahIcons.IMAGE,
             texts: {
                 ...uiComponentsTexts,
-                dragOverlayText: 'Add Image to Context',
+                dragOverlayText: 'Add image to context',
                 // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
