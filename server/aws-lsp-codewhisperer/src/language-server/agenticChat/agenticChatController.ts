@@ -682,6 +682,9 @@ export class AgenticChatController implements ChatHandlers {
                     session.pairProgrammingMode,
                     session.getConversationType()
                 )
+                metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+                metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+                metric.setDimension('enabled', session.pairProgrammingMode)
                 await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
             })
             session.setConversationType('AgenticChat')
@@ -2483,6 +2486,8 @@ export class AgenticChatController implements ChatHandlers {
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+        metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+        metric.setDimension('enabled', agenticCodingMode)
 
         metric.metric.requestIds = [requestID]
         metric.metric.cwsprChatMessageId = errorMessageId
