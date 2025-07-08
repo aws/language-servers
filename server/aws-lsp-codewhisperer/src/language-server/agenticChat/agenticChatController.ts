@@ -849,7 +849,6 @@ export class AgenticChatController implements ChatHandlers {
         let iterationCount = 0
         let shouldDisplayMessage = true
         metric.recordStart()
-        let pathsToRules = pinnedContext?.map(context => context.path)
 
         while (true) {
             iterationCount++
@@ -1037,14 +1036,7 @@ export class AgenticChatController implements ChatHandlers {
             session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
-                toolResults = await this.#processToolUses(
-                    pendingToolUses,
-                    chatResultStream,
-                    session,
-                    tabId,
-                    token,
-                    pathsToRules
-                )
+                toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
                 if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                     shouldDisplayMessage = false
@@ -1244,8 +1236,7 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
         tabId: string,
-        token?: CancellationToken,
-        pathsToRules?: string[]
+        token?: CancellationToken
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
 
@@ -1442,12 +1433,10 @@ export class AgenticChatController implements ChatHandlers {
                 if (toolUse.name === QCodeReview.toolName) {
                     try {
                         let initialInput = JSON.parse(JSON.stringify(toolUse.input))
-                        let ruleArtifacts = this.#additionalContextProvider.collectWorkspaceRules(tabId)
+                        let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
                         if (ruleArtifacts !== undefined || ruleArtifacts !== null) {
                             this.#features.logging.info(`RuleArtifacts: ${JSON.stringify(ruleArtifacts)}`)
-                        }
-                        if (pathsToRules != undefined) {
-                            let pathsToRulesMap = pathsToRules.map(rulePath => ({ path: rulePath }))
+                            let pathsToRulesMap = ruleArtifacts.map(ruleArtifact => ({ path: ruleArtifact.id }))
                             this.#features.logging.info(`PathsToRules: ${JSON.stringify(pathsToRulesMap)}`)
                             initialInput['ruleArtifacts'] = pathsToRulesMap
                         }
