@@ -275,10 +275,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             ],
         }
         this.client = createCodeWhispererTokenClient(options, sdkInitializator, logging)
-
-        setInterval(() => {
-            this.clearCachedSuggestions()
-        }, this.prefetchConfig.cacheClearIntervalInMs)
     }
 
     getCredentialsType(): CredentialsType {
@@ -378,8 +374,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 setTimeout(() => {
                     this.chainedGenerateCompletionCall(originalRequest, r, textDocument, 0)
                         .catch(e => {})
-                        .finally(() => {
+                        .finally(async () => {
                             this.isPrefetchInProgress = false
+                            // Cache is only valid for x seconds
+                            setTimeout(() => {
+                                this.clearCachedSuggestions()
+                            }, this.prefetchConfig.cacheClearIntervalInMs)
                         })
                 }, this.prefetchConfig.duration)
             }
@@ -434,14 +434,6 @@ ${r.suggestions[0]?.content ?? '[NO SUGGESTION'}`
                 baseResponse.suggestions[0] &&
                 response.suggestions[0].content !== baseResponse.suggestions[0].content
 
-            this.logging.info(`[NEP] prefetch success @chainedGenerateCompletionCall:
-- file: ${baseRequest.fileContext.filename}
-- depth: ${depth}
-- current prefetch suggestion length: ${this.prefetchSuggestions.length}
-- is prefetch response valid: ${isResponseValid}
-- suggestion (next line):
-${response.suggestions[0].content}`)
-
             if (isResponseValid) {
                 this.prefetchSuggestions.push({
                     id: baseResponse.responseContext.codewhispererSessionId, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
@@ -453,6 +445,14 @@ ${response.suggestions[0].content}`)
                     await this.chainedGenerateCompletionCall(request, response, textDocument, depth + 1, token)
                 }, this.prefetchConfig.duration)
             }
+
+            this.logging.info(`[NEP] prefetch success @chainedGenerateCompletionCall:
+- file: ${baseRequest.fileContext.filename}
+- depth: ${depth}
+- current prefetch suggestion length: ${this.prefetchSuggestions.length}
+- is prefetch response valid: ${isResponseValid}
+- suggestion (next line):
+${response.suggestions[0].content}`)
         } catch (e) {
             this.logging.error(`[NEP] prefetch failure @chainedGenerateCompletionCall:
 - file: ${baseRequest.fileContext.filename}
