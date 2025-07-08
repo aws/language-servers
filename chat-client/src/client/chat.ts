@@ -108,7 +108,7 @@ import {
     OPEN_FILE_DIALOG_METHOD,
     OpenFileDialogResult,
 } from '@aws/language-server-runtimes-types'
-import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
+import { ConfigTexts, MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
@@ -131,6 +131,7 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     pairProgrammingAcknowledged?: boolean
     agenticMode?: boolean
     modelSelectionEnabled?: boolean
+    stringOverrides?: Partial<ConfigTexts>
 }
 
 export const createChat = (
@@ -537,7 +538,8 @@ export const createChat = (
         config?.pairProgrammingAcknowledged ?? false,
         chatClientAdapter,
         featureConfig,
-        !!config?.agenticMode
+        !!config?.agenticMode,
+        config?.stringOverrides
     )
 
     mynahApi = api
