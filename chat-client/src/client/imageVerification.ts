@@ -118,7 +118,29 @@ async function getClientImageDimensions(file: File): Promise<{ width: number; he
 
         img.onerror = () => {
             URL.revokeObjectURL(objectUrl)
-            reject(new Error('Failed to load image'))
+            // Fall back to FileReader if ObjectURL fails
+            const reader = new FileReader()
+
+            reader.onload = e => {
+                const fallbackImg = new Image()
+
+                fallbackImg.onload = () => {
+                    resolve({ width: fallbackImg.width, height: fallbackImg.height })
+                }
+
+                fallbackImg.onerror = () => {
+                    reject(new Error('Failed to load image'))
+                }
+
+                if (e.target?.result) {
+                    fallbackImg.src = e.target.result as string
+                } else {
+                    reject(new Error('Failed to read image file'))
+                }
+            }
+
+            reader.onerror = reject
+            reader.readAsDataURL(file)
         }
 
         img.src = objectUrl
