@@ -6,7 +6,7 @@
 /* eslint-disable import/no-nodejs-modules */
 
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { SKIP_FILE_EXTENSIONS, SKIP_DIRECTORIES } from './qCodeReviewConstants'
+import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE } from './qCodeReviewConstants'
 import JSZip = require('jszip')
 import { exec } from 'child_process'
 import * as path from 'path'
@@ -27,7 +27,7 @@ export class QCodeReviewUtils {
         if (!extension || extension.trim() === '') {
             return true
         } else {
-            return SKIP_FILE_EXTENSIONS.includes(extension)
+            return !EXTENSION_TO_LANGUAGE.hasOwnProperty(extension)
         }
     }
 
@@ -181,7 +181,7 @@ export class QCodeReviewUtils {
      * @returns Promise resolving to compressed buffer
      */
     public static async generateZipBuffer(zip: JSZip): Promise<Buffer> {
-        return zip.generateAsync({
+        return await zip.generateAsync({
             type: 'nodebuffer',
             compression: 'DEFLATE',
             compressionOptions: { level: 9 },

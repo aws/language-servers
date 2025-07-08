@@ -8,7 +8,6 @@
 import { CodeWhispererServiceToken } from '../../../../shared/codeWhispererService'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import {
-    PROGRAMMING_LANGUAGES_LOWERCASE,
     Q_CODE_REVIEW_TOOL_NAME,
     Q_CODE_REVIEW_TOOL_DESCRIPTION,
     FULL_REVIEW,
@@ -191,8 +190,9 @@ export class QCodeReview {
 
         const isFullReviewRequest = validatedInput.scopeOfReview?.toUpperCase() === FULL_REVIEW
         const artifactType = fileArtifacts.length > 0 ? 'FILE' : 'FOLDER'
-        const programmingLanguage =
-            fileArtifacts.length > 0 ? this.determineProgrammingLanguageFromFileArtifacts(fileArtifacts) : 'java'
+        // Setting java as default language
+        // TODO: Remove requirement of programming language
+        const programmingLanguage = 'java'
         const scanName = 'Standard-' + randomUUID()
 
         this.logging.info(`Agentic scan name: ${scanName}`)
@@ -462,28 +462,6 @@ export class QCodeReview {
         }
         this.logging.info(`Emitting telemetry metric: ${metricName} with data: ${JSON.stringify(metricPayload.data)}`)
         this.telemetry.emitMetric(metricPayload)
-    }
-
-    /**
-     * Extracts the programming language from file artifacts
-     * @param artifacts Array of file artifacts containing path and programming language
-     * @returns The programming language in lowercase
-     */
-    private determineProgrammingLanguageFromFileArtifacts(
-        artifacts: Array<{ path: string; programmingLanguage: string }>
-    ): string {
-        if (!artifacts || artifacts.length === 0) {
-            throw new Error('Missing artifacts to get programming language')
-        }
-
-        // Use the programming language of the first artifact as default
-        const firstLanguage = artifacts[0].programmingLanguage.toLowerCase()
-
-        if (PROGRAMMING_LANGUAGES_LOWERCASE.includes(firstLanguage)) {
-            return firstLanguage
-        } else {
-            throw new Error(`Programming language : ${firstLanguage} is not supported for QCodeReview`)
-        }
     }
 
     /**

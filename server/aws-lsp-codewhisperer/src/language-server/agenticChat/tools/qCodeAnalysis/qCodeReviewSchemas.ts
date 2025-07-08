@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod'
-import { FINDING_SEVERITY, PROGRAMMING_LANGUAGES_CAPS, SCOPE_OF_CODE_REVIEW } from './qCodeReviewConstants'
+import { FINDING_SEVERITY, SCOPE_OF_CODE_REVIEW } from './qCodeReviewConstants'
 
 /**
  * Input schema for QCodeReview tool
@@ -14,7 +14,7 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
     description: `
                 3 main fields in the tool:
                 1. scopeOfReview: Determines if the review should analyze the entire codebase (FULL_REVIEW) or only focus on changes/modifications (PARTIAL_REVIEW). This is a required field.
-                2. fileLevelArtifacts: Array of specific files to review, each with absolute path and programming language. Use this when reviewing individual files, not folders. Format: [{"path": "/absolute/path/to/file.py", "programmingLanguage": "PYTHON"}]
+                2. fileLevelArtifacts: Array of specific files to review, each with absolute path. Use this when reviewing individual files, not folders. Format: [{"path": "/absolute/path/to/file.py"}]
                 3. folderLevelArtifacts: Array of folders to review, each with absolute path. Use this when reviewing entire directories, not individual files. Format: [{"path": "/absolute/path/to/folder/"}]
                 Note: Either fileLevelArtifacts OR folderLevelArtifacts should be provided based on what's being reviewed, but not both for the same items.
                 `,
@@ -54,26 +54,21 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
         fileLevelArtifacts: {
             type: <const>'array',
             description:
-                'Array of abosolute file paths that will be reviewed and their respective programming language (e.g. [{"path": "path/to/file.py", "programmingLanguage": "PYTHON"}]).' +
-                'So, if the user asks for a code review of a single file, provide the absolute file path and programming language in the array.' +
-                'If the user asks for a code review of multiple files, provide the absolute file paths and programming languages in the array.' +
+                'Array of abosolute file paths that will be reviewed (e.g. [{"path": "absolute/path/to/file.py"}]).' +
+                'So, if the user asks for a code review of a single file, provide the absolute file path in the array.' +
+                'If the user asks for a code review of multiple files, provide the absolute file paths in the array.' +
                 'If the user asks for a code review of a folder, do not provide any file paths or programming languages in this array. It should be provided in folderLevelArtifacts',
             items: {
                 type: <const>'object',
                 description:
-                    'Array item containing absolute path of artifact and the programming language (e.g. {"path": "path/to/file.py", "programmingLanguage": "PYTHON"})',
+                    'Array item containing absolute path of artifact (e.g. {"path": "absolute/path/to/file.py"})',
                 properties: {
                     path: {
                         type: <const>'string',
                         description: 'The absolute path of the file that will be scanned',
                     },
-                    programmingLanguage: {
-                        type: <const>'string',
-                        description: 'The type of programming language of the file based on file extension',
-                        enum: PROGRAMMING_LANGUAGES_CAPS,
-                    },
                 },
-                required: ['path', 'programmingLanguage'] as const,
+                required: ['path'] as const,
             },
         },
         folderLevelArtifacts: {
@@ -109,7 +104,6 @@ export const Z_Q_CODE_REVIEW_INPUT_SCHEMA = z.object({
         .array(
             z.object({
                 path: z.string(),
-                programmingLanguage: z.enum(PROGRAMMING_LANGUAGES_CAPS as [string, ...string[]]),
             })
         )
         .optional(),
