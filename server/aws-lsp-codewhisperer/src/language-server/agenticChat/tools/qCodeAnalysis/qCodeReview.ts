@@ -516,7 +516,7 @@ export class QCodeReview {
                 !isFullReviewRequest
             )
 
-            let numberOfFilesInCustomerCodeZip = Object.keys(customerCodeZip.files).length
+            let numberOfFilesInCustomerCodeZip = QCodeReviewUtils.countZipFiles(customerCodeZip)
             if (numberOfFilesInCustomerCodeZip > 0) {
                 this.logging.info(`Total files in customerCodeZip - ${numberOfFilesInCustomerCodeZip}`)
             } else {
@@ -525,7 +525,7 @@ export class QCodeReview {
 
             // Generate user code zip buffer
             const customerCodeBuffer = await QCodeReviewUtils.generateZipBuffer(customerCodeZip)
-            QCodeReviewUtils.logZipStructure(customerCodeZip, 'user code', this.logging)
+            QCodeReviewUtils.logZipStructure(customerCodeZip, 'User code', this.logging)
 
             // Add user code zip to the main artifact zip
             codeArtifactZip.file(
@@ -554,7 +554,7 @@ export class QCodeReview {
             // Calculate MD5 hash of the zip buffer
             const md5Hash = crypto.createHash('md5').update(zipBuffer).digest('hex')
 
-            this.logging.info(`Created zip archive, size: ${zipBuffer.length} bytes, MD5: ${md5Hash}`)
+            this.logging.info(`Created zip archive, size: ${zipBuffer.byteLength} bytes, MD5: ${md5Hash}`)
 
             return { zipBuffer, md5Hash, isCodeDiffPresent }
         } catch (error) {
@@ -588,14 +588,14 @@ export class QCodeReview {
         let codeDiff = ''
 
         for (const artifact of fileArtifacts) {
-            this.logging.info(`Adding file to zip: ${artifact.path}`)
-
             await QCodeReviewUtils.withErrorHandling(
                 async () => {
                     let fileName = path.basename(artifact.path)
                     if (!fileName.startsWith('.') && !QCodeReviewUtils.shouldSkipFile(fileName)) {
                         const fileContent = await this.workspace.fs.readFile(artifact.path)
                         customerCodeZip.file(`${QCodeReview.CUSTOMER_CODE_BASE_PATH}${artifact.path}`, fileContent)
+                    } else {
+                        this.logging.info(`Skipping file - ${artifact.path}`)
                     }
                 },
                 'Failed to read file',
@@ -617,8 +617,6 @@ export class QCodeReview {
         let codeDiff = ''
 
         for (const folderArtifact of folderArtifacts) {
-            this.logging.info(`Adding folder to zip: ${folderArtifact.path}`)
-
             await QCodeReviewUtils.withErrorHandling(
                 async () => {
                     await this.addFolderToZip(customerCodeZip, folderArtifact.path, QCodeReview.CUSTOMER_CODE_BASE_PATH)
@@ -650,6 +648,7 @@ export class QCodeReview {
 
                 if (entry.isFile()) {
                     if (name.startsWith('.') || QCodeReviewUtils.shouldSkipFile(name)) {
+                        this.logging.info(`Skipping file - ${fullPath}`)
                         continue
                     }
 
@@ -657,6 +656,7 @@ export class QCodeReview {
                     zip.file(`${zipPath}${fullPath}`, content)
                 } else if (entry.isDirectory()) {
                     if (QCodeReviewUtils.shouldSkipDirectory(name)) {
+                        this.logging.info(`Skipping directory - ${fullPath}`)
                         continue
                     }
 

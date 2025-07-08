@@ -24,7 +24,11 @@ export class QCodeReviewUtils {
      */
     public static shouldSkipFile(fileName: string): boolean {
         const extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase()
-        return SKIP_FILE_EXTENSIONS.includes(extension)
+        if (!extension || extension.trim() === '') {
+            return true
+        } else {
+            return SKIP_FILE_EXTENSIONS.includes(extension)
+        }
     }
 
     /**
@@ -148,8 +152,27 @@ export class QCodeReviewUtils {
     public static logZipStructure(zip: JSZip, zipName: string, logging: Features['logging']): void {
         logging.info(`${zipName} zip structure:`)
         Object.keys(zip.files).forEach(filePath => {
-            logging.info(`  ${filePath}`)
+            let item = zip.files[filePath]
+            if (!item.dir) {
+                logging.info(`  ${filePath}`)
+            }
         })
+    }
+
+    /**
+     * Count number of files in zip
+     * @param zip JSZip instance
+     * @returns number of files in zip
+     */
+    public static countZipFiles(zip: JSZip): number {
+        let count = 0
+        Object.keys(zip.files).forEach(filePath => {
+            let item = zip.files[filePath]
+            if (!item.dir) {
+                count += 1
+            }
+        })
+        return count
     }
 
     /**

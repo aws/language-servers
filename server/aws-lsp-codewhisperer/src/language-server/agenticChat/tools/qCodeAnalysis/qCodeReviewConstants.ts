@@ -171,6 +171,13 @@ export const SKIP_FILE_EXTENSIONS = [
     '.log',
     '.tmp',
     '.temp', // Temporary files
+    '.node',
+    '.txt',
+    '.html',
+    '.css',
+    '.wasm',
+    '.a',
+    '.dylib',
 ]
 
 /**
