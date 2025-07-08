@@ -50,6 +50,7 @@ import {
     ChatItemButton,
     MynahIcons,
     CustomQuickActionCommand,
+    ConfigTexts,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -310,7 +311,8 @@ export const createMynahUi = (
     pairProgrammingCardAcknowledged: boolean,
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>,
-    agenticMode?: boolean
+    agenticMode?: boolean,
+    stringOverrides?: Partial<ConfigTexts>
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -804,6 +806,7 @@ export const createMynahUi = (
                 // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
+                ...stringOverrides,
             },
             // Total model context window limit 600k.
             // 500k for user input, 100k for context, history, system prompt.
