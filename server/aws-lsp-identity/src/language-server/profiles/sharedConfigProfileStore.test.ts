@@ -95,7 +95,6 @@ describe('SharedConfigProfileStore', async () => {
                         aws_access_key_id: 'AAAAAAAA',
                         aws_secret_access_key: 'BBBBBBBB',
                         aws_session_token: undefined,
-                        role_arn: undefined,
                     },
                 },
                 {
@@ -191,7 +190,6 @@ describe('SharedConfigProfileStore', async () => {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
                             aws_session_token: undefined,
-                            role_arn: undefined,
                         },
                     },
                     {
@@ -293,7 +291,6 @@ describe('SharedConfigProfileStore', async () => {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
                             aws_session_token: undefined,
-                            role_arn: undefined,
                         },
                     },
                     {
@@ -364,7 +361,6 @@ describe('SharedConfigProfileStore', async () => {
                         aws_access_key_id: 'AAAAAAAA',
                         aws_secret_access_key: 'BBBBBBBB',
                         aws_session_token: undefined,
-                        role_arn: undefined,
                     },
                 },
                 {

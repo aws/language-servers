@@ -34,6 +34,7 @@ export const ProfileFields = {
     aws_secret_access_key: 'aws_secret_access_key',
     aws_session_token: 'aws_session_token',
     role_arn: 'role_arn',
+    credential_process: 'credential_process',
 } as const
 
 export const SsoSessionFields = {
@@ -55,6 +56,7 @@ export const profileDuckTypers = {
         .requireProperty(ProfileFields.aws_secret_access_key)
         .optionalProperty(ProfileFields.aws_session_token)
         .optionalProperty(ProfileFields.role_arn)
+        .optionalProperty(ProfileFields.credential_process)
         .disallowProperty(ProfileFields.sso_session)
         .disallowProperty(ProfileFields.sso_account_id)
         .disallowProperty(ProfileFields.sso_role_name),

@@ -38,6 +38,7 @@ import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/S
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { IAMClient, SimulatePrincipalPolicyCommand } from '@aws-sdk/client-iam'
+import { getProcessCredentials } from '../providers/processProvider'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
@@ -185,6 +186,7 @@ export class IdentityService {
                 sessionToken: profile.settings.aws_session_token,
             }
 
+            // Assume the role matching the found ARN
             if (profile.settings.role_arn) {
                 // Try to get the STS credentials from cache
                 const roleArn = profile.settings.role_arn
@@ -234,10 +236,10 @@ export class IdentityService {
                     .catch(reason => {
                         this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
                     })
-
-                this.observability.logging.info(`Successfully retrieved STS credential from role assumption`)
-            } else {
-                this.observability.logging.info(`Successfully retrieved IAM/STS credential.`)
+            }
+            // Get the credentials from the process output
+            else if (profile.settings.credential_process) {
+                credentials = await getProcessCredentials(profile.settings.credential_process)
             }
 
             // Validate permissions on user or assumed role
