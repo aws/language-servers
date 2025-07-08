@@ -3559,6 +3559,11 @@ export class AgenticChatController implements ChatHandlers {
         toolUseStartTimes: Record<string, number>,
         toolUseLoadingTimeouts: Record<string, NodeJS.Timeout>
     ) {
+        const canWrite = new Set(this.#features.agent.getBuiltInWriteToolNames())
+        if (toolUseEvent.name && canWrite.has(toolUseEvent.name)) {
+            return
+        }
+
         const toolUseId = toolUseEvent.toolUseId
         if (!toolUseEvent.stop && toolUseId) {
             if (!toolUseStartTimes[toolUseId]) {
