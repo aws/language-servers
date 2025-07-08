@@ -15,7 +15,7 @@ import {
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 
-import { createIterableResponse, setCredentialsForAmazonQServiceManagerFactory } from '../../shared/testUtils'
+import { createIterableResponse, setTokenCredentialsForAmazonQServiceManagerFactory } from '../../shared/testUtils'
 import sinon from 'ts-sinon'
 
 import { ChatController } from './chatController'
@@ -108,7 +108,7 @@ describe('ChatController', () => {
     let telemetryService: TelemetryService
     let telemetry: Telemetry
 
-    const setCredentials = setCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
+    const setCredentials = setTokenCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {

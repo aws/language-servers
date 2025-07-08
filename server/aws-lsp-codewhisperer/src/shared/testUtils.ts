@@ -307,7 +307,7 @@ export function shuffleList<T>(list: T[]): T[] {
     return shuffledList
 }
 
-export const setCredentialsForAmazonQServiceManagerFactory = (getFeatures: () => TestFeatures) => {
+export const setTokenCredentialsForAmazonQServiceManagerFactory = (getFeatures: () => TestFeatures) => {
     return (connectionType: SsoConnectionType) => {
         const features = getFeatures()
         features.credentialsProvider.hasCredentials.returns(true)
@@ -316,6 +316,20 @@ export const setCredentialsForAmazonQServiceManagerFactory = (getFeatures: () =>
             token: 'test-token',
         })
         features.credentialsProvider.getCredentialsType.returns('bearer')
+    }
+}
+
+export const setIamCredentialsForAmazonQServiceManagerFactory = (getFeatures: () => TestFeatures) => {
+    return () => {
+        const features = getFeatures()
+        features.credentialsProvider.hasCredentials.returns(true)
+        features.credentialsProvider.getConnectionType.returns('none')
+        features.credentialsProvider.getCredentials.returns({
+            accessKeyId: 'test-access-key',
+            secretAccessKey: 'test-secret-key',
+            sessionToken: 'test-session-token',
+        })
+        features.credentialsProvider.getCredentialsType.returns('iam')
     }
 }
 

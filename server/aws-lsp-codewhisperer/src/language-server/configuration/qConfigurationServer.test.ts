@@ -17,7 +17,7 @@ import {
     Server,
 } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
-import { setCredentialsForAmazonQServiceManagerFactory } from '../../shared/testUtils'
+import { setTokenCredentialsForAmazonQServiceManagerFactory } from '../../shared/testUtils'
 import { Q_CONFIGURATION_SECTION, AWS_Q_ENDPOINTS } from '../../shared/constants'
 import { AmazonQDeveloperProfile } from '../../shared/amazonQServiceManager/qDeveloperProfiles'
 
@@ -222,7 +222,7 @@ describe('ServerConfigurationProvider', () => {
     let tokenSource: CancellationTokenSource
     let serviceFactoryStub: sinon.SinonStub
 
-    const setCredentials = setCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
+    const setCredentials = setTokenCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
 
     const setupServerConfigurationProvider = (developerProfiles = true) => {
         testFeatures.setClientParams(getInitializeParams(false, developerProfiles))
