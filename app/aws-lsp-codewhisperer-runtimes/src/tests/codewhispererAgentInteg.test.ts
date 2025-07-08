@@ -6,14 +6,19 @@ import { describe } from 'node:test'
 import * as path from 'path'
 import { JSONRPCEndpoint, LspClient } from 'ts-lsp-client'
 import { pathToFileURL } from 'url'
+import * as crypto from 'crypto'
+import { EncryptionInitialization } from '@aws/lsp-core'
+import { authenticateServer, decryptObjectWithKey, encryptObjectWithKey } from './testUtils'
+import { ChatParams, ChatResult } from '@aws/language-server-runtimes/protocol'
 
 chai.use(chaiAsPromised)
 
 describe('Test CodeWhisperer Agent Server', async () => {
     const rootPath = path.resolve(path.join(__dirname, 'testFixture'))
-    let process: ChildProcessWithoutNullStreams
+    let serverProcess: ChildProcessWithoutNullStreams
     let endpoint: JSONRPCEndpoint
     let client: LspClient
+    let encryptionKey: string
     const runtimeFile = path.join(
         __dirname,
         '../../',
@@ -25,24 +30,64 @@ describe('Test CodeWhisperer Agent Server', async () => {
     )
 
     before(async () => {
-        process = spawn('node', [runtimeFile, '--stdio'], {
-            shell: true,
-            stdio: 'pipe',
-        })
+        serverProcess = spawn(
+            'node',
+            [
+                runtimeFile,
+                '--nolazy',
+                '--preserve-symlinks',
+                '--stdio',
+                '--pre-init-encryption',
+                '--set-credentials-encryption-key',
+            ],
+            {
+                shell: true,
+                stdio: 'pipe',
+            }
+        )
+
+        if (process.env.DEBUG) {
+            serverProcess.stdout.on('data', data => {
+                console.log(data.toString())
+            })
+            serverProcess.stderr.on('data', data => {
+                console.error(data.toString())
+            })
+        }
+
+        encryptionKey = Buffer.from(crypto.randomBytes(32)).toString('base64')
+        const encryptionDetails: EncryptionInitialization = {
+            version: '1.0',
+            key: encryptionKey,
+            mode: 'JWT',
+        }
+        serverProcess.stdin.write(JSON.stringify(encryptionDetails) + '\n')
 
         // create an RPC endpoint for the process
-        endpoint = new JSONRPCEndpoint(process.stdin, process.stdout)
+        endpoint = new JSONRPCEndpoint(serverProcess.stdin, serverProcess.stdout)
 
         // create the LSP client
         client = new LspClient(endpoint)
 
         const result = await client.initialize({
-            processId: process.pid ?? null,
+            processId: serverProcess.pid ?? null,
             capabilities: {
                 textDocument: {
                     completion: {
                         completionItem: {
                             snippetSupport: true,
+                        },
+                    },
+                },
+                workspace: {
+                    configuration: false,
+                },
+            },
+            initializationOptions: {
+                aws: {
+                    awsClientCapabilities: {
+                        q: {
+                            developerProfiles: true,
                         },
                     },
                 },
@@ -56,6 +101,10 @@ describe('Test CodeWhisperer Agent Server', async () => {
             rootUri: null,
         })
 
+        await authenticateServer(endpoint)
+
+        client.initialized()
+
         expect(result.capabilities).to.exist
     })
 
@@ -63,23 +112,16 @@ describe('Test CodeWhisperer Agent Server', async () => {
         client.exit()
     })
 
-    it('should initialize successfully', async () => {
-        // Test passes if we reach this point without errors
-        expect(true).to.be.true
-    })
+    it('responds to chat prompt', async () => {
+        const encryptedMessage = await encryptObjectWithKey<ChatParams>(
+            { tabId: 'tab-id', prompt: { prompt: 'Hello' } },
+            encryptionKey
+        )
+        const result = await endpoint.send('aws/chat/sendChatPrompt', { message: encryptedMessage })
+        const decryptedResult = await decryptObjectWithKey<ChatResult>(result, encryptionKey)
 
-    it('should handle textDocument/didOpen', async () => {
-        const docUri = pathToFileURL(path.join(rootPath, 'test.py')).href
-        await client.didOpen({
-            textDocument: {
-                uri: docUri,
-                text: 'def hello():\n    print("Hello World")',
-                version: 1,
-                languageId: 'python',
-            },
-        })
-
-        // Test passes if no error is thrown
-        expect(true).to.be.true
+        expect(decryptedResult).to.have.property('messageId')
+        expect(decryptedResult).to.have.property('body')
+        expect(decryptedResult).to.not.be.empty
     })
 })
