@@ -850,10 +850,7 @@ export class AgenticChatController implements ChatHandlers {
         let iterationCount = 0
         let shouldDisplayMessage = true
         metric.recordStart()
-        let pathsToRules =
-            currentRequestInput.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState?.relevantDocuments?.map(
-                doc => (doc as any)?.path
-            )
+        let pathsToRules = pinnedContext?.map(context => context.path)
 
         while (true) {
             iterationCount++
@@ -1451,8 +1448,9 @@ export class AgenticChatController implements ChatHandlers {
                             this.#features.logging.info(`RuleArtifacts: ${JSON.stringify(ruleArtifacts)}`)
                         }
                         if (pathsToRules != undefined) {
-                            this.#features.logging.info(`PathsToRules: ${JSON.stringify(pathsToRules)}`)
-                            initialInput['ruleArtifacts'] = pathsToRules
+                            let pathsToRulesMap = pathsToRules.map(rulePath => ({ path: rulePath }))
+                            this.#features.logging.info(`PathsToRules: ${JSON.stringify(pathsToRulesMap)}`)
+                            initialInput['ruleArtifacts'] = pathsToRulesMap
                         }
                         toolUse.input = initialInput
                     } catch (e) {

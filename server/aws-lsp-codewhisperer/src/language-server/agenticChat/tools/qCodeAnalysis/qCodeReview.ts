@@ -475,7 +475,7 @@ export class QCodeReview {
     private async prepareFilesAndFoldersForUpload(
         fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
         folderArtifacts: Array<{ path: string }>,
-        ruleArtifacts: string[],
+        ruleArtifacts: Array<{ path: string }>,
         isFullReviewRequest: boolean
     ): Promise<{ zipBuffer: Buffer; md5Hash: string; isCodeDiffPresent: boolean }> {
         try {
@@ -490,6 +490,7 @@ export class QCodeReview {
             const codeDiff = await this.processArtifacts(
                 fileArtifacts,
                 folderArtifacts,
+                ruleArtifacts,
                 customerCodeZip,
                 !isFullReviewRequest
             )
@@ -520,11 +521,6 @@ export class QCodeReview {
                 codeArtifactZip.file(QCodeReview.CODE_DIFF_PATH, codeDiff)
             }
 
-            for (const ruleArtifact of ruleArtifacts) {
-                const ruleText = this.workspace.fs.readFileSync(ruleArtifact)
-                codeArtifactZip.file(`${QCodeReview.RULE_ARTIFACT_PATH}/${path.basename(ruleArtifact)}`, ruleText)
-            }
-
             // Generate the final code artifact zip
             const zipBuffer = await QCodeReviewUtils.generateZipBuffer(codeArtifactZip)
             QCodeReviewUtils.logZipStructure(codeArtifactZip, 'Code artifact', this.logging)
@@ -544,6 +540,7 @@ export class QCodeReview {
     private async processArtifacts(
         fileArtifacts: Array<{ path: string; programmingLanguage: string }>,
         folderArtifacts: Array<{ path: string }>,
+        ruleArtifacts: Array<{ path: string }>,
         customerCodeZip: JSZip,
         isCodeDiffScan: boolean
     ): Promise<string> {
@@ -554,6 +551,8 @@ export class QCodeReview {
 
         // Process folders
         codeDiff += await this.processFolderArtifacts(folderArtifacts, customerCodeZip, isCodeDiffScan)
+
+        await this.processRuleArtifacts(ruleArtifacts, customerCodeZip)
 
         return codeDiff
     }
@@ -608,6 +607,28 @@ export class QCodeReview {
         }
 
         return codeDiff
+    }
+
+    private async processRuleArtifacts(ruleArtifacts: Array<{ path: string }>, customerCodeZip: JSZip): Promise<void> {
+        for (const artifact of ruleArtifacts) {
+            await QCodeReviewUtils.withErrorHandling(
+                async () => {
+                    let fileName = path.basename(artifact.path)
+                    if (!fileName.startsWith('.') && !QCodeReviewUtils.shouldSkipFile(fileName)) {
+                        const fileContent = await this.workspace.fs.readFile(artifact.path)
+                        customerCodeZip.file(
+                            `${QCodeReview.CUSTOMER_CODE_BASE_PATH}/${QCodeReview.RULE_ARTIFACT_PATH}/${fileName}`,
+                            fileContent
+                        )
+                    } else {
+                        this.logging.info(`Skipping file - ${artifact.path}`)
+                    }
+                },
+                'Failed to read file',
+                this.logging,
+                artifact.path
+            )
+        }
     }
 
     /**
