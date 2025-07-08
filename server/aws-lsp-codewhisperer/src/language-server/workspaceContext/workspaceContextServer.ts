@@ -23,7 +23,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { FileUploadJobManager, FileUploadJobType } from './fileUploadJobManager'
 import { DependencyEventBundler } from './dependency/dependencyEventBundler'
 import ignore = require('ignore')
-import { INTERNAL_USER_START_URL } from '../../shared/constants'
+import { BUILDER_ID_START_URL, INTERNAL_USER_START_URL } from '../../shared/constants'
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
@@ -141,14 +141,27 @@ export const WorkspaceContextServer = (): Server => features => {
 
     const updateConfiguration = async () => {
         try {
-            let workspaceContextConfig = (await lsp.workspace.getConfiguration('amazonQ.workspaceContext')) || false
-            const configJetBrains = await lsp.workspace.getConfiguration('aws.codeWhisperer')
-            if (configJetBrains) {
-                workspaceContextConfig = workspaceContextConfig || configJetBrains['workspaceContext']
-            }
+            const clientInitializParams = safeGet(lsp.getClientInitializeParams())
+            const extensionName = clientInitializParams.initializationOptions?.aws?.clientInfo?.extension.name
+            if (extensionName === 'AmazonQ-For-VSCode') {
+                const amazonQSettings = (await lsp.workspace.getConfiguration('amazonQ'))?.['server-sideContext']
+                isOptedIn = amazonQSettings || false
 
-            isOptedIn = workspaceContextConfig === true
-            logging.log(`Workspace context server opt-in flag is: ${workspaceContextConfig}`)
+                // We want this temporary override for Amazon internal users and BuilderId users who are still using
+                // the old VSCode extension versions. Will remove this later.
+                if (amazonQSettings === undefined) {
+                    const startUrl = credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+                    const isInternalOrBuilderIdUser =
+                        startUrl &&
+                        (startUrl.includes(INTERNAL_USER_START_URL) || startUrl.includes(BUILDER_ID_START_URL))
+                    if (isInternalOrBuilderIdUser) {
+                        isOptedIn = true
+                    }
+                }
+            } else {
+                isOptedIn = (await lsp.workspace.getConfiguration('aws.codeWhisperer'))?.['workspaceContext'] || false
+            }
+            logging.log(`Workspace context server opt-in flag is: ${isOptedIn}`)
 
             if (!isOptedIn) {
                 isWorkflowInitialized = false
