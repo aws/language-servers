@@ -37,6 +37,12 @@ jobs:
               uses: actions/setup-node@v3
               with:
                   node-version: 18
+            - name: Debug OIDC Token
+              run: |
+                  echo "GITHUB_TOKEN exists: ${{ github.token != '' }}"
+                  echo "Repository: ${{ github.repository }}"
+                  echo "Ref: ${{ github.ref }}"
+                  echo "Actor: ${{ github.actor }}"
             - name: Configure AWS Credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
