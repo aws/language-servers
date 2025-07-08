@@ -837,6 +837,7 @@ export const CodewhispererServerFactory =
                         })
                         .filter(item => item.insertText !== ''),
                     sessionId: session.id,
+                    partialResultToken: suggestionResponse.responseContext.nextToken,
                 }
             }
         }
