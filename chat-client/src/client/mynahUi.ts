@@ -1693,7 +1693,7 @@ const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then 
 
 const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
 
-const uiComponentsTexts = {
+export const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
     copy: 'Copy',
     insertAtCursorLabel: 'Insert at cursor',

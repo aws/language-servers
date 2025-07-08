@@ -7,6 +7,7 @@ import {
     handleChatPrompt,
     DEFAULT_HELP_PROMPT,
     handlePromptInputChange,
+    uiComponentsTexts,
 } from './mynahUi'
 import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
@@ -15,6 +16,7 @@ import { ChatClientAdapter } from '../contracts/chatClientAdapter'
 import { ChatMessage, ListAvailableModelsResult } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from './features/history'
 import { pairProgrammingModeOn, pairProgrammingModeOff } from './texts/pairProgramming'
+import { strictEqual } from 'assert'
 
 describe('MynahUI', () => {
     let messager: Messager
@@ -568,6 +570,38 @@ describe('MynahUI', () => {
                     },
                 ],
             })
+        })
+    })
+
+    describe('stringOverrides', () => {
+        it('should apply string overrides to config texts', () => {
+            const stringOverrides = {
+                spinnerText: 'Custom loading message...',
+                stopGenerating: 'Custom stop text',
+                showMore: 'Custom show more text',
+            }
+
+            const messager = new Messager(outboundChatApi)
+            const tabFactory = new TabFactory({})
+            const [customMynahUi] = createMynahUi(
+                messager,
+                tabFactory,
+                true,
+                true,
+                undefined,
+                undefined,
+                true,
+                stringOverrides
+            )
+
+            // Access the config texts from the instance
+            const configTexts = (customMynahUi as any).props.config.texts
+
+            // Verify that string overrides were applied and defaults are preserved
+            strictEqual(configTexts.spinnerText, 'Custom loading message...')
+            strictEqual(configTexts.stopGenerating, 'Custom stop text')
+            strictEqual(configTexts.showMore, 'Custom show more text')
+            strictEqual(configTexts.clickFileToViewDiff, uiComponentsTexts.clickFileToViewDiff)
         })
     })
 })
