@@ -9,14 +9,11 @@ import { ChatSessionManagementService } from '../chat/chatSessionManagementServi
 import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
-import { isUsingIAMAuth, safeGet, enabledModelSelection } from '../../shared/utils'
+import { safeGet } from '../../shared/utils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
 import { QClientCapabilities } from '../configuration/qConfigurationServer'
 
@@ -32,8 +29,8 @@ export const QAgenticChatServer =
     (): Server => features => {
         const { chat, credentialsProvider, telemetry, logging, lsp, runtime, agent } = features
 
-        // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
-        let amazonQServiceManager: AmazonQBaseServiceManager
+        // AmazonQServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
+        let amazonQServiceManager: AmazonQServiceManager
         let telemetryService: TelemetryService
 
         let chatController: AgenticChatController
@@ -77,8 +74,7 @@ export const QAgenticChatServer =
 
         lsp.onInitialized(async () => {
             // Get initialized service manager and inject it to chatSessionManagementService to pass it down
-            logging.info(`In IAM Auth mode: ${isUsingIAMAuth()}`)
-            amazonQServiceManager = isUsingIAMAuth() ? getOrThrowBaseIAMServiceManager() : getOrThrowBaseTokenServiceManager()
+            amazonQServiceManager = AmazonQServiceManager.getInstance()
             chatSessionManagementService =
                 ChatSessionManagementService.getInstance().withAmazonQServiceManager(amazonQServiceManager, features.lsp)
 

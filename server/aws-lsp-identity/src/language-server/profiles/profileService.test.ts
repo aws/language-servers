@@ -211,7 +211,7 @@ describe('ProfileService', async () => {
             sut,
             { profile },
             AwsErrorCodes.E_INVALID_PROFILE,
-            'Profile must be non-legacy sso-session type.'
+            'Profile must be non-legacy sso-session or iam-credentials type.'
         )
     })
 

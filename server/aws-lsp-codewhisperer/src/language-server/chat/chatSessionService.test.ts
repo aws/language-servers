@@ -2,10 +2,9 @@ import { SendMessageCommandInput, SendMessageCommandOutput, ChatTriggerType } fr
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ChatSessionService } from './chatSessionService'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { StreamingClientServiceToken, StreamingClientServiceIAM } from '../../shared/streamingClientService'
+import { StreamingClientService } from '../../shared/streamingClientService'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import * as sharedUtils from '../../shared/utils'
 import { Utils } from 'vscode-uri'
 
@@ -13,7 +12,7 @@ describe('Chat Session Service', () => {
     let abortStub: sinon.SinonStub<any, any>
     let chatSessionService: ChatSessionService
     let amazonQServiceManager: StubbedInstance<AmazonQBaseServiceManager>
-    let codeWhispererStreamingClient: StubbedInstance<StreamingClientServiceToken>
+    let codeWhispererStreamingClient: StubbedInstance<StreamingClientService>
     const mockConversationId = 'mockConversationId'
 
     const mockRequestParams: SendMessageCommandInput = {
@@ -33,7 +32,7 @@ describe('Chat Session Service', () => {
     }
 
     beforeEach(() => {
-        codeWhispererStreamingClient = stubInterface<StreamingClientServiceToken>()
+        codeWhispererStreamingClient = stubInterface<StreamingClientService>()
         codeWhispererStreamingClient.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
         amazonQServiceManager = stubInterface<AmazonQBaseServiceManager>()
@@ -44,8 +43,8 @@ describe('Chat Session Service', () => {
         chatSessionService = new ChatSessionService(amazonQServiceManager)
 
         // needed to identify the stubs as the actual class when checking 'instanceof' in generateAssistantResponse
-        Object.setPrototypeOf(amazonQServiceManager, AmazonQTokenServiceManager.prototype)
-        Object.setPrototypeOf(codeWhispererStreamingClient, StreamingClientServiceToken.prototype)
+        Object.setPrototypeOf(amazonQServiceManager, AmazonQServiceManager.prototype)
+        Object.setPrototypeOf(codeWhispererStreamingClient, StreamingClientService.prototype)
     })
 
     afterEach(() => {
@@ -53,7 +52,7 @@ describe('Chat Session Service', () => {
     })
 
     describe('calling SendMessage', () => {
-        it('throws error is AmazonQTokenServiceManager is not initialized', async () => {
+        it('throws error is AmazonQServiceManager is not initialized', async () => {
             chatSessionService = new ChatSessionService(undefined)
 
             await assert.rejects(
@@ -114,7 +113,7 @@ describe('Chat Session Service', () => {
     })
 
     describe('calling GenerateAssistantResponse', () => {
-        it('throws error is AmazonQTokenServiceManager is not initialized', async () => {
+        it('throws error is AmazonQServiceManager is not initialized', async () => {
             chatSessionService = new ChatSessionService(undefined)
 
             await assert.rejects(
@@ -149,10 +148,10 @@ describe('Chat Session Service', () => {
         })
 
         it('abortRequest() in IAM client, aborts request with AbortController', async () => {
-            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientService>()
             codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            const amazonQServiceManagerIAM = stubInterface<AmazonQServiceManager>()
             amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
             const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
@@ -164,10 +163,10 @@ describe('Chat Session Service', () => {
         })
 
         it('dispose() in IAM client, calls aborts outgoing requests', async () => {
-            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientService>()
             codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            const amazonQServiceManagerIAM = stubInterface<AmazonQServiceManager>()
             amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
             const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
@@ -208,10 +207,10 @@ describe('Chat Session Service', () => {
     })
 
     it('clear() in IAM client, resets conversation id and aborts outgoing request', async () => {
-        const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+        const codeWhispererStreamingClientIAM = stubInterface<StreamingClientService>()
         codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-        const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+        const amazonQServiceManagerIAM = stubInterface<AmazonQServiceManager>()
         amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
         const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
@@ -325,16 +324,16 @@ describe('Chat Session Service', () => {
     })
 
     describe('IAM client source property', () => {
-        it('sets source to Origin.IDE when using StreamingClientServiceIAM', async () => {
-            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+        it('sets source to Origin.IDE when using StreamingClientService', async () => {
+            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientService>()
             codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            const amazonQServiceManagerIAM = stubInterface<AmazonQServiceManager>()
             amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
             // Set prototype to make instanceof check work
-            Object.setPrototypeOf(codeWhispererStreamingClientIAM, StreamingClientServiceIAM.prototype)
-            Object.setPrototypeOf(amazonQServiceManagerIAM, AmazonQIAMServiceManager.prototype)
+            Object.setPrototypeOf(codeWhispererStreamingClientIAM, StreamingClientService.prototype)
+            Object.setPrototypeOf(amazonQServiceManagerIAM, AmazonQServiceManager.prototype)
 
             const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
 
@@ -361,15 +360,15 @@ describe('Chat Session Service', () => {
                 .stub(sharedUtils, 'getOriginFromClientInfo')
                 .returns('MD_IDE' as any)
 
-            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientServiceIAM>()
+            const codeWhispererStreamingClientIAM = stubInterface<StreamingClientService>()
             codeWhispererStreamingClientIAM.sendMessage.callsFake(() => Promise.resolve(mockRequestResponse))
 
-            const amazonQServiceManagerIAM = stubInterface<AmazonQIAMServiceManager>()
+            const amazonQServiceManagerIAM = stubInterface<AmazonQServiceManager>()
             amazonQServiceManagerIAM.getStreamingClient.returns(codeWhispererStreamingClientIAM)
 
             // Set prototype to make instanceof check work
-            Object.setPrototypeOf(codeWhispererStreamingClientIAM, StreamingClientServiceIAM.prototype)
-            Object.setPrototypeOf(amazonQServiceManagerIAM, AmazonQIAMServiceManager.prototype)
+            Object.setPrototypeOf(codeWhispererStreamingClientIAM, StreamingClientService.prototype)
+            Object.setPrototypeOf(amazonQServiceManagerIAM, AmazonQServiceManager.prototype)
 
             const chatSessionServiceIAM = new ChatSessionService(amazonQServiceManagerIAM)
 

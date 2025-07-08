@@ -17,6 +17,8 @@ import {
     SsoTokenChangedParams,
     ssoTokenChangedRequestType,
     SsoTokenSourceKind,
+    StsCredentialChangedParams,
+    stsCredentialChangedRequestType,
     UpdateProfileParams,
     updateProfileRequestType,
 } from '@aws/language-server-runtimes/protocol'
@@ -32,6 +34,7 @@ import { encryptionKey } from './credentialsActivation'
 
 export async function registerIdentity(client: LanguageClient): Promise<void> {
     client.onNotification(ssoTokenChangedRequestType.method, ssoTokenChangedHandler)
+    client.onNotification(stsCredentialChangedRequestType.method, stsCredentialChangedHandler)
     client.onTelemetry(e => window.showInformationMessage(`Telemetry: ${JSON.stringify(e)}`))
 
     client.onRequest<MessageActionItem | null, Error>(
@@ -77,6 +80,10 @@ export async function registerIdentity(client: LanguageClient): Promise<void> {
 
 function ssoTokenChangedHandler(params: SsoTokenChangedParams): void {
     window.showInformationMessage(`SsoTokenChanged raised: ${JSON.stringify(params)}`)
+}
+
+function stsCredentialChangedHandler(params: StsCredentialChangedParams): void {
+    window.showInformationMessage(`StsCredentialChanged raised: ${JSON.stringify(params)}`)
 }
 
 // The code here is for experimental purposes only.  Feel free to erase and replace

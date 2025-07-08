@@ -8,7 +8,7 @@ import {
     InitializeParams,
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererService } from '../codeWhispererService'
 import {
     AmazonQError,
     AmazonQServiceAlreadyInitializedError,
@@ -31,13 +31,13 @@ import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
-import { StreamingClientServiceToken } from '../streamingClientService'
+import { StreamingClientService } from '../streamingClientService'
 import { parse } from '@aws-sdk/util-arn-parser'
 
 /**
- * AmazonQTokenServiceManager manages state and provides centralized access to
- * instance of CodeWhispererServiceToken SDK client to any consuming code.
- * It ensures that CodeWhispererServiceToken is configured to always access correct regionalized Amazon Q Developer API endpoint.
+ * AmazonQServiceManager manages state and provides centralized access to
+ * instance of CodeWhispererService SDK client to any consuming code.
+ * It ensures that CodeWhispererService is configured to always access correct regionalized Amazon Q Developer API endpoint.
  * Regional endppoint is selected based on:
  * 1) current SSO auth connection type (BuilderId or IDC).
  * 2) selected Amazon Q Developer profile (only for IDC connection type).
@@ -53,17 +53,14 @@ import { parse } from '@aws-sdk/util-arn-parser'
  * - builderId: Connected via Builder ID
  * - identityCenter: Connected via Identity Center
  *
- * AmazonQTokenServiceManager is a singleton class, which must be instantiated with Language Server runtimes [Features](https://github.com/aws/language-server-runtimes/blob/21d5d1dc7c73499475b7c88c98d2ce760e5d26c8/runtimes/server-interface/server.ts#L31-L42)
- * in the `AmazonQServiceServer` via the `initBaseTokenServiceManager` factory. Dependencies of this class can access the singleton via
- * the `getOrThrowBaseTokenServiceManager` factory or `getInstance()` method after the initialized notification has been received during
+ * AmazonQServiceManager is a singleton class, which must be instantiated with Language Server runtimes [Features](https://github.com/aws/language-server-runtimes/blob/21d5d1dc7c73499475b7c88c98d2ce760e5d26c8/runtimes/server-interface/server.ts#L31-L42)
+ * in the `AmazonQServiceServer` via the `initBaseServiceManager` factory. Dependencies of this class can access the singleton via
+ * the `getOrThrowBaseServiceManager` factory or `getInstance()` method after the initialized notification has been received during
  * the LSP hand shake.
  *
  */
-export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
-    CodeWhispererServiceToken,
-    StreamingClientServiceToken
-> {
-    private static instance: AmazonQTokenServiceManager | null = null
+export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhispererService, StreamingClientService> {
+    private static instance: AmazonQServiceManager | null = null
     private enableDeveloperProfileSupport?: boolean
     private activeIdcProfile?: AmazonQDeveloperProfile
     private connectionType?: SsoConnectionType
@@ -74,7 +71,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     /**
      * Internal state of Service connection, based on status of bearer token and Amazon Q Developer profile selection.
      * Supported states:
-     * PENDING_CONNECTION - Waiting for Bearer Token and StartURL to be passed
+     * PENDING_CONNECTION - Waiting for (Bearer Token and StartURL) or (Access Key and Secret Key) to be passed
      * PENDING_Q_PROFILE - (only for identityCenter connection) waiting for setting Developer Profile
      * PENDING_Q_PROFILE_UPDATE (only for identityCenter connection) waiting for Developer Profile to complete
      * INITIALIZED - Service is initialized
@@ -91,32 +88,32 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.state = state
     }
 
-    public static initInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
-        if (!AmazonQTokenServiceManager.instance) {
-            AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
-            AmazonQTokenServiceManager.instance.initialize()
+    public static initInstance(features: QServiceManagerFeatures): AmazonQServiceManager {
+        if (!AmazonQServiceManager.instance) {
+            AmazonQServiceManager.instance = new AmazonQServiceManager(features)
+            AmazonQServiceManager.instance.initialize()
 
-            return AmazonQTokenServiceManager.instance
+            return AmazonQServiceManager.instance
         }
 
         throw new AmazonQServiceAlreadyInitializedError()
     }
 
-    public static getInstance(): AmazonQTokenServiceManager {
-        if (!AmazonQTokenServiceManager.instance) {
+    public static getInstance(): AmazonQServiceManager {
+        if (!AmazonQServiceManager.instance) {
             throw new AmazonQServiceInitializationError(
                 'Amazon Q service has not been initialized yet. Make sure the Amazon Q server is present and properly initialized.'
             )
         }
 
-        return AmazonQTokenServiceManager.instance
+        return AmazonQServiceManager.instance
     }
 
     private initialize(): void {
         if (!this.features.lsp.getClientInitializeParams()) {
-            this.log('AmazonQTokenServiceManager initialized before LSP connection was initialized.')
+            this.log('AmazonQServiceManager initialized before LSP connection was initialized.')
             throw new AmazonQServiceInitializationError(
-                'AmazonQTokenServiceManager initialized before LSP connection was initialized.'
+                'AmazonQServiceManager initialized before LSP connection was initialized.'
             )
         }
 
@@ -187,6 +184,42 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         }
     }
 
+    private handleConnectionChange() {
+        const credentialsType = this.features.credentialsProvider.getCredentialsType()
+
+        if (credentialsType === 'iam') {
+            if (!this.cachedStreamingClient) {
+                const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(
+                    this.features.runtime,
+                    this.features.logging
+                )
+                this.region = amazonQRegionAndEndpoint.region
+                this.endpoint = amazonQRegionAndEndpoint.endpoint
+                this.cachedCodewhispererService = new CodeWhispererService(
+                    this.features.credentialsProvider,
+                    this.features.workspace,
+                    this.features.logging,
+                    this.region,
+                    this.endpoint,
+                    this.features.sdkInitializator
+                )
+                this.updateCachedServiceConfig()
+            }
+            this.state = 'INITIALIZED'
+            return
+        } else if (credentialsType === 'bearer') {
+            this.handleSsoConnectionChange()
+            return
+        } else {
+            this.log(`Unknown connection type: ${credentialsType}`)
+            this.resetCodewhispererService()
+            this.connectionType = 'none'
+            this.state = 'PENDING_CONNECTION'
+
+            return
+        }
+    }
+
     /**
      * Validate if Bearer Token Connection type has changed mid-session.
      * When connection type change is detected: reinitialize CodeWhispererService class with current connection type.
@@ -196,7 +229,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         this.logServiceState('Validate State of SSO Connection')
 
-        const noCreds = !this.features.credentialsProvider.hasCredentials('bearer')
+        const noCreds = !this.features.credentialsProvider.hasCredentials()
         const noConnectionType = newConnectionType === 'none'
         if (noCreds || noConnectionType) {
             // Connection was reset, wait for SSO connection token from client
@@ -410,13 +443,13 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return
     }
 
-    public getCodewhispererService(): CodeWhispererServiceToken {
+    public getCodewhispererService(): CodeWhispererService {
         // Prevent initiating requests while profile change is in progress.
         if (this.state === 'PENDING_Q_PROFILE_UPDATE') {
             throw new AmazonQServicePendingProfileUpdateError()
         }
 
-        this.handleSsoConnectionChange()
+        this.handleConnectionChange()
 
         if (this.state === 'INITIALIZED' && this.cachedCodewhispererService) {
             return this.cachedCodewhispererService
@@ -492,8 +525,8 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return getUserAgent(initializeParams as InitializeParams, this.features.runtime.serverInfo)
     }
 
-    private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
-        const service = new CodeWhispererServiceToken(
+    private serviceFactory(region: string, endpoint: string): CodeWhispererService {
+        const service = new CodeWhispererService(
             this.features.credentialsProvider,
             this.features.workspace,
             this.features.logging,
@@ -512,7 +545,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             'shareCodeWhispererContentWithAWS'
         )
 
-        this.log('Configured CodeWhispererServiceToken instance settings:')
+        this.log('Configured CodeWhispererService instance settings:')
         this.log(
             `customUserAgent=${customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
         )
@@ -520,8 +553,8 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return service
     }
 
-    private streamingClientFactory(region: string, endpoint: string): StreamingClientServiceToken {
-        const streamingClient = new StreamingClientServiceToken(
+    private streamingClientFactory(region: string, endpoint: string): StreamingClientService {
+        const streamingClient = new StreamingClientService(
             this.features.credentialsProvider,
             this.features.sdkInitializator,
             this.features.logging,
@@ -529,7 +562,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             endpoint,
             this.getCustomUserAgent()
         )
-        streamingClient.profileArn = this.activeIdcProfile?.arn
+
+        if (this.features.credentialsProvider.getCredentialsType() == 'bearer') {
+            streamingClient.profileArn = this.activeIdcProfile?.arn
+        }
 
         this.logging.debug(`Created streaming client instance region=${region}, endpoint=${endpoint}`)
         return streamingClient
@@ -555,7 +591,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     // For Unit Tests
     public static resetInstance(): void {
-        AmazonQTokenServiceManager.instance = null
+        AmazonQServiceManager.instance = null
     }
 
     public getState() {
@@ -570,7 +606,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         return this.activeIdcProfile?.arn
     }
 
-    public setServiceFactory(factory: (region: string, endpoint: string) => CodeWhispererServiceToken) {
+    public setServiceFactory(factory: (region: string, endpoint: string) => CodeWhispererService) {
         this.serviceFactory = factory.bind(this)
     }
 
@@ -620,8 +656,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 }
 
-export const initBaseTokenServiceManager = (features: QServiceManagerFeatures) =>
-    AmazonQTokenServiceManager.initInstance(features)
+export const initBaseServiceManager = (features: QServiceManagerFeatures) =>
+    AmazonQServiceManager.initInstance(features)
 
-export const getOrThrowBaseTokenServiceManager = (): AmazonQBaseServiceManager =>
-    AmazonQTokenServiceManager.getInstance()
+export const getOrThrowBaseServiceManager = (): AmazonQBaseServiceManager => AmazonQServiceManager.getInstance()

@@ -3,20 +3,29 @@ import {
     AwsBuilderIdSsoTokenSource,
     AwsErrorCodes,
     CancellationToken,
+    GetIamCredentialParams,
+    GetIamCredentialResult,
     getSsoTokenOptionsDefaults,
+    getIamCredentialOptionsDefaults,
     GetSsoTokenParams,
     GetSsoTokenResult,
+    IamCredentials,
     IamIdentityCenterSsoTokenSource,
     InvalidateSsoTokenParams,
     InvalidateSsoTokenResult,
+    InvalidateStsCredentialParams,
+    InvalidateStsCredentialResult,
     MetricEvent,
     SsoSession,
     SsoTokenSourceKind,
 } from '@aws/language-server-runtimes/server-interface'
+
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
 import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion } from '../sso'
 import { SsoCache, SsoClientRegistration } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { StsCache, StsCredential } from '../sts/cache/stsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import {
     throwOnInvalidClientRegistration,
     throwOnInvalidSsoSession,
@@ -24,9 +33,11 @@ import {
     SsoFlowParams,
 } from '../sso/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
+import { GetCallerIdentityCommand, STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
+import { IAMClient, SimulatePrincipalPolicyCommand } from '@aws-sdk/client-iam'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
@@ -41,6 +52,8 @@ export class IdentityService {
         private readonly profileStore: ProfileStore,
         private readonly ssoCache: SsoCache,
         private readonly autoRefresher: SsoTokenAutoRefresher,
+        private readonly stsCache: StsCache,
+        private readonly stsAutoRefresher: StsAutoRefresher,
         private readonly handlers: SsoFlowParams['handlers'],
         private readonly clientName: string,
         private readonly observability: Observability,
@@ -136,6 +149,134 @@ export class IdentityService {
         }
     }
 
+    async getIamCredential(params: GetIamCredentialParams, token: CancellationToken): Promise<GetIamCredentialResult> {
+        const emitMetric = this.emitMetric.bind(
+            this,
+            'flareIdentity_getIamCredential',
+            this.getIamCredential.name,
+            Date.now()
+        )
+
+        try {
+            const options = { ...getIamCredentialOptionsDefaults, ...params.options }
+
+            token.onCancellationRequested(_ => {
+                if (options.generateOnInvalidStsCredential) {
+                    emitMetric('Cancelled', null)
+                }
+            })
+
+            // Get the profile with provided name
+            const profileData = await this.profileStore.load()
+            const profile = profileData.profiles.find(profile => profile.name === params.profileName)
+            if (!profile) {
+                this.observability.logging.log('Profile not found.')
+                throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
+            }
+            if (!profile.settings?.aws_access_key_id || !profile.settings?.aws_secret_access_key) {
+                this.observability.logging.log('Profile IAM credentials not found.')
+                throw new AwsError('Profile IAM credentials not found.', AwsErrorCodes.E_INVALID_PROFILE)
+            }
+
+            // Convert config file credentials into IamCredentials object
+            let credentials: IamCredentials = {
+                accessKeyId: profile.settings.aws_access_key_id,
+                secretAccessKey: profile.settings.aws_secret_access_key,
+                sessionToken: profile.settings.aws_session_token,
+            }
+
+            if (profile.settings.role_arn) {
+                // Try to get the STS credentials from cache
+                const roleArn = profile.settings.role_arn
+                const stsCredentials = await this.stsCache.getStsCredential(profile.name).catch(_ => undefined)
+
+                // Create STS client for role assumption
+                const stsClient = new STSClient({
+                    region: profile.settings.region || 'us-east-1',
+                    credentials: credentials,
+                })
+
+                if (stsCredentials?.Credentials) {
+                    // Use the found STS credential
+                    credentials = {
+                        accessKeyId: stsCredentials.Credentials.AccessKeyId!,
+                        secretAccessKey: stsCredentials.Credentials.SecretAccessKey!,
+                        sessionToken: stsCredentials.Credentials.SessionToken!,
+                        expiration: stsCredentials.Credentials.Expiration!,
+                    }
+                } else if (options.generateOnInvalidStsCredential) {
+                    // Generate STS credentials and cache them
+                    const response = await this.generateStsCredential(stsClient, roleArn)
+                    if (!response.Credentials) {
+                        throw new AwsError(
+                            'Failed to assume role: No credentials returned',
+                            AwsErrorCodes.E_INVALID_STS_CREDENTIAL
+                        )
+                    }
+                    await this.stsCache.setStsCredential(profile.name, response)
+                    credentials = {
+                        accessKeyId: response.Credentials.AccessKeyId!,
+                        secretAccessKey: response.Credentials.SecretAccessKey!,
+                        sessionToken: response.Credentials.SessionToken!, // Always present in STS response
+                        expiration: response.Credentials.Expiration!,
+                    }
+                } else {
+                    // If we could not get the cached STS credential and cannot generate a new credential, give up
+                    this.observability.logging.log(
+                        'STS credential not found an generateOnInvalidStsCredential = false, returning no credential.'
+                    )
+                    throw new AwsError('STS credential not found.', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)
+                }
+
+                // Set up auto-refresh
+                await this.stsAutoRefresher
+                    .watch(profile.name, () => this.generateStsCredential(stsClient, roleArn))
+                    .catch(reason => {
+                        this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
+                    })
+
+                this.observability.logging.info(`Successfully retrieved STS credential from role assumption`)
+            } else {
+                this.observability.logging.info(`Successfully retrieved IAM/STS credential.`)
+            }
+
+            // Validate permissions on user or assumed role
+            const hasPermissions = await this.validatePermissions(credentials, profile.settings.region)
+            if (!hasPermissions) {
+                throw new AwsError(
+                    `User or assumed role has insufficient permissions.`,
+                    AwsErrorCodes.E_INVALID_PROFILE
+                )
+            }
+
+            emitMetric('Succeeded')
+            return {
+                id: profile.name,
+                credentials: credentials,
+                updateCredentialsParams: { data: credentials, encrypted: false },
+            }
+        } catch (e) {
+            emitMetric('Failed', e)
+            throw e
+        }
+    }
+
+    private async generateStsCredential(stsClient: STSClient, roleArn: string): Promise<StsCredential> {
+        try {
+            const command = new AssumeRoleCommand({
+                RoleArn: roleArn,
+                RoleSessionName: `session-${Date.now()}`,
+                DurationSeconds: 3600,
+            })
+
+            const { Credentials, AssumedRoleUser } = await stsClient.send(command)
+            return { Credentials, AssumedRoleUser }
+        } catch (e) {
+            this.observability.logging.log(`Error generating STS credentials.`)
+            throw new AwsError(`Error generating STS credentials.`, AwsErrorCodes.E_CANNOT_CREATE_STS_CREDENTIAL)
+        }
+    }
+
     async invalidateSsoToken(
         params: InvalidateSsoTokenParams,
         token: CancellationToken
@@ -164,6 +305,39 @@ export class IdentityService {
         } catch (e) {
             emitMetric('Failed', e)
 
+            throw e
+        }
+    }
+
+    async invalidateStsCredential(
+        params: InvalidateStsCredentialParams,
+        token: CancellationToken
+    ): Promise<InvalidateStsCredentialResult> {
+        const emitMetric = this.emitMetric.bind(
+            this,
+            'flareIdentity_invalidateStsCredential',
+            this.invalidateStsCredential.name,
+            Date.now()
+        )
+
+        token.onCancellationRequested(_ => {
+            emitMetric('Cancelled')
+        })
+
+        try {
+            if (!params?.profileName?.trim()) {
+                throw new AwsError('Profile name is invalid.', AwsErrorCodes.E_INVALID_PROFILE)
+            }
+
+            this.stsAutoRefresher.unwatch(params.profileName)
+
+            await this.stsCache.removeStsCredential(params.profileName)
+
+            emitMetric('Succeeded')
+            this.observability.logging.log('Successfully invalidated STS credentials.')
+            return {}
+        } catch (e) {
+            emitMetric('Failed', e)
             throw e
         }
     }
@@ -246,5 +420,55 @@ export class IdentityService {
         ;(ssoSession.settings ||= {}).sso_registration_scopes = ssoSession.settings.sso_registration_scopes
 
         return ssoSession
+    }
+
+    // Returns whether the identity associated with the provided credentials has sufficient permissions
+    private async validatePermissions(
+        credentials: IamCredentials,
+        region: string | undefined
+    ): Promise<boolean | undefined> {
+        // Get the identity associated with the credentials
+        const stsClient = new STSClient({ region: region || 'us-east-1', credentials: credentials })
+        const identity = await stsClient.send(new GetCallerIdentityCommand({}))
+        if (!identity.Arn) {
+            throw new AwsError('Caller identity ARN not found.', AwsErrorCodes.E_INVALID_PROFILE)
+        }
+
+        // Check the permissions attached to the identity
+        const iamClient = new IAMClient({ region: region || 'us-east-1', credentials: credentials })
+        const response = await iamClient.send(
+            new SimulatePrincipalPolicyCommand({
+                PolicySourceArn: this.convertToIamArn(identity.Arn),
+                ActionNames: [
+                    'q:StartConversation',
+                    'q:SendMessage',
+                    'q:GetConversation',
+                    'q:ListConversations',
+                    'q:UpdateConversation',
+                    'q:DeleteConversation',
+                    'q:PassRequest',
+                    'q:StartTroubleshootingAnalysis',
+                    'q:StartTroubleshootingResolutionExplanation',
+                    'q:GetTroubleshootingResults',
+                    'q:UpdateTroubleshootingCommandResult',
+                    'q:GetIdentityMetaData',
+                    'q:GenerateCodeFromCommands',
+                    'q:UsePlugin',
+                    'codewhisperer:GenerateRecommendations',
+                ],
+            })
+        )
+        return response.EvaluationResults?.every(result => result.EvalDecision === 'allowed')
+    }
+
+    // Converts an assumed role ARN into an IAM role ARN
+    private convertToIamArn(arn: string) {
+        if (arn.includes(':assumed-role/')) {
+            const parts = arn.split(':')
+            const roleName = parts[5].split('/')[1]
+            return `arn:aws:iam::${parts[4]}:role/${roleName}`
+        } else {
+            return arn
+        }
     }
 }

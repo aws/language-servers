@@ -89,11 +89,13 @@ describe('SharedConfigProfileStore', async () => {
         expect(actual).to.deep.equal({
             profiles: [
                 {
-                    kinds: [ProfileKind.Unknown],
+                    kinds: [ProfileKind.IamCredentialProfile],
                     name: 'default',
                     settings: {
-                        region: 'us-west-2',
-                        sso_session: undefined,
+                        aws_access_key_id: 'AAAAAAAA',
+                        aws_secret_access_key: 'BBBBBBBB',
+                        aws_session_token: undefined,
+                        role_arn: undefined,
                     },
                 },
                 {
@@ -183,11 +185,13 @@ describe('SharedConfigProfileStore', async () => {
             expect(after).to.deep.equal({
                 profiles: [
                     {
-                        kinds: ['Unknown'],
+                        kinds: [ProfileKind.IamCredentialProfile],
                         name: 'default',
                         settings: {
-                            region: 'us-west-2',
-                            sso_session: undefined,
+                            aws_access_key_id: 'AAAAAAAA',
+                            aws_secret_access_key: 'BBBBBBBB',
+                            aws_session_token: undefined,
+                            role_arn: undefined,
                         },
                     },
                     {
@@ -283,11 +287,13 @@ describe('SharedConfigProfileStore', async () => {
             expect(after).to.deep.equal({
                 profiles: [
                     {
-                        kinds: ['Unknown'],
+                        kinds: [ProfileKind.IamCredentialProfile],
                         name: 'default',
                         settings: {
-                            region: 'us-west-2',
-                            sso_session: undefined,
+                            aws_access_key_id: 'AAAAAAAA',
+                            aws_secret_access_key: 'BBBBBBBB',
+                            aws_session_token: undefined,
+                            role_arn: undefined,
                         },
                     },
                     {
@@ -352,11 +358,13 @@ describe('SharedConfigProfileStore', async () => {
         expect(after).to.deep.equal({
             profiles: [
                 {
-                    kinds: ['Unknown'],
+                    kinds: [ProfileKind.IamCredentialProfile],
                     name: 'default',
                     settings: {
-                        region: 'us-west-2',
-                        sso_session: undefined,
+                        aws_access_key_id: 'AAAAAAAA',
+                        aws_secret_access_key: 'BBBBBBBB',
+                        aws_session_token: undefined,
+                        role_arn: undefined,
                     },
                 },
                 {

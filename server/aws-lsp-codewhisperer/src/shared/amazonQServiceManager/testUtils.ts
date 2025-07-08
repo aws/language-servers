@@ -125,7 +125,7 @@ export const initBaseTestServiceManager = <C extends CodeWhispererServiceBase, S
  *
  * ```ts
  * describe('some test name', () => {
- *     generateSingletonInitializationTests(AmazonQTokenServiceManager)
+ *     generateSingletonInitializationTests(AmazonQServiceManager)
  * })
  * ```
  */

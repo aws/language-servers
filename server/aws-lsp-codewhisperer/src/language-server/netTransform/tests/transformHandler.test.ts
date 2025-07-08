@@ -14,7 +14,7 @@ import * as fs from 'fs'
 import got from 'got'
 import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
 import { StreamingClient, createStreamingClient } from '../../../client/streamingClient/codewhispererStreamingClient'
-import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
+import { CodeWhispererService } from '../../../shared/codeWhispererService'
 import {
     CancelTransformRequest,
     CancellationJobStatus,
@@ -32,7 +32,7 @@ import { Readable } from 'stream'
 import { ArtifactManager } from '../artifactManager'
 import path = require('path')
 import { IZipEntry } from 'adm-zip'
-import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../../shared/amazonQServiceManager/AmazonQServiceManager'
 
 const mocked$Response = {
     $response: {
@@ -51,7 +51,7 @@ const testTransformId = 'test-transform-id'
 const payloadFileName = 'C:\\test.zip'
 
 describe('Test Transform handler ', () => {
-    let client: StubbedInstance<CodeWhispererServiceToken>
+    let client: StubbedInstance<CodeWhispererService>
     let workspace: StubbedInstance<Workspace>
     let runtime: StubbedInstance<Runtime>
     let transformHandler: TransformHandler
@@ -60,12 +60,12 @@ describe('Test Transform handler ', () => {
     const awsQEndpointUrl: string = DEFAULT_AWS_Q_ENDPOINT_URL
     beforeEach(async () => {
         // Set up the server with a mock service
-        client = stubInterface<CodeWhispererServiceToken>()
+        client = stubInterface<CodeWhispererService>()
         workspace = stubInterface<Workspace>()
         runtime = stubInterface<Runtime>()
 
-        const serviceManager = stubInterface<AmazonQTokenServiceManager>()
-        client = stubInterface<CodeWhispererServiceToken>()
+        const serviceManager = stubInterface<AmazonQServiceManager>()
+        client = stubInterface<CodeWhispererService>()
         serviceManager.getCodewhispererService.returns(client)
 
         transformHandler = new TransformHandler(serviceManager, workspace, mockedLogging, runtime)
