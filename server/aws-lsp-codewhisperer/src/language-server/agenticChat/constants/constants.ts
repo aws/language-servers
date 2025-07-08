@@ -1,4 +1,4 @@
-import { BedrockModel } from '../modelSelection'
+import { BedrockModel } from './modelSelection'
 
 // Error message constants
 export const GENERIC_ERROR_MS = 'An unexpected error occurred, check the logs for more information.'
