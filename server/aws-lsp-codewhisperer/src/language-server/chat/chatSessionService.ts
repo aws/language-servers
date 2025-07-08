@@ -216,7 +216,7 @@ export class ChatSessionService {
                 }
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
-                    (request.conversationState?.currentMessage?.userInputMessage as any)?.modelId !== undefined &&
+                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
                     (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
                     error.message ===
                         'Encountered unexpectedly high load when processing the request, please try again.'
@@ -230,10 +230,10 @@ export class ChatSessionService {
             }
         } else if (client instanceof StreamingClientServiceIAM) {
             try {
-                // We need to use type assertion to handle the incompatible types between packages
-                // @ts-ignore - Explicitly ignoring type checking for this call as we know the structure is compatible
+                // @ts-ignore
+                // SendMessageStreaming checks for origin from request source
+                // https://code.amazon.com/packages/AWSVectorConsolasRuntimeService/blobs/ac917609a28dbcb6757a8427bcc585a42fd15bf2/--/src/com/amazon/aws/vector/consolas/runtimeservice/activity/SendMessageStreamingActivity.java#L246
                 request.source = this.#origin ? this.#origin : 'IDE'
-                // @ts-ignore - Using type assertion to bypass the type checking
                 return await client.sendMessage(request, this.#abortController)
             } catch (e) {
                 // Log the error using the logging property if available, otherwise fall back to console.error
@@ -268,7 +268,7 @@ export class ChatSessionService {
                 }
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
-                    (request.conversationState?.currentMessage?.userInputMessage as any)?.modelId !== undefined &&
+                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
                     (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
                     error.message ===
                         'Encountered unexpectedly high load when processing the request, please try again.'

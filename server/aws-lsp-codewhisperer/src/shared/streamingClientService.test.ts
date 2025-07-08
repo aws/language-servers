@@ -7,14 +7,10 @@ import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from './constants'
 import {
     CodeWhispererStreaming,
     Origin,
-    SendMessageCommandInput as SendMessageCommandInputCW,
-    SendMessageCommandOutput as SendMessageCommandOutputCW,
+    SendMessageCommandInput,
+    SendMessageCommandOutput,
 } from '@amzn/codewhisperer-streaming'
-import {
-    QDeveloperStreaming,
-    SendMessageCommandInput as SendMessageCommandInputQD,
-    SendMessageCommandOutput as SendMessageCommandOutputQD,
-} from '@amzn/amazon-q-developer-streaming-client'
+import { QDeveloperStreaming } from '@amzn/amazon-q-developer-streaming-client'
 import { rejects } from 'assert'
 
 const TIME_TO_ADVANCE_MS = 100
@@ -29,7 +25,7 @@ describe('StreamingClientServiceToken', () => {
     const MOCKED_TOKEN_ONE: BearerCredentials = { token: 'some-fake-token' }
     const MOCKED_TOKEN_TWO: BearerCredentials = { token: 'some-other-fake-token' }
 
-    const MOCKED_SEND_MESSAGE_REQUEST: SendMessageCommandInputCW = {
+    const MOCKED_SEND_MESSAGE_REQUEST: SendMessageCommandInput = {
         conversationState: {
             chatTriggerType: 'MANUAL',
             currentMessage: {
@@ -40,7 +36,7 @@ describe('StreamingClientServiceToken', () => {
         },
     }
 
-    const MOCKED_SEND_MESSAGE_RESPONSE: SendMessageCommandOutputCW = {
+    const MOCKED_SEND_MESSAGE_RESPONSE: SendMessageCommandOutput = {
         $metadata: {},
         sendMessageResponse: undefined,
     }
@@ -104,7 +100,7 @@ describe('StreamingClientServiceToken', () => {
     it('attaches known profileArn to request', async () => {
         const mockedProfileArn = 'some-profile-arn'
         streamingClientService.profileArn = mockedProfileArn
-        const expectedRequest: SendMessageCommandInputCW = {
+        const expectedRequest: SendMessageCommandInput = {
             ...MOCKED_SEND_MESSAGE_REQUEST,
             profileArn: mockedProfileArn,
         }
@@ -208,7 +204,7 @@ describe('StreamingClientServiceIAM', () => {
         sessionToken: 'mock-session-token',
     }
 
-    const MOCKED_SEND_MESSAGE_REQUEST: SendMessageCommandInputQD = {
+    const MOCKED_SEND_MESSAGE_REQUEST: SendMessageCommandInput = {
         conversationState: {
             chatTriggerType: 'MANUAL',
             currentMessage: {
@@ -219,7 +215,7 @@ describe('StreamingClientServiceIAM', () => {
         },
     }
 
-    const MOCKED_SEND_MESSAGE_RESPONSE: SendMessageCommandOutputQD = {
+    const MOCKED_SEND_MESSAGE_RESPONSE: SendMessageCommandOutput = {
         $metadata: {},
         sendMessageResponse: undefined,
     }
