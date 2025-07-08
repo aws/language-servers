@@ -151,14 +151,14 @@ import { FsReplace, FsReplaceParams } from './tools/fsReplace'
 import { loggingUtils, timeoutUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
-    genericErrorMsg,
-    loadingThresholdMs,
-    generateAssistantResponseInputLimit,
-    outputLimitExceedsPartialMsg,
-    responseTimeoutMs,
-    responseTimeoutPartialMsg,
-    defaultModelId,
-} from './constants'
+    GENERIC_ERROR_MS,
+    LOADING_THRESHOLD_MS,
+    GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT,
+    OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG,
+    RESPONSE_TIMEOUT_MS,
+    RESPONSE_TIMEOUT_PARTIAL_MSG,
+    DEFAULT_MODEL_ID,
+} from './constants/constants'
 import {
     AgenticChatError,
     customerFacingErrorCodes,
@@ -954,7 +954,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#debug(`LLM Response Latency: ${llmLatency}`)
             // This is needed to handle the case where the response stream times out
             // and we want to auto-retry
-            if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
+            if (!result.success && result.error.startsWith(RESPONSE_TIMEOUT_PARTIAL_MSG)) {
                 const content =
                     'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
                 if (this.#isPromptCanceled(token, session, promptId)) {
@@ -1135,7 +1135,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     truncateRequest(request: ChatCommandInput, pinnedContext?: AdditionalContentEntryAddition[]): number {
         // TODO: Confirm if this limit applies to SendMessage and rename this constant
-        let remainingCharacterBudget = generateAssistantResponseInputLimit
+        let remainingCharacterBudget = GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
             return remainingCharacterBudget
         }
@@ -1144,9 +1144,9 @@ export class AgenticChatController implements ChatHandlers {
         // 1. prioritize user input message
         let truncatedUserInputMessage = ''
         if (message) {
-            if (message.length > generateAssistantResponseInputLimit) {
-                this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
-                truncatedUserInputMessage = message.substring(0, generateAssistantResponseInputLimit)
+            if (message.length > GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT) {
+                this.#debug(`Truncating userInputMessage to ${GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT} characters}`)
+                truncatedUserInputMessage = message.substring(0, GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT)
                 remainingCharacterBudget = remainingCharacterBudget - truncatedUserInputMessage.length
                 request.conversationState.currentMessage.userInputMessage.content = truncatedUserInputMessage
             } else {
@@ -1647,7 +1647,7 @@ export class AgenticChatController implements ChatHandlers {
     #shouldSendBackErrorContent(toolResult: ToolResult) {
         if (toolResult.status === ToolResultStatus.ERROR) {
             for (const content of toolResult.content ?? []) {
-                if (content.json && JSON.stringify(content.json).includes(outputLimitExceedsPartialMsg)) {
+                if (content.json && JSON.stringify(content.json).includes(OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG)) {
                     // do not send the content response back for this case to avoid unnecessary messages
                     return false
                 }
@@ -1753,7 +1753,7 @@ export class AgenticChatController implements ChatHandlers {
             (result.text && result.text.length > maxToolResponseSize) ||
             (result.json && JSON.stringify(result.json).length > maxToolResponseSize)
         ) {
-            throw Error(`${toolUse.name} ${outputLimitExceedsPartialMsg} ${maxToolResponseSize}`)
+            throw Error(`${toolUse.name} ${OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG} ${maxToolResponseSize}`)
         }
     }
 
@@ -2532,7 +2532,7 @@ export class AgenticChatController implements ChatHandlers {
                 tabId,
                 metric.metric,
                 requestID,
-                errorMessage ?? genericErrorMsg,
+                errorMessage ?? GENERIC_ERROR_MS,
                 agenticCodingMode
             )
         }
@@ -2608,7 +2608,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: requestID ? `${genericErrorMsg} \n\nRequest ID: ${requestID}` : genericErrorMsg,
+            body: requestID ? `${GENERIC_ERROR_MS} \n\nRequest ID: ${requestID}` : GENERIC_ERROR_MS,
             messageId: errorMessageId,
             buttons: [],
         })
@@ -2852,7 +2852,7 @@ export class AgenticChatController implements ChatHandlers {
     #legacySetModelId(tabId: string, session: ChatSessionService) {
         // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
         // In that case, we use the default modelId.
-        let modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
+        let modelId = this.#chatHistoryDb.getModelId() ?? DEFAULT_MODEL_ID
 
         const region = AmazonQTokenServiceManager.getInstance().getRegion()
         if (region === 'eu-central-1') {
@@ -3305,11 +3305,11 @@ export class AgenticChatController implements ChatHandlers {
                 abortController.abort()
                 reject(
                     new AgenticChatError(
-                        `${responseTimeoutPartialMsg} ${responseTimeoutMs}ms`,
+                        `${RESPONSE_TIMEOUT_PARTIAL_MSG} ${RESPONSE_TIMEOUT_MS}ms`,
                         'ResponseProcessingTimeout'
                     )
                 )
-            }, responseTimeoutMs)
+            }, RESPONSE_TIMEOUT_MS)
         })
         const streamWriter = chatResultStream.getResultStreamWriter()
         const processResponsePromise = this.#processAgenticChatResponse(
@@ -3498,10 +3498,10 @@ export class AgenticChatController implements ChatHandlers {
                 this.#debug(`ToolUseEvent ${toolUseId} started`)
                 toolUseLoadingTimeouts[toolUseId] = setTimeout(async () => {
                     this.#debug(
-                        `ToolUseEvent ${toolUseId} is taking longer than ${loadingThresholdMs}ms, showing loading indicator`
+                        `ToolUseEvent ${toolUseId} is taking longer than ${LOADING_THRESHOLD_MS}ms, showing loading indicator`
                     )
                     await streamWriter.write({ ...loadingMessage, messageId: `loading-${toolUseId}` })
-                }, loadingThresholdMs)
+                }, LOADING_THRESHOLD_MS)
             }
         } else if (toolUseEvent.stop && toolUseId) {
             if (toolUseStartTimes[toolUseId]) {
