@@ -23,6 +23,7 @@ let observability: StubbedInstance<Observability>
 let profile1: Profile
 let profile2: Profile
 let profile3: Profile
+let profile4: Profile
 let ssoSession1: SsoSession
 let ssoSession2: SsoSession
 
@@ -52,6 +53,16 @@ describe('ProfileService', async () => {
             },
         }
 
+        profile4 = {
+            kinds: [ProfileKind.IamCredentialProfile],
+            name: 'profile4',
+            settings: {
+                aws_access_key_id: 'access-key',
+                aws_secret_access_key: 'secret-key',
+                aws_session_token: 'session-token',
+            },
+        }
+
         ssoSession1 = {
             name: 'ssoSession1',
             settings: {
@@ -71,7 +82,7 @@ describe('ProfileService', async () => {
 
         store = stubInterface<ProfileStore>({
             load: Promise.resolve({
-                profiles: [profile1, profile2, profile3],
+                profiles: [profile1, profile2, profile3, profile4],
                 ssoSessions: [ssoSession1, ssoSession2],
             } satisfies ProfileData),
             save: Promise.resolve(),
@@ -87,7 +98,7 @@ describe('ProfileService', async () => {
     it('listProfiles return profiles and sso-sessions', async () => {
         const actual = await sut.listProfiles({})
 
-        expect(actual.profiles).to.be.an('array').that.has.deep.members([profile1, profile2, profile3])
+        expect(actual.profiles).to.be.an('array').that.has.deep.members([profile1, profile2, profile3, profile4])
         expect(actual.ssoSessions).to.be.an('array').that.has.deep.members([ssoSession1, ssoSession2])
     })
 
@@ -411,7 +422,7 @@ describe('ProfileService', async () => {
 })
 
 describe('profileService.DuckTypers', () => {
-    it('profileDuckTypers.eval returns true on valid profiles', () => {
+    it('profileDuckTypers.SsoTokenProfile.eval returns true on valid profiles', () => {
         const profiles = [
             {
                 sso_session: 'my-sso-session',
@@ -428,7 +439,7 @@ describe('profileService.DuckTypers', () => {
         }
     })
 
-    it('profileDuckTypers returns false on invalid profiles', () => {
+    it('profileDuckTypers.SsoTokenProfile.eval returns false on invalid profiles', () => {
         const profiles = [
             {
                 SSO_session: 'my-sso-session',
@@ -481,6 +492,40 @@ describe('profileService.DuckTypers', () => {
 
         for (const ssoSession of ssoSessions) {
             const actual = ssoSessionDuckTyper.eval(ssoSession as object)
+            expect(actual).to.be.false
+        }
+    })
+
+    it('profileDuckTypers.IamCredentialProfile.eval returns true on valid profiles', () => {
+        const profiles = [
+            {
+                aws_access_key_id: 'access-key',
+                aws_secret_access_key: 'secret-key',
+            },
+            {
+                credential_process: 'process',
+            },
+        ]
+
+        for (const profile of profiles) {
+            const actual = profileDuckTypers.IamCredentialProfile.eval(profile)
+            expect(actual).to.be.true
+        }
+    })
+
+    it('profileDuckTypers.IamCredentialProfile.eval returns false on invalid profiles', () => {
+        const profiles = [
+            {
+                sso_session: 'my-sso-session',
+            },
+            null,
+            {
+                sso_account_id: '123',
+            },
+        ]
+
+        for (const profile of profiles) {
+            const actual = profileDuckTypers.IamCredentialProfile.eval(profile as object)
             expect(actual).to.be.false
         }
     })

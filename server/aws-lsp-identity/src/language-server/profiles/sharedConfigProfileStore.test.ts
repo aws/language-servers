@@ -81,7 +81,7 @@ describe('SharedConfigProfileStore', async () => {
         mock.restore()
     })
 
-    it('loads SSO token profiles and sso-sessions, but not services', async () => {
+    it('loads profiles and sso-sessions', async () => {
         setupTest(config, credentials)
 
         const actual = await sut.load()
@@ -316,6 +316,18 @@ describe('SharedConfigProfileStore', async () => {
                         sso_session: 'new-sso-session',
                     },
                 },
+                {
+                    kinds: [ProfileKind.IamCredentialProfile],
+                    name: 'new-iam.profile',
+                    settings: {
+                        aws_access_key_id: 'new-access-key',
+                        aws_secret_access_key: 'new-secret-key',
+                        aws_session_token: 'new-session-token',
+                        role_arn: 'new-role-arn',
+                        credential_process: 'new-credential-process',
+                        mfa_serial: 'new-mfa-serial',
+                    },
+                },
             ],
             ssoSessions: [
                 {
@@ -361,6 +373,18 @@ describe('SharedConfigProfileStore', async () => {
                     settings: {
                         region: 'us-west-1',
                         sso_session: 'new-sso-session',
+                    },
+                },
+                {
+                    kinds: [ProfileKind.IamCredentialProfile],
+                    name: 'new-iam.profile',
+                    settings: {
+                        aws_access_key_id: 'new-access-key',
+                        aws_secret_access_key: 'new-secret-key',
+                        aws_session_token: 'new-session-token',
+                        role_arn: 'new-role-arn',
+                        credential_process: 'new-credential-process',
+                        mfa_serial: 'new-mfa-serial',
                     },
                 },
                 {
