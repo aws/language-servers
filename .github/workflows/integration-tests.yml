@@ -6,13 +6,11 @@ on:
         types:
             - completed
         branches: [main, feature/*, release/agentic/*]
-    push:
-        branches: [integ-tests] # todo: remove this before merge
 
 jobs:
     agent-server-tests:
         name: Agent Server Tests (${{ matrix.target }})
-        if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
         strategy:
             fail-fast: false
             matrix:
@@ -35,7 +33,7 @@ jobs:
             - name: Sync Code
               uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+                  ref: ${{ github.event.workflow_run.head_sha }}
             - name: Set up Node
               uses: actions/setup-node@v4
               with:
@@ -44,7 +42,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
-                  run-id: ${{ github.event.workflow_run.id || '16179619194' }} # todo: remove hardcoded runid before merge
+                  run-id: ${{ github.event.workflow_run.id }}
                   name: ${{ matrix.target }}
                   path: app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/${{ matrix.target }}/
             - name: Configure AWS Credentials
@@ -69,7 +67,6 @@ jobs:
               run: |
                   npm run test-integ -w app/aws-lsp-codewhisperer-runtimes
               env:
-                  DEBUG: 'true'
                   TEST_SSO_TOKEN: ${{ env.SSOTOKEN }}
                   TEST_SSO_START_URL: ${{ secrets.TEST_SSO_START_URL }}
                   TEST_PROFILE_ARN: ${{ secrets.TEST_PROFILE_ARN }}
