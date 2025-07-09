@@ -590,7 +590,7 @@ export class AdditionalContextProvider {
         this.sendPinnedContext(params.tabId)
     }
 
-    private convertRulesToRulesFolders(workspaceRules: ContextCommandItem[], tabId: string): RulesFolder[] {
+    convertRulesToRulesFolders(workspaceRules: ContextCommandItem[], tabId: string): RulesFolder[] {
         // Check if there's only one workspace folder
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)
         const isSingleWorkspace = workspaceFolders.length <= 1
