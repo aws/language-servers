@@ -45,7 +45,7 @@ jobs:
             - name: Get SSO Token
               uses: aws-actions/aws-secretsmanager-get-secrets@v2
               with:
-                  secret-id: |
+                  secret-ids: |
                       ,SsoTokenSecret
                   parse-json-secrets: true
             - name: Run Integration Tests
