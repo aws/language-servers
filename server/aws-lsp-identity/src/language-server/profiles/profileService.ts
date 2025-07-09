@@ -52,18 +52,11 @@ export const profileDuckTypers = {
         .disallowProperty(ProfileFields.aws_secret_access_key)
         .disallowProperty(ProfileFields.aws_session_token),
     IamCredentialProfile: new DuckTyper()
-        .requireProperty(ProfileFields.aws_access_key_id)
-        .requireProperty(ProfileFields.aws_secret_access_key)
+        .optionalProperty(ProfileFields.aws_access_key_id)
+        .optionalProperty(ProfileFields.aws_secret_access_key)
         .optionalProperty(ProfileFields.aws_session_token)
         .optionalProperty(ProfileFields.role_arn)
         .optionalProperty(ProfileFields.credential_process)
-        .disallowProperty(ProfileFields.sso_session)
-        .disallowProperty(ProfileFields.sso_account_id)
-        .disallowProperty(ProfileFields.sso_role_name),
-    EmptyProfile: new DuckTyper()
-        .disallowProperty(ProfileFields.aws_access_key_id)
-        .disallowProperty(ProfileFields.aws_secret_access_key)
-        .disallowProperty(ProfileFields.aws_session_token)
         .disallowProperty(ProfileFields.sso_session)
         .disallowProperty(ProfileFields.sso_account_id)
         .disallowProperty(ProfileFields.sso_role_name),
@@ -120,8 +113,7 @@ export class ProfileService {
         // Removing this check for profile deletion
         this.throwOnInvalidProfile(
             !profile.kinds.includes(ProfileKind.SsoTokenProfile) &&
-                !profile.kinds.includes(ProfileKind.IamCredentialProfile) &&
-                !profile.kinds.includes(ProfileKind.EmptyProfile),
+                !profile.kinds.includes(ProfileKind.IamCredentialProfile),
             'Profile must be non-legacy sso-session or iam-credentials type.'
         )
         this.throwOnInvalidProfile(!profile.name, 'Profile name required.')
@@ -170,23 +162,6 @@ export class ProfileService {
                 this.observability.logging.log(`Cannot update shared sso-session. options: ${JSON.stringify(options)}`)
                 throw new AwsError('Cannot update shared sso-session.', AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION)
             }
-        }
-
-        // Validate credentials
-        if (profile.kinds.includes(ProfileKind.IamCredentialProfile)) {
-            this.throwOnInvalidProfile(!profileSettings.aws_access_key_id, 'Access key required on profile.')
-            this.throwOnInvalidProfile(!profileSettings.aws_secret_access_key, 'Secret key required on profile.')
-        }
-
-        // Validate empty profile
-        if (profile.kinds.includes(ProfileKind.EmptyProfile)) {
-            this.throwOnInvalidProfile(
-                !!profileSettings.aws_access_key_id &&
-                    !!profileSettings.aws_secret_access_key &&
-                    !!profileSettings.aws_session_token &&
-                    !!profileSettings.sso_session,
-                'Empty profile must not contain auth fields.'
-            )
         }
 
         await this.profileStore

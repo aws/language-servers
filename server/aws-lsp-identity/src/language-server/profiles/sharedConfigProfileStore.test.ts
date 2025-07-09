@@ -94,16 +94,12 @@ describe('SharedConfigProfileStore', async () => {
                     settings: {
                         aws_access_key_id: 'AAAAAAAA',
                         aws_secret_access_key: 'BBBBBBBB',
-                        aws_session_token: undefined,
                     },
                 },
                 {
-                    kinds: [ProfileKind.Unknown],
+                    kinds: [ProfileKind.IamCredentialProfile],
                     name: 'subsettings',
-                    settings: {
-                        region: undefined,
-                        sso_session: undefined,
-                    },
+                    settings: {},
                 },
                 {
                     kinds: [ProfileKind.SsoTokenProfile],
@@ -189,16 +185,12 @@ describe('SharedConfigProfileStore', async () => {
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
-                            aws_session_token: undefined,
                         },
                     },
                     {
-                        kinds: ['Unknown'],
+                        kinds: [ProfileKind.IamCredentialProfile],
                         name: 'subsettings',
-                        settings: {
-                            region: undefined,
-                            sso_session: undefined,
-                        },
+                        settings: {},
                     },
                     {
                         kinds: [ProfileKind.SsoTokenProfile],
@@ -290,16 +282,12 @@ describe('SharedConfigProfileStore', async () => {
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
-                            aws_session_token: undefined,
                         },
                     },
                     {
-                        kinds: ['Unknown'],
+                        kinds: [ProfileKind.IamCredentialProfile],
                         name: 'subsettings',
-                        settings: {
-                            region: undefined,
-                            sso_session: undefined,
-                        },
+                        settings: {},
                     },
                     {
                         kinds: ['SsoTokenProfile'],
@@ -360,16 +348,12 @@ describe('SharedConfigProfileStore', async () => {
                     settings: {
                         aws_access_key_id: 'AAAAAAAA',
                         aws_secret_access_key: 'BBBBBBBB',
-                        aws_session_token: undefined,
                     },
                 },
                 {
-                    kinds: ['Unknown'],
+                    kinds: [ProfileKind.IamCredentialProfile],
                     name: 'subsettings',
-                    settings: {
-                        region: undefined,
-                        sso_session: undefined,
-                    },
+                    settings: {},
                 },
                 {
                     kinds: [ProfileKind.SsoTokenProfile],

@@ -174,20 +174,20 @@ export class IdentityService {
                 this.observability.logging.log('Profile not found.')
                 throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
             }
-            if (!profile.settings?.aws_access_key_id || !profile.settings?.aws_secret_access_key) {
-                this.observability.logging.log('Profile IAM credentials not found.')
-                throw new AwsError('Profile IAM credentials not found.', AwsErrorCodes.E_INVALID_PROFILE)
-            }
 
-            // Convert config file credentials into IamCredentials object
-            let credentials: IamCredentials = {
-                accessKeyId: profile.settings.aws_access_key_id,
-                secretAccessKey: profile.settings.aws_secret_access_key,
-                sessionToken: profile.settings.aws_session_token,
-            }
-
+            let credentials: IamCredentials
             // Assume the role matching the found ARN
-            if (profile.settings.role_arn) {
+            if (profile.settings?.role_arn) {
+                // TODO: add other parent authentication methods to role assumption
+                if (!profile.settings?.aws_access_key_id || !profile.settings?.aws_secret_access_key) {
+                    throw new Error('Role assumption with non-IAM credentials is not supported.')
+                }
+                credentials = {
+                    accessKeyId: profile.settings.aws_access_key_id,
+                    secretAccessKey: profile.settings.aws_secret_access_key,
+                    sessionToken: profile.settings.aws_session_token,
+                }
+
                 // Try to get the STS credentials from cache
                 const roleArn = profile.settings.role_arn
                 const stsCredentials = await this.stsCache.getStsCredential(profile.name).catch(_ => undefined)
@@ -238,12 +238,22 @@ export class IdentityService {
                     })
             }
             // Get the credentials from the process output
-            else if (profile.settings.credential_process) {
+            else if (profile.settings?.credential_process) {
                 credentials = await getProcessCredentials(profile.settings.credential_process)
+            }
+            // Get the credentials directly from the profile
+            else if (profile.settings?.aws_access_key_id && profile.settings?.aws_secret_access_key) {
+                credentials = {
+                    accessKeyId: profile.settings.aws_access_key_id,
+                    secretAccessKey: profile.settings.aws_secret_access_key,
+                    sessionToken: profile.settings.aws_session_token,
+                }
+            } else {
+                throw new AwsError('Credentials could not be found for profile', AwsErrorCodes.E_INVALID_PROFILE)
             }
 
             // Validate permissions on user or assumed role
-            const hasPermissions = await this.validatePermissions(credentials, profile.settings.region)
+            const hasPermissions = await this.validatePermissions(credentials, profile.settings?.region)
             if (!hasPermissions) {
                 throw new AwsError(
                     `User or assumed role has insufficient permissions.`,

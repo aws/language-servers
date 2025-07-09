@@ -60,16 +60,16 @@ export class SharedConfigProfileStore implements ProfileStore {
                         result.profiles.push({
                             kinds: [ProfileKind.IamCredentialProfile],
                             name: sectionHeader.name,
-                            settings: {
-                                // Only apply settings expected on IamCredentialProfile
-                                aws_access_key_id: settings.aws_access_key_id!,
-                                aws_secret_access_key: settings.aws_secret_access_key!,
-                                aws_session_token: settings.aws_session_token,
-                                ...(settings.role_arn ? { role_arn: settings.role_arn } : {}),
-                                ...(settings.credential_process
-                                    ? { credential_process: settings.credential_process }
-                                    : {}),
-                            },
+                            settings: Object.fromEntries(
+                                // Only apply settings expected on IamCredentialProfile and are defined
+                                Object.entries({
+                                    aws_access_key_id: settings.aws_access_key_id,
+                                    aws_secret_access_key: settings.aws_secret_access_key,
+                                    aws_session_token: settings.aws_session_token,
+                                    role_arn: settings.role_arn,
+                                    credential_process: settings.credential_process,
+                                }).filter(([_, value]) => value !== undefined)
+                            ),
                         })
                     } else {
                         result.profiles.push({
@@ -142,8 +142,6 @@ export class SharedConfigProfileStore implements ProfileStore {
                         return profileDuckTypers.SsoTokenProfile.eval(parsedSection)
                     } else if (section.kinds.includes(ProfileKind.IamCredentialProfile)) {
                         return profileDuckTypers.IamCredentialProfile.eval(parsedSection)
-                    } else if (section.kinds.includes(ProfileKind.EmptyProfile)) {
-                        return profileDuckTypers.EmptyProfile.eval(parsedSection)
                     } else {
                         return true
                     }
