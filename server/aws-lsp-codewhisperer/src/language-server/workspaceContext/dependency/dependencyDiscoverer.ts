@@ -137,6 +137,7 @@ export class DependencyDiscoverer {
     async reSyncDependenciesToS3(folders: WorkspaceFolder[]) {
         Atomics.store(this.dependencyUploadedSizeSum, 0, 0)
         for (const dependencyHandler of this.dependencyHandlerRegistry) {
+            dependencyHandler.markAllDependenciesAsUnZipped()
             await dependencyHandler.zipDependencyMap(folders)
         }
     }

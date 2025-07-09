@@ -353,4 +353,12 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     protected isDependencyZipped(dependencyName: string, workspaceFolder: WorkspaceFolder): boolean | undefined {
         return this.dependencyMap.get(workspaceFolder)?.get(dependencyName)?.zipped
     }
+
+    markAllDependenciesAsUnZipped(): void {
+        this.dependencyMap.forEach(correspondingDependencyMap => {
+            correspondingDependencyMap.forEach(dependency => {
+                dependency.zipped = false
+            })
+        })
+    }
 }
