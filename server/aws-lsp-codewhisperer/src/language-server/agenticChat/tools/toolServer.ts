@@ -23,6 +23,7 @@ import {
     sanitizeName,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
+import { QCodeReviewUtils } from './qCodeAnalysis/qCodeReviewUtils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -109,6 +110,11 @@ export const QCodeAnalysisServer: Server = ({
     })
 
     lsp.onInitialized(async () => {
+        if (!QCodeReviewUtils.enabledAgenticReview(lsp.getClientInitializeParams())) {
+            logging.warn('Agentic Review is currently not supported')
+            return
+        }
+
         logging.info('LSP on initialize for QCodeAnalysisServer')
         // Get credentials provider from the LSP context
         if (!credentialsProvider.hasCredentials) {

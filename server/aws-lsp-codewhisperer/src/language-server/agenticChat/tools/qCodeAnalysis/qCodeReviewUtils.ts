@@ -12,6 +12,8 @@ import { exec } from 'child_process'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
+import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
 
 /**
  * Utility functions for QCodeReview
@@ -250,5 +252,12 @@ export class QCodeReviewUtils {
             logging.error(fullMessage)
             throw new Error(fullMessage)
         }
+    }
+
+    public static enabledAgenticReview(params: InitializeParams | undefined): boolean {
+        const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+            | QClientCapabilities
+            | undefined
+        return qCapabilities?.agenticReviewer || false
     }
 }
