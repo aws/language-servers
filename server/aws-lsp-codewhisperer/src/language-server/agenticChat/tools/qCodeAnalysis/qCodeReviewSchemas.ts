@@ -29,6 +29,8 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
                 '- User mentions "review my changes", "look at what I modified", "check the uncommitted changes"',
                 '- User refers to "review the diff", "analyze recent changes", "look at the new code"',
                 '- User mentions "review what I added/updated", "check my latest commits", "review the modified lines"',
+                '- User includes phrases like "new changes", "recent changes", or any combination of words indicating recency (new, latest, recent) with changes/modifications',
+                '- User mentions specific files with terms like "review new changes in [file]" or "check changes in [file]"',
                 '',
                 'Set "scopeOfReview" to FULL_REVIEW for all other cases, including:',
                 '- When user asks for a general code review without mentioning changes/diffs',
