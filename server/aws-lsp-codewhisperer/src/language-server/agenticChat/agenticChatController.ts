@@ -67,6 +67,7 @@ import {
     ListAvailableModelsResult,
     OpenFileDialogParams,
     OpenFileDialogResult,
+    ContextCommand,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -210,7 +211,11 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
-import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
+import {
+    estimateCharacterCountFromImageBlock,
+    Message as DbMessage,
+    messageToStreamingMessage,
+} from './tools/chatDb/util'
 import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
@@ -927,7 +932,7 @@ export class AgenticChatController implements ChatHandlers {
         triggerContext: TriggerContext,
         additionalContext: AdditionalContentEntryAddition[],
         chatResultStream: AgenticChatResultStream,
-        customContext: ImageBlock[]
+        images: ImageBlock[]
     ): Promise<ChatCommandInput> {
         this.#debug('Preparing request input')
         // Get profileArn from the service manager if available
@@ -943,7 +948,7 @@ export class AgenticChatController implements ChatHandlers {
             additionalContext,
             session.modelId,
             this.#origin,
-            customContext
+            images
         )
         return requestInput
     }
@@ -1248,6 +1253,7 @@ export class AgenticChatController implements ChatHandlers {
                             shouldDisplayMessage &&
                             !currentMessage.userInputMessage?.content?.startsWith('You are Amazon Q'),
                         timestamp: new Date(),
+                        images: currentMessage.userInputMessage?.images,
                     })
                 }
             }
@@ -1511,7 +1517,16 @@ export class AgenticChatController implements ChatHandlers {
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.relevantDocuments =
                 truncatedRelevantDocuments
         }
+        if (
+            request.conversationState.currentMessage.userInputMessage.images !== undefined &&
+            request.conversationState.currentMessage.userInputMessage.images.length > 0
+        ) {
+            let imageBlocks = request.conversationState.currentMessage.userInputMessage.images
 
+            for (const imageBlock of imageBlocks) {
+                remainingCharacterBudget = remainingCharacterBudget - estimateCharacterCountFromImageBlock(imageBlock)
+            }
+        }
         // 3. try to fit current file context
         let truncatedCurrentDocument = undefined
         if (request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState?.document) {
