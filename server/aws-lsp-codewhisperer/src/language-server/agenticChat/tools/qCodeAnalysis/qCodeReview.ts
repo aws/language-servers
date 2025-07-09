@@ -570,7 +570,7 @@ export class QCodeReview {
                     let fileName = path.basename(artifact.path)
                     if (!fileName.startsWith('.') && !QCodeReviewUtils.shouldSkipFile(fileName)) {
                         const fileContent = await this.workspace.fs.readFile(artifact.path)
-                        customerCodeZip.file(`${QCodeReview.CUSTOMER_CODE_BASE_PATH}${artifact.path}`, fileContent)
+                        customerCodeZip.file(`${QCodeReview.CUSTOMER_CODE_BASE_PATH}/${artifact.path}`, fileContent)
                     } else {
                         this.logging.info(`Skipping file - ${artifact.path}`)
                     }
@@ -652,7 +652,7 @@ export class QCodeReview {
                     }
 
                     const content = await this.workspace.fs.readFile(fullPath)
-                    zip.file(`${zipPath}${fullPath}`, content)
+                    zip.file(`${zipPath}/${fullPath}`, content)
                 } else if (entry.isDirectory()) {
                     if (QCodeReviewUtils.shouldSkipDirectory(name)) {
                         this.logging.info(`Skipping directory - ${fullPath}`)
