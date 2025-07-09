@@ -124,7 +124,12 @@ export class ArtifactManager {
         return zipFileMetadata
     }
 
-    async removeWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<void> {
+    dispose(): void {
+        this.filesByWorkspaceFolderAndLanguage.clear()
+        this.workspaceFolders = []
+    }
+
+    removeWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): void {
         workspaceFolders.forEach(workspaceToRemove => {
             // Find the matching workspace folder by URI
             let folderToDelete: WorkspaceFolder | undefined
