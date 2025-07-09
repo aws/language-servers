@@ -5,14 +5,14 @@ on:
         workflows: [Create agent-standalone bundles]
         types:
             - completed
-        branches: [main, feature/*]
-    pull_request:
-        branches: [main, feature/*] # todo: remove this before merge
+        branches: [main, feature/*, release/agentic/*]
+    push:
+        branches: [integ-tests] # todo: remove this before merge
 
 jobs:
     agentic-server-test:
         name: Agentic Server Tests (${{ matrix.os }})
-        if: ${{ github.event.workflow_run.conclusion == 'success' }}
+        if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
         strategy:
             matrix:
                 os: [ubuntu-latest, macos-latest, windows-latest]
@@ -33,7 +33,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
-                  run-id: ${{ github.event.workflow_run.id }}
+                  run-id: ${{ github.event.workflow_run.id || '16175429815' }} # todo: replace with actual run ID for testing
                   path: ./downloaded-artifacts
             - name: Setup artifacts
               run: |
