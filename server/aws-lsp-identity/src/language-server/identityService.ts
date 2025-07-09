@@ -243,6 +243,7 @@ export class IdentityService {
 
         // Try to get the STS credentials from cache
         let result: IamCredentials
+        const roleArn = profile.settings.role_arn!
         const stsCredentials = await this.stsCache.getStsCredential(profile.name).catch(_ => undefined)
 
         if (stsCredentials?.Credentials) {
@@ -252,14 +253,9 @@ export class IdentityService {
                 sessionToken: stsCredentials.Credentials.SessionToken!,
                 expiration: stsCredentials.Credentials.Expiration!,
             }
-        } else if (generateOnInvalidStsCredential && profile.settings.role_arn) {
+        } else if (generateOnInvalidStsCredential) {
             // Generate STS credentials
-            const response = await this.generateStsCredential(
-                stsClient,
-                profile.settings.role_arn,
-                profile.settings.mfa_serial,
-                mfaCode
-            )
+            const response = await this.generateStsCredential(stsClient, roleArn, profile.settings.mfa_serial, mfaCode)
             if (!response.Credentials) {
                 throw new AwsError(
                     'Failed to assume role: No credentials returned',
@@ -285,16 +281,7 @@ export class IdentityService {
         // Set up auto-refresh if MFA is disabled
         if (!profile.settings.mfa_serial) {
             await this.stsAutoRefresher
-                .watch(profile.name, () => {
-                    if (profile.settings?.role_arn) {
-                        return this.generateStsCredential(stsClient, profile.settings.role_arn)
-                    } else {
-                        throw new AwsError(
-                            'Cannot find role ARN associated with profile',
-                            AwsErrorCodes.E_CANNOT_REFRESH_STS_CREDENTIAL
-                        )
-                    }
-                })
+                .watch(profile.name, () => this.generateStsCredential(stsClient, roleArn))
                 .catch(reason => {
                     this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
                 })
