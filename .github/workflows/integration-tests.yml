@@ -34,7 +34,7 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
-                  run-id: ${{ github.event.workflow_run.id || '16175429815' }} # todo: remove hardcoded runid before merge
+                  run-id: ${{ github.event.workflow_run.id || '16179619194' }} # todo: remove hardcoded runid before merge
                   path: app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/
             - name: Configure AWS Credentials
               uses: aws-actions/configure-aws-credentials@v4
