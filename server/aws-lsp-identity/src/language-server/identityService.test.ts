@@ -177,8 +177,8 @@ describe('IdentityService', () => {
             },
         } as StsCredential)
 
-        const getProcessCredentialsStub = stub(processProvider, 'getProcessCredentials')
-        getProcessCredentialsStub.resolves({
+        const getProcessCredentialStub = stub(processProvider, 'getProcessCredential')
+        getProcessCredentialStub.resolves({
             accessKeyId: 'process-access-key',
             secretAccessKey: 'process-secret-key',
             sessionToken: 'process-session-token',

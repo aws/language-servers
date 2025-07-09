@@ -16,7 +16,7 @@ export const execAsync = (command: string) => {
 }
 
 // Runs an executable and parses its JSON output as an IAM/STS credential
-export async function getProcessCredentials(executable: string): Promise<IamCredentials> {
+export async function getProcessCredential(executable: string): Promise<IamCredentials> {
     const command = process.platform === 'win32' ? `cmd /C ${executable}` : `sh -c "${executable}"`
     const { stdout, stderr } = await execAsync(command)
     if (stderr) {

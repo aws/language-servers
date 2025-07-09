@@ -18,6 +18,7 @@ import {
     MetricEvent,
     SsoSession,
     SsoTokenSourceKind,
+    Profile,
 } from '@aws/language-server-runtimes/server-interface'
 
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
@@ -38,7 +39,7 @@ import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/S
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { IAMClient, SimulatePrincipalPolicyCommand } from '@aws-sdk/client-iam'
-import { getProcessCredentials } from '../providers/processProvider'
+import { getProcessCredential } from '../providers/processProvider'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
@@ -178,75 +179,15 @@ export class IdentityService {
             let credentials: IamCredentials
             // Assume the role matching the found ARN
             if (profile.settings?.role_arn) {
-                // TODO: add other parent authentication methods to role assumption
-                if (!profile.settings?.aws_access_key_id || !profile.settings?.aws_secret_access_key) {
-                    throw new Error('Role assumption with non-IAM credentials is not supported.')
-                }
-                credentials = {
-                    accessKeyId: profile.settings.aws_access_key_id,
-                    secretAccessKey: profile.settings.aws_secret_access_key,
-                    sessionToken: profile.settings.aws_session_token,
-                }
-
-                // Try to get the STS credentials from cache
-                const roleArn = profile.settings.role_arn
-                const stsCredentials = await this.stsCache.getStsCredential(profile.name).catch(_ => undefined)
-
-                // Create STS client for role assumption
-                const stsClient = new STSClient({
-                    region: profile.settings.region || 'us-east-1',
-                    credentials: credentials,
-                })
-
-                if (stsCredentials?.Credentials) {
-                    // Use the found STS credential
-                    credentials = {
-                        accessKeyId: stsCredentials.Credentials.AccessKeyId!,
-                        secretAccessKey: stsCredentials.Credentials.SecretAccessKey!,
-                        sessionToken: stsCredentials.Credentials.SessionToken!,
-                        expiration: stsCredentials.Credentials.Expiration!,
-                    }
-                } else if (options.generateOnInvalidStsCredential) {
-                    // Generate STS credentials and cache them
-                    const response = await this.generateStsCredential(
-                        stsClient,
-                        roleArn,
-                        profile.settings.mfa_serial,
-                        params.mfaCode
-                    )
-                    if (!response.Credentials) {
-                        throw new AwsError(
-                            'Failed to assume role: No credentials returned',
-                            AwsErrorCodes.E_INVALID_STS_CREDENTIAL
-                        )
-                    }
-                    await this.stsCache.setStsCredential(profile.name, response)
-                    credentials = {
-                        accessKeyId: response.Credentials.AccessKeyId!,
-                        secretAccessKey: response.Credentials.SecretAccessKey!,
-                        sessionToken: response.Credentials.SessionToken!, // Always present in STS response
-                        expiration: response.Credentials.Expiration!,
-                    }
-                } else {
-                    // If we could not get the cached STS credential and cannot generate a new credential, give up
-                    this.observability.logging.log(
-                        'STS credential not found an generateOnInvalidStsCredential = false, returning no credential.'
-                    )
-                    throw new AwsError('STS credential not found.', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)
-                }
-
-                // Set up auto-refresh if MFA is disabled
-                if (!profile.settings.mfa_serial) {
-                    await this.stsAutoRefresher
-                        .watch(profile.name, () => this.generateStsCredential(stsClient, roleArn))
-                        .catch(reason => {
-                            this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
-                        })
-                }
+                credentials = await this.getAssumedRoleCredential(
+                    profile,
+                    options.generateOnInvalidStsCredential,
+                    params.mfaCode
+                )
             }
             // Get the credentials from the process output
             else if (profile.settings?.credential_process) {
-                credentials = await getProcessCredentials(profile.settings.credential_process)
+                credentials = await getProcessCredential(profile.settings.credential_process)
             }
             // Get the credentials directly from the profile
             else if (profile.settings?.aws_access_key_id && profile.settings?.aws_secret_access_key) {
@@ -278,6 +219,88 @@ export class IdentityService {
             emitMetric('Failed', e)
             throw e
         }
+    }
+
+    private async getAssumedRoleCredential(
+        profile: Profile,
+        generateOnInvalidStsCredential: boolean,
+        mfaCode?: string
+    ): Promise<IamCredentials> {
+        // TODO: add other parent authentication methods to role assumption
+        if (!profile.settings?.aws_access_key_id || !profile.settings?.aws_secret_access_key) {
+            throw new Error('IAM credentials not found when assuming role.')
+        }
+
+        // Create STS client for role assumption
+        const stsClient = new STSClient({
+            region: profile.settings.region || 'us-east-1',
+            credentials: {
+                accessKeyId: profile.settings.aws_access_key_id,
+                secretAccessKey: profile.settings.aws_secret_access_key,
+                sessionToken: profile.settings.aws_session_token,
+            },
+        })
+
+        // Try to get the STS credentials from cache
+        let result: IamCredentials
+        const stsCredentials = await this.stsCache.getStsCredential(profile.name).catch(_ => undefined)
+
+        if (stsCredentials?.Credentials) {
+            result = {
+                accessKeyId: stsCredentials.Credentials.AccessKeyId!,
+                secretAccessKey: stsCredentials.Credentials.SecretAccessKey!,
+                sessionToken: stsCredentials.Credentials.SessionToken!,
+                expiration: stsCredentials.Credentials.Expiration!,
+            }
+        } else if (generateOnInvalidStsCredential && profile.settings.role_arn) {
+            // Generate STS credentials
+            const response = await this.generateStsCredential(
+                stsClient,
+                profile.settings.role_arn,
+                profile.settings.mfa_serial,
+                mfaCode
+            )
+            if (!response.Credentials) {
+                throw new AwsError(
+                    'Failed to assume role: No credentials returned',
+                    AwsErrorCodes.E_INVALID_STS_CREDENTIAL
+                )
+            }
+            // Cache STS credentials
+            await this.stsCache.setStsCredential(profile.name, response)
+            result = {
+                accessKeyId: response.Credentials.AccessKeyId!,
+                secretAccessKey: response.Credentials.SecretAccessKey!,
+                sessionToken: response.Credentials.SessionToken!, // Always present in STS response
+                expiration: response.Credentials.Expiration!,
+            }
+        } else {
+            // If we could not get the cached STS credential and cannot generate a new credential, give up
+            this.observability.logging.log(
+                'STS credential not found an generateOnInvalidStsCredential = false, returning no credential.'
+            )
+            throw new AwsError('STS credential not found.', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)
+        }
+
+        // Set up auto-refresh if MFA is disabled
+        if (!profile.settings.mfa_serial) {
+            await this.stsAutoRefresher
+                .watch(profile.name, () => {
+                    if (profile.settings?.role_arn) {
+                        return this.generateStsCredential(stsClient, profile.settings.role_arn)
+                    } else {
+                        throw new AwsError(
+                            'Cannot find role ARN associated with profile',
+                            AwsErrorCodes.E_CANNOT_REFRESH_STS_CREDENTIAL
+                        )
+                    }
+                })
+                .catch(reason => {
+                    this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
+                })
+        }
+
+        return result
     }
 
     private async generateStsCredential(

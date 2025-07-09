@@ -11,7 +11,7 @@ describe('processProvider', () => {
         restore()
     })
 
-    describe('getProcessCredentials', () => {
+    describe('getProcessCredential', () => {
         it('returns credentials when process executes successfully', async () => {
             const mockCredentials = {
                 AccessKeyId: 'my-access-key',
@@ -25,7 +25,7 @@ describe('processProvider', () => {
                 stderr: '',
             })
 
-            const result = await processProvider.getProcessCredentials('aws sts get-session-token')
+            const result = await processProvider.getProcessCredential('aws sts get-session-token')
 
             expect(result).to.deep.equal({
                 accessKeyId: 'my-access-key',
@@ -47,7 +47,7 @@ describe('processProvider', () => {
                 stderr: '',
             })
 
-            const result = await processProvider.getProcessCredentials('aws sts get-session-token')
+            const result = await processProvider.getProcessCredential('aws sts get-session-token')
 
             expect(result).to.deep.equal({
                 accessKeyId: 'my-access-key',
@@ -62,7 +62,7 @@ describe('processProvider', () => {
                 stderr: 'Error message',
             })
 
-            await expect(processProvider.getProcessCredentials('invalid-command')).to.be.rejectedWith(
+            await expect(processProvider.getProcessCredential('invalid-command')).to.be.rejectedWith(
                 'Failed to execute credential process',
                 AwsErrorCodes.E_UNKNOWN
             )
