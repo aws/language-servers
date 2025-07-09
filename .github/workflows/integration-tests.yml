@@ -14,6 +14,7 @@ jobs:
         name: Agent Server Tests (${{ matrix.os }})
         if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
         strategy:
+            fail-fast: false
             matrix:
                 os: [ubuntu-latest, macos-latest, windows-latest]
         runs-on: ${{ matrix.os }}
@@ -62,6 +63,7 @@ jobs:
               run: |
                   npm run test-integ -w app/aws-lsp-codewhisperer-runtimes
               env:
+                  DEBUG: 'true'
                   TEST_SSO_TOKEN: ${{ env.SSOTOKEN }}
                   TEST_SSO_START_URL: ${{ secrets.TEST_SSO_START_URL }}
                   TEST_PROFILE_ARN: ${{ secrets.TEST_PROFILE_ARN }}
