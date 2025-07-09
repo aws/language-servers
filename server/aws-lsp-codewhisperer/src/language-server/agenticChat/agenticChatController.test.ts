@@ -1803,6 +1803,76 @@ describe('AgenticChatController', () => {
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
             assert.strictEqual(result, 298000)
         })
+
+        it('should truncate images when they exceed budget', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(2000000), //6600 chars - should be removed
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should only keep the first and third images (small ones)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, 500000 - 400000 - 3.3 - 3.3) // remaining budget after content and images
+        })
+
+        it('should handle images without bytes', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: null as any,
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should keep both images since the first one has 0 chars
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, 500000 - 400000 - 3.3) // remaining budget after content and second image
+        })
     })
 
     describe('onCreatePrompt', () => {
