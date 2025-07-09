@@ -47,12 +47,7 @@ jobs:
                   npm ci
                   npm run compile
             - name: Refresh Token
-              run: |
-                  aws lambda invoke \
-                      --function-name TokenRefresherLambda \
-                      --region us-east-1 \
-                      --payload '{}' \
-                      response.json
+              run: aws lambda invoke --function-name TokenRefresherLambda --region us-east-1 --payload '{}' response.json
             - name: Get SSO Token
               uses: aws-actions/aws-secretsmanager-get-secrets@v2
               with:
