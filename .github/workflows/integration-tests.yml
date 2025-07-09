@@ -41,9 +41,10 @@ jobs:
                   role-to-assume: arn:aws:iam::461731163182:role/GitHubActionsTokenRefresherRole # todo: update accountId
                   role-session-name: language-servers-github
                   aws-region: us-east-1
-            - name: Install dependencies
+            - name: Build
               run: |
                   npm ci
+                  npm run compile
             - name: Refresh Token
               run: |
                   aws lambda invoke \
