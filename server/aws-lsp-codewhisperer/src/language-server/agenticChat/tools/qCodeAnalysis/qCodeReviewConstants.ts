@@ -103,8 +103,7 @@ export const Q_CODE_REVIEW_TOOL_NAME = 'qCodeReview'
  */
 export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     'The primary tool for comprehensive code analysis and review. This tool should be used by default whenever a user requests code review, file analysis, or code examination unless explicitly instructed otherwise.',
-    '',
-    'Amazon Q Code Review is your go-to solution for all code analysis needs',
+    'This tool can be used to perform code review of full code or modified code. Modified code refers to the changes made that are not committed yet.',
     '',
     '**Use this tool when customers asks to:**',
     '- "Review this file" or "Review my code" or "Review my changes" or "Review this code" or any other similar prompt to review the code',
@@ -127,16 +126,13 @@ export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     '**Supported File Extensions For Review**',
     `- "${Object.keys(EXTENSION_TO_LANGUAGE).join('", "')}"`,
     '',
-    '**Usage Priority:**',
-    'This tool should be the DEFAULT choice for any code review request. ',
-    '',
     '**Tool start message**',
     'Before running the tool, you must inform the user that you will use Amazon Q Code Review tool for their request.',
     'Under no condition you will use the tool without informing the user.',
     '',
     '**Tool Input**',
     '3 main fields in the tool:',
-    '- scopeOfReview: Determines if the review should analyze the entire codebase (FULL_REVIEW) or only focus on changes/modifications (PARTIAL_REVIEW). This is a required field.',
+    '- scopeOfReview: Determines if the review should analyze the entire code (FULL_REVIEW) or only focus on changes/modifications/uncommitted code (CODE_DIFF_REVIEW). This is a required field.',
     '- fileLevelArtifacts: Array of specific files to review, each with absolute path and programming language. Use this when reviewing individual files, not folders. Format: [{"path": "/absolute/path/to/file.py", "programmingLanguage": "PYTHON"}]',
     '- folderLevelArtifacts: Array of folders to review, each with absolute path. Use this when reviewing entire directories, not individual files. Format: [{"path": "/absolute/path/to/folder/"}]',
     'Few important notes for tool input',
@@ -171,8 +167,8 @@ export const FINDING_SEVERITY = ['Info', 'Low', 'Medium', 'High', 'Critical']
  * Scope of code review based on customers prompt
  */
 export const FULL_REVIEW = 'FULL_REVIEW'
-export const PARTIAL_REVIEW = 'PARTIAL_REVIEW'
-export const SCOPE_OF_CODE_REVIEW = [FULL_REVIEW, PARTIAL_REVIEW]
+export const CODE_DIFF_REVIEW = 'CODE_DIFF_REVIEW'
+export const SCOPE_OF_CODE_REVIEW = [FULL_REVIEW, CODE_DIFF_REVIEW]
 
 /**
  * Directories to skip during zip creation

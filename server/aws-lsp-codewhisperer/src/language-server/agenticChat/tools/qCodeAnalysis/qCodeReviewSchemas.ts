@@ -13,7 +13,7 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
     description: [
         '**3 main fields in the tool:**',
-        '- scopeOfReview: Determines if the tool should analyze entire codebase (FULL_REVIEW) or only focus on changes/modifications in their code (PARTIAL_REVIEW). This is a required field.',
+        '- scopeOfReview: Determines if the tool should analyze entire codebase (FULL_REVIEW) or only focus on changes/modifications in their code (CODE_DIFF_REVIEW). This is a required field.',
         '- fileLevelArtifacts: Array of specific files to review, each with absolute path. Use this when reviewing individual files, not folders. Format: [{"path": "/absolute/path/to/file.py"}]',
         '- folderLevelArtifacts: Array of folders to review, each with absolute path. Use this when reviewing entire directories, not individual files. Format: [{"path": "/absolute/path/to/folder/"}]',
         "Note: Either fileLevelArtifacts OR folderLevelArtifacts should be provided based on what's being reviewed, but not both for the same items.",
@@ -24,8 +24,8 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
             description: [
                 'After analyzing user request, you should determine value of "scopeOfReview".',
                 '',
-                'If user is asking for review of changes in their code, then you must set value of "scopeOfReview" as PARTIAL_REVIEW.',
-                'Some of the indicators of PARTIAL_REVIEW requests are like -',
+                'If user is asking for review of changes in their code, then you must set value of "scopeOfReview" as CODE_DIFF_REVIEW.',
+                'Some of the indicators of CODE_DIFF_REVIEW requests are like -',
                 '- "review my changes"',
                 '- "look at what I modified"',
                 '- "check the uncommitted changes"',

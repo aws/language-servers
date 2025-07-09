@@ -11,7 +11,7 @@ import {
     Q_CODE_REVIEW_TOOL_NAME,
     Q_CODE_REVIEW_TOOL_DESCRIPTION,
     FULL_REVIEW,
-    PARTIAL_REVIEW,
+    CODE_DIFF_REVIEW,
 } from './qCodeReviewConstants'
 import { QCodeReviewUtils } from './qCodeReviewUtils'
 import { Q_CODE_REVIEW_INPUT_SCHEMA, Z_Q_CODE_REVIEW_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
@@ -373,7 +373,7 @@ export class QCodeReview {
         return {
             codeReviewId: jobId,
             status: completionResult.status,
-            scopeOfReview: setup.isFullReviewRequest ? FULL_REVIEW : PARTIAL_REVIEW,
+            scopeOfReview: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
             result: {
                 message: `${Q_CODE_REVIEW_TOOL_NAME} tool completed successfully. Do not show any summary of findings to the user.${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${QCodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
                 findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
