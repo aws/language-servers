@@ -1,14 +1,18 @@
 name: Integration Tests
 
 on:
-    push:
+    workflow_run:
+        workflows: [Create agent-standalone bundles]
+        types:
+            - completed
         branches: [main, feature/*]
     pull_request:
         branches: [main, feature/*] # todo: remove this before merge
 
 jobs:
-    integration-test:
-        name: Agentic Server Integration Tests
+    agentic-server-test:
+        name: Agentic Server Tests (${{ matrix.os }})
+        if: ${{ github.event.workflow_run.conclusion == 'success' }}
         strategy:
             matrix:
                 os: [ubuntu-latest, macos-latest, windows-latest]
@@ -18,26 +22,36 @@ jobs:
             contents: read
         steps:
             - name: Sync Code
-              uses: actions/checkout@v3
+              uses: actions/checkout@v4
               with:
-                  lfs: true
+                  ref: ${{ github.event.workflow_run.head_sha }}
             - name: Set up Node
-              uses: actions/setup-node@v3
+              uses: actions/setup-node@v4
               with:
                   node-version: 18
+            - name: Download build artifacts
+              uses: actions/download-artifact@v4
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  run-id: ${{ github.event.workflow_run.id }}
+                  path: ./downloaded-artifacts
+            - name: Setup artifacts
+              run: |
+                  mkdir -p app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone
+                  platforms=("linux-arm64" "linux-x64" "mac-arm64" "mac-x64" "win-x64")
+                  for platform in "${platforms[@]}"; do
+                    mkdir -p "app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/$platform"
+                    cp "downloaded-artifacts/$platform/servers.zip" "app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/$platform/"
+                  done
             - name: Configure AWS Credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
-                  role-to-assume: arn:aws:iam::461731163182:role/GitHubActionsTokenRefresherRole
+                  role-to-assume: arn:aws:iam::461731163182:role/GitHubActionsTokenRefresherRole # todo: update accountId
                   role-session-name: language-servers-github
                   aws-region: us-east-1
-            - name: Build
+            - name: Install dependencies
               run: |
                   npm ci
-                  npm run compile
-            - name: Generate agent standalone
-              run: |
-                  npm run ci:generate:agent-standalone -w app/aws-lsp-codewhisperer-runtimes
             - name: Refresh Token
               run: |
                   aws lambda invoke \
