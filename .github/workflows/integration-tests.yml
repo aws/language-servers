@@ -1,0 +1,55 @@
+name: Integration Tests
+
+on:
+    push:
+        branches: [main, feature/*]
+    pull_request:
+        branches: [main, feature/*] # todo: remove this before merge
+
+jobs:
+    integration-test:
+        name: Agentic Server Integration Tests
+        runs-on: ubuntu-latest
+        permissions:
+            id-token: write
+            contents: read
+        steps:
+            - name: Sync Code
+              uses: actions/checkout@v3
+            - name: Set up Node
+              uses: actions/setup-node@v3
+              with:
+                  node-version: 18
+            - name: Configure AWS Credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  role-to-assume: arn:aws:iam::461731163182:role/GitHubActionsTokenRefresherRole
+                  role-session-name: language-servers-github
+                  aws-region: us-east-1
+            - name: Build
+              run: |
+                  npm ci
+                  npm run compile
+            - name: Generate agent standalone
+              run: |
+                  npm run ci:generate:agent-standalone -w app/aws-lsp-codewhisperer-runtimes
+            - name: Refresh Token
+              run: |
+                  aws lambda invoke \
+                      --function-name TokenRefresherLambda \
+                      --region us-east-1 \
+                      --payload '{}' \
+                      response.json
+            - name: Get SSO Token
+              uses: aws-actions/aws-secretsmanager-get-secrets@v2
+              with:
+                  secret-id: |
+                      TEST_SSO_TOKEN,SsoTokenSecret
+                  parse-json-secrets: true
+            - name: Run Integration Tests
+              run: |
+                  npm run test-integ -w app/aws-lsp-codewhisperer-runtimes
+              env:
+                  TEST_SSO_TOKEN: ${{ env.SSOTOKEN }}
+                  TEST_SSO_START_URL: ${{ secrets.TEST_SSO_START_URL }}
+                  TEST_PROFILE_ARN: ${{ secrets.TEST_PROFILE_ARN }}

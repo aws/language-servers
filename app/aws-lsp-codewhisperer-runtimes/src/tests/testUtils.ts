@@ -1,13 +1,30 @@
 import { UpdateCredentialsParams } from '@aws/language-server-runtimes/protocol'
 import * as jose from 'jose'
 import { JSONRPCEndpoint } from 'ts-lsp-client'
+import * as fs from 'fs'
+import * as os from 'os'
+import * as path from 'path'
+import * as yauzl from 'yauzl-promise'
+import { pipeline } from 'stream/promises'
 
+/**
+ * Encrypts an object using JWT with the provided key.
+ * @param request - The object to encrypt
+ * @param key - Base64 encoded encryption key
+ * @returns Promise resolving to encrypted JWT string
+ */
 export function encryptObjectWithKey<T>(request: T, key: string): Promise<string> {
     const payload = new TextEncoder().encode(JSON.stringify(request))
     const keyBuffer = Buffer.from(key, 'base64')
     return new jose.CompactEncrypt(payload).setProtectedHeader({ alg: 'dir', enc: 'A256GCM' }).encrypt(keyBuffer)
 }
 
+/**
+ * Decrypts a JWT string using the provided key.
+ * @param request - The encrypted JWT string to decrypt
+ * @param key - Base64 encoded decryption key
+ * @returns Promise resolving to the decrypted object
+ */
 export async function decryptObjectWithKey<T>(request: string, key: string): Promise<T> {
     const result = await jose.jwtDecrypt(request, Buffer.from(key, 'base64'), {
         clockTolerance: 60, // Allow up to 60 seconds to account for clock differences
@@ -21,22 +38,30 @@ export async function decryptObjectWithKey<T>(request: string, key: string): Pro
     return result.payload as T
 }
 
-async function getSSOToken(): Promise<UpdateCredentialsParams> {
-    const token = process.env.SSO_TOKEN
-    if (!token) {
-        throw new Error('SSO_TOKEN environment variable is not set')
-    }
+function getUpdateCredentialsParams(token: string, startUrl: string): UpdateCredentialsParams {
     return {
         data: { token },
         encrypted: false,
-        metadata: { sso: { startUrl: process.env.SSO_START_URL } },
+        metadata: { sso: { startUrl } },
     }
 }
 
-export async function authenticateServer(endpoint: JSONRPCEndpoint): Promise<void> {
-    const credentials = await getSSOToken()
-    await updateServerAuthToken(endpoint, credentials)
-    await setProfile(endpoint)
+/**
+ * Authenticates the server using SSO token and sets the profile.
+ * @param endpoint - The JSON-RPC endpoint to authenticate
+ * @param ssoToken - The SSO token for authentication
+ * @param startUrl - The SSO start URL
+ * @param profileArn - The AWS profile ARN to set
+ */
+export async function authenticateServer(
+    endpoint: JSONRPCEndpoint,
+    ssoToken: string,
+    startUrl: string,
+    profileArn: string
+): Promise<void> {
+    const updateCredentialsParams = getUpdateCredentialsParams(ssoToken, startUrl)
+    await updateServerAuthToken(endpoint, updateCredentialsParams)
+    await setProfile(endpoint, profileArn)
 }
 
 async function updateServerAuthToken(
@@ -46,9 +71,53 @@ async function updateServerAuthToken(
     await endpoint.send('aws/credentials/token/update', updateCredentialsRequest)
 }
 
-export async function setProfile(endpoint: JSONRPCEndpoint): Promise<void> {
+async function setProfile(endpoint: JSONRPCEndpoint, profileArn: string): Promise<void> {
     await endpoint.send('aws/updateConfiguration', {
         section: 'aws.q',
-        settings: { profileArn: process.env.PROFILE_ARN },
+        settings: { profileArn },
     })
+}
+
+/**
+ * Determines the target platform string based on OS and architecture.
+ * @returns Platform string (e.g., 'linux-x64', 'mac-arm64', 'win-x64')
+ */
+export function getTargetPlatform(): string {
+    const platform = os.platform()
+    const arch = os.arch()
+
+    if (platform === 'darwin') {
+        return arch === 'arm64' ? 'mac-arm64' : 'mac-x64'
+    } else if (platform === 'win32') {
+        return 'win-x64'
+    } else {
+        return arch === 'arm64' ? 'linux-arm64' : 'linux-x64'
+    }
+}
+
+/**
+ * Extracts a servers.zip file to a temporary directory.
+ * @param zipPath - Path to the zip file to extract
+ * @returns Promise resolving to the path of aws-lsp-codewhisperer.js
+ */
+export async function unzipServers(zipPath: string): Promise<string> {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'servers-'))
+    const zip = await yauzl.open(zipPath)
+
+    try {
+        for await (const entry of zip) {
+            if (!entry.filename.endsWith('/')) {
+                const outputPath = path.join(tempDir, entry.filename)
+                fs.mkdirSync(path.dirname(outputPath), { recursive: true })
+
+                const readStream = await entry.openReadStream()
+                const writeStream = fs.createWriteStream(outputPath)
+                await pipeline(readStream, writeStream)
+            }
+        }
+    } finally {
+        await zip.close()
+    }
+
+    return path.join(tempDir, 'aws-lsp-codewhisperer.js')
 }
