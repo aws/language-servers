@@ -208,7 +208,12 @@ export class IdentityService {
                     }
                 } else if (options.generateOnInvalidStsCredential) {
                     // Generate STS credentials and cache them
-                    const response = await this.generateStsCredential(stsClient, roleArn)
+                    const response = await this.generateStsCredential(
+                        stsClient,
+                        roleArn,
+                        profile.settings.mfa_serial,
+                        params.mfaCode
+                    )
                     if (!response.Credentials) {
                         throw new AwsError(
                             'Failed to assume role: No credentials returned',
@@ -230,12 +235,14 @@ export class IdentityService {
                     throw new AwsError('STS credential not found.', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)
                 }
 
-                // Set up auto-refresh
-                await this.stsAutoRefresher
-                    .watch(profile.name, () => this.generateStsCredential(stsClient, roleArn))
-                    .catch(reason => {
-                        this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
-                    })
+                // Set up auto-refresh if MFA is disabled
+                if (!profile.settings.mfa_serial) {
+                    await this.stsAutoRefresher
+                        .watch(profile.name, () => this.generateStsCredential(stsClient, roleArn))
+                        .catch(reason => {
+                            this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
+                        })
+                }
             }
             // Get the credentials from the process output
             else if (profile.settings?.credential_process) {
@@ -273,12 +280,19 @@ export class IdentityService {
         }
     }
 
-    private async generateStsCredential(stsClient: STSClient, roleArn: string): Promise<StsCredential> {
+    private async generateStsCredential(
+        stsClient: STSClient,
+        roleArn: string,
+        mfaSerial?: string,
+        mfaCode?: string
+    ): Promise<StsCredential> {
         try {
+            const mfaFields = mfaSerial && mfaCode ? { SerialNumber: mfaSerial, TokenCode: mfaCode } : {}
             const command = new AssumeRoleCommand({
                 RoleArn: roleArn,
                 RoleSessionName: `session-${Date.now()}`,
                 DurationSeconds: 3600,
+                ...mfaFields,
             })
 
             const { Credentials, AssumedRoleUser } = await stsClient.send(command)
