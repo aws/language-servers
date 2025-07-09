@@ -1516,17 +1516,23 @@ export class AgenticChatController implements ChatHandlers {
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.relevantDocuments =
                 truncatedRelevantDocuments
         }
+
+        // 3. try to fit images into budget
         if (
             request.conversationState.currentMessage.userInputMessage.images !== undefined &&
             request.conversationState.currentMessage.userInputMessage.images.length > 0
         ) {
-            let imageBlocks = request.conversationState.currentMessage.userInputMessage.images
-
-            for (const imageBlock of imageBlocks) {
-                remainingCharacterBudget = remainingCharacterBudget - estimateCharacterCountFromImageBlock(imageBlock)
+            const truncatedImageBlocks: ImageBlock[] = []
+            for (const imageBlock of request.conversationState.currentMessage.userInputMessage.images) {
+                const imageCharCount = estimateCharacterCountFromImageBlock(imageBlock)
+                if (remainingCharacterBudget > imageCharCount) {
+                    truncatedImageBlocks.push(imageBlock)
+                    remainingCharacterBudget = remainingCharacterBudget - imageCharCount
+                }
             }
+            request.conversationState.currentMessage.userInputMessage.images = truncatedImageBlocks
         }
-        // 3. try to fit current file context
+        // 4. try to fit current file context
         let truncatedCurrentDocument = undefined
         if (request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState?.document) {
             const docLength =
@@ -1542,7 +1548,7 @@ export class AgenticChatController implements ChatHandlers {
                 truncatedCurrentDocument
         }
 
-        // 4. try to fit pinned context into budget
+        // 5. try to fit pinned context into budget
         if (pinnedContext && pinnedContext.length > 0) {
             remainingCharacterBudget = this.truncatePinnedContext(remainingCharacterBudget, pinnedContext)
         }
