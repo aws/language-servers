@@ -45,7 +45,6 @@ import {
     Model,
     OpenFileDialogParams,
     OpenFileDialogResult,
-    ContextCommand,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
