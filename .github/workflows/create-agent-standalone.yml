@@ -2,7 +2,7 @@ name: Create agent-standalone bundles
 
 on:
     push:
-        branches: [main, feature/*]
+        branches: [main, feature/*, integ-tests] # todo: remove integ-tests before merge
 
 jobs:
     build:
