@@ -9,7 +9,10 @@ on:
 jobs:
     integration-test:
         name: Agentic Server Integration Tests
-        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                os: [ubuntu-latest, macos-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
         permissions:
             id-token: write
             contents: read
