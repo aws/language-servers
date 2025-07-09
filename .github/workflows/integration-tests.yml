@@ -10,8 +10,8 @@ on:
         branches: [integ-tests] # todo: remove this before merge
 
 jobs:
-    agentic-server-test:
-        name: Agentic Server Tests (${{ matrix.os }})
+    agent-server-tests:
+        name: Agent Server Tests (${{ matrix.os }})
         if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'push' }}
         strategy:
             matrix:
@@ -24,7 +24,7 @@ jobs:
             - name: Sync Code
               uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.workflow_run.head_sha }}
+                  ref: ${{ github.event.workflow_run.head_sha || github.sha }}
             - name: Set up Node
               uses: actions/setup-node@v4
               with:
@@ -33,16 +33,8 @@ jobs:
               uses: actions/download-artifact@v4
               with:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
-                  run-id: ${{ github.event.workflow_run.id || '16175429815' }} # todo: replace with actual run ID for testing
-                  path: ./downloaded-artifacts
-            - name: Setup artifacts
-              run: |
-                  mkdir -p app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone
-                  platforms=("linux-arm64" "linux-x64" "mac-arm64" "mac-x64" "win-x64")
-                  for platform in "${platforms[@]}"; do
-                    mkdir -p "app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/$platform"
-                    cp "downloaded-artifacts/$platform/servers.zip" "app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/$platform/"
-                  done
+                  run-id: ${{ github.event.workflow_run.id || '16175429815' }} # todo: remove hardcoded runid before merge
+                  path: app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/
             - name: Configure AWS Credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
