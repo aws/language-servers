@@ -695,7 +695,7 @@ export class AgenticChatController implements ChatHandlers {
                 triggerContext.text &&
                 triggerContext.relativeFilePath &&
                 triggerContext.activeFilePath &&
-                !additionalContext.map(item => item.path).includes(triggerContext.activeFilePath)
+                !additionalContext.some(item => item.path === triggerContext.activeFilePath)
                     ? [
                           {
                               name: path.basename(triggerContext.relativeFilePath),
