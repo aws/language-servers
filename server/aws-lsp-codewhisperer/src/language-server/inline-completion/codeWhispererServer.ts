@@ -505,7 +505,7 @@ export const CodewhispererServerFactory =
                                         codewhispererAutoTriggerType === 'Classifier' &&
                                         autoTriggerResult.shouldTrigger)
                                 ) {
-                                    predictionTypes.push(['COMPLETIONS'])
+                                    // predictionTypes.push(['COMPLETIONS'])
                                 }
 
                                 const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
@@ -523,6 +523,9 @@ export const CodewhispererServerFactory =
                             }
 
                             if (predictionTypes.length === 0) {
+                                logging.info(
+                                    `[NEP]: return early with empty since there is no predictionType specified`
+                                )
                                 return EMPTY_RESULT
                             }
 
@@ -581,6 +584,7 @@ export const CodewhispererServerFactory =
                             )
 
                             if (mergedSuggestions.length > 0) {
+                                logging.info(`[NEP]: returning suggestion from previous session as context matches`)
                                 return {
                                     items: mergedSuggestions,
                                     sessionId: currentSession.id,
@@ -588,6 +592,7 @@ export const CodewhispererServerFactory =
                             }
                         }
                         // Emit user trigger decision at session close time for active session
+                        logging.info(`[NEP]: discard current session`)
                         sessionManager.discardSession(currentSession)
                         const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                         await emitUserTriggerDecisionTelemetry(

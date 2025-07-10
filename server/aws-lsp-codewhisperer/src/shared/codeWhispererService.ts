@@ -255,14 +255,19 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
-        this.logging.info(`GenerateCompletion response: 
+        this.logging.info(`[NEP]: generateCompletion payload: 
+    "lsp-version": '7/2; edits-only - fe1156cdd6becbda4b7218cbb06f615a5d919def',
     "requestId": ${response.$response.requestId},
     "responseCompletionCount": ${response.completions?.length ?? 0},
     "responsePredictionCount": ${response.predictions?.length ?? 0},
     "suggestionType": ${request.predictionTypes?.toString() ?? ''},
     "filename": ${request.fileContext.filename},
     "language": ${request.fileContext.programmingLanguage.languageName},
-    "supplementalContextLength": ${request.supplementalContexts?.length ?? 0}`)
+    "editorState.cursorPosition": ${JSON.stringify(request.editorState?.cursorState?.position)},
+    "editorState.range": ${JSON.stringify(request.editorState?.cursorState?.range)},
+    "editorState.document.relativeFilePath" :${JSON.stringify(request.editorState?.document?.relativeFilePath)}
+    "supplementalContextLength": ${request.supplementalContexts?.length ?? 0},
+    "supplementalContext": ${JSON.stringify(request.supplementalContexts)}`)
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
