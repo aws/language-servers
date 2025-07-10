@@ -7,6 +7,7 @@ import {
     AwsErrorCodes,
     GetSsoTokenParams,
     InvalidateSsoTokenParams,
+    InvalidateStsCredentialParams,
     InitializeParams,
     PartialInitializeResult,
     ShowMessageRequestParams,
@@ -15,7 +16,10 @@ import {
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
+import { RefreshingStsCache } from '../sts/cache/refreshingStsCache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { FileSystemStsCache } from '../sts/cache/fileSystemStsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
@@ -51,10 +55,19 @@ export class IdentityServer extends ServerBase {
 
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
 
+        const stsCache = new RefreshingStsCache(new FileSystemStsCache(this.observability), this.observability)
+        const stsAutoRefresher = new StsAutoRefresher(
+            stsCache,
+            this.features.identityManagement.sendStsCredentialChanged,
+            this.observability
+        )
+
         const identityService = new IdentityService(
             profileStore,
             ssoCache,
             autoRefresher,
+            stsCache,
+            stsAutoRefresher,
             { showUrl, showMessageRequest, showProgress },
             this.getClientName(params),
             this.observability
@@ -87,6 +100,14 @@ export class IdentityServer extends ServerBase {
                 })
         )
 
+        this.features.identityManagement.onInvalidateStsCredential(
+            async (params: InvalidateStsCredentialParams, token: CancellationToken) =>
+                await identityService.invalidateStsCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`InvalidateIamCredentials failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
         this.features.identityManagement.onListProfiles(
             async (params: ListProfilesParams, token: CancellationToken) =>
                 await profileService.listProfiles(params, token).catch(reason => {
@@ -104,6 +125,7 @@ export class IdentityServer extends ServerBase {
         )
 
         this.disposables.push(autoRefresher)
+        this.disposables.push(stsAutoRefresher)
 
         return {
             ...result,

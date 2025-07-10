@@ -14,6 +14,8 @@ import {
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { Observability } from '@aws/lsp-core'
+import { StsCache, StsCredential } from '../sts/cache/stsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -22,7 +24,9 @@ let sut: IdentityService
 
 let profileStore: StubbedInstance<ProfileStore>
 let ssoCache: StubbedInstance<SsoCache>
+let stsCache: StubbedInstance<StsCache>
 let autoRefresher: StubbedInstance<SsoTokenAutoRefresher>
+let stsAutoRefresher: StubbedInstance<StsAutoRefresher>
 let observability: StubbedInstance<Observability>
 let authFlowFn: SinonSpy
 
@@ -106,10 +110,21 @@ describe('IdentityService', () => {
             setSsoToken: Promise.resolve(),
         })
 
+        stsCache = stubInterface<StsCache>({
+            getStsCredential: Promise.resolve(undefined),
+            setStsCredential: Promise.resolve(),
+            removeStsCredential: Promise.resolve(),
+        })
+
         autoRefresher = createStubInstance(SsoTokenAutoRefresher, {
             watch: Promise.resolve(),
             unwatch: undefined,
         }) as StubbedInstance<SsoTokenAutoRefresher>
+
+        stsAutoRefresher = createStubInstance(StsAutoRefresher, {
+            watch: Promise.resolve(),
+            unwatch: undefined,
+        }) as StubbedInstance<StsAutoRefresher>
 
         authFlowFn = spy(() =>
             Promise.resolve({
@@ -126,6 +141,8 @@ describe('IdentityService', () => {
             profileStore,
             ssoCache,
             autoRefresher,
+            stsCache,
+            stsAutoRefresher,
             {
                 showUrl: _ => {},
                 showMessageRequest: _ => Promise.resolve({ title: 'client-response' }),
@@ -141,6 +158,20 @@ describe('IdentityService', () => {
 
         const validatePermissionsStub = stub(sut as any, 'validatePermissions')
         validatePermissionsStub.resolves(true)
+
+        const generateStsCredentialStub = stub(sut as any, 'generateStsCredential')
+        generateStsCredentialStub.resolves({
+            Credentials: {
+                AccessKeyId: 'role-access-key',
+                SecretAccessKey: 'role-secret-key',
+                SessionToken: 'role-session-token',
+                Expiration: new Date('2024-09-25T18:09:20.455Z'),
+            },
+            AssumedRoleUser: {
+                Arn: 'role-arn',
+                AssumedRoleId: 'role-id',
+            },
+        } as StsCredential)
     })
 
     afterEach(() => {
@@ -314,6 +345,70 @@ describe('IdentityService', () => {
             expect(actual.credentials.secretAccessKey).to.equal('my-secret-key')
             expect(actual.credentials.sessionToken).to.equal('my-session-token')
         })
+
+        it('Can login with assumed role.', async () => {
+            const actual = await sut.getIamCredential({ profileName: 'my-role-profile' }, CancellationToken.None)
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+        })
+
+        it('Returns existing STS credential.', async () => {
+            stsCache.getStsCredential = (() =>
+                Promise.resolve({
+                    Credentials: {
+                        AccessKeyId: 'other-access-key',
+                        SecretAccessKey: 'other-secret-key',
+                        SessionToken: 'other-session-token',
+                        Expiration: new Date('2024-10-25T18:09:20.455Z'),
+                    },
+                    AssumedRoleUser: {
+                        Arn: 'other-role-arn',
+                        AssumedRoleId: 'other-role-id',
+                    },
+                })) as any
+            const actual = await sut.getIamCredential({ profileName: 'my-role-profile' }, CancellationToken.None)
+
+            expect(actual.credentials.accessKeyId).to.equal('other-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('other-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('other-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-10-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+        })
+
+        it('Throws when no STS credential cached and generateOnInvalidStsCredential is false.', async () => {
+            const error = await expect(
+                sut.getIamCredential(
+                    {
+                        profileName: 'my-role-profile',
+                        options: { generateOnInvalidStsCredential: false },
+                    },
+                    CancellationToken.None
+                )
+            ).rejectedWith(Error)
+
+            expect(error.message).to.equal('STS credential not found.')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.false
+        })
+
+        it('Can assume role with MFA.', async () => {
+            const actual = await sut.getIamCredential(
+                {
+                    profileName: 'my-mfa-profile',
+                    mfaCode: '123456',
+                },
+                CancellationToken.None
+            )
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.notCalled).to.be.true
+        })
     })
 
     describe('invalidateSsoToken', () => {
@@ -327,6 +422,22 @@ describe('IdentityService', () => {
             await expect(sut.invalidateSsoToken({ ssoTokenId: '   ' }, CancellationToken.None)).to.be.rejectedWith()
 
             expect(ssoCache.removeSsoToken.notCalled).is.true
+        })
+    })
+
+    describe('invalidateStsCredential', () => {
+        it('Removes on valid profile name', async () => {
+            await sut.invalidateStsCredential({ profileName: 'my-role-profile' }, CancellationToken.None)
+
+            expect(stsCache.removeStsCredential.called).is.true
+        })
+
+        it('Throws on invalid profile name', async () => {
+            await expect(
+                sut.invalidateStsCredential({ profileName: '   ' }, CancellationToken.None)
+            ).to.be.rejectedWith()
+
+            expect(stsCache.removeStsCredential.notCalled).is.true
         })
     })
 })
