@@ -37,9 +37,11 @@ export class WorkspaceFolderManager {
     private static instance: WorkspaceFolderManager | undefined
     private readonly workspaceIdentifier: string
     private workspaceState: WorkspaceState
-    // Promise that resolves to whether remote workspace operations should proceed
+    // Promise that gates operations until workspace ID is ready or cancelled
     private remoteWorkspaceIdPromise: Promise<boolean>
+    // Resolves the remoteWorkspaceIdPromise to signal whether operations should proceed
     private remoteWorkspaceIdResolver!: (id: boolean) => void
+    // Tracks whether the existing remoteWorkspaceIdPromise has been resolved
     private remoteWorkspaceIdPromiseResolved: boolean = false
     private workspaceFolders: WorkspaceFolder[]
     private credentialsProvider: CredentialsProvider
