@@ -58,19 +58,19 @@ export class SharedConfigProfileStore implements ProfileStore {
                         profile.settings!.region = settings.region
                         profile.settings!.sso_session = settings.sso_session
                     }
-                    if (profileDuckTypers.ProcessProfile.eval(settings)) {
-                        profile.kinds.push(ProfileKind.ProcessProfile)
+                    if (profileDuckTypers.IamProcessProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.IamProcessProfile)
                         profile.settings!.credential_process = settings.credential_process
                     }
-                    if (profileDuckTypers.RoleSourceProfile.eval(settings)) {
-                        profile.kinds.push(ProfileKind.RoleSourceProfile)
+                    if (profileDuckTypers.IamRoleSourceProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.IamRoleSourceProfile)
                         profile.settings!.role_arn = settings.role_arn
                         profile.settings!.source_profile = settings.source_profile
                         profile.settings!.mfa_serial = settings.mfa_serial
                         profile.settings!.role_session_name = settings.role_session_name
                     }
-                    if (profileDuckTypers.RoleInstanceProfile.eval(settings)) {
-                        profile.kinds.push(ProfileKind.RoleInstanceProfile)
+                    if (profileDuckTypers.IamRoleInstanceProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.IamRoleInstanceProfile)
                         profile.settings!.role_arn = settings.role_arn
                         profile.settings!.region = settings.region
                         profile.settings!.credential_source = settings.credential_source

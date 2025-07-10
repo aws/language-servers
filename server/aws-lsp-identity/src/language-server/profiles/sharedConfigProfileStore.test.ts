@@ -328,7 +328,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.RoleSourceProfile],
+                    kinds: [ProfileKind.IamRoleSourceProfile],
                     name: 'role-source.profile',
                     settings: {
                         role_arn: 'new-role-arn',
@@ -336,7 +336,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.RoleInstanceProfile],
+                    kinds: [ProfileKind.IamRoleInstanceProfile],
                     name: 'role-instance.profile',
                     settings: {
                         role_arn: 'new-role-arn',
@@ -345,7 +345,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.ProcessProfile],
+                    kinds: [ProfileKind.IamProcessProfile],
                     name: 'process.profile',
                     settings: {
                         credential_process: 'new-credential-process',
@@ -414,14 +414,14 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.ProcessProfile],
+                    kinds: [ProfileKind.IamProcessProfile],
                     name: 'process.profile',
                     settings: {
                         credential_process: 'new-credential-process',
                     },
                 },
                 {
-                    kinds: [ProfileKind.RoleInstanceProfile],
+                    kinds: [ProfileKind.IamRoleInstanceProfile],
                     name: 'role-instance.profile',
                     settings: {
                         role_arn: 'new-role-arn',
@@ -431,7 +431,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.RoleSourceProfile],
+                    kinds: [ProfileKind.IamRoleSourceProfile],
                     name: 'role-source.profile',
                     settings: {
                         role_arn: 'new-role-arn',
