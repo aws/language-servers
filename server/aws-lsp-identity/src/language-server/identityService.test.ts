@@ -56,7 +56,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.RoleSourceProfile],
+                        kinds: [ProfileKind.IamRoleSourceProfile],
                         name: 'my-role-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -64,7 +64,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.RoleSourceProfile],
+                        kinds: [ProfileKind.IamRoleSourceProfile],
                         name: 'my-mfa-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -73,7 +73,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.ProcessProfile],
+                        kinds: [ProfileKind.IamProcessProfile],
                         name: 'my-process-profile',
                         settings: {
                             credential_process: 'my-process',
