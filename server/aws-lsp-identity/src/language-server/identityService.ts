@@ -178,7 +178,7 @@ export class IdentityService {
 
             let credentials: IamCredentials
             // Assume the role matching the found ARN
-            if (profile.kinds.includes(ProfileKind.RoleSourceProfile)) {
+            if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
                 const sourceProfile = profileData.profiles.find(p => p.name === profile.settings?.source_profile)
                 if (
                     sourceProfile &&
