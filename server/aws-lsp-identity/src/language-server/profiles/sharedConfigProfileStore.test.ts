@@ -89,11 +89,12 @@ describe('SharedConfigProfileStore', async () => {
         expect(actual).to.deep.equal({
             profiles: [
                 {
-                    kinds: [ProfileKind.IamCredentialsProfile],
+                    kinds: [ProfileKind.IamUserProfile],
                     name: 'default',
                     settings: {
                         aws_access_key_id: 'AAAAAAAA',
                         aws_secret_access_key: 'BBBBBBBB',
+                        aws_session_token: undefined,
                     },
                 },
                 {
@@ -180,11 +181,12 @@ describe('SharedConfigProfileStore', async () => {
             expect(after).to.deep.equal({
                 profiles: [
                     {
-                        kinds: [ProfileKind.IamCredentialsProfile],
+                        kinds: [ProfileKind.IamUserProfile],
                         name: 'default',
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
+                            aws_session_token: undefined,
                         },
                     },
                     {
@@ -276,11 +278,12 @@ describe('SharedConfigProfileStore', async () => {
             expect(after).to.deep.equal({
                 profiles: [
                     {
-                        kinds: [ProfileKind.IamCredentialsProfile],
+                        kinds: [ProfileKind.IamUserProfile],
                         name: 'default',
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
+                            aws_session_token: undefined,
                         },
                     },
                     {
@@ -316,7 +319,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamCredentialsProfile],
+                    kinds: [ProfileKind.IamUserProfile],
                     name: 'iam-user.profile',
                     settings: {
                         aws_access_key_id: 'new-access-key',
@@ -325,7 +328,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamSourceProfileProfile],
+                    kinds: [ProfileKind.RoleSourceProfile],
                     name: 'role-source.profile',
                     settings: {
                         role_arn: 'new-role-arn',
@@ -333,15 +336,16 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamCredentialSourceProfile],
+                    kinds: [ProfileKind.RoleInstanceProfile],
                     name: 'role-instance.profile',
                     settings: {
                         role_arn: 'new-role-arn',
                         credential_source: 'new-source',
+                        region: 'new-region',
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamCredentialProcessProfile],
+                    kinds: [ProfileKind.ProcessProfile],
                     name: 'process.profile',
                     settings: {
                         credential_process: 'new-credential-process',
@@ -392,15 +396,16 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamCredentialsProfile],
+                    kinds: [ProfileKind.IamUserProfile],
                     name: 'default',
                     settings: {
                         aws_access_key_id: 'AAAAAAAA',
                         aws_secret_access_key: 'BBBBBBBB',
+                        aws_session_token: undefined,
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamCredentialsProfile],
+                    kinds: [ProfileKind.IamUserProfile],
                     name: 'iam-user.profile',
                     settings: {
                         aws_access_key_id: 'new-access-key',
@@ -409,26 +414,30 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamCredentialProcessProfile],
+                    kinds: [ProfileKind.ProcessProfile],
                     name: 'process.profile',
                     settings: {
                         credential_process: 'new-credential-process',
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamCredentialSourceProfile],
+                    kinds: [ProfileKind.RoleInstanceProfile],
                     name: 'role-instance.profile',
                     settings: {
                         role_arn: 'new-role-arn',
                         credential_source: 'new-source',
+                        region: 'new-region',
+                        role_session_name: undefined,
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamSourceProfileProfile],
+                    kinds: [ProfileKind.RoleSourceProfile],
                     name: 'role-source.profile',
                     settings: {
                         role_arn: 'new-role-arn',
                         source_profile: 'new-source-profile',
+                        mfa_serial: undefined,
+                        role_session_name: undefined,
                     },
                 },
                 {
