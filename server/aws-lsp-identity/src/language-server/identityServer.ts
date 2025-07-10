@@ -10,6 +10,7 @@ import {
     InitializeParams,
     PartialInitializeResult,
     ShowMessageRequestParams,
+    GetIamCredentialParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
@@ -66,6 +67,14 @@ export class IdentityServer extends ServerBase {
             async (params: GetSsoTokenParams, token: CancellationToken) =>
                 await identityService.getSsoToken(params, token).catch(reason => {
                     this.observability.logging.log(`GetSsoToken failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.features.identityManagement.onGetIamCredential(
+            async (params: GetIamCredentialParams, token: CancellationToken) =>
+                await identityService.getIamCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`GetIamCredential failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })
         )
