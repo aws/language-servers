@@ -34,8 +34,10 @@ export const ProfileFields = {
     aws_secret_access_key: 'aws_secret_access_key',
     aws_session_token: 'aws_session_token',
     role_arn: 'role_arn',
+    role_session_name: 'role_session_name',
     credential_process: 'credential_process',
     credential_source: 'credential_source',
+    source_profile: 'source_profile',
     mfa_serial: 'mfa_serial',
 } as const
 
@@ -49,22 +51,25 @@ export const profileDuckTypers = {
     SsoTokenProfile: new DuckTyper()
         .requireProperty(ProfileFields.sso_session)
         .disallowProperty(ProfileFields.sso_account_id)
-        .disallowProperty(ProfileFields.sso_role_name)
-        .disallowProperty(ProfileFields.aws_access_key_id)
-        .disallowProperty(ProfileFields.aws_secret_access_key)
-        .disallowProperty(ProfileFields.aws_session_token),
-    IamCredentialProfile: new DuckTyper()
-        .optionalProperty(ProfileFields.region)
-        .optionalProperty(ProfileFields.aws_access_key_id)
-        .optionalProperty(ProfileFields.aws_secret_access_key)
-        .optionalProperty(ProfileFields.aws_session_token)
-        .optionalProperty(ProfileFields.role_arn)
-        .optionalProperty(ProfileFields.credential_process)
-        .optionalProperty(ProfileFields.credential_source)
-        .optionalProperty(ProfileFields.mfa_serial)
-        .disallowProperty(ProfileFields.sso_session)
-        .disallowProperty(ProfileFields.sso_account_id)
         .disallowProperty(ProfileFields.sso_role_name),
+    IamUserProfile: new DuckTyper()
+        .requireProperty(ProfileFields.aws_access_key_id)
+        .requireProperty(ProfileFields.aws_secret_access_key)
+        .optionalProperty(ProfileFields.aws_session_token),
+    RoleSourceProfile: new DuckTyper()
+        .requireProperty(ProfileFields.role_arn)
+        .requireProperty(ProfileFields.source_profile)
+        .optionalProperty(ProfileFields.role_session_name)
+        .optionalProperty(ProfileFields.mfa_serial)
+        .disallowProperty(ProfileFields.credential_source),
+    RoleInstanceProfile: new DuckTyper()
+        .requireProperty(ProfileFields.role_arn)
+        .requireProperty(ProfileFields.credential_source)
+        .requireProperty(ProfileFields.region)
+        .optionalProperty(ProfileFields.role_session_name)
+        .disallowProperty(ProfileFields.source_profile),
+    ProcessProfile: new DuckTyper().requireProperty(ProfileFields.credential_process),
+    Unknown: new DuckTyper(),
 }
 
 export const ssoSessionDuckTyper = new DuckTyper()
@@ -117,8 +122,7 @@ export class ProfileService {
 
         // Removing this check for profile deletion
         this.throwOnInvalidProfile(
-            !profile.kinds.includes(ProfileKind.SsoTokenProfile) &&
-                !profile.kinds.includes(ProfileKind.IamCredentialProfile),
+            !profile.kinds.some(kind => Object.values(ProfileKind).includes(kind)),
             'Profile must be non-legacy sso-session or iam-credentials type.'
         )
         this.throwOnInvalidProfile(!profile.name, 'Profile name required.')
@@ -130,12 +134,13 @@ export class ProfileService {
             throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG)
         })
 
+        // Check if the profile can be created
         if (!options.createNonexistentProfile && !profiles.some(p => p.name === profile.name)) {
             this.observability.logging.log(`Cannot create profile. options: ${JSON.stringify(options)}`)
             throw new AwsError('Cannot create profile.', AwsErrorCodes.E_CANNOT_CREATE_PROFILE)
         }
 
-        // Validate sso-session
+        // Validate SSO profile
         if (profile.kinds.includes(ProfileKind.SsoTokenProfile)) {
             this.throwOnInvalidProfile(!profileSettings.sso_session, 'Sso-session name required on profile.')
             this.throwOnInvalidSsoSession(!params.ssoSession, 'Sso-session required.')
@@ -153,12 +158,13 @@ export class ProfileService {
                 'Profile sso-session name must be the same as provided sso-session.'
             )
 
-            // Enforce options
+            // Check if the SSO session can be created
             if (!options.createNonexistentSsoSession && !ssoSessions.some(s => s.name === ssoSession.name)) {
                 this.observability.logging.log(`Cannot create sso-session. options: ${JSON.stringify(options)}`)
                 throw new AwsError('Cannot create sso-session.', AwsErrorCodes.E_CANNOT_CREATE_SSO_SESSION)
             }
 
+            // Check if the SSO session can be updated
             if (
                 !options.updateSharedSsoSession &&
                 this.isSharedSsoSession(ssoSession.name, profiles, profile.name) &&
@@ -167,6 +173,27 @@ export class ProfileService {
                 this.observability.logging.log(`Cannot update shared sso-session. options: ${JSON.stringify(options)}`)
                 throw new AwsError('Cannot update shared sso-session.', AwsErrorCodes.E_CANNOT_OVERWRITE_SSO_SESSION)
             }
+        }
+
+        // Validate IAM profiles
+        if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
+            this.throwOnInvalidProfile(!profileSettings.aws_access_key_id, 'Access key required on profile.')
+            this.throwOnInvalidProfile(!profileSettings.aws_secret_access_key, 'Secret key required on profile.')
+        }
+
+        if (profile.kinds.includes(ProfileKind.RoleInstanceProfile)) {
+            this.throwOnInvalidProfile(!profileSettings.role_arn, 'Role ARN required on profile.')
+            this.throwOnInvalidProfile(!profileSettings.region, 'Region required on profile.')
+            this.throwOnInvalidProfile(!profileSettings.credential_source, 'Credential source required on profile.')
+        }
+
+        if (profile.kinds.includes(ProfileKind.RoleSourceProfile)) {
+            this.throwOnInvalidProfile(!profileSettings.role_arn, 'Role ARN required on profile.')
+            this.throwOnInvalidProfile(!profileSettings.source_profile, 'Source profile required on profile.')
+        }
+
+        if (profile.kinds.includes(ProfileKind.ProcessProfile)) {
+            this.throwOnInvalidProfile(!profileSettings.credential_process, 'Credential process required on profile.')
         }
 
         await this.profileStore

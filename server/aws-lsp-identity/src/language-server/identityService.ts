@@ -19,6 +19,7 @@ import {
     SsoSession,
     SsoTokenSourceKind,
     Profile,
+    ProfileKind,
 } from '@aws/language-server-runtimes/server-interface'
 
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
@@ -170,7 +171,7 @@ export class IdentityService {
 
             // Get the profile with provided name
             const profileData = await this.profileStore.load()
-            const profile = profileData.profiles.find(profile => profile.name === params.profileName)
+            const profile = profileData.profiles.find(p => p.name === params.profileName)
             if (!profile) {
                 this.observability.logging.log('Profile not found.')
                 throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
@@ -178,23 +179,37 @@ export class IdentityService {
 
             let credentials: IamCredentials
             // Assume the role matching the found ARN
-            if (profile.settings?.role_arn) {
-                credentials = await this.getAssumedRoleCredential(
-                    profile,
-                    options.generateOnInvalidStsCredential,
-                    params.mfaCode
-                )
+            if (profile.kinds.includes(ProfileKind.RoleSourceProfile)) {
+                const sourceProfile = profileData.profiles.find(p => p.name === profile.settings?.source_profile)
+                if (
+                    sourceProfile &&
+                    sourceProfile.settings?.aws_access_key_id &&
+                    sourceProfile.settings.aws_secret_access_key
+                ) {
+                    credentials = await this.getAssumedRoleCredential(
+                        profile,
+                        {
+                            accessKeyId: sourceProfile.settings?.aws_access_key_id,
+                            secretAccessKey: sourceProfile.settings?.aws_secret_access_key,
+                            sessionToken: sourceProfile.settings?.aws_session_token,
+                        },
+                        options.generateOnInvalidStsCredential,
+                        params.mfaCode
+                    )
+                } else {
+                    throw new AwsError('Source IAM credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
+                }
             }
             // Get the credentials from the process output
-            else if (profile.settings?.credential_process) {
-                credentials = await getProcessCredential(profile.settings.credential_process)
+            else if (profile.kinds.includes(ProfileKind.ProcessProfile)) {
+                credentials = await getProcessCredential(profile.settings!.credential_process!)
             }
             // Get the credentials directly from the profile
-            else if (profile.settings?.aws_access_key_id && profile.settings?.aws_secret_access_key) {
+            else if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
                 credentials = {
-                    accessKeyId: profile.settings.aws_access_key_id,
-                    secretAccessKey: profile.settings.aws_secret_access_key,
-                    sessionToken: profile.settings.aws_session_token,
+                    accessKeyId: profile.settings!.aws_access_key_id!,
+                    secretAccessKey: profile.settings!.aws_secret_access_key!,
+                    sessionToken: profile.settings!.aws_session_token!,
                 }
             } else {
                 throw new AwsError('Credentials could not be found for profile', AwsErrorCodes.E_INVALID_PROFILE)
@@ -223,22 +238,18 @@ export class IdentityService {
 
     private async getAssumedRoleCredential(
         profile: Profile,
+        parentCredentials: IamCredentials,
         generateOnInvalidStsCredential: boolean,
         mfaCode?: string
     ): Promise<IamCredentials> {
-        // TODO: add other parent authentication methods to role assumption
-        if (!profile.settings?.aws_access_key_id || !profile.settings?.aws_secret_access_key) {
-            throw new Error('IAM credentials not found when assuming role.')
+        if (!profile.settings) {
+            throw new AwsError('Profile settings not found when assuming role.', AwsErrorCodes.E_INVALID_PROFILE)
         }
 
         // Create STS client for role assumption
         const stsClient = new STSClient({
             region: profile.settings.region || 'us-east-1',
-            credentials: {
-                accessKeyId: profile.settings.aws_access_key_id,
-                secretAccessKey: profile.settings.aws_secret_access_key,
-                sessionToken: profile.settings.aws_session_token,
-            },
+            credentials: parentCredentials,
         })
 
         // Try to get the STS credentials from cache

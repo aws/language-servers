@@ -89,15 +89,16 @@ describe('SharedConfigProfileStore', async () => {
         expect(actual).to.deep.equal({
             profiles: [
                 {
-                    kinds: [ProfileKind.IamCredentialProfile],
+                    kinds: [ProfileKind.IamUserProfile],
                     name: 'default',
                     settings: {
                         aws_access_key_id: 'AAAAAAAA',
                         aws_secret_access_key: 'BBBBBBBB',
+                        aws_session_token: undefined,
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamCredentialProfile],
+                    kinds: [ProfileKind.Unknown],
                     name: 'subsettings',
                     settings: {},
                 },
@@ -180,15 +181,16 @@ describe('SharedConfigProfileStore', async () => {
             expect(after).to.deep.equal({
                 profiles: [
                     {
-                        kinds: [ProfileKind.IamCredentialProfile],
+                        kinds: [ProfileKind.IamUserProfile],
                         name: 'default',
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
+                            aws_session_token: undefined,
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialProfile],
+                        kinds: [ProfileKind.Unknown],
                         name: 'subsettings',
                         settings: {},
                     },
@@ -277,15 +279,16 @@ describe('SharedConfigProfileStore', async () => {
             expect(after).to.deep.equal({
                 profiles: [
                     {
-                        kinds: [ProfileKind.IamCredentialProfile],
+                        kinds: [ProfileKind.IamUserProfile],
                         name: 'default',
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
+                            aws_session_token: undefined,
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialProfile],
+                        kinds: [ProfileKind.Unknown],
                         name: 'subsettings',
                         settings: {},
                     },
@@ -317,15 +320,36 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamCredentialProfile],
-                    name: 'new-iam.profile',
+                    kinds: [ProfileKind.IamUserProfile],
+                    name: 'iam-user.profile',
                     settings: {
                         aws_access_key_id: 'new-access-key',
                         aws_secret_access_key: 'new-secret-key',
                         aws_session_token: 'new-session-token',
+                    },
+                },
+                {
+                    kinds: [ProfileKind.RoleSourceProfile],
+                    name: 'role-source.profile',
+                    settings: {
                         role_arn: 'new-role-arn',
+                        source_profile: 'new-source-profile',
+                    },
+                },
+                {
+                    kinds: [ProfileKind.RoleInstanceProfile],
+                    name: 'role-instance.profile',
+                    settings: {
+                        role_arn: 'new-role-arn',
+                        credential_source: 'new-source',
+                        region: 'new-region',
+                    },
+                },
+                {
+                    kinds: [ProfileKind.ProcessProfile],
+                    name: 'process.profile',
+                    settings: {
                         credential_process: 'new-credential-process',
-                        mfa_serial: 'new-mfa-serial',
                     },
                 },
             ],
@@ -351,40 +375,17 @@ describe('SharedConfigProfileStore', async () => {
         await sut.save(data)
 
         const after = await sut.load()
+        after.profiles.sort((a, b) => a.name.localeCompare(b.name))
+        after.ssoSessions.sort((a, b) => a.name.localeCompare(b.name))
 
         expect(after).to.deep.equal({
             profiles: [
-                {
-                    kinds: [ProfileKind.IamCredentialProfile],
-                    name: 'default',
-                    settings: {
-                        aws_access_key_id: 'AAAAAAAA',
-                        aws_secret_access_key: 'BBBBBBBB',
-                    },
-                },
-                {
-                    kinds: [ProfileKind.IamCredentialProfile],
-                    name: 'subsettings',
-                    settings: {},
-                },
                 {
                     kinds: [ProfileKind.SsoTokenProfile],
                     name: 'config-only.profile',
                     settings: {
                         region: 'us-west-1',
                         sso_session: 'new-sso-session',
-                    },
-                },
-                {
-                    kinds: [ProfileKind.IamCredentialProfile],
-                    name: 'new-iam.profile',
-                    settings: {
-                        aws_access_key_id: 'new-access-key',
-                        aws_secret_access_key: 'new-secret-key',
-                        aws_session_token: 'new-session-token',
-                        role_arn: 'new-role-arn',
-                        credential_process: 'new-credential-process',
-                        mfa_serial: 'new-mfa-serial',
                     },
                 },
                 {
@@ -395,21 +396,71 @@ describe('SharedConfigProfileStore', async () => {
                         sso_session: 'test-sso-session',
                     },
                 },
+                {
+                    kinds: [ProfileKind.IamUserProfile],
+                    name: 'default',
+                    settings: {
+                        aws_access_key_id: 'AAAAAAAA',
+                        aws_secret_access_key: 'BBBBBBBB',
+                        aws_session_token: undefined,
+                    },
+                },
+                {
+                    kinds: [ProfileKind.IamUserProfile],
+                    name: 'iam-user.profile',
+                    settings: {
+                        aws_access_key_id: 'new-access-key',
+                        aws_secret_access_key: 'new-secret-key',
+                        aws_session_token: 'new-session-token',
+                    },
+                },
+                {
+                    kinds: [ProfileKind.ProcessProfile],
+                    name: 'process.profile',
+                    settings: {
+                        credential_process: 'new-credential-process',
+                    },
+                },
+                {
+                    kinds: [ProfileKind.RoleInstanceProfile],
+                    name: 'role-instance.profile',
+                    settings: {
+                        role_arn: 'new-role-arn',
+                        credential_source: 'new-source',
+                        region: 'new-region',
+                        role_session_name: undefined,
+                    },
+                },
+                {
+                    kinds: [ProfileKind.RoleSourceProfile],
+                    name: 'role-source.profile',
+                    settings: {
+                        role_arn: 'new-role-arn',
+                        source_profile: 'new-source-profile',
+                        mfa_serial: undefined,
+                        role_session_name: undefined,
+                    },
+                },
+                {
+                    kinds: [ProfileKind.Unknown],
+                    name: 'subsettings',
+                    settings: {},
+                },
             ],
             ssoSessions: [
+                {
+                    name: 'new-sso-session',
+                    settings: {
+                        sso_region: 'us-north-1',
+                        sso_start_url: 'http://somewhere',
+                    },
+                },
                 {
                     name: 'test-sso-session',
                     settings: {
                         sso_region: 'us-east-1',
                         sso_registration_scopes: ['my-scope'],
                         sso_start_url: 'http://newnowhere',
-                    },
-                },
-                {
-                    name: 'new-sso-session',
-                    settings: {
-                        sso_region: 'us-north-1',
-                        sso_start_url: 'http://somewhere',
                     },
                 },
             ],

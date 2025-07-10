@@ -45,7 +45,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialProfile],
+                        kinds: [ProfileKind.IamUserProfile],
                         name: 'my-iam-profile',
                         settings: {
                             aws_access_key_id: 'my-access-key',
@@ -53,7 +53,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialProfile],
+                        kinds: [ProfileKind.IamUserProfile],
                         name: 'my-sts-profile',
                         settings: {
                             aws_access_key_id: 'my-access-key',
@@ -62,26 +62,24 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialProfile],
+                        kinds: [ProfileKind.RoleSourceProfile],
                         name: 'my-role-profile',
                         settings: {
-                            aws_access_key_id: 'my-access-key',
-                            aws_secret_access_key: 'my-secret-key',
                             role_arn: 'my-role-arn',
+                            source_profile: 'my-iam-profile',
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialProfile],
+                        kinds: [ProfileKind.RoleSourceProfile],
                         name: 'my-mfa-profile',
                         settings: {
-                            aws_access_key_id: 'my-access-key',
-                            aws_secret_access_key: 'my-secret-key',
                             role_arn: 'my-role-arn',
+                            source_profile: 'my-iam-profile',
                             mfa_serial: 'my-device-arn',
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialProfile],
+                        kinds: [ProfileKind.ProcessProfile],
                         name: 'my-process-profile',
                         settings: {
                             credential_process: 'my-process',

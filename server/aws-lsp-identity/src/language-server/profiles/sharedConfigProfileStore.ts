@@ -7,7 +7,7 @@ import {
 } from './profileService'
 import { parseKnownFiles, SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { IniSection, IniSectionType, ParsedIniData } from '@smithy/types'
-import { AwsErrorCodes, ProfileKind, SsoSession } from '@aws/language-server-runtimes/server-interface'
+import { AwsErrorCodes, Profile, ProfileKind, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { SectionHeader } from '../../sharedConfig/types'
 import { saveKnownFiles } from '../../sharedConfig'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
@@ -45,46 +45,49 @@ export class SharedConfigProfileStore implements ProfileStore {
             const sectionHeader = SectionHeader.fromParsedSectionName(parsedSectionName)
             switch (sectionHeader.type) {
                 // Convert config file profile into profile object
-                case IniSectionType.PROFILE:
-                    if (profileDuckTypers.SsoTokenProfile.eval(settings)) {
-                        result.profiles.push({
-                            kinds: [ProfileKind.SsoTokenProfile],
-                            name: sectionHeader.name,
-                            settings: {
-                                // Only apply settings expected on SsoTokenProfile
-                                region: settings.region,
-                                sso_session: settings.sso_session,
-                            },
-                        })
-                    } else if (profileDuckTypers.IamCredentialProfile.eval(settings)) {
-                        result.profiles.push({
-                            kinds: [ProfileKind.IamCredentialProfile],
-                            name: sectionHeader.name,
-                            settings: Object.fromEntries(
-                                // Only apply settings that are defined and expected on IamCredentialProfile
-                                Object.entries({
-                                    region: settings.region,
-                                    aws_access_key_id: settings.aws_access_key_id,
-                                    aws_secret_access_key: settings.aws_secret_access_key,
-                                    aws_session_token: settings.aws_session_token,
-                                    role_arn: settings.role_arn,
-                                    credential_process: settings.credential_process,
-                                    credential_source: settings.credential_source,
-                                    mfa_serial: settings.mfa_serial,
-                                }).filter(([_, value]) => value !== undefined)
-                            ),
-                        })
-                    } else {
-                        result.profiles.push({
-                            kinds: [ProfileKind.Unknown],
-                            name: sectionHeader.name,
-                            settings: {
-                                region: settings.region,
-                                sso_session: settings.sso_session,
-                            },
-                        })
+                case IniSectionType.PROFILE: {
+                    const profile: Profile = {
+                        kinds: [],
+                        name: sectionHeader.name,
+                        settings: {},
                     }
+                    // Add the kinds and settings for each matched profile type
+                    if (profileDuckTypers.SsoTokenProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.SsoTokenProfile)
+                        profile.settings!.region = settings.region
+                        profile.settings!.sso_session = settings.sso_session
+                    }
+                    if (profileDuckTypers.ProcessProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.ProcessProfile)
+                        profile.settings!.credential_process = settings.credential_process
+                    }
+                    if (profileDuckTypers.RoleSourceProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.RoleSourceProfile)
+                        profile.settings!.role_arn = settings.role_arn
+                        profile.settings!.source_profile = settings.source_profile
+                        profile.settings!.mfa_serial = settings.mfa_serial
+                        profile.settings!.role_session_name = settings.role_session_name
+                    }
+                    if (profileDuckTypers.RoleInstanceProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.RoleInstanceProfile)
+                        profile.settings!.role_arn = settings.role_arn
+                        profile.settings!.region = settings.region
+                        profile.settings!.credential_source = settings.credential_source
+                        profile.settings!.role_session_name = settings.role_session_name
+                    }
+                    if (profileDuckTypers.IamUserProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.IamUserProfile)
+                        profile.settings!.aws_access_key_id = settings.aws_access_key_id
+                        profile.settings!.aws_secret_access_key = settings.aws_secret_access_key
+                        profile.settings!.aws_session_token = settings.aws_session_token
+                    }
+                    // If the profile does not match any profile type, mark it as an unknown profile
+                    if (profile.kinds.length === 0) {
+                        profile.kinds.push(ProfileKind.Unknown)
+                    }
+                    result.profiles.push(profile)
                     break
+                }
                 // Convert config file SSO session into SSO session object
                 case IniSectionType.SSO_SESSION: {
                     if (!ssoSessionDuckTyper.eval(settings)) {
@@ -141,13 +144,10 @@ export class SharedConfigProfileStore implements ProfileStore {
                 data.profiles,
                 parsedKnownFiles,
                 (section, parsedSection) => {
-                    if (section.kinds.includes(ProfileKind.SsoTokenProfile)) {
-                        return profileDuckTypers.SsoTokenProfile.eval(parsedSection)
-                    } else if (section.kinds.includes(ProfileKind.IamCredentialProfile)) {
-                        return profileDuckTypers.IamCredentialProfile.eval(parsedSection)
-                    } else {
-                        return true
-                    }
+                    return section.kinds.every(kind => {
+                        const duckTyper = profileDuckTypers[kind]
+                        return duckTyper ? duckTyper.eval(parsedSection) : true
+                    })
                 }
             )
         }
