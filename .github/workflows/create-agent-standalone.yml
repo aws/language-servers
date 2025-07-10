@@ -28,7 +28,9 @@ jobs:
               run: npm run compile
 
             - name: Generate agent standalone
-              run: npm run ci:generate:agent-standalone -w app/aws-lsp-codewhisperer-runtimes
+              run: |
+                  npm run ci:generate:agent-standalone -w app/aws-lsp-codewhisperer-runtimes
+                  npm run ci:generate:agentic:attribution
 
             # We "flatten" out each clients.zip-servers.zip pairing so that the
             # downloadable artifacts are nicely organized, one per platform.
@@ -89,4 +91,11 @@ jobs:
               with:
                   name: win-x64
                   path: _artifacts/win-x64/
+                  if-no-files-found: error
+
+            - name: Upload THIRD_PARTY_LICENSES
+              uses: actions/upload-artifact@v4
+              with:
+                  name: THIRD_PARTY_LICENSES
+                  path: attribution/THIRD_PARTY_LICENSES
                   if-no-files-found: error
