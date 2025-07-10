@@ -54,7 +54,7 @@ describe('ProfileService', async () => {
         }
 
         profile4 = {
-            kinds: [ProfileKind.IamCredentialsProfile],
+            kinds: [ProfileKind.IamUserProfile],
             name: 'profile4',
             settings: {
                 aws_access_key_id: 'access-key',
@@ -259,9 +259,9 @@ describe('ProfileService', async () => {
         await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Sso-session name required on profile.')
     })
 
-    it('updateProfile throws on missing access key for IamCredentialsProfile', async () => {
+    it('updateProfile throws on missing access key for IAM user profile', async () => {
         const profile = {
-            kinds: [ProfileKind.IamCredentialsProfile],
+            kinds: [ProfileKind.IamUserProfile],
             name: 'profile-name',
             settings: {
                 aws_secret_access_key: 'secret-key',
@@ -271,9 +271,9 @@ describe('ProfileService', async () => {
         await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Access key required on profile.')
     })
 
-    it('updateProfile throws on missing secret key for IamCredentialsProfile', async () => {
+    it('updateProfile throws on missing secret key for IAM user profile', async () => {
         const profile = {
-            kinds: [ProfileKind.IamCredentialsProfile],
+            kinds: [ProfileKind.IamUserProfile],
             name: 'profile-name',
             settings: {
                 aws_access_key_id: 'access-key',
@@ -283,9 +283,9 @@ describe('ProfileService', async () => {
         await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Secret key required on profile.')
     })
 
-    it('updateProfile throws on missing role ARN for IamSourceProfileProfile', async () => {
+    it('updateProfile throws on missing role ARN for role source profile', async () => {
         const profile = {
-            kinds: [ProfileKind.IamSourceProfileProfile],
+            kinds: [ProfileKind.RoleSourceProfile],
             name: 'profile-name',
             settings: {
                 source_profile: 'source',
@@ -295,9 +295,9 @@ describe('ProfileService', async () => {
         await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Role ARN required on profile.')
     })
 
-    it('updateProfile throws on missing source profile for IamSourceProfileProfile', async () => {
+    it('updateProfile throws on missing source profile for role source profile', async () => {
         const profile = {
-            kinds: [ProfileKind.IamSourceProfileProfile],
+            kinds: [ProfileKind.RoleSourceProfile],
             name: 'profile-name',
             settings: {
                 role_arn: 'role-arn',
@@ -307,9 +307,9 @@ describe('ProfileService', async () => {
         await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Source profile required on profile.')
     })
 
-    it('updateProfile throws on missing role ARN for IamCredentialSourceProfile', async () => {
+    it('updateProfile throws on missing role ARN for role instance profile', async () => {
         const profile = {
-            kinds: [ProfileKind.IamCredentialSourceProfile],
+            kinds: [ProfileKind.RoleInstanceProfile],
             name: 'profile-name',
             settings: {
                 credential_source: 'Ec2InstanceMetadata',
@@ -320,9 +320,9 @@ describe('ProfileService', async () => {
         await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Role ARN required on profile.')
     })
 
-    it('updateProfile throws on missing credential source for IamCredentialSourceProfile', async () => {
+    it('updateProfile throws on missing credential source for role instance profile', async () => {
         const profile = {
-            kinds: [ProfileKind.IamCredentialSourceProfile],
+            kinds: [ProfileKind.RoleInstanceProfile],
             name: 'profile-name',
             settings: {
                 role_arn: 'role-arn',
@@ -338,9 +338,22 @@ describe('ProfileService', async () => {
         )
     })
 
+    it('updateProfile throws on missing region for role instance profile', async () => {
+        const profile = {
+            kinds: [ProfileKind.RoleInstanceProfile],
+            name: 'profile-name',
+            settings: {
+                role_arn: 'role-arn',
+                credential_source: 'Ec2InstanceMetadata',
+            },
+        }
+
+        await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Region required on profile.')
+    })
+
     it('updateProfile throws on missing credential process for process profile', async () => {
         const profile = {
-            kinds: [ProfileKind.IamCredentialProcessProfile],
+            kinds: [ProfileKind.ProcessProfile],
             name: 'profile-name',
             settings: {},
         }
@@ -573,7 +586,7 @@ describe('profileService.DuckTypers', () => {
         }
     })
 
-    it('profileDuckTypers.IamCredentialsProfile.eval returns true on valid profiles', () => {
+    it('profileDuckTypers.IamUserProfile.eval returns true on valid profiles', () => {
         const profiles = [
             {
                 aws_access_key_id: 'access-key',
@@ -587,12 +600,12 @@ describe('profileService.DuckTypers', () => {
         ]
 
         for (const profile of profiles) {
-            const actual = profileDuckTypers.IamCredentialsProfile.eval(profile)
+            const actual = profileDuckTypers.IamUserProfile.eval(profile)
             expect(actual).to.be.true
         }
     })
 
-    it('profileDuckTypers.IamCredentialsProfile.eval returns false on invalid profiles', () => {
+    it('profileDuckTypers.IamUserProfile.eval returns false on invalid profiles', () => {
         const profiles = [
             {
                 sso_session: 'my-sso-session',
@@ -604,12 +617,12 @@ describe('profileService.DuckTypers', () => {
         ]
 
         for (const profile of profiles) {
-            const actual = profileDuckTypers.IamCredentialsProfile.eval(profile as object)
+            const actual = profileDuckTypers.IamUserProfile.eval(profile as object)
             expect(actual).to.be.false
         }
     })
 
-    it('profileDuckTypers.IamSourceProfileProfile.eval returns true on valid profiles', () => {
+    it('profileDuckTypers.RoleSourceProfile.eval returns true on valid profiles', () => {
         const profiles = [
             {
                 role_arn: 'role-arn',
@@ -624,12 +637,12 @@ describe('profileService.DuckTypers', () => {
         ]
 
         for (const profile of profiles) {
-            const actual = profileDuckTypers.IamSourceProfileProfile.eval(profile)
+            const actual = profileDuckTypers.RoleSourceProfile.eval(profile)
             expect(actual).to.be.true
         }
     })
 
-    it('profileDuckTypers.IamCredentialSourceProfile.eval returns true on valid profiles', () => {
+    it('profileDuckTypers.RoleInstanceProfile.eval returns true on valid profiles', () => {
         const profiles = [
             {
                 role_arn: 'role-arn',
@@ -645,12 +658,12 @@ describe('profileService.DuckTypers', () => {
         ]
 
         for (const profile of profiles) {
-            const actual = profileDuckTypers.IamCredentialSourceProfile.eval(profile)
+            const actual = profileDuckTypers.RoleInstanceProfile.eval(profile)
             expect(actual).to.be.true
         }
     })
 
-    it('profileDuckTypers.IamCredentialProcessProfile.eval returns true on valid profiles', () => {
+    it('profileDuckTypers.ProcessProfile.eval returns true on valid profiles', () => {
         const profiles = [
             {
                 credential_process: 'credential-process',
@@ -664,7 +677,7 @@ describe('profileService.DuckTypers', () => {
         ]
 
         for (const profile of profiles) {
-            const actual = profileDuckTypers.IamCredentialProcessProfile.eval(profile)
+            const actual = profileDuckTypers.ProcessProfile.eval(profile)
             expect(actual).to.be.true
         }
     })
