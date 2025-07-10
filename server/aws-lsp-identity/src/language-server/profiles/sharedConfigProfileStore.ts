@@ -63,11 +63,13 @@ export class SharedConfigProfileStore implements ProfileStore {
                             settings: Object.fromEntries(
                                 // Only apply settings that are defined and expected on IamCredentialProfile
                                 Object.entries({
+                                    region: settings.region,
                                     aws_access_key_id: settings.aws_access_key_id,
                                     aws_secret_access_key: settings.aws_secret_access_key,
                                     aws_session_token: settings.aws_session_token,
                                     role_arn: settings.role_arn,
                                     credential_process: settings.credential_process,
+                                    credential_source: settings.credential_source,
                                     mfa_serial: settings.mfa_serial,
                                 }).filter(([_, value]) => value !== undefined)
                             ),

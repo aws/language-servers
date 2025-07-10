@@ -35,6 +35,7 @@ export const ProfileFields = {
     aws_session_token: 'aws_session_token',
     role_arn: 'role_arn',
     credential_process: 'credential_process',
+    credential_source: 'credential_source',
     mfa_serial: 'mfa_serial',
 } as const
 
@@ -53,11 +54,13 @@ export const profileDuckTypers = {
         .disallowProperty(ProfileFields.aws_secret_access_key)
         .disallowProperty(ProfileFields.aws_session_token),
     IamCredentialProfile: new DuckTyper()
+        .optionalProperty(ProfileFields.region)
         .optionalProperty(ProfileFields.aws_access_key_id)
         .optionalProperty(ProfileFields.aws_secret_access_key)
         .optionalProperty(ProfileFields.aws_session_token)
         .optionalProperty(ProfileFields.role_arn)
         .optionalProperty(ProfileFields.credential_process)
+        .optionalProperty(ProfileFields.credential_source)
         .optionalProperty(ProfileFields.mfa_serial)
         .disallowProperty(ProfileFields.sso_session)
         .disallowProperty(ProfileFields.sso_account_id)
