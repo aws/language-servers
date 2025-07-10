@@ -13,7 +13,6 @@
         "node": ">=18.0.0"
     },
     "scripts": {
-        "clean": "rm -fr ./out tsconfig.tsbuildinfo",
         "compile": "tsc --build --verbose",
         "test": "npm run test-unit",
         "test-unit": "mocha \"./out/**/*.test.js\"",

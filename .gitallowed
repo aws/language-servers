@@ -1,0 +1,8 @@
+# Allow legitimate references to Amazon's Brazil build system
+\.brazil
+build system like Brazil
+Brazil build system
+brazil build system
+# Allow directory references
+'\.brazil'
+"\.brazil"

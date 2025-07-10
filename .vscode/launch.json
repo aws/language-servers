@@ -171,7 +171,6 @@
             "type": "extensionHost",
             "request": "launch",
             "preLaunchTask": "watch",
-            "runtimeExecutable": "${execPath}",
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-identity-runtimes/out/standalone.js",
@@ -180,6 +179,7 @@
             },
             "outFiles": [
                 "${workspaceFolder}/client/vscode/out/**/*.js",
+                "${workspaceFolder}/core/**/out/**/*.js",
                 "${workspaceFolder}/app/aws-lsp-identity-runtimes/out/**/*.js",
                 "${workspaceFolder}/server/aws-lsp-identity/out/**/*.js"
             ],
@@ -191,7 +191,6 @@
             "type": "extensionHost",
             "request": "launch",
             "preLaunchTask": "watch",
-            "runtimeExecutable": "${execPath}",
             "args": ["--extensionDevelopmentPath=${workspaceFolder}/client/vscode", "--disable-extensions"],
             "env": {
                 "LSP_SERVER": "${workspaceFolder}/app/aws-lsp-notification-runtimes/out/standalone.js",
@@ -200,6 +199,7 @@
             },
             "outFiles": [
                 "${workspaceFolder}/client/vscode/out/**/*.js",
+                "${workspaceFolder}/core/**/out/**/*.js",
                 "${workspaceFolder}/app/aws-lsp-notification-runtimes/out/**/*.js",
                 "${workspaceFolder}/server/aws-lsp-notification/out/**/*.js"
             ],
