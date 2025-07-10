@@ -179,7 +179,7 @@ export class IdentityService {
 
             let credentials: IamCredentials
             // Assume the role matching the found ARN
-            if (profile.kinds.includes(ProfileKind.RoleSourceProfile)) {
+            if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
                 const sourceProfile = profileData.profiles.find(p => p.name === profile.settings?.source_profile)
                 if (
                     sourceProfile &&
@@ -201,7 +201,7 @@ export class IdentityService {
                 }
             }
             // Get the credentials from the process output
-            else if (profile.kinds.includes(ProfileKind.ProcessProfile)) {
+            else if (profile.kinds.includes(ProfileKind.IamProcessProfile)) {
                 credentials = await getProcessCredential(profile.settings!.credential_process!)
             }
             // Get the credentials directly from the profile
