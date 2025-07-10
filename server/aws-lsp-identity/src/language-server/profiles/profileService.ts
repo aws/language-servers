@@ -56,19 +56,19 @@ export const profileDuckTypers = {
         .requireProperty(ProfileFields.aws_access_key_id)
         .requireProperty(ProfileFields.aws_secret_access_key)
         .optionalProperty(ProfileFields.aws_session_token),
-    RoleSourceProfile: new DuckTyper()
+    IamRoleSourceProfile: new DuckTyper()
         .requireProperty(ProfileFields.role_arn)
         .requireProperty(ProfileFields.source_profile)
         .optionalProperty(ProfileFields.role_session_name)
         .optionalProperty(ProfileFields.mfa_serial)
         .disallowProperty(ProfileFields.credential_source),
-    RoleInstanceProfile: new DuckTyper()
+    IamRoleInstanceProfile: new DuckTyper()
         .requireProperty(ProfileFields.role_arn)
         .requireProperty(ProfileFields.credential_source)
         .requireProperty(ProfileFields.region)
         .optionalProperty(ProfileFields.role_session_name)
         .disallowProperty(ProfileFields.source_profile),
-    ProcessProfile: new DuckTyper().requireProperty(ProfileFields.credential_process),
+    IamProcessProfile: new DuckTyper().requireProperty(ProfileFields.credential_process),
     Unknown: new DuckTyper(),
 }
 
@@ -181,18 +181,18 @@ export class ProfileService {
             this.throwOnInvalidProfile(!profileSettings.aws_secret_access_key, 'Secret key required on profile.')
         }
 
-        if (profile.kinds.includes(ProfileKind.RoleInstanceProfile)) {
+        if (profile.kinds.includes(ProfileKind.IamRoleInstanceProfile)) {
             this.throwOnInvalidProfile(!profileSettings.role_arn, 'Role ARN required on profile.')
             this.throwOnInvalidProfile(!profileSettings.region, 'Region required on profile.')
             this.throwOnInvalidProfile(!profileSettings.credential_source, 'Credential source required on profile.')
         }
 
-        if (profile.kinds.includes(ProfileKind.RoleSourceProfile)) {
+        if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
             this.throwOnInvalidProfile(!profileSettings.role_arn, 'Role ARN required on profile.')
             this.throwOnInvalidProfile(!profileSettings.source_profile, 'Source profile required on profile.')
         }
 
-        if (profile.kinds.includes(ProfileKind.ProcessProfile)) {
+        if (profile.kinds.includes(ProfileKind.IamProcessProfile)) {
             this.throwOnInvalidProfile(!profileSettings.credential_process, 'Credential process required on profile.')
         }
 

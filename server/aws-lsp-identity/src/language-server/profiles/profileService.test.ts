@@ -285,7 +285,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on missing role ARN for role source profile', async () => {
         const profile = {
-            kinds: [ProfileKind.RoleSourceProfile],
+            kinds: [ProfileKind.IamRoleSourceProfile],
             name: 'profile-name',
             settings: {
                 source_profile: 'source',
@@ -297,7 +297,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on missing source profile for role source profile', async () => {
         const profile = {
-            kinds: [ProfileKind.RoleSourceProfile],
+            kinds: [ProfileKind.IamRoleSourceProfile],
             name: 'profile-name',
             settings: {
                 role_arn: 'role-arn',
@@ -309,7 +309,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on missing role ARN for role instance profile', async () => {
         const profile = {
-            kinds: [ProfileKind.RoleInstanceProfile],
+            kinds: [ProfileKind.IamRoleInstanceProfile],
             name: 'profile-name',
             settings: {
                 credential_source: 'Ec2InstanceMetadata',
@@ -322,7 +322,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on missing credential source for role instance profile', async () => {
         const profile = {
-            kinds: [ProfileKind.RoleInstanceProfile],
+            kinds: [ProfileKind.IamRoleInstanceProfile],
             name: 'profile-name',
             settings: {
                 role_arn: 'role-arn',
@@ -340,7 +340,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on missing region for role instance profile', async () => {
         const profile = {
-            kinds: [ProfileKind.RoleInstanceProfile],
+            kinds: [ProfileKind.IamRoleInstanceProfile],
             name: 'profile-name',
             settings: {
                 role_arn: 'role-arn',
@@ -353,7 +353,7 @@ describe('ProfileService', async () => {
 
     it('updateProfile throws on missing credential process for process profile', async () => {
         const profile = {
-            kinds: [ProfileKind.ProcessProfile],
+            kinds: [ProfileKind.IamProcessProfile],
             name: 'profile-name',
             settings: {},
         }
@@ -622,7 +622,7 @@ describe('profileService.DuckTypers', () => {
         }
     })
 
-    it('profileDuckTypers.RoleSourceProfile.eval returns true on valid profiles', () => {
+    it('profileDuckTypers.IamRoleSourceProfile.eval returns true on valid profiles', () => {
         const profiles = [
             {
                 role_arn: 'role-arn',
@@ -637,12 +637,12 @@ describe('profileService.DuckTypers', () => {
         ]
 
         for (const profile of profiles) {
-            const actual = profileDuckTypers.RoleSourceProfile.eval(profile)
+            const actual = profileDuckTypers.IamRoleSourceProfile.eval(profile)
             expect(actual).to.be.true
         }
     })
 
-    it('profileDuckTypers.RoleInstanceProfile.eval returns true on valid profiles', () => {
+    it('profileDuckTypers.IamRoleInstanceProfile.eval returns true on valid profiles', () => {
         const profiles = [
             {
                 role_arn: 'role-arn',
@@ -658,12 +658,12 @@ describe('profileService.DuckTypers', () => {
         ]
 
         for (const profile of profiles) {
-            const actual = profileDuckTypers.RoleInstanceProfile.eval(profile)
+            const actual = profileDuckTypers.IamRoleInstanceProfile.eval(profile)
             expect(actual).to.be.true
         }
     })
 
-    it('profileDuckTypers.ProcessProfile.eval returns true on valid profiles', () => {
+    it('profileDuckTypers.IamProcessProfile.eval returns true on valid profiles', () => {
         const profiles = [
             {
                 credential_process: 'credential-process',
@@ -677,7 +677,7 @@ describe('profileService.DuckTypers', () => {
         ]
 
         for (const profile of profiles) {
-            const actual = profileDuckTypers.ProcessProfile.eval(profile)
+            const actual = profileDuckTypers.IamProcessProfile.eval(profile)
             expect(actual).to.be.true
         }
     })
