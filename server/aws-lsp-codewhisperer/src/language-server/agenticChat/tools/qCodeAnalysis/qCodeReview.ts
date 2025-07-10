@@ -568,9 +568,19 @@ export class QCodeReview {
             await QCodeReviewUtils.withErrorHandling(
                 async () => {
                     let fileName = path.basename(artifact.path)
-                    if (!fileName.startsWith('.') && !QCodeReviewUtils.shouldSkipFile(fileName)) {
+                    if (
+                        !fileName.startsWith('.') &&
+                        !QCodeReviewUtils.shouldSkipFile(fileName) &&
+                        existsSync(artifact.path)
+                    ) {
                         const fileContent = await this.workspace.fs.readFile(artifact.path)
-                        customerCodeZip.file(`${QCodeReview.CUSTOMER_CODE_BASE_PATH}/${artifact.path}`, fileContent)
+                        // Normalize path, convert Windows backslashes to forward slashes, and remove drive letter
+                        let normalizedArtifactPath = path
+                            .normalize(`${QCodeReview.CUSTOMER_CODE_BASE_PATH}${artifact.path}`)
+                            .replace(/\\/g, '/')
+                        // Remove drive letter (e.g., C:) if present
+                        normalizedArtifactPath = normalizedArtifactPath.replace(/^[a-zA-Z]:\/?/, '')
+                        customerCodeZip.file(normalizedArtifactPath, fileContent)
                     } else {
                         this.logging.info(`Skipping file - ${artifact.path}`)
                     }
@@ -646,13 +656,17 @@ export class QCodeReview {
                 const fullPath = path.join(entry.parentPath, name)
 
                 if (entry.isFile()) {
-                    if (name.startsWith('.') || QCodeReviewUtils.shouldSkipFile(name)) {
+                    if (name.startsWith('.') || QCodeReviewUtils.shouldSkipFile(name) || !existsSync(fullPath)) {
                         this.logging.info(`Skipping file - ${fullPath}`)
                         continue
                     }
 
                     const content = await this.workspace.fs.readFile(fullPath)
-                    zip.file(`${zipPath}/${fullPath}`, content)
+                    // Normalize path, convert Windows backslashes to forward slashes, and remove drive letter
+                    let finalPath = path.normalize(`${zipPath}${fullPath}`).replace(/\\/g, '/')
+                    // Remove drive letter (e.g., C:) if present
+                    finalPath = finalPath.replace(/^[a-zA-Z]:\/?/, '')
+                    zip.file(finalPath, content)
                 } else if (entry.isDirectory()) {
                     if (QCodeReviewUtils.shouldSkipDirectory(name)) {
                         this.logging.info(`Skipping directory - ${fullPath}`)
