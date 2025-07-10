@@ -7,7 +7,7 @@ import {
 } from './profileService'
 import { parseKnownFiles, SharedConfigInit } from '@smithy/shared-ini-file-loader'
 import { IniSection, IniSectionType, ParsedIniData } from '@smithy/types'
-import { AwsErrorCodes, ProfileKind, SsoSession } from '@aws/language-server-runtimes/server-interface'
+import { AwsErrorCodes, Profile, ProfileKind, SsoSession } from '@aws/language-server-runtimes/server-interface'
 import { SectionHeader } from '../../sharedConfig/types'
 import { saveKnownFiles } from '../../sharedConfig'
 import { normalizeParsedIniData } from '../../sharedConfig/saveKnownFiles'
@@ -44,22 +44,51 @@ export class SharedConfigProfileStore implements ProfileStore {
         for (const [parsedSectionName, settings] of Object.entries(parsedIni)) {
             const sectionHeader = SectionHeader.fromParsedSectionName(parsedSectionName)
             switch (sectionHeader.type) {
-                case IniSectionType.PROFILE:
-                    result.profiles.push({
-                        kinds: [
-                            // As more profile kinds are added this will get more complex and need refactored
-                            profileDuckTypers.SsoTokenProfile.eval(settings)
-                                ? ProfileKind.SsoTokenProfile
-                                : ProfileKind.Unknown,
-                        ],
+                // Convert config file profile into profile object
+                case IniSectionType.PROFILE: {
+                    const profile: Profile = {
+                        kinds: [],
                         name: sectionHeader.name,
-                        settings: {
-                            // Only apply settings expected on Profile
-                            region: settings.region,
-                            sso_session: settings.sso_session,
-                        },
-                    })
+                        settings: {},
+                    }
+                    // Add the kinds and settings for each matched profile type
+                    if (profileDuckTypers.SsoTokenProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.SsoTokenProfile)
+                        profile.settings!.region = settings.region
+                        profile.settings!.sso_session = settings.sso_session
+                    }
+                    if (profileDuckTypers.ProcessProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.ProcessProfile)
+                        profile.settings!.credential_process = settings.credential_process
+                    }
+                    if (profileDuckTypers.RoleSourceProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.RoleSourceProfile)
+                        profile.settings!.role_arn = settings.role_arn
+                        profile.settings!.source_profile = settings.source_profile
+                        profile.settings!.mfa_serial = settings.mfa_serial
+                        profile.settings!.role_session_name = settings.role_session_name
+                    }
+                    if (profileDuckTypers.RoleInstanceProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.RoleInstanceProfile)
+                        profile.settings!.role_arn = settings.role_arn
+                        profile.settings!.region = settings.region
+                        profile.settings!.credential_source = settings.credential_source
+                        profile.settings!.role_session_name = settings.role_session_name
+                    }
+                    if (profileDuckTypers.IamUserProfile.eval(settings)) {
+                        profile.kinds.push(ProfileKind.IamUserProfile)
+                        profile.settings!.aws_access_key_id = settings.aws_access_key_id
+                        profile.settings!.aws_secret_access_key = settings.aws_secret_access_key
+                        profile.settings!.aws_session_token = settings.aws_session_token
+                    }
+                    // If the profile does not match any profile type, mark it as an unknown profile
+                    if (profile.kinds.length === 0) {
+                        profile.kinds.push(ProfileKind.Unknown)
+                    }
+                    result.profiles.push(profile)
                     break
+                }
+                // Convert config file SSO session into SSO session object
                 case IniSectionType.SSO_SESSION: {
                     if (!ssoSessionDuckTyper.eval(settings)) {
                         continue
@@ -91,9 +120,9 @@ export class SharedConfigProfileStore implements ProfileStore {
         return result
     }
 
-    // If a setting is set to undefined or null, it will be removed from shared config files
-    // If the settings property is set to undefined or null, the entire section will be removed
-    // from the shared config files.  This is equivalent to deleting a section.
+    // If a setting is set to undefined, null, or an empty string, it will be removed from shared
+    // config files. If the settings property is set to undefined or null, the entire section will
+    // be removed from the shared config files. This is equivalent to deleting a section.
     // Any settings or sections in the shared config files that are not passed into data will
     // be preserved as-is.
     async save(data: ProfileData, init?: SharedConfigInit): Promise<void> {
@@ -114,9 +143,12 @@ export class SharedConfigProfileStore implements ProfileStore {
                 IniSectionType.PROFILE,
                 data.profiles,
                 parsedKnownFiles,
-                (section, parsedSection) =>
-                    !section.kinds.includes(ProfileKind.SsoTokenProfile) ||
-                    profileDuckTypers.SsoTokenProfile.eval(parsedSection)
+                (section, parsedSection) => {
+                    return section.kinds.every(kind => {
+                        const duckTyper = profileDuckTypers[kind]
+                        return duckTyper ? duckTyper.eval(parsedSection) : true
+                    })
+                }
             )
         }
 
@@ -192,7 +224,9 @@ export class SharedConfigProfileStore implements ProfileStore {
                 // If setting not passed then preserve setting in file as-is
                 value = value?.toString().trim()
                 if (value === undefined || value === null || value === '') {
-                    Object.hasOwn(parsedSection, name) && delete parsedSection[name]
+                    if (Object.hasOwn(parsedSection, name)) {
+                        delete parsedSection[name]
+                    }
                 } else {
                     if (controlCharsRegex.test(value)) {
                         throwAwsError(`Setting [${name}] cannot contain control characters.`)
