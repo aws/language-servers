@@ -12,15 +12,21 @@ import {
     IamIdentityCenterSsoTokenSource,
     InvalidateSsoTokenParams,
     InvalidateSsoTokenResult,
+    InvalidateStsCredentialParams,
+    InvalidateStsCredentialResult,
     MetricEvent,
     SsoSession,
     SsoTokenSourceKind,
+    Profile,
+    ProfileKind,
 } from '@aws/language-server-runtimes/server-interface'
 
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
 import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion } from '../sso'
 import { SsoCache, SsoClientRegistration } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { StsCache, StsCredential } from '../sts/cache/stsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import {
     throwOnInvalidClientRegistration,
     throwOnInvalidSsoSession,
@@ -30,6 +36,7 @@ import {
 } from '../sso/utils'
 import { IamHandlers, simulatePermissions } from '../iam/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
+import { GetCallerIdentityCommand, STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
@@ -49,8 +56,9 @@ export class IdentityService {
         private readonly profileStore: ProfileStore,
         private readonly ssoCache: SsoCache,
         private readonly autoRefresher: SsoTokenAutoRefresher,
-        private readonly iamProvider: IamProvider,
-        private readonly handlers: Handlers,
+        private readonly stsCache: StsCache,
+        private readonly stsAutoRefresher: StsAutoRefresher,
+        private readonly handlers: SsoFlowParams['handlers'],
         private readonly clientName: string,
         private readonly observability: Observability,
         private readonly authFlows: AuthFlows = flows
@@ -168,7 +176,39 @@ export class IdentityService {
                 throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
             }
 
-            const credentials = await this.iamProvider.getCredential(profile, options.callStsOnInvalidIamCredential)
+            let credentials: IamCredentials
+            // Assume the role matching the found ARN
+            if (profile.kinds.includes(ProfileKind.RoleSourceProfile)) {
+                const sourceProfile = profileData.profiles.find(p => p.name === profile.settings?.source_profile)
+                if (
+                    sourceProfile &&
+                    sourceProfile.settings?.aws_access_key_id &&
+                    sourceProfile.settings.aws_secret_access_key
+                ) {
+                    credentials = await this.getAssumedRoleCredential(
+                        profile,
+                        {
+                            accessKeyId: sourceProfile.settings?.aws_access_key_id,
+                            secretAccessKey: sourceProfile.settings?.aws_secret_access_key,
+                            sessionToken: sourceProfile.settings?.aws_session_token,
+                        },
+                        options.generateOnInvalidStsCredential,
+                        params.mfaCode
+                    )
+                } else {
+                    throw new AwsError('Source IAM credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
+                }
+            }
+            // Get the credentials directly from the profile
+            else if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
+                credentials = {
+                    accessKeyId: profile.settings!.aws_access_key_id!,
+                    secretAccessKey: profile.settings!.aws_secret_access_key!,
+                    sessionToken: profile.settings!.aws_session_token!,
+                }
+            } else {
+                throw new AwsError('Credentials could not be found for profile', AwsErrorCodes.E_INVALID_PROFILE)
+            }
 
             // Validate permissions
             if (options.permissionSet.length > 0) {
@@ -187,6 +227,94 @@ export class IdentityService {
         } catch (e) {
             emitMetric('Failed', e)
             throw e
+        }
+    }
+
+    private async getAssumedRoleCredential(
+        profile: Profile,
+        parentCredentials: IamCredentials,
+        generateOnInvalidStsCredential: boolean,
+        mfaCode?: string
+    ): Promise<IamCredentials> {
+        if (!profile.settings) {
+            throw new AwsError('Profile settings not found when assuming role.', AwsErrorCodes.E_INVALID_PROFILE)
+        }
+
+        // Create STS client for role assumption
+        const stsClient = new STSClient({
+            region: profile.settings.region || 'us-east-1',
+            credentials: parentCredentials,
+        })
+
+        // Try to get the STS credentials from cache
+        let result: IamCredentials
+        const roleArn = profile.settings.role_arn!
+        const stsCredentials = await this.stsCache.getStsCredential(profile.name).catch(_ => undefined)
+
+        if (stsCredentials?.Credentials) {
+            result = {
+                accessKeyId: stsCredentials.Credentials.AccessKeyId!,
+                secretAccessKey: stsCredentials.Credentials.SecretAccessKey!,
+                sessionToken: stsCredentials.Credentials.SessionToken!,
+                expiration: stsCredentials.Credentials.Expiration!,
+            }
+        } else if (generateOnInvalidStsCredential) {
+            // Generate STS credentials
+            const response = await this.generateStsCredential(stsClient, roleArn, profile.settings.mfa_serial, mfaCode)
+            if (!response.Credentials) {
+                throw new AwsError(
+                    'Failed to assume role: No credentials returned',
+                    AwsErrorCodes.E_INVALID_STS_CREDENTIAL
+                )
+            }
+            // Cache STS credentials
+            await this.stsCache.setStsCredential(profile.name, response)
+            result = {
+                accessKeyId: response.Credentials.AccessKeyId!,
+                secretAccessKey: response.Credentials.SecretAccessKey!,
+                sessionToken: response.Credentials.SessionToken!, // Always present in STS response
+                expiration: response.Credentials.Expiration!,
+            }
+        } else {
+            // If we could not get the cached STS credential and cannot generate a new credential, give up
+            this.observability.logging.log(
+                'STS credential not found an generateOnInvalidStsCredential = false, returning no credential.'
+            )
+            throw new AwsError('STS credential not found.', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)
+        }
+
+        // Set up auto-refresh if MFA is disabled
+        if (!profile.settings.mfa_serial) {
+            await this.stsAutoRefresher
+                .watch(profile.name, () => this.generateStsCredential(stsClient, roleArn))
+                .catch(reason => {
+                    this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
+                })
+        }
+
+        return result
+    }
+
+    private async generateStsCredential(
+        stsClient: STSClient,
+        roleArn: string,
+        mfaSerial?: string,
+        mfaCode?: string
+    ): Promise<StsCredential> {
+        try {
+            const mfaFields = mfaSerial && mfaCode ? { SerialNumber: mfaSerial, TokenCode: mfaCode } : {}
+            const command = new AssumeRoleCommand({
+                RoleArn: roleArn,
+                RoleSessionName: `session-${Date.now()}`,
+                DurationSeconds: 3600,
+                ...mfaFields,
+            })
+
+            const { Credentials, AssumedRoleUser } = await stsClient.send(command)
+            return { Credentials, AssumedRoleUser }
+        } catch (e) {
+            this.observability.logging.log(`Error generating STS credentials.`)
+            throw new AwsError(`Error generating STS credentials.`, AwsErrorCodes.E_CANNOT_CREATE_STS_CREDENTIAL)
         }
     }
 
@@ -218,6 +346,39 @@ export class IdentityService {
         } catch (e) {
             emitMetric('Failed', e)
 
+            throw e
+        }
+    }
+
+    async invalidateStsCredential(
+        params: InvalidateStsCredentialParams,
+        token: CancellationToken
+    ): Promise<InvalidateStsCredentialResult> {
+        const emitMetric = this.emitMetric.bind(
+            this,
+            'flareIdentity_invalidateStsCredential',
+            this.invalidateStsCredential.name,
+            Date.now()
+        )
+
+        token.onCancellationRequested(_ => {
+            emitMetric('Cancelled')
+        })
+
+        try {
+            if (!params?.profileName?.trim()) {
+                throw new AwsError('Profile name is invalid.', AwsErrorCodes.E_INVALID_PROFILE)
+            }
+
+            this.stsAutoRefresher.unwatch(params.profileName)
+
+            await this.stsCache.removeStsCredential(params.profileName)
+
+            emitMetric('Succeeded')
+            this.observability.logging.log('Successfully invalidated STS credentials.')
+            return {}
+        } catch (e) {
+            emitMetric('Failed', e)
             throw e
         }
     }
