@@ -11,7 +11,6 @@ import {
     PartialInitializeResult,
     ShowMessageRequestParams,
     GetIamCredentialParams,
-    GetMfaCodeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'

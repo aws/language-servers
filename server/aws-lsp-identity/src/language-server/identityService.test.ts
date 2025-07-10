@@ -43,7 +43,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialsProfile],
+                        kinds: [ProfileKind.IamUserProfile],
                         name: 'my-iam-profile',
                         settings: {
                             aws_access_key_id: 'my-access-key',
@@ -51,7 +51,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialsProfile],
+                        kinds: [ProfileKind.IamUserProfile],
                         name: 'my-sts-profile',
                         settings: {
                             aws_access_key_id: 'my-access-key',
@@ -60,7 +60,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamSourceProfileProfile],
+                        kinds: [ProfileKind.RoleSourceProfile],
                         name: 'my-role-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -68,7 +68,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamSourceProfileProfile],
+                        kinds: [ProfileKind.RoleSourceProfile],
                         name: 'my-mfa-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -77,7 +77,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamCredentialProcessProfile],
+                        kinds: [ProfileKind.ProcessProfile],
                         name: 'my-process-profile',
                         settings: {
                             credential_process: 'my-process',
@@ -153,23 +153,8 @@ describe('IdentityService', () => {
             }
         )
 
-        stub(STSClient.prototype, 'send').resolves({
-            Credentials: {
-                AccessKeyId: 'role-access-key',
-                SecretAccessKey: 'role-secret-key',
-                SessionToken: 'role-session-token',
-                Expiration: new Date('2024-09-25T18:09:20.455Z'),
-            },
-            AssumedRoleUser: {
-                Arn: 'role-arn',
-                AssumedRoleId: 'role-id',
-            },
-            Arn: 'role-arn',
-        })
-
-        stub(IAMClient.prototype, 'send').resolves({
-            EvaluationResults: [],
-        })
+        const validatePermissionsStub = stub(sut as any, 'validatePermissions')
+        validatePermissionsStub.resolves(true)
     })
 
     afterEach(() => {
@@ -329,12 +314,19 @@ describe('IdentityService', () => {
     })
 
     describe('getIamCredential', () => {
+        it('Can login with access key and secret key.', async () => {
+            const actual = await sut.getIamCredential({ profileName: 'my-iam-profile' }, CancellationToken.None)
+
+            expect(actual.credentials.accessKeyId).to.equal('my-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('my-secret-key')
+        })
+
         it('Can login with access key, secret key, and session token.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-sts-profile' }, CancellationToken.None)
 
-            expect(actual.credential.credentials.accessKeyId).to.equal('my-access-key')
-            expect(actual.credential.credentials.secretAccessKey).to.equal('my-secret-key')
-            expect(actual.credential.credentials.sessionToken).to.equal('my-session-token')
+            expect(actual.credentials.accessKeyId).to.equal('my-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('my-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('my-session-token')
         })
     })
 
