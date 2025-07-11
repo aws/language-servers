@@ -5,6 +5,7 @@
 
 import * as crypto from 'crypto'
 import * as path from 'path'
+import * as os from 'os'
 import {
     ChatTriggerType,
     Origin,
@@ -249,6 +250,26 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseId = toolUse.toolUseId!
         // Return plain toolUseId for executeBash, add "_permission" suffix for all other tools
         return toolUse.name === 'executeBash' || toolType === 'executeBash' ? toolUseId : `${toolUseId}_permission`
+    }
+
+    /**
+     * Logs system information that can be helpful for debugging customer issues
+     */
+    private logSystemInformation(): void {
+        const clientInfo = this.#features.lsp.getClientInitializeParams()?.clientInfo
+        const systemInfo = {
+            languageServerVersion: this.#features.runtime.serverInfo.version ?? 'unknown',
+            clientName: clientInfo?.name ?? 'unknown',
+            clientVersion: clientInfo?.version ?? 'unknown',
+            OS: os.platform(),
+            OSVersion: os.release(),
+            ComputeEnv: process.env.COMPUTE_ENV ?? 'unknown',
+            extensionVersion:
+                this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.clientInfo?.extension
+                    ?.version,
+        }
+
+        this.#features.logging.info(`System Information: ${JSON.stringify(systemInfo)}`)
     }
 
     constructor(
@@ -853,7 +874,7 @@ export class AgenticChatController implements ChatHandlers {
         let iterationCount = 0
         let shouldDisplayMessage = true
         metric.recordStart()
-
+        this.logSystemInformation()
         while (true) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
