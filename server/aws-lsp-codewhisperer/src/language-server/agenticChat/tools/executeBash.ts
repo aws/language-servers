@@ -445,11 +445,13 @@ export class ExecuteBash {
             // Check if file exists and is executable
             const stats = statSync(filePath)
             return stats.isFile() && (stats.mode & 0o111) !== 0 // Check if any execute bit is set
-        } catch {
+        } catch (error) {
+            this.logging.debug(`Failed to check if file is binary: ${filePath}, error: ${(error as Error).message}`)
             return false
         }
     }
 
+    // TODO: generalize cancellation logic for tools.
     public async invoke(
         params: ExecuteBashParams,
         cancellationToken?: CancellationToken,
