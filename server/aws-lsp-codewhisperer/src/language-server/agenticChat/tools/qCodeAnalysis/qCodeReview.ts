@@ -558,7 +558,8 @@ export class QCodeReview {
             )
 
             let numberOfFilesInCustomerCodeZip = QCodeReviewUtils.countZipFiles(customerCodeZip)
-            if (numberOfFilesInCustomerCodeZip > 0) {
+            if (numberOfFilesInCustomerCodeZip > ruleArtifacts.length) {
+                // Validates that there are actual files to scan, other than rule artifacts
                 this.logging.info(`Total files in customerCodeZip - ${numberOfFilesInCustomerCodeZip}`)
             } else {
                 throw new Error(QCodeReview.ERROR_MESSAGES.MISSING_FILES_TO_SCAN)
