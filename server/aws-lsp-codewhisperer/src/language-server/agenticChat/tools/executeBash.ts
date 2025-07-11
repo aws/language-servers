@@ -358,9 +358,10 @@ export class ExecuteBash {
         cancellationToken?: CancellationToken,
         updates?: WritableStream
     ): Promise<InvokeOutput> {
+        // use absoluate file path
         const { shellName, shellFlag } = IS_WINDOWS_PLATFORM
-            ? { shellName: 'cmd.exe', shellFlag: '/c' }
-            : { shellName: 'bash', shellFlag: '-c' }
+            ? { shellName: 'C:\\Windows\\System32\\cmd.exe', shellFlag: '/c' }
+            : { shellName: '/bin/bash', shellFlag: '-c' }
         this.logging.info(`Invoking ${shellName} command: "${params.command}" in cwd: "${params.cwd}"`)
 
         return new Promise(async (resolve, reject) => {
