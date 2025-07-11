@@ -89,28 +89,24 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
 
 export const QCodeAnalysisServer: Server = ({
     agent,
-    chat,
     credentialsProvider,
     logging,
     lsp,
-    notification,
     sdkInitializator,
     telemetry,
     workspace,
 }) => {
     logging.info('QCodeAnalysisServer')
     const qCodeReviewTool = new QCodeReview({
-        chat,
         credentialsProvider,
         logging,
         lsp,
-        notification,
         telemetry,
         workspace,
     })
 
     lsp.onInitialized(async () => {
-        if (!QCodeReviewUtils.enabledAgenticReview(lsp.getClientInitializeParams())) {
+        if (!QCodeReviewUtils.isAgenticReviewEnabled(lsp.getClientInitializeParams())) {
             logging.warn('Agentic Review is currently not supported')
             return
         }

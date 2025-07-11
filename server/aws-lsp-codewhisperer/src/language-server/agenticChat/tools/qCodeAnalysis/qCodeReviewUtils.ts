@@ -12,8 +12,12 @@ import { exec } from 'child_process'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
+import * as https from 'https'
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
+import { CancellationError } from '@aws/lsp-core'
+import { InvokeOutput } from '../toolShared'
+import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
 
 /**
  * Utility functions for QCodeReview
@@ -48,9 +52,6 @@ export class QCodeReviewUtils {
      * @returns The folder path
      */
     public static getFolderPath(inputPath: string): string {
-        // eslint-disable-next-line import/no-nodejs-modules
-        const path = require('path')
-
         // Remove trailing slash and get dirname
         const cleanPath = inputPath.replace(/\/$/, '')
 
@@ -254,10 +255,180 @@ export class QCodeReviewUtils {
         }
     }
 
-    public static enabledAgenticReview(params: InitializeParams | undefined): boolean {
+    /**
+     * Check if agentic review capability is enabled in client capabilities
+     * @param params Initialize parameters from client
+     * @returns True if agentic reviewer is enabled, false otherwise
+     */
+    public static isAgenticReviewEnabled(params: InitializeParams | undefined): boolean {
         const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
             | QClientCapabilities
             | undefined
         return qCapabilities?.agenticReviewer || false
+    }
+
+    /**
+     * Converts a Windows absolute file path to Unix format and removes the drive letter
+     * @param windowsPath The Windows path to convert
+     * @returns The Unix formatted path without drive letter
+     */
+    public static convertToUnixPath(windowsPath: string): string {
+        // Remove drive letter (e.g., C:/) if present
+        // Normalize the path and convert backslashes to forward slashes
+        return path
+            .normalize(windowsPath)
+            .replace(/^[a-zA-Z]:\/?/, '')
+            .replace(/\\/g, '/')
+    }
+
+    /**
+     * Create a standardized error output object
+     * @param errorObj Error object or message
+     * @returns Formatted InvokeOutput with error details
+     */
+    public static createErrorOutput(errorObj: any): InvokeOutput {
+        return {
+            output: {
+                kind: 'json',
+                content: errorObj,
+                success: false,
+            },
+        }
+    }
+
+    /**
+     * Upload file content to the pre-signed URL
+     * @param uploadUrl Pre-signed URL for uploading the file
+     * @param fileContent Buffer containing the file content
+     * @param requestHeaders Additional headers for the request
+     * @param logging Logging interface
+     */
+    public static uploadFileToPresignedUrl(
+        uploadUrl: string,
+        fileContent: Buffer,
+        requestHeaders: Record<string, string>,
+        logging: Features['logging']
+    ): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const url = new URL(uploadUrl)
+
+            const options = {
+                hostname: url.hostname,
+                path: url.pathname + url.search,
+                method: 'PUT',
+                headers: {
+                    'Content-Length': fileContent.length,
+                    ...requestHeaders,
+                },
+            }
+
+            logging.info(`Uploading file to ${url.hostname}${url.pathname}`)
+
+            const req = https.request(options, (res: any) => {
+                if (res.statusCode !== 200) {
+                    reject(new Error(`Upload failed with status code: ${res.statusCode}`))
+                    return
+                }
+                let responseData = ''
+                res.on('data', (chunk: string) => {
+                    responseData += chunk
+                })
+                res.on('end', () => {
+                    logging.info('File upload completed successfully')
+                    resolve()
+                })
+            })
+
+            req.on('error', (error: any) => {
+                logging.error(`Error uploading file: ${error}`)
+                reject(error)
+            })
+
+            req.write(fileContent)
+            req.end()
+        })
+    }
+
+    /**
+     * Handle failure in a consistent way
+     * @param error Error object
+     * @param scanName Optional scan name for context
+     * @param jobId Optional job ID for context
+     * @param logging Logging interface
+     * @param telemetry Telemetry interface
+     * @param toolName Tool name for error messages
+     * @returns Standardized error response
+     */
+    public static handleFailure(
+        error: any,
+        logging: Features['logging'],
+        telemetry: Features['telemetry'],
+        toolName: string,
+        scanName?: string,
+        jobId?: string
+    ): any {
+        // if error is of type CancellationError then throw
+        if (error instanceof CancellationError) {
+            throw error
+        }
+
+        const errorData: any = { errorMessage: error?.message }
+        if (scanName) errorData.codeScanName = scanName
+        if (jobId) errorData.codeReviewId = jobId
+
+        QCodeReviewUtils.emitMetric('failed', { data: errorData }, toolName, logging, telemetry)
+
+        logging.error(`Error in ${toolName} - ${error?.message}`)
+
+        return {
+            status: 'Failed',
+            ...errorData,
+        }
+    }
+
+    /**
+     * Emit a telemetry metric with standard formatting
+     * @param metricSuffix Suffix for the metric name
+     * @param metricData Additional metric data
+     * @param toolName Tool name for the metric prefix
+     * @param logging Logging interface
+     * @param telemetry Telemetry interface
+     * @param credentialStartUrl Optional credential start URL
+     */
+    public static emitMetric(
+        metricSuffix: string,
+        metricData: any,
+        toolName: string,
+        logging: Features['logging'],
+        telemetry: Features['telemetry'],
+        credentialStartUrl?: string
+    ): void {
+        const metricName = `${toolName}_${metricSuffix}`
+        const metricPayload = {
+            name: metricName,
+            data: {
+                ...(credentialStartUrl ? { credentialStartUrl } : {}),
+                ...metricData,
+            },
+        }
+        logging.info(`Emitting telemetry metric: ${metricName} with data: ${JSON.stringify(metricPayload.data)}`)
+        telemetry.emitMetric(metricPayload)
+    }
+
+    /**
+     * Check if cancellation has been requested and throw if it has
+     * @param cancellationToken Cancellation token to check
+     * @param message Optional message for the error
+     * @param logging Logging interface
+     */
+    public static checkCancellation(
+        cancellationToken: CancellationToken | undefined,
+        logging: Features['logging'],
+        message: string = 'Command execution cancelled'
+    ): void {
+        if (cancellationToken?.isCancellationRequested) {
+            logging.info(message)
+            throw new CancellationError('user')
+        }
     }
 }
