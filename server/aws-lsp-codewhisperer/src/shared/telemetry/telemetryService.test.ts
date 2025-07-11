@@ -276,7 +276,6 @@ describe('TelemetryService', () => {
                     deletedCharacterCount: undefined,
                     addedIdeDiagnostics: undefined,
                     removedIdeDiagnostics: undefined,
-                    streakLength: 0,
                 },
             },
             optOutPreference: 'OPTIN',
