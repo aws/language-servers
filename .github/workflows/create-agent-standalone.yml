@@ -38,10 +38,12 @@ jobs:
                   for platform in "${platforms[@]}"; do
                     echo "Preparing artifacts for $platform"
                     mkdir -p "_artifacts/$platform"
-                    unzip _artifacts/$platform.zip -d _artifacts/$platform
+
+                    cp "app/aws-lsp-codewhisperer-runtimes/build/archives/shared/clients.zip" "_artifacts/$platform/"
+                    cp "app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/$platform/servers.zip" "_artifacts/$platform/"
                   done
                   mkdir -p "_artifacts/clients"
-                  unzip _artifacts/clients.zip -d _artifacts/clients
+                  unzip "app/aws-lsp-codewhisperer-runtimes/build/archives/shared/clients.zip" -d _artifacts/clients
 
             # GitHub Actions zips the archive, so we upload the folder used to
             # produce clients.zip. Otherwise we have a clients.zip artifact
