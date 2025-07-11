@@ -5,6 +5,7 @@
 
 import * as crypto from 'crypto'
 import * as path from 'path'
+import * as os from 'os'
 import {
     ChatTriggerType,
     Origin,
@@ -249,6 +250,26 @@ export class AgenticChatController implements ChatHandlers {
         return toolUse.name === 'executeBash' || toolType === 'executeBash' ? toolUseId : `${toolUseId}_permission`
     }
 
+    /**
+     * Logs system information that can be helpful for debugging customer issues
+     */
+    private logSystemInformation(): void {
+        const clientInfo = this.#features.lsp.getClientInitializeParams()?.clientInfo
+        const systemInfo = {
+            languageServerVersion: this.#features.runtime.serverInfo.version ?? 'unknown',
+            clientName: clientInfo?.name ?? 'unknown',
+            clientVersion: clientInfo?.version ?? 'unknown',
+            OS: os.platform(),
+            OSVersion: os.release(),
+            ComputeEnv: process.env.COMPUTE_ENV ?? 'unknown',
+            extensionVersion:
+                this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.clientInfo?.extension
+                    ?.version,
+        }
+
+        this.#features.logging.info(`System Information: ${JSON.stringify(systemInfo)}`)
+    }
+
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
@@ -383,6 +404,10 @@ export class AgenticChatController implements ChatHandlers {
             await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
         } else {
             await this.#features.workspace.fs.rm(input.path)
+            void LocalProjectContextController.getInstance().then(controller => {
+                const filePath = URI.file(input.path).fsPath
+                return controller.updateIndexAndContextCommand([filePath], false)
+            })
         }
     }
 
@@ -850,7 +875,7 @@ export class AgenticChatController implements ChatHandlers {
         let iterationCount = 0
         let shouldDisplayMessage = true
         metric.recordStart()
-
+        this.logSystemInformation()
         while (true) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
@@ -2360,7 +2385,7 @@ export class AgenticChatController implements ChatHandlers {
         content: string
     ): ChatCommandInput {
         // Create a deep copy of the request input
-        const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as ChatCommandInput
+        const updatedRequestInput = structuredClone(requestInput) as ChatCommandInput
 
         // Add tool results to the request
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
