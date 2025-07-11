@@ -183,9 +183,10 @@ import {
     qProName,
 } from '../paidTier/paidTier'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
-import { modelOptions, modelOptionsForRegion } from './modelSelection'
+import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
+import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -382,6 +383,10 @@ export class AgenticChatController implements ChatHandlers {
             await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
         } else {
             await this.#features.workspace.fs.rm(input.path)
+            void LocalProjectContextController.getInstance().then(controller => {
+                const filePath = URI.file(input.path).fsPath
+                return controller.updateIndexAndContextCommand([filePath], false)
+            })
         }
     }
 
@@ -586,7 +591,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
         const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
+        const models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         const { data: session, success } = sessionResult
@@ -601,18 +606,13 @@ export class AgenticChatController implements ChatHandlers {
         const selectedModelId =
             savedModelId && models.some(model => model.id === savedModelId)
                 ? savedModelId
-                : this.#getLatestAvailableModel(region).id
+                : getLatestAvailableModel(region).id
         session.modelId = selectedModelId
         return {
             tabId: params.tabId,
             models: models,
             selectedModelId: selectedModelId,
         }
-    }
-
-    #getLatestAvailableModel(region: string | undefined, exclude?: string): Model {
-        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
-        return models.reverse().find(model => model.id !== exclude) ?? models[models.length - 1]
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {
@@ -2361,7 +2361,7 @@ export class AgenticChatController implements ChatHandlers {
         content: string
     ): ChatCommandInput {
         // Create a deep copy of the request input
-        const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as ChatCommandInput
+        const updatedRequestInput = structuredClone(requestInput) as ChatCommandInput
 
         // Add tool results to the request
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
