@@ -673,7 +673,7 @@ export const CodewhispererServerFactory =
                     }
                     try {
                         const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
-                        return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
+                        return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
                     } catch (error) {
                         return handleSuggestionsErrors(error as Error, newSession)
                     }
