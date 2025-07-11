@@ -292,7 +292,7 @@ export class IdentityService {
                 const sourceProfile = profileData.profiles.find(p => p.name === profile.settings?.source_profile)
 
                 // TODO: use other profile kinds while preventing infinite cycles
-                if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
+                if (sourceProfile?.kinds.includes(ProfileKind.IamUserProfile)) {
                     parentCredentials = {
                         accessKeyId: sourceProfile!.settings!.aws_access_key_id!,
                         secretAccessKey: sourceProfile!.settings!.aws_secret_access_key!,
