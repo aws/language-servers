@@ -2360,28 +2360,34 @@ export class AgenticChatController implements ChatHandlers {
         toolResults: ToolResult[],
         content: string
     ): ChatCommandInput {
+        // Create a deep copy of the request input
+        const updatedRequestInput = structuredClone(requestInput) as ChatCommandInput
+
         // Add tool results to the request
-        requestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults = []
-        requestInput.conversationState!.currentMessage!.userInputMessage!.content = content
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
+            []
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.content = content
         // don't pass in IDE context again in the followup toolUse/toolResult loop as it confuses the model and is not necessary
-        requestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.editorState = {
-            ...requestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.editorState,
-            document: undefined,
-            relevantDocuments: undefined,
-            cursorState: undefined,
-            useRelevantDocuments: false,
-        }
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.editorState =
+            {
+                ...updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!
+                    .editorState,
+                document: undefined,
+                relevantDocuments: undefined,
+                cursorState: undefined,
+                useRelevantDocuments: false,
+            }
 
         for (const toolResult of toolResults) {
             this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
-            requestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
+            updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
                 {
                     ...toolResult,
                 }
             )
         }
 
-        return requestInput
+        return updatedRequestInput
     }
 
     /**
