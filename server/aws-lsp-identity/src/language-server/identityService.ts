@@ -179,25 +179,11 @@ export class IdentityService {
             let credentials: IamCredentials
             // Assume the role matching the found ARN
             if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
-                const sourceProfile = profileData.profiles.find(p => p.name === profile.settings?.source_profile)
-                if (
-                    sourceProfile &&
-                    sourceProfile.settings?.aws_access_key_id &&
-                    sourceProfile.settings.aws_secret_access_key
-                ) {
-                    credentials = await this.getAssumedRoleCredential(
-                        profile,
-                        {
-                            accessKeyId: sourceProfile.settings?.aws_access_key_id,
-                            secretAccessKey: sourceProfile.settings?.aws_secret_access_key,
-                            sessionToken: sourceProfile.settings?.aws_session_token,
-                        },
-                        options.generateOnInvalidStsCredential,
-                        params.mfaCode
-                    )
-                } else {
-                    throw new AwsError('Source IAM credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
-                }
+                credentials = await this.getAssumedRoleCredential(
+                    profile,
+                    options.generateOnInvalidStsCredential,
+                    params.mfaCode
+                )
             }
             // Get the credentials directly from the profile
             else if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
@@ -232,7 +218,6 @@ export class IdentityService {
 
     private async getAssumedRoleCredential(
         profile: Profile,
-        parentCredentials: IamCredentials,
         generateOnInvalidStsCredential: boolean,
         mfaCode?: string
     ): Promise<IamCredentials> {
@@ -240,15 +225,8 @@ export class IdentityService {
             throw new AwsError('Profile settings not found when assuming role.', AwsErrorCodes.E_INVALID_PROFILE)
         }
 
-        // Create STS client for role assumption
-        const stsClient = new STSClient({
-            region: profile.settings.region || 'us-east-1',
-            credentials: parentCredentials,
-        })
-
         // Try to get the STS credentials from cache
         let result: IamCredentials
-        const roleArn = profile.settings.role_arn!
         const stsCredentials = await this.stsCache.getStsCredential(profile.name).catch(_ => undefined)
 
         if (stsCredentials?.Credentials) {
@@ -260,7 +238,7 @@ export class IdentityService {
             }
         } else if (generateOnInvalidStsCredential) {
             // Generate STS credentials
-            const response = await this.generateStsCredential(stsClient, roleArn, profile.settings.mfa_serial, mfaCode)
+            const response = await this.generateStsCredential(profile, mfaCode)
             if (!response.Credentials) {
                 throw new AwsError(
                     'Failed to assume role: No credentials returned',
@@ -286,7 +264,7 @@ export class IdentityService {
         // Set up auto-refresh if MFA is disabled
         if (!profile.settings.mfa_serial) {
             await this.stsAutoRefresher
-                .watch(profile.name, () => this.generateStsCredential(stsClient, roleArn))
+                .watch(profile.name, () => this.generateStsCredential(profile))
                 .catch(reason => {
                     this.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
                 })
@@ -295,16 +273,37 @@ export class IdentityService {
         return result
     }
 
-    private async generateStsCredential(
-        stsClient: STSClient,
-        roleArn: string,
-        mfaSerial?: string,
-        mfaCode?: string
-    ): Promise<StsCredential> {
+    private async generateStsCredential(profile: Profile, mfaCode?: string): Promise<StsCredential> {
         try {
-            const mfaFields = mfaSerial && mfaCode ? { SerialNumber: mfaSerial, TokenCode: mfaCode } : {}
+            let parentCredentials: IamCredentials
+            if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
+                const profileData = await this.profileStore.load()
+                const sourceProfile = profileData.profiles.find(p => p.name === profile.settings?.source_profile)
+                // TODO: use other profile kinds while preventing infinite cycles
+                if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
+                    parentCredentials = {
+                        accessKeyId: sourceProfile!.settings!.aws_access_key_id!,
+                        secretAccessKey: sourceProfile!.settings!.aws_secret_access_key!,
+                        sessionToken: sourceProfile?.settings?.aws_session_token,
+                    }
+                } else {
+                    throw new AwsError('Source credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
+                }
+            } else {
+                throw new AwsError('Source credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
+            }
+
+            const stsClient = new STSClient({
+                region: profile.settings?.region || 'us-east-1',
+                credentials: parentCredentials,
+            })
+
+            const mfaFields =
+                profile.settings?.mfa_serial && mfaCode
+                    ? { SerialNumber: profile.settings?.mfa_serial, TokenCode: mfaCode }
+                    : {}
             const command = new AssumeRoleCommand({
-                RoleArn: roleArn,
+                RoleArn: profile.settings?.role_arn,
                 RoleSessionName: `session-${Date.now()}`,
                 DurationSeconds: 3600,
                 ...mfaFields,
