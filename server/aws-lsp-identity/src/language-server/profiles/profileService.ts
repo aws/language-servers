@@ -64,7 +64,12 @@ export const profileTypes = {
     IamRoleSourceProfile: {
         kind: ProfileKind.IamRoleSourceProfile,
         required: [ProfileFields.role_arn, ProfileFields.source_profile],
-        optional: [ProfileFields.external_id, ProfileFields.role_session_name, ProfileFields.mfa_serial],
+        optional: [
+            ProfileFields.external_id,
+            ProfileFields.role_session_name,
+            ProfileFields.region,
+            ProfileFields.mfa_serial,
+        ],
         disallowed: [ProfileFields.credential_source],
     },
     IamRoleInstanceProfile: {
