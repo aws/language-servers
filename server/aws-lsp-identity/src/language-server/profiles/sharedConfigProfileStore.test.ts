@@ -94,7 +94,6 @@ describe('SharedConfigProfileStore', async () => {
                     settings: {
                         aws_access_key_id: 'AAAAAAAA',
                         aws_secret_access_key: 'BBBBBBBB',
-                        aws_session_token: undefined,
                     },
                 },
                 {
@@ -186,7 +185,6 @@ describe('SharedConfigProfileStore', async () => {
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
-                            aws_session_token: undefined,
                         },
                     },
                     {
@@ -198,7 +196,6 @@ describe('SharedConfigProfileStore', async () => {
                         kinds: [ProfileKind.SsoTokenProfile],
                         name: 'config-only.profile',
                         settings: {
-                            region: undefined,
                             sso_session: 'test-sso-session',
                         },
                     },
@@ -284,7 +281,6 @@ describe('SharedConfigProfileStore', async () => {
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
                             aws_secret_access_key: 'BBBBBBBB',
-                            aws_session_token: undefined,
                         },
                     },
                     {
@@ -342,7 +338,6 @@ describe('SharedConfigProfileStore', async () => {
                     settings: {
                         role_arn: 'new-role-arn',
                         credential_source: 'new-source',
-                        region: 'new-region',
                     },
                 },
                 {
@@ -402,7 +397,6 @@ describe('SharedConfigProfileStore', async () => {
                     settings: {
                         aws_access_key_id: 'AAAAAAAA',
                         aws_secret_access_key: 'BBBBBBBB',
-                        aws_session_token: undefined,
                     },
                 },
                 {
@@ -427,8 +421,6 @@ describe('SharedConfigProfileStore', async () => {
                     settings: {
                         role_arn: 'new-role-arn',
                         credential_source: 'new-source',
-                        region: 'new-region',
-                        role_session_name: undefined,
                     },
                 },
                 {
@@ -437,8 +429,6 @@ describe('SharedConfigProfileStore', async () => {
                     settings: {
                         role_arn: 'new-role-arn',
                         source_profile: 'new-source-profile',
-                        mfa_serial: undefined,
-                        role_session_name: undefined,
                     },
                 },
                 {
