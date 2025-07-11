@@ -431,6 +431,59 @@ describe('ChatDatabase', () => {
         })
     })
 
+    describe('calculateNewMessageCharacterCount', () => {
+        it('should calculate character count for new message and pinned context', () => {
+            const newUserMessage = {
+                userInputMessage: {
+                    content: 'Test message',
+                    userInputMessageContext: {},
+                },
+            } as ChatMessage
+
+            const pinnedContextMessages = [
+                {
+                    userInputMessage: {
+                        content: 'Pinned context 1',
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Pinned response 1',
+                    },
+                },
+            ]
+
+            // Stub the calculateMessagesCharacterCount method
+            const calculateMessagesCharacterCountStub = sinon.stub(chatDb, 'calculateMessagesCharacterCount')
+            calculateMessagesCharacterCountStub.onFirstCall().returns(11) // 'Test message'
+            calculateMessagesCharacterCountStub.onSecondCall().returns(30) // Pinned context messages
+
+            // Stub the calculateToolSpecCharacterCount method
+            const calculateToolSpecCharacterCountStub = sinon.stub(chatDb as any, 'calculateToolSpecCharacterCount')
+            calculateToolSpecCharacterCountStub.returns(50) // Tool spec count
+
+            const result = chatDb.calculateNewMessageCharacterCount(newUserMessage, pinnedContextMessages)
+
+            // Verify the result is the sum of all character counts
+            assert.strictEqual(result, 91) // 11 + 30 + 50
+
+            // Verify the methods were called with correct arguments
+            sinon.assert.calledWith(calculateMessagesCharacterCountStub.firstCall, [
+                {
+                    body: 'Test message',
+                    type: 'prompt',
+                    userIntent: undefined,
+                    origin: 'IDE',
+                    userInputMessageContext: {},
+                },
+            ])
+
+            // Clean up
+            calculateMessagesCharacterCountStub.restore()
+            calculateToolSpecCharacterCountStub.restore()
+        })
+    })
+
     describe('getWorkspaceIdentifier', () => {
         const MOCK_MD5_HASH = '5bc032692b81700eb516f317861fbf32'
         const MOCK_SHA256_HASH = 'bb6b72d3eab82acaabbda8ca6c85658b83e178bb57760913ccdd938bbeaede9f'
@@ -562,3 +615,6 @@ describe('ChatDatabase', () => {
         })
     })
 })
+function uuid(): `${string}-${string}-${string}-${string}-${string}` {
+    throw new Error('Function not implemented.')
+}

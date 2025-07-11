@@ -37,6 +37,7 @@ import { ContextInfo, mergeFileLists, mergeRelevantTextDocuments } from './conte
 import { WorkspaceFolderManager } from '../../workspaceContext/workspaceFolderManager'
 import { getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 import { ChatCommandInput } from '../../../shared/streamingClientService'
+import { COMPACTION_PROMPT } from '../constants/constants'
 
 export interface TriggerContext extends Partial<DocumentContext> {
     userIntent?: UserIntent
@@ -108,6 +109,43 @@ export class AgenticChatTriggerContext {
 
     /**
      * Creates chat parameters from trigger context for sending to the backend
+     * @param profileArn Optional ARN for profile
+     * @param tools Optional Bedrock tools
+     * @param modelId Optional model ID
+     * @param origin Optional origin
+     * @returns ChatCommandInput - which is either SendMessageInput or GenerateAssistantResponseInput
+     */
+    async getCompactionChatCommandInput(
+        profileArn?: string,
+        tools: BedrockTools = [],
+        modelId?: string,
+        origin?: Origin
+    ): Promise<ChatCommandInput> {
+        const data: ChatCommandInput = {
+            conversationState: {
+                chatTriggerType: ChatTriggerType.MANUAL,
+                currentMessage: {
+                    userInputMessage: {
+                        content: COMPACTION_PROMPT,
+                        userInputMessageContext: {
+                            tools,
+                            envState: this.#mapPlatformToEnvState(process.platform),
+                        },
+                        userIntent: undefined,
+                        origin: origin ? origin : 'IDE',
+                        modelId,
+                    },
+                },
+                customizationArn: undefined,
+            },
+            profileArn,
+        }
+
+        return data
+    }
+
+    /**
+     * Creates chat parameters from trigger context for sending to the backend
      * @param params Chat parameters or inline chat parameters
      * @param triggerContext Context information from the trigger
      * @param chatTriggerType Type of chat trigger
@@ -128,7 +166,6 @@ export class AgenticChatTriggerContext {
         customizationArn?: string,
         chatResultStream?: AgenticChatResultStream,
         profileArn?: string,
-        history: ChatMessage[] = [],
         tools: BedrockTools = [],
         additionalContent?: AdditionalContentEntryAddition[],
         modelId?: string,
@@ -254,7 +291,6 @@ export class AgenticChatTriggerContext {
                     },
                 },
                 customizationArn,
-                history,
             },
             profileArn,
         }
