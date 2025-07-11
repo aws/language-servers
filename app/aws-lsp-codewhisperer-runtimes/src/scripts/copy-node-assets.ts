@@ -41,7 +41,7 @@ async function copyWindowsAssets() {
 }
 
 async function copyLinuxAndMacAssets() {
-    const overridesContent = await fsPromises.readFile('build/node-assets/attribution-overrides.json', 'utf8')
+    const overridesContent = await fsPromises.readFile('../../attribution/overrides.json', 'utf8')
     const version = JSON.parse(overridesContent).node.version
     const nodeAssetsRoot = 'build/node-assets'
     const linuxX64 = `node-v${version}-linux-x64`

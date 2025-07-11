@@ -131,6 +131,9 @@ jobs:
                   # clients.zip : just pick one of the platforms, they're all the same file
                   cp downloaded-artifacts/linux-x64/clients.zip _release-artifacts/clients.zip
 
+                  # THIRD_PARTY_LICENSES
+                  cp downloaded-artifacts/THIRD_PARTY_LICENSES/THIRD_PARTY_LICENSES _release-artifacts/THIRD_PARTY_LICENSES
+
             # Manifest assigned to the GitHub release will only ever contain one version,
             # which points to the assets uploaded to the release (the latest commit).
             - name: Create Artifact Manifest
