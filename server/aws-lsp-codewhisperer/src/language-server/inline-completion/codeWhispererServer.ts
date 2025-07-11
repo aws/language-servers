@@ -355,14 +355,60 @@ export const CodewhispererServerFactory =
 
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
-                if (codeWhispererService.isGenerateCompletionInProgress()) {
-                    logging.info(`[NEP]: cwsprService is WIP, return empty`)
-                    return EMPTY_RESULT
-                }
+
+                logging.info(`codewhispererServer flow condition
+                    partialResultToken: ${params.partialResultToken}
+                    currentSession !== undefined: ${currentSession !== undefined}`)
                 if (params.partialResultToken && currentSession) {
                     // subsequent paginated requests for current session
-                    return codeWhispererService
-                        .generateSuggestions({
+                    if (currentSession.suggestionType === SuggestionType.EDIT) {
+                        logging.info(`[NEP] codewhispererServer flow 1-1`)
+                        if (!textDocument) {
+                            return EMPTY_RESULT
+                        }
+
+                        // TODO:
+                        const previousSession = currentSession
+                        sessionManager.discardSession(currentSession)
+                        const s = sessionManager.createSession({
+                            document: textDocument,
+                            startPosition: params.position,
+                            triggerType: 'AutoTrigger',
+                            language: previousSession.language,
+                            requestContext: previousSession.requestContext,
+                            autoTriggerType: previousSession.autoTriggerType,
+                            triggerCharacter: previousSession.triggerCharacter,
+                            classifierResult: previousSession.classifierResult,
+                            classifierThreshold: previousSession.classifierThreshold,
+                            credentialStartUrl:
+                                credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
+                            supplementalMetadata: previousSession.supplementalMetadata,
+                            customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
+                        })
+                        s.suggestionType = SuggestionType.EDIT
+
+                        return codeWhispererService
+                            .generateCompletionsAndEdits(textDocument, currentSession.requestContext, {
+                                enablePrefetch: true,
+                                cacheKey: params.partialResultToken,
+                            })
+                            .then(async suggestionResponse => {
+                                return await processSuggestionResponse(
+                                    suggestionResponse,
+                                    s,
+                                    false,
+                                    params.context.selectedCompletionInfo?.range
+                                )
+                            })
+                            .catch(error => {
+                                return handleSuggestionsErrors(error, currentSession)
+                            })
+                    }
+
+                    logging.info(`[NEP] codewhispererServer flow 1-2`)
+
+                    try {
+                        const suggestionResponse = await codeWhispererService.generateSuggestions({
                             ...currentSession.requestContext,
                             fileContext: {
                                 ...currentSession.requestContext.fileContext,
@@ -375,21 +421,31 @@ export const CodewhispererServerFactory =
                             },
                             nextToken: `${params.partialResultToken}`,
                         })
-                        .then(async suggestionResponse => {
-                            return await processSuggestionResponse(
-                                suggestionResponse,
-                                currentSession,
-                                false,
-                                params.context.selectedCompletionInfo?.range
-                            )
-                        })
-                        .catch(error => {
-                            return handleSuggestionsErrors(error, currentSession)
-                        })
+
+                        const postProcess = await processSuggestionResponse(
+                            suggestionResponse,
+                            currentSession,
+                            false,
+                            params.context.selectedCompletionInfo?.range
+                        )
+
+                        return postProcess
+                    } catch (error) {
+                        return handleSuggestionsErrors(error as Error, currentSession)
+                    }
                 } else {
+                    logging.info(`[NEP] codewhispererServer flow 2`)
                     // request for new session
                     if (!textDocument) {
                         logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                        return EMPTY_RESULT
+                    }
+
+                    if (
+                        codeWhispererService instanceof CodeWhispererServiceToken &&
+                        codeWhispererService.getEditStreakState().enabled
+                    ) {
+                        logging.info(`[NEP] early return because editStreak mode is on @ codewhispererServer flow 2`)
                         return EMPTY_RESULT
                     }
 
@@ -450,6 +506,7 @@ export const CodewhispererServerFactory =
                         !autoTriggerResult.shouldTrigger &&
                         !(editsEnabled && codeWhispererService instanceof CodeWhispererServiceToken) // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
                     ) {
+                        logging.info(`[NEP] early return aaaaaaaaaaaaaa @ codewhispererServer flow 2`)
                         return EMPTY_RESULT
                     }
 
@@ -522,9 +579,11 @@ export const CodewhispererServerFactory =
                                     recentEdits: recentEditTracker,
                                 })
 
-                                if (editPredictionAutoTriggerResult.shouldTrigger) {
-                                    predictionTypes.push(['EDITS'])
-                                }
+                                // TODO: uncomment
+                                // if (editPredictionAutoTriggerResult.shouldTrigger) {
+                                //     predictionTypes.push(['EDITS'])
+                                // }
+                                predictionTypes.push(['EDITS'])
                             }
 
                             if (predictionTypes.length === 0) {
@@ -666,27 +725,27 @@ export const CodewhispererServerFactory =
                         ...(workspaceId ? { workspaceId: workspaceId } : {}),
                     }
 
-                    if (editsEnabled) {
-                        return codeWhispererService
-                            .generateCompletionsAndEdits(textDocument, generateCompletionReq, {
-                                enablePrefetch: true,
-                            })
-                            .then(async suggestionResponse => {
-                                return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
-                            })
-                            .catch(err => {
-                                return handleSuggestionsErrors(err, newSession)
-                            })
-                    }
+                    try {
+                        const suggestionPromise = editsEnabled
+                            ? codeWhispererService.generateCompletionsAndEdits(textDocument, generateCompletionReq, {
+                                  enablePrefetch: true,
+                                  cacheKey: undefined,
+                              })
+                            : codeWhispererService.generateSuggestions(generateCompletionReq)
 
-                    return codeWhispererService
-                        .generateSuggestions(generateCompletionReq)
-                        .then(async suggestionResponse => {
-                            return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
-                        })
-                        .catch(err => {
-                            return handleSuggestionsErrors(err, newSession)
-                        })
+                        const suggestionResponse = await suggestionPromise
+
+                        const postProcessResponse = await processSuggestionResponse(
+                            suggestionResponse,
+                            newSession,
+                            true,
+                            selectionRange
+                        )
+
+                        return postProcessResponse
+                    } catch (error) {
+                        return handleSuggestionsErrors(error as Error, newSession)
+                    }
                 }
             })
         }
@@ -738,6 +797,7 @@ export const CodewhispererServerFactory =
 
             // session was closed by user already made decisions consequent completion request before new paginated API response was received
             if (session.state === 'CLOSED' || session.state === 'DISCARD') {
+                logging.warn(`session was closed, returning EMPTY suggestion`)
                 return EMPTY_RESULT
             }
 
@@ -829,7 +889,7 @@ export const CodewhispererServerFactory =
                     partialResultToken: suggestionResponse.responseContext.nextToken,
                 }
             } else {
-                return {
+                const r = {
                     items: suggestionResponse.suggestions
                         .map(suggestion => {
                             // Check if this suggestion is similar to a previously rejected edit
@@ -862,6 +922,8 @@ export const CodewhispererServerFactory =
                     sessionId: session.id,
                     partialResultToken: suggestionResponse.responseContext.nextToken,
                 }
+
+                return r
             }
         }
 
@@ -1005,10 +1067,18 @@ export const CodewhispererServerFactory =
                 }
             }
 
-            if (isAccepted) {
-            } else {
-                logging.info(`user reject suggestion, clearning prefetched suggestion`)
-                amazonQServiceManager.getCodewhispererService().clearCachedSuggestions()
+            const cwsprService = amazonQServiceManager.getCodewhispererService()
+
+            if (cwsprService instanceof CodeWhispererServiceToken) {
+                if (isAccepted && isInlineEdit) {
+                    if (sessionId === cwsprService.getEditStreakState().coldStartSessionid) {
+                        cwsprService.enableEditStreakMode(true)
+                    }
+                } else {
+                    logging.info(`user reject suggestion, clearning prefetched suggestion`)
+                    cwsprService.enableEditStreakMode(false)
+                    // amazonQServiceManager.getCodewhispererService().clearCachedSuggestions()
+                }
             }
 
             session.setClientResultData(

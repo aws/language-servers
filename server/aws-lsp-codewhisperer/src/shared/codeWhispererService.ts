@@ -101,6 +101,7 @@ export abstract class CodeWhispererServiceBase {
         request: GenerateSuggestionsRequest,
         config: {
             enablePrefetch: boolean
+            cacheKey: string | number | undefined
         }
     ): Promise<GenerateSuggestionsResponse>
 
@@ -193,6 +194,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         request: GenerateSuggestionsRequest,
         config: {
             enablePrefetch: boolean
+            cacheKey: string | number
         }
     ): Promise<GenerateSuggestionsResponse> {
         return this.generateSuggestions(request)
@@ -212,16 +214,21 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
-    prefetchSuggestions: { id: string; response: GenerateSuggestionsResponse; request: GenerateSuggestionsRequest }[] =
-        []
+    prefetchCache: Map<
+        string | number,
+        { id: string; response: GenerateSuggestionsResponse; request: GenerateSuggestionsRequest }
+    > = new Map()
 
     isPrefetchInProgress: boolean = false
+
+    editStreakStates: { coldStartSessionid: string; enabled: boolean } = { coldStartSessionid: '', enabled: false }
 
     private prefetchConfig = {
         duration: 500, // 500ms
         maxCacheSuggestionSize: 2,
         maxRecursiveCallDepth: 2,
-        cacheClearIntervalInMs: 10 * 1000, // 10s
+        // TODO: make it shorter, 100s for dev purpose
+        cacheClearIntervalInMs: 100 * 1000, // 100s
     }
 
     constructor(
@@ -287,8 +294,26 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return { ...request, profileArn: this.profileArn }
     }
 
-    clearCachedSuggestions() {
-        this.prefetchSuggestions = []
+    getEditStreakState(): { coldStartSessionid: string; enabled: boolean } {
+        return {
+            ...this.editStreakStates,
+        }
+    }
+
+    enableEditStreakMode(flag: boolean) {
+        if (flag) {
+            this.editStreakStates.enabled = true
+            setTimeout(() => {
+                this.editStreakStates.enabled = false
+            }, 60 * 1000)
+        } else {
+            this.editStreakStates.enabled = false
+        }
+    }
+
+    clearCachedSuggestions(reason: string = '') {
+        this.logging.info(`[NEP] clearing prefetch cache because: ${reason}`)
+        this.prefetchCache.clear()
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
@@ -317,6 +342,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         request: GenerateSuggestionsRequest,
         config: {
             enablePrefetch: boolean
+            cacheKey: string | number | undefined
         }
     ): Promise<GenerateSuggestionsResponse> {
         try {
@@ -325,7 +351,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 return this.generateSuggestions(request)
             }
 
-            return this.generateSuggestionsAndPrefetch(textDocument, request)
+            return this.generateSuggestionsAndPrefetch(textDocument, request, config.cacheKey)
         } finally {
             this.isGcInProgress = false
         }
@@ -333,24 +359,18 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
     private async generateSuggestionsAndPrefetch(
         textDocument: TextDocument,
-        originalRequest: GenerateSuggestionsRequest
+        originalRequest: GenerateSuggestionsRequest,
+        cacheKey: string | number | undefined
     ): Promise<GenerateSuggestionsResponse> {
-        // TODO: Will use nextToken
-        // If codewhispererService has prefetched result && id matches, return the cached prefetched result directly
-        // e.g. if it's not a subsequent call, it must be a cold start
-        const shouldUseCache =
-            this.isPrefetchInProgress ||
-            (this.prefetchSuggestions.length > 0 &&
-                this.prefetchSuggestions[0].request.fileContext.filename === originalRequest.fileContext.filename)
-
         const t0 = performance.now()
         let r: GenerateSuggestionsResponse
         let type: string = ''
-        if (shouldUseCache) {
+        if (cacheKey) {
             // It's possible that we're still waiting for server's response, so should waitUntil
             const rr = await waitUntil(
                 async () => {
-                    return this.prefetchSuggestions.pop()
+                    // TODO: use nextToken to retrieve cached suggestion
+                    return this.prefetchCache.get(cacheKey)
                 },
                 {
                     timeout: 1000,
@@ -358,27 +378,28 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                 }
             )
             if (!rr) {
-                this.clearCachedSuggestions()
+                this.clearCachedSuggestions('there is no cached suggestion')
                 throw new Error('time out')
             }
 
             r = rr.response
             type = 'prefetch'
         } else {
-            this.clearCachedSuggestions()
+            this.clearCachedSuggestions('before cold start')
             r = await this.generateSuggestions(originalRequest)
+            // TODO: nextToken
+            r.responseContext.nextToken = 'cold-start-fake-token'
             type = 'coldstart'
 
             if (r.suggestions.length > 0) {
-                this.isPrefetchInProgress = true
+                this.editStreakStates.coldStartSessionid = r.responseContext.codewhispererSessionId
                 setTimeout(() => {
                     this.chainedGenerateCompletionCall(originalRequest, r, textDocument, 0)
                         .catch(e => {})
                         .finally(async () => {
-                            this.isPrefetchInProgress = false
                             // Cache is only valid for x seconds
                             setTimeout(() => {
-                                this.clearCachedSuggestions()
+                                this.clearCachedSuggestions('cache is invalid after 100 seconds')
                             }, this.prefetchConfig.cacheClearIntervalInMs)
                         })
                 }, this.prefetchConfig.duration)
@@ -388,6 +409,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         const logstr = `[NEP] returning suggestions @generateSuggestionsAndPrefetch:
 - latency: ${performance.now() - t0}
 - type: ${type}
+- nextToken: ${r.responseContext.nextToken}
 - suggestion: 
 ${r.suggestions[0]?.content ?? '[NO SUGGESTION'}`
 
@@ -420,10 +442,6 @@ ${r.suggestions[0]?.content ?? '[NO SUGGESTION'}`
             return
         }
 
-        if (this.prefetchSuggestions.length > this.prefetchConfig.maxCacheSuggestionSize) {
-            return
-        }
-
         const request = this.buildSubsequentNepRequest(baseRequest, baseResponse, textDocument)
 
         try {
@@ -435,11 +453,21 @@ ${r.suggestions[0]?.content ?? '[NO SUGGESTION'}`
                 response.suggestions[0].content !== baseResponse.suggestions[0].content
 
             if (isResponseValid) {
-                this.prefetchSuggestions.push({
-                    id: baseResponse.responseContext.codewhispererSessionId, // TODO: either session id, suggestion for the purpose of checking it's the right followup/subsequent call?
-                    response: response,
-                    request: request,
-                })
+                // TODO: nextToken
+                if (depth + 1 < this.prefetchConfig.maxRecursiveCallDepth) {
+                    response.responseContext.nextToken = `fake-token-point-to-depth ${depth + 1}`
+                }
+
+                const nextToken = response.responseContext.nextToken
+
+                const nt = baseResponse.responseContext.nextToken
+                if (nt) {
+                    this.prefetchCache.set(nt, {
+                        id: baseResponse.responseContext.codewhispererSessionId,
+                        response: response,
+                        request: request,
+                    })
+                }
 
                 setTimeout(async () => {
                     await this.chainedGenerateCompletionCall(request, response, textDocument, depth + 1, token)
@@ -449,7 +477,7 @@ ${r.suggestions[0]?.content ?? '[NO SUGGESTION'}`
             this.logging.info(`[NEP] prefetch success @chainedGenerateCompletionCall:
 - file: ${baseRequest.fileContext.filename}
 - depth: ${depth}
-- current prefetch suggestion length: ${this.prefetchSuggestions.length}
+- current prefetch suggestion length: ${this.prefetchCache.size}
 - is prefetch response valid: ${isResponseValid}
 - suggestion (next line):
 ${response.suggestions[0].content}`)
@@ -457,7 +485,7 @@ ${response.suggestions[0].content}`)
             this.logging.error(`[NEP] prefetch failure @chainedGenerateCompletionCall:
 - file: ${baseRequest.fileContext.filename}
 - depth: ${depth}
-- current prefetch suggestion length: ${this.prefetchSuggestions.length}
+- current prefetch suggestion length: ${this.prefetchCache.size}
 - error: ${(e as Error).message}`)
         }
     }
