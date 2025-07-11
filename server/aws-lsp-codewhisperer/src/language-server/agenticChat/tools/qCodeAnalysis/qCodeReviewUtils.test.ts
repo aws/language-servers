@@ -404,13 +404,13 @@ describe('QCodeReviewUtils', () => {
     })
 
     describe('isAgenticReviewEnabled', () => {
-        it('should return true when agenticReviewer is enabled', () => {
+        it('should return true when qCodeReviewInChat is enabled', () => {
             const params = {
                 initializationOptions: {
                     aws: {
                         awsClientCapabilities: {
                             q: {
-                                agenticReviewer: true,
+                                qCodeReviewInChat: true,
                             },
                         },
                     },
@@ -420,13 +420,13 @@ describe('QCodeReviewUtils', () => {
             expect(QCodeReviewUtils.isAgenticReviewEnabled(params as any)).to.be.true
         })
 
-        it('should return false when agenticReviewer is disabled', () => {
+        it('should return false when qCodeReviewInChat is disabled', () => {
             const params = {
                 initializationOptions: {
                     aws: {
                         awsClientCapabilities: {
                             q: {
-                                agenticReviewer: false,
+                                qCodeReviewInChat: false,
                             },
                         },
                     },

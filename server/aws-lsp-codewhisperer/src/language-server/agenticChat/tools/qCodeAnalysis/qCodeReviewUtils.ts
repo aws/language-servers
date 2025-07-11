@@ -264,7 +264,7 @@ export class QCodeReviewUtils {
         const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
             | QClientCapabilities
             | undefined
-        return qCapabilities?.agenticReviewer || false
+        return qCapabilities?.qCodeReviewInChat || false
     }
 
     /**
