@@ -623,8 +623,8 @@ type GitIgnoreInfo = {
 // Helper 4: Get gitignore patterns recursively with root folder tracking
 async function getGitignorePatternsForPath(
     folderPath: string,
-    patternMap: Map<string, GitIgnoreInfo>,
-    rootFolder: string
+    patternMap: Map<string, GitIgnoreInfo>
+    // rootFolder: string
 ): Promise<GitIgnoreInfo> {
     if (patternMap.has(folderPath)) {
         return patternMap.get(folderPath)!
@@ -638,33 +638,22 @@ async function getGitignorePatternsForPath(
     if (parentPath === folderPath || !canAccessFolder(parentPath)) {
         const info = {
             patterns: currentPatterns,
-            rootFolder: hasGitignore ? folderPath : rootFolder,
+            rootFolder: folderPath,
         }
-        // Only add if rootFolder is not inside folderPath
-        if (
-            !info.rootFolder.startsWith(path.resolve(folderPath).replace(/[\\/]+$/, '') + path.sep) ||
-            info.rootFolder === folderPath
-        ) {
-            patternMap.set(folderPath, info)
-        }
+        patternMap.set(folderPath, info)
         return info
     }
 
     // Get parent patterns and rootFolder
-    const parentInfo = await getGitignorePatternsForPath(parentPath, patternMap, hasGitignore ? folderPath : rootFolder)
+    const parentInfo = await getGitignorePatternsForPath(parentPath, patternMap)
 
     const info = {
         patterns: combineIgnorePatterns(currentPatterns, parentInfo.patterns),
-        rootFolder: parentInfo.rootFolder,
+        rootFolder: hasGitignore && parentInfo.patterns.size == 0 ? folderPath : parentInfo.rootFolder,
     }
 
-    // Only add if rootFolder is not inside folderPath
-    if (
-        !info.rootFolder.startsWith(path.resolve(folderPath).replace(/[\\/]+$/, '') + path.sep) ||
-        info.rootFolder === folderPath
-    ) {
-        patternMap.set(folderPath, info)
-    }
+    patternMap.set(folderPath, info)
+
     return info
 }
 
@@ -672,7 +661,7 @@ export async function createGitignorePatternMap(sortedFolders: string[]): Promis
     const patternMap = new Map<string, GitIgnoreInfo>()
 
     for (const folder of sortedFolders) {
-        await getGitignorePatternsForPath(folder, patternMap, '')
+        await getGitignorePatternsForPath(folder, patternMap)
     }
 
     return patternMap
