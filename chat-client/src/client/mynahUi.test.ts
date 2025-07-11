@@ -13,7 +13,7 @@ import { Messager, OutboundChatApi } from './messager'
 import { TabFactory } from './tabs/tabFactory'
 import { ChatItemType, MynahUI, NotificationType } from '@aws/mynah-ui'
 import { ChatClientAdapter } from '../contracts/chatClientAdapter'
-import { ChatMessage, ListAvailableModelsResult } from '@aws/language-server-runtimes-types'
+import { ChatMessage, ContextCommand, ListAvailableModelsResult } from '@aws/language-server-runtimes-types'
 import { ChatHistory } from './features/history'
 import { pairProgrammingModeOn, pairProgrammingModeOff } from './texts/pairProgramming'
 import { strictEqual } from 'assert'
@@ -569,6 +569,138 @@ describe('MynahUI', () => {
                         value: 'CLAUDE_3_7_SONNET_20250219_V1_0',
                     },
                 ],
+            })
+        })
+    })
+
+    describe('sendPinnedContext', () => {
+        it('should update UI with pinned context items', () => {
+            const tabId = 'tab-1'
+            const pinnedContextCommands = [
+                {
+                    id: 'pinned-file-1',
+                    command: 'File 1',
+                    label: 'file',
+                    route: ['/workspace', 'src/file1.ts'],
+                    icon: 'file',
+                },
+            ] as ContextCommand[]
+
+            // Call sendPinnedContext with pinned context items
+            inboundChatApi.sendPinnedContext({
+                tabId,
+                contextCommandGroups: [{ commands: pinnedContextCommands }],
+                showRules: true,
+            })
+
+            // Verify updateStore was called with the correct parameters
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptTopBarContextItems: [
+                    {
+                        id: 'pinned-file-1',
+                        command: 'File 1',
+                        label: 'file',
+                        route: ['/workspace', 'src/file1.ts'],
+                        icon: 'file',
+                        children: undefined,
+                    },
+                ],
+                promptTopBarTitle: '@',
+                promptTopBarButton: {
+                    id: 'Rules',
+                    status: 'clear',
+                    text: 'Rules',
+                    icon: 'check-list',
+                },
+            })
+        })
+
+        it('should show full title when no pinned context items exist', () => {
+            const tabId = 'tab-1'
+
+            // Call sendPinnedContext with empty context items
+            inboundChatApi.sendPinnedContext({
+                tabId,
+                contextCommandGroups: [{ commands: [] }],
+                showRules: false,
+            })
+
+            // Verify updateStore was called with the correct parameters
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptTopBarContextItems: [],
+                promptTopBarTitle: '@Pin Context',
+                promptTopBarButton: null,
+            })
+        })
+
+        it('should handle active editor context item', () => {
+            const tabId = 'tab-1'
+            const activeEditorCommand = {
+                id: 'active-editor',
+                command: 'Active file',
+                label: 'file',
+                icon: 'file',
+                description: '',
+            }
+
+            // Call sendPinnedContext with active editor context
+            inboundChatApi.sendPinnedContext({
+                tabId,
+                contextCommandGroups: [{ commands: [activeEditorCommand] as ContextCommand[] }],
+                showRules: true,
+                textDocument: { uri: 'file:///workspace/src/active.ts' },
+            })
+
+            // Verify updateStore was called with the correct parameters
+            // Active editor description should be updated with the URI
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptTopBarContextItems: [
+                    {
+                        ...activeEditorCommand,
+                        description: 'file:///workspace/src/active.ts',
+                        children: undefined,
+                    },
+                ],
+                promptTopBarTitle: '@Pin Context',
+                promptTopBarButton: {
+                    id: 'Rules',
+                    status: 'clear',
+                    text: 'Rules',
+                    icon: 'check-list',
+                },
+            })
+        })
+
+        it('should remove active editor when no textDocument is provided', () => {
+            const tabId = 'tab-1'
+            const activeEditorCommand = {
+                id: 'active-editor',
+                command: 'Active file',
+                label: 'file',
+                icon: 'file',
+            }
+
+            const fileCommand = {
+                id: 'pinned-file-1',
+                command: 'File 1',
+                label: 'file',
+                route: ['/workspace', 'src/file1.ts'],
+                icon: 'file',
+            }
+
+            // Call sendPinnedContext with active editor context but no textDocument
+            inboundChatApi.sendPinnedContext({
+                tabId,
+                contextCommandGroups: [{ commands: [activeEditorCommand, fileCommand] as ContextCommand[] }],
+                showRules: false,
+            })
+
+            // Verify updateStore was called with empty context items
+            // Active editor should be removed since no textDocument was provided
+            sinon.assert.calledWith(updateStoreSpy, tabId, {
+                promptTopBarContextItems: [{ ...fileCommand, children: undefined }],
+                promptTopBarTitle: '@',
+                promptTopBarButton: null,
             })
         })
     })
