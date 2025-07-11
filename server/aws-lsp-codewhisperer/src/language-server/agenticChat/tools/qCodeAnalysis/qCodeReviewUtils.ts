@@ -29,7 +29,7 @@ export class QCodeReviewUtils {
      * @returns True if the file should be skipped, false otherwise
      */
     public static shouldSkipFile(fileName: string): boolean {
-        const extension = fileName.substring(fileName.lastIndexOf('.')).toLowerCase()
+        const extension = path.extname(fileName).toLowerCase()
         if (!extension || extension.trim() === '') {
             return true
         } else {

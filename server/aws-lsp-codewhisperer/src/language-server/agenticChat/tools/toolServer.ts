@@ -100,7 +100,6 @@ export const QCodeAnalysisServer: Server = ({
     const qCodeReviewTool = new QCodeReview({
         credentialsProvider,
         logging,
-        lsp,
         telemetry,
         workspace,
     })

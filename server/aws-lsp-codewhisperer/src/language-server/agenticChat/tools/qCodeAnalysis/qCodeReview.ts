@@ -49,7 +49,6 @@ export class QCodeReview {
 
     private readonly credentialsProvider: Features['credentialsProvider']
     private readonly logging: Features['logging']
-    private readonly lsp: Features['lsp']
     private readonly telemetry: Features['telemetry']
     private readonly workspace: Features['workspace']
     private codeWhispererClient?: CodeWhispererServiceToken
@@ -57,12 +56,10 @@ export class QCodeReview {
     private writableStream?: WritableStream
 
     constructor(
-        features: Pick<Features, 'credentialsProvider' | 'logging' | 'lsp' | 'telemetry' | 'workspace'> &
-            Partial<Features>
+        features: Pick<Features, 'credentialsProvider' | 'logging' | 'telemetry' | 'workspace'> & Partial<Features>
     ) {
         this.credentialsProvider = features.credentialsProvider
         this.logging = features.logging
-        this.lsp = features.lsp
         this.telemetry = features.telemetry
         this.workspace = features.workspace
     }
