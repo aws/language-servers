@@ -29,6 +29,7 @@ import { getAuthFollowUpType } from '../language-server/chat/utils'
 import ignore = require('ignore')
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
+import * as fs from 'fs'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -555,4 +556,145 @@ export function getFileExtensionName(filepath: string): string {
     }
 
     return filepath.substring(filepath.lastIndexOf('.') + 1).toLowerCase()
+}
+
+/**
+ * Lists all files from workspace folders while respecting gitignore patterns.
+ * @param workspaceFolders Array of workspace folder paths
+ * @returns Promise that resolves to an array of absolute file paths from all workspace folders
+ */
+export async function listAllWorkspaceFiles(workspaceFolders: string[]): Promise<string[]> {
+    const allFiles: string[] = []
+
+    for (const folder of workspaceFolders) {
+        const files = await listFilesWithGitignore(folder)
+        allFiles.push(...files)
+    }
+
+    return allFiles
+}
+
+/**
+ * Gets distinct folder paths from a list of files and returns them sorted.
+ * @param files Array of file paths
+ * @returns Sorted array of distinct folder paths
+ */
+export function getDistinctSortedFolders(files: string[]): string[] {
+    return [...new Set(files.map(file => path.dirname(file)))].sort()
+}
+
+// Helper 1: Combine current patterns with parent patterns
+function combineIgnorePatterns(currentPatterns: Set<string>, parentPatterns: Set<string>): Set<string> {
+    return new Set([...parentPatterns, ...currentPatterns])
+}
+
+// Helper 2: Get gitignore patterns for current folder only
+async function getCurrentFolderPatterns(folderPath: string): Promise<Set<string>> {
+    const gitignorePath = path.join(folderPath, '.gitignore')
+
+    try {
+        const content = await fs.promises.readFile(gitignorePath, 'utf8')
+        const patterns = content
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line && !line.startsWith('#'))
+
+        return new Set(patterns)
+    } catch {
+        return new Set()
+    }
+}
+
+// Helper 3: Check folder access
+function canAccessFolder(folderPath: string): boolean {
+    try {
+        fs.accessSync(folderPath, fs.constants.R_OK)
+        return true
+    } catch {
+        return false
+    }
+}
+
+type GitIgnoreInfo = {
+    patterns: Set<string>
+    rootFolder: string
+}
+
+// Helper 4: Get gitignore patterns recursively with root folder tracking
+async function getGitignorePatternsForPath(
+    folderPath: string,
+    patternMap: Map<string, GitIgnoreInfo>,
+    rootFolder: string
+): Promise<GitIgnoreInfo> {
+    if (patternMap.has(folderPath)) {
+        return patternMap.get(folderPath)!
+    }
+
+    const currentPatterns = await getCurrentFolderPatterns(folderPath)
+    const parentPath = path.dirname(folderPath)
+    const hasGitignore = currentPatterns.size > 0
+
+    // At root or can't access parent
+    if (parentPath === folderPath || !canAccessFolder(parentPath)) {
+        const info = {
+            patterns: currentPatterns,
+            rootFolder: hasGitignore ? folderPath : rootFolder,
+        }
+        // Only add if rootFolder is not inside folderPath
+        if (
+            !info.rootFolder.startsWith(path.resolve(folderPath).replace(/[\\/]+$/, '') + path.sep) ||
+            info.rootFolder === folderPath
+        ) {
+            patternMap.set(folderPath, info)
+        }
+        return info
+    }
+
+    // Get parent patterns and rootFolder
+    const parentInfo = await getGitignorePatternsForPath(parentPath, patternMap, hasGitignore ? folderPath : rootFolder)
+
+    const info = {
+        patterns: combineIgnorePatterns(currentPatterns, parentInfo.patterns),
+        rootFolder: parentInfo.rootFolder,
+    }
+
+    // Only add if rootFolder is not inside folderPath
+    if (
+        !info.rootFolder.startsWith(path.resolve(folderPath).replace(/[\\/]+$/, '') + path.sep) ||
+        info.rootFolder === folderPath
+    ) {
+        patternMap.set(folderPath, info)
+    }
+    return info
+}
+
+export async function createGitignorePatternMap(sortedFolders: string[]): Promise<Map<string, GitIgnoreInfo>> {
+    const patternMap = new Map<string, GitIgnoreInfo>()
+
+    for (const folder of sortedFolders) {
+        await getGitignorePatternsForPath(folder, patternMap, '')
+    }
+
+    return patternMap
+}
+
+export function filterFilesWithGitignoreMap(files: string[], patternMap: Map<string, GitIgnoreInfo>): string[] {
+    try {
+        return files.filter(file => {
+            const fileDir = path.dirname(file)
+            const info = patternMap.get(fileDir)
+
+            if (!info || info.patterns.size === 0) {
+                return true
+            }
+
+            const folderIgnore = ignore().add([...info.patterns])
+            const relativePath = path.relative(info.rootFolder, file)
+
+            return folderIgnore.filter([relativePath]).length > 0
+        })
+    } catch (error) {
+        console.error('Error filtering files:', error)
+        return []
+    }
 }

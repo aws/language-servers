@@ -19,7 +19,15 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 import { pathToFileURL } from 'url'
-import { getFileExtensionName, listFilesWithGitignore } from './utils'
+import {
+    getFileExtensionName,
+    listFilesWithGitignore,
+    listAllWorkspaceFiles,
+    getDistinctSortedFolders,
+    createGitignorePatternMap,
+    filterFilesWithGitignoreMap,
+} from './utils'
+import { folder } from 'jszip'
 
 const LIBRARY_DIR = (() => {
     if (require.main?.filename) {
@@ -306,6 +314,10 @@ export class LocalProjectContextController {
 
         try {
             const foldersPath = this.workspaceFolders.map(folder => URI.parse(folder.uri).fsPath)
+            const allFiles = await listAllWorkspaceFiles(foldersPath)
+            const distinctSortedFolders = await getDistinctSortedFolders(allFiles)
+            const gitIgnorePatternMap = await createGitignorePatternMap(distinctSortedFolders)
+            const respTest = await filterFilesWithGitignoreMap(allFiles, gitIgnorePatternMap)
             const resp = await this._vecLib?.getContextCommandItems(foldersPath)
             this.log.log(`received ${resp.length} context command items`)
             return resp ?? []
