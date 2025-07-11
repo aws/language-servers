@@ -1458,7 +1458,6 @@ ${params.message}`,
 
     const executeShellCommandShortCut = (params: any) => {
         const tabId = mynahUi.getSelectedTabId()
-        console.log('data', params.buttonId)
         if (!tabId) return
 
         const chatItems = mynahUi.getTabData(tabId)?.getStore()?.chatItems || []
