@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.0.64](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.63...lsp-codewhisperer/v0.0.64) (2025-07-11)
+
+
+### Bug Fixes
+
+* **amazonq:** add files created by fsWrite tool to @Files list ([#1784](https://github.com/aws/language-servers/issues/1784)) ([cfeb3be](https://github.com/aws/language-servers/commit/cfeb3be43e425fae89d795cacad62031cc1ee029))
+* **amazonq:** remove the deep copy logic in updateRequestInputWithToolResults ([#1870](https://github.com/aws/language-servers/issues/1870)) ([f209a15](https://github.com/aws/language-servers/commit/f209a15785106af43fd97bfa99b393a13d9a9bab))
+* use absolute file path for shell ([#1871](https://github.com/aws/language-servers/issues/1871)) ([f863735](https://github.com/aws/language-servers/commit/f863735c8dc734a1af4b26fbe8b9c436a32c21ca))
+
+
+### Reverts
+
+* adding files on VSC windows properly triggers reindexing ([#1820](https://github.com/aws/language-servers/issues/1820))" ([#1860](https://github.com/aws/language-servers/issues/1860)) ([423cdbc](https://github.com/aws/language-servers/commit/423cdbc48d9439e29ba69c37dc289a739f83475f))
+* revert: adding files on VSC windows properly triggers reindexing ([#18](https://github.com/aws/language-servers/issues/18)…" ([#1862](https://github.com/aws/language-servers/issues/1862)) ([8e0c88b](https://github.com/aws/language-servers/commit/8e0c88b91d4f04e3209bbe35ee5678793c94b0f1))
+
 ## [0.0.63](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.62...lsp-codewhisperer/v0.0.63) (2025-07-08)
 
 
