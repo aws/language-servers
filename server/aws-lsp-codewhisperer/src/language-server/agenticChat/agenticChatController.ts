@@ -163,8 +163,8 @@ import {
     DEFAULT_MODEL_ID,
     DEFAULT_MACOS_RUN_SHORTCUT,
     DEFAULT_WINDOW_RUN_SHORTCUT,
-    DEFAULT_MACOS_STOP_SHORTCUT,
-    DEFAULT_WINDOW_STOP_SHORTCUT,
+    DEFAULT_MACOS_REJECT_SHORTCUT,
+    DEFAULT_WINDOW_REJECT_SHORTCUT,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -2072,7 +2072,7 @@ export class AgenticChatController implements ChatHandlers {
                 defaultKey = OS === 'darwin' ? DEFAULT_MACOS_RUN_SHORTCUT : DEFAULT_WINDOW_RUN_SHORTCUT
                 break
             case 'aws.amazonq.rejectCmdExecution':
-                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_STOP_SHORTCUT : DEFAULT_WINDOW_STOP_SHORTCUT
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_REJECT_SHORTCUT : DEFAULT_WINDOW_REJECT_SHORTCUT
             default:
                 break
         }
