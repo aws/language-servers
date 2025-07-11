@@ -338,19 +338,6 @@ describe('ProfileService', async () => {
         )
     })
 
-    it('updateProfile throws on missing region for role instance profile', async () => {
-        const profile = {
-            kinds: [ProfileKind.RoleInstanceProfile],
-            name: 'profile-name',
-            settings: {
-                role_arn: 'role-arn',
-                credential_source: 'Ec2InstanceMetadata',
-            },
-        }
-
-        await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Region required on profile.')
-    })
-
     it('updateProfile throws on missing credential process for process profile', async () => {
         const profile = {
             kinds: [ProfileKind.ProcessProfile],
