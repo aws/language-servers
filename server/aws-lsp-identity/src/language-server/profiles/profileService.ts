@@ -39,6 +39,7 @@ export const ProfileFields = {
     credential_source: 'credential_source',
     source_profile: 'source_profile',
     mfa_serial: 'mfa_serial',
+    external_id: 'external_id',
 } as const
 
 export const SsoSessionFields = {
@@ -47,30 +48,57 @@ export const SsoSessionFields = {
     sso_start_url: 'sso_start_url',
 } as const
 
-export const profileDuckTypers = {
-    SsoTokenProfile: new DuckTyper()
-        .requireProperty(ProfileFields.sso_session)
-        .disallowProperty(ProfileFields.sso_account_id)
-        .disallowProperty(ProfileFields.sso_role_name),
-    IamUserProfile: new DuckTyper()
-        .requireProperty(ProfileFields.aws_access_key_id)
-        .requireProperty(ProfileFields.aws_secret_access_key)
-        .optionalProperty(ProfileFields.aws_session_token),
-    RoleSourceProfile: new DuckTyper()
-        .requireProperty(ProfileFields.role_arn)
-        .requireProperty(ProfileFields.source_profile)
-        .optionalProperty(ProfileFields.role_session_name)
-        .optionalProperty(ProfileFields.mfa_serial)
-        .disallowProperty(ProfileFields.credential_source),
-    RoleInstanceProfile: new DuckTyper()
-        .requireProperty(ProfileFields.role_arn)
-        .requireProperty(ProfileFields.credential_source)
-        .requireProperty(ProfileFields.region)
-        .optionalProperty(ProfileFields.role_session_name)
-        .disallowProperty(ProfileFields.source_profile),
-    ProcessProfile: new DuckTyper().requireProperty(ProfileFields.credential_process),
-    Unknown: new DuckTyper(),
-}
+export const profileTypes = {
+    SsoTokenProfile: {
+        kind: ProfileKind.SsoTokenProfile,
+        required: [ProfileFields.sso_session],
+        optional: [ProfileFields.region],
+        disallowed: [ProfileFields.sso_account_id, ProfileFields.sso_role_name],
+    },
+    IamUserProfile: {
+        kind: ProfileKind.IamUserProfile,
+        required: [ProfileFields.aws_access_key_id, ProfileFields.aws_secret_access_key],
+        optional: [ProfileFields.aws_session_token],
+        disallowed: [],
+    },
+    IamRoleSourceProfile: {
+        kind: ProfileKind.IamRoleSourceProfile,
+        required: [ProfileFields.role_arn, ProfileFields.source_profile],
+        optional: [ProfileFields.external_id, ProfileFields.role_session_name, ProfileFields.mfa_serial],
+        disallowed: [ProfileFields.credential_source],
+    },
+    IamRoleInstanceProfile: {
+        kind: ProfileKind.IamRoleInstanceProfile,
+        required: [ProfileFields.role_arn, ProfileFields.credential_source],
+        optional: [ProfileFields.external_id, ProfileFields.role_session_name, ProfileFields.region],
+        disallowed: [ProfileFields.source_profile],
+    },
+    IamProcessProfile: {
+        kind: ProfileKind.IamProcessProfile,
+        required: [ProfileFields.credential_process],
+        optional: [],
+        disallowed: [],
+    },
+} as const
+
+export const profileDuckTypers = Object.fromEntries(
+    Object.entries(profileTypes).map(([key, def]) => [
+        key,
+        (() => {
+            const typer = new DuckTyper()
+            for (const field of def.required) {
+                typer.requireProperty(field)
+            }
+            for (const field of def.optional) {
+                typer.optionalProperty(field)
+            }
+            for (const field of def.disallowed) {
+                typer.disallowProperty(field)
+            }
+            return typer
+        })(),
+    ])
+)
 
 export const ssoSessionDuckTyper = new DuckTyper()
     .requireProperty(SsoSessionFields.sso_start_url)
@@ -183,7 +211,6 @@ export class ProfileService {
 
         if (profile.kinds.includes(ProfileKind.RoleInstanceProfile)) {
             this.throwOnInvalidProfile(!profileSettings.role_arn, 'Role ARN required on profile.')
-            this.throwOnInvalidProfile(!profileSettings.region, 'Region required on profile.')
             this.throwOnInvalidProfile(!profileSettings.credential_source, 'Credential source required on profile.')
         }
 
