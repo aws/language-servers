@@ -108,6 +108,14 @@ export async function getAmazonQRelatedWorkspaceConfigs(
     lsp: Lsp,
     logging: Logging
 ): Promise<Readonly<Partial<AmazonQWorkspaceConfig>>> {
+    const clientParams = lsp.getClientInitializeParams()
+    const supportsWorkspaceConfiguration = clientParams?.capabilities?.workspace?.configuration !== false
+
+    if (!supportsWorkspaceConfiguration) {
+        logging.debug('Client does not support workspace configuration, returning default config.')
+        return {}
+    }
+
     let qConfig: Readonly<QConfigSection> | undefined = undefined
     let codeWhispererConfig: Readonly<CodeWhispererConfigSection> | undefined = undefined
 
