@@ -531,7 +531,7 @@ describe('AdditionalContextProvider', () => {
                 assert.strictEqual(result.length, 2)
                 assert.strictEqual(result[0].userInputMessage?.content?.includes('<promptInstruction>'), true)
                 assert.strictEqual(result[0].userInputMessage?.content?.includes('Follow this rule'), true)
-                assert.strictEqual(result[1].assistantResponseMessage?.content, '')
+                assert.strictEqual(result[1].assistantResponseMessage?.content, 'Thinking...')
             })
 
             it('should convert file context to fileContext XML', async () => {
