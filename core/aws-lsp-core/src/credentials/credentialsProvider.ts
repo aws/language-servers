@@ -4,6 +4,7 @@ export interface IamCredentials {
     accessKeyId: string
     secretAccessKey: string
     sessionToken?: string
+    expiration?: Date
 }
 
 export interface BearerToken {
