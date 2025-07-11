@@ -39,8 +39,10 @@ import { GetCallerIdentityCommand, STSClient, AssumeRoleCommand } from '@aws-sdk
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
+import { fromContainerMetadata, fromInstanceMetadata } from '@smithy/credential-provider-imds'
 import { IAMClient, SimulatePrincipalPolicyCommand } from '@aws-sdk/client-iam'
 import { getProcessCredential } from '../providers/processProvider'
+import { fromEnv } from '@aws-sdk/credential-provider-env'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
@@ -178,27 +180,49 @@ export class IdentityService {
             }
 
             let credentials: IamCredentials
-            // Assume the role matching the found ARN
+            // Assume the role matching the found ARN using the source profile credentials
             if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
                 const sourceProfile = profileData.profiles.find(p => p.name === profile.settings?.source_profile)
-                if (
-                    sourceProfile &&
-                    sourceProfile.settings?.aws_access_key_id &&
-                    sourceProfile.settings.aws_secret_access_key
-                ) {
+                if (sourceProfile?.kinds.includes(ProfileKind.IamUserProfile)) {
                     credentials = await this.getAssumedRoleCredential(
                         profile,
                         {
-                            accessKeyId: sourceProfile.settings?.aws_access_key_id,
-                            secretAccessKey: sourceProfile.settings?.aws_secret_access_key,
+                            accessKeyId: sourceProfile.settings!.aws_access_key_id!,
+                            secretAccessKey: sourceProfile.settings!.aws_secret_access_key!,
                             sessionToken: sourceProfile.settings?.aws_session_token,
                         },
                         options.generateOnInvalidStsCredential,
                         params.mfaCode
                     )
                 } else {
-                    throw new AwsError('Source IAM credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
+                    throw new AwsError('Source profile credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
                 }
+            }
+            // Assume the role matching the found ARN using the instance credentials
+            else if (profile.kinds.includes(ProfileKind.IamRoleInstanceProfile)) {
+                let sourceCredentials: IamCredentials
+                switch (profile.settings?.credential_source) {
+                    case 'Ec2InstanceMetadata':
+                        sourceCredentials = await fromInstanceMetadata()()
+                        break
+                    case 'EcsContainer':
+                        sourceCredentials = await fromContainerMetadata()()
+                        break
+                    case 'Environment':
+                        sourceCredentials = await fromEnv()()
+                        break
+                    default:
+                        throw new AwsError(
+                            `Unsupported credential source: ${profile.settings?.credential_source}`,
+                            AwsErrorCodes.E_INVALID_PROFILE
+                        )
+                }
+                credentials = await this.getAssumedRoleCredential(
+                    profile,
+                    sourceCredentials,
+                    options.generateOnInvalidStsCredential,
+                    params.mfaCode
+                )
             }
             // Get the credentials from the process output
             else if (profile.kinds.includes(ProfileKind.IamProcessProfile)) {
