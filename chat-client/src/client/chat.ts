@@ -131,6 +131,7 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     pairProgrammingAcknowledged?: boolean
     agenticMode?: boolean
     modelSelectionEnabled?: boolean
+    os?: string
 }
 
 export const createChat = (
@@ -540,7 +541,8 @@ export const createChat = (
         config?.pairProgrammingAcknowledged ?? false,
         chatClientAdapter,
         featureConfig,
-        !!config?.agenticMode
+        !!config?.agenticMode,
+        config?.os
     )
 
     mynahApi = api

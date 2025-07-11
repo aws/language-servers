@@ -311,7 +311,8 @@ export const createMynahUi = (
     pairProgrammingCardAcknowledged: boolean,
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>,
-    agenticMode?: boolean
+    agenticMode?: boolean,
+    os?: string
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -804,6 +805,11 @@ export const createMynahUi = (
                 ...uiComponentsTexts,
                 // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
+                stopGeneratingTooltip: os
+                    ? os === 'darwin'
+                        ? `Stop ${uiComponentsTexts.macos_stop_shortcut}`
+                        : `Stop ${uiComponentsTexts.window_stop_shortcut}`
+                    : uiComponentsTexts.stopGenerating,
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
             },
             // Total model context window limit 600k.
@@ -1446,10 +1452,12 @@ ${params.message}`,
 
     const executeShellCommandShortCut = (params: any) => {
         const tabId = mynahUi.getSelectedTabId()
+        console.log('data', params.buttonId)
         if (!tabId) return
 
         const chatItems = mynahUi.getTabData(tabId)?.getStore()?.chatItems || []
         const buttonId = params.buttonId
+        let isReject = false
 
         let messageId
         for (const item of chatItems) {
@@ -1457,20 +1465,41 @@ ${params.message}`,
                 messageId = item.messageId
                 break
             }
+            // run
             if (item.header?.buttons && item.header.buttons.some(b => b.id === buttonId)) {
                 messageId = item.messageId
+                break
+            }
+            // reject
+            if (
+                buttonId === 'stop-shell-command' &&
+                item.header?.buttons &&
+                item.header.buttons.some(b => b.id === 'reject-shell-command')
+            ) {
+                messageId = item.messageId
+                isReject = true
                 break
             }
         }
 
         if (messageId) {
+            let actionId = buttonId
+            if (isReject) {
+                actionId = 'reject-shell-command'
+            }
             const payload: ButtonClickParams = {
                 tabId,
                 messageId,
-                buttonId,
+                buttonId: actionId,
             }
             messager.onButtonClick(payload)
             if (buttonId === 'stop-shell-command') {
+                messager.onStopChatResponse(tabId)
+            }
+        } else {
+            // handle global stop
+            const isLoading = mynahUi.getTabData(tabId)?.getStore()?.loadingChat
+            if (isLoading && buttonId === 'stop-shell-command') {
                 messager.onStopChatResponse(tabId)
             }
         }
@@ -1745,4 +1774,6 @@ const uiComponentsTexts = {
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
     spinnerText: 'Thinking...',
+    macos_stop_shortcut: '&#8984; Delete',
+    window_stop_shortcut: 'Ctrl + Backspace',
 }

@@ -27,6 +27,13 @@ export function enabledReroute(params: InitializeParams | undefined): boolean {
     return qCapabilities?.reroute || false
 }
 
+export function enableShortcut(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.shortcut || false
+}
+
 export const QAgenticChatServer =
     // prettier-ignore
     (): Server => features => {
@@ -41,6 +48,7 @@ export const QAgenticChatServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             const rerouteEnabled = enabledReroute(params)
+            const shortcutEnabled = enableShortcut(params)
 
             return {
                 capabilities: {
@@ -64,7 +72,8 @@ export const QAgenticChatServer =
                         modelSelection: true,
                         history: true,
                         export: TabBarController.enableChatExport(params),
-                        reroute: rerouteEnabled
+                        reroute: rerouteEnabled,
+                        shortcut: shortcutEnabled
                     },
                 },
             }

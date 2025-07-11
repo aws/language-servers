@@ -41,6 +41,7 @@ export interface QClientCapabilities {
     mcp?: boolean
     modelSelection?: boolean
     reroute?: boolean
+    shortcut?: boolean
 }
 
 type QConfigurationResponse =

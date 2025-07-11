@@ -161,6 +161,10 @@ import {
     responseTimeoutMs,
     responseTimeoutPartialMsg,
     defaultModelId,
+    DEFAULT_MACOS_RUN_SHORTCUT,
+    DEFAULT_WINDOW_RUN_SHORTCUT,
+    DEFAULT_MACOS_STOP_SHORTCUT,
+    DEFAULT_WINDOW_STOP_SHORTCUT,
 } from './constants'
 import {
     AgenticChatError,
@@ -2030,13 +2034,30 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #getKeybinding(commandId: string, defaultKey: string): string | null {
+    #getKeybinding(commandId: string): string | null {
         const info = this.#getKeybindingInfo(commandId)
+        let defaultKey = ''
+        const OS = os.platform()
 
-        if (info.isExplicitlyDisabled) {
-            // User explicitly disabled this keybinding
+        switch (commandId) {
+            case 'aws.amazonq.runCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_RUN_SHORTCUT : DEFAULT_WINDOW_RUN_SHORTCUT
+                break
+            case 'aws.amazonq.rejectCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_STOP_SHORTCUT : DEFAULT_WINDOW_STOP_SHORTCUT
+            default:
+                break
+        }
+
+        if (defaultKey === '') {
             return null
         }
+
+        // can be used in P1 to check if user explicitly remove the keybind from us
+        // if (info.isExplicitlyDisabled) {
+        //     // User explicitly disabled this keybinding
+        //     return null
+        // }
 
         if (info.isInKeybindingsFile && info.key) {
             // User has a custom keybinding
@@ -2081,21 +2102,37 @@ export class AgenticChatController implements ChatHandlers {
         switch (toolName) {
             case 'executeBash': {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                // get user's keybinding.json depend on OS
-                // if this return null = user does not change default keybind
-                const runKey = this.#getKeybinding('aws.amazonq.runCmdExecution', '&#8984; &#8997; R')
-                const rejectKey = this.#getKeybinding('aws.amazonq.rejectCmdExecution', '&#8984; &#8997; H')
-                this.#log('run', JSON.stringify(runKey, null, 2))
-                this.#log('reject', JSON.stringify(rejectKey, null, 2))
+                // get feature flag
+                const shortcut =
+                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                        ?.shortcut
+
+                let runKey: string | null = null
+                let rejectKey: string | null = null
+
+                if (shortcut) {
+                    // get user's keybinding.json depend on OS
+                    // if this return null = user does not change default keybind
+                    runKey = this.#getKeybinding('aws.amazonq.runCmdExecution')
+                    rejectKey = this.#getKeybinding('aws.amazonq.rejectCmdExecution')
+                    this.#log('run', JSON.stringify(runKey, null, 2))
+                    this.#log('reject', JSON.stringify(rejectKey, null, 2))
+                }
+
                 buttons = requiresAcceptance
                     ? [
-                          { id: 'run-shell-command', text: 'Run', icon: 'play', description: `Run ${runKey}` },
+                          {
+                              id: 'run-shell-command',
+                              text: 'Run',
+                              icon: 'play',
+                              ...(shortcut && runKey ? { description: `Run ${runKey}` } : {}),
+                          },
                           {
                               id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
-                              description: `Run ${rejectKey}`,
                               icon: 'cancel',
+                              ...(shortcut && rejectKey ? { description: `Reject ${rejectKey}` } : {}),
                           },
                       ]
                     : []
