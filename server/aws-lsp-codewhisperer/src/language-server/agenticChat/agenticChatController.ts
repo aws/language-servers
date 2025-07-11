@@ -2921,6 +2921,8 @@ export class AgenticChatController implements ChatHandlers {
                 useRelevantDocuments: false,
             }
 
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.images = []
+
         for (const toolResult of toolResults) {
             this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
             updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults.push(
