@@ -177,7 +177,8 @@ export class AdditionalContextProvider {
         if (prompt.filePath.endsWith(promptFileExtension)) {
             if (
                 pathUtils.isInDirectory(path.join('.amazonq', 'rules'), prompt.relativePath) ||
-                path.basename(prompt.relativePath) === 'AmazonQ.md'
+                path.basename(prompt.relativePath) === 'AmazonQ.md' ||
+                path.basename(prompt.relativePath) === 'README.md'
             ) {
                 return 'rule'
             } else if (pathUtils.isInDirectory(getUserPromptsDirectory(), prompt.filePath)) {
@@ -589,7 +590,7 @@ export class AdditionalContextProvider {
         this.sendPinnedContext(params.tabId)
     }
 
-    private convertRulesToRulesFolders(workspaceRules: ContextCommandItem[], tabId: string): RulesFolder[] {
+    convertRulesToRulesFolders(workspaceRules: ContextCommandItem[], tabId: string): RulesFolder[] {
         // Check if there's only one workspace folder
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)
         const isSingleWorkspace = workspaceFolders.length <= 1
@@ -616,7 +617,11 @@ export class AdditionalContextProvider {
                 // Root files will use the workspace folder name
                 // Subdir files will use workspace folder name + subdir
                 const workspaceFolderName = path.basename(rule.workspaceFolder)
-                folderName = dirPath === '.' ? workspaceFolderName : `${workspaceFolderName}/${dirPath}`
+                folderName =
+                    dirPath === '.'
+                        ? workspaceFolderName
+                        : // Escape backslashes since folderName is displayed in innerHTML
+                          path.join(workspaceFolderName, dirPath).replace(/\\/g, '\\\\')
             }
 
             // Get or create the folder's rule list
@@ -760,7 +765,7 @@ export class AdditionalContextProvider {
         // Create fake assistant response
         const assistantMessage: ChatMessage = {
             assistantResponseMessage: {
-                content: '',
+                content: 'Thinking...',
             },
         }
 
