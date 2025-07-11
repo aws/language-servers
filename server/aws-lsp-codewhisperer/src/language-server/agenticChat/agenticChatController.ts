@@ -2425,7 +2425,7 @@ export class AgenticChatController implements ChatHandlers {
         content: string
     ): ChatCommandInput {
         // Create a deep copy of the request input
-        const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as ChatCommandInput
+        const updatedRequestInput = structuredClone(requestInput) as ChatCommandInput
 
         // Add tool results to the request
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
