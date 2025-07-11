@@ -3,6 +3,7 @@ import {
     ProfileData,
     profileDuckTypers,
     ProfileStore,
+    profileTypes,
     ssoSessionDuckTyper,
 } from './profileService'
 import { parseKnownFiles, SharedConfigInit } from '@smithy/shared-ini-file-loader'
@@ -52,34 +53,16 @@ export class SharedConfigProfileStore implements ProfileStore {
                         settings: {},
                     }
                     // Add the kinds and settings for each matched profile type
-                    if (profileDuckTypers.SsoTokenProfile.eval(settings)) {
-                        profile.kinds.push(ProfileKind.SsoTokenProfile)
-                        profile.settings!.region = settings.region
-                        profile.settings!.sso_session = settings.sso_session
-                    }
-                    if (profileDuckTypers.IamProcessProfile.eval(settings)) {
-                        profile.kinds.push(ProfileKind.IamProcessProfile)
-                        profile.settings!.credential_process = settings.credential_process
-                    }
-                    if (profileDuckTypers.IamRoleSourceProfile.eval(settings)) {
-                        profile.kinds.push(ProfileKind.IamRoleSourceProfile)
-                        profile.settings!.role_arn = settings.role_arn
-                        profile.settings!.source_profile = settings.source_profile
-                        profile.settings!.mfa_serial = settings.mfa_serial
-                        profile.settings!.role_session_name = settings.role_session_name
-                    }
-                    if (profileDuckTypers.IamRoleInstanceProfile.eval(settings)) {
-                        profile.kinds.push(ProfileKind.IamRoleInstanceProfile)
-                        profile.settings!.role_arn = settings.role_arn
-                        profile.settings!.region = settings.region
-                        profile.settings!.credential_source = settings.credential_source
-                        profile.settings!.role_session_name = settings.role_session_name
-                    }
-                    if (profileDuckTypers.IamUserProfile.eval(settings)) {
-                        profile.kinds.push(ProfileKind.IamUserProfile)
-                        profile.settings!.aws_access_key_id = settings.aws_access_key_id
-                        profile.settings!.aws_secret_access_key = settings.aws_secret_access_key
-                        profile.settings!.aws_session_token = settings.aws_session_token
+                    for (const [profileType, fields] of Object.entries(profileTypes)) {
+                        if (profileDuckTypers[profileType].eval(settings)) {
+                            profile.kinds.push(fields.kind)
+                            const relevantFields = [...fields.required, ...fields.optional]
+                            for (const field of relevantFields) {
+                                if (settings[field] !== undefined) {
+                                    profile.settings![field] = settings[field]
+                                }
+                            }
+                        }
                     }
                     // If the profile does not match any profile type, mark it as an unknown profile
                     if (profile.kinds.length === 0) {
