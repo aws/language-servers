@@ -167,7 +167,7 @@ export const WorkspaceContextServer = (): Server => features => {
                 isWorkflowInitialized = false
                 fileUploadJobManager?.dispose()
                 dependencyEventBundler?.dispose()
-                await workspaceFolderManager.clearAllWorkspaceResources()
+                workspaceFolderManager.clearAllWorkspaceResources()
                 // Delete remote workspace when user chooses to opt-out
                 await workspaceFolderManager.deleteRemoteWorkspace()
             }
@@ -308,21 +308,18 @@ export const WorkspaceContextServer = (): Server => features => {
 
                     fileUploadJobManager.startFileUploadJobConsumer()
                     dependencyEventBundler.startDependencyEventBundler()
-                    workspaceFolderManager.initializeWorkspaceStatusMonitor().catch(error => {
-                        logging.error(`Error while initializing workspace status monitoring: ${error}`)
-                    })
+                    await Promise.all([
+                        workspaceFolderManager.initializeWorkspaceStatusMonitor(),
+                        workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders),
+                    ])
                     logging.log(`Workspace context workflow initialized`)
-                    artifactManager.updateWorkspaceFolders(workspaceFolders)
-                    workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders).catch(error => {
-                        logging.error(`Error while processing new workspace folders: ${error}`)
-                    })
                 } else if (!isLoggedIn) {
                     if (isWorkflowInitialized) {
                         // If user is not logged in but the workflow is marked as initialized, it means user was logged in and is now logged out
                         // In this case, clear the resources and stop the monitoring
                         fileUploadJobManager?.dispose()
                         dependencyEventBundler?.dispose()
-                        await workspaceFolderManager.clearAllWorkspaceResources()
+                        workspaceFolderManager.clearAllWorkspaceResources()
                     }
                     isWorkflowInitialized = false
                 }
@@ -541,11 +538,7 @@ export const WorkspaceContextServer = (): Server => features => {
             dependencyEventBundler.dispose()
         }
         if (workspaceFolderManager) {
-            workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
-                logging.warn(
-                    `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
-                )
-            })
+            workspaceFolderManager.clearAllWorkspaceResources()
         }
     }
 }

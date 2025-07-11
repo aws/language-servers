@@ -47,7 +47,7 @@ export class WorkspaceFolderManager {
     private credentialsProvider: CredentialsProvider
     private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 40 seconds
     private readonly INITIAL_CONNECTION_TIMEOUT = 2 * 60 * 1000 // 2 minutes
-    private readonly CONTINUOUS_MONITOR_INTERVAL = 30 * 60 * 1000 // 30 minutes
+    private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 30 minutes
     private readonly MESSAGE_PUBLISH_INTERVAL: number = 100 // 100 milliseconds
     private continuousMonitorInterval: NodeJS.Timeout | undefined
     private optOutMonitorInterval: NodeJS.Timeout | undefined
@@ -208,7 +208,7 @@ export class WorkspaceFolderManager {
         return s3Url
     }
 
-    async clearAllWorkspaceResources() {
+    clearAllWorkspaceResources() {
         this.stopContinuousMonitoring()
         this.stopOptOutMonitoring()
         this.remoteWorkspaceIdResolver(false)
@@ -318,36 +318,40 @@ export class WorkspaceFolderManager {
         // Reset workspace ID to force operations to wait for new remote workspace information
         this.resetRemoteWorkspaceId()
 
+        this.artifactManager.resetFromDisposal()
+        this.dependencyDiscoverer.resetFromDisposal()
+
         // Set up message queue consumer
-        this.messageQueueConsumerInterval = setInterval(() => {
-            if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
-                const message = this.workspaceState.messageQueue[0]
-                if (message) {
-                    try {
-                        this.workspaceState.webSocketClient.send(message)
-                        this.workspaceState.messageQueue.shift()
-                    } catch (error) {
-                        this.logging.error(`Error sending message: ${error}`)
+        if (this.messageQueueConsumerInterval === undefined) {
+            this.messageQueueConsumerInterval = setInterval(() => {
+                if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
+                    const message = this.workspaceState.messageQueue[0]
+                    if (message) {
+                        try {
+                            this.workspaceState.webSocketClient.send(message)
+                            this.workspaceState.messageQueue.shift()
+                        } catch (error) {
+                            this.logging.error(`Error sending message: ${error}`)
+                        }
                     }
                 }
-            }
-        }, this.MESSAGE_PUBLISH_INTERVAL)
+            }, this.MESSAGE_PUBLISH_INTERVAL)
+        }
 
         // Perform a one-time checkRemoteWorkspaceStatusAndReact first
         // Pass skipUploads as true since it would be handled by processNewWorkspaceFolders
         await this.checkRemoteWorkspaceStatusAndReact(true)
 
         // Set up continuous monitoring which periodically invokes checkRemoteWorkspaceStatusAndReact
-        if (!this.isOptedOut) {
+        if (!this.isOptedOut && this.continuousMonitorInterval === undefined) {
             this.logging.log(`Starting continuous monitor for workspace [${this.workspaceIdentifier}]`)
-            const intervalId = setInterval(async () => {
+            this.continuousMonitorInterval = setInterval(async () => {
                 try {
                     await this.checkRemoteWorkspaceStatusAndReact()
                 } catch (error) {
                     this.logging.error(`Error monitoring workspace status: ${error}`)
                 }
             }, this.CONTINUOUS_MONITOR_INTERVAL)
-            this.continuousMonitorInterval = intervalId
         }
     }
 
@@ -369,8 +373,8 @@ export class WorkspaceFolderManager {
                     if (optOut) {
                         this.logging.log(`User opted out during initial connection`)
                         this.isOptedOut = true
-                        await this.clearAllWorkspaceResources()
-                        await this.startOptOutMonitor()
+                        this.clearAllWorkspaceResources()
+                        this.startOptOutMonitor()
                         return resolve(false)
                     }
 
@@ -423,8 +427,8 @@ export class WorkspaceFolderManager {
         if (optOut) {
             this.logging.log('User opted out, clearing all resources and starting opt-out monitor')
             this.isOptedOut = true
-            await this.clearAllWorkspaceResources()
-            await this.startOptOutMonitor()
+            this.clearAllWorkspaceResources()
+            this.startOptOutMonitor()
             return
         }
 
@@ -486,7 +490,7 @@ export class WorkspaceFolderManager {
         }
     }
 
-    private async startOptOutMonitor() {
+    private startOptOutMonitor() {
         if (this.optOutMonitorInterval === undefined) {
             const intervalId = setInterval(async () => {
                 try {
@@ -564,8 +568,8 @@ export class WorkspaceFolderManager {
     }
 
     private stopContinuousMonitoring() {
-        this.logging.log(`Stopping monitoring for workspace [${this.workspaceIdentifier}]`)
         if (this.continuousMonitorInterval) {
+            this.logging.log(`Stopping monitoring for workspace [${this.workspaceIdentifier}]`)
             clearInterval(this.continuousMonitorInterval)
             this.continuousMonitorInterval = undefined
         }
@@ -579,8 +583,8 @@ export class WorkspaceFolderManager {
     }
 
     private stopMessageQueueConsumer() {
-        this.logging.log(`Stopping message queue consumer`)
         if (this.messageQueueConsumerInterval) {
+            this.logging.log(`Stopping message queue consumer`)
             clearInterval(this.messageQueueConsumerInterval)
             this.messageQueueConsumerInterval = undefined
         }
@@ -657,6 +661,7 @@ export class WorkspaceFolderManager {
 
     public async deleteRemoteWorkspace() {
         const workspaceId = this.workspaceState.workspaceId
+        this.resetRemoteWorkspaceId()
         try {
             if (!workspaceId) {
                 this.logging.warn(`No remote workspaceId found, skipping workspace deletion`)
