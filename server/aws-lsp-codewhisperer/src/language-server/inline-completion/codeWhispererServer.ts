@@ -355,6 +355,10 @@ export const CodewhispererServerFactory =
 
             return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
+                if (codeWhispererService.isGenerateCompletionInProgress()) {
+                    logging.info(`[NEP]: cwsprService is WIP, return empty`)
+                    return EMPTY_RESULT
+                }
                 if (params.partialResultToken && currentSession) {
                     // subsequent paginated requests for current session
                     return codeWhispererService
@@ -505,7 +509,8 @@ export const CodewhispererServerFactory =
                                         codewhispererAutoTriggerType === 'Classifier' &&
                                         autoTriggerResult.shouldTrigger)
                                 ) {
-                                    predictionTypes.push(['COMPLETIONS'])
+                                    // TODO: Uncomment
+                                    // predictionTypes.push(['COMPLETIONS'])
                                 }
 
                                 const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
@@ -542,6 +547,7 @@ export const CodewhispererServerFactory =
                                     filePath: v.filePath,
                                     type: 'PreviousEditorState',
                                     metadata: {
+                                        // TODO: this seems to be hard-coded?
                                         previousEditorStateMetadata: {
                                             timeOffset: 1000,
                                         },
@@ -658,6 +664,19 @@ export const CodewhispererServerFactory =
                                 .replaceAll('\r\n', '\n'),
                         },
                         ...(workspaceId ? { workspaceId: workspaceId } : {}),
+                    }
+
+                    if (editsEnabled) {
+                        return codeWhispererService
+                            .generateCompletionsAndEdits(textDocument, generateCompletionReq, {
+                                enablePrefetch: true,
+                            })
+                            .then(async suggestionResponse => {
+                                return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
+                            })
+                            .catch(err => {
+                                return handleSuggestionsErrors(err, newSession)
+                            })
                     }
 
                     return codeWhispererService
@@ -984,6 +1003,12 @@ export const CodewhispererServerFactory =
                         )
                     }
                 }
+            }
+
+            if (isAccepted) {
+            } else {
+                logging.info(`user reject suggestion, clearning prefetched suggestion`)
+                amazonQServiceManager.getCodewhispererService().clearCachedSuggestions()
             }
 
             session.setClientResultData(
