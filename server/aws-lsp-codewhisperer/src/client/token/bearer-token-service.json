@@ -6453,7 +6453,7 @@
         },
         "UserTriggerDecisionEventStreakLengthInteger": {
             "type": "integer",
-            "min": 0
+            "min": -1
         },
         "ValidationException": {
             "type": "structure",

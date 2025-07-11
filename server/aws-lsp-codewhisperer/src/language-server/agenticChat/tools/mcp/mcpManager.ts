@@ -59,7 +59,7 @@ export class McpManager {
         this.mcpServerStates = new Map<string, McpServerRuntimeState>()
         this.configLoadErrors = new Map<string, string>()
         this.mcpServerPermissions = new Map<string, MCPServerPermission>()
-        this.events = new EventEmitter()
+        this.events = new EventEmitter({ captureRejections: true }).on('error', console.error)
         this.features.logging.info(`MCP manager: initialized with ${configPaths.length} configs`)
         this.toolNameMapping = new Map<string, { serverName: string; toolName: string }>()
         this.serverNameMapping = new Map<string, string>()
