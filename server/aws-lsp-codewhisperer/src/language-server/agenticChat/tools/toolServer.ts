@@ -214,59 +214,68 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
                 },
             }
 
-            agent.addTool(
-                {
-                    name: namespaced,
-                    description: (def.description?.trim() || 'undefined').substring(0, 10240),
-                    inputSchema: inputSchemaWithExplanation,
-                },
-                input => tool.invoke(input),
-                ToolClassification.MCP
-            )
-            registered[server].push(namespaced)
-            logging.info(`MCP: registered tool ${namespaced} (original: ${def.toolName})`)
+            const loggedToolName = `${namespaced} (original: ${def.toolName})`
+            try {
+                agent.addTool(
+                    {
+                        name: namespaced,
+                        description: (def.description?.trim() || 'undefined').substring(0, 10240),
+                        inputSchema: inputSchemaWithExplanation,
+                    },
+                    input => tool.invoke(input),
+                    ToolClassification.MCP
+                )
+                registered[server].push(namespaced)
+                logging.info(`MCP: registered tool ${loggedToolName}`)
+            } catch (e) {
+                console.warn(`Failed to register tool ${loggedToolName}:`, e)
+            }
         }
     }
 
     lsp.onInitialized(async () => {
-        if (!enabledMCP(lsp.getClientInitializeParams())) {
-            logging.warn('MCP is currently not supported')
-            return
+        try {
+            if (!enabledMCP(lsp.getClientInitializeParams())) {
+                logging.warn('MCP is currently not supported')
+                return
+            }
+
+            const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
+            const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
+            const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
+            const allConfigPaths = [...wsConfigPaths, globalConfigPath]
+
+            const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
+            const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
+            const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
+
+            const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, {
+                logging,
+                workspace,
+                lsp,
+                telemetry,
+                credentialsProvider,
+                runtime,
+            })
+
+            // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
+            McpManager.instance.clearToolNameMapping()
+
+            const byServer: Record<string, McpToolDefinition[]> = {}
+            // only register enabled tools
+            for (const d of mgr.getEnabledTools()) {
+                ;(byServer[d.serverName] ||= []).push(d)
+            }
+            for (const [server, defs] of Object.entries(byServer)) {
+                registerServerTools(server, defs)
+            }
+
+            mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
+                registerServerTools(server, defs)
+            })
+        } catch (e) {
+            console.warn('Caught error during MCP tool initialization; initialization may be incomplete:', e)
         }
-
-        const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
-        const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
-        const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
-        const allConfigPaths = [...wsConfigPaths, globalConfigPath]
-
-        const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
-        const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
-        const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
-
-        const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, {
-            logging,
-            workspace,
-            lsp,
-            telemetry,
-            credentialsProvider,
-            runtime,
-        })
-
-        // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
-        McpManager.instance.clearToolNameMapping()
-
-        const byServer: Record<string, McpToolDefinition[]> = {}
-        // only register enabled tools
-        for (const d of mgr.getEnabledTools()) {
-            ;(byServer[d.serverName] ||= []).push(d)
-        }
-        for (const [server, defs] of Object.entries(byServer)) {
-            registerServerTools(server, defs)
-        }
-
-        mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
-            registerServerTools(server, defs)
-        })
     })
 
     return async () => {
