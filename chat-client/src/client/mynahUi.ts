@@ -1764,6 +1764,6 @@ export const uiComponentsTexts = {
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
     spinnerText: 'Thinking...',
-    macos_stop_shortcut: '^ C',
-    window_stop_shortcut: 'Ctrl + C',
+    macos_stop_shortcut: '&#8984; Shift &#9003;',
+    window_stop_shortcut: 'Ctrl + Shift + &#9003;',
 }

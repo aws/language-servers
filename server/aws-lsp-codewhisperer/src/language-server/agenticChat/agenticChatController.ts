@@ -1998,7 +1998,7 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #getKeybindingInfo(commandId: string): KeybindingResult {
+    #getKeybinding(commandId: string): string | null {
         const homeDir = os.homedir()
         let keybindingsPath: string
 
@@ -2014,13 +2014,32 @@ export class AgenticChatController implements ChatHandlers {
                 keybindingsPath = path.join(homeDir, 'AppData/Roaming/Code/User/keybindings.json')
                 break
             default:
-                return { key: null, isExplicitlyDisabled: false, isInKeybindingsFile: false }
+                return null
+        }
+
+        // Get default key for the command
+        let defaultKey = ''
+        const OS = os.platform()
+
+        switch (commandId) {
+            case 'aws.amazonq.runCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_RUN_SHORTCUT : DEFAULT_WINDOW_RUN_SHORTCUT
+                break
+            case 'aws.amazonq.rejectCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_REJECT_SHORTCUT : DEFAULT_WINDOW_REJECT_SHORTCUT
+            default:
+                break
+        }
+
+        if (defaultKey === '') {
+            return null
         }
 
         try {
             // Check if keybindings file exists
             if (!this.#features.workspace.fs.exists(keybindingsPath)) {
-                return { key: null, isExplicitlyDisabled: false, isInKeybindingsFile: false }
+                // Not in keybindings.json, use default
+                return defaultKey
             }
 
             // Read and parse the keybindings file
@@ -2051,54 +2070,28 @@ export class AgenticChatController implements ChatHandlers {
                 }
             }
 
-            return {
-                key: activeKey,
-                isExplicitlyDisabled,
-                isInKeybindingsFile,
+            // can be used in P1 to check if user explicitly remove the keybind from us
+            // if (isExplicitlyDisabled) {
+            //     // User explicitly disabled this keybinding
+            //     return null
+            // }
+
+            if (isInKeybindingsFile && activeKey) {
+                // User has a custom keybinding
+                return activeKey
             }
+
+            if (!isInKeybindingsFile) {
+                // Not in keybindings.json, use default
+                return defaultKey
+            }
+
+            // In keybindings.json but no key (shouldn't happen, but fallback to default)
+            return defaultKey
         } catch (error) {
             console.error('Error reading keybindings:', error)
-            return { key: null, isExplicitlyDisabled: false, isInKeybindingsFile: false }
-        }
-    }
-
-    #getKeybinding(commandId: string): string | null {
-        const info = this.#getKeybindingInfo(commandId)
-        let defaultKey = ''
-        const OS = os.platform()
-
-        switch (commandId) {
-            case 'aws.amazonq.runCmdExecution':
-                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_RUN_SHORTCUT : DEFAULT_WINDOW_RUN_SHORTCUT
-                break
-            case 'aws.amazonq.rejectCmdExecution':
-                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_REJECT_SHORTCUT : DEFAULT_WINDOW_REJECT_SHORTCUT
-            default:
-                break
-        }
-
-        if (defaultKey === '') {
-            return null
-        }
-
-        // can be used in P1 to check if user explicitly remove the keybind from us
-        // if (info.isExplicitlyDisabled) {
-        //     // User explicitly disabled this keybinding
-        //     return null
-        // }
-
-        if (info.isInKeybindingsFile && info.key) {
-            // User has a custom keybinding
-            return info.key
-        }
-
-        if (!info.isInKeybindingsFile) {
-            // Not in keybindings.json, use default
             return defaultKey
         }
-
-        // In keybindings.json but no key (shouldn't happen, but fallback to default)
-        return defaultKey
     }
 
     #processToolConfirmation(

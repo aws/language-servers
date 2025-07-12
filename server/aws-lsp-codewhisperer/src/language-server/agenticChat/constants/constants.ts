@@ -15,12 +15,12 @@ export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
 export const DEFAULT_MODEL_ID = BedrockModel.CLAUDE_SONNET_4_20250514_V1_0
 
 // shortcut constant
-export const DEFAULT_MACOS_RUN_SHORTCUT = '&#8984; R'
-export const DEFAULT_WINDOW_RUN_SHORTCUT = 'Ctrl + R'
-export const DEFAULT_LINUX_RUN_SHORTCUT = 'Meta + R'
-export const DEFAULT_MACOS_STOP_SHORTCUT = '^ C'
-export const DEFAULT_WINDOW_STOP_SHORTCUT = 'Ctrl + C'
-export const DEFAULT_LINUX_STOP_SHORTCUT = 'Meta + C'
-export const DEFAULT_MACOS_REJECT_SHORTCUT = '&#8984; E'
-export const DEFAULT_WINDOW_REJECT_SHORTCUT = 'Ctrl + E'
-export const DEFAULT_LINUX_REJECT_SHORTCUT = 'Meta + E'
+export const DEFAULT_MACOS_RUN_SHORTCUT = '&#8984; Shift &#8629;'
+export const DEFAULT_WINDOW_RUN_SHORTCUT = 'Ctrl + Shift + &#8629;'
+export const DEFAULT_LINUX_RUN_SHORTCUT = 'Meta + Shift + &#8629;'
+export const DEFAULT_MACOS_STOP_SHORTCUT = '&#8984; Shift &#9003;'
+export const DEFAULT_WINDOW_STOP_SHORTCUT = 'Ctrl + Shift + &#9003;'
+export const DEFAULT_LINUX_STOP_SHORTCUT = 'Meta + Shift + &#9003;'
+export const DEFAULT_MACOS_REJECT_SHORTCUT = '&#8984; Shift R'
+export const DEFAULT_WINDOW_REJECT_SHORTCUT = 'Ctrl + Shift + R'
+export const DEFAULT_LINUX_REJECT_SHORTCUT = 'Meta + Shift + R'
