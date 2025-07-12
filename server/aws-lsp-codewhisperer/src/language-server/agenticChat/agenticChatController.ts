@@ -1847,7 +1847,7 @@ export class AgenticChatController implements ChatHandlers {
                 await chatResultStream.removeResultBlockAndUpdateUI(toolMsgId)
 
                 await chatResultStream.writeResultBlock({
-                    type: 'prompt',
+                    type: 'tool',
                     messageId: toolMsgId,
                     body: chunk,
                 })
