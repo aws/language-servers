@@ -144,7 +144,7 @@ import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
-import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
+import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
@@ -1467,7 +1467,7 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         toolUse.input = initialInput
                     } catch (e) {
-                        this.#features.logging.warn(`could not parse input: ${e}`)
+                        this.#features.logging.warn(`could not parse QCodeReview tool input: ${e}`)
                     }
                 }
 
@@ -1547,12 +1547,16 @@ export class AgenticChatController implements ChatHandlers {
                     case QCodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
                         // Push result in message so that it is picked by IDE plugin to show in issues panel
-                        const qCodeReviewJson = JSON.parse(JSON.stringify(result))
-                        if (qCodeReviewJson['output']['success']) {
+                        const qCodeReviewResult = result as InvokeOutput
+                        if (
+                            qCodeReviewResult?.output?.kind === 'json' &&
+                            qCodeReviewResult.output.success &&
+                            (qCodeReviewResult.output.content as any)?.findingsByFile
+                        ) {
                             await chatResultStream.writeResultBlock({
                                 type: 'tool',
                                 messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
-                                body: qCodeReviewJson['output']['content']['result']['findingsByFile'],
+                                body: (qCodeReviewResult.output.content as any).findingsByFile,
                             })
                         }
                         break

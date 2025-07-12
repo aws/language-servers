@@ -24,6 +24,7 @@ import {
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
 import { QCodeReviewUtils } from './qCodeAnalysis/qCodeReviewUtils'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -122,8 +123,8 @@ export const QCodeAnalysisServer: Server = ({
             credentialsProvider,
             workspace,
             logging,
-            process.env.CODEWHISPERER_REGION || 'us-east-1',
-            process.env.CODEWHISPERER_ENDPOINT || 'https://codewhisperer.us-east-1.amazonaws.com/',
+            process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+            process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
             sdkInitializator
         )
 

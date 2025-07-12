@@ -44,7 +44,7 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
         fileLevelArtifacts: {
             type: <const>'array',
             description: [
-                'Array of abosolute file paths that will be reviewed (e.g. [{"path": "absolute/path/to/file.py"}]).',
+                'Array of absolute file paths that will be reviewed (e.g. [{"path": "absolute/path/to/file.py"}]).',
                 'So, if the user asks for a code review of a single file, provide the absolute file path in the array.',
                 'If the user asks for a code review of multiple files, provide the absolute file paths in the array.',
                 'If the user asks for a code review of a folder, do not provide any file paths or programming languages in this array. It should be provided in folderLevelArtifacts',

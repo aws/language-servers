@@ -133,6 +133,7 @@ describe('QCodeReview', () => {
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
             })
+            sandbox.stub(qCodeReview as any, 'parseFindings').returns([])
 
             const result = await qCodeReview.execute(validInput, context)
 
@@ -259,7 +260,7 @@ describe('QCodeReview', () => {
     describe('validateInputAndSetup', () => {
         it('should validate and setup correctly for file artifacts', async () => {
             const input = {
-                fileLevelArtifacts: [{ path: '/test/file.js', programmingLanguage: 'javascript' }],
+                fileLevelArtifacts: [{ path: '/test/file.js' }],
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
@@ -316,7 +317,7 @@ describe('QCodeReview', () => {
         })
 
         it('should prepare files and folders for upload', async () => {
-            const fileArtifacts = [{ path: '/test/file.js', programmingLanguage: 'javascript' }]
+            const fileArtifacts = [{ path: '/test/file.js' }]
             const folderArtifacts = [{ path: '/test/folder' }]
             const ruleArtifacts: any[] = []
 
@@ -333,7 +334,7 @@ describe('QCodeReview', () => {
         })
 
         it('should handle code diff generation', async () => {
-            const fileArtifacts = [{ path: '/test/file.js', programmingLanguage: 'javascript' }]
+            const fileArtifacts = [{ path: '/test/file.js' }]
             const folderArtifacts: any[] = []
             const ruleArtifacts: any[] = []
 
@@ -390,7 +391,7 @@ describe('QCodeReview', () => {
 
             sandbox.stub(qCodeReview as any, 'parseFindings').returns(mockFindings)
 
-            const result = await (qCodeReview as any).collectFindings('job-123', true, false)
+            const result = await (qCodeReview as any).collectFindings('job-123', true, false, 'javascript')
 
             expect(result.totalFindings).to.have.length(2)
             expect(result.findingsExceededLimit).to.be.false
@@ -409,7 +410,7 @@ describe('QCodeReview', () => {
 
             sandbox.stub(qCodeReview as any, 'parseFindings').returns(mockFindings)
 
-            const result = await (qCodeReview as any).collectFindings('job-123', false, true)
+            const result = await (qCodeReview as any).collectFindings('job-123', false, true, 'javascript')
 
             expect(result.totalFindings).to.have.length(1)
             expect(result.totalFindings[0].findingContext).to.equal('CodeDiff')
@@ -438,15 +439,15 @@ describe('QCodeReview', () => {
                 .onSecondCall()
                 .returns(mockFindings2)
 
-            const result = await (qCodeReview as any).collectFindings('job-123', true, false)
+            const result = await (qCodeReview as any).collectFindings('job-123', true, false, 'javascript')
 
             expect(result.totalFindings).to.have.length(2)
             sinon.assert.calledTwice(mockCodeWhispererClient.listCodeAnalysisFindings)
         })
     })
 
-    describe('processFindings', () => {
-        it('should process and aggregate findings by file', async () => {
+    describe('aggregateFindingsByFile', () => {
+        it('should aggregate findings by file path', () => {
             const mockFindings = [
                 {
                     findingId: '1',
@@ -462,21 +463,21 @@ describe('QCodeReview', () => {
                     relatedVulnerabilities: [],
                     remediation: { recommendation: { text: 'Fix this', url: null } },
                     suggestedFixes: [],
-                },
+                    comment: 'Test Issue: Test description',
+                    recommendation: { text: 'Fix this', url: null },
+                    scanJobId: 'job-123',
+                    language: 'javascript',
+                    autoDetected: false,
+                    findingContext: 'Full',
+                } as any,
             ]
 
-            const fileArtifacts = [{ path: '/test/file.js', programmingLanguage: 'javascript' }]
+            const fileArtifacts = [{ path: '/test/file.js' }]
             const folderArtifacts: any[] = []
 
             sandbox.stub(qCodeReview as any, 'resolveFilePath').returns('/test/file.js')
 
-            const result = await (qCodeReview as any).processFindings(
-                mockFindings,
-                'job-123',
-                'javascript',
-                fileArtifacts,
-                folderArtifacts
-            )
+            const result = (qCodeReview as any).aggregateFindingsByFile(mockFindings, fileArtifacts, folderArtifacts)
 
             expect(result).to.have.length(1)
             expect(result[0].filePath).to.equal('/test/file.js')
@@ -494,7 +495,7 @@ describe('QCodeReview', () => {
         })
 
         it('should resolve file path from file artifacts', () => {
-            const fileArtifacts = [{ path: '/project/src/file.js', programmingLanguage: 'javascript' }]
+            const fileArtifacts = [{ path: '/project/src/file.js' }]
             const folderArtifacts: any[] = []
 
             const result = (qCodeReview as any).resolveFilePath('src/file.js', fileArtifacts, folderArtifacts)
@@ -509,6 +510,22 @@ describe('QCodeReview', () => {
             const result = (qCodeReview as any).resolveFilePath('file.js', fileArtifacts, folderArtifacts)
 
             expect(result).to.equal('/project/src/file.js')
+        })
+
+        it('should resolve file path with common suffix matching', () => {
+            const fileArtifacts: any[] = []
+            const folderArtifacts = [{ path: '/project/src/main' }]
+
+            existsSyncStub.returns(true)
+            statSyncStub.returns({ isFile: () => true })
+
+            const result = (qCodeReview as any).resolveFilePath(
+                'src/main/java/App.java',
+                fileArtifacts,
+                folderArtifacts
+            )
+
+            expect(result).to.equal('/project/src/main/java/App.java')
         })
 
         it('should return null for unresolvable paths', () => {
@@ -553,7 +570,7 @@ describe('QCodeReview', () => {
             }
 
             const input = {
-                fileLevelArtifacts: [{ path: '/test/file.js', programmingLanguage: 'javascript' }],
+                fileLevelArtifacts: [{ path: '/test/file.js' }],
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
@@ -565,7 +582,6 @@ describe('QCodeReview', () => {
             const result = await qCodeReview.execute(input, context)
 
             expect(result.output.success).to.be.false
-            expect((result.output.content as any).status).to.equal('Failed')
             expect((result.output.content as any).errorMessage).to.equal('Unexpected error')
         })
     })
