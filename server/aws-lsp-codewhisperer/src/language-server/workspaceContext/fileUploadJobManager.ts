@@ -157,6 +157,8 @@ export class FileUploadJobManager {
     }
 
     public dispose(): void {
-        clearInterval(this.jobConsumerInterval)
+        if (this.jobConsumerInterval) {
+            clearInterval(this.jobConsumerInterval)
+        }
     }
 }
