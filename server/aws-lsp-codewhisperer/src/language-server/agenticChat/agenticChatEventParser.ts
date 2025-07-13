@@ -57,6 +57,7 @@ export class AgenticChatEventParser implements ChatResult {
     #metric: Metric<AddMessageEvent>
     #logging: Features['logging']
     #lastChunkTime: number = 0
+    #features?: Features
     #totalEvents = {
         followupPromptEvent: 0,
         supplementaryWebLinksEvent: 0,
@@ -64,7 +65,6 @@ export class AgenticChatEventParser implements ChatResult {
         assistantResponseEvent: 0,
         toolUserEvent: 0,
     }
-    #features?: Features
 
     static getReferencedInformation(reference: Reference): string {
         return `Reference code under **${reference.licenseName}** license from repository \`${reference.repository}\``
@@ -95,6 +95,7 @@ export class AgenticChatEventParser implements ChatResult {
         this.messageId = messageId
         this.#metric = metric
         this.#logging = logging
+        this.#features = features
         this.#features = features
     }
 
@@ -485,7 +486,7 @@ export class AgenticChatEventParser implements ChatResult {
             relatedContent: this.relatedContent,
             followUp: this.followUp,
             codeReference: this.codeReference,
-            ...(this.contextList && { contextList: { ...this.contextList } }),
+            ...(this.contextList && { ...this.contextList }),
         }
 
         const chatResultWithMetadata = {
@@ -506,5 +507,189 @@ export class AgenticChatEventParser implements ChatResult {
                   success: true,
                   data: chatResultWithMetadata,
               }
+    }
+
+    /**
+     * 🚀 NEW: Stream partial content for fsWrite/fsReplace tool uses
+     */
+    #streamPartialContent(toolUseId: string, partialInput: string): void {
+        try {
+            const content = this.#extractContentFromPartialInput(partialInput)
+            if (content) {
+                this.#logging.info(`[LSP-STREAM] 🚀 Streaming content update for ${toolUseId}: ${content.length} chars`)
+
+                // Try multiple approaches to access the LSP connection
+                let notificationSent = false
+
+                // Method 1: Try runtime connection (if available)
+                if (this.#features?.runtime && !notificationSent) {
+                    try {
+                        const runtimeConnection = (this.#features.runtime as any).connection
+                        if (runtimeConnection && runtimeConnection.sendNotification) {
+                            runtimeConnection.sendNotification('aws/chat/streamingDiffUpdate', {
+                                toolUseId,
+                                partialContent: content,
+                                isFinal: false,
+                            })
+                            this.#logging.info(`[LSP-STREAM] ✅ Streaming update sent via runtime.connection`)
+                            notificationSent = true
+                        } else {
+                            this.#logging.debug(
+                                `[LSP-STREAM] 🔍 Runtime connection not available: ${!!runtimeConnection}`
+                            )
+                        }
+                    } catch (error) {
+                        this.#logging.debug(`[LSP-STREAM] 🔍 Runtime connection failed: ${error}`)
+                    }
+                }
+
+                // Method 2: Try features connection (if available)
+                if (this.#features && !notificationSent) {
+                    try {
+                        const featuresConnection = (this.#features as any).connection
+                        if (featuresConnection && featuresConnection.sendNotification) {
+                            featuresConnection.sendNotification('aws/chat/streamingDiffUpdate', {
+                                toolUseId,
+                                partialContent: content,
+                                isFinal: false,
+                            })
+                            this.#logging.info(`[LSP-STREAM] ✅ Streaming update sent via features.connection`)
+                            notificationSent = true
+                        } else {
+                            this.#logging.debug(
+                                `[LSP-STREAM] 🔍 Features connection not available: ${!!featuresConnection}`
+                            )
+                        }
+                    } catch (error) {
+                        this.#logging.debug(`[LSP-STREAM] 🔍 Features connection failed: ${error}`)
+                    }
+                }
+
+                // Method 3: Try LSP connection (previous approach)
+                if (this.#features?.lsp && !notificationSent) {
+                    try {
+                        const lspConnection = (this.#features.lsp as any).connection
+                        if (lspConnection && lspConnection.sendNotification) {
+                            lspConnection.sendNotification('aws/chat/streamingDiffUpdate', {
+                                toolUseId,
+                                partialContent: content,
+                                isFinal: false,
+                            })
+                            this.#logging.info(`[LSP-STREAM] ✅ Streaming update sent via lsp.connection`)
+                            notificationSent = true
+                        } else {
+                            this.#logging.debug(`[LSP-STREAM] 🔍 LSP connection not available: ${!!lspConnection}`)
+                        }
+                    } catch (error) {
+                        this.#logging.debug(`[LSP-STREAM] 🔍 LSP connection failed: ${error}`)
+                    }
+                }
+
+                // Method 4: Try accessing through telemetry (as a workaround)
+                if (this.#features?.telemetry && !notificationSent) {
+                    try {
+                        // Send as a telemetry event that the client can intercept
+                        this.#features.telemetry.emitMetric({
+                            name: 'aws_streaming_diff_update',
+                            data: {
+                                toolUseId,
+                                partialContent: content,
+                                isFinal: false,
+                            },
+                        })
+                        this.#logging.info(`[LSP-STREAM] ✅ Streaming update sent via telemetry workaround`)
+                        notificationSent = true
+                    } catch (error) {
+                        this.#logging.debug(`[LSP-STREAM] 🔍 Telemetry workaround failed: ${error}`)
+                    }
+                }
+
+                if (!notificationSent) {
+                    this.#logging.warn(`[LSP-STREAM] ⚠️ All notification methods failed`)
+                    this.#logging.debug(`[LSP-STREAM] 🔍 Available features: ${Object.keys(this.#features || {})}`)
+                    if (this.#features?.runtime) {
+                        this.#logging.debug(
+                            `[LSP-STREAM] 🔍 Runtime keys: ${Object.keys(this.#features.runtime || {})}`
+                        )
+                    }
+                }
+            }
+        } catch (error) {
+            this.#logging.warn(`[LSP-STREAM] ⚠️ Failed to stream partial content: ${error}`)
+        }
+    }
+
+    /**
+     * 🚀 NEW: Extract content field from partial JSON input
+     */
+    #extractContentFromPartialInput(partialInput: string): string | null {
+        try {
+            if (typeof partialInput === 'string' && partialInput.length > 0) {
+                // Log the partial input for debugging
+                this.#logging.info(
+                    `[LSP-STREAM] 🔍 Parsing partial input (${partialInput.length} chars): ${partialInput.substring(0, 200)}${partialInput.length > 200 ? '...' : ''}`
+                )
+
+                // 🔧 FIX: Look for "fileText" field (fsWrite/fsReplace) instead of "content"
+                const fileTextMatch = partialInput.match(/"fileText":\s*"((?:[^"\\]|\\.)*)"/s)
+                if (fileTextMatch) {
+                    const rawContent = fileTextMatch[1]
+                    // Unescape JSON string content
+                    const unescapedContent = rawContent
+                        .replace(/\\n/g, '\n')
+                        .replace(/\\"/g, '"')
+                        .replace(/\\\\/g, '\\')
+                        .replace(/\\t/g, '\t')
+                        .replace(/\\r/g, '\r')
+
+                    this.#logging.info(
+                        `[LSP-STREAM] ✅ Extracted fileText content (${unescapedContent.length} chars): ${unescapedContent.substring(0, 100)}${unescapedContent.length > 100 ? '...' : ''}`
+                    )
+                    return unescapedContent
+                }
+
+                // Try partial JSON parsing for incomplete fileText field
+                const partialFileTextMatch = partialInput.match(/"fileText":\s*"([^"]*)$/s)
+                if (partialFileTextMatch) {
+                    const partialContent = partialFileTextMatch[1]
+                        .replace(/\\n/g, '\n')
+                        .replace(/\\"/g, '"')
+                        .replace(/\\\\/g, '\\')
+                        .replace(/\\t/g, '\t')
+                        .replace(/\\r/g, '\r')
+
+                    this.#logging.info(
+                        `[LSP-STREAM] ⚡ Extracted partial fileText (${partialContent.length} chars): ${partialContent.substring(0, 100)}${partialContent.length > 100 ? '...' : ''}`
+                    )
+                    return partialContent
+                }
+
+                // Fallback: Try legacy "content" field for other tool types
+                const contentMatch = partialInput.match(/"content":\s*"((?:[^"\\]|\\.)*)"/s)
+                if (contentMatch) {
+                    const rawContent = contentMatch[1]
+                    const unescapedContent = rawContent
+                        .replace(/\\n/g, '\n')
+                        .replace(/\\"/g, '"')
+                        .replace(/\\\\/g, '\\')
+                        .replace(/\\t/g, '\t')
+                        .replace(/\\r/g, '\r')
+
+                    this.#logging.info(
+                        `[LSP-STREAM] ✅ Extracted content (${unescapedContent.length} chars): ${unescapedContent.substring(0, 100)}${unescapedContent.length > 100 ? '...' : ''}`
+                    )
+                    return unescapedContent
+                }
+
+                this.#logging.debug(`[LSP-STREAM] 🔍 No fileText or content field found in partial input`)
+                return null
+            }
+
+            this.#logging.debug(`[LSP-STREAM] ⚠️ Invalid or empty partial input`)
+            return null
+        } catch (error) {
+            this.#logging.warn(`[LSP-STREAM] ⚠️ Failed to parse partial input: ${error}`)
+            return null
+        }
     }
 }

@@ -253,7 +253,7 @@ describe('StreamingClientServiceIAM', () => {
     })
 
     it('sends message with correct parameters', async () => {
-        const promise = streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
+        const promise = streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST as any)
 
         await clock.tickAsync(TIME_TO_ADVANCE_MS)
         await promise
@@ -263,8 +263,8 @@ describe('StreamingClientServiceIAM', () => {
     })
 
     it('aborts in flight requests', async () => {
-        streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
-        streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
+        streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST as any)
+        streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST as any)
 
         streamingClientServiceIAM.abortInflightRequests()
 
