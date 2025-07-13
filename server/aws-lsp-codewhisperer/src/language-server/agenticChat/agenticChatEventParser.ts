@@ -126,6 +126,13 @@ export class AgenticChatEventParser implements ChatResult {
                 `[AgenticChatEventParser] 🔍 Processing accumulated input (${accumulatedInput.length} chars): ${accumulatedInput.substring(0, 200)}...`
             )
 
+            // **CRITICAL DEBUG**: For fsReplace, log the full input to understand the structure
+            if (toolName === 'fsReplace') {
+                this.#logging.debug(
+                    `[AgenticChatEventParser] 🔍 FULL fsReplace input for debugging (${accumulatedInput.length} chars): ${accumulatedInput}`
+                )
+            }
+
             // Try to parse as JSON first (for complete JSON)
             if (isComplete) {
                 try {
@@ -190,9 +197,71 @@ export class AgenticChatEventParser implements ChatResult {
 
             // If we don't have complete JSON or parsing failed, try progressive extraction
             if (!path || content === undefined) {
-                // Extract path using regex
+                // Extract path using regex - for fsReplace, path might come after diffs array
                 const pathMatch = accumulatedInput.match(/"path":\s*"([^"]*)"/)
                 path = pathMatch?.[1]
+
+                // **CRITICAL FIX**: For fsReplace, if path is not found yet, try alternative extraction methods
+                if (!path && toolName === 'fsReplace') {
+                    this.#logging.debug(
+                        `[AgenticChatEventParser] 🔍 Path not found yet for fsReplace, trying alternative extraction methods`
+                    )
+
+                    // **NEW APPROACH**: Try to extract path from explanation field which often contains the filename
+                    const explanationMatch = accumulatedInput.match(/"explanation":\s*"([^"]*)"/)
+                    if (explanationMatch) {
+                        const explanation = explanationMatch[1]
+                        // Look for file paths in the explanation (common patterns)
+                        const pathInExplanation = explanation.match(
+                            /(?:\/[^\/\s]+)+\.[a-zA-Z0-9]+|[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+/
+                        )
+                        if (pathInExplanation) {
+                            path = pathInExplanation[0]
+                            // If it's a relative path, we might need to make it absolute
+                            if (!path.startsWith('/')) {
+                                // For now, use as-is - the client can resolve relative paths
+                                this.#logging.debug(
+                                    `[AgenticChatEventParser] 🔍 Extracted relative path from explanation: ${path}`
+                                )
+                            } else {
+                                this.#logging.debug(
+                                    `[AgenticChatEventParser] 🔍 Extracted absolute path from explanation: ${path}`
+                                )
+                            }
+                        }
+                    }
+
+                    // **FALLBACK**: If still no path, extract content from diffs and send with placeholder path
+                    if (!path) {
+                        // Try to extract newStr from first diff in diffs array for content
+                        const diffsMatch = accumulatedInput.match(
+                            /"diffs"\s*:\s*\[\s*\{\s*[^}]*"newStr"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/
+                        )
+                        if (diffsMatch) {
+                            content = diffsMatch[1]
+                                .replace(/\\"/g, '"')
+                                .replace(/\\n/g, '\n')
+                                .replace(/\\t/g, '\t')
+                                .replace(/\\r/g, '\r')
+                                .replace(/\\\\/g, '\\')
+
+                            this.#logging.debug(
+                                `[AgenticChatEventParser] 🔍 Extracted content from diffs without path: ${content.length} chars`
+                            )
+
+                            // Use a placeholder path that will be updated when the real path arrives
+                            path = `<streaming-fsReplace-${toolUseId}>`
+
+                            // Mark this as a placeholder path for later update
+                            fsWriteParams.isPlaceholderPath = true
+                        } else {
+                            this.#logging.debug(
+                                `[AgenticChatEventParser] 🔍 No content found in diffs array yet, skipping streaming chunk`
+                            )
+                            return // Skip streaming until we have some content
+                        }
+                    }
+                }
 
                 // **CRITICAL FIX: Handle different content field patterns based on command type**
                 let contentField: string | undefined
