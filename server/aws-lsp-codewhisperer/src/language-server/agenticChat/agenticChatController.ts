@@ -1324,31 +1324,8 @@ export class AgenticChatController implements ChatHandlers {
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
                         const tool = new Tool(this.#features)
 
-                        // 🚀 NEW: Start streaming diff session immediately for fsWrite/fsReplace
-                        if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && toolUse.toolUseId) {
-                            const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
-                            if (input.path) {
-                                this.#features.logging.info(
-                                    `[AgenticChatController] 🎬 Starting streaming diff for ${input.path} (toolUse: ${toolUse.toolUseId})`
-                                )
-
-                                // Send initial diff notification to VSCode to start streaming diff session
-                                this.#features.lsp.workspace.openFileDiff({
-                                    originalFileUri: input.path,
-                                    originalFileContent: '', // Will be read by VSCode side
-                                    fileContent: '', // Initial empty content
-                                    isDeleted: false,
-                                })
-
-                                // Send streaming diff start notification
-                                this.#features.lsp.workspace.openFileDiff({
-                                    originalFileUri: input.path,
-                                    originalFileContent: '',
-                                    fileContent: `<!-- STREAMING_DIFF_START:${toolUse.toolUseId} -->`,
-                                    isDeleted: false,
-                                })
-                            }
-                        }
+                        // Note: Removed automatic openFileDiff calls to prevent redundant notifications
+                        // The streaming system will handle diff notifications through the streaming chunk processor
 
                         // For MCP tools, get the permission from McpManager
                         // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
