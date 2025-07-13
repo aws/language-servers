@@ -144,8 +144,28 @@ export class AgenticChatEventParser implements ChatResult {
                         explanation: parsed.explanation,
                     }
 
-                    // **COMPLETE FIX: Handle ALL fsWrite command types for complete JSON parsing**
-                    if (parsed.command === 'strReplace') {
+                    // **COMPLETE FIX: Handle ALL fsWrite command types AND fsReplace for complete JSON parsing**
+                    if (toolName === 'fsReplace') {
+                        // **NEW: Handle fsReplace tool with diffs array**
+                        if (parsed.diffs && Array.isArray(parsed.diffs) && parsed.diffs.length > 0) {
+                            // For fsReplace, show the newStr from the first diff as streaming content
+                            const firstDiff = parsed.diffs[0]
+                            content = firstDiff.newStr || ''
+
+                            // Update fsWriteParams for fsReplace
+                            fsWriteParams = {
+                                command: 'strReplace', // Use strReplace for compatibility with streaming controller
+                                path: parsed.path,
+                                oldStr: firstDiff.oldStr,
+                                newStr: firstDiff.newStr,
+                                explanation: parsed.explanation,
+                                // Include all diffs for complete context
+                                diffs: parsed.diffs,
+                            }
+                        } else {
+                            content = ''
+                        }
+                    } else if (parsed.command === 'strReplace') {
                         content = parsed.newStr
                     } else if (parsed.command === 'str_replace_editor') {
                         content = parsed.new_str
@@ -399,10 +419,10 @@ export class AgenticChatEventParser implements ChatResult {
                     stop: !!toolUseEvent.stop,
                 }
 
-                // Send streaming chunk for fsWrite tools (before final parsing)
-                if (name === 'fsWrite' && this.#features?.chat && input) {
+                // Send streaming chunk for fsWrite and fsReplace tools (before final parsing)
+                if ((name === 'fsWrite' || name === 'fsReplace') && this.#features?.chat && input) {
                     this.#logging.debug(
-                        `[AgenticChatEventParser] 🌊 Detected fsWrite chunk: toolUseId=${toolUseId}, input length=${input.length}, stop=${!!toolUseEvent.stop}`
+                        `[AgenticChatEventParser] 🌊 Detected ${name} chunk: toolUseId=${toolUseId}, input length=${input.length}, stop=${!!toolUseEvent.stop}`
                     )
                     // Send streaming chunk with proper throttling (async but not awaited to avoid blocking)
                     this.#sendStreamingChunk(

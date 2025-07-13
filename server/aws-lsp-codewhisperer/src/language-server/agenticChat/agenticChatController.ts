@@ -3780,8 +3780,8 @@ export class AgenticChatController implements ChatHandlers {
         data: AgenticChatResultWithMetadata,
         tabId?: string
     ): Promise<void> {
-        // Only process fsWrite tool use events for streaming
-        if (toolUseEvent.name !== 'fsWrite' || !toolUseEvent.toolUseId) {
+        // Only process fsWrite and fsReplace tool use events for streaming
+        if ((toolUseEvent.name !== 'fsWrite' && toolUseEvent.name !== 'fsReplace') || !toolUseEvent.toolUseId) {
             return
         }
 
@@ -3801,7 +3801,18 @@ export class AgenticChatController implements ChatHandlers {
                 try {
                     const parsedInput = JSON.parse(toolUse.input)
                     path = parsedInput.path
-                    if (parsedInput.command === 'strReplace') {
+
+                    // **NEW: Handle fsReplace tool with diffs array**
+                    if (
+                        toolUse.name === 'fsReplace' &&
+                        parsedInput.diffs &&
+                        Array.isArray(parsedInput.diffs) &&
+                        parsedInput.diffs.length > 0
+                    ) {
+                        // For fsReplace, show the newStr from the first diff as streaming content
+                        const firstDiff = parsedInput.diffs[0]
+                        content = firstDiff.newStr || ''
+                    } else if (parsedInput.command === 'strReplace') {
                         content = parsedInput.newStr
                     } else {
                         content = parsedInput.fileText || parsedInput.content || parsedInput.newStr
@@ -3812,42 +3823,69 @@ export class AgenticChatController implements ChatHandlers {
                         `[AgenticChatController] 🔍 JSON parsing failed, using regex extraction for partial input: ${toolUse.input.substring(0, 100)}...`
                     )
 
-                    // Extract command to determine content field
-                    const commandMatch = toolUse.input.match(/"command"\s*:\s*"([^"]*)"/)
-                    const command = commandMatch?.[1] || 'unknown'
-
                     // Extract path
                     const pathMatch = toolUse.input.match(/"path"\s*:\s*"([^"]*)"/)
                     path = pathMatch?.[1]
 
-                    // Determine content field based on command
-                    let contentField = 'fileText'
-                    if (command === 'strReplace' || command === 'str_replace_editor') {
-                        contentField = 'newStr|new_str'
-                    } else if (command === 'create') {
-                        contentField = 'fileText|content|text'
-                    }
-
-                    // Extract content using the determined field
-                    const contentFields = contentField.split('|')
-                    for (const field of contentFields) {
-                        const contentMatch = toolUse.input.match(
-                            new RegExp(`"${field}"\\s*:\\s*"([^"]*(?:\\\\.[^"]*)*)"`, 's')
+                    // **NEW: Handle fsReplace tool with diffs array in partial JSON**
+                    if (toolUse.name === 'fsReplace') {
+                        // Try to extract newStr from first diff in diffs array
+                        const diffsMatch = toolUse.input.match(
+                            /"diffs"\s*:\s*\[\s*\{\s*[^}]*"newStr"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/
                         )
-                        if (contentMatch) {
-                            content = contentMatch[1]
-                            break
+                        if (diffsMatch) {
+                            content = diffsMatch[1]
+                                .replace(/\\"/g, '"')
+                                .replace(/\\n/g, '\n')
+                                .replace(/\\t/g, '\t')
+                                .replace(/\\r/g, '\r')
+                                .replace(/\\\\/g, '\\')
+                        }
+                    } else {
+                        // Extract command to determine content field
+                        const commandMatch = toolUse.input.match(/"command"\s*:\s*"([^"]*)"/)
+                        const command = commandMatch?.[1] || 'unknown'
+
+                        // Determine content field based on command
+                        let contentField = 'fileText'
+                        if (command === 'strReplace' || command === 'str_replace_editor') {
+                            contentField = 'newStr|new_str'
+                        } else if (command === 'create') {
+                            contentField = 'fileText|content|text'
+                        }
+
+                        // Extract content using the determined field
+                        const contentFields = contentField.split('|')
+                        for (const field of contentFields) {
+                            const contentMatch = toolUse.input.match(
+                                new RegExp(`"${field}"\\s*:\\s*"([^"]*(?:\\\\.[^"]*)*)"`, 's')
+                            )
+                            if (contentMatch) {
+                                content = contentMatch[1]
+                                break
+                            }
                         }
                     }
 
                     this.#debug(
-                        `[AgenticChatController] 🔍 Regex extraction: command=${command}, path=${path}, content length=${content?.length || 0}`
+                        `[AgenticChatController] 🔍 Regex extraction: tool=${toolUse.name}, path=${path}, content length=${content?.length || 0}`
                     )
                 }
             } else if (typeof toolUse.input === 'object' && toolUse.input !== null) {
                 const inputObj = toolUse.input as any
                 path = inputObj.path
-                if (inputObj.command === 'strReplace') {
+
+                // **NEW: Handle fsReplace tool with diffs array**
+                if (
+                    toolUse.name === 'fsReplace' &&
+                    inputObj.diffs &&
+                    Array.isArray(inputObj.diffs) &&
+                    inputObj.diffs.length > 0
+                ) {
+                    // For fsReplace, show the newStr from the first diff as streaming content
+                    const firstDiff = inputObj.diffs[0]
+                    content = firstDiff.newStr || ''
+                } else if (inputObj.command === 'strReplace') {
                     content = inputObj.newStr
                 } else {
                     content = inputObj.fileText || inputObj.content || inputObj.newStr
