@@ -78,8 +78,6 @@ import {
     TabRemoveParams,
     TabChangeParams,
     InlineChatResult,
-    KeyBinding,
-    KeybindingResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuid } from 'uuid'
 import {
