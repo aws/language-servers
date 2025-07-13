@@ -1999,24 +1999,6 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getKeybinding(commandId: string): string | null {
-        const homeDir = os.homedir()
-        let keybindingsPath: string
-
-        // Get the correct keybindings.json path for the current platform
-        switch (os.platform()) {
-            case 'darwin':
-                keybindingsPath = path.join(homeDir, 'Library/Application Support/Code/User/keybindings.json')
-                break
-            case 'linux':
-                keybindingsPath = path.join(homeDir, '.config/Code/User/keybindings.json')
-                break
-            case 'win32':
-                keybindingsPath = path.join(homeDir, 'AppData/Roaming/Code/User/keybindings.json')
-                break
-            default:
-                return null
-        }
-
         // Get default key for the command
         let defaultKey = ''
         const OS = os.platform()
@@ -2035,63 +2017,9 @@ export class AgenticChatController implements ChatHandlers {
             return null
         }
 
-        try {
-            // Check if keybindings file exists
-            if (!this.#features.workspace.fs.exists(keybindingsPath)) {
-                // Not in keybindings.json, use default
-                return defaultKey
-            }
+        //TODO: handle case: user change default keybind, suggestion: read `keybinding.json` provided by VSC
 
-            // Read and parse the keybindings file
-            const content = this.#features.workspace.fs.readFileSync(keybindingsPath)
-            const keybindings: KeyBinding[] = JSON.parse(content)
-
-            let activeKey: string | null = null
-            let isExplicitlyDisabled = false
-            let isInKeybindingsFile = false
-
-            // Process all keybindings for this command
-            for (const binding of keybindings) {
-                if (binding.command === commandId) {
-                    // Positive entry - this is an active keybinding
-                    isInKeybindingsFile = true
-                    activeKey = binding.key || null
-
-                    // Check if key is empty (user removed the keybinding)
-                    if (!binding.key || binding.key.trim() === '') {
-                        isExplicitlyDisabled = true
-                        activeKey = null
-                    }
-                } else if (binding.command === `-${commandId}`) {
-                    // Negative entry - this command is explicitly disabled
-                    isInKeybindingsFile = true
-                    isExplicitlyDisabled = true
-                    activeKey = null
-                }
-            }
-
-            // can be used in P1 to check if user explicitly remove the keybind from us
-            // if (isExplicitlyDisabled) {
-            //     // User explicitly disabled this keybinding
-            //     return null
-            // }
-
-            if (isInKeybindingsFile && activeKey) {
-                // User has a custom keybinding
-                return activeKey
-            }
-
-            if (!isInKeybindingsFile) {
-                // Not in keybindings.json, use default
-                return defaultKey
-            }
-
-            // In keybindings.json but no key (shouldn't happen, but fallback to default)
-            return defaultKey
-        } catch (error) {
-            console.error('Error reading keybindings:', error)
-            return defaultKey
-        }
+        return defaultKey
     }
 
     #processToolConfirmation(
