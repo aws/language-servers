@@ -7,6 +7,7 @@ import { QCodeReview } from './qCodeReview'
 import { QCodeReviewUtils } from './qCodeReviewUtils'
 import { Q_CODE_REVIEW_TOOL_NAME, FULL_REVIEW, CODE_DIFF_REVIEW } from './qCodeReviewConstants'
 import * as sinon from 'sinon'
+import * as path from 'path'
 import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import * as JSZip from 'jszip'
@@ -495,21 +496,23 @@ describe('QCodeReview', () => {
         })
 
         it('should resolve file path from file artifacts', () => {
-            const fileArtifacts = [{ path: '/project/src/file.js' }]
+            const filePath = path.resolve('/project/src/file.js')
+            const fileArtifacts = [{ path: filePath }]
             const folderArtifacts: any[] = []
 
             const result = (qCodeReview as any).resolveFilePath('src/file.js', fileArtifacts, folderArtifacts)
 
-            expect(result).to.equal('/project/src/file.js')
+            expect(result).to.equal(filePath)
         })
 
         it('should resolve file path from folder artifacts', () => {
+            const filePath = path.resolve('/project/src/file.js')
             const fileArtifacts: any[] = []
             const folderArtifacts = [{ path: '/project/src' }]
 
             const result = (qCodeReview as any).resolveFilePath('file.js', fileArtifacts, folderArtifacts)
 
-            expect(result).to.equal('/project/src/file.js')
+            expect(result).to.equal(filePath)
         })
 
         it('should resolve file path with common suffix matching', () => {
@@ -525,7 +528,7 @@ describe('QCodeReview', () => {
                 folderArtifacts
             )
 
-            expect(result).to.equal('/project/src/main/java/App.java')
+            expect(result).to.equal(path.resolve('/project/src/main/java/App.java'))
         })
 
         it('should return null for unresolvable paths', () => {
