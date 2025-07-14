@@ -25,7 +25,7 @@ Integration tests for the AWS Q Agentic Chat Language Server.
 ## Running Tests
 
 ```bash
-npm test
+npm run test-integ
 ```
 
 ## Test Structure

@@ -6,7 +6,7 @@
     "scripts": {
         "clean": "rm -rf out/ node_modules/ tsconfig.tsbuildinfo .tsbuildinfo",
         "compile": "tsc --build && cp -r src/tests/testFixture out/tests/",
-        "test": "npm run compile && mocha --timeout 30000 \"./out/**/*.test.js\" --retries 2"
+        "test-integ": "npm run compile && mocha --timeout 30000 \"./out/**/*.test.js\" --retries 2"
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.105",
