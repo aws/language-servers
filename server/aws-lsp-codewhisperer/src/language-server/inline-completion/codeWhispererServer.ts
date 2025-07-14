@@ -338,27 +338,41 @@ export const CodewhispererServerFactory =
         const cursorTracker = CursorTracker.getInstance()
         const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
         let editsEnabled = false
+        let isOnInlineCompletionHandlerInProgress = false
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            // On every new completion request close current inflight session.
-            const currentSession = sessionManager.getCurrentSession()
-            if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
-                currentSession.discardInflightSessionOnNewInvocation = true
+            // this handle should not run concurrently because
+            // 1. it would create a high volume of traffic, causing throttling
+            // 2. it is not designed to handle concurrent changes to these state variables.
+            // when one handler is at the API call stage, it has not yet update the session state
+            // but another request can start, causing the state to be incorrect.
+            if (isOnInlineCompletionHandlerInProgress) {
+                logging.log(`Skip concurrent inline completion`)
+                return EMPTY_RESULT
             }
+            isOnInlineCompletionHandlerInProgress = true
 
-            if (cursorTracker) {
-                cursorTracker.trackPosition(params.textDocument.uri, params.position)
-            }
+            try {
+                // On every new completion request close current inflight session.
+                const currentSession = sessionManager.getCurrentSession()
+                if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
+                    // this REQUESTING state only happens when the session is initialized, which is rare
+                    currentSession.discardInflightSessionOnNewInvocation = true
+                }
 
-            return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
+                if (cursorTracker) {
+                    cursorTracker.trackPosition(params.textDocument.uri, params.position)
+                }
+                const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
                 if (params.partialResultToken && currentSession) {
                     // subsequent paginated requests for current session
-                    return codeWhispererService
-                        .generateSuggestions({
+                    try {
+                        const suggestionResponse = await codeWhispererService.generateSuggestions({
                             ...currentSession.requestContext,
                             fileContext: {
                                 ...currentSession.requestContext.fileContext,
@@ -371,17 +385,15 @@ export const CodewhispererServerFactory =
                             },
                             nextToken: `${params.partialResultToken}`,
                         })
-                        .then(async suggestionResponse => {
-                            return await processSuggestionResponse(
-                                suggestionResponse,
-                                currentSession,
-                                false,
-                                params.context.selectedCompletionInfo?.range
-                            )
-                        })
-                        .catch(error => {
-                            return handleSuggestionsErrors(error, currentSession)
-                        })
+                        return await processSuggestionResponse(
+                            suggestionResponse,
+                            currentSession,
+                            false,
+                            params.context.selectedCompletionInfo?.range
+                        )
+                    } catch (error) {
+                        return handleSuggestionsErrors(error as Error, currentSession)
+                    }
                 } else {
                     // request for new session
                     if (!textDocument) {
@@ -659,17 +671,16 @@ export const CodewhispererServerFactory =
                         },
                         ...(workspaceId ? { workspaceId: workspaceId } : {}),
                     }
-
-                    return codeWhispererService
-                        .generateSuggestions(generateCompletionReq)
-                        .then(async suggestionResponse => {
-                            return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
-                        })
-                        .catch(err => {
-                            return handleSuggestionsErrors(err, newSession)
-                        })
+                    try {
+                        const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
+                        return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
+                    } catch (error) {
+                        return handleSuggestionsErrors(error as Error, newSession)
+                    }
                 }
-            })
+            } finally {
+                isOnInlineCompletionHandlerInProgress = false
+            }
         }
 
         const processSuggestionResponse = async (
