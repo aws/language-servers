@@ -8,11 +8,13 @@ import {
     promptFileExtension,
     mergeRelevantTextDocuments,
     mergeFileLists,
+    getCodeSymbolDescription,
 } from './contextUtils'
 import * as pathUtils from '@aws/lsp-core/out/util/path'
 import { sanitizeFilename } from '@aws/lsp-core/out/util/text'
 import { FileList } from '@aws/language-server-runtimes/server-interface'
 import { RelevantTextDocumentAddition } from './agenticChatTriggerContext'
+import { ContextCommandItem } from 'local-indexing'
 
 describe('contextUtils', () => {
     let getUserHomeDirStub: sinon.SinonStub
@@ -329,6 +331,101 @@ describe('contextUtils', () => {
             const result = mergeFileLists(fileList1, fileList2)
             expect(result.filePaths).to.deep.equal(['file.js'])
             expect(result.details?.['file.js'].lineRanges).to.deep.equal([{ first: 1, second: 5 }])
+        })
+    })
+
+    describe('getCodeSymbolDescription', () => {
+        it('should return empty string when no symbol exists', () => {
+            const item = {
+                workspaceFolder: '/workspace',
+                type: 'file',
+                relativePath: 'src/file.ts',
+                id: 'id1',
+                // No symbol property
+            } as ContextCommandItem
+
+            const result = getCodeSymbolDescription(item)
+            expect(result).to.equal('')
+        })
+
+        it('should format description without line numbers', () => {
+            const item = {
+                workspaceFolder: '/workspace',
+                type: 'file',
+                relativePath: 'src/utils.ts',
+                id: 'id1',
+                symbol: {
+                    kind: 'Function',
+                    name: 'myFunction',
+                    range: {
+                        start: { line: 9, column: 0 },
+                        end: { line: 19, column: 1 },
+                    },
+                },
+            } as ContextCommandItem
+
+            const result = getCodeSymbolDescription(item, false)
+            expect(result).to.equal('Function, workspace/src/utils.ts')
+        })
+
+        it('should format description with line numbers', () => {
+            const item = {
+                workspaceFolder: '/workspace',
+                type: 'file',
+                relativePath: 'src/utils.ts',
+                id: 'id1',
+                symbol: {
+                    kind: 'Class',
+                    name: 'MyClass',
+                    range: {
+                        start: { line: 9, column: 0 },
+                        end: { line: 19, column: 1 },
+                    },
+                },
+            } as ContextCommandItem
+
+            const result = getCodeSymbolDescription(item, true)
+            expect(result).to.equal('Class, workspace/src/utils.ts, L10-20')
+        })
+
+        it('should handle different workspace folder names', () => {
+            const item = {
+                workspaceFolder: '/projects/my-project',
+                type: 'file',
+                relativePath: 'src/utils.ts',
+                id: 'id1',
+                symbol: {
+                    kind: 'Method',
+                    name: 'myMethod',
+                    range: {
+                        start: { line: 4, column: 2 },
+                        end: { line: 7, column: 3 },
+                    },
+                },
+            } as ContextCommandItem
+
+            const result = getCodeSymbolDescription(item, true)
+            expect(result).to.equal('Method, my-project/src/utils.ts, L5-8')
+        })
+
+        it('should handle different symbol kinds', () => {
+            const item = {
+                workspaceFolder: '/workspace',
+                type: 'file',
+                relativePath: 'src/models.ts',
+                id: 'id1',
+                symbol: {
+                    kind: 'Interface',
+                    name: 'MyInterface',
+                    range: {
+                        start: { line: 0, column: 0 },
+                        end: { line: 5, column: 1 },
+                    },
+                },
+            } as ContextCommandItem
+
+            const result = getCodeSymbolDescription(item, false)
+            expect(result).to.equal('Interface, workspace/src/models.ts')
         })
     })
 })

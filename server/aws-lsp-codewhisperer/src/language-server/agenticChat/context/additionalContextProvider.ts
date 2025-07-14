@@ -25,6 +25,7 @@ import {
     getUserPromptsDirectory,
     getInitialContextInfo,
     promptFileExtension,
+    getCodeSymbolDescription,
 } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { Features } from '../../types'
@@ -239,6 +240,43 @@ export class AdditionalContextProvider {
 
         if (contextInfo.some(item => item.id === '@workspace')) {
             triggerContext.hasWorkspace = true
+        }
+        // Handle code symbol ID mismatches between indexing sessions
+        // When a workspace is re-indexed, code symbols receive new IDs
+        // If a pinned symbol's ID is no longer found in the current index:
+        // 1. Extract the symbol's name, filepath, and kind (without line numbers)
+        // 2. Search for a matching symbol in the current index with the same attributes
+        // 3. Update the pinned symbol's ID to reference the newly indexed equivalent
+        try {
+            let pinnedCodeItems = contextInfo.filter(item => item.pinned).filter(item => item.label === 'code')
+            if (pinnedCodeItems.length > 0) {
+                const localProjectContextController = await LocalProjectContextController.getInstance()
+
+                const availableContextItems = await localProjectContextController.getContextCommandItems()
+                const availableCodeContextItems = availableContextItems.filter(item => item.symbol)
+                for (const command of pinnedCodeItems) {
+                    let matchedId = availableCodeContextItems.find(item => item.id === command.id)
+                    if (!matchedId) {
+                        // Remove line numbers from description
+                        const pinnedItemDescription = command.description?.replace(/,\s*L\d+[-]\d+$/, '')
+                        if (pinnedItemDescription) {
+                            const matchedDescription = availableCodeContextItems.find(availableItem => {
+                                let availableItemDescription = getCodeSymbolDescription(availableItem, false)
+                                return (
+                                    command.command === availableItem.symbol?.name &&
+                                    availableItemDescription === pinnedItemDescription
+                                )
+                            })
+
+                            if (matchedDescription) {
+                                command.id = matchedDescription.id
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            // Do nothing if local project indexing fails
         }
 
         const contextCounts = getInitialContextInfo()
@@ -573,7 +611,6 @@ export class AdditionalContextProvider {
     }
 
     onPinnedContextAdd(params: PinnedContextParams) {
-        // add to this.#pinnedContext if that id isnt already in there
         let itemToAdd = params.contextCommandGroups[0]?.commands?.[0]
         if (itemToAdd) {
             this.chatDb.addPinnedContext(params.tabId, itemToAdd)
