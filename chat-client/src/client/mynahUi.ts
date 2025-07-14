@@ -586,6 +586,7 @@ export const createMynahUi = (
                                     },
                                 ],
                             },
+                            validateOnChange: true,
                             description: "Use this prompt by typing '@' followed by the prompt name.",
                         },
                     ],
@@ -1485,13 +1486,15 @@ ${params.message}`,
 
     const sendPinnedContext = (params: PinnedContextParams) => {
         const pinnedContext = toContextCommands(params.contextCommandGroups[0]?.commands || [])
-        const activeEditor = pinnedContext[0]?.id === ACTIVE_EDITOR_CONTEXT_ID
+        let activeEditor = pinnedContext[0]?.id === ACTIVE_EDITOR_CONTEXT_ID
         // Update Active File pill description with active editor URI passed from IDE
         if (activeEditor) {
             if (params.textDocument != null) {
                 pinnedContext[0].description = params.textDocument.uri
             } else {
+                // IDE did not pass in active file, remove it from pinned context
                 pinnedContext.shift()
+                activeEditor = false
             }
         }
         let promptTopBarTitle = '@'

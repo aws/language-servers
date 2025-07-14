@@ -589,7 +589,7 @@ describe('AdditionalContextProvider', () => {
                 assert.strictEqual(result.length, 2)
                 assert.strictEqual(result[0].userInputMessage?.content?.includes('<promptInstruction>'), true)
                 assert.strictEqual(result[0].userInputMessage?.content?.includes('Follow this rule'), true)
-                assert.strictEqual(result[1].assistantResponseMessage?.content, '')
+                assert.strictEqual(result[1].assistantResponseMessage?.content, 'Thinking...')
             })
 
             it('should convert file context to fileContext XML', async () => {
@@ -671,6 +671,80 @@ describe('AdditionalContextProvider', () => {
                 assert.strictEqual(content.includes('Follow this rule'), true)
                 assert.strictEqual(content.includes('File content'), true)
             })
+        })
+    })
+
+    describe('convertRulesToRulesFolders', () => {
+        it('should convert workspace rules to folders structure', () => {
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+
+            // Configure the getRules stub to return a specific value
+            ;(chatHistoryDb.getRules as sinon.SinonStub).returns({
+                folders: {}, // Empty folders state (default all active)
+                rules: {}, // Empty rules state (default all active)
+            })
+
+            const workspaceRules = [
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file' as any,
+                    relativePath: '.amazonq/rules/rule1.md',
+                    id: '/workspace/.amazonq/rules/rule1.md',
+                },
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file' as any,
+                    relativePath: '.amazonq/rules/rule2.md',
+                    id: '/workspace/.amazonq/rules/rule2.md',
+                },
+            ]
+
+            const result = provider.convertRulesToRulesFolders(workspaceRules, 'tab1')
+
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].folderName, '.amazonq/rules')
+            assert.strictEqual(result[0].active, true)
+            assert.strictEqual(result[0].rules.length, 2)
+            assert.strictEqual(result[0].rules[0].name, 'rule1')
+            assert.strictEqual(result[0].rules[1].name, 'rule2')
+        })
+
+        it('should handle rules with explicit active/inactive states', () => {
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+
+            // Configure the getRules stub to return specific active/inactive states
+            ;(chatHistoryDb.getRules as sinon.SinonStub).returns({
+                folders: {
+                    '.amazonq/rules': false, // This folder is explicitly inactive
+                },
+                rules: {
+                    '/workspace/.amazonq/rules/rule1.md': true, // This rule is explicitly active
+                    '/workspace/.amazonq/rules/rule2.md': false, // This rule is explicitly inactive
+                },
+            })
+
+            const workspaceRules = [
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file' as any,
+                    relativePath: '.amazonq/rules/rule1.md',
+                    id: '/workspace/.amazonq/rules/rule1.md',
+                },
+                {
+                    workspaceFolder: '/workspace',
+                    type: 'file' as any,
+                    relativePath: '.amazonq/rules/rule2.md',
+                    id: '/workspace/.amazonq/rules/rule2.md',
+                },
+            ]
+
+            const result = provider.convertRulesToRulesFolders(workspaceRules, 'tab1')
+
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].folderName, '.amazonq/rules')
+            assert.strictEqual(result[0].active, 'indeterminate') // Should be indeterminate since rules have mixed states
+            assert.strictEqual(result[0].rules[0].active, true) // Explicitly set to true
+            assert.strictEqual(result[0].rules[1].active, false) // Explicitly set to false
         })
     })
 })
