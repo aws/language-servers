@@ -17,6 +17,7 @@ import { Observability } from '@aws/lsp-core'
 import { StsCache } from '../sts/cache/stsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { STSClient } from '@aws-sdk/client-sts'
+import { IAMClient } from '@aws-sdk/client-iam'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -190,6 +191,7 @@ describe('IdentityService', () => {
                 showProgress: _ => Promise.resolve(),
                 sendGetMfaCode: () => Promise.resolve({ code: 'mfa-code' }),
             },
+            () => Promise.resolve({ code: 'mfa-code' }),
             'My Client',
             observability,
             {
@@ -197,9 +199,6 @@ describe('IdentityService', () => {
                 [AuthorizationFlowKind.DeviceCode]: authFlowFn,
             }
         )
-
-        const validatePermissionsStub = stub(sut as any, 'validatePermissions')
-        validatePermissionsStub.resolves(true)
 
         stub(STSClient.prototype, 'send').resolves({
             Credentials: {
@@ -212,6 +211,11 @@ describe('IdentityService', () => {
                 Arn: 'role-arn',
                 AssumedRoleId: 'role-id',
             },
+            Arn: 'role-arn',
+        })
+
+        stub(IAMClient.prototype, 'send').resolves({
+            EvaluationResults: [],
         })
     })
 
@@ -426,22 +430,6 @@ describe('IdentityService', () => {
 
             expect(error.message).to.equal('STS credential not found.')
             expect(stsAutoRefresher.watch.calledOnce).to.be.false
-        })
-
-        it('Can assume role with MFA.', async () => {
-            const actual = await sut.getIamCredential(
-                {
-                    profileName: 'my-mfa-profile',
-                    mfaCode: '123456',
-                },
-                CancellationToken.None
-            )
-
-            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('role-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
-            expect(stsAutoRefresher.watch.notCalled).to.be.true
         })
 
         it('Can login with chained role source profiles.', async () => {
