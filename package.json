@@ -9,7 +9,8 @@
         "chat-client",
         "core/*",
         "server/*",
-        "server/**"
+        "server/**",
+        "integration-tests/*"
     ],
     "scripts": {
         "prepare": "husky .husky",
