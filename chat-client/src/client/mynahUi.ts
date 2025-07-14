@@ -1458,7 +1458,7 @@ ${params.message}`,
         if (!tabId) return
 
         const chatItems = mynahUi.getTabData(tabId)?.getStore()?.chatItems || []
-        const buttonId = params.buttonId
+        const buttonId = params.id
 
         let messageId
         for (const item of chatItems) {
@@ -1761,8 +1761,8 @@ export const uiComponentsTexts = {
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
     spinnerText: 'Thinking...',
-    macStopButtonShortcut: '&#8984; Shift &#9003;',
-    windowStopButtonShortcut: 'Ctrl + Shift + &#9003;',
+    macStopButtonShortcut: '&#8679; &#8984; &#9003;',
+    windowStopButtonShortcut: 'Ctrl + &#8679; + &#9003;',
 }
 
 const getStopGeneratingToolTipText = (os: string | undefined, agenticMode: boolean | undefined): string => {
