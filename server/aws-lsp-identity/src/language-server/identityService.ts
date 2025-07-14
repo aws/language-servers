@@ -20,6 +20,8 @@ import {
     SsoTokenSourceKind,
     Profile,
     ProfileKind,
+    GetMfaCodeParams,
+    GetMfaCodeResult,
 } from '@aws/language-server-runtimes/server-interface'
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
 import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion } from '../sso'
@@ -34,11 +36,11 @@ import {
     SsoFlowParams,
 } from '../sso/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { GetCallerIdentityCommand, STSClient, AssumeRoleCommand } from '@aws-sdk/client-sts'
+import { GetCallerIdentityCommand, STSClient, AssumeRoleCommand, AssumeRoleCommandInput } from '@aws-sdk/client-sts'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
-import { IAMClient, SimulatePrincipalPolicyCommand } from '@aws-sdk/client-iam'
+import { IAMClient, SimulatePrincipalPolicyCommand, SimulatePrincipalPolicyCommandOutput } from '@aws-sdk/client-iam'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
@@ -48,6 +50,23 @@ const flows: AuthFlows = {
     [AuthorizationFlowKind.DeviceCode]: deviceCodeFlow,
     [AuthorizationFlowKind.Pkce]: authorizationCodePkceFlow,
 }
+const qPermissions = [
+    'q:StartConversation',
+    'q:SendMessage',
+    'q:GetConversation',
+    'q:ListConversations',
+    'q:UpdateConversation',
+    'q:DeleteConversation',
+    'q:PassRequest',
+    'q:StartTroubleshootingAnalysis',
+    'q:StartTroubleshootingResolutionExplanation',
+    'q:GetTroubleshootingResults',
+    'q:UpdateTroubleshootingCommandResult',
+    'q:GetIdentityMetaData',
+    'q:GenerateCodeFromCommands',
+    'q:UsePlugin',
+    'codewhisperer:GenerateRecommendations',
+]
 
 export class IdentityService {
     private sourceProfileRecursionCount = 0
@@ -59,6 +78,7 @@ export class IdentityService {
         private readonly stsCache: StsCache,
         private readonly stsAutoRefresher: StsAutoRefresher,
         private readonly handlers: SsoFlowParams['handlers'],
+        private readonly sendGetMfaCode: (params: GetMfaCodeParams) => Promise<GetMfaCodeResult>,
         private readonly clientName: string,
         private readonly observability: Observability,
         private readonly authFlows: AuthFlows = flows
@@ -181,11 +201,7 @@ export class IdentityService {
             let credentials: IamCredentials
             // Assume the role matching the found ARN
             if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
-                credentials = await this.getAssumedRoleCredential(
-                    profile,
-                    options.generateOnInvalidStsCredential,
-                    params.mfaCode
-                )
+                credentials = await this.getAssumedRoleCredential(profile, options.generateOnInvalidStsCredential)
             }
             // Get the credentials directly from the profile
             else if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
@@ -200,8 +216,8 @@ export class IdentityService {
 
             // Validate permissions on user or assumed role
             if (options.validatePermissions) {
-                const hasPermissions = await this.validatePermissions(credentials, profile.settings?.region)
-                if (!hasPermissions) {
+                const response = await this.simulatePermissions(credentials, qPermissions, profile.settings?.region)
+                if (!response?.EvaluationResults?.every(result => result.EvalDecision === 'allowed')) {
                     throw new AwsError(
                         `User or assumed role has insufficient permissions.`,
                         AwsErrorCodes.E_INVALID_PROFILE
@@ -224,8 +240,7 @@ export class IdentityService {
 
     private async getAssumedRoleCredential(
         profile: Profile,
-        generateOnInvalidStsCredential: boolean,
-        mfaCode?: string
+        generateOnInvalidStsCredential: boolean
     ): Promise<IamCredentials> {
         if (!profile.settings) {
             throw new AwsError('Profile settings not found when assuming role.', AwsErrorCodes.E_INVALID_PROFILE)
@@ -244,7 +259,7 @@ export class IdentityService {
             }
         } else if (generateOnInvalidStsCredential) {
             // Generate STS credentials
-            const response = await this.generateStsCredential(profile, mfaCode)
+            const response = await this.generateStsCredential(profile)
             if (!response.Credentials) {
                 throw new AwsError(
                     'Failed to assume role: No credentials returned',
@@ -302,7 +317,7 @@ export class IdentityService {
         return parentCredentials
     }
 
-    private async generateStsCredential(profile: Profile, mfaCode?: string): Promise<StsCredential> {
+    private async generateStsCredential(profile: Profile): Promise<StsCredential> {
         try {
             const parentCredentials = await this.getParentCredential(profile)
             const stsClient = new STSClient({
@@ -310,22 +325,35 @@ export class IdentityService {
                 credentials: parentCredentials,
             })
 
-            const mfaFields =
-                profile.settings?.mfa_serial && mfaCode
-                    ? { SerialNumber: profile.settings?.mfa_serial, TokenCode: mfaCode }
-                    : {}
-            const command = new AssumeRoleCommand({
+            // Add MFA fields to assume role request if MultiFactorAuthPresent is required
+            const assumeRoleInput: AssumeRoleCommandInput = {
                 RoleArn: profile.settings?.role_arn,
                 RoleSessionName: `session-${Date.now()}`,
                 DurationSeconds: 3600,
-                ...mfaFields,
-            })
+            }
+            const response = await this.simulatePermissions(
+                parentCredentials,
+                ['sts:AssumeRole'],
+                profile.settings?.region
+            )
+            if (response.EvaluationResults?.[0]?.MissingContextValues?.includes('aws:MultiFactorAuthPresent')) {
+                if (!profile.settings?.mfa_serial) {
+                    throw new AwsError(
+                        'MFA serial required when assuming role with MultiFactorAuthPresent condition',
+                        AwsErrorCodes.E_INVALID_PROFILE
+                    )
+                }
+                assumeRoleInput.SerialNumber = profile.settings?.mfa_serial
+                // Request an MFA code from the language client
+                assumeRoleInput.TokenCode = (await this.sendGetMfaCode({})).code
+            }
 
+            const command = new AssumeRoleCommand(assumeRoleInput)
             const { Credentials, AssumedRoleUser } = await stsClient.send(command)
             return { Credentials, AssumedRoleUser }
         } catch (e) {
             this.observability.logging.log(`Error generating STS credentials.`)
-            throw new AwsError((e as any).message, AwsErrorCodes.E_CANNOT_CREATE_STS_CREDENTIAL)
+            throw e
         }
     }
 
@@ -475,10 +503,11 @@ export class IdentityService {
     }
 
     // Returns whether the identity associated with the provided credentials has sufficient permissions
-    private async validatePermissions(
+    private async simulatePermissions(
         credentials: IamCredentials,
-        region: string | undefined
-    ): Promise<boolean | undefined> {
+        permissions: string[],
+        region?: string
+    ): Promise<SimulatePrincipalPolicyCommandOutput> {
         // Get the identity associated with the credentials
         const stsClient = new STSClient({ region: region || 'us-east-1', credentials: credentials })
         const identity = await stsClient.send(new GetCallerIdentityCommand({}))
@@ -488,29 +517,12 @@ export class IdentityService {
 
         // Check the permissions attached to the identity
         const iamClient = new IAMClient({ region: region || 'us-east-1', credentials: credentials })
-        const response = await iamClient.send(
+        return await iamClient.send(
             new SimulatePrincipalPolicyCommand({
                 PolicySourceArn: this.convertToIamArn(identity.Arn),
-                ActionNames: [
-                    'q:StartConversation',
-                    'q:SendMessage',
-                    'q:GetConversation',
-                    'q:ListConversations',
-                    'q:UpdateConversation',
-                    'q:DeleteConversation',
-                    'q:PassRequest',
-                    'q:StartTroubleshootingAnalysis',
-                    'q:StartTroubleshootingResolutionExplanation',
-                    'q:GetTroubleshootingResults',
-                    'q:UpdateTroubleshootingCommandResult',
-                    'q:GetIdentityMetaData',
-                    'q:GenerateCodeFromCommands',
-                    'q:UsePlugin',
-                    'codewhisperer:GenerateRecommendations',
-                ],
+                ActionNames: permissions,
             })
         )
-        return response.EvaluationResults?.every(result => result.EvalDecision === 'allowed')
     }
 
     // Converts an assumed role ARN into an IAM role ARN
