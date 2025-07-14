@@ -2065,8 +2065,8 @@ describe('CodeWhisperer Server', () => {
                 expectedSessionData
             )
         })
-
-        it('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+        // we decided to temporarily stop concurrent trigger and disable such logic
+        it.skip('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
             const getCompletionsResponses = await Promise.all([
                 features.doInlineCompletionWithReferences(
                     {
@@ -2128,7 +2128,7 @@ describe('CodeWhisperer Server', () => {
             )
         })
 
-        it('should record all sessions that were created in session log', async () => {
+        it.skip('should record all sessions that were created in session log', async () => {
             // Start 3 session, 2 will be cancelled inflight
             await Promise.all([
                 features.doInlineCompletionWithReferences(
