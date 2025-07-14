@@ -69,10 +69,10 @@ export function registerChat(
                 resolveWebview(webviewView.webview)
 
                 webviewView.webview.onDidReceiveMessage(async message => {
-                    languageClient.info(`[VSCode Client]  Received ${JSON.stringify(message)} from chatt ${os}`)
+                    languageClient.info(`[VSCode Client]  Received ${JSON.stringify(message)}`)
                     switch (message.command) {
                         case COPY_TO_CLIPBOARD:
-                            languageClient.info('[VSCode Client] Copy to clipboard event received....')
+                            languageClient.info('[VSCode Client] Copy to clipboard event received')
                             break
                         case INSERT_TO_CURSOR_POSITION: {
                             const editor = window.activeTextEditor

@@ -1999,7 +1999,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #renderStopShellCommandButton() {
-        const stopKey = this.#getKeybinding('aws.amazonq.stopCmdExecution')
+        const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
         return {
             id: 'stop-shell-command',
             text: 'Stop',
@@ -2008,7 +2008,7 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #getKeybinding(commandId: string): string | null {
+    #getKeyBinding(commandId: string): string | null {
         // Check for feature flag
         const shortcut =
             this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
@@ -2030,6 +2030,7 @@ export class AgenticChatController implements ChatHandlers {
                 defaultKey = OS === 'darwin' ? DEFAULT_MACOS_STOP_SHORTCUT : DEFAULT_WINDOW_STOP_SHORTCUT
                 break
             default:
+                this.#log(`#getKeyBinding: ${commandId} shortcut is supported by Q `)
                 break
         }
 
@@ -2076,8 +2077,8 @@ export class AgenticChatController implements ChatHandlers {
                     this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
                         ?.shortcut
 
-                const runKey = this.#getKeybinding('aws.amazonq.runCmdExecution')
-                const rejectKey = this.#getKeybinding('aws.amazonq.rejectCmdExecution')
+                const runKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
+                const rejectKey = this.#getKeyBinding('aws.amazonq.rejectCmdExecution')
 
                 buttons = requiresAcceptance
                     ? [

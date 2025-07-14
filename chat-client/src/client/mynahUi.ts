@@ -810,11 +810,7 @@ export const createMynahUi = (
                 dragOverlayText: 'Add image to context',
                 // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
-                stopGeneratingTooltip: os
-                    ? os === 'darwin'
-                        ? `Stop ${uiComponentsTexts.macos_stop_shortcut}`
-                        : `Stop ${uiComponentsTexts.window_stop_shortcut}`
-                    : uiComponentsTexts.stopGenerating,
+                stopGeneratingTooltip: getStopGeneratingToolTipText(os, agenticMode),
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
                 ...stringOverrides,
             },
@@ -1764,6 +1760,16 @@ export const uiComponentsTexts = {
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
     spinnerText: 'Thinking...',
-    macos_stop_shortcut: '&#8984; Shift &#9003;',
-    window_stop_shortcut: 'Ctrl + Shift + &#9003;',
+    macStopButtonShortcut: '&#8984; Shift &#9003;',
+    windowStopButtonShortcut: 'Ctrl + Shift + &#9003;',
+}
+
+const getStopGeneratingToolTipText = (os: string | undefined, agenticMode: boolean | undefined): string => {
+    if (os) {
+        return os === 'darwin'
+            ? `Stop ${uiComponentsTexts.macStopButtonShortcut}`
+            : `Stop ${uiComponentsTexts.windowStopButtonShortcut}`
+    }
+
+    return agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating'
 }

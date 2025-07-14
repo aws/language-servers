@@ -148,7 +148,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableChat = process.env.ENABLE_CHAT === 'true'
     const agenticMode = process.env.ENABLE_AGENTIC_UI_MODE === 'true'
     const modelSelectionEnabled = process.env.ENABLE_MODEL_SELECTION === 'true'
-    const OS = os.platform()
+    const osPlatform = os.platform()
     if (enableChat) {
         registerChat(
             client,
@@ -156,7 +156,7 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
             enableEncryptionInit ? encryptionKey : undefined,
             agenticMode,
             modelSelectionEnabled,
-            OS
+            osPlatform
         )
     }
 
