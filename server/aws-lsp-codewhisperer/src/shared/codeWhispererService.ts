@@ -7,6 +7,8 @@ import {
     SDKInitializator,
     CancellationToken,
     CancellationTokenSource,
+    TextDocument,
+    Position,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -26,6 +28,7 @@ import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4cli
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { getErrorId } from './utils'
 import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
+import { applyUnifiedDiff, getEndOfEditPosition } from '../language-server/inline-completion/diffUtils'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -64,6 +67,7 @@ export abstract class CodeWhispererServiceBase {
     public customizationArn?: string
     public profileArn?: string
     abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
+    protected isGcInProgress: boolean = false
 
     inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
 
@@ -82,9 +86,24 @@ export abstract class CodeWhispererServiceBase {
         this.inflightRequests.delete(request)
     }
 
+    isGenerateCompletionInProgress(): boolean {
+        return this.isGcInProgress
+    }
+
     abstract getCredentialsType(): CredentialsType
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
+
+    abstract clearCachedSuggestions(reason?: string): void
+
+    abstract generateCompletionsAndEdits(
+        textDocument: TextDocument,
+        request: GenerateSuggestionsRequest,
+        config: {
+            enablePrefetch: boolean
+            cacheKey: string | number | undefined
+        }
+    ): Promise<GenerateSuggestionsResponse>
 
     constructor(codeWhispererRegion: string, codeWhispererEndpoint: string) {
         this.codeWhispererRegion = codeWhispererRegion
@@ -169,6 +188,20 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
             responseContext,
         }
     }
+
+    generateCompletionsAndEdits(
+        textDocument: TextDocument,
+        request: GenerateSuggestionsRequest,
+        config: {
+            enablePrefetch: boolean
+            cacheKey: string | number
+        }
+    ): Promise<GenerateSuggestionsResponse> {
+        return this.generateSuggestions(request)
+    }
+
+    // No effect as IAM clients don't have this functionality yet
+    clearCachedSuggestions(reason?: string) {}
 }
 
 /**
@@ -180,6 +213,24 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     #createSubscriptionTokenPromise?: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse>
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
+
+    prefetchCache: Map<
+        string | number,
+        { id: string; response: GenerateSuggestionsResponse; request: GenerateSuggestionsRequest }
+    > = new Map()
+
+    isPrefetchInProgress: boolean = false
+
+    editStreakStates: { coldStartSessionid: string; enabled: boolean } = { coldStartSessionid: '', enabled: false }
+
+    private prefetchConfig = {
+        duration: 500, // 500ms
+        maxCacheSuggestionSize: 2,
+        maxRecursiveCallDepth: 2,
+        // TODO: make it shorter, 100s for dev purpose
+        cacheClearIntervalInMs: 100 * 1000, // 100s,
+        eosEndToken: 'eosEnd',
+    }
 
     constructor(
         private credentialsProvider: CredentialsProvider,
@@ -228,12 +279,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
                         const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
                         this.completeRequest(req)
                     })
-                    req.on('error', () => {
-                        this.completeRequest(req)
-                    })
-                    req.on('error', () => {
-                        this.completeRequest(req)
-                    })
                 },
             ],
         }
@@ -248,6 +293,28 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         if (!this.profileArn) return request
 
         return { ...request, profileArn: this.profileArn }
+    }
+
+    getEditStreakState(): { coldStartSessionid: string; enabled: boolean } {
+        return {
+            ...this.editStreakStates,
+        }
+    }
+
+    enableEditStreakMode(flag: boolean) {
+        if (flag) {
+            this.editStreakStates.enabled = true
+            setTimeout(() => {
+                this.editStreakStates.enabled = false
+            }, 60 * 1000)
+        } else {
+            this.editStreakStates.enabled = false
+        }
+    }
+
+    clearCachedSuggestions(reason?: string) {
+        this.logging.info(`[NEP] clearing prefetch cache because: ${reason}`)
+        this.prefetchCache.clear()
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
@@ -269,6 +336,265 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             nextToken: response.nextToken,
         }
         return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+    }
+
+    generateCompletionsAndEdits(
+        textDocument: TextDocument,
+        request: GenerateSuggestionsRequest,
+        config: {
+            enablePrefetch: boolean
+            cacheKey: string | number | undefined
+        }
+    ): Promise<GenerateSuggestionsResponse> {
+        try {
+            this.isGcInProgress = true
+            if (!config.enablePrefetch) {
+                return this.generateSuggestions(request)
+            }
+
+            return this.generateSuggestionsAndPrefetch(textDocument, request, config.cacheKey)
+        } finally {
+            this.isGcInProgress = false
+        }
+    }
+
+    private async generateSuggestionsAndPrefetch(
+        textDocument: TextDocument,
+        originalRequest: GenerateSuggestionsRequest,
+        cacheKey: string | number | undefined
+    ): Promise<GenerateSuggestionsResponse> {
+        const t0 = performance.now()
+        let r: GenerateSuggestionsResponse
+        let type: string = ''
+        if (cacheKey) {
+            if (cacheKey === this.prefetchConfig.eosEndToken) {
+                this.logging.info(`[NEP] reach eos end, return empty`)
+                throw new Error('eos end')
+            }
+
+            // It's possible that we're still waiting for server's response, so should waitUntil
+            const rr = await waitUntil(
+                async () => {
+                    // TODO: use nextToken to retrieve cached suggestion
+                    return this.prefetchCache.get(cacheKey)
+                },
+                {
+                    timeout: 1000,
+                    interval: 50,
+                }
+            )
+            if (!rr) {
+                this.clearCachedSuggestions('there is no cached suggestion')
+                throw new Error('time out')
+            }
+
+            r = rr.response
+            type = 'prefetch'
+        } else {
+            this.clearCachedSuggestions('before cold start')
+            r = await this.generateSuggestions(originalRequest)
+            // TODO: nextToken
+            r.responseContext.nextToken = 'cold-start-fake-token'
+            type = 'coldstart'
+
+            if (r.suggestions.length > 0) {
+                this.editStreakStates.coldStartSessionid = r.responseContext.codewhispererSessionId
+                setTimeout(() => {
+                    this.chainedGenerateCompletionCall(originalRequest, r, textDocument, 0)
+                        .catch(e => {})
+                        .finally(async () => {
+                            // Cache is only valid for x seconds
+                            setTimeout(() => {
+                                this.clearCachedSuggestions('cache is invalid after 100 seconds')
+                            }, this.prefetchConfig.cacheClearIntervalInMs)
+                        })
+                }, this.prefetchConfig.duration)
+            }
+        }
+
+        const logstr = `[NEP] returning suggestions @generateSuggestionsAndPrefetch:
+- latency: ${performance.now() - t0}
+- type: ${type}
+- nextToken: ${r.responseContext.nextToken}
+- suggestion: 
+${r.suggestions[0]?.content ?? '[NO SUGGESTION'}`
+
+        this.logging.info(logstr)
+
+        return r
+    }
+
+    private async chainedGenerateCompletionCall(
+        baseRequest: GenerateSuggestionsRequest,
+        baseResponse: GenerateSuggestionsResponse,
+        textDocument: TextDocument,
+        depth: number,
+        token?: CancellationToken
+    ) {
+        // Only prefetch for EDIT type suggestions
+        if (baseResponse.suggestionType !== SuggestionType.EDIT) {
+            return
+        }
+
+        if (baseResponse.suggestions.length === 0) {
+            return
+        }
+
+        if (depth >= this.prefetchConfig.maxRecursiveCallDepth) {
+            return
+        }
+
+        if (token && token.isCancellationRequested) {
+            return
+        }
+
+        const request = this.buildSubsequentNepRequest(baseRequest, baseResponse, textDocument)
+
+        try {
+            const response = await this.generateSuggestions(request)
+            const isResponseValid =
+                response.suggestions.length > 0 &&
+                response.suggestions[0] &&
+                baseResponse.suggestions[0] &&
+                response.suggestions[0].content !== baseResponse.suggestions[0].content
+
+            if (isResponseValid) {
+                // TODO: use real nextToken returned from service, should only keep eosEndToken once backend changes are done
+                if (depth + 1 < this.prefetchConfig.maxRecursiveCallDepth) {
+                    response.responseContext.nextToken = `fake-token-point-to-depth ${depth + 1}`
+                } else if (depth + 1 === this.prefetchConfig.maxRecursiveCallDepth) {
+                    response.responseContext.nextToken = this.prefetchConfig.eosEndToken
+                }
+
+                const nextToken = response.responseContext.nextToken
+
+                const nt = baseResponse.responseContext.nextToken
+                if (nt) {
+                    this.prefetchCache.set(nt, {
+                        id: baseResponse.responseContext.codewhispererSessionId,
+                        response: response,
+                        request: request,
+                    })
+                }
+
+                setTimeout(async () => {
+                    await this.chainedGenerateCompletionCall(request, response, textDocument, depth + 1, token)
+                }, this.prefetchConfig.duration)
+            }
+
+            this.logging.info(`[NEP] prefetch success @chainedGenerateCompletionCall:
+- file: ${baseRequest.fileContext.filename}
+- depth: ${depth}
+- current prefetch suggestion length: ${this.prefetchCache.size}
+- is prefetch response valid: ${isResponseValid}
+- suggestion (next line):
+${response.suggestions[0].content}`)
+        } catch (e) {
+            this.logging.error(`[NEP] prefetch failure @chainedGenerateCompletionCall:
+- file: ${baseRequest.fileContext.filename}
+- depth: ${depth}
+- current prefetch suggestion length: ${this.prefetchCache.size}
+- error: ${(e as Error).message}`)
+        }
+    }
+
+    // TODO: Confirm/Validate this is correct
+    private buildSubsequentNepRequest(
+        baseRequest: GenerateSuggestionsRequest,
+        baseResponse: GenerateSuggestionsResponse,
+        textDocument: TextDocument
+    ): GenerateSuggestionsRequest {
+        if (baseResponse.suggestionType !== SuggestionType.EDIT) {
+            throw new Error(
+                `Illegal argument: expecting baseResponse to be Edits type but ${baseResponse.suggestionType} is provided`
+            )
+        }
+
+        // Service will only return 1 Edit suggestion
+        const suggestion = baseResponse.suggestions[0]
+
+        // 1. Copy the base request
+        const subsequentRequest = {
+            ...baseRequest,
+            nextToken: undefined,
+        }
+
+        // 2. Apply unified diff and get updated code
+        const docText = baseRequest.fileContext.leftFileContent + baseRequest.fileContext.rightFileContent
+        const newCode = applyUnifiedDiff(docText, suggestion.content)
+        const afterChangePosition = getEndOfEditPosition(docText, newCode)
+
+        // 3. Update file context
+        const { leftContent, rightContent } = this.splitContentAtPosition(newCode, afterChangePosition)
+        subsequentRequest.fileContext = {
+            ...baseRequest.fileContext,
+            leftFileContent: leftContent.slice(-10240),
+            rightFileContent: rightContent.slice(0, 10240),
+        }
+
+        // 4. Update supplemental context
+        subsequentRequest.supplementalContexts = baseRequest.supplementalContexts
+            ? [...baseRequest.supplementalContexts]
+            : []
+        // TODO: handle sup context length > 5 ?
+        subsequentRequest.supplementalContexts.push({
+            content: suggestion.content,
+            filePath: subsequentRequest.fileContext.filename,
+            type: 'PreviousEditorState',
+            metadata: {
+                previousEditorStateMetadata: {
+                    timeOffset: 1000,
+                },
+            },
+        })
+
+        // 5. Update editor state
+        subsequentRequest.editorState = {
+            ...baseRequest.editorState,
+            document: {
+                relativeFilePath: textDocument.uri,
+                programmingLanguage: {
+                    languageName: textDocument.languageId,
+                },
+                text: leftContent + rightContent,
+            },
+            cursorState: {
+                position: {
+                    line: afterChangePosition.line,
+                    character: afterChangePosition.character,
+                },
+            },
+        }
+
+        return subsequentRequest
+    }
+
+    // TODO: Confirm/Validate this is correct
+    private splitContentAtPosition(
+        content: string,
+        position: Position
+    ): {
+        leftContent: string
+        rightContent: string
+    } {
+        // Split content into lines
+        const lines = content.split('\n')
+
+        // Normalize position
+        const targetLine = Math.max(0, Math.min(position.line, lines.length - 1))
+        const targetChar = Math.max(0, Math.min(position.character, lines[targetLine].length))
+
+        // Create left content
+        const leftLines = lines.slice(0, targetLine)
+        const leftPartOfTargetLine = lines[targetLine].substring(0, targetChar)
+        const leftContent = [...leftLines, leftPartOfTargetLine].join('\n')
+
+        // Create right content
+        const rightPartOfTargetLine = lines[targetLine].substring(targetChar)
+        const rightLines = lines.slice(targetLine + 1)
+        const rightContent = [rightPartOfTargetLine, ...rightLines].join('\n')
+
+        return { leftContent, rightContent }
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
