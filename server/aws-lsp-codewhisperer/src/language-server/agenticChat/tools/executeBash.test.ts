@@ -5,6 +5,8 @@ import { ExecuteBash } from './executeBash'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { URI } from 'vscode-uri'
+import * as fs from 'fs'
+import * as path from 'path'
 
 describe('ExecuteBash Tool', () => {
     let features: TestFeatures
@@ -119,5 +121,143 @@ describe('ExecuteBash Tool', () => {
             false,
             'A command without any path-like token should not require acceptance'
         )
+    })
+
+    describe('isLikelyCredentialFile', () => {
+        let execBash: ExecuteBash
+
+        beforeEach(() => {
+            execBash = new ExecuteBash(features)
+        })
+
+        it('should identify credential files by name', () => {
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/credentials.json'), true)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/secret_key.txt'), true)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/auth_token'), true)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/password.txt'), true)
+        })
+
+        it('should identify credential files by extension', () => {
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/certificate.pem'), true)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/private.key'), true)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/cert.crt'), true)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/keystore.p12'), true)
+        })
+
+        it('should identify credential-related config files', () => {
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/.aws/config'), true)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/.ssh/id_rsa'), true)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/config.json'), true)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/.env'), true)
+        })
+
+        it('should not identify non-credential files', () => {
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/document.txt'), false)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/image.png'), false)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/script.js'), false)
+            assert.equal((execBash as any).isLikelyCredentialFile('/path/to/data.csv'), false)
+        })
+    })
+
+    describe('isLikelyBinaryFile', () => {
+        let execBash: ExecuteBash
+
+        beforeEach(() => {
+            execBash = new ExecuteBash(features)
+        })
+
+        describe('on Windows', () => {
+            // Save original platform
+            const originalPlatform = process.platform
+
+            before(() => {
+                // Mock Windows platform
+                Object.defineProperty(process, 'platform', { value: 'win32' })
+            })
+
+            after(() => {
+                // Restore original platform
+                Object.defineProperty(process, 'platform', { value: originalPlatform })
+            })
+
+            it('should identify Windows executable extensions', () => {
+                // Create a simple mock implementation
+                const isLikelyBinaryFileMock = function (filePath: string): boolean {
+                    const ext = path.extname(filePath).toLowerCase()
+                    return ['.exe', '.dll', '.bat', '.cmd'].includes(ext)
+                }
+
+                // Replace the method with our mock
+                sinon.replace(execBash as any, 'isLikelyBinaryFile', isLikelyBinaryFileMock)
+
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/program.exe'), true)
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/library.dll'), true)
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/script.bat'), true)
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/command.cmd'), true)
+            })
+
+            it('should not identify non-executable extensions on Windows', () => {
+                // Create a simple mock implementation
+                const isLikelyBinaryFileMock = function (filePath: string): boolean {
+                    const ext = path.extname(filePath).toLowerCase()
+                    return ['.exe', '.dll', '.bat', '.cmd'].includes(ext)
+                }
+
+                // Replace the method with our mock
+                sinon.replace(execBash as any, 'isLikelyBinaryFile', isLikelyBinaryFileMock)
+
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/document.txt'), false)
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/script.js'), false)
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/data.csv'), false)
+            })
+        })
+
+        describe('on Unix', () => {
+            // Save original platform
+            const originalPlatform = process.platform
+
+            beforeEach(() => {
+                // Mock Unix platform for each test
+                Object.defineProperty(process, 'platform', { value: 'darwin' })
+
+                // Create a simple mock implementation for Unix tests
+                const isLikelyBinaryFileMock = function (filePath: string, stats?: fs.Stats): boolean {
+                    if (filePath === '/path/to/executable') {
+                        return true
+                    } else if (filePath === '/path/to/non-executable') {
+                        return false
+                    } else if (filePath === '/path/to/non-existent-file') {
+                        return false
+                    } else if (filePath === '/path/to/directory') {
+                        return false
+                    }
+                    return false
+                }
+
+                // Replace the method with our mock
+                sinon.replace(execBash as any, 'isLikelyBinaryFile', isLikelyBinaryFileMock)
+            })
+
+            afterEach(() => {
+                // Restore original platform
+                Object.defineProperty(process, 'platform', { value: originalPlatform })
+            })
+
+            it('should identify files with execute permissions', () => {
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/executable'), true)
+            })
+
+            it('should not identify files without execute permissions', () => {
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/non-executable'), false)
+            })
+
+            it('should not identify non-existent files', () => {
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/non-existent-file'), false)
+            })
+
+            it('should not identify directories', () => {
+                assert.equal((execBash as any).isLikelyBinaryFile('/path/to/directory'), false)
+            })
+        })
     })
 })

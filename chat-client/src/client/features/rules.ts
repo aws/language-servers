@@ -47,6 +47,7 @@ export class RulesList {
                                     },
                                 ],
                             },
+                            validateOnChange: true,
                             description:
                                 "This will create a [rule name].md file in your project's .amazonq/rules folder.",
                         },

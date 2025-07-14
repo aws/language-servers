@@ -7,9 +7,11 @@ import { CancellationError, processUtils, workspaceUtils } from '@aws/lsp-core'
 import { CancellationToken } from 'vscode-languageserver'
 import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/processUtils'
 // eslint-disable-next-line import/no-nodejs-modules
-import { isAbsolute, join } from 'path' // Safe to import on web since this is part of path-browserify
+import { isAbsolute, join, extname } from 'path' // Safe to import on web since this is part of path-browserify
 import { Features } from '../../types'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
+// eslint-disable-next-line import/no-nodejs-modules
+import { existsSync, statSync } from 'fs'
 
 export enum CommandCategory {
     ReadOnly,
@@ -109,6 +111,9 @@ export const lineCount: number = 1024
 export const destructiveCommandWarningMessage = 'WARNING: Potentially destructive command detected:\n\n'
 export const mutateCommandWarningMessage = 'Mutation command:\n\n'
 export const outOfWorkspaceWarningmessage = 'Execution out of workspace scope:\n\n'
+export const credentialFileWarningMessage =
+    'WARNING: Command involves credential files that require secure permissions:\n\n'
+export const binaryFileWarningMessage = 'WARNING: Command involves binary files that require secure permissions:\n\n'
 
 /**
  * Parameters for executing a command on the system shell.
@@ -242,6 +247,34 @@ export class ExecuteBash {
                             continue
                         }
 
+                        // Check if this is a credential file that needs protection
+                        try {
+                            if (existsSync(fullPath) && statSync(fullPath).isFile()) {
+                                // Check for credential files
+                                if (this.isLikelyCredentialFile(fullPath)) {
+                                    this.logging.info(`Detected credential file in command: ${fullPath}`)
+                                    return {
+                                        requiresAcceptance: true,
+                                        warning: credentialFileWarningMessage,
+                                        commandCategory: CommandCategory.Mutate,
+                                    }
+                                }
+
+                                // Check for binary files
+                                if (this.isLikelyBinaryFile(fullPath)) {
+                                    this.logging.info(`Detected binary file in command: ${fullPath}`)
+                                    return {
+                                        requiresAcceptance: true,
+                                        warning: binaryFileWarningMessage,
+                                        commandCategory: CommandCategory.Mutate,
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            // Ignore errors for files that don't exist or can't be accessed
+                            this.logging.debug(`Error checking file ${fullPath}: ${(err as Error).message}`)
+                        }
+
                         const isInWorkspace = workspaceUtils.isInWorkspace(
                             getWorkspaceFolderPaths(this.workspace),
                             fullPath
@@ -352,15 +385,82 @@ export class ExecuteBash {
         }
     }
 
+    // Static patterns for faster lookups - defined once, used many times
+    private static readonly CREDENTIAL_PATTERNS = new Set([
+        'credential',
+        'secret',
+        'token',
+        'password',
+        'key',
+        'cert',
+        'auth',
+        '.aws',
+        '.ssh',
+        '.pgp',
+        '.gpg',
+        '.pem',
+        '.crt',
+        '.key',
+        '.p12',
+        '.pfx',
+        'config.json',
+        'settings.json',
+        '.env',
+        '.npmrc',
+        '.yarnrc',
+    ])
+
+    private static readonly BINARY_EXTENSIONS_WINDOWS = new Set(['.exe', '.dll', '.bat', '.cmd'])
+
+    /**
+     * Efficiently checks if a file is likely to contain credentials based on name or extension
+     * @param filePath Path to check
+     * @returns true if the file likely contains credentials
+     */
+    private isLikelyCredentialFile(filePath: string): boolean {
+        const fileName = filePath.toLowerCase()
+
+        // Fast check using Set for O(1) lookups instead of array iteration
+        for (const pattern of ExecuteBash.CREDENTIAL_PATTERNS) {
+            if (fileName.includes(pattern)) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /**
+     * Efficiently checks if a file is a binary executable
+     * @param filePath Path to check
+     * @returns true if the file is likely a binary executable
+     */
+    private isLikelyBinaryFile(filePath: string): boolean {
+        if (IS_WINDOWS_PLATFORM) {
+            const ext = extname(filePath).toLowerCase()
+            return ExecuteBash.BINARY_EXTENSIONS_WINDOWS.has(ext)
+        }
+
+        try {
+            // Check if file exists and is executable
+            const stats = statSync(filePath)
+            return stats.isFile() && (stats.mode & 0o111) !== 0 // Check if any execute bit is set
+        } catch (error) {
+            this.logging.debug(`Failed to check if file is binary: ${filePath}, error: ${(error as Error).message}`)
+            return false
+        }
+    }
+
     // TODO: generalize cancellation logic for tools.
     public async invoke(
         params: ExecuteBashParams,
         cancellationToken?: CancellationToken,
         updates?: WritableStream
     ): Promise<InvokeOutput> {
+        // use absoluate file path
         const { shellName, shellFlag } = IS_WINDOWS_PLATFORM
-            ? { shellName: 'cmd.exe', shellFlag: '/c' }
-            : { shellName: 'bash', shellFlag: '-c' }
+            ? { shellName: 'C:\\Windows\\System32\\cmd.exe', shellFlag: '/c' }
+            : { shellName: '/bin/bash', shellFlag: '-c' }
         this.logging.info(`Invoking ${shellName} command: "${params.command}" in cwd: "${params.cwd}"`)
 
         return new Promise(async (resolve, reject) => {

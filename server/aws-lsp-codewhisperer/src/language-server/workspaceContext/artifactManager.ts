@@ -69,6 +69,7 @@ export class ArtifactManager {
     private workspaceFolders: WorkspaceFolder[]
     // TODO, how to handle when two workspace folders have the same name but different URI
     private filesByWorkspaceFolderAndLanguage: Map<WorkspaceFolder, Map<CodewhispererLanguage, FileMetadata[]>>
+    private isDisposed: boolean = false
 
     constructor(workspace: Workspace, logging: Logging, workspaceFolders: WorkspaceFolder[]) {
         this.workspace = workspace
@@ -124,7 +125,17 @@ export class ArtifactManager {
         return zipFileMetadata
     }
 
-    async removeWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<void> {
+    public resetFromDisposal(): void {
+        this.isDisposed = false
+    }
+
+    dispose(): void {
+        this.filesByWorkspaceFolderAndLanguage.clear()
+        this.workspaceFolders = []
+        this.isDisposed = true
+    }
+
+    removeWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): void {
         workspaceFolders.forEach(workspaceToRemove => {
             // Find the matching workspace folder by URI
             let folderToDelete: WorkspaceFolder | undefined
@@ -543,6 +554,9 @@ export class ArtifactManager {
         }
 
         for (const workspaceFolder of workspaceFolders) {
+            if (this.isDisposed) {
+                break
+            }
             const workspacePath = URI.parse(workspaceFolder.uri).path
 
             try {
@@ -579,6 +593,9 @@ export class ArtifactManager {
         const zipFileMetadata: FileMetadata[] = []
         await this.updateWorkspaceFiles(workspaceFolder, filesByLanguage)
         for (const [language, files] of filesByLanguage.entries()) {
+            if (this.isDisposed) {
+                break
+            }
             // Generate java .classpath and .project files
             const processedFiles =
                 language === 'java' ? await this.processJavaProjectConfig(workspaceFolder, files) : files
