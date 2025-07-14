@@ -2004,7 +2004,7 @@ export class AgenticChatController implements ChatHandlers {
             id: 'stop-shell-command',
             text: 'Stop',
             icon: 'stop',
-            ...(stopKey ? { description: `Stop ${stopKey}` } : {}),
+            ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
         }
     }
 
@@ -2086,14 +2086,14 @@ export class AgenticChatController implements ChatHandlers {
                               id: 'run-shell-command',
                               text: 'Run',
                               icon: 'play',
-                              ...(runKey ? { description: `Run ${runKey}` } : {}),
+                              ...(runKey ? { description: `Run:  ${runKey}` } : {}),
                           },
                           {
                               id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
-                              ...(rejectKey ? { description: `Reject ${rejectKey}` } : {}),
+                              ...(rejectKey ? { description: `Reject:  ${rejectKey}` } : {}),
                           },
                       ]
                     : []

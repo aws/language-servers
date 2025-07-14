@@ -37,7 +37,7 @@ import {
     RuleClickResult,
     SourceLinkClickParams,
     ListAvailableModelsResult,
-    ExecuteShellCommandShortCutParams,
+    ExecuteShellCommandParams,
 } from '@aws/language-server-runtimes-types'
 import {
     ChatItem,
@@ -95,7 +95,7 @@ export interface InboundChatApi {
     openTab(requestId: string, params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
-    executeShellCommandShortCut(params: ExecuteShellCommandShortCutParams): void
+    executeShellCommandShortCut(params: ExecuteShellCommandParams): void
     listRules(params: ListRulesResult): void
     conversationClicked(params: ConversationClickResult): void
     ruleClicked(params: RuleClickResult): void
@@ -1453,7 +1453,7 @@ ${params.message}`,
         messager.onError(params)
     }
 
-    const executeShellCommandShortCut = (params: ExecuteShellCommandShortCutParams) => {
+    const executeShellCommandShortCut = (params: ExecuteShellCommandParams) => {
         const tabId = mynahUi.getSelectedTabId()
         if (!tabId) return
 
@@ -1768,8 +1768,8 @@ export const uiComponentsTexts = {
 const getStopGeneratingToolTipText = (os: string | undefined, agenticMode: boolean | undefined): string => {
     if (os) {
         return os === 'darwin'
-            ? `Stop ${uiComponentsTexts.macStopButtonShortcut}`
-            : `Stop ${uiComponentsTexts.windowStopButtonShortcut}`
+            ? `Stop:  ${uiComponentsTexts.macStopButtonShortcut}`
+            : `Stop:  ${uiComponentsTexts.windowStopButtonShortcut}`
     }
 
     return agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating'
