@@ -188,6 +188,7 @@ import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelect
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
+import { ActiveUserTracker } from '../../shared/activeUserTracker'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -229,6 +230,7 @@ export class AgenticChatController implements ChatHandlers {
     #mcpEventHandler: McpEventHandler
     #paidTierMode: PaidTierMode | undefined
     #origin: Origin
+    #activeUserTracker: ActiveUserTracker
 
     // latency metrics
     #llmRequestStartTime: number = 0
@@ -303,6 +305,7 @@ export class AgenticChatController implements ChatHandlers {
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
+        this.#activeUserTracker = ActiveUserTracker.getInstance()
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -584,6 +587,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#contextCommandsProvider?.dispose()
         this.#userWrittenCodeTracker?.dispose()
         this.#mcpEventHandler.dispose()
+        this.#activeUserTracker.dispose()
     }
 
     async onListConversations(params: ListConversationsParams) {
@@ -669,6 +673,12 @@ export class AgenticChatController implements ChatHandlers {
         const metric = new Metric<CombinedConversationEvent>({
             cwsprChatConversationType: 'AgenticChat',
         })
+
+        const isNewActiveUserEvent = this.#activeUserTracker.isNewActiveUser()
+        if (isNewActiveUserEvent) {
+            this.#log('New active user window initiated')
+            this.#telemetryController.emitActiveUser()
+        }
 
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
