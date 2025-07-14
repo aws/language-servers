@@ -674,14 +674,6 @@ export class AgenticChatController implements ChatHandlers {
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
 
-            // **CRITICAL FIX**: Capture current file path early for fsReplace streaming
-            // This ensures we have the path available before any streaming events arrive
-            const currentFilePath = triggerContext.activeFilePath || triggerContext.relativeFilePath
-            if (currentFilePath) {
-                this.#debug(`[AgenticChatController] 📁 Captured current file path for streaming: ${currentFilePath}`)
-                // Store the current file path in the session for use during streaming
-                session.currentFilePath = currentFilePath
-            }
             if (triggerContext.programmingLanguage?.languageName) {
                 this.#userWrittenCodeTracker?.recordUsageCount(triggerContext.programmingLanguage.languageName)
             }
@@ -3442,13 +3434,7 @@ export class AgenticChatController implements ChatHandlers {
         abortSignal?: AbortSignal
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
-        const chatEventParser = new AgenticChatEventParser(
-            requestId,
-            metric,
-            this.#features.logging,
-            this.#features,
-            session
-        )
+        const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging, this.#features)
 
         // Display context transparency list once at the beginning of response
         // Use a flag to track if contextList has been sent already to avoid ux flickering
@@ -3509,8 +3495,9 @@ export class AgenticChatController implements ChatHandlers {
                     await new Promise(resolve => setTimeout(resolve, 50))
                 }
 
-                // Process all tool events immediately and await completion - NO MORE FIRE-AND-FORGET
-                await this.processToolUseChunkForStreaming(chatEvent.toolUseEvent!, result.data, session.conversationId)
+                // NOTE: Streaming is now handled by AgenticChatEventParser.#sendStreamingChunk()
+                // to avoid duplicate streaming chunks. The processToolUseChunkForStreaming method
+                // was causing duplicate chunks to be sent to the client.
             }
         }
         if (isEmptyResponse) {
@@ -3788,221 +3775,94 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
-     * Process tool use chunk for streaming diff animations with proper client integration
+     * Process tool use chunk for streaming diff animations
      */
     protected async processToolUseChunkForStreaming(
         toolUseEvent: ToolUseEvent,
         data: AgenticChatResultWithMetadata,
         tabId?: string
     ): Promise<void> {
-        // Only process fsWrite and fsReplace tool use events for streaming
-        if ((toolUseEvent.name !== 'fsWrite' && toolUseEvent.name !== 'fsReplace') || !toolUseEvent.toolUseId) {
+        if (toolUseEvent.name !== 'fsWrite' || !toolUseEvent.toolUseId) {
             return
         }
 
+        // **CRITICAL FIX**: Check if this tool use has already been marked as complete
+        // This prevents redundant streaming chunks from being sent after completion
+        if (this.#streamedToolUses.has(toolUseEvent.toolUseId)) {
+            this.#debug(`Skipping redundant streaming chunk for completed tool use: ${toolUseEvent.toolUseId}`)
+            return
+        }
+
+        // **CRITICAL FIX**: Check if session is still active before sending streaming chunks
+        if (tabId) {
+            const sessionResult = this.#chatSessionManagementService.getSession(tabId)
+            if (!sessionResult.success || !sessionResult.data) {
+                this.#debug(`Skipping streaming chunk - session not found for tab: ${tabId}`)
+                return
+            }
+        }
+
         try {
-            // Get the tool use data from the parsed result
             const toolUse = data.toolUses[toolUseEvent.toolUseId]
             if (!toolUse) {
                 return
             }
 
-            // **CRITICAL FIX**: Use regex-based extraction for partial JSON, similar to AgenticChatEventParser
             let path: string | undefined
             let content: string | undefined
 
             if (typeof toolUse.input === 'string') {
-                // First try JSON parsing for complete input
                 try {
                     const parsedInput = JSON.parse(toolUse.input)
                     path = parsedInput.path
-
-                    // **NEW: Handle fsReplace tool with diffs array**
-                    if (
-                        toolUse.name === 'fsReplace' &&
-                        parsedInput.diffs &&
-                        Array.isArray(parsedInput.diffs) &&
-                        parsedInput.diffs.length > 0
-                    ) {
-                        // For fsReplace, show the newStr from the first diff as streaming content
-                        const firstDiff = parsedInput.diffs[0]
-                        content = firstDiff.newStr || ''
-                    } else if (parsedInput.command === 'strReplace') {
-                        content = parsedInput.newStr
-                    } else {
-                        content = parsedInput.fileText || parsedInput.content || parsedInput.newStr
-                    }
+                    content = parsedInput.fileText || parsedInput.content
                 } catch (error) {
-                    // JSON parsing failed, use regex extraction for partial JSON
-                    this.#debug(
-                        `[AgenticChatController] 🔍 JSON parsing failed, using regex extraction for partial input: ${toolUse.input.substring(0, 100)}...`
-                    )
-
-                    // Extract path
+                    // Simple regex extraction for path and content
                     const pathMatch = toolUse.input.match(/"path"\s*:\s*"([^"]*)"/)
                     path = pathMatch?.[1]
 
-                    // **NEW: Handle fsReplace tool with diffs array in partial JSON**
-                    if (toolUse.name === 'fsReplace') {
-                        // Try to extract newStr from first diff in diffs array
-                        const diffsMatch = toolUse.input.match(
-                            /"diffs"\s*:\s*\[\s*\{\s*[^}]*"newStr"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/
-                        )
-                        if (diffsMatch) {
-                            content = diffsMatch[1]
-                                .replace(/\\"/g, '"')
-                                .replace(/\\n/g, '\n')
-                                .replace(/\\t/g, '\t')
-                                .replace(/\\r/g, '\r')
-                                .replace(/\\\\/g, '\\')
-                        }
-                    } else {
-                        // Extract command to determine content field
-                        const commandMatch = toolUse.input.match(/"command"\s*:\s*"([^"]*)"/)
-                        const command = commandMatch?.[1] || 'unknown'
-
-                        // Determine content field based on command
-                        let contentField = 'fileText'
-                        if (command === 'strReplace' || command === 'str_replace_editor') {
-                            contentField = 'newStr|new_str'
-                        } else if (command === 'create') {
-                            contentField = 'fileText|content|text'
-                        }
-
-                        // Extract content using the determined field
-                        const contentFields = contentField.split('|')
-                        for (const field of contentFields) {
-                            const contentMatch = toolUse.input.match(
-                                new RegExp(`"${field}"\\s*:\\s*"([^"]*(?:\\\\.[^"]*)*)"`, 's')
-                            )
-                            if (contentMatch) {
-                                content = contentMatch[1]
-                                break
-                            }
-                        }
-                    }
-
-                    this.#debug(
-                        `[AgenticChatController] 🔍 Regex extraction: tool=${toolUse.name}, path=${path}, content length=${content?.length || 0}`
-                    )
+                    const contentMatch = toolUse.input.match(/"fileText"\s*:\s*"([^"]*)"/)
+                    content = contentMatch?.[1]
                 }
             } else if (typeof toolUse.input === 'object' && toolUse.input !== null) {
                 const inputObj = toolUse.input as any
                 path = inputObj.path
-
-                // **NEW: Handle fsReplace tool with diffs array**
-                if (
-                    toolUse.name === 'fsReplace' &&
-                    inputObj.diffs &&
-                    Array.isArray(inputObj.diffs) &&
-                    inputObj.diffs.length > 0
-                ) {
-                    // For fsReplace, show the newStr from the first diff as streaming content
-                    const firstDiff = inputObj.diffs[0]
-                    content = firstDiff.newStr || ''
-                } else if (inputObj.command === 'strReplace') {
-                    content = inputObj.newStr
-                } else {
-                    content = inputObj.fileText || inputObj.content || inputObj.newStr
-                }
+                content = inputObj.fileText || inputObj.content
             }
 
-            // **CRITICAL FIX**: Send streaming chunks even without path initially, but with toolUseId for tracking
-            // This ensures the streaming system is triggered and can be updated when path becomes available
-            if (!path && !toolUse.stop) {
-                this.#debug(
-                    `[AgenticChatController] 🌊 Sending early streaming chunk without path: toolUseId=${toolUse.toolUseId}`
-                )
-
-                // Send a minimal streaming chunk to establish the streaming session
-                await this.#features.chat.sendChatUpdate({
-                    tabId: tabId || 'streaming',
-                    data: {
-                        streamingChunk: {
-                            toolUseId: toolUse.toolUseId,
-                            toolName: toolUse.name,
-                            filePath: '', // Empty path initially
-                            content: content || '',
-                            isComplete: false,
-                            timestamp: Date.now(),
-                            chunkSize: content?.length || 0,
-                            totalSize: content?.length || 0,
-                        },
-                    },
-                } as any)
-                return
-            }
-
-            // Skip if still no path and tool is complete
             if (!path) {
-                this.#debug(
-                    `[AgenticChatController] ⚠️ Missing path in streaming chunk: toolUseId=${toolUse.toolUseId}`
-                )
                 return
             }
 
-            // **CRITICAL FIX**: Capture original content on first streaming chunk for diff calculation
-            if (!toolUse.stop && !this.#streamedToolUses.has(toolUse.toolUseId!)) {
-                this.#streamedToolUses.add(toolUse.toolUseId!) // Mark as streamed to avoid duplicate captures
-
-                try {
-                    const document = await this.#triggerContext.getTextDocumentFromPath(path, true, true)
-                    const originalContent = document?.getText() || ''
-
-                    this.#debug(
-                        `[AgenticChatController] 📸 Capturing original content for ${path}: ${originalContent.length} chars`
-                    )
-
-                    if (tabId) {
-                        const sessionResult = this.#chatSessionManagementService.getSession(tabId)
-                        if (sessionResult.success && sessionResult.data) {
-                            const session = sessionResult.data
-                            const existingToolUse = session.toolUseLookup.get(toolUse.toolUseId!)
-                            if (existingToolUse) {
-                                session.toolUseLookup.set(toolUse.toolUseId!, {
-                                    ...existingToolUse,
-                                    fileChange: { before: originalContent },
-                                })
-                            }
-                        }
-                    }
-                } catch (error) {
-                    this.#debug(`[AgenticChatController] ❌ Failed to capture original content for ${path}: ${error}`)
-                }
+            // **CRITICAL FIX**: Mark tool use as complete when stop=true to prevent further chunks
+            if (toolUse.stop) {
+                this.#streamedToolUses.add(toolUseEvent.toolUseId)
+                this.#debug(
+                    `Marked tool use ${toolUseEvent.toolUseId} as complete - no more streaming chunks will be sent`
+                )
             }
 
-            // Content might be empty or partial during streaming - that's okay
-            const contentLength = content ? content.length : 0
-
-            this.#debug(
-                `[AgenticChatController] 🌊 Processing streaming chunk for ${toolUse.name}: ${toolUse.toolUseId}, path: ${path}, content length: ${contentLength}, stop: ${toolUse.stop}`
-            )
-
-            // **CRITICAL FIX**: Always send streaming chunks in the exact format the client expects
-            // The client ChatProcessor looks for streamingChunk data to trigger diff animations
             await this.#features.chat.sendChatUpdate({
-                tabId: tabId || 'streaming', // Use provided tabId or fallback
+                tabId: tabId || 'streaming',
                 data: {
-                    // This matches exactly what the client ChatProcessor expects
                     streamingChunk: {
                         toolUseId: toolUse.toolUseId,
                         toolName: toolUse.name,
                         filePath: path,
-                        content: content || '', // Ensure content is always a string
+                        content: content || '',
                         isComplete: toolUse.stop || false,
-                        // Enhanced metadata for better tracking
                         timestamp: Date.now(),
-                        chunkSize: contentLength,
-                        totalSize: contentLength, // Client will track total progress
+                        chunkSize: content?.length || 0,
+                        totalSize: content?.length || 0,
                     },
                 },
-            } as any) // Cast to any since we're extending the ChatUpdateParams interface
+            } as any)
 
             this.#debug(
-                `[AgenticChatController] ✅ Sent streaming chunk to client for ${path} (${contentLength} chars, complete: ${toolUse.stop})`
+                `Sent streaming chunk for ${toolUseEvent.toolUseId}: ${content?.length || 0} chars (complete: ${toolUse.stop})`
             )
         } catch (error) {
-            this.#debug(`[AgenticChatController] ❌ Failed to process streaming chunk: ${error}`)
+            this.#debug(`Failed to process streaming chunk: ${error}`)
         }
     }
 

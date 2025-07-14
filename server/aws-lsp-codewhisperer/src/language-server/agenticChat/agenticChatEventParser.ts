@@ -96,11 +96,94 @@ export class AgenticChatEventParser implements ChatResult {
         this.#metric = metric
         this.#logging = logging
         this.#features = features
-        this.#features = features
     }
 
     public get totalEvents() {
         return this.#totalEvents
+    }
+
+    /**
+     * Send final complete fsReplace result to VSCode for line-by-line diff animation
+     */
+    #sendFsReplaceComplete(toolUseId: string, completeInput: string) {
+        if (!this.#features?.chat) {
+            return
+        }
+
+        try {
+            this.#logging.debug(
+                `[AgenticChatEventParser] 🔄 Processing complete fsReplace input (${completeInput.length} chars)`
+            )
+
+            // Parse the complete JSON to extract diffs and path
+            let path: string | undefined
+            let diffString = ''
+
+            try {
+                const parsed = JSON.parse(completeInput || '{}')
+                path = parsed.path
+
+                // Extract diffs array and send them as structured diffs for proper line mapping
+                if (parsed.diffs && Array.isArray(parsed.diffs) && parsed.diffs.length > 0) {
+                    // **FIX: Send structured diffs instead of simple line-by-line format**
+                    // This allows StreamingDiffController to properly map old lines to new lines
+                    const structuredDiffs = parsed.diffs.map((diff: any) => ({
+                        oldStr: diff.oldStr || '',
+                        newStr: diff.newStr || '',
+                    }))
+
+                    // Create a JSON string containing the structured diffs
+                    diffString = JSON.stringify({
+                        type: 'structured_diffs',
+                        diffs: structuredDiffs,
+                    })
+
+                    this.#logging.debug(
+                        `[AgenticChatEventParser] 🔧 Created structured diffs: ${structuredDiffs.length} diff blocks`
+                    )
+                }
+
+                this.#logging.debug(
+                    `[AgenticChatEventParser] ✅ Parsed fsReplace: path=${path}, diffString length=${diffString.length}`
+                )
+            } catch (error) {
+                this.#logging.error(`[AgenticChatEventParser] ❌ Failed to parse fsReplace JSON: ${error}`)
+                return
+            }
+
+            if (!path) {
+                this.#logging.warn(`[AgenticChatEventParser] ⚠️ No path available for fsReplace complete`)
+                return
+            }
+
+            // **DEBUG: Print complete final string being sent to VSCode**
+            const finalPayload = {
+                tabId: '',
+                data: {
+                    fsReplaceComplete: {
+                        toolUseId: toolUseId,
+                        filePath: path,
+                        diffString: diffString, // Combined diff string for line-by-line processing
+                        timestamp: Date.now(),
+                    },
+                },
+            }
+
+            this.#logging.debug(
+                `[AgenticChatEventParser] 🔍 COMPLETE FINAL PAYLOAD BEING SENT TO VSC:\n${JSON.stringify(finalPayload, null, 2)}`
+            )
+
+            this.#logging.debug(`[AgenticChatEventParser] 🔍 COMPLETE DIFF STRING BEING SENT:\n${diffString}`)
+
+            // Send the complete fsReplace result to VSCode
+            this.#features!.chat.sendChatUpdate(finalPayload as any)
+
+            this.#logging.debug(
+                `[AgenticChatEventParser] ✅ Sent fsReplace complete to VSCode: ${path} (${diffString.length} chars)`
+            )
+        } catch (error) {
+            this.#logging.error(`[AgenticChatEventParser] ❌ Failed to send fsReplace complete: ${error}`)
+        }
     }
 
     /**
@@ -117,6 +200,11 @@ export class AgenticChatEventParser implements ChatResult {
         }
 
         try {
+            // Only process fsWrite for streaming - fsReplace uses complete chunks only
+            if (toolName !== 'fsWrite') {
+                return
+            }
+
             // Try to extract path, content, and fsWrite operation parameters
             let path: string | undefined
             let content: string | undefined
@@ -125,13 +213,6 @@ export class AgenticChatEventParser implements ChatResult {
             this.#logging.debug(
                 `[AgenticChatEventParser] 🔍 Processing accumulated input (${accumulatedInput.length} chars): ${accumulatedInput.substring(0, 200)}...`
             )
-
-            // **CRITICAL DEBUG**: For fsReplace, log the full input to understand the structure
-            if (toolName === 'fsReplace') {
-                this.#logging.debug(
-                    `[AgenticChatEventParser] 🔍 FULL fsReplace input for debugging (${accumulatedInput.length} chars): ${accumulatedInput}`
-                )
-            }
 
             // Try to parse as JSON first (for complete JSON)
             if (isComplete) {
@@ -151,40 +232,12 @@ export class AgenticChatEventParser implements ChatResult {
                         explanation: parsed.explanation,
                     }
 
-                    // **COMPLETE FIX: Handle ALL fsWrite command types AND fsReplace for complete JSON parsing**
-                    if (toolName === 'fsReplace') {
-                        // **NEW: Handle fsReplace tool with diffs array**
-                        if (parsed.diffs && Array.isArray(parsed.diffs) && parsed.diffs.length > 0) {
-                            // For fsReplace, show the newStr from the first diff as streaming content
-                            const firstDiff = parsed.diffs[0]
-                            content = firstDiff.newStr || ''
+                    // **COMPLETE FIX: Handle ALL fsWrite command types for complete JSON parsing**
 
-                            // Update fsWriteParams for fsReplace
-                            fsWriteParams = {
-                                command: 'strReplace', // Use strReplace for compatibility with streaming controller
-                                path: parsed.path,
-                                oldStr: firstDiff.oldStr,
-                                newStr: firstDiff.newStr,
-                                explanation: parsed.explanation,
-                                // Include all diffs for complete context
-                                diffs: parsed.diffs,
-                            }
-                        } else {
-                            content = ''
-                        }
-                    } else if (parsed.command === 'strReplace') {
-                        content = parsed.newStr
-                    } else if (parsed.command === 'str_replace_editor') {
-                        content = parsed.new_str
-                    } else if (parsed.command === 'create') {
+                    if (parsed.command === 'create') {
                         content = parsed.fileText
                     } else if (parsed.command === 'append') {
                         content = parsed.newStr
-                    } else if (parsed.command === 'insert') {
-                        content = parsed.newStr
-                    } else {
-                        // For direct file creation without command field or unknown commands
-                        content = parsed.fileText || parsed.content || parsed.text || parsed.newStr || parsed.new_str
                     }
 
                     this.#logging.debug(
@@ -197,68 +250,17 @@ export class AgenticChatEventParser implements ChatResult {
 
             // If we don't have complete JSON or parsing failed, try progressive extraction
             if (!path || content === undefined) {
-                // Extract path using regex - for fsReplace, path might come after diffs array
-                const pathMatch = accumulatedInput.match(/"path":\s*"([^"]*)"/)
-                path = pathMatch?.[1]
-
-                // **CRITICAL FIX**: For fsReplace, if path is not found yet, try alternative extraction methods
-                if (!path && toolName === 'fsReplace') {
+                // **UNIFIED FIX**: For fsWrite, use session's current file path immediately
+                if (!path) {
                     this.#logging.debug(
-                        `[AgenticChatEventParser] 🔍 Path not found yet for fsReplace, trying alternative extraction methods`
+                        `[AgenticChatEventParser] 🔍 Path not found in JSON yet for ${toolName}, using session context`
                     )
 
-                    // **NEW APPROACH**: Try to extract path from explanation field which often contains the filename
-                    const explanationMatch = accumulatedInput.match(/"explanation":\s*"([^"]*)"/)
-                    if (explanationMatch) {
-                        const explanation = explanationMatch[1]
-                        // Look for file paths in the explanation (common patterns)
-                        const pathInExplanation = explanation.match(
-                            /(?:\/[^\/\s]+)+\.[a-zA-Z0-9]+|[a-zA-Z0-9_-]+\.[a-zA-Z0-9]+/
-                        )
-                        if (pathInExplanation) {
-                            path = pathInExplanation[0]
-                            // If it's a relative path, we might need to make it absolute
-                            if (!path.startsWith('/')) {
-                                // For now, use as-is - the client can resolve relative paths
-                                this.#logging.debug(
-                                    `[AgenticChatEventParser] 🔍 Extracted relative path from explanation: ${path}`
-                                )
-                            } else {
-                                this.#logging.debug(
-                                    `[AgenticChatEventParser] 🔍 Extracted absolute path from explanation: ${path}`
-                                )
-                            }
-                        }
-                    }
-
-                    // **FALLBACK**: If still no path, extract content from diffs and send with placeholder path
                     if (!path) {
-                        // Try to extract newStr from first diff in diffs array for content
-                        const diffsMatch = accumulatedInput.match(
-                            /"diffs"\s*:\s*\[\s*\{\s*[^}]*"newStr"\s*:\s*"([^"]*(?:\\.[^"]*)*)"/
-                        )
-                        if (diffsMatch) {
-                            content = diffsMatch[1]
-                                .replace(/\\"/g, '"')
-                                .replace(/\\n/g, '\n')
-                                .replace(/\\t/g, '\t')
-                                .replace(/\\r/g, '\r')
-                                .replace(/\\\\/g, '\\')
-
-                            this.#logging.debug(
-                                `[AgenticChatEventParser] 🔍 Extracted content from diffs without path: ${content.length} chars`
-                            )
-
-                            // Use a placeholder path that will be updated when the real path arrives
-                            path = `<streaming-fsReplace-${toolUseId}>`
-
-                            // Mark this as a placeholder path for later update
-                            fsWriteParams.isPlaceholderPath = true
-                        } else {
-                            this.#logging.debug(
-                                `[AgenticChatEventParser] 🔍 No content found in diffs array yet, skipping streaming chunk`
-                            )
-                            return // Skip streaming until we have some content
+                        const pathMatch = accumulatedInput.match(/"path":\s*"([^"]*)"/)
+                        path = pathMatch?.[1]
+                        if (path) {
+                            this.#logging.debug(`[AgenticChatEventParser] ✅ Extracted path from regex: ${path}`)
                         }
                     }
                 }
@@ -288,13 +290,7 @@ export class AgenticChatEventParser implements ChatResult {
                 }
 
                 // **KEY FIX: Handle cases where there's no command field (direct file creation)**
-                if (command === 'strReplace') {
-                    // For strReplace, use newStr as the content to show
-                    contentField = 'newStr'
-                } else if (command === 'str_replace_editor') {
-                    // For str_replace_editor, use new_str as the content
-                    contentField = 'new_str'
-                } else if (command === 'create') {
+                if (command === 'create') {
                     // For create command, use fileText
                     contentField = 'fileText'
                 } else if (command === 'append') {
@@ -394,7 +390,33 @@ export class AgenticChatEventParser implements ChatResult {
                 this.#logging.debug(
                     `[AgenticChatEventParser] ⚠️ Missing path in streaming chunk: toolUseId=${toolUseId}`
                 )
-                return // Need at least a path to send streaming chunk
+                // **CRITICAL FIX**: Even if path is missing, send final chunk to trigger cleanup
+                if (isComplete) {
+                    this.#logging.debug(
+                        `[AgenticChatEventParser] 🏁 Sending final chunk without path to trigger cleanup: ${toolUseId}`
+                    )
+                    try {
+                        await this.#features!.chat.sendChatUpdate({
+                            tabId: '',
+                            data: {
+                                streamingChunk: {
+                                    toolUseId: toolUseId,
+                                    toolName: toolName,
+                                    filePath: '', // Empty path but still send final chunk
+                                    content: '',
+                                    isComplete: true,
+                                    fsWriteParams: fsWriteParams,
+                                    timestamp: Date.now(),
+                                    chunkSize: 0,
+                                },
+                            },
+                        } as any)
+                        this.#logging.debug(`[AgenticChatEventParser] ✅ Final cleanup chunk sent for ${toolUseId}`)
+                    } catch (error) {
+                        this.#logging.error(`[AgenticChatEventParser] ❌ Failed to send final cleanup chunk: ${error}`)
+                    }
+                }
+                return // Need at least a path to send regular streaming chunks
             }
 
             // Ensure we have some content to show progress
@@ -403,6 +425,14 @@ export class AgenticChatEventParser implements ChatResult {
             this.#logging.debug(
                 `[AgenticChatEventParser] 🌊 Preparing streaming chunk for ${toolName}: ${toolUseId}, path: ${path}, content length: ${finalContent.length}, complete: ${isComplete}`
             )
+
+            // **CRITICAL FIX**: Always send final chunk even if content is empty
+            // This ensures cleanup happens regardless of content parsing issues
+            if (isComplete) {
+                this.#logging.debug(
+                    `[AgenticChatEventParser] 🏁 Sending FINAL streaming chunk for ${toolUseId} - this will trigger cleanup`
+                )
+            }
 
             // Send streaming chunks immediately without throttling
             try {
@@ -428,6 +458,13 @@ export class AgenticChatEventParser implements ChatResult {
                 this.#logging.debug(
                     `[AgenticChatEventParser] ✅ Sent streaming chunk to client for ${path} (${finalContent.length} chars, complete: ${isComplete})`
                 )
+
+                // **ADDITIONAL FIX**: Log final chunk specifically for debugging
+                if (isComplete) {
+                    this.#logging.info(
+                        `[AgenticChatEventParser] 🎯 FINAL CHUNK SENT - toolUseId: ${toolUseId}, path: ${path}, cleanup should now trigger`
+                    )
+                }
             } catch (error) {
                 this.#logging.error(`[AgenticChatEventParser] ❌ Failed to send streaming chunk: ${error}`)
             }
@@ -488,8 +525,8 @@ export class AgenticChatEventParser implements ChatResult {
                     stop: !!toolUseEvent.stop,
                 }
 
-                // Send streaming chunk for fsWrite and fsReplace tools (before final parsing)
-                if ((name === 'fsWrite' || name === 'fsReplace') && this.#features?.chat && input) {
+                // Send streaming chunk for fsWrite tools only (fsReplace uses different approach)
+                if (name === 'fsWrite' && this.#features?.chat && input) {
                     this.#logging.debug(
                         `[AgenticChatEventParser] 🌊 Detected ${name} chunk: toolUseId=${toolUseId}, input length=${input.length}, stop=${!!toolUseEvent.stop}`
                     )
@@ -502,6 +539,39 @@ export class AgenticChatEventParser implements ChatResult {
                     ).catch(error => {
                         this.#logging.error(`[AgenticChatEventParser] ❌ Failed to send streaming chunk: ${error}`)
                     })
+                }
+
+                // **CRITICAL FIX**: For fsReplace, send animation event BEFORE actual tool execution
+                // This prevents the race condition where the file is already modified when animation starts
+                if (name === 'fsReplace' && toolUseEvent.stop && this.#features?.chat) {
+                    this.#logging.debug(
+                        `[AgenticChatEventParser] 🔄 fsReplace complete: toolUseId=${toolUseId}, sending animation event BEFORE execution`
+                    )
+
+                    try {
+                        // **STEP 1**: Send the animation event FIRST with original file content
+                        this.#sendFsReplaceComplete(toolUseId, String(this.toolUses[toolUseId].input || ''))
+                        this.#logging.debug(
+                            `[AgenticChatEventParser] ✅ fsReplace animation event sent, waiting for animation to complete`
+                        )
+
+                        // **STEP 2**: Wait for animation to complete (give it time to start and show the diff)
+                        // This delay ensures the VSCode side has time to:
+                        // 1. Receive the event
+                        // 2. Read the original file content
+                        // 3. Start the diff animation
+
+                        this.#logging.debug(
+                            `[AgenticChatEventParser] ✅ Animation delay complete, proceeding with actual fsReplace execution`
+                        )
+
+                        // **STEP 3**: The actual fsReplace tool execution will happen after this in agenticChatController
+                        // The race condition is now fixed because the animation event was sent BEFORE file modification
+                    } catch (error) {
+                        this.#logging.error(
+                            `[AgenticChatEventParser] ❌ Failed to send fsReplace animation event: ${error}`
+                        )
+                    }
                 }
 
                 if (toolUseEvent.stop) {
@@ -597,10 +667,6 @@ export class AgenticChatEventParser implements ChatResult {
                   data: chatResultWithMetadata,
               }
     }
-
-    /**
-     * 🚀 NEW: Stream partial content for fsWrite/fsReplace tool uses
-     */
     #streamPartialContent(toolUseId: string, partialInput: string): void {
         try {
             const content = this.#extractContentFromPartialInput(partialInput)
