@@ -49,6 +49,7 @@ type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSour
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
 
 const sourceProfileRecursionMax = 5
+const mfaTimeout = 2 * 60 * 1000 // 2 minutes
 const flows: AuthFlows = {
     [AuthorizationFlowKind.DeviceCode]: deviceCodeFlow,
     [AuthorizationFlowKind.Pkce]: authorizationCodePkceFlow,
@@ -364,15 +365,29 @@ export class IdentityService {
                 profile.settings?.region
             )
             if (response.EvaluationResults?.[0]?.MissingContextValues?.includes('aws:MultiFactorAuthPresent')) {
+                // Get the MFA device serial number from the profile
                 if (!profile.settings?.mfa_serial) {
                     throw new AwsError(
-                        'MFA serial required when assuming role with MultiFactorAuthPresent condition',
-                        AwsErrorCodes.E_INVALID_PROFILE
+                        'MFA serial required when assuming role with MultiFactorAuthPresent permission condition',
+                        AwsErrorCodes.E_MFA_REQUIRED
                     )
                 }
                 assumeRoleInput.SerialNumber = profile.settings?.mfa_serial
                 // Request an MFA code from the language client
-                assumeRoleInput.TokenCode = (await this.sendGetMfaCode({})).code
+                const timeout = new Promise<never>((_, reject) =>
+                    setTimeout(
+                        () => reject(new AwsError('MFA code request timed out', AwsErrorCodes.E_MFA_REQUIRED)),
+                        mfaTimeout
+                    )
+                )
+                const response = await Promise.race([this.sendGetMfaCode({}), timeout])
+                if (!response.code) {
+                    throw new AwsError(
+                        'MFA code required when assuming role with MultiFactorAuthPresent permission condition',
+                        AwsErrorCodes.E_MFA_REQUIRED
+                    )
+                }
+                assumeRoleInput.TokenCode = response.code
             }
 
             const command = new AssumeRoleCommand(assumeRoleInput)
