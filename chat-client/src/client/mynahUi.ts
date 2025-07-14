@@ -37,6 +37,7 @@ import {
     RuleClickResult,
     SourceLinkClickParams,
     ListAvailableModelsResult,
+    ExecuteShellCommandShortCutParams,
 } from '@aws/language-server-runtimes-types'
 import {
     ChatItem,
@@ -94,7 +95,7 @@ export interface InboundChatApi {
     openTab(requestId: string, params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
-    executeShellCommandShortCut(params: any): void
+    executeShellCommandShortCut(params: ExecuteShellCommandShortCutParams): void
     listRules(params: ListRulesResult): void
     conversationClicked(params: ConversationClickResult): void
     ruleClicked(params: RuleClickResult): void
@@ -1452,7 +1453,7 @@ ${params.message}`,
         messager.onError(params)
     }
 
-    const executeShellCommandShortCut = (params: any) => {
+    const executeShellCommandShortCut = (params: ExecuteShellCommandShortCutParams) => {
         const tabId = mynahUi.getSelectedTabId()
         if (!tabId) return
 
