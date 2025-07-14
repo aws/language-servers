@@ -44,7 +44,11 @@ jobs:
                   github-token: ${{ secrets.GITHUB_TOKEN }}
                   run-id: ${{ github.event.workflow_run.id }}
                   name: ${{ matrix.target }}
-                  path: app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/${{ matrix.target }}/
+                  path: ./downloaded-artifacts
+            - name: Extract server files
+              run: |
+                  cd ./downloaded-artifacts/
+                  unzip servers.zip
             - name: Configure AWS Credentials
               uses: aws-actions/configure-aws-credentials@v4
               with:
@@ -65,8 +69,9 @@ jobs:
                   parse-json-secrets: true
             - name: Run Integration Tests
               run: |
-                  npm run test-integ -w app/aws-lsp-codewhisperer-runtimes
+                  npm test -w integration-tests/q-agentic-chat-server
               env:
                   TEST_SSO_TOKEN: ${{ env.SSOTOKEN }}
                   TEST_SSO_START_URL: ${{ secrets.TEST_SSO_START_URL }}
                   TEST_PROFILE_ARN: ${{ secrets.TEST_PROFILE_ARN }}
+                  TEST_RUNTIME_FILE: ${{ github.workspace }}/downloaded-artifacts/aws-lsp-codewhisperer.js

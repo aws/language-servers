@@ -8,18 +8,13 @@ import { JSONRPCEndpoint, LspClient } from 'ts-lsp-client'
 import { pathToFileURL } from 'url'
 import * as crypto from 'crypto'
 import { EncryptionInitialization } from '@aws/lsp-core'
-import {
-    authenticateServer,
-    decryptObjectWithKey,
-    encryptObjectWithKey,
-    getTargetPlatform,
-    unzipServers,
-} from './testUtils'
+import { authenticateServer, decryptObjectWithKey, encryptObjectWithKey } from './testUtils'
 import { ChatParams, ChatResult } from '@aws/language-server-runtimes/protocol'
 
 chai.use(chaiAsPromised)
 
-describe('Test CodeWhisperer Agent Server', async () => {
+describe('Q Agentic Chat Server Integration Tests', async () => {
+    // In compiled output, __dirname points to out/tests, so testFixture is at out/tests/testFixture
     const rootPath = path.resolve(path.join(__dirname, 'testFixture'))
     let serverProcess: ChildProcessWithoutNullStreams
     let endpoint: JSONRPCEndpoint
@@ -36,10 +31,9 @@ describe('Test CodeWhisperer Agent Server', async () => {
         testSsoStartUrl = process.env.TEST_SSO_START_URL || ''
         testProfileArn = process.env.TEST_PROFILE_ARN || ''
 
-        const target = getTargetPlatform()
-        const zipPath = path.join(__dirname, '../../', 'build', 'archives', 'agent-standalone', target, 'servers.zip')
-
-        runtimeFile = await unzipServers(zipPath)
+        runtimeFile =
+            process.env.TEST_RUNTIME_FILE ||
+            path.join(__dirname, '../../../../app/aws-lsp-codewhisperer-runtimes/build/aws-lsp-codewhisperer.js')
 
         serverProcess = spawn(
             'node',
