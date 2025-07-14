@@ -111,11 +111,6 @@ export class AgenticChatEventParser implements ChatResult {
         }
 
         try {
-            this.#logging.debug(
-                `[AgenticChatEventParser] 🔄 Processing complete fsReplace input (${completeInput.length} chars)`
-            )
-
-            // Parse the complete JSON to extract diffs and path
             let path: string | undefined
             let diffString = ''
 
@@ -123,66 +118,42 @@ export class AgenticChatEventParser implements ChatResult {
                 const parsed = JSON.parse(completeInput || '{}')
                 path = parsed.path
 
-                // Extract diffs array and send them as structured diffs for proper line mapping
+                // Send structured diffs for proper line mapping in StreamingDiffController
                 if (parsed.diffs && Array.isArray(parsed.diffs) && parsed.diffs.length > 0) {
-                    // **FIX: Send structured diffs instead of simple line-by-line format**
-                    // This allows StreamingDiffController to properly map old lines to new lines
                     const structuredDiffs = parsed.diffs.map((diff: any) => ({
                         oldStr: diff.oldStr || '',
                         newStr: diff.newStr || '',
                     }))
 
-                    // Create a JSON string containing the structured diffs
                     diffString = JSON.stringify({
                         type: 'structured_diffs',
                         diffs: structuredDiffs,
                     })
-
-                    this.#logging.debug(
-                        `[AgenticChatEventParser] 🔧 Created structured diffs: ${structuredDiffs.length} diff blocks`
-                    )
                 }
-
-                this.#logging.debug(
-                    `[AgenticChatEventParser] ✅ Parsed fsReplace: path=${path}, diffString length=${diffString.length}`
-                )
             } catch (error) {
-                this.#logging.error(`[AgenticChatEventParser] ❌ Failed to parse fsReplace JSON: ${error}`)
+                this.#logging.error(`[AgenticChatEventParser] Failed to parse fsReplace JSON: ${error}`)
                 return
             }
 
             if (!path) {
-                this.#logging.warn(`[AgenticChatEventParser] ⚠️ No path available for fsReplace complete`)
                 return
             }
 
-            // **DEBUG: Print complete final string being sent to VSCode**
             const finalPayload = {
                 tabId: '',
                 data: {
                     fsReplaceComplete: {
                         toolUseId: toolUseId,
                         filePath: path,
-                        diffString: diffString, // Combined diff string for line-by-line processing
+                        diffString: diffString,
                         timestamp: Date.now(),
                     },
                 },
             }
 
-            this.#logging.debug(
-                `[AgenticChatEventParser] 🔍 COMPLETE FINAL PAYLOAD BEING SENT TO VSC:\n${JSON.stringify(finalPayload, null, 2)}`
-            )
-
-            this.#logging.debug(`[AgenticChatEventParser] 🔍 COMPLETE DIFF STRING BEING SENT:\n${diffString}`)
-
-            // Send the complete fsReplace result to VSCode
             this.#features!.chat.sendChatUpdate(finalPayload as any)
-
-            this.#logging.debug(
-                `[AgenticChatEventParser] ✅ Sent fsReplace complete to VSCode: ${path} (${diffString.length} chars)`
-            )
         } catch (error) {
-            this.#logging.error(`[AgenticChatEventParser] ❌ Failed to send fsReplace complete: ${error}`)
+            this.#logging.error(`[AgenticChatEventParser] Failed to send fsReplace complete: ${error}`)
         }
     }
 
@@ -210,21 +181,16 @@ export class AgenticChatEventParser implements ChatResult {
             let content: string | undefined
             let fsWriteParams: any = {}
 
-            this.#logging.debug(
-                `[AgenticChatEventParser] 🔍 Processing accumulated input (${accumulatedInput.length} chars): ${accumulatedInput.substring(0, 200)}...`
-            )
-
             // Try to parse as JSON first (for complete JSON)
             if (isComplete) {
                 try {
                     const parsed = JSON.parse(accumulatedInput || '{}')
                     path = parsed.path
 
-                    // **KEY FIX: Extract complete fsWrite parameters for animation system**
+                    // Extract fsWrite parameters for animation system
                     fsWriteParams = {
                         command: parsed.command,
                         path: parsed.path,
-                        // Include all possible fsWrite parameters
                         fileText: parsed.fileText,
                         oldStr: parsed.oldStr,
                         newStr: parsed.newStr,
@@ -232,50 +198,31 @@ export class AgenticChatEventParser implements ChatResult {
                         explanation: parsed.explanation,
                     }
 
-                    // **COMPLETE FIX: Handle ALL fsWrite command types for complete JSON parsing**
-
                     if (parsed.command === 'create') {
                         content = parsed.fileText
                     } else if (parsed.command === 'append') {
                         content = parsed.newStr
                     }
-
-                    this.#logging.debug(
-                        `[AgenticChatEventParser] ✅ Parsed complete JSON: command=${parsed.command}, path=${path}, content length=${content?.length || 0}`
-                    )
                 } catch (error) {
-                    this.#logging.debug(`[AgenticChatEventParser] ⚠️ Failed to parse complete JSON: ${error}`)
+                    this.#logging.debug(`[AgenticChatEventParser] Failed to parse complete JSON: ${error}`)
                 }
             }
 
             // If we don't have complete JSON or parsing failed, try progressive extraction
             if (!path || content === undefined) {
-                // **UNIFIED FIX**: For fsWrite, use session's current file path immediately
                 if (!path) {
-                    this.#logging.debug(
-                        `[AgenticChatEventParser] 🔍 Path not found in JSON yet for ${toolName}, using session context`
-                    )
-
-                    if (!path) {
-                        const pathMatch = accumulatedInput.match(/"path":\s*"([^"]*)"/)
-                        path = pathMatch?.[1]
-                        if (path) {
-                            this.#logging.debug(`[AgenticChatEventParser] ✅ Extracted path from regex: ${path}`)
-                        }
-                    }
+                    const pathMatch = accumulatedInput.match(/"path":\s*"([^"]*)"/)
+                    path = pathMatch?.[1]
                 }
 
-                // **CRITICAL FIX: Handle different content field patterns based on command type**
                 let contentField: string | undefined
                 let command: string | undefined
 
-                // Check what type of command this is
                 const commandMatch = accumulatedInput.match(/"command":\s*"([^"]*)"/)
                 command = commandMatch?.[1]
 
-                // **KEY FIX: Extract partial fsWrite parameters for progressive streaming**
+                // Extract partial fsWrite parameters for progressive streaming
                 if (!isComplete) {
-                    // Extract available parameters progressively
                     const insertLineMatch = accumulatedInput.match(/"insertLine":\s*(\d+)/)
                     const oldStrMatch = accumulatedInput.match(/"oldStr":\s*"([^"]*)"/)
                     const explanationMatch = accumulatedInput.match(/"explanation":\s*"([^"]*)"/)
@@ -289,30 +236,25 @@ export class AgenticChatEventParser implements ChatResult {
                     }
                 }
 
-                // **KEY FIX: Handle cases where there's no command field (direct file creation)**
+                // Determine content field based on command type
                 if (command === 'create') {
-                    // For create command, use fileText
                     contentField = 'fileText'
                 } else if (command === 'append') {
-                    // For append command, use newStr
                     contentField = 'newStr'
                 } else if (command === 'insert') {
-                    // For insert command, use newStr
                     contentField = 'newStr'
                 } else {
-                    // **CRITICAL FIX: For cases with no command field, prioritize fileText first**
-                    // This handles direct file creation without explicit command
+                    // Handle cases with no command field - prioritize fileText for file creation
                     if (accumulatedInput.includes('"fileText"')) {
                         contentField = 'fileText'
-                        command = 'create' // Infer command type
+                        command = 'create'
                     } else if (accumulatedInput.includes('"newStr"')) {
                         contentField = 'newStr'
-                        command = 'strReplace' // Infer command type
+                        command = 'strReplace'
                     } else if (accumulatedInput.includes('"content"')) {
                         contentField = 'content'
-                        command = 'create' // Infer command type
+                        command = 'create'
                     } else {
-                        // Fallback to trying all possible fields
                         contentField = 'fileText|content|text|newStr|new_str'
                         command = 'unknown'
                     }
@@ -358,43 +300,27 @@ export class AgenticChatEventParser implements ChatResult {
                     // Extract the content between quotes, handling escaped quotes
                     const rawContent = accumulatedInput.substring(contentStart, contentEnd)
 
-                    // **CRITICAL FIX: For strReplace/append/insert commands, don't send empty content**
-                    // But still send the chunk to initialize streaming session - just with empty content marked
+                    // Don't send empty content for strReplace/append/insert commands unless complete
                     const shouldSkipContent =
                         !isComplete &&
                         rawContent.trim() === '' &&
                         (command === 'strReplace' || command === 'append' || command === 'insert')
 
-                    if (shouldSkipContent) {
-                        this.#logging.debug(
-                            `[AgenticChatEventParser] ⚡ Sending streaming chunk with empty content flag for ${command} command`
-                        )
+                    if (!shouldSkipContent) {
+                        // Unescape basic JSON escapes
+                        content = rawContent
+                            .replace(/\\"/g, '"')
+                            .replace(/\\n/g, '\n')
+                            .replace(/\\t/g, '\t')
+                            .replace(/\\r/g, '\r')
+                            .replace(/\\\\/g, '\\')
                     }
-
-                    // For streaming, we want to show progressive content
-                    // Unescape basic JSON escapes
-                    content = rawContent
-                        .replace(/\\"/g, '"')
-                        .replace(/\\n/g, '\n')
-                        .replace(/\\t/g, '\t')
-                        .replace(/\\r/g, '\r')
-                        .replace(/\\\\/g, '\\')
                 }
-
-                this.#logging.debug(
-                    `[AgenticChatEventParser] 🔍 Regex extraction: command=${command || 'inferred'}, contentField=${contentField}, path=${path}, content length=${content?.length || 0}`
-                )
             }
 
             if (!path) {
-                this.#logging.debug(
-                    `[AgenticChatEventParser] ⚠️ Missing path in streaming chunk: toolUseId=${toolUseId}`
-                )
-                // **CRITICAL FIX**: Even if path is missing, send final chunk to trigger cleanup
+                // Send final chunk to trigger cleanup even if path is missing
                 if (isComplete) {
-                    this.#logging.debug(
-                        `[AgenticChatEventParser] 🏁 Sending final chunk without path to trigger cleanup: ${toolUseId}`
-                    )
                     try {
                         await this.#features!.chat.sendChatUpdate({
                             tabId: '',
@@ -402,7 +328,7 @@ export class AgenticChatEventParser implements ChatResult {
                                 streamingChunk: {
                                     toolUseId: toolUseId,
                                     toolName: toolName,
-                                    filePath: '', // Empty path but still send final chunk
+                                    filePath: '',
                                     content: '',
                                     isComplete: true,
                                     fsWriteParams: fsWriteParams,
@@ -411,62 +337,34 @@ export class AgenticChatEventParser implements ChatResult {
                                 },
                             },
                         } as any)
-                        this.#logging.debug(`[AgenticChatEventParser] ✅ Final cleanup chunk sent for ${toolUseId}`)
                     } catch (error) {
-                        this.#logging.error(`[AgenticChatEventParser] ❌ Failed to send final cleanup chunk: ${error}`)
+                        this.#logging.error(`[AgenticChatEventParser] Failed to send final cleanup chunk: ${error}`)
                     }
                 }
-                return // Need at least a path to send regular streaming chunks
+                return
             }
 
-            // Ensure we have some content to show progress
             const finalContent = content || ''
 
-            this.#logging.debug(
-                `[AgenticChatEventParser] 🌊 Preparing streaming chunk for ${toolName}: ${toolUseId}, path: ${path}, content length: ${finalContent.length}, complete: ${isComplete}`
-            )
-
-            // **CRITICAL FIX**: Always send final chunk even if content is empty
-            // This ensures cleanup happens regardless of content parsing issues
-            if (isComplete) {
-                this.#logging.debug(
-                    `[AgenticChatEventParser] 🏁 Sending FINAL streaming chunk for ${toolUseId} - this will trigger cleanup`
-                )
-            }
-
-            // Send streaming chunks immediately without throttling
+            // Send streaming chunk to client
             try {
                 await this.#features!.chat.sendChatUpdate({
-                    tabId: '', // We don't have tabId here, but the client can handle it
+                    tabId: '',
                     data: {
-                        // Use streamingChunk format that matches what the client expects
                         streamingChunk: {
                             toolUseId: toolUseId,
                             toolName: toolName,
                             filePath: path,
                             content: finalContent,
                             isComplete: isComplete,
-                            // **KEY FIX: Include fsWrite operation parameters for correct animation regions**
                             fsWriteParams: fsWriteParams,
-                            // Add metadata for better processing
                             timestamp: Date.now(),
                             chunkSize: finalContent.length,
                         },
                     },
-                } as any) // Cast to any since we're extending the interface
-
-                this.#logging.debug(
-                    `[AgenticChatEventParser] ✅ Sent streaming chunk to client for ${path} (${finalContent.length} chars, complete: ${isComplete})`
-                )
-
-                // **ADDITIONAL FIX**: Log final chunk specifically for debugging
-                if (isComplete) {
-                    this.#logging.info(
-                        `[AgenticChatEventParser] 🎯 FINAL CHUNK SENT - toolUseId: ${toolUseId}, path: ${path}, cleanup should now trigger`
-                    )
-                }
+                } as any)
             } catch (error) {
-                this.#logging.error(`[AgenticChatEventParser] ❌ Failed to send streaming chunk: ${error}`)
+                this.#logging.error(`[AgenticChatEventParser] Failed to send streaming chunk: ${error}`)
             }
         } catch (error) {
             this.#logging.error(`[AgenticChatEventParser] ❌ Failed to process streaming chunk: ${error}`)
@@ -527,49 +425,24 @@ export class AgenticChatEventParser implements ChatResult {
 
                 // Send streaming chunk for fsWrite tools only (fsReplace uses different approach)
                 if (name === 'fsWrite' && this.#features?.chat && input) {
-                    this.#logging.debug(
-                        `[AgenticChatEventParser] 🌊 Detected ${name} chunk: toolUseId=${toolUseId}, input length=${input.length}, stop=${!!toolUseEvent.stop}`
-                    )
-                    // Send streaming chunk with proper throttling (async but not awaited to avoid blocking)
                     this.#sendStreamingChunk(
                         toolUseId,
                         name,
                         String(this.toolUses[toolUseId].input || ''),
                         !!toolUseEvent.stop
                     ).catch(error => {
-                        this.#logging.error(`[AgenticChatEventParser] ❌ Failed to send streaming chunk: ${error}`)
+                        this.#logging.error(`[AgenticChatEventParser] Failed to send streaming chunk: ${error}`)
                     })
                 }
 
-                // **CRITICAL FIX**: For fsReplace, send animation event BEFORE actual tool execution
-                // This prevents the race condition where the file is already modified when animation starts
+                // For fsReplace, send animation event BEFORE actual tool execution
+                // This prevents race condition where file is modified before animation starts
                 if (name === 'fsReplace' && toolUseEvent.stop && this.#features?.chat) {
-                    this.#logging.debug(
-                        `[AgenticChatEventParser] 🔄 fsReplace complete: toolUseId=${toolUseId}, sending animation event BEFORE execution`
-                    )
-
                     try {
-                        // **STEP 1**: Send the animation event FIRST with original file content
                         this.#sendFsReplaceComplete(toolUseId, String(this.toolUses[toolUseId].input || ''))
-                        this.#logging.debug(
-                            `[AgenticChatEventParser] ✅ fsReplace animation event sent, waiting for animation to complete`
-                        )
-
-                        // **STEP 2**: Wait for animation to complete (give it time to start and show the diff)
-                        // This delay ensures the VSCode side has time to:
-                        // 1. Receive the event
-                        // 2. Read the original file content
-                        // 3. Start the diff animation
-
-                        this.#logging.debug(
-                            `[AgenticChatEventParser] ✅ Animation delay complete, proceeding with actual fsReplace execution`
-                        )
-
-                        // **STEP 3**: The actual fsReplace tool execution will happen after this in agenticChatController
-                        // The race condition is now fixed because the animation event was sent BEFORE file modification
                     } catch (error) {
                         this.#logging.error(
-                            `[AgenticChatEventParser] ❌ Failed to send fsReplace animation event: ${error}`
+                            `[AgenticChatEventParser] Failed to send fsReplace animation event: ${error}`
                         )
                     }
                 }

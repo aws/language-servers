@@ -2910,7 +2910,7 @@ export class AgenticChatController implements ChatHandlers {
         }
         this.#legacySetModelId(params.tabId, session)
 
-        // **CRITICAL FIX**: Clear streaming state for new tab to ensure streaming works for each new conversation
+        // Clear streaming state for new tab
         this.#streamedToolUses.clear()
 
         // Get the saved pair programming mode from the database or default to true if not found
