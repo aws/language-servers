@@ -144,7 +144,7 @@ import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
-import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
+import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
@@ -177,6 +177,8 @@ import {
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
+import { QCodeReview } from './tools/qCodeAnalysis/qCodeReview'
+import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/qCodeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -721,9 +723,12 @@ export class AgenticChatController implements ChatHandlers {
                 params.tabId,
                 params.context
             )
-            // Add active file to context list if it exists
+            // Add active file to context list if it's not already there
             const activeFile =
-                triggerContext.text && triggerContext.relativeFilePath && triggerContext.activeFilePath
+                triggerContext.text &&
+                triggerContext.relativeFilePath &&
+                triggerContext.activeFilePath &&
+                !additionalContext.some(item => item.path === triggerContext.activeFilePath)
                     ? [
                           {
                               name: path.basename(triggerContext.relativeFilePath),
@@ -1384,6 +1389,9 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
+                    case QCodeReview.toolName:
+                        // no need to write tool message for code review
+                        break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
@@ -1454,6 +1462,22 @@ export class AgenticChatController implements ChatHandlers {
                         ...toolUse,
                         fileChange: { before: document?.getText() },
                     })
+                }
+
+                if (toolUse.name === QCodeReview.toolName) {
+                    try {
+                        let initialInput = JSON.parse(JSON.stringify(toolUse.input))
+                        let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
+                        if (ruleArtifacts !== undefined || ruleArtifacts !== null) {
+                            this.#features.logging.info(`RuleArtifacts: ${JSON.stringify(ruleArtifacts)}`)
+                            let pathsToRulesMap = ruleArtifacts.map(ruleArtifact => ({ path: ruleArtifact.id }))
+                            this.#features.logging.info(`PathsToRules: ${JSON.stringify(pathsToRulesMap)}`)
+                            initialInput['ruleArtifacts'] = pathsToRulesMap
+                        }
+                        toolUse.input = initialInput
+                    } catch (e) {
+                        this.#features.logging.warn(`could not parse QCodeReview tool input: ${e}`)
+                    }
                 }
 
                 // After approval, add the path to the approved paths in the session
@@ -1528,6 +1552,22 @@ export class AgenticChatController implements ChatHandlers {
                             session.getConversationType()
                         )
                         await chatResultStream.writeResultBlock(chatResult)
+                        break
+                    case QCodeReview.toolName:
+                        // no need to write tool result for code review, this is handled by model via chat
+                        // Push result in message so that it is picked by IDE plugin to show in issues panel
+                        const qCodeReviewResult = result as InvokeOutput
+                        if (
+                            qCodeReviewResult?.output?.kind === 'json' &&
+                            qCodeReviewResult.output.success &&
+                            (qCodeReviewResult.output.content as any)?.findingsByFile
+                        ) {
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
+                                body: (qCodeReviewResult.output.content as any).findingsByFile,
+                            })
+                        }
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
@@ -1803,7 +1843,38 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    #getToolOverWritableStream(
+        chatResultStream: AgenticChatResultStream,
+        toolUse: ToolUse
+    ): WritableStream | undefined {
+        const toolMsgId = toolUse.toolUseId!
+
+        return new WritableStream({
+            write: async chunk => {
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
+                await chatResultStream.removeResultBlockAndUpdateUI(toolMsgId)
+
+                await chatResultStream.writeResultBlock({
+                    type: 'tool',
+                    messageId: toolMsgId,
+                    body: chunk,
+                })
+            },
+            close: async () => {
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
+                await chatResultStream.removeResultBlockAndUpdateUI(toolMsgId)
+
+                this.#stoppedToolUses.add(toolMsgId)
+            },
+        })
+    }
+
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
+        if (toolUse.name === QCodeReview.toolName) {
+            return this.#getToolOverWritableStream(chatResultStream, toolUse)
+        }
         if (toolUse.name !== 'executeBash') {
             return
         }
