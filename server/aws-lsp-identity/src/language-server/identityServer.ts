@@ -69,6 +69,7 @@ export class IdentityServer extends ServerBase {
             stsCache,
             stsAutoRefresher,
             { showUrl, showMessageRequest, showProgress },
+            this.features.identityManagement.sendGetMfaCode,
             this.getClientName(params),
             this.observability
         )
