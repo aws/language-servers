@@ -673,6 +673,15 @@ export class AgenticChatController implements ChatHandlers {
 
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
+
+            // **CRITICAL FIX**: Capture current file path early for fsReplace streaming
+            // This ensures we have the path available before any streaming events arrive
+            const currentFilePath = triggerContext.activeFilePath || triggerContext.relativeFilePath
+            if (currentFilePath) {
+                this.#debug(`[AgenticChatController] 📁 Captured current file path for streaming: ${currentFilePath}`)
+                // Store the current file path in the session for use during streaming
+                session.currentFilePath = currentFilePath
+            }
             if (triggerContext.programmingLanguage?.languageName) {
                 this.#userWrittenCodeTracker?.recordUsageCount(triggerContext.programmingLanguage.languageName)
             }
@@ -3433,7 +3442,13 @@ export class AgenticChatController implements ChatHandlers {
         abortSignal?: AbortSignal
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
-        const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging, this.#features)
+        const chatEventParser = new AgenticChatEventParser(
+            requestId,
+            metric,
+            this.#features.logging,
+            this.#features,
+            session
+        )
 
         // Display context transparency list once at the beginning of response
         // Use a flag to track if contextList has been sent already to avoid ux flickering

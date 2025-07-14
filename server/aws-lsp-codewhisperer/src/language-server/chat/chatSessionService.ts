@@ -42,6 +42,7 @@ export class ChatSessionService {
     public pairProgrammingMode: boolean = true
     public contextListSent: boolean = false
     public modelId: string | undefined
+    public currentFilePath?: string // **CRITICAL FIX**: Store current file path for fsReplace streaming
     #lsp?: Features['lsp']
     #abortController?: AbortController
     #currentPromptId?: string
@@ -320,5 +321,13 @@ export class ChatSessionService {
      */
     public setLogging(logging: Logging): void {
         this.#logging = logging
+    }
+
+    /**
+     * Gets the current file path for streaming operations
+     * @returns The current file path or undefined if not set
+     */
+    public getCurrentFilePath(): string | undefined {
+        return this.currentFilePath
     }
 }
