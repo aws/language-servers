@@ -380,7 +380,13 @@ export class IdentityService {
                         mfaTimeout
                     )
                 )
-                const response = await Promise.race([this.sendGetMfaCode({}), timeout])
+                const response = await Promise.race([
+                    this.sendGetMfaCode({
+                        mfaSerial: profile.settings?.mfa_serial,
+                        profileName: profile.name,
+                    }),
+                    timeout,
+                ])
                 if (!response.code) {
                     throw new AwsError(
                         'MFA code required when assuming role with MultiFactorAuthPresent permission condition',
