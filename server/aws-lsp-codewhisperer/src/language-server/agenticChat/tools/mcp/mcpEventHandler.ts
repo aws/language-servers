@@ -220,7 +220,7 @@ export class McpEventHandler {
 
         // Return the result in the expected format
         const header = {
-            title: 'MCP Servers',
+            title: 'MCP Servers and Built-in Tools',
             description: "Add MCP servers to extend Q's capabilities.",
             // only  show error on list mcp server page if unable to read mcp.json file
             status: configLoadErrors
@@ -269,7 +269,7 @@ export class McpEventHandler {
         return {
             id,
             header: {
-                title: 'MCP Servers',
+                title: 'MCP Servers and Built-in Tools',
                 status: {},
                 description: `Add MCP servers to extend Q's capabilities.`,
                 actions: [],
