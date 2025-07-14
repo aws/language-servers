@@ -89,27 +89,33 @@ export async function loadMcpServerConfigs(
         }
 
         // 4) dedupe and validate
-        for (const [name, entry] of Object.entries(json.mcpServers)) {
-            if (!entry || typeof (entry as any).command !== 'string') {
-                const errorMsg = `MCP server '${name}' in ${fsPath} missing required 'command', skipping.`
+        for (const [name, entryRaw] of Object.entries(json.mcpServers)) {
+            const entry = entryRaw as any
+
+            const hasCmd = typeof entry.command === 'string' && entry.command.trim() !== ''
+            const hasUrl = typeof entry.url === 'string' && entry.url.trim() !== ''
+
+            if ((hasCmd && hasUrl) || (!hasCmd && !hasUrl)) {
+                const errorMsg = `MCP server '${name}' must specify *either* command or url (not both) – skipping`
                 logging.warn(errorMsg)
                 configErrors.set(`${name}`, errorMsg)
                 continue
             }
+
             if ((entry as any).timeout !== undefined && typeof (entry as any).timeout !== 'number') {
                 const errorMsg = `Invalid timeout value on '${name}', ignoring.`
                 logging.warn(errorMsg)
                 configErrors.set(`${name}_timeout`, errorMsg)
             }
             const cfg: MCPServerConfig = {
-                command: (entry as any).command,
-                args: Array.isArray((entry as any).args) ? (entry as any).args.map(String) : [],
-                env: typeof (entry as any).env === 'object' && (entry as any).env !== null ? (entry as any).env : {},
+                url: entry.url,
+                headers: typeof entry.headers === 'object' && entry.headers !== null ? entry.headers : undefined,
+                command: entry.command,
+                args: Array.isArray(entry.args) ? entry.args.map(String) : [],
+                env: typeof entry.env === 'object' && entry.env !== null ? entry.env : {},
                 initializationTimeout:
-                    typeof (entry as any).initializationTimeout === 'number'
-                        ? (entry as any).initializationTimeout
-                        : undefined,
-                timeout: typeof (entry as any).timeout === 'number' ? (entry as any).timeout : undefined,
+                    typeof entry.initializationTimeout === 'number' ? entry.initializationTimeout : undefined,
+                timeout: typeof entry.timeout === 'number' ? entry.timeout : undefined,
                 __configPath__: fsPath,
             }
 

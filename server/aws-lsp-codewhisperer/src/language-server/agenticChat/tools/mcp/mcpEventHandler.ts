@@ -388,10 +388,8 @@ export class McpEventHandler {
                     title: 'Transport',
                     mandatory: true,
                     options: [
-                        {
-                            label: 'stdio',
-                            value: 'yes',
-                        },
+                        { label: 'stdio', value: 'stdio' },
+                        { label: 'http', value: 'http' },
                     ],
                 },
                 {
@@ -464,6 +462,8 @@ export class McpEventHandler {
                 timeout: config.timeout?.toString() || '',
                 env: config.env,
                 args: config.args,
+                url: config.url,
+                headers: config.headers,
             }
 
             const validation = this.#validateMcpServerForm(values, false)
@@ -529,9 +529,11 @@ export class McpEventHandler {
             }
         }
 
-        if (!values.command || values.command.trim() === '') {
-            errors.push('Command is required for stdio transport')
-        }
+        const usingStdio = !!values.command?.trim()
+        const usingHttp = !!values.url?.trim()
+
+        if (usingStdio && usingHttp) errors.push('Provide either command OR url, not both')
+        if (!usingStdio && !usingHttp) errors.push('Either command or url is required')
 
         if (values.timeout && values.timeout.trim() !== '') {
             const timeoutNum = Number(values.timeout.trim())
@@ -634,10 +636,11 @@ export class McpEventHandler {
 
         // Config file requires timeout in milliseconds
         const timeoutInMs = (parseInt(params.optionsValues.timeout) ?? 60) * 1000
+
         const config: MCPServerConfig = {
             command: params.optionsValues.command,
-            args,
-            env,
+            args: args,
+            env: env,
             timeout: timeoutInMs,
         }
 
