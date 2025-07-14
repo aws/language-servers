@@ -20,7 +20,6 @@ import {
     Profile,
     ProfileKind,
 } from '@aws/language-server-runtimes/server-interface'
-
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
 import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion } from '../sso'
 import { SsoCache, SsoClientRegistration } from '../sso/cache'
@@ -46,12 +45,15 @@ type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSour
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
 type Handlers = SsoHandlers & IamHandlers
 
+const sourceProfileRecursionMax = 5
 const flows: AuthFlows = {
     [AuthorizationFlowKind.DeviceCode]: deviceCodeFlow,
     [AuthorizationFlowKind.Pkce]: authorizationCodePkceFlow,
 }
 
 export class IdentityService {
+    private sourceProfileRecursionCount = 0
+
     constructor(
         private readonly profileStore: ProfileStore,
         private readonly ssoCache: SsoCache,
@@ -196,11 +198,14 @@ export class IdentityService {
                 throw new AwsError('Credentials could not be found for profile', AwsErrorCodes.E_INVALID_PROFILE)
             }
 
-            // Validate permissions
-            if (options.permissionSet.length > 0) {
-                const response = await simulatePermissions(credentials, options.permissionSet, profile.settings?.region)
-                if (!response?.EvaluationResults?.every(result => result.EvalDecision === 'allowed')) {
-                    throw new AwsError(`Credentials have insufficient permissions.`, AwsErrorCodes.E_INVALID_PROFILE)
+            // Validate permissions on user or assumed role
+            if (options.validatePermissions) {
+                const hasPermissions = await this.validatePermissions(credentials, profile.settings?.region)
+                if (!hasPermissions) {
+                    throw new AwsError(
+                        `User or assumed role has insufficient permissions.`,
+                        AwsErrorCodes.E_INVALID_PROFILE
+                    )
                 }
             }
 
@@ -211,6 +216,7 @@ export class IdentityService {
                 updateCredentialsParams: { data: credentials, encrypted: false },
             }
         } catch (e) {
+            this.sourceProfileRecursionCount = 0
             emitMetric('Failed', e)
             throw e
         }
@@ -273,26 +279,32 @@ export class IdentityService {
         return result
     }
 
+    private async getParentCredential(profile: Profile): Promise<IamCredentials> {
+        let parentCredentials: IamCredentials
+        if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
+            const parentOptions = {
+                profileName: profile.settings!.source_profile!,
+                // Do not validate Q permissions on source profile
+                options: { validatePermissions: false },
+            }
+            // Obtain parent profile credentials if recursion count hasn't been exceeded from IamRoleSourceProfile chains
+            if (this.sourceProfileRecursionCount <= sourceProfileRecursionMax) {
+                this.sourceProfileRecursionCount += 1
+                const parentResult = await this.getIamCredential(parentOptions, CancellationToken.None)
+                this.sourceProfileRecursionCount = 0
+                parentCredentials = parentResult.credentials
+            } else {
+                throw new AwsError('Source profile chain exceeded max length.', AwsErrorCodes.E_INVALID_PROFILE)
+            }
+        } else {
+            throw new AwsError('Source credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
+        }
+        return parentCredentials
+    }
+
     private async generateStsCredential(profile: Profile, mfaCode?: string): Promise<StsCredential> {
         try {
-            let parentCredentials: IamCredentials
-            if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
-                const profileData = await this.profileStore.load()
-                const sourceProfile = profileData.profiles.find(p => p.name === profile.settings?.source_profile)
-                // TODO: use other profile kinds while preventing infinite cycles
-                if (sourceProfile?.kinds.includes(ProfileKind.IamUserProfile)) {
-                    parentCredentials = {
-                        accessKeyId: sourceProfile!.settings!.aws_access_key_id!,
-                        secretAccessKey: sourceProfile!.settings!.aws_secret_access_key!,
-                        sessionToken: sourceProfile?.settings?.aws_session_token,
-                    }
-                } else {
-                    throw new AwsError('Source credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
-                }
-            } else {
-                throw new AwsError('Source credentials not found', AwsErrorCodes.E_INVALID_PROFILE)
-            }
-
+            const parentCredentials = await this.getParentCredential(profile)
             const stsClient = new STSClient({
                 region: profile.settings?.region || 'us-east-1',
                 credentials: parentCredentials,
@@ -313,7 +325,7 @@ export class IdentityService {
             return { Credentials, AssumedRoleUser }
         } catch (e) {
             this.observability.logging.log(`Error generating STS credentials.`)
-            throw new AwsError(`Error generating STS credentials.`, AwsErrorCodes.E_CANNOT_CREATE_STS_CREDENTIAL)
+            throw new AwsError((e as any).message, AwsErrorCodes.E_CANNOT_CREATE_STS_CREDENTIAL)
         }
     }
 
