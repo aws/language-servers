@@ -535,7 +535,7 @@ describe('AdditionalContextProvider', () => {
                     id: 'old-symbol-id', // This ID no longer exists in the index
                     command: 'calculateTotal',
                     label: 'code',
-                    description: 'Function, workspace/src/utils.ts',
+                    description: `Function, ${path.join('workspace', 'src', 'utils.ts')}`,
                     route: ['/workspace', '/src/utils.ts'],
                     pinned: true,
                 },
