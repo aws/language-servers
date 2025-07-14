@@ -15,9 +15,10 @@ import {
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { Observability } from '@aws/lsp-core'
-import { StsCache, StsCredential } from '../sts/cache/stsCache'
+import { StsCache } from '../sts/cache/stsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import * as processProvider from '../providers/processProvider'
+import { STSClient } from '@aws-sdk/client-sts'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -83,6 +84,46 @@ describe('IdentityService', () => {
                         name: 'my-process-profile',
                         settings: {
                             credential_process: 'my-process',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        name: 'cyclic-profile-1',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'cyclic-profile-1',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        name: 'cyclic-profile-2',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'cyclic-profile-3',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        name: 'cyclic-profile-3',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'cyclic-profile-2',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        name: 'base-profile',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'intermediate-profile',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        name: 'intermediate-profile',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'my-iam-profile',
                         },
                     },
                 ],
@@ -161,8 +202,7 @@ describe('IdentityService', () => {
         const validatePermissionsStub = stub(sut as any, 'validatePermissions')
         validatePermissionsStub.resolves(true)
 
-        const generateStsCredentialStub = stub(sut as any, 'generateStsCredential')
-        generateStsCredentialStub.resolves({
+        stub(STSClient.prototype, 'send').resolves({
             Credentials: {
                 AccessKeyId: 'role-access-key',
                 SecretAccessKey: 'role-secret-key',
@@ -173,7 +213,7 @@ describe('IdentityService', () => {
                 Arn: 'role-arn',
                 AssumedRoleId: 'role-id',
             },
-        } as StsCredential)
+        })
 
         const getProcessCredentialStub = stub(processProvider, 'getProcessCredential')
         getProcessCredentialStub.resolves({
@@ -418,6 +458,34 @@ describe('IdentityService', () => {
             expect(actual.credentials.sessionToken).to.equal('role-session-token')
             expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.notCalled).to.be.true
+        })
+
+        it('Can login with chained role source profiles.', async () => {
+            const actual = await sut.getIamCredential({ profileName: 'base-profile' }, CancellationToken.None)
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.called).to.be.true
+        })
+
+        it('Throws when role source profile points to itself.', async () => {
+            const error = await expect(
+                sut.getIamCredential({ profileName: 'cyclic-profile-1' }, CancellationToken.None)
+            ).rejectedWith(Error)
+
+            expect(error.message).to.equal('Source profile chain exceeded max length.')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.false
+        })
+
+        it('Throws when role source profiles form cycle.', async () => {
+            const error = await expect(
+                sut.getIamCredential({ profileName: 'cyclic-profile-2' }, CancellationToken.None)
+            ).rejectedWith(Error)
+
+            expect(error.message).to.equal('Source profile chain exceeded max length.')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.false
         })
 
         it('Can login with credential process.', async () => {
