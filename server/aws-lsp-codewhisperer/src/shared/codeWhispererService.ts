@@ -94,7 +94,7 @@ export abstract class CodeWhispererServiceBase {
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
-    abstract clearCachedSuggestions(): void
+    abstract clearCachedSuggestions(reason?: string): void
 
     abstract generateCompletionsAndEdits(
         textDocument: TextDocument,
@@ -201,7 +201,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
     }
 
     // No effect as IAM clients don't have this functionality yet
-    clearCachedSuggestions() {}
+    clearCachedSuggestions(reason?: string) {}
 }
 
 /**
@@ -311,7 +311,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         }
     }
 
-    clearCachedSuggestions(reason: string = '') {
+    clearCachedSuggestions(reason?: string) {
         this.logging.info(`[NEP] clearing prefetch cache because: ${reason}`)
         this.prefetchCache.clear()
     }
