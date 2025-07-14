@@ -282,6 +282,7 @@ export class McpManager {
                 if (isStdio) {
                     const mergedEnv = {
                         ...(process.env as Record<string, string>),
+                        // Make sure we do not have empty key and value in mergedEnv, or adding server through UI will fail on Windows
                         ...(cfg.env && !isEmptyEnv(cfg.env)
                             ? Object.fromEntries(Object.entries(cfg.env).filter(([k, v]) => k.trim() && v.trim()))
                             : {}),
@@ -296,24 +297,49 @@ export class McpManager {
                         )
                     }
                     transport = new StdioClientTransport({
-                        command: cfg.command!, // stdio 必须存在
+                        command: cfg.command!,
                         args: cfg.args ?? [],
                         env: mergedEnv,
                         cwd,
                     })
-                    await client.connect(transport)
+                    this.features.logging.info(`MCP: Connecting MCP server using StdioClientTransport`)
+                    try {
+                        await client.connect(transport)
+                    } catch (err: any) {
+                        let errorMessage = err?.message ?? String(err)
+                        if (err?.code === 'ENOENT') {
+                            errorMessage = `Command '${cfg.command}' not found. Please ensure it's installed and on your PATH.`
+                        } else if (err?.code === 'EINVAL') {
+                            errorMessage = `Invalid arguments for command '${cfg.command}'.`
+                        } else if (err?.code === -32000) {
+                            errorMessage = `MCP protocol error. The server may not be properly configured.`
+                        }
+                        throw new AgenticChatError(
+                            `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
+                            'MCPServerConnectionFailed'
+                        )
+                    }
                 } else {
                     const base = new URL(cfg.url!)
                     try {
-                        transport = new StreamableHTTPClientTransport(base, this.buildHttpOpts(cfg.headers))
-                        await client.connect(transport)
-                    } catch (err) {
-                        // fallback to SSE
-                        this.features.logging.info(
-                            `MCP: streamable http connect failed for [${serverName}], fallback to SSE: ${String(err)}`
+                        try {
+                            transport = new StreamableHTTPClientTransport(base, this.buildHttpOpts(cfg.headers))
+                            this.features.logging.info(`MCP: Connecting MCP server using StreamableHTTPClientTransport`)
+                            await client.connect(transport)
+                        } catch (err) {
+                            // fallback to SSE
+                            this.features.logging.info(
+                                `MCP: streamable http connect failed for [${serverName}], fallback to SSEClientTransport: ${String(err)}`
+                            )
+                            transport = new SSEClientTransport(new URL(cfg.url!), this.buildSseOpts(cfg.headers))
+                            await client.connect(transport)
+                        }
+                    } catch (err: any) {
+                        let errorMessage = err?.message ?? String(err)
+                        throw new AgenticChatError(
+                            `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
+                            'MCPServerConnectionFailed'
                         )
-                        transport = new SSEClientTransport(new URL(cfg.url!), this.buildSseOpts(cfg.headers))
-                        await client.connect(transport)
                     }
                 }
             }
@@ -369,9 +395,9 @@ export class McpManager {
             this.emitToolsChanged(serverName)
         } catch (e: any) {
             this.features.logging.warn(`MCP: server [${serverName}] init failed: ${e.message}`)
-            const c = this.clients.get(serverName)
-            if (c) {
-                await c.close()
+            const client = this.clients.get(serverName)
+            if (client) {
+                await client.close()
                 this.clients.delete(serverName)
             }
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
@@ -1205,19 +1231,23 @@ export class McpManager {
         if (!headers || Object.keys(headers).length === 0) {
             return
         }
+        // POST back‑channel
+        const requestInit: RequestInit = { headers }
 
-        // The POST back-channel
-        const requestInit = { headers }
-
-        // EventSource GET – needs a custom fetch because the spec
-        // has **no `headers` field** in `EventSourceInit`.
+        // override only the SSE‐GET:
         const eventSourceInit = {
-            fetch: (url: string | URL, init: RequestInit = {}) => {
+            // cast to any because EventSourceInit doesn’t list `fetch`
+            fetch: (input: RequestInfo | URL | string, init: RequestInit = {}) => {
                 const merged = new Headers(init.headers || {})
-                for (const [k, v] of Object.entries(headers)) merged.set(k, v)
-                return fetch(url, { ...init, headers: merged })
+                for (const [k, v] of Object.entries(headers)) {
+                    merged.set(k, v)
+                }
+                return fetch(input, {
+                    ...init,
+                    headers: merged,
+                })
             },
-        }
+        } as any
 
         return { requestInit, eventSourceInit }
     }
