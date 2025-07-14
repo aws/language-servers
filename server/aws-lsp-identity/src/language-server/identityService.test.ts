@@ -14,6 +14,8 @@ import {
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { Observability } from '@aws/lsp-core'
+import { STSClient } from '@aws-sdk/client-sts'
+import { IAMClient } from '@aws-sdk/client-iam'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -131,6 +133,7 @@ describe('IdentityService', () => {
                 showMessageRequest: _ => Promise.resolve({ title: 'client-response' }),
                 showProgress: _ => Promise.resolve(),
             },
+            () => Promise.resolve({ code: 'mfa-code' }),
             'My Client',
             observability,
             {
@@ -139,8 +142,23 @@ describe('IdentityService', () => {
             }
         )
 
-        const validatePermissionsStub = stub(sut as any, 'validatePermissions')
-        validatePermissionsStub.resolves(true)
+        stub(STSClient.prototype, 'send').resolves({
+            Credentials: {
+                AccessKeyId: 'role-access-key',
+                SecretAccessKey: 'role-secret-key',
+                SessionToken: 'role-session-token',
+                Expiration: new Date('2024-09-25T18:09:20.455Z'),
+            },
+            AssumedRoleUser: {
+                Arn: 'role-arn',
+                AssumedRoleId: 'role-id',
+            },
+            Arn: 'role-arn',
+        })
+
+        stub(IAMClient.prototype, 'send').resolves({
+            EvaluationResults: [],
+        })
     })
 
     afterEach(() => {
