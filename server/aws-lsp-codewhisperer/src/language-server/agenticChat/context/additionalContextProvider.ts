@@ -256,9 +256,11 @@ export class AdditionalContextProvider {
                 const availableContextItems = await localProjectContextController.getContextCommandItems()
                 const availableCodeContextItems = availableContextItems.filter(item => item.symbol)
                 for (const command of pinnedCodeItems) {
+                    // First check if the pinned symbol's ID still exists in the current index
                     let matchedId = availableCodeContextItems.find(item => item.id === command.id)
                     if (!matchedId) {
-                        // Remove line numbers from description
+                        // If ID no longer exists, try to find a matching symbol by name and description
+                        // Remove line numbers from description for comparison
                         const pinnedItemDescription = command.description?.replace(/,\s*L\d+[-]\d+$/, '')
                         if (pinnedItemDescription) {
                             const matchedDescription = availableCodeContextItems.find(availableItem => {
