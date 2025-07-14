@@ -228,7 +228,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         maxCacheSuggestionSize: 2,
         maxRecursiveCallDepth: 2,
         // TODO: make it shorter, 100s for dev purpose
-        cacheClearIntervalInMs: 100 * 1000, // 100s
+        cacheClearIntervalInMs: 100 * 1000, // 100s,
+        eosEndToken: 'eosEnd',
     }
 
     constructor(
@@ -366,6 +367,11 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         let r: GenerateSuggestionsResponse
         let type: string = ''
         if (cacheKey) {
+            if (cacheKey === this.prefetchConfig.eosEndToken) {
+                this.logging.info(`[NEP] reach eos end, return empty`)
+                throw new Error('eos end')
+            }
+
             // It's possible that we're still waiting for server's response, so should waitUntil
             const rr = await waitUntil(
                 async () => {
@@ -453,9 +459,11 @@ ${r.suggestions[0]?.content ?? '[NO SUGGESTION'}`
                 response.suggestions[0].content !== baseResponse.suggestions[0].content
 
             if (isResponseValid) {
-                // TODO: nextToken
+                // TODO: use real nextToken returned from service, should only keep eosEndToken once backend changes are done
                 if (depth + 1 < this.prefetchConfig.maxRecursiveCallDepth) {
                     response.responseContext.nextToken = `fake-token-point-to-depth ${depth + 1}`
+                } else if (depth + 1 === this.prefetchConfig.maxRecursiveCallDepth) {
+                    response.responseContext.nextToken = this.prefetchConfig.eosEndToken
                 }
 
                 const nextToken = response.responseContext.nextToken
