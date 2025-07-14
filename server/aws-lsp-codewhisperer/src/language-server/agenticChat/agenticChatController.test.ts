@@ -491,6 +491,7 @@ describe('AgenticChatController', () => {
                 {
                     userInputMessage: {
                         content: 'Previous question',
+                        images: [],
                         origin: 'IDE',
                         userInputMessageContext: { toolResults: [] },
                         userIntent: undefined,
@@ -1809,7 +1810,7 @@ describe('AgenticChatController', () => {
                 conversationState: {
                     currentMessage: {
                         userInputMessage: {
-                            content: 'a'.repeat(400_000),
+                            content: 'a'.repeat(493_400),
                             images: [
                                 {
                                     format: 'png',
@@ -1839,7 +1840,7 @@ describe('AgenticChatController', () => {
 
             // Should only keep the first and third images (small ones)
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
-            assert.strictEqual(result, 500000 - 400000 - 3.3 - 3.3) // remaining budget after content and images
+            assert.strictEqual(result, 500000 - 493400 - 3.3 - 3.3) // remaining budget after content and images
         })
 
         it('should handle images without bytes', () => {
@@ -1872,6 +1873,47 @@ describe('AgenticChatController', () => {
             // Should keep both images since the first one has 0 chars
             assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
             assert.strictEqual(result, 500000 - 400000 - 3.3) // remaining budget after content and second image
+        })
+
+        it('should truncate relevantDocuments and images together with equal priority', () => {
+            // 400_000 for content, 100 for doc, 3.3 for image, 100_000 for doc (should be truncated)
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        { relativeFilePath: 'a', text: 'a'.repeat(100) },
+                                        { relativeFilePath: 'b', text: 'a'.repeat(100_000) }, // should be truncated
+                                    ],
+                                },
+                            },
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000000000) }, // 3300000 chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000) }, // 3.3 chars
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+            // Only the first doc and the image should fit
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length,
+                1
+            )
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 1)
+            assert.strictEqual(result, 500000 - 400000 - 100 - 3.3)
         })
     })
 
