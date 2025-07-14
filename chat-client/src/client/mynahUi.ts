@@ -50,6 +50,7 @@ import {
     ChatItemButton,
     MynahIcons,
     CustomQuickActionCommand,
+    ConfigTexts,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -310,7 +311,8 @@ export const createMynahUi = (
     pairProgrammingCardAcknowledged: boolean,
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>,
-    agenticMode?: boolean
+    agenticMode?: boolean,
+    stringOverrides?: Partial<ConfigTexts>
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -584,6 +586,7 @@ export const createMynahUi = (
                                     },
                                 ],
                             },
+                            validateOnChange: true,
                             description: "Use this prompt by typing '@' followed by the prompt name.",
                         },
                     ],
@@ -767,6 +770,7 @@ export const createMynahUi = (
                             label: 'image',
                             icon: icon,
                             content: bytes,
+                            id: fileName,
                         }
                     })
                 )
@@ -799,11 +803,14 @@ export const createMynahUi = (
         },
         config: {
             maxTabs: 10,
+            dragOverlayIcon: MynahIcons.IMAGE,
             texts: {
                 ...uiComponentsTexts,
+                dragOverlayText: 'Add image to context',
                 // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
+                ...stringOverrides,
             },
             // Total model context window limit 600k.
             // 500k for user input, 100k for context, history, system prompt.
@@ -1479,13 +1486,15 @@ ${params.message}`,
 
     const sendPinnedContext = (params: PinnedContextParams) => {
         const pinnedContext = toContextCommands(params.contextCommandGroups[0]?.commands || [])
-        const activeEditor = pinnedContext[0]?.id === ACTIVE_EDITOR_CONTEXT_ID
+        let activeEditor = pinnedContext[0]?.id === ACTIVE_EDITOR_CONTEXT_ID
         // Update Active File pill description with active editor URI passed from IDE
         if (activeEditor) {
             if (params.textDocument != null) {
                 pinnedContext[0].description = params.textDocument.uri
             } else {
+                // IDE did not pass in active file, remove it from pinned context
                 pinnedContext.shift()
+                activeEditor = false
             }
         }
         let promptTopBarTitle = '@'
@@ -1535,7 +1544,7 @@ ${params.message}`,
         }
         const commands: QuickActionCommand[] = []
         for (const filePath of params.filePaths) {
-            const fileName = filePath.split('/').pop() || filePath
+            const fileName = filePath.split(/[\\/]/).pop() || filePath
             if (params.fileType === 'image') {
                 commands.push({
                     command: fileName,
@@ -1543,6 +1552,7 @@ ${params.message}`,
                     label: 'image',
                     route: [filePath],
                     icon: MynahIcons.IMAGE,
+                    id: fileName,
                 })
             }
         }
@@ -1690,7 +1700,7 @@ const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then 
 
 const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
 
-const uiComponentsTexts = {
+export const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
     copy: 'Copy',
     insertAtCursorLabel: 'Insert at cursor',

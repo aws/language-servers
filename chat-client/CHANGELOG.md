@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.23](https://github.com/aws/language-servers/compare/chat-client/v0.1.22...chat-client/v0.1.23) (2025-07-08)
+
+
+### Features
+
+* **chat-client:** add stringOverrides to createChat config ([#1847](https://github.com/aws/language-servers/issues/1847)) ([89f85ff](https://github.com/aws/language-servers/commit/89f85ff6c676eb30d2cb6bc3368676b0d0913bac))
+* support listAvailableModels server request ([#1808](https://github.com/aws/language-servers/issues/1808)) ([9f1ddb3](https://github.com/aws/language-servers/commit/9f1ddb327778dba6da49337b79c5fef19023b52d))
+
+
+### Bug Fixes
+
+* **amazonq:** allow taking .jpg file as image context, add image cont… ([#1814](https://github.com/aws/language-servers/issues/1814)) ([4d36fa4](https://github.com/aws/language-servers/commit/4d36fa4a0a04692dba720bc0288c6cee7f45a1fc))
+* **amazonq:** use config to render the overlay ([#1851](https://github.com/aws/language-servers/issues/1851)) ([f5c2038](https://github.com/aws/language-servers/commit/f5c2038c090f9bb66b3cbd7e31f4d26c37943aeb))
+* image context drag and drop fix on windows ([#1837](https://github.com/aws/language-servers/issues/1837)) ([14df236](https://github.com/aws/language-servers/commit/14df23633138d9b84875fba79a3eaf2d18dca8ce))
+* imagecontext image name bug, mutliple images in pinned context ([#1834](https://github.com/aws/language-servers/issues/1834)) ([27d60ab](https://github.com/aws/language-servers/commit/27d60ab5f5249635a9e73be1ee96ecb820133f9a))
+
 ## [0.1.22](https://github.com/aws/language-servers/compare/chat-client/v0.1.21...chat-client/v0.1.22) (2025-07-02)
 
 

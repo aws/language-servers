@@ -5,6 +5,7 @@
 
 import * as crypto from 'crypto'
 import * as path from 'path'
+import * as os from 'os'
 import {
     ChatTriggerType,
     Origin,
@@ -143,7 +144,7 @@ import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams, outOfWorkspaceWarningmessage } from './tools/executeBash'
-import { ExplanatoryParams, ToolApprovalException } from './tools/toolShared'
+import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams } from './tools/fileSearch'
@@ -151,14 +152,14 @@ import { FsReplace, FsReplaceParams } from './tools/fsReplace'
 import { loggingUtils, timeoutUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
 import {
-    genericErrorMsg,
-    loadingThresholdMs,
-    generateAssistantResponseInputLimit,
-    outputLimitExceedsPartialMsg,
-    responseTimeoutMs,
-    responseTimeoutPartialMsg,
-    defaultModelId,
-} from './constants'
+    GENERIC_ERROR_MS,
+    LOADING_THRESHOLD_MS,
+    GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT,
+    OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG,
+    RESPONSE_TIMEOUT_MS,
+    RESPONSE_TIMEOUT_PARTIAL_MSG,
+    DEFAULT_MODEL_ID,
+} from './constants/constants'
 import {
     AgenticChatError,
     customerFacingErrorCodes,
@@ -170,6 +171,8 @@ import {
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
+import { QCodeReview } from './tools/qCodeAnalysis/qCodeReview'
+import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/qCodeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -183,9 +186,10 @@ import {
     qProName,
 } from '../paidTier/paidTier'
 import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
-import { modelOptions, modelOptionsForRegion } from './modelSelection'
+import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
+import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -246,6 +250,26 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseId = toolUse.toolUseId!
         // Return plain toolUseId for executeBash, add "_permission" suffix for all other tools
         return toolUse.name === 'executeBash' || toolType === 'executeBash' ? toolUseId : `${toolUseId}_permission`
+    }
+
+    /**
+     * Logs system information that can be helpful for debugging customer issues
+     */
+    private logSystemInformation(): void {
+        const clientInfo = this.#features.lsp.getClientInitializeParams()?.clientInfo
+        const systemInfo = {
+            languageServerVersion: this.#features.runtime.serverInfo.version ?? 'unknown',
+            clientName: clientInfo?.name ?? 'unknown',
+            clientVersion: clientInfo?.version ?? 'unknown',
+            OS: os.platform(),
+            OSVersion: os.release(),
+            ComputeEnv: process.env.COMPUTE_ENV ?? 'unknown',
+            extensionVersion:
+                this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.clientInfo?.extension
+                    ?.version,
+        }
+
+        this.#features.logging.info(`System Information: ${JSON.stringify(systemInfo)}`)
     }
 
     constructor(
@@ -382,6 +406,10 @@ export class AgenticChatController implements ChatHandlers {
             await this.#features.workspace.fs.writeFile(input.path, toolUse.fileChange.before)
         } else {
             await this.#features.workspace.fs.rm(input.path)
+            void LocalProjectContextController.getInstance().then(controller => {
+                const filePath = URI.file(input.path).fsPath
+                return controller.updateIndexAndContextCommand([filePath], false)
+            })
         }
     }
 
@@ -454,7 +482,7 @@ export class AgenticChatController implements ChatHandlers {
         if (params.fileType === 'image') {
             // 1. Prompt user for file selection
             const supportedExtensions = DEFAULT_IMAGE_VERIFICATION_OPTIONS.supportedExtensions
-            const filters = { 'Image Files': supportedExtensions.map(ext => `*.${ext}`) }
+            const filters = { 'Image Files': supportedExtensions }
             const result = await this.#features.lsp.window.showOpenDialog({
                 canSelectFiles: true,
                 canSelectFolders: false,
@@ -476,7 +504,7 @@ export class AgenticChatController implements ChatHandlers {
             let errorMessage: string | undefined
             for (const filePath of result.uris) {
                 // Extract filename from the URI for error messages
-                const fileName = filePath.split('/').pop() || ''
+                const fileName = path.basename(filePath) || ''
                 const sanitizedPath = sanitize(filePath)
 
                 // Get file size and content for verification
@@ -586,7 +614,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
         const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
+        const models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         const { data: session, success } = sessionResult
@@ -601,18 +629,13 @@ export class AgenticChatController implements ChatHandlers {
         const selectedModelId =
             savedModelId && models.some(model => model.id === savedModelId)
                 ? savedModelId
-                : this.#getLatestAvailableModel(region).id
+                : getLatestAvailableModel(region).id
         session.modelId = selectedModelId
         return {
             tabId: params.tabId,
             models: models,
             selectedModelId: selectedModelId,
         }
-    }
-
-    #getLatestAvailableModel(region: string | undefined, exclude?: string): Model {
-        const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
-        return models.reverse().find(model => model.id !== exclude) ?? models[models.length - 1]
     }
 
     async #sendProgressToClient(chunk: ChatResult | string, partialResultToken?: string | number) {
@@ -682,6 +705,9 @@ export class AgenticChatController implements ChatHandlers {
                     session.pairProgrammingMode,
                     session.getConversationType()
                 )
+                metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+                metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+                metric.setDimension('enabled', session.pairProgrammingMode)
                 await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Cancelled')
             })
             session.setConversationType('AgenticChat')
@@ -691,9 +717,12 @@ export class AgenticChatController implements ChatHandlers {
                 params.tabId,
                 params.context
             )
-            // Add active file to context list if it exists
+            // Add active file to context list if it's not already there
             const activeFile =
-                triggerContext.text && triggerContext.relativeFilePath && triggerContext.activeFilePath
+                triggerContext.text &&
+                triggerContext.relativeFilePath &&
+                triggerContext.activeFilePath &&
+                !additionalContext.some(item => item.path === triggerContext.activeFilePath)
                     ? [
                           {
                               name: path.basename(triggerContext.relativeFilePath),
@@ -715,7 +744,12 @@ export class AgenticChatController implements ChatHandlers {
                 params.context,
                 params.tabId
             )
-
+            // Add image context to triggerContext.documentReference for transparency
+            await this.#additionalContextProvider.appendCustomContextToTriggerContext(
+                triggerContext,
+                params.context,
+                params.tabId
+            )
             // Get the initial request input
             const initialRequestInput = await this.#prepareRequestInput(
                 params,
@@ -843,7 +877,7 @@ export class AgenticChatController implements ChatHandlers {
         let iterationCount = 0
         let shouldDisplayMessage = true
         metric.recordStart()
-
+        this.logSystemInformation()
         while (true) {
             iterationCount++
             this.#debug(`Agent loop iteration ${iterationCount} for conversation id:`, conversationIdentifier || '')
@@ -949,7 +983,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#debug(`LLM Response Latency: ${llmLatency}`)
             // This is needed to handle the case where the response stream times out
             // and we want to auto-retry
-            if (!result.success && result.error.startsWith(responseTimeoutPartialMsg)) {
+            if (!result.success && result.error.startsWith(RESPONSE_TIMEOUT_PARTIAL_MSG)) {
                 const content =
                     'You took too long to respond - try to split up the work into smaller steps. Do not apologize.'
                 if (this.#isPromptCanceled(token, session, promptId)) {
@@ -1130,7 +1164,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     truncateRequest(request: ChatCommandInput, pinnedContext?: AdditionalContentEntryAddition[]): number {
         // TODO: Confirm if this limit applies to SendMessage and rename this constant
-        let remainingCharacterBudget = generateAssistantResponseInputLimit
+        let remainingCharacterBudget = GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
             return remainingCharacterBudget
         }
@@ -1139,9 +1173,9 @@ export class AgenticChatController implements ChatHandlers {
         // 1. prioritize user input message
         let truncatedUserInputMessage = ''
         if (message) {
-            if (message.length > generateAssistantResponseInputLimit) {
-                this.#debug(`Truncating userInputMessage to ${generateAssistantResponseInputLimit} characters}`)
-                truncatedUserInputMessage = message.substring(0, generateAssistantResponseInputLimit)
+            if (message.length > GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT) {
+                this.#debug(`Truncating userInputMessage to ${GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT} characters}`)
+                truncatedUserInputMessage = message.substring(0, GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT)
                 remainingCharacterBudget = remainingCharacterBudget - truncatedUserInputMessage.length
                 request.conversationState.currentMessage.userInputMessage.content = truncatedUserInputMessage
             } else {
@@ -1352,6 +1386,9 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
+                    case QCodeReview.toolName:
+                        // no need to write tool message for code review
+                        break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
@@ -1422,6 +1459,22 @@ export class AgenticChatController implements ChatHandlers {
                         ...toolUse,
                         fileChange: { before: document?.getText() },
                     })
+                }
+
+                if (toolUse.name === QCodeReview.toolName) {
+                    try {
+                        let initialInput = JSON.parse(JSON.stringify(toolUse.input))
+                        let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
+                        if (ruleArtifacts !== undefined || ruleArtifacts !== null) {
+                            this.#features.logging.info(`RuleArtifacts: ${JSON.stringify(ruleArtifacts)}`)
+                            let pathsToRulesMap = ruleArtifacts.map(ruleArtifact => ({ path: ruleArtifact.id }))
+                            this.#features.logging.info(`PathsToRules: ${JSON.stringify(pathsToRulesMap)}`)
+                            initialInput['ruleArtifacts'] = pathsToRulesMap
+                        }
+                        toolUse.input = initialInput
+                    } catch (e) {
+                        this.#features.logging.warn(`could not parse QCodeReview tool input: ${e}`)
+                    }
                 }
 
                 // After approval, add the path to the approved paths in the session
@@ -1496,6 +1549,22 @@ export class AgenticChatController implements ChatHandlers {
                             session.getConversationType()
                         )
                         await chatResultStream.writeResultBlock(chatResult)
+                        break
+                    case QCodeReview.toolName:
+                        // no need to write tool result for code review, this is handled by model via chat
+                        // Push result in message so that it is picked by IDE plugin to show in issues panel
+                        const qCodeReviewResult = result as InvokeOutput
+                        if (
+                            qCodeReviewResult?.output?.kind === 'json' &&
+                            qCodeReviewResult.output.success &&
+                            (qCodeReviewResult.output.content as any)?.findingsByFile
+                        ) {
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
+                                body: (qCodeReviewResult.output.content as any).findingsByFile,
+                            })
+                        }
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
@@ -1645,7 +1714,7 @@ export class AgenticChatController implements ChatHandlers {
     #shouldSendBackErrorContent(toolResult: ToolResult) {
         if (toolResult.status === ToolResultStatus.ERROR) {
             for (const content of toolResult.content ?? []) {
-                if (content.json && JSON.stringify(content.json).includes(outputLimitExceedsPartialMsg)) {
+                if (content.json && JSON.stringify(content.json).includes(OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG)) {
                     // do not send the content response back for this case to avoid unnecessary messages
                     return false
                 }
@@ -1751,7 +1820,7 @@ export class AgenticChatController implements ChatHandlers {
             (result.text && result.text.length > maxToolResponseSize) ||
             (result.json && JSON.stringify(result.json).length > maxToolResponseSize)
         ) {
-            throw Error(`${toolUse.name} ${outputLimitExceedsPartialMsg} ${maxToolResponseSize}`)
+            throw Error(`${toolUse.name} ${OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG} ${maxToolResponseSize}`)
         }
     }
 
@@ -1771,7 +1840,38 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    #getToolOverWritableStream(
+        chatResultStream: AgenticChatResultStream,
+        toolUse: ToolUse
+    ): WritableStream | undefined {
+        const toolMsgId = toolUse.toolUseId!
+
+        return new WritableStream({
+            write: async chunk => {
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
+                await chatResultStream.removeResultBlockAndUpdateUI(toolMsgId)
+
+                await chatResultStream.writeResultBlock({
+                    type: 'tool',
+                    messageId: toolMsgId,
+                    body: chunk,
+                })
+            },
+            close: async () => {
+                if (this.#stoppedToolUses.has(toolMsgId)) return
+
+                await chatResultStream.removeResultBlockAndUpdateUI(toolMsgId)
+
+                this.#stoppedToolUses.add(toolMsgId)
+            },
+        })
+    }
+
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
+        if (toolUse.name === QCodeReview.toolName) {
+            return this.#getToolOverWritableStream(chatResultStream, toolUse)
+        }
         if (toolUse.name !== 'executeBash') {
             return
         }
@@ -2362,7 +2462,7 @@ export class AgenticChatController implements ChatHandlers {
         content: string
     ): ChatCommandInput {
         // Create a deep copy of the request input
-        const updatedRequestInput = JSON.parse(JSON.stringify(requestInput)) as ChatCommandInput
+        const updatedRequestInput = structuredClone(requestInput) as ChatCommandInput
 
         // Add tool results to the request
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.userInputMessageContext!.toolResults =
@@ -2487,6 +2587,8 @@ export class AgenticChatController implements ChatHandlers {
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
+        metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
+        metric.setDimension('enabled', agenticCodingMode)
 
         metric.metric.requestIds = [requestID]
         metric.metric.cwsprChatMessageId = errorMessageId
@@ -2536,7 +2638,7 @@ export class AgenticChatController implements ChatHandlers {
                 tabId,
                 metric.metric,
                 requestID,
-                errorMessage ?? genericErrorMsg,
+                errorMessage ?? GENERIC_ERROR_MS,
                 agenticCodingMode
             )
         }
@@ -2612,7 +2714,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#features.logging.error(`Unknown Error: ${loggingUtils.formatErr(err)}`)
         return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
             type: 'answer',
-            body: requestID ? `${genericErrorMsg} \n\nRequest ID: ${requestID}` : genericErrorMsg,
+            body: requestID ? `${GENERIC_ERROR_MS} \n\nRequest ID: ${requestID}` : GENERIC_ERROR_MS,
             messageId: errorMessageId,
             buttons: [],
         })
@@ -2856,7 +2958,7 @@ export class AgenticChatController implements ChatHandlers {
     #legacySetModelId(tabId: string, session: ChatSessionService) {
         // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
         // In that case, we use the default modelId.
-        let modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
+        let modelId = this.#chatHistoryDb.getModelId() ?? DEFAULT_MODEL_ID
 
         const region = AmazonQTokenServiceManager.getInstance().getRegion()
         if (region === 'eu-central-1') {
@@ -3309,11 +3411,11 @@ export class AgenticChatController implements ChatHandlers {
                 abortController.abort()
                 reject(
                     new AgenticChatError(
-                        `${responseTimeoutPartialMsg} ${responseTimeoutMs}ms`,
+                        `${RESPONSE_TIMEOUT_PARTIAL_MSG} ${RESPONSE_TIMEOUT_MS}ms`,
                         'ResponseProcessingTimeout'
                     )
                 )
-            }, responseTimeoutMs)
+            }, RESPONSE_TIMEOUT_MS)
         })
         const streamWriter = chatResultStream.getResultStreamWriter()
         const processResponsePromise = this.#processAgenticChatResponse(
@@ -3486,6 +3588,11 @@ export class AgenticChatController implements ChatHandlers {
         toolUseStartTimes: Record<string, number>,
         toolUseLoadingTimeouts: Record<string, NodeJS.Timeout>
     ) {
+        const canWrite = new Set(this.#features.agent.getBuiltInWriteToolNames())
+        if (toolUseEvent.name && canWrite.has(toolUseEvent.name)) {
+            return
+        }
+
         const toolUseId = toolUseEvent.toolUseId
         if (!toolUseEvent.stop && toolUseId) {
             if (!toolUseStartTimes[toolUseId]) {
@@ -3497,10 +3604,10 @@ export class AgenticChatController implements ChatHandlers {
                 this.#debug(`ToolUseEvent ${toolUseId} started`)
                 toolUseLoadingTimeouts[toolUseId] = setTimeout(async () => {
                     this.#debug(
-                        `ToolUseEvent ${toolUseId} is taking longer than ${loadingThresholdMs}ms, showing loading indicator`
+                        `ToolUseEvent ${toolUseId} is taking longer than ${LOADING_THRESHOLD_MS}ms, showing loading indicator`
                     )
                     await streamWriter.write({ ...loadingMessage, messageId: `loading-${toolUseId}` })
-                }, loadingThresholdMs)
+                }, LOADING_THRESHOLD_MS)
             }
         } else if (toolUseEvent.stop && toolUseId) {
             if (toolUseStartTimes[toolUseId]) {
