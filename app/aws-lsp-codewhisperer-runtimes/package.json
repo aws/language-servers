@@ -11,7 +11,6 @@
         "start": "cross-env NODE_OPTIONS=--max_old_space_size=8172 node scripts/dev-server.js start",
         "stop-dev-server": "node scripts/dev-server.js stop",
         "test": "node scripts/test-runner.js",
-        "test-integ": "npm run compile && mocha --timeout 30000 \"./out/**/*Integ.test.js\" --retries 2",
         "test-bundles": "node scripts/test-bundles.js",
         "local-build": "node scripts/local-build.js"
     },
@@ -33,25 +32,15 @@
         "webpack-dev-server": "^5.2.0"
     },
     "devDependencies": {
-        "@types/chai": "^4.3.5",
-        "@types/chai-as-promised": "^7.1.5",
-        "@types/mocha": "^10.0.9",
-        "@types/yauzl-promise": "^4.0.1",
         "@wdio/cli": "^9.12.2",
         "@wdio/local-runner": "^9.12.1",
         "@wdio/mocha-framework": "^9.12.1",
         "@wdio/spec-reporter": "^9.11.0",
-        "chai": "^4.3.7",
-        "chai-as-promised": "^7.1.1",
         "html-loader": "^5.1.0",
         "html-webpack-plugin": "^5.6.3",
-        "jose": "^5.10.0",
-        "mocha": "^11.0.1",
         "node-loader": "^2.1.0",
         "ts-loader": "^9.4.4",
-        "ts-lsp-client": "^1.0.3",
         "webpack": "^5.94.0",
-        "webpack-cli": "^6.0.1",
-        "yauzl-promise": "^4.0.0"
+        "webpack-cli": "^6.0.1"
     }
 }

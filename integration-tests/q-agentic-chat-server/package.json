@@ -1,7 +1,7 @@
 {
     "name": "@aws/q-agentic-chat-server-integration-tests",
     "version": "0.0.1",
-    "description": "Integration tests for AWS Language Servers",
+    "description": "Integration tests for Q Agentic Chat Server",
     "main": "out/index.js",
     "scripts": {
         "clean": "rm -rf out/ node_modules/ tsconfig.tsbuildinfo .tsbuildinfo",
