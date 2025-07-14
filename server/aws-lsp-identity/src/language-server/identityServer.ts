@@ -61,8 +61,8 @@ export class IdentityServer extends ServerBase {
             profileStore,
             ssoCache,
             autoRefresher,
-            iamProvider,
-            { showUrl, showMessageRequest, showProgress, sendGetMfaCode },
+            { showUrl, showMessageRequest, showProgress },
+            this.features.identityManagement.sendGetMfaCode,
             this.getClientName(params),
             this.observability
         )

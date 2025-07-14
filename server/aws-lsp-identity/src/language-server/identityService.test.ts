@@ -16,7 +16,6 @@ import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interfa
 import { Observability } from '@aws/lsp-core'
 import { STSClient } from '@aws-sdk/client-sts'
 import { IAMClient } from '@aws-sdk/client-iam'
-import { IamProvider } from '../iam/iamProvider'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -145,6 +144,7 @@ describe('IdentityService', () => {
                 showProgress: _ => Promise.resolve(),
                 sendGetMfaCode: () => Promise.resolve({ code: 'mfa-code' }),
             },
+            () => Promise.resolve({ code: 'mfa-code' }),
             'My Client',
             observability,
             {
@@ -153,8 +153,23 @@ describe('IdentityService', () => {
             }
         )
 
-        const validatePermissionsStub = stub(sut as any, 'validatePermissions')
-        validatePermissionsStub.resolves(true)
+        stub(STSClient.prototype, 'send').resolves({
+            Credentials: {
+                AccessKeyId: 'role-access-key',
+                SecretAccessKey: 'role-secret-key',
+                SessionToken: 'role-session-token',
+                Expiration: new Date('2024-09-25T18:09:20.455Z'),
+            },
+            AssumedRoleUser: {
+                Arn: 'role-arn',
+                AssumedRoleId: 'role-id',
+            },
+            Arn: 'role-arn',
+        })
+
+        stub(IAMClient.prototype, 'send').resolves({
+            EvaluationResults: [],
+        })
     })
 
     afterEach(() => {
