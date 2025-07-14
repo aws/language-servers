@@ -506,18 +506,17 @@ describe('QCodeReview', () => {
         })
 
         it('should resolve file path from folder artifacts', () => {
-            const filePath = path.resolve('/project/src/file.js')
             const fileArtifacts: any[] = []
-            const folderArtifacts = [{ path: '/project/src' }]
+            const folderArtifacts = [{ path: path.resolve('/project/src') }]
 
             const result = (qCodeReview as any).resolveFilePath('file.js', fileArtifacts, folderArtifacts)
 
-            expect(result).to.equal(filePath)
+            expect(result).to.equal(path.resolve('/project/src/file.js'))
         })
 
         it('should resolve file path with common suffix matching', () => {
             const fileArtifacts: any[] = []
-            const folderArtifacts = [{ path: '/project/src/main' }]
+            const folderArtifacts = [{ path: path.resolve('/project/src/main') }]
 
             existsSyncStub.returns(true)
             statSyncStub.returns({ isFile: () => true })
