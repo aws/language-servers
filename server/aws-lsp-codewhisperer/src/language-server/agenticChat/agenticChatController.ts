@@ -196,6 +196,8 @@ import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelect
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
+import { UserContext } from '../../client/token/codewhispererbearertokenclient'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -245,6 +247,15 @@ export class AgenticChatController implements ChatHandlers {
     #timeToFirstChunk: number = -1
     #timeBetweenChunks: number[] = []
     #lastChunkTime: number = 0
+
+    // A/B testing allocation
+    #abTestingFetchingTimeout: NodeJS.Timeout | undefined
+    #abTestingAllocation:
+        | {
+              experimentName: string
+              userVariation: string
+          }
+        | undefined
 
     /**
      * Determines the appropriate message ID for a tool use based on tool type and name
@@ -369,7 +380,9 @@ export class AgenticChatController implements ChatHandlers {
                     'RejectDiff',
                     params.tabId,
                     session.data?.pairProgrammingMode,
-                    session.data?.getConversationType()
+                    session.data?.getConversationType(),
+                    this.#abTestingAllocation?.experimentName,
+                    this.#abTestingAllocation?.userVariation
                 )
             } catch (err: any) {
                 return { success: false, failureReason: err.message }
@@ -592,6 +605,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#contextCommandsProvider?.dispose()
         this.#userWrittenCodeTracker?.dispose()
         this.#mcpEventHandler.dispose()
+        clearInterval(this.#abTestingFetchingTimeout)
     }
 
     async onListConversations(params: ListConversationsParams) {
@@ -676,6 +690,8 @@ export class AgenticChatController implements ChatHandlers {
 
         const metric = new Metric<CombinedConversationEvent>({
             cwsprChatConversationType: 'AgenticChat',
+            experimentName: this.#abTestingAllocation?.experimentName,
+            userVariation: this.#abTestingAllocation?.userVariation,
         })
 
         try {
@@ -709,7 +725,9 @@ export class AgenticChatController implements ChatHandlers {
                     'StopChat',
                     params.tabId,
                     session.pairProgrammingMode,
-                    session.getConversationType()
+                    session.getConversationType(),
+                    this.#abTestingAllocation?.experimentName,
+                    this.#abTestingAllocation?.userVariation
                 )
                 metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
                 metric.setDimension('codewhispererCustomizationArn', this.#customizationArn)
@@ -1059,7 +1077,9 @@ export class AgenticChatController implements ChatHandlers {
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
                     this.#timeBetweenChunks,
-                    session.pairProgrammingMode
+                    session.pairProgrammingMode,
+                    this.#abTestingAllocation?.experimentName,
+                    this.#abTestingAllocation?.userVariation
                 )
                 finalResult = result
                 break
@@ -1095,7 +1115,9 @@ export class AgenticChatController implements ChatHandlers {
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
                     this.#timeBetweenChunks,
-                    session.pairProgrammingMode
+                    session.pairProgrammingMode,
+                    this.#abTestingAllocation?.experimentName,
+                    this.#abTestingAllocation?.userVariation
                 )
             } else {
                 // Send an error card to UI?
@@ -1117,7 +1139,9 @@ export class AgenticChatController implements ChatHandlers {
                     this.#toolCallLatencies,
                     this.#timeToFirstChunk,
                     this.#timeBetweenChunks,
-                    session.pairProgrammingMode
+                    session.pairProgrammingMode,
+                    this.#abTestingAllocation?.experimentName,
+                    this.#abTestingAllocation?.userVariation
                 )
                 if (result.error.startsWith('ToolUse input is invalid JSON:')) {
                     content =
@@ -1369,7 +1393,9 @@ export class AgenticChatController implements ChatHandlers {
                                     'GeneratedCommand',
                                     tabId,
                                     session.pairProgrammingMode,
-                                    session.getConversationType()
+                                    session.getConversationType(),
+                                    this.#abTestingAllocation?.experimentName,
+                                    this.#abTestingAllocation?.userVariation
                                 )
                             }
                             if (toolRequiresAcceptance) {
@@ -1386,7 +1412,9 @@ export class AgenticChatController implements ChatHandlers {
                                     'RunCommand',
                                     tabId,
                                     session.pairProgrammingMode,
-                                    session.getConversationType()
+                                    session.getConversationType(),
+                                    this.#abTestingAllocation?.experimentName,
+                                    this.#abTestingAllocation?.userVariation
                                 )
                             }
                         }
@@ -1552,7 +1580,9 @@ export class AgenticChatController implements ChatHandlers {
                             'GeneratedDiff',
                             tabId,
                             session.pairProgrammingMode,
-                            session.getConversationType()
+                            session.getConversationType(),
+                            this.#abTestingAllocation?.experimentName,
+                            this.#abTestingAllocation?.userVariation
                         )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
@@ -1600,7 +1630,9 @@ export class AgenticChatController implements ChatHandlers {
                         session.conversationId ?? '',
                         this.#features.runtime.serverInfo.version ?? '',
                         latency,
-                        session.pairProgrammingMode
+                        session.pairProgrammingMode,
+                        this.#abTestingAllocation?.experimentName,
+                        this.#abTestingAllocation?.userVariation
                     )
                 }
             } catch (err) {
@@ -3898,6 +3930,45 @@ export class AgenticChatController implements ChatHandlers {
             messageId: toolUse.toolUseId,
             body: toolResultMessage(toolUse, result),
         })
+    }
+
+    scheduleABTestingFetching(userContext: UserContext | undefined) {
+        if (!userContext) {
+            return
+        }
+
+        this.#abTestingFetchingTimeout = setInterval(() => {
+            let codeWhispererServiceToken: CodeWhispererServiceToken
+            try {
+                codeWhispererServiceToken = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+            } catch (error) {
+                // getCodewhispererService only returns the cwspr client if the service manager was initialized
+                // i.e. profile was selected otherwise it throws an error
+                // we will not evaluate a/b status until profile is selected and service manager is fully initialized
+                return
+            }
+
+            // Clear interval once we have the CodewhispererService
+            clearInterval(this.#abTestingFetchingTimeout)
+            this.#abTestingFetchingTimeout = undefined
+
+            codeWhispererServiceToken
+                .listFeatureEvaluations({ userContext })
+                .then(result => {
+                    const feature = result.featureEvaluations?.find(
+                        feature => feature.feature === 'MaestroWorkspaceContext'
+                    )
+                    if (feature) {
+                        this.#abTestingAllocation = {
+                            experimentName: feature.feature,
+                            userVariation: feature.variation,
+                        }
+                    }
+                })
+                .catch(error => {
+                    this.#features.logging.debug(`Error fetching AB testing result: ${error}`)
+                })
+        }, 5000)
     }
 
     #log(...messages: string[]) {
