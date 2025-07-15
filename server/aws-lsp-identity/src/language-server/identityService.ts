@@ -189,7 +189,7 @@ export class IdentityService {
             const options = { ...getIamCredentialOptionsDefaults, ...params.options }
 
             token.onCancellationRequested(_ => {
-                if (options.generateOnInvalidStsCredential) {
+                if (options.callStsOnInvalidIamCredential) {
                     emitMetric('Cancelled', null)
                 }
             })
@@ -205,17 +205,17 @@ export class IdentityService {
             let credentials: IamCredentials
             // Assume the role and retrieve its STS credentials
             if (
-                profile.kinds.includes(ProfileKind.IamRoleSourceProfile) ||
-                profile.kinds.includes(ProfileKind.IamRoleInstanceProfile)
+                profile.kinds.includes(ProfileKind.IamSourceProfileProfile) ||
+                profile.kinds.includes(ProfileKind.IamCredentialSourceProfile)
             ) {
-                credentials = await this.getAssumedRoleCredential(profile, options.generateOnInvalidStsCredential)
+                credentials = await this.getAssumedRoleCredential(profile, options.callStsOnInvalidIamCredential)
             }
             // Get the credentials from the process output
-            else if (profile.kinds.includes(ProfileKind.IamProcessProfile)) {
+            else if (profile.kinds.includes(ProfileKind.IamCredentialProcessProfile)) {
                 credentials = await getProcessCredential(profile.settings!.credential_process!)
             }
             // Get the credentials directly from the profile
-            else if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
+            else if (profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
                 credentials = {
                     accessKeyId: profile.settings!.aws_access_key_id!,
                     secretAccessKey: profile.settings!.aws_secret_access_key!,
@@ -251,7 +251,7 @@ export class IdentityService {
 
     private async getAssumedRoleCredential(
         profile: Profile,
-        generateOnInvalidStsCredential: boolean
+        callStsOnInvalidIamCredential: boolean
     ): Promise<IamCredentials> {
         if (!profile.settings) {
             throw new AwsError('Profile settings not found when assuming role.', AwsErrorCodes.E_INVALID_PROFILE)
@@ -268,7 +268,7 @@ export class IdentityService {
                 sessionToken: stsCredentials.Credentials.SessionToken!,
                 expiration: stsCredentials.Credentials.Expiration!,
             }
-        } else if (generateOnInvalidStsCredential) {
+        } else if (callStsOnInvalidIamCredential) {
             // Generate STS credentials
             const response = await this.generateStsCredential(profile)
             if (!response.Credentials) {
@@ -288,7 +288,7 @@ export class IdentityService {
         } else {
             // If we could not get the cached STS credential and cannot generate a new credential, give up
             this.observability.logging.log(
-                'STS credential not found an generateOnInvalidStsCredential = false, returning no credential.'
+                'STS credential not found an callStsOnInvalidIamCredential = false, returning no credential.'
             )
             throw new AwsError('STS credential not found.', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)
         }
@@ -307,13 +307,13 @@ export class IdentityService {
 
     private async getParentCredential(profile: Profile): Promise<IamCredentials> {
         let parentCredentials: IamCredentials
-        if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
+        if (profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
             const parentOptions = {
                 profileName: profile.settings!.source_profile!,
                 // Do not validate Q permissions on source profile
                 options: { validatePermissions: false },
             }
-            // Obtain parent profile credentials if recursion count hasn't been exceeded from IamRoleSourceProfile chains
+            // Obtain parent profile credentials if recursion count hasn't been exceeded from IamSourceProfileProfile chains
             if (this.sourceProfileRecursionCount <= sourceProfileRecursionMax) {
                 this.sourceProfileRecursionCount += 1
                 const parentResult = await this.getIamCredential(parentOptions, CancellationToken.None)
@@ -322,7 +322,7 @@ export class IdentityService {
             } else {
                 throw new AwsError('Source profile chain exceeded max length.', AwsErrorCodes.E_INVALID_PROFILE)
             }
-        } else if (profile.kinds.includes(ProfileKind.IamRoleInstanceProfile)) {
+        } else if (profile.kinds.includes(ProfileKind.IamCredentialSourceProfile)) {
             switch (profile.settings?.credential_source) {
                 case 'Ec2InstanceMetadata':
                     parentCredentials = await fromInstanceMetadata()()

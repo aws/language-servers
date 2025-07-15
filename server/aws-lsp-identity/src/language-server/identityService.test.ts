@@ -47,7 +47,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamUserProfile],
+                        kinds: [ProfileKind.IamCredentialsProfile],
                         name: 'my-iam-profile',
                         settings: {
                             aws_access_key_id: 'my-access-key',
@@ -55,7 +55,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamUserProfile],
+                        kinds: [ProfileKind.IamCredentialsProfile],
                         name: 'my-sts-profile',
                         settings: {
                             aws_access_key_id: 'my-access-key',
@@ -64,7 +64,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        kinds: [ProfileKind.IamSourceProfileProfile],
                         name: 'my-role-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -72,7 +72,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        kinds: [ProfileKind.IamSourceProfileProfile],
                         name: 'my-mfa-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -81,14 +81,14 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamProcessProfile],
+                        kinds: [ProfileKind.IamCredentialProcessProfile],
                         name: 'my-process-profile',
                         settings: {
                             credential_process: 'my-process',
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        kinds: [ProfileKind.IamSourceProfileProfile],
                         name: 'cyclic-profile-1',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -96,7 +96,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        kinds: [ProfileKind.IamSourceProfileProfile],
                         name: 'cyclic-profile-2',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -104,7 +104,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        kinds: [ProfileKind.IamSourceProfileProfile],
                         name: 'cyclic-profile-3',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -112,7 +112,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        kinds: [ProfileKind.IamSourceProfileProfile],
                         name: 'base-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -120,7 +120,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        kinds: [ProfileKind.IamSourceProfileProfile],
                         name: 'intermediate-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -433,12 +433,12 @@ describe('IdentityService', () => {
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
 
-        it('Throws when no STS credential cached and generateOnInvalidStsCredential is false.', async () => {
+        it('Throws when no STS credential cached and callStsOnInvalidIamCredential is false.', async () => {
             const error = await expect(
                 sut.getIamCredential(
                     {
                         profileName: 'my-role-profile',
-                        options: { generateOnInvalidStsCredential: false },
+                        options: { callStsOnInvalidIamCredential: false },
                     },
                     CancellationToken.None
                 )
@@ -448,7 +448,7 @@ describe('IdentityService', () => {
             expect(stsAutoRefresher.watch.calledOnce).to.be.false
         })
 
-        it('Can login with chained role source profiles.', async () => {
+        it('Can login with chained IamSourceProfileProfiles.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'base-profile' }, CancellationToken.None)
 
             expect(actual.credentials.accessKeyId).to.equal('role-access-key')
@@ -458,7 +458,7 @@ describe('IdentityService', () => {
             expect(stsAutoRefresher.watch.called).to.be.true
         })
 
-        it('Throws when role source profile points to itself.', async () => {
+        it('Throws when IamSourceProfileProfile points to itself.', async () => {
             const error = await expect(
                 sut.getIamCredential({ profileName: 'cyclic-profile-1' }, CancellationToken.None)
             ).rejectedWith(Error)
@@ -467,7 +467,7 @@ describe('IdentityService', () => {
             expect(stsAutoRefresher.watch.calledOnce).to.be.false
         })
 
-        it('Throws when role source profiles form cycle.', async () => {
+        it('Throws when IamSourceProfileProfile form cycle.', async () => {
             const error = await expect(
                 sut.getIamCredential({ profileName: 'cyclic-profile-2' }, CancellationToken.None)
             ).rejectedWith(Error)
