@@ -143,7 +143,7 @@ import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
-import { ExecuteBash, ExecuteBashParams, outOfWorkspaceWarningmessage } from './tools/executeBash'
+import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
@@ -1353,9 +1353,9 @@ export class AgenticChatController implements ChatHandlers {
                         const tool = new Tool(this.#features)
 
                         // For MCP tools, get the permission from McpManager
-                        const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
+                        // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
                         // If permission is 'alwaysAllow', we don't need to ask for acceptance
-                        const builtInPermission = permission !== 'alwaysAllow'
+                        // const builtInPermission = permission !== 'alwaysAllow'
 
                         // Get the approved paths from the session
                         const approvedPaths = session.approvedPaths
@@ -1365,20 +1365,17 @@ export class AgenticChatController implements ChatHandlers {
                             toolUse.input as any,
                             approvedPaths
                         )
-                        // check if tool execution's path is out of workspace
-                        const isOutOfWorkSpace = warning === outOfWorkspaceWarningmessage
-                        // Honor built-in permission if available, otherwise use tool's requiresAcceptance
-                        const toolRequiresAcceptance = (builtInPermission || isOutOfWorkSpace) ?? requiresAcceptance
 
-                        if (toolRequiresAcceptance || toolUse.name === 'executeBash') {
+                        // Honor built-in permission if available, otherwise use tool's requiresAcceptance
+                        // const requiresAcceptance = builtInPermission || toolRequiresAcceptance
+
+                        if (requiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
-                                toolRequiresAcceptance,
+                                requiresAcceptance,
                                 warning,
-                                commandCategory,
-                                toolUse.name,
-                                builtInPermission
+                                commandCategory
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
                             const isExecuteBash = toolUse.name === 'executeBash'
@@ -1392,7 +1389,7 @@ export class AgenticChatController implements ChatHandlers {
                                     this.#abTestingAllocation?.userVariation
                                 )
                             }
-                            if (toolRequiresAcceptance) {
+                            if (requiresAcceptance) {
                                 await this.waitForToolApproval(
                                     toolUse,
                                     chatResultStream,
@@ -2133,7 +2130,7 @@ export class AgenticChatController implements ChatHandlers {
                           {
                               id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,
-                              text: 'Deny',
+                              text: 'Reject',
                               icon: 'cancel',
                           },
                       ]
@@ -2215,7 +2212,6 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             case 'fsRead':
-            case 'fileSearch':
             case 'listDirectory': {
                 buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
@@ -2239,7 +2235,7 @@ export class AgenticChatController implements ChatHandlers {
                     body = builtInPermission
                         ? `I need permission to read files.\n${formattedPaths.join('\n')}`
                         : `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
-                } else if (toolName === 'listDirectory') {
+                } else {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
 
                     // Validate the path using our synchronous utility
@@ -2249,11 +2245,6 @@ export class AgenticChatController implements ChatHandlers {
                     body = builtInPermission
                         ? `I need permission to list directories.\n\`${readFilePath}\``
                         : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
-                } else {
-                    const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
-                    body = builtInPermission
-                        ? `I need permission to search files.\n\`${readFilePath}\``
-                        : `I need permission to search files outside the workspace.\n\`${readFilePath}\``
                 }
                 break
             }
