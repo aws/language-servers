@@ -290,7 +290,7 @@ describe('McpMynahUi', () => {
 
     describe('mcpServerClick', () => {
         // This test is skipped until the implementation is fixed
-        it.skip('should handle open-mcp-server action correctly', () => {
+        it('should handle open-mcp-server action correctly', () => {
             // Create mock params
             const params: McpServerClickResult = {
                 id: 'open-mcp-server',
@@ -577,9 +577,8 @@ describe('McpMynahUi', () => {
             assert.strictEqual(detailedList.header.actions[0].id, 'mcp-details-menu')
 
             // Verify the mcp-details-menu items
-            assert.strictEqual(detailedList.header.actions[0].items.length, 2)
-            assert.strictEqual(detailedList.header.actions[0].items[0].id, 'mcp-disable-server')
-            assert.strictEqual(detailedList.header.actions[0].items[1].id, 'mcp-delete-server')
+            assert.strictEqual(detailedList.header.actions[0].items.length, 1)
+            assert.strictEqual(detailedList.header.actions[0].items[0].id, 'mcp-delete-server')
 
             assert.strictEqual(detailedList.filterOptions.length, 1)
             assert.strictEqual(detailedList.filterOptions[0].id, 'permission')

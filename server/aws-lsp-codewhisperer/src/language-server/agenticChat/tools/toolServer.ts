@@ -16,9 +16,12 @@ import {
     getGlobalPersonaConfigPath,
     getWorkspaceMcpConfigPaths,
     getWorkspacePersonaConfigPaths,
+    getGlobalAgentConfigPath,
+    getWorkspaceAgentConfigPaths,
     createNamespacedToolName,
     enabledMCP,
     sanitizeName,
+    migrateToAgentConfig,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
 
@@ -178,15 +181,19 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             }
 
             const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
-            const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
-            const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
-            const allConfigPaths = [...wsConfigPaths, globalConfigPath]
+            // Get agent paths
+            const wsAgentPaths = getWorkspaceAgentConfigPaths(wsUris)
+            const globalAgentPath = getGlobalAgentConfigPath(workspace.fs.getUserHomeDir())
+            const allAgentPaths = [...wsAgentPaths, globalAgentPath]
 
             const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
             const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
             const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
 
-            const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, {
+            // Migrate config and persona files to agent config
+            await migrateToAgentConfig(workspace, logging)
+
+            const mgr = await McpManager.init(allAgentPaths, {
                 logging,
                 workspace,
                 lsp,
