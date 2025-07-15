@@ -118,7 +118,7 @@ export async function updateManifest(
         versions: [],
     }
 
-    const licensesURL = 'placeholder'
+    const licensesURL = getGitHubReleaseDownloadUrl('THIRD_PARTY_LICENSES')
     const newEntry = generateNewEntry({
         version: {
             server: serverVersion,

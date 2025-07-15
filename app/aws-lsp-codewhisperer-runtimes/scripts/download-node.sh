@@ -73,7 +73,7 @@ echo "License file has been updated in $LICENSE_FILE"
 LICENSE_TEXT=$(cat "$LICENSE_FILE")
 
 # Update the attribution overrides file
-ATTRIBUTION_FILE="build/node-assets/attribution-overrides.json"
+ATTRIBUTION_FILE="../../attribution/overrides.json"
 
 # Create attribution file with empty JSON object if it doesn't exist
 if [ ! -f "$ATTRIBUTION_FILE" ]; then
@@ -84,9 +84,12 @@ fi
 # Update version and licenseText fields using jq
 # jq also escapes text by default
 jq --indent 4 \
+   --arg name "Node.js" \
    --arg version "$NODE_SEMVER" \
-   --arg license "$LICENSE_TEXT" \
-   '.node.version = $version | .node.licenseText = $license' \
+   --arg licenseText "$LICENSE_TEXT" \
+   --arg url "https://github.com/nodejs/node" \
+   --arg license "MIT" \
+   '.node.name = $name | .node.version = $version | .node.url = $url | .node.license = $license | .node.licenseText = $licenseText' \
    "$ATTRIBUTION_FILE" > "$ATTRIBUTION_FILE.tmp" && mv "$ATTRIBUTION_FILE.tmp" "$ATTRIBUTION_FILE"
 echo "Successfully updated Node.js version and license in $ATTRIBUTION_FILE"
 
