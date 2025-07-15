@@ -19,6 +19,11 @@ export interface BaseDependencyInfo {
     workspaceFolder: WorkspaceFolder
 }
 
+export interface DependencyHandlerSharedState {
+    isDisposed: boolean
+    dependencyUploadedSizeSum: number
+}
+
 // Abstract base class for all language dependency handlers
 export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     public language: CodewhispererLanguage
@@ -28,7 +33,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     // key: workspaceFolder, value: {key: dependency name, value: Dependency}
     protected dependencyMap = new Map<WorkspaceFolder, Map<string, Dependency>>()
     protected dependencyUploadedSizeMap = new Map<WorkspaceFolder, number>()
-    protected dependencyUploadedSizeSum: Uint32Array<SharedArrayBuffer>
+    protected dependencyHandlerSharedState: DependencyHandlerSharedState
     protected dependencyWatchers: Map<string, DependencyWatcher> = new Map<string, DependencyWatcher>()
     protected artifactManager: ArtifactManager
     protected dependenciesFolderName: string
@@ -48,7 +53,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         workspaceFolders: WorkspaceFolder[],
         artifactManager: ArtifactManager,
         dependenciesFolderName: string,
-        dependencyUploadedSizeSum: Uint32Array<SharedArrayBuffer>
+        dependencyHandlerSharedState: DependencyHandlerSharedState
     ) {
         this.language = language
         this.workspace = workspace
@@ -62,7 +67,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         this.workspaceFolders.forEach(workSpaceFolder =>
             this.dependencyMap.set(workSpaceFolder, new Map<string, Dependency>())
         )
-        this.dependencyUploadedSizeSum = dependencyUploadedSizeSum
+        this.dependencyHandlerSharedState = dependencyHandlerSharedState
     }
 
     /*
@@ -126,6 +131,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
     async zipDependencyMap(folders: WorkspaceFolder[]): Promise<void> {
         // Process each workspace folder sequentially
         for (const [workspaceFolder, correspondingDependencyMap] of this.dependencyMap) {
+            if (this.dependencyHandlerSharedState.isDisposed) {
+                return
+            }
             // Check if the workspace folder is in the provided folders
             if (!folders.includes(workspaceFolder)) {
                 continue
@@ -144,6 +152,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         let currentChunkSize = 0
         let currentChunk: Dependency[] = []
         for (const dependency of dependencyList) {
+            if (this.dependencyHandlerSharedState.isDisposed) {
+                return
+            }
             // If adding this dependency would exceed the chunk size limit,
             // process the current chunk first
             if (currentChunkSize + dependency.size > MAX_CHUNK_SIZE_BYTES && currentChunk.length > 0) {
@@ -177,7 +188,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                     workspaceFolder,
                     (this.dependencyUploadedSizeMap.get(workspaceFolder) || 0) + dependency.size
                 )
-                Atomics.add(this.dependencyUploadedSizeSum, 0, dependency.size)
+                this.dependencyHandlerSharedState.dependencyUploadedSizeSum += dependency.size
                 // Mark this dependency that has been zipped
                 dependency.zipped = true
                 this.dependencyMap.get(workspaceFolder)?.set(dependency.name, dependency)
@@ -298,8 +309,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
      * However, everytime flare server restarts, this dependency map will be initialized.
      */
     private validateWorkspaceDependencySize(workspaceFolder: WorkspaceFolder): boolean {
-        let uploadedSize = Atomics.load(this.dependencyUploadedSizeSum, 0)
-        if (uploadedSize && this.MAX_WORKSPACE_DEPENDENCY_SIZE < uploadedSize) {
+        if (this.MAX_WORKSPACE_DEPENDENCY_SIZE < this.dependencyHandlerSharedState.dependencyUploadedSizeSum) {
             return false
         }
         return true
@@ -314,7 +324,8 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
     disposeWorkspaceFolder(workspaceFolder: WorkspaceFolder): void {
         this.dependencyMap.delete(workspaceFolder)
-        Atomics.sub(this.dependencyUploadedSizeSum, 0, this.dependencyUploadedSizeMap.get(workspaceFolder) || 0)
+        this.dependencyHandlerSharedState.dependencyUploadedSizeSum -=
+            this.dependencyUploadedSizeMap.get(workspaceFolder) || 0
         this.dependencyUploadedSizeMap.delete(workspaceFolder)
         this.disposeWatchers(workspaceFolder)
         this.disposeDependencyInfo(workspaceFolder)
@@ -352,5 +363,13 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
 
     protected isDependencyZipped(dependencyName: string, workspaceFolder: WorkspaceFolder): boolean | undefined {
         return this.dependencyMap.get(workspaceFolder)?.get(dependencyName)?.zipped
+    }
+
+    markAllDependenciesAsUnZipped(): void {
+        this.dependencyMap.forEach(correspondingDependencyMap => {
+            correspondingDependencyMap.forEach(dependency => {
+                dependency.zipped = false
+            })
+        })
     }
 }

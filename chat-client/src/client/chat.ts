@@ -107,6 +107,7 @@ import {
     OpenFileDialogParams,
     OPEN_FILE_DIALOG_METHOD,
     OpenFileDialogResult,
+    EXECUTE_SHELL_COMMAND_SHORTCUT_METHOD,
 } from '@aws/language-server-runtimes-types'
 import { ConfigTexts, MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
@@ -132,6 +133,7 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     agenticMode?: boolean
     modelSelectionEnabled?: boolean
     stringOverrides?: Partial<ConfigTexts>
+    os?: string
 }
 
 export const createChat = (
@@ -185,6 +187,9 @@ export const createChat = (
         }
 
         switch (message?.command) {
+            case EXECUTE_SHELL_COMMAND_SHORTCUT_METHOD:
+                mynahApi.executeShellCommandShortCut(message.params)
+                break
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
@@ -539,7 +544,8 @@ export const createChat = (
         chatClientAdapter,
         featureConfig,
         !!config?.agenticMode,
-        config?.stringOverrides
+        config?.stringOverrides,
+        config?.os
     )
 
     mynahApi = api
