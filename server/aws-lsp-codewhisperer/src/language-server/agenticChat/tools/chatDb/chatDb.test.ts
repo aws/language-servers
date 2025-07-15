@@ -484,6 +484,31 @@ describe('ChatDatabase', () => {
         })
     })
 
+    describe('replaceWithSummary', () => {
+        it('should create a new history with summary message', () => {
+            const tabId = 'tab-1'
+            const tabType = 'cwc'
+            const conversationId = 'conv-1'
+            const summaryMessage = {
+                body: 'This is a summary of the conversation',
+                type: 'prompt' as any,
+                timestamp: new Date(),
+            }
+
+            // Call the method
+            chatDb.replaceWithSummary(tabId, tabType, conversationId, summaryMessage)
+
+            // Verify the messages array contains the summary and a dummy response
+            const messages = chatDb.getMessages(tabId, 250)
+            assert.strictEqual(messages.length, 2)
+            assert.strictEqual(messages[0].body, summaryMessage.body)
+            assert.strictEqual(messages[0].type, 'prompt')
+            assert.strictEqual(messages[1].body, 'Thinking...')
+            assert.strictEqual(messages[1].type, 'answer')
+            assert.strictEqual(messages[1].shouldDisplayMessage, false)
+        })
+    })
+
     describe('getWorkspaceIdentifier', () => {
         const MOCK_MD5_HASH = '5bc032692b81700eb516f317861fbf32'
         const MOCK_SHA256_HASH = 'bb6b72d3eab82acaabbda8ca6c85658b83e178bb57760913ccdd938bbeaede9f'
