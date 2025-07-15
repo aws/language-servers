@@ -11,6 +11,7 @@ import { Message } from './util'
 import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import * as fs from 'fs'
 import * as util from './util'
+import { sleep } from '@aws/lsp-core/out/util/timeoutUtils'
 
 describe('ChatDatabase', () => {
     let mockFeatures: Features
@@ -62,6 +63,32 @@ describe('ChatDatabase', () => {
     afterEach(() => {
         chatDb.close()
         sinon.restore()
+    })
+
+    describe('replaceWithSummary', () => {
+        it('should create a new history with summary message', async () => {
+            await chatDb.databaseInitialize(0)
+            const tabId = 'tab-1'
+            const tabType = 'cwc'
+            const conversationId = 'conv-1'
+            const summaryMessage = {
+                body: 'This is a summary of the conversation',
+                type: 'prompt' as any,
+                timestamp: new Date(),
+            }
+
+            // Call the method
+            chatDb.replaceWithSummary(tabId, tabType, conversationId, summaryMessage)
+
+            // Verify the messages array contains the summary and a dummy response
+            const messages = chatDb.getMessages(tabId, 250)
+            assert.strictEqual(messages.length, 2)
+            assert.strictEqual(messages[0].body, summaryMessage.body)
+            assert.strictEqual(messages[0].type, 'prompt')
+            assert.strictEqual(messages[1].body, 'Thinking...')
+            assert.strictEqual(messages[1].type, 'answer')
+            assert.strictEqual(messages[1].shouldDisplayMessage, false)
+        })
     })
 
     describe('ensureValidMessageSequence', () => {
@@ -481,31 +508,6 @@ describe('ChatDatabase', () => {
             // Clean up
             calculateMessagesCharacterCountStub.restore()
             calculateToolSpecCharacterCountStub.restore()
-        })
-    })
-
-    describe('replaceWithSummary', () => {
-        it('should create a new history with summary message', () => {
-            const tabId = 'tab-1'
-            const tabType = 'cwc'
-            const conversationId = 'conv-1'
-            const summaryMessage = {
-                body: 'This is a summary of the conversation',
-                type: 'prompt' as any,
-                timestamp: new Date(),
-            }
-
-            // Call the method
-            chatDb.replaceWithSummary(tabId, tabType, conversationId, summaryMessage)
-
-            // Verify the messages array contains the summary and a dummy response
-            const messages = chatDb.getMessages(tabId, 250)
-            assert.strictEqual(messages.length, 2)
-            assert.strictEqual(messages[0].body, summaryMessage.body)
-            assert.strictEqual(messages[0].type, 'prompt')
-            assert.strictEqual(messages[1].body, 'Thinking...')
-            assert.strictEqual(messages[1].type, 'answer')
-            assert.strictEqual(messages[1].shouldDisplayMessage, false)
         })
     })
 
