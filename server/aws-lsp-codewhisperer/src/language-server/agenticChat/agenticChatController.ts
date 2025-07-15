@@ -159,12 +159,6 @@ import {
     RESPONSE_TIMEOUT_MS,
     RESPONSE_TIMEOUT_PARTIAL_MSG,
     DEFAULT_MODEL_ID,
-    DEFAULT_MACOS_RUN_SHORTCUT,
-    DEFAULT_WINDOW_RUN_SHORTCUT,
-    DEFAULT_MACOS_REJECT_SHORTCUT,
-    DEFAULT_WINDOW_REJECT_SHORTCUT,
-    DEFAULT_MACOS_STOP_SHORTCUT,
-    DEFAULT_WINDOW_STOP_SHORTCUT,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -1920,7 +1914,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
-            buttons: [this.#renderStopShellCommandButton()],
+            buttons: [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }],
         }
 
         const completedHeader: ChatMessage['header'] = {
@@ -1997,7 +1991,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
+                    buttons: isAccept ? [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }] : [],
                 },
             }
         }
@@ -2104,51 +2098,6 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #renderStopShellCommandButton() {
-        const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
-        return {
-            id: 'stop-shell-command',
-            text: 'Stop',
-            icon: 'stop',
-            ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
-        }
-    }
-
-    #getKeyBinding(commandId: string): string | null {
-        // Check for feature flag
-        const shortcut =
-            this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
-                ?.shortcut
-        if (!shortcut) {
-            return null
-        }
-        let defaultKey = ''
-        const OS = os.platform()
-
-        switch (commandId) {
-            case 'aws.amazonq.runCmdExecution':
-                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_RUN_SHORTCUT : DEFAULT_WINDOW_RUN_SHORTCUT
-                break
-            case 'aws.amazonq.rejectCmdExecution':
-                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_REJECT_SHORTCUT : DEFAULT_WINDOW_REJECT_SHORTCUT
-                break
-            case 'aws.amazonq.stopCmdExecution':
-                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_STOP_SHORTCUT : DEFAULT_WINDOW_STOP_SHORTCUT
-                break
-            default:
-                this.#log(`#getKeyBinding: ${commandId} shortcut is supported by Q `)
-                break
-        }
-
-        if (defaultKey === '') {
-            return null
-        }
-
-        //TODO: handle case: user change default keybind, suggestion: read `keybinding.json` provided by VSC
-
-        return defaultKey
-    }
-
     #processToolConfirmation(
         toolUse: ToolUse,
         requiresAcceptance: Boolean,
@@ -2178,28 +2127,14 @@ export class AgenticChatController implements ChatHandlers {
         switch (toolName) {
             case 'executeBash': {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                // get feature flag
-                const shortcut =
-                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
-                        ?.shortcut
-
-                const runKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
-                const rejectKey = this.#getKeyBinding('aws.amazonq.rejectCmdExecution')
-
                 buttons = requiresAcceptance
                     ? [
-                          {
-                              id: 'run-shell-command',
-                              text: 'Run',
-                              icon: 'play',
-                              ...(runKey ? { description: `Run:  ${runKey}` } : {}),
-                          },
+                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
                           {
                               id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,
                               text: 'Deny',
                               icon: 'cancel',
-                              ...(rejectKey ? { description: `Reject:  ${rejectKey}` } : {}),
                           },
                       ]
                     : []
