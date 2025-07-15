@@ -496,6 +496,99 @@ describe('ProfileService', async () => {
             'Cannot update shared sso-session.'
         )
     })
+
+    describe('IAM credential discovery from environment variables', () => {
+        it('updateProfile accepts IAM role instance profile with Environment credential source', async () => {
+            const profile = {
+                kinds: [ProfileKind.IamRoleInstanceProfile],
+                name: 'env-role-profile',
+                settings: {
+                    role_arn: 'arn:aws:iam::123456789012:role/MyRole',
+                    credential_source: 'Environment',
+                    region: 'us-east-1',
+                },
+            }
+
+            await sut.updateProfile({ profile })
+
+            const [[data]] = store.save.args
+            expect(data.profiles).to.deep.include(profile)
+        })
+
+        it('updateProfile accepts IAM role instance profile with Ec2InstanceMetadata credential source', async () => {
+            const profile = {
+                kinds: [ProfileKind.IamRoleInstanceProfile],
+                name: 'ec2-role-profile',
+                settings: {
+                    role_arn: 'arn:aws:iam::123456789012:role/EC2Role',
+                    credential_source: 'Ec2InstanceMetadata',
+                    region: 'us-west-2',
+                },
+            }
+
+            await sut.updateProfile({ profile })
+
+            const [[data]] = store.save.args
+            expect(data.profiles).to.deep.include(profile)
+        })
+
+        it('updateProfile accepts IAM role instance profile with EcsContainer credential source', async () => {
+            const profile = {
+                kinds: [ProfileKind.IamRoleInstanceProfile],
+                name: 'ecs-role-profile',
+                settings: {
+                    role_arn: 'arn:aws:iam::123456789012:role/ECSRole',
+                    credential_source: 'EcsContainer',
+                    region: 'us-west-1',
+                },
+            }
+
+            await sut.updateProfile({ profile })
+
+            const [[data]] = store.save.args
+            expect(data.profiles).to.deep.include(profile)
+        })
+    })
+
+    describe('File watching', () => {
+        afterEach(() => {
+            sut.stopWatching()
+        })
+
+        it('startWatching sets up file watcher', () => {
+            let changeCallbackCalled = false
+            const onChange = () => {
+                changeCallbackCalled = true
+            }
+
+            sut.startWatching(onChange)
+
+            expect(changeCallbackCalled).to.be.false
+        })
+
+        it('stopWatching cleans up file watcher', () => {
+            sut.startWatching()
+            sut.stopWatching()
+
+            // Should not throw when called multiple times
+            sut.stopWatching()
+        })
+
+        it('listProfiles uses cache when available', async () => {
+            const cachedData = {
+                profiles: [profile1],
+                ssoSessions: [ssoSession1],
+            }
+
+            // Manually set cache
+            ;(sut as any).profileCache = cachedData
+
+            const result = await sut.listProfiles({})
+
+            expect(result).to.equal(cachedData)
+            expect(store.load.callCount).to.equal(0)
+        })
+    })
 })
 
 describe('profileService.DuckTypers', () => {
