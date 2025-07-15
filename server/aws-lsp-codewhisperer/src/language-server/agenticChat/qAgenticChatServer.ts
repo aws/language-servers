@@ -91,7 +91,8 @@ export const QAgenticChatServer =
                 )
             )
 
-            telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'CHAT'))
+            const userContext = makeUserContextObject(clientParams, runtime.platform, 'CHAT')
+            telemetryService.updateUserContext(userContext)
 
             chatController = new AgenticChatController(
                 chatSessionManagementService,
@@ -99,6 +100,10 @@ export const QAgenticChatServer =
                 telemetryService,
                 amazonQServiceManager
             )
+
+            if (!isUsingIAMAuth()) {
+                chatController.scheduleABTestingFetching(userContext)
+            }
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
         })
