@@ -785,15 +785,16 @@ export class AgenticChatController implements ChatHandlers {
                 params.tabId
             )
 
+            let finalResult
             if (params.prompt.command === QuickAction.Compact) {
                 // Get the compaction request input
-                const compactionRequestInput = await this.#getCompactionRequestInput(session)
+                const compactionRequestInput = this.#getCompactionRequestInput(session)
                 // Generate a unique ID for this prompt
                 const promptId = crypto.randomUUID()
                 session.setCurrentPromptId(promptId)
 
                 // Start the compaction call
-                const finalResult = await this.#runCompaction(
+                finalResult = await this.#runCompaction(
                     compactionRequestInput,
                     session,
                     metric,
@@ -803,16 +804,6 @@ export class AgenticChatController implements ChatHandlers {
                     session.conversationId,
                     token,
                     triggerContext.documentReference
-                )
-                // Result Handling - This happens only once
-                return await this.#handleFinalResult(
-                    finalResult,
-                    session,
-                    params.tabId,
-                    metric,
-                    triggerContext,
-                    isNewConversation,
-                    chatResultStream
                 )
             } else {
                 // Get the initial request input
@@ -830,7 +821,7 @@ export class AgenticChatController implements ChatHandlers {
                 session.setCurrentPromptId(promptId)
 
                 // Start the agent loop
-                const finalResult = await this.#runAgentLoop(
+                finalResult = await this.#runAgentLoop(
                     initialRequestInput,
                     session,
                     metric,
@@ -842,18 +833,18 @@ export class AgenticChatController implements ChatHandlers {
                     triggerContext.documentReference,
                     additionalContext.filter(item => item.pinned)
                 )
-
-                // Phase 5: Result Handling - This happens only once
-                return await this.#handleFinalResult(
-                    finalResult,
-                    session,
-                    params.tabId,
-                    metric,
-                    triggerContext,
-                    isNewConversation,
-                    chatResultStream
-                )
             }
+
+            // Result Handling - This happens only once
+            return await this.#handleFinalResult(
+                finalResult,
+                session,
+                params.tabId,
+                metric,
+                triggerContext,
+                isNewConversation,
+                chatResultStream
+            )
         } catch (err) {
             // HACK: the chat-client needs to have a partial event with the associated messageId sent before it can accept the final result.
             // Without this, the `thinking` indicator never goes away.
@@ -925,11 +916,11 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Prepares the initial request input for the chat prompt
      */
-    async #getCompactionRequestInput(session: ChatSessionService): Promise<ChatCommandInput> {
+    #getCompactionRequestInput(session: ChatSessionService): ChatCommandInput {
         this.#debug('Preparing compaction request input')
         // Get profileArn from the service manager if available
         const profileArn = this.#serviceManager?.getActiveProfileArn()
-        const requestInput = await this.#triggerContext.getCompactionChatCommandInput(
+        const requestInput = this.#triggerContext.getCompactionChatCommandInput(
             profileArn,
             this.#getTools(session),
             session.modelId,
@@ -1398,7 +1389,7 @@ export class AgenticChatController implements ChatHandlers {
             const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
             await this.waitForCompactApproval(messageId, chatResultStream, cachedButtonBlockId, session)
             // Get the compaction request input
-            const compactionRequestInput = await this.#getCompactionRequestInput(session)
+            const compactionRequestInput = this.#getCompactionRequestInput(session)
             // Start the compaction call
             return await this.#runCompaction(
                 compactionRequestInput,

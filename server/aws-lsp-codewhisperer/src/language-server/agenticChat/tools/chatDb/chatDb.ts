@@ -618,7 +618,7 @@ export class ChatDatabase {
                             // dummy response
                             {
                                 body: 'Thinking...',
-                                type: 'answer' as any,
+                                type: 'answer',
                                 shouldDisplayMessage: false,
                                 timestamp: new Date(),
                             },

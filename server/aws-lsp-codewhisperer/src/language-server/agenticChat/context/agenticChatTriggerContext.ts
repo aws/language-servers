@@ -115,12 +115,12 @@ export class AgenticChatTriggerContext {
      * @param origin Optional origin
      * @returns ChatCommandInput - which is either SendMessageInput or GenerateAssistantResponseInput
      */
-    async getCompactionChatCommandInput(
+    getCompactionChatCommandInput(
         profileArn?: string,
         tools: BedrockTools = [],
         modelId?: string,
         origin?: Origin
-    ): Promise<ChatCommandInput> {
+    ): ChatCommandInput {
         const data: ChatCommandInput = {
             conversationState: {
                 chatTriggerType: ChatTriggerType.MANUAL,
