@@ -89,7 +89,7 @@ describe('SharedConfigProfileStore', async () => {
         expect(actual).to.deep.equal({
             profiles: [
                 {
-                    kinds: [ProfileKind.IamUserProfile],
+                    kinds: [ProfileKind.IamCredentialsProfile],
                     name: 'default',
                     settings: {
                         aws_access_key_id: 'AAAAAAAA',
@@ -180,7 +180,7 @@ describe('SharedConfigProfileStore', async () => {
             expect(after).to.deep.equal({
                 profiles: [
                     {
-                        kinds: [ProfileKind.IamUserProfile],
+                        kinds: [ProfileKind.IamCredentialsProfile],
                         name: 'default',
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
@@ -276,7 +276,7 @@ describe('SharedConfigProfileStore', async () => {
             expect(after).to.deep.equal({
                 profiles: [
                     {
-                        kinds: [ProfileKind.IamUserProfile],
+                        kinds: [ProfileKind.IamCredentialsProfile],
                         name: 'default',
                         settings: {
                             aws_access_key_id: 'AAAAAAAA',
@@ -316,7 +316,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamUserProfile],
+                    kinds: [ProfileKind.IamCredentialsProfile],
                     name: 'iam-user.profile',
                     settings: {
                         aws_access_key_id: 'new-access-key',
@@ -325,7 +325,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamRoleSourceProfile],
+                    kinds: [ProfileKind.IamSourceProfileProfile],
                     name: 'role-source.profile',
                     settings: {
                         role_arn: 'new-role-arn',
@@ -333,7 +333,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamRoleInstanceProfile],
+                    kinds: [ProfileKind.IamCredentialSourceProfile],
                     name: 'role-instance.profile',
                     settings: {
                         role_arn: 'new-role-arn',
@@ -341,7 +341,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamProcessProfile],
+                    kinds: [ProfileKind.IamCredentialProcessProfile],
                     name: 'process.profile',
                     settings: {
                         credential_process: 'new-credential-process',
@@ -392,7 +392,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamUserProfile],
+                    kinds: [ProfileKind.IamCredentialsProfile],
                     name: 'default',
                     settings: {
                         aws_access_key_id: 'AAAAAAAA',
@@ -400,7 +400,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamUserProfile],
+                    kinds: [ProfileKind.IamCredentialsProfile],
                     name: 'iam-user.profile',
                     settings: {
                         aws_access_key_id: 'new-access-key',
@@ -409,14 +409,14 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamProcessProfile],
+                    kinds: [ProfileKind.IamCredentialProcessProfile],
                     name: 'process.profile',
                     settings: {
                         credential_process: 'new-credential-process',
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamRoleInstanceProfile],
+                    kinds: [ProfileKind.IamCredentialSourceProfile],
                     name: 'role-instance.profile',
                     settings: {
                         role_arn: 'new-role-arn',
@@ -424,7 +424,7 @@ describe('SharedConfigProfileStore', async () => {
                     },
                 },
                 {
-                    kinds: [ProfileKind.IamRoleSourceProfile],
+                    kinds: [ProfileKind.IamSourceProfileProfile],
                     name: 'role-source.profile',
                     settings: {
                         role_arn: 'new-role-arn',
