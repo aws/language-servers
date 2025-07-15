@@ -40,6 +40,8 @@ export const ProfileFields = {
     source_profile: 'source_profile',
     mfa_serial: 'mfa_serial',
     external_id: 'external_id',
+    credential_cache: 'credential_cache',
+    credential_cache_location: 'credential_cache_location',
 } as const
 
 export const SsoSessionFields = {
@@ -55,31 +57,39 @@ export const profileTypes = {
         optional: [ProfileFields.region],
         disallowed: [ProfileFields.sso_account_id, ProfileFields.sso_role_name],
     },
-    IamUserProfile: {
-        kind: ProfileKind.IamUserProfile,
+    IamCredentialsProfile: {
+        kind: ProfileKind.IamCredentialsProfile,
         required: [ProfileFields.aws_access_key_id, ProfileFields.aws_secret_access_key],
         optional: [ProfileFields.aws_session_token],
         disallowed: [],
     },
-    IamRoleSourceProfile: {
-        kind: ProfileKind.IamRoleSourceProfile,
+    IamSourceProfileProfile: {
+        kind: ProfileKind.IamSourceProfileProfile,
         required: [ProfileFields.role_arn, ProfileFields.source_profile],
         optional: [
             ProfileFields.external_id,
             ProfileFields.role_session_name,
             ProfileFields.region,
             ProfileFields.mfa_serial,
+            ProfileFields.credential_cache,
+            ProfileFields.credential_cache_location,
         ],
         disallowed: [ProfileFields.credential_source],
     },
-    IamRoleInstanceProfile: {
-        kind: ProfileKind.IamRoleInstanceProfile,
+    IamCredentialSourceProfile: {
+        kind: ProfileKind.IamCredentialSourceProfile,
         required: [ProfileFields.role_arn, ProfileFields.credential_source],
-        optional: [ProfileFields.external_id, ProfileFields.role_session_name, ProfileFields.region],
+        optional: [
+            ProfileFields.external_id,
+            ProfileFields.role_session_name,
+            ProfileFields.region,
+            ProfileFields.credential_cache,
+            ProfileFields.credential_cache_location,
+        ],
         disallowed: [ProfileFields.source_profile],
     },
-    IamProcessProfile: {
-        kind: ProfileKind.IamProcessProfile,
+    IamCredentialProcessProfile: {
+        kind: ProfileKind.IamCredentialProcessProfile,
         required: [ProfileFields.credential_process],
         optional: [],
         disallowed: [],
@@ -153,7 +163,6 @@ export class ProfileService {
         this.throwOnInvalidProfile(!params.profile, 'Profile required.')
         const profile = params.profile!
 
-        // Removing this check for profile deletion
         this.throwOnInvalidProfile(
             !profile.kinds.some(kind => Object.values(ProfileKind).includes(kind)),
             'Profile must be non-legacy sso-session or iam-credentials type.'
@@ -173,6 +182,7 @@ export class ProfileService {
             throw new AwsError('Cannot create profile.', AwsErrorCodes.E_CANNOT_CREATE_PROFILE)
         }
 
+        // TODO: can this be refactored and simplified using the existing DuckTypers?
         // Validate SSO profile
         if (profile.kinds.includes(ProfileKind.SsoTokenProfile)) {
             this.throwOnInvalidProfile(!profileSettings.sso_session, 'Sso-session name required on profile.')
@@ -209,22 +219,22 @@ export class ProfileService {
         }
 
         // Validate IAM profiles
-        if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
+        if (profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
             this.throwOnInvalidProfile(!profileSettings.aws_access_key_id, 'Access key required on profile.')
             this.throwOnInvalidProfile(!profileSettings.aws_secret_access_key, 'Secret key required on profile.')
         }
 
-        if (profile.kinds.includes(ProfileKind.IamRoleInstanceProfile)) {
+        if (profile.kinds.includes(ProfileKind.IamCredentialSourceProfile)) {
             this.throwOnInvalidProfile(!profileSettings.role_arn, 'Role ARN required on profile.')
             this.throwOnInvalidProfile(!profileSettings.credential_source, 'Credential source required on profile.')
         }
 
-        if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
+        if (profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
             this.throwOnInvalidProfile(!profileSettings.role_arn, 'Role ARN required on profile.')
             this.throwOnInvalidProfile(!profileSettings.source_profile, 'Source profile required on profile.')
         }
 
-        if (profile.kinds.includes(ProfileKind.IamProcessProfile)) {
+        if (profile.kinds.includes(ProfileKind.IamCredentialProcessProfile)) {
             this.throwOnInvalidProfile(!profileSettings.credential_process, 'Credential process required on profile.')
         }
 
