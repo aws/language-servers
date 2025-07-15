@@ -10,8 +10,6 @@ import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
-import { QCodeReview } from './qCodeAnalysis/qCodeReview'
-import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
     getGlobalMcpConfigPath,
@@ -23,8 +21,6 @@ import {
     sanitizeName,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
-import { QCodeReviewUtils } from './qCodeAnalysis/qCodeReviewUtils'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -84,66 +80,6 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     //     await grepSearchTool.validate(input)
     //     return await grepSearchTool.invoke(input, token)
     // }, ToolClassification.BuiltIn)
-
-    return () => {}
-}
-
-export const QCodeAnalysisServer: Server = ({
-    agent,
-    credentialsProvider,
-    logging,
-    lsp,
-    sdkInitializator,
-    telemetry,
-    workspace,
-}) => {
-    logging.info('QCodeAnalysisServer')
-    const qCodeReviewTool = new QCodeReview({
-        credentialsProvider,
-        logging,
-        telemetry,
-        workspace,
-    })
-
-    lsp.onInitialized(async () => {
-        if (!QCodeReviewUtils.isAgenticReviewEnabled(lsp.getClientInitializeParams())) {
-            logging.warn('Agentic Review is currently not supported')
-            return
-        }
-
-        logging.info('LSP on initialize for QCodeAnalysisServer')
-        // Get credentials provider from the LSP context
-        if (!credentialsProvider.hasCredentials) {
-            logging.error('Credentials provider not available')
-            return
-        }
-
-        // Create the CodeWhisperer client
-        const codeWhispererClient = new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            logging,
-            process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
-            process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
-            sdkInitializator
-        )
-
-        agent.addTool(
-            {
-                name: QCodeReview.toolName,
-                description: QCodeReview.toolDescription,
-                inputSchema: QCodeReview.inputSchema,
-            },
-            async (input: any, token?: CancellationToken, updates?: WritableStream) => {
-                return await qCodeReviewTool.execute(input, {
-                    codeWhispererClient: codeWhispererClient,
-                    cancellationToken: token,
-                    writableStream: updates,
-                })
-            },
-            ToolClassification.BuiltIn
-        )
-    })
 
     return () => {}
 }

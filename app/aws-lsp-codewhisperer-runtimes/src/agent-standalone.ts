@@ -14,7 +14,6 @@ import { IdentityServer } from '@aws/lsp-identity'
 import {
     BashToolsServer,
     FsToolsServer,
-    QCodeAnalysisServer,
     McpToolsServer,
 } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
@@ -34,7 +33,6 @@ const props = {
         QAgenticChatServerProxy,
         IdentityServer.create,
         FsToolsServer,
-        QCodeAnalysisServer,
         BashToolsServer,
         QLocalProjectContextServerProxy,
         WorkspaceContextServerTokenProxy,
