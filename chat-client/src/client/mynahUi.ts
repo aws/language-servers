@@ -37,7 +37,6 @@ import {
     RuleClickResult,
     SourceLinkClickParams,
     ListAvailableModelsResult,
-    ExecuteShellCommandParams,
 } from '@aws/language-server-runtimes-types'
 import {
     ChatItem,
@@ -95,7 +94,6 @@ export interface InboundChatApi {
     openTab(requestId: string, params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
-    executeShellCommandShortCut(params: ExecuteShellCommandParams): void
     listRules(params: ListRulesResult): void
     conversationClicked(params: ConversationClickResult): void
     ruleClicked(params: RuleClickResult): void
@@ -314,8 +312,7 @@ export const createMynahUi = (
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>,
     agenticMode?: boolean,
-    stringOverrides?: Partial<ConfigTexts>,
-    os?: string
+    stringOverrides?: Partial<ConfigTexts>
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -812,7 +809,6 @@ export const createMynahUi = (
                 dragOverlayText: 'Add image to context',
                 // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
-                stopGeneratingTooltip: getStopGeneratingToolTipText(os, agenticMode),
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
                 ...stringOverrides,
             },
@@ -1454,44 +1450,6 @@ ${params.message}`,
         messager.onError(params)
     }
 
-    const executeShellCommandShortCut = (params: ExecuteShellCommandParams) => {
-        const tabId = mynahUi.getSelectedTabId()
-        if (!tabId) return
-
-        const chatItems = mynahUi.getTabData(tabId)?.getStore()?.chatItems || []
-        const buttonId = params.id
-
-        let messageId
-        for (const item of chatItems) {
-            if (buttonId === 'stop-shell-command' && item.buttons && item.buttons.some(b => b.id === buttonId)) {
-                messageId = item.messageId
-                break
-            }
-            if (item.header?.buttons && item.header.buttons.some(b => b.id === buttonId)) {
-                messageId = item.messageId
-                break
-            }
-        }
-
-        if (messageId) {
-            const payload: ButtonClickParams = {
-                tabId,
-                messageId,
-                buttonId,
-            }
-            messager.onButtonClick(payload)
-            if (buttonId === 'stop-shell-command') {
-                messager.onStopChatResponse(tabId)
-            }
-        } else {
-            // handle global stop
-            const isLoading = mynahUi.getTabData(tabId)?.getStore()?.loadingChat
-            if (isLoading && buttonId === 'stop-shell-command') {
-                messager.onStopChatResponse(tabId)
-            }
-        }
-    }
-
     const openTab = (requestId: string, params: OpenTabParams) => {
         if (params.tabId) {
             if (params.tabId !== mynahUi.getSelectedTabId()) {
@@ -1717,7 +1675,6 @@ ${params.message}`,
         openTab: openTab,
         sendContextCommands: sendContextCommands,
         sendPinnedContext: sendPinnedContext,
-        executeShellCommandShortCut: executeShellCommandShortCut,
         listConversations: listConversations,
         listRules: listRules,
         conversationClicked: conversationClicked,
@@ -1764,16 +1721,4 @@ export const uiComponentsTexts = {
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
     spinnerText: 'Thinking...',
-    macStopButtonShortcut: '&#8679; &#8984; &#9003;',
-    windowStopButtonShortcut: 'Ctrl + &#8679; + &#9003;',
-}
-
-const getStopGeneratingToolTipText = (os: string | undefined, agenticMode: boolean | undefined): string => {
-    if (os) {
-        return os === 'darwin'
-            ? `Stop:  ${uiComponentsTexts.macStopButtonShortcut}`
-            : `Stop:  ${uiComponentsTexts.windowStopButtonShortcut}`
-    }
-
-    return agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating'
 }

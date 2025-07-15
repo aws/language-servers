@@ -42,7 +42,6 @@ export interface QClientCapabilities {
     modelSelection?: boolean
     reroute?: boolean
     qCodeReviewInChat?: boolean
-    shortcut?: boolean
 }
 
 type QConfigurationResponse =
