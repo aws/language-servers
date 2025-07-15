@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.24](https://github.com/aws/language-servers/compare/chat-client/v0.1.23...chat-client/v0.1.24) (2025-07-15)
+
+
+### Features
+
+* **chat-client:** add built-in tool permission and enable auto-approve ([#1890](https://github.com/aws/language-servers/issues/1890)) ([03b59c8](https://github.com/aws/language-servers/commit/03b59c8fba58db0f6b6c387cf5d53227c3f54673))
+* **chat-client:** handle keyboard shortcut for run/reject/stop shell commands and tooltips ([#1885](https://github.com/aws/language-servers/issues/1885)) ([f8e9461](https://github.com/aws/language-servers/commit/f8e94615b5ce8a3f4bf8837627fa4816a09cbef2))
+
+
+### Bug Fixes
+
+* **chat-client:** revert for add built-in tool permission and enable auto-approve ([#1890](https://github.com/aws/language-servers/issues/1890)) ([#1900](https://github.com/aws/language-servers/issues/1900)) ([34b41b8](https://github.com/aws/language-servers/commit/34b41b8f87c21d2ee6b98643339dbdfa71efcb77))
+* **chat-client:** revert for amazon q keyboard shortcuts feature ([#1901](https://github.com/aws/language-servers/issues/1901)) ([522f8de](https://github.com/aws/language-servers/commit/522f8de6dba8dfa9b4363934cd7fcea905add1ce))
+* validate Create Prompt & Create Rule prompts input onChange ([#1854](https://github.com/aws/language-servers/issues/1854)) ([ee215c4](https://github.com/aws/language-servers/commit/ee215c4bc652a54556d31e64f86ed5179d174b4b))
+
 ## [0.1.23](https://github.com/aws/language-servers/compare/chat-client/v0.1.22...chat-client/v0.1.23) (2025-07-08)
 
 

@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.0.65](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.64...lsp-codewhisperer/v0.0.65) (2025-07-15)
+
+
+### Features
+
+* **amazonq:** add a/b testing info into agenticChat toolkit metrics ([#1898](https://github.com/aws/language-servers/issues/1898)) ([6ab9b2c](https://github.com/aws/language-servers/commit/6ab9b2cef0125846c2f20fd8554f591808b59cd0))
+* **amazonq:** added full system information to the logs ([#1875](https://github.com/aws/language-servers/issues/1875)) ([7795c6b](https://github.com/aws/language-servers/commit/7795c6b43274211731aa9bb295b41ec89db41a6d))
+* **amazonq:** Adding QCodeReview tool to amazonQ ([#1882](https://github.com/aws/language-servers/issues/1882)) ([07e343b](https://github.com/aws/language-servers/commit/07e343b9fcef319bdbec80c48388e44b4b19269a))
+* **amazonq:** allow opt-out for workspace context server ([#1867](https://github.com/aws/language-servers/issues/1867)) ([72b6d76](https://github.com/aws/language-servers/commit/72b6d76c5ed8e240aad6be80f65eab3497caaacf))
+* **chat-client:** add built-in tool permission and enable auto-approve ([#1890](https://github.com/aws/language-servers/issues/1890)) ([03b59c8](https://github.com/aws/language-servers/commit/03b59c8fba58db0f6b6c387cf5d53227c3f54673))
+* **chat-client:** handle keyboard shortcut for run/reject/stop shell commands and tooltips ([#1885](https://github.com/aws/language-servers/issues/1885)) ([f8e9461](https://github.com/aws/language-servers/commit/f8e94615b5ce8a3f4bf8837627fa4816a09cbef2))
+* update UserTriggerDecisionEventStreakLengthInteger min value ([#1878](https://github.com/aws/language-servers/issues/1878)) ([e06f180](https://github.com/aws/language-servers/commit/e06f18017864ea33e316059a708cb87aa6d8c562))
+
+
+### Bug Fixes
+
+* **amazonq:** additional checks for binary and credential files ([#1866](https://github.com/aws/language-servers/issues/1866)) ([76656c9](https://github.com/aws/language-servers/commit/76656c9b2bb5080f64f581bb3b39cd55a3015bdf))
+* **amazonq:** catch mcp initialization errors ([#1873](https://github.com/aws/language-servers/issues/1873)) ([afdd6a4](https://github.com/aws/language-servers/commit/afdd6a4bd1db7c3990a7a279ebbbfbe0640e27c3))
+* **chat-client:** revert for add built-in tool permission and enable auto-approve ([#1890](https://github.com/aws/language-servers/issues/1890)) ([#1900](https://github.com/aws/language-servers/issues/1900)) ([34b41b8](https://github.com/aws/language-servers/commit/34b41b8f87c21d2ee6b98643339dbdfa71efcb77))
+* **chat-client:** revert for amazon q keyboard shortcuts feature ([#1901](https://github.com/aws/language-servers/issues/1901)) ([522f8de](https://github.com/aws/language-servers/commit/522f8de6dba8dfa9b4363934cd7fcea905add1ce))
+* Disable Concurrent inline completion handler ([#1880](https://github.com/aws/language-servers/issues/1880)) ([61eeb8c](https://github.com/aws/language-servers/commit/61eeb8c93b5454c5a99ebb79b5593007d08007e5))
+* Forward slash shown in rules list in multi-root workspaces on windows ([#1855](https://github.com/aws/language-servers/issues/1855)) ([061caa6](https://github.com/aws/language-servers/commit/061caa6450946e20cd1630b92f9b6dada8058edd))
+
+
+### Reverts
+
+* adding streakLength back for UserTriggerDecisionEvent ([#1877](https://github.com/aws/language-servers/issues/1877)) ([b199100](https://github.com/aws/language-servers/commit/b199100153aa0629890c49e12a56efbb9c627154))
+
 ## [0.0.64](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.63...lsp-codewhisperer/v0.0.64) (2025-07-11)
 
 
