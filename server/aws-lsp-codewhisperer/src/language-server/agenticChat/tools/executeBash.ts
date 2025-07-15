@@ -538,7 +538,7 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: true,
-                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
+                        content: chunk,
                         isFirst,
                     })
                     processQueue()
@@ -553,7 +553,7 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: false,
-                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
+                        content: chunk,
                         isFirst,
                     })
                     processQueue()
@@ -636,24 +636,6 @@ export class ExecuteBash {
                 writer?.releaseLock()
             }
         })
-    }
-
-    /**
-     * Re‑creates the raw bytes from the received string (Buffer.from(text, 'binary')).
-     * Detects UTF‑16 LE by checking whether every odd byte in the first 32 bytes is 0x00.
-     * Decodes with buf.toString('utf16le') when the pattern matches, otherwise falls back to UTF‑8.
-     */
-    private static decodeWinUtf(raw: string): string {
-        const buffer = Buffer.from(raw, 'binary')
-
-        let utf16 = true
-        for (let i = 1, n = Math.min(buffer.length, 32); i < n; i += 2) {
-            if (buffer[i] !== 0x00) {
-                utf16 = false
-                break
-            }
-        }
-        return utf16 ? buffer.toString('utf16le') : buffer.toString('utf8')
     }
 
     private static handleChunk(chunk: string, buffer: string[], writer?: WritableStreamDefaultWriter<any>) {
