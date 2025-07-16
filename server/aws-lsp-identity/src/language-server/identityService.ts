@@ -176,7 +176,7 @@ export class IdentityService {
             const options = { ...getIamCredentialOptionsDefaults, ...params.options }
 
             token.onCancellationRequested(_ => {
-                if (options.generateOnInvalidStsCredential) {
+                if (options.callStsOnInvalidIamCredential) {
                     emitMetric('Cancelled', null)
                 }
             })
@@ -191,7 +191,7 @@ export class IdentityService {
 
             let credentials: IamCredentials
             // Get the credentials directly from the profile
-            if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
+            if (profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
                 credentials = {
                     accessKeyId: profile.settings!.aws_access_key_id!,
                     secretAccessKey: profile.settings!.aws_secret_access_key!,
@@ -201,7 +201,7 @@ export class IdentityService {
                 throw new AwsError('Credentials could not be found for profile', AwsErrorCodes.E_INVALID_PROFILE)
             }
 
-            // Validate permissions on user or assumed role
+            // Validate permissions
             if (options.validatePermissions) {
                 const response = await this.simulatePermissions(credentials, qPermissions, profile.settings?.region)
                 if (!response?.EvaluationResults?.every(result => result.EvalDecision === 'allowed')) {
@@ -336,37 +336,26 @@ export class IdentityService {
         return ssoSession
     }
 
-    // Returns whether the identity associated with the provided credentials has sufficient permissions
+    // Simulate permissions on the identity associated with the credentials
     private async simulatePermissions(
         credentials: IamCredentials,
         permissions: string[],
         region?: string
     ): Promise<SimulatePrincipalPolicyCommandOutput> {
-        // Get the identity associated with the credentials
+        // Convert the credentials into an identity
         const stsClient = new STSClient({ region: region || 'us-east-1', credentials: credentials })
         const identity = await stsClient.send(new GetCallerIdentityCommand({}))
         if (!identity.Arn) {
             throw new AwsError('Caller identity ARN not found.', AwsErrorCodes.E_INVALID_PROFILE)
         }
 
-        // Check the permissions attached to the identity
+        // Simulate permissions on the identity
         const iamClient = new IAMClient({ region: region || 'us-east-1', credentials: credentials })
         return await iamClient.send(
             new SimulatePrincipalPolicyCommand({
-                PolicySourceArn: this.convertToIamArn(identity.Arn),
+                PolicySourceArn: identity.Arn,
                 ActionNames: permissions,
             })
         )
-    }
-
-    // Converts an assumed role ARN into an IAM role ARN
-    private convertToIamArn(arn: string) {
-        if (arn.includes(':assumed-role/')) {
-            const parts = arn.split(':')
-            const roleName = parts[5].split('/')[1]
-            return `arn:aws:iam::${parts[4]}:role/${roleName}`
-        } else {
-            return arn
-        }
     }
 }
