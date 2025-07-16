@@ -161,9 +161,12 @@ export class QCodeReview {
 
         if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
             QCodeReviewUtils.emitMetric(
-                'MissingFilesOrFolders',
+                {
+                    type: 'MissingFileOrFolder',
+                    result: 'Failed',
+                    reason: QCodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS,
+                },
                 {},
-                Q_CODE_REVIEW_TOOL_NAME,
                 this.logging,
                 this.telemetry,
                 this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
@@ -219,14 +222,17 @@ export class QCodeReview {
 
         if (!uploadUrlResponse.uploadUrl || !uploadUrlResponse.uploadId) {
             QCodeReviewUtils.emitMetric(
-                'createUploadUrlFailed',
+                {
+                    type: 'CreateUploadUrlFailed',
+                    result: 'Failed',
+                    reason: QCodeReview.ERROR_MESSAGES.UPLOAD_FAILED,
+                },
                 {
                     codeScanName: setup.scanName,
                     contentLength: zipBuffer.length,
                     uploadIntent: QCodeReview.UPLOAD_INTENT,
                     response: uploadUrlResponse,
                 },
-                Q_CODE_REVIEW_TOOL_NAME,
                 this.logging,
                 this.telemetry,
                 this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
@@ -242,14 +248,16 @@ export class QCodeReview {
         )
 
         QCodeReviewUtils.emitMetric(
-            'uploadArtifactSuccess',
+            {
+                type: 'CreateUploadUrlSucceded',
+                result: 'Succeeded',
+            },
             {
                 codeScanName: setup.scanName,
                 codeArtifactId: uploadUrlResponse.uploadId,
                 artifactSize: zipBuffer.length,
                 artifactType: setup.artifactType,
             },
-            Q_CODE_REVIEW_TOOL_NAME,
             this.logging,
             this.telemetry,
             this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
@@ -278,7 +286,11 @@ export class QCodeReview {
 
         if (!createResponse.jobId) {
             QCodeReviewUtils.emitMetric(
-                'startCodeAnalysisFailed',
+                {
+                    type: 'CodeScanFailed',
+                    result: 'Failed',
+                    reason: QCodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(createResponse.jobId),
+                },
                 {
                     artifacts: { SourceCode: uploadResult.uploadId },
                     programmingLanguage: { languageName: setup.programmingLanguage },
@@ -287,7 +299,6 @@ export class QCodeReview {
                     artifactType: setup.artifactType,
                     response: createResponse,
                 },
-                Q_CODE_REVIEW_TOOL_NAME,
                 this.logging,
                 this.telemetry,
                 this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
@@ -330,7 +341,11 @@ export class QCodeReview {
 
             if (statusResponse.errorMessage) {
                 QCodeReviewUtils.emitMetric(
-                    'codeAnalysisFailed',
+                    {
+                        type: 'CodeScanFailed',
+                        result: 'Failed',
+                        reason: QCodeReview.ERROR_MESSAGES.CODE_ANALYSIS_FAILED(jobId, statusResponse.errorMessage),
+                    },
                     {
                         codeScanName: scanName,
                         codeReviewId: jobId,
@@ -338,7 +353,6 @@ export class QCodeReview {
                         artifactType,
                         message: statusResponse.errorMessage,
                     },
-                    Q_CODE_REVIEW_TOOL_NAME,
                     this.logging,
                     this.telemetry,
                     this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
@@ -357,14 +371,16 @@ export class QCodeReview {
 
         if (status === 'Pending') {
             QCodeReviewUtils.emitMetric(
-                'codeAnalysisTimeout',
                 {
-                    codeScanName: scanName,
+                    type: 'CodeScanTimeout',
+                    result: 'Failed',
+                    reason: QCodeReview.ERROR_MESSAGES.TIMEOUT(QCodeReview.MAX_POLLING_ATTEMPTS),
+                },
+                {
                     codeReviewId: jobId,
                     status: 'Timeout',
                     maxAttempts: QCodeReview.MAX_POLLING_ATTEMPTS,
                 },
-                Q_CODE_REVIEW_TOOL_NAME,
                 this.logging,
                 this.telemetry,
                 this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
@@ -395,13 +411,14 @@ export class QCodeReview {
         )
 
         QCodeReviewUtils.emitMetric(
-            'codeAnalysisSucces',
             {
-                codeScanName: setup.scanName,
+                type: 'CodeScanSuccess',
+                result: 'Succeeded',
+            },
+            {
                 codeReviewId: jobId,
                 findingsCount: totalFindings.length,
             },
-            Q_CODE_REVIEW_TOOL_NAME,
             this.logging,
             this.telemetry,
             this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl

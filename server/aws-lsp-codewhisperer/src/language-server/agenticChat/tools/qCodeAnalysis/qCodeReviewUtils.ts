@@ -18,6 +18,7 @@ import { QClientCapabilities } from '../../../configuration/qConfigurationServer
 import { CancellationError } from '@aws/lsp-core'
 import { InvokeOutput } from '../toolShared'
 import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
+import { QCodeReviewMetric } from './qCodeReviewTypes'
 
 /**
  * Utility functions for QCodeReview
@@ -350,43 +351,6 @@ export class QCodeReviewUtils {
     }
 
     /**
-     * Handle failure in a consistent way
-     * @param error Error object
-     * @param scanName Optional scan name for context
-     * @param jobId Optional job ID for context
-     * @param logging Logging interface
-     * @param telemetry Telemetry interface
-     * @param toolName Tool name for error messages
-     * @returns Standardized error response
-     */
-    public static handleFailure(
-        error: any,
-        logging: Features['logging'],
-        telemetry: Features['telemetry'],
-        toolName: string,
-        scanName?: string,
-        jobId?: string
-    ): any {
-        // if error is of type CancellationError then throw
-        if (error instanceof CancellationError) {
-            throw error
-        }
-
-        const errorData: any = { errorMessage: error?.message }
-        if (scanName) errorData.codeScanName = scanName
-        if (jobId) errorData.codeReviewId = jobId
-
-        QCodeReviewUtils.emitMetric('failed', { data: errorData }, toolName, logging, telemetry)
-
-        logging.error(`Error in ${toolName} - ${error?.message}`)
-
-        return {
-            status: 'Failed',
-            ...errorData,
-        }
-    }
-
-    /**
      * Emit a telemetry metric with standard formatting
      * @param metricSuffix Suffix for the metric name
      * @param metricData Additional metric data
@@ -396,19 +360,19 @@ export class QCodeReviewUtils {
      * @param credentialStartUrl Optional credential start URL
      */
     public static emitMetric(
-        metricSuffix: string,
-        metricData: any,
-        toolName: string,
+        metric: QCodeReviewMetric,
+        metricData: object,
         logging: Features['logging'],
         telemetry: Features['telemetry'],
         credentialStartUrl?: string
     ): void {
-        const metricName = `${toolName}_${metricSuffix}`
+        const metricName = `amazonq_qCodeReviewTool`
         const metricPayload = {
             name: metricName,
             data: {
                 ...(credentialStartUrl ? { credentialStartUrl } : {}),
                 ...metricData,
+                ...metric,
             },
         }
         logging.info(`Emitting telemetry metric: ${metricName} with data: ${JSON.stringify(metricPayload.data)}`)

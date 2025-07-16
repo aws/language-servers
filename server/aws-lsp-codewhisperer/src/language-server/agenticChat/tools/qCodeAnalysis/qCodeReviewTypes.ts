@@ -2,6 +2,14 @@ export type FileArtifacts = Array<{ path: string }>
 export type FolderArtifacts = Array<{ path: string }>
 export type RuleArtifacts = Array<{ path: string }>
 export type ArtifactType = 'FILE' | 'FOLDER'
+type metricType =
+    | 'MissingFileOrFolder'
+    | 'CreateUploadUrlFailed'
+    | 'CodeScanTimeout'
+    | 'CodeScanSuccess'
+    | 'CodeScanFailed'
+    | 'CreateUploadUrlSucceded'
+type metricResult = 'Succeeded' | 'Failed'
 
 export type ValidateInputAndSetupResult = {
     fileArtifacts: FileArtifacts
@@ -49,3 +57,14 @@ export type QCodeReviewFinding = {
     autoDetected: false
     findingContext: string | null | undefined
 }
+
+export type QCodeReviewMetric =
+    | {
+          type: metricType
+          result: 'Succeeded'
+      }
+    | {
+          type: metricType
+          result: 'Failed'
+          reason: string
+      }
