@@ -305,7 +305,7 @@ export class AgenticChatController implements ChatHandlers {
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
-        this.#activeUserTracker = ActiveUserTracker.getInstance()
+        this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -674,9 +674,8 @@ export class AgenticChatController implements ChatHandlers {
             cwsprChatConversationType: 'AgenticChat',
         })
 
-        const isNewActiveUserEvent = this.#activeUserTracker.isNewActiveUser()
-        if (isNewActiveUserEvent) {
-            this.#log('New active user window initiated')
+        const isNewActiveUser = this.#activeUserTracker.isNewActiveUser()
+        if (isNewActiveUser) {
             this.#telemetryController.emitActiveUser()
         }
 
