@@ -11,9 +11,11 @@ import {
     UpdateProfileParams,
     UpdateProfileResult,
 } from '@aws/language-server-runtimes/server-interface'
-import { SharedConfigInit } from '@smithy/shared-ini-file-loader'
+import { SharedConfigInit, getHomeDir } from '@smithy/shared-ini-file-loader'
 import { DuckTyper } from '../../duckTyper'
 import { AwsError, Observability } from '@aws/lsp-core'
+import { watch, FSWatcher } from 'fs'
+import { join } from 'path'
 
 export interface ProfileData {
     profiles: Profile[]
@@ -139,17 +141,28 @@ export function normalizeSettingList(
 }
 
 export class ProfileService {
+    private fileWatchers: FSWatcher[] = []
+    private profileCache?: ProfileData
+    private onProfileChange?: (profiles: ProfileData) => void
+
     constructor(
         private profileStore: ProfileStore,
         private readonly observability: Observability
-    ) {}
+    ) {
+        this.startWatching()
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     async listProfiles(params: ListProfilesParams, token?: CancellationToken): Promise<ListProfilesResult> {
         // Currently only returns non-legacy sso-session profiles, will return more profile types in the future
-        return await this.profileStore.load().catch(reason => {
+        if (this.profileCache) {
+            return this.profileCache
+        }
+        const profiles = await this.profileStore.load().catch(reason => {
             throw new AwsResponseError(reason.message, { awsErrorCode: AwsErrorCodes.E_CANNOT_READ_SHARED_CONFIG })
         })
+        this.profileCache = profiles
+        return profiles
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -288,5 +301,50 @@ export class ProfileService {
             this.observability.logging.log(message)
             throw new AwsError(message, awsErrorCode)
         }
+    }
+
+    startWatching(onChange?: (profiles: ProfileData) => void): void {
+        if (this.fileWatchers.length > 0) {
+            return
+        }
+
+        this.onProfileChange = onChange
+        const configPath = this.getConfigFilepath()
+        const credentialsPath = this.getCredentialsFilepath()
+
+        const handleChange = async () => {
+            try {
+                const newProfiles = await this.profileStore.load()
+                this.profileCache = newProfiles
+                this.onProfileChange?.(newProfiles)
+            } catch (error) {
+                this.observability.logging.log(`Error reloading profiles: ${error}`)
+            }
+        }
+
+        this.fileWatchers.push(watch(configPath, { persistent: false }, handleChange))
+        this.fileWatchers.push(watch(credentialsPath, { persistent: false }, handleChange))
+    }
+
+    stopWatching(): void {
+        this.fileWatchers.forEach(watcher => watcher.close())
+        this.fileWatchers = []
+        this.onProfileChange = undefined
+    }
+
+    private getConfigFilepath(): string {
+        const envVar = process.env['AWS_CONFIG_FILE']
+        if (envVar) {
+            return envVar.startsWith('~/') ? join(getHomeDir(), envVar.substring(2)) : envVar
+        }
+        return join(getHomeDir(), '.aws', 'config')
+    }
+
+    private getCredentialsFilepath(): string {
+        const envVar = process.env['AWS_SHARED_CREDENTIALS_FILE']
+        if (envVar) {
+            return envVar.startsWith('~/') ? join(getHomeDir(), envVar.substring(2)) : envVar
+        }
+        return join(getHomeDir(), '.aws', 'credentials')
     }
 }
