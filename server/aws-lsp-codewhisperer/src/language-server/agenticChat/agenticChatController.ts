@@ -43,7 +43,6 @@ import {
     FollowUpClickParams,
     ListAvailableModelsParams,
     ListAvailableModelsResult,
-    Model,
     OpenFileDialogParams,
     OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
@@ -59,7 +58,6 @@ import {
     ListConversationsParams,
     ListMcpServersParams,
     McpServerClickParams,
-    McpServerClickResult,
     TabBarActionParams,
     CreatePromptParams,
     FileClickParams,
@@ -102,7 +100,6 @@ import {
     getSsoConnectionType,
     isUsageLimitError,
     isNullish,
-    enabledModelSelection,
     getOriginFromClientInfo,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
@@ -112,7 +109,6 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
@@ -124,7 +120,7 @@ import {
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
 import { AgenticChatResultStream, progressPrefix, ResultStreamWriter } from './agenticChatResultStream'
-import { executeToolMessage, toolResultMessage } from './textFormatting'
+import { toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
     AgenticChatTriggerContext,
@@ -159,6 +155,14 @@ import {
     RESPONSE_TIMEOUT_MS,
     RESPONSE_TIMEOUT_PARTIAL_MSG,
     DEFAULT_MODEL_ID,
+    COMPACTION_BODY,
+    COMPACTION_HEADER_BODY,
+    DEFAULT_MACOS_RUN_SHORTCUT,
+    DEFAULT_WINDOW_RUN_SHORTCUT,
+    DEFAULT_MACOS_REJECT_SHORTCUT,
+    DEFAULT_WINDOW_REJECT_SHORTCUT,
+    DEFAULT_MACOS_STOP_SHORTCUT,
+    DEFAULT_WINDOW_STOP_SHORTCUT,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -180,7 +184,6 @@ import { McpTool } from './tools/mcp/mcpTool'
 import {
     freeTierLimitUserMsg,
     onPaidTierLearnMore,
-    paidTierLearnMoreUrl,
     paidTierManageSubscription,
     PaidTierMode,
     qProName,
@@ -281,6 +284,15 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         this.#features.logging.info(`System Information: ${JSON.stringify(systemInfo)}`)
+    }
+
+    /**
+     * Determines the appropriate message ID for a compaction confirmation
+     * @param messageId The original messageId
+     * @returns The message ID to use
+     */
+    #getMessageIdForCompact(messageId: string): string {
+        return `${messageId}_compact`
     }
 
     constructor(
@@ -679,6 +691,8 @@ export class AgenticChatController implements ChatHandlers {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
 
+        const compactIds = session.getAllDeferredCompactMessageIds()
+        await this.#invalidateCompactCommand(params.tabId, compactIds)
         session.rejectAllDeferredToolExecutions(new ToolApprovalException('Command ignored: new prompt', false))
         await this.#invalidateAllShellCommands(params.tabId, session)
 
@@ -707,6 +721,8 @@ export class AgenticChatController implements ChatHandlers {
 
                 // Abort all operations immediately
                 session.abortRequest()
+                const compactIds = session.getAllDeferredCompactMessageIds()
+                await this.#invalidateCompactCommand(params.tabId, compactIds)
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
 
@@ -768,39 +784,62 @@ export class AgenticChatController implements ChatHandlers {
                 params.context,
                 params.tabId
             )
-            // Get the initial request input
-            const initialRequestInput = await this.#prepareRequestInput(
-                params,
-                session,
-                triggerContext,
-                additionalContext,
-                chatResultStream,
-                customContext
-            )
 
-            // Generate a unique ID for this prompt
-            const promptId = crypto.randomUUID()
-            session.setCurrentPromptId(promptId)
+            let finalResult
+            if (params.prompt.command === QuickAction.Compact) {
+                // Get the compaction request input
+                const compactionRequestInput = this.#getCompactionRequestInput(session)
+                // Generate a unique ID for this prompt
+                const promptId = crypto.randomUUID()
+                session.setCurrentPromptId(promptId)
 
-            // Start the agent loop
-            const finalResult = await this.#runAgentLoop(
-                initialRequestInput,
-                session,
-                metric,
-                chatResultStream,
-                params.tabId,
-                promptId,
-                session.conversationId,
-                token,
-                triggerContext.documentReference,
-                additionalContext.filter(item => item.pinned)
-            )
+                // Start the compaction call
+                finalResult = await this.#runCompaction(
+                    compactionRequestInput,
+                    session,
+                    metric,
+                    chatResultStream,
+                    params.tabId,
+                    promptId,
+                    session.conversationId,
+                    token,
+                    triggerContext.documentReference
+                )
+            } else {
+                // Get the initial request input
+                const initialRequestInput = await this.#prepareRequestInput(
+                    params,
+                    session,
+                    triggerContext,
+                    additionalContext,
+                    chatResultStream,
+                    customContext
+                )
 
-            // Phase 5: Result Handling - This happens only once
+                // Generate a unique ID for this prompt
+                const promptId = crypto.randomUUID()
+                session.setCurrentPromptId(promptId)
+
+                // Start the agent loop
+                finalResult = await this.#runAgentLoop(
+                    initialRequestInput,
+                    session,
+                    metric,
+                    chatResultStream,
+                    params.tabId,
+                    promptId,
+                    session.conversationId,
+                    token,
+                    triggerContext.documentReference,
+                    additionalContext.filter(item => item.pinned)
+                )
+            }
+
+            // Result Handling - This happens only once
             return await this.#handleFinalResult(
                 finalResult,
                 session,
-                params,
+                params.tabId,
                 metric,
                 triggerContext,
                 isNewConversation,
@@ -865,7 +904,6 @@ export class AgenticChatController implements ChatHandlers {
             this.#customizationArn,
             chatResultStream,
             profileArn,
-            [],
             this.#getTools(session),
             additionalContext,
             session.modelId,
@@ -873,6 +911,186 @@ export class AgenticChatController implements ChatHandlers {
             customContext
         )
         return requestInput
+    }
+
+    /**
+     * Prepares the initial request input for the chat prompt
+     */
+    #getCompactionRequestInput(session: ChatSessionService): ChatCommandInput {
+        this.#debug('Preparing compaction request input')
+        // Get profileArn from the service manager if available
+        const profileArn = this.#serviceManager?.getActiveProfileArn()
+        const requestInput = this.#triggerContext.getCompactionChatCommandInput(
+            profileArn,
+            this.#getTools(session),
+            session.modelId,
+            this.#origin
+        )
+        return requestInput
+    }
+
+    /**
+     * Runs the compaction, making requests and processing tool uses until completion
+     */
+    #shouldCompact(currentRequestCount: number): boolean {
+        // 80% of 570K limit
+        if (currentRequestCount > 456_000) {
+            this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
+            return true
+        } else {
+            return false
+        }
+    }
+
+    /**
+     * Runs the compaction to compact history into a single summary
+     */
+    async #runCompaction(
+        compactionRequestInput: ChatCommandInput,
+        session: ChatSessionService,
+        metric: Metric<CombinedConversationEvent>,
+        chatResultStream: AgenticChatResultStream,
+        tabId: string,
+        promptId: string,
+        conversationIdentifier?: string,
+        token?: CancellationToken,
+        documentReference?: FileList
+    ): Promise<Result<AgenticChatResultWithMetadata, string>> {
+        let currentRequestInput = { ...compactionRequestInput }
+        let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
+        metric.recordStart()
+
+        this.#debug(`Running compaction for conversation id:`, conversationIdentifier || '')
+
+        this.#timeToFirstChunk = -1
+        this.#timeBetweenChunks = []
+
+        // Check for cancellation
+        if (this.#isPromptCanceled(token, session, promptId)) {
+            this.#debug('Stopping compaction loop - cancelled by user')
+            throw new CancellationError('user')
+        }
+
+        const currentMessage = currentRequestInput.conversationState?.currentMessage
+        let messages: DbMessage[] = []
+        let characterCount = 0
+        if (currentMessage) {
+            //  Get and process the messages from history DB to maintain invariants for service requests
+            try {
+                const { messages: historyMessages, count: historyCharCount } = this.#chatHistoryDb.fixAndGetHistory(
+                    tabId,
+                    currentMessage,
+                    []
+                )
+                messages = historyMessages
+                characterCount = historyCharCount
+            } catch (err) {
+                if (err instanceof ToolResultValidationError) {
+                    this.#features.logging.error(`Tool validation error: ${err.message}`)
+                    return (
+                        finalResult || {
+                            success: false,
+                            error: 'Compaction loop failed to produce a final result',
+                            data: { chatResult: {}, toolUses: {} },
+                        }
+                    )
+                }
+            }
+        }
+
+        currentRequestInput.conversationState!.history = messages.map(msg => messageToStreamingMessage(msg))
+
+        const resultStreamWriter = chatResultStream.getResultStreamWriter()
+
+        if (currentRequestInput.conversationState!.history.length == 0) {
+            // early terminate
+            await resultStreamWriter.write({
+                type: 'answer',
+                body: 'History is empty, there is nothing to compact.',
+                messageId: uuid(),
+            })
+            return {
+                success: true,
+                data: {
+                    chatResult: {},
+                    toolUses: {},
+                },
+            }
+        } else {
+            await resultStreamWriter.write({
+                type: 'answer',
+                body: 'Compacting your chat history, this may take a moment.',
+                messageId: uuid(),
+            })
+        }
+        await resultStreamWriter.close()
+
+        // Add loading message before making the request
+        const loadingMessageId = `loading-${uuid()}`
+        await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
+
+        this.#debug(`Compacting history with ${characterCount} characters`)
+        this.#llmRequestStartTime = Date.now()
+        // Phase 3: Request Execution
+        // Note: these logs are very noisy, but contain information redacted on the backend.
+        this.#debug(
+            `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
+        )
+        const response = await session.getChatResponse(currentRequestInput)
+        if (response.$metadata.requestId) {
+            metric.mergeWith({
+                requestIds: [response.$metadata.requestId],
+            })
+        }
+        this.#features.logging.info(
+            `generateAssistantResponse/SendMessage ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
+        )
+        await chatResultStream.removeResultBlock(loadingMessageId)
+
+        // Phase 4: Response Processing
+        const result = await this.#processAgenticChatResponseWithTimeout(
+            response,
+            metric.mergeWith({
+                cwsprChatResponseCode: response.$metadata.httpStatusCode,
+                cwsprChatMessageId: response.$metadata.requestId,
+            }),
+            chatResultStream,
+            session,
+            documentReference,
+            true
+        )
+
+        const llmLatency = Date.now() - this.#llmRequestStartTime
+        this.#debug(`LLM Response Latency for compaction: ${llmLatency}`)
+        this.#telemetryController.emitAgencticLoop_InvokeLLM(
+            response.$metadata.requestId!,
+            conversationIdentifier ?? '',
+            'AgenticChatWithCompaction',
+            undefined,
+            undefined,
+            'Succeeded',
+            this.#features.runtime.serverInfo.version ?? '',
+            session.modelId,
+            llmLatency,
+            [],
+            this.#timeToFirstChunk,
+            this.#timeBetweenChunks,
+            session.pairProgrammingMode
+        )
+
+        // replace the history with summary in history DB
+        if (result.data?.chatResult.body !== undefined) {
+            this.#chatHistoryDb.replaceWithSummary(tabId, 'cwc', conversationIdentifier ?? '', {
+                body: result.data?.chatResult.body,
+                type: 'prompt' as any,
+                shouldDisplayMessage: true,
+                timestamp: new Date(),
+            })
+        } else {
+            this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
+        }
+
+        return result
     }
 
     /**
@@ -894,6 +1112,7 @@ export class AgenticChatController implements ChatHandlers {
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
         let shouldDisplayMessage = true
+        let currentRequestCount = 0
         metric.recordStart()
         this.logSystemInformation()
         while (true) {
@@ -929,7 +1148,20 @@ export class AgenticChatController implements ChatHandlers {
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, pinnedContextMessages)
+                    const newUserInputCount = this.#chatHistoryDb.calculateNewMessageCharacterCount(
+                        currentMessage,
+                        pinnedContextMessages
+                    )
+                    const { messages: historyMessages, count: historyCharacterCount } =
+                        this.#chatHistoryDb.fixAndGetHistory(
+                            tabId,
+                            currentMessage,
+                            pinnedContextMessages,
+                            newUserInputCount
+                        )
+                    messages = historyMessages
+                    currentRequestCount = newUserInputCount + historyCharacterCount
+                    this.#debug(`Request total character count: ${currentRequestCount}`)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
                         this.#features.logging.warn(`Tool validation error: ${err.message}`)
@@ -938,7 +1170,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
             }
 
-            //  Do not include chatHistory for requests going to Mynah Backend
+            // Do not include chatHistory for requests going to Mynah Backend
             currentRequestInput.conversationState!.history = currentRequestInput.conversationState?.currentMessage
                 ?.userInputMessage?.userIntent
                 ? []
@@ -985,7 +1217,6 @@ export class AgenticChatController implements ChatHandlers {
                 }
             }
             shouldDisplayMessage = true
-
             // Phase 4: Response Processing
             const result = await this.#processAgenticChatResponseWithTimeout(
                 response,
@@ -1152,6 +1383,27 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
+        if (this.#shouldCompact(currentRequestCount)) {
+            const messageId = this.#getMessageIdForCompact(uuid())
+            const confirmationResult = this.#processCompactConfirmation(messageId)
+            const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+            await this.waitForCompactApproval(messageId, chatResultStream, cachedButtonBlockId, session)
+            // Get the compaction request input
+            const compactionRequestInput = this.#getCompactionRequestInput(session)
+            // Start the compaction call
+            return await this.#runCompaction(
+                compactionRequestInput,
+                session,
+                metric,
+                chatResultStream,
+                tabId,
+                promptId,
+                session.conversationId,
+                token,
+                documentReference
+            )
+        }
+
         return (
             finalResult || {
                 success: false,
@@ -1254,6 +1506,7 @@ export class AgenticChatController implements ChatHandlers {
     #getPendingToolUses(toolUses: Record<string, ToolUse & { stop: boolean }>): Array<ToolUse & { stop: boolean }> {
         return Object.values(toolUses).filter(toolUse => toolUse.stop)
     }
+
     /**
      * Creates a promise that does not resolve until the user accepts or rejects the tool usage.
      * @param toolUseId
@@ -2095,6 +2348,117 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
+    #processCompactConfirmation(messageId: string): ChatResult {
+        const buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+        const header = {
+            icon: 'warning',
+            iconForegroundStatus: 'warning',
+            body: COMPACTION_HEADER_BODY,
+            buttons,
+        } as any
+        const body = COMPACTION_BODY
+        return {
+            type: 'tool',
+            messageId,
+            header,
+            body,
+        }
+    }
+
+    /**
+     * Creates a promise that does not resolve until the user accepts or rejects the compaction usage.
+     * @param messageId
+     * @param resultStream
+     * @param promptBlockId id of approval block. This allows us to overwrite the buttons with 'accepted' or 'rejected' text.
+     */
+    async waitForCompactApproval(
+        messageId: string,
+        resultStream: AgenticChatResultStream,
+        promptBlockId: number,
+        session: ChatSessionService
+    ) {
+        const deferred = this.#createDeferred()
+        session.setDeferredToolExecution(messageId, deferred.resolve, deferred.reject)
+        this.#log(`Prompting for compaction approval for messageId: ${messageId}`)
+        await deferred.promise
+        // Note: we want to overwrite the button block because it already exists in the stream.
+        await resultStream.overwriteResultBlock(this.#getUpdateCompactConfirmResult(messageId), promptBlockId)
+    }
+
+    /**
+     * Creates an updated ChatResult for compaction confirmation
+     * @param messageId The messageId
+     * @returns ChatResult with appropriate confirmation UI
+     */
+    #getUpdateCompactConfirmResult(messageId: string): ChatResult {
+        let header: {
+            body: string | undefined
+            status: { status: 'info' | 'success' | 'warning' | 'error'; icon: string; text: string }
+        }
+        let body: string | undefined
+
+        header = {
+            body: undefined,
+            status: {
+                status: 'success',
+                icon: 'ok',
+                text: 'Allowed',
+            },
+        }
+
+        return {
+            messageId,
+            type: 'tool',
+            body,
+            header,
+        }
+    }
+
+    #renderStopShellCommandButton() {
+        const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
+        return {
+            id: 'stop-shell-command',
+            text: 'Stop',
+            icon: 'stop',
+            ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
+        }
+    }
+
+    #getKeyBinding(commandId: string): string | null {
+        // Check for feature flag
+        const shortcut =
+            this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.shortcut
+        if (!shortcut) {
+            return null
+        }
+        let defaultKey = ''
+        const OS = os.platform()
+
+        switch (commandId) {
+            case 'aws.amazonq.runCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_RUN_SHORTCUT : DEFAULT_WINDOW_RUN_SHORTCUT
+                break
+            case 'aws.amazonq.rejectCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_REJECT_SHORTCUT : DEFAULT_WINDOW_REJECT_SHORTCUT
+                break
+            case 'aws.amazonq.stopCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_STOP_SHORTCUT : DEFAULT_WINDOW_STOP_SHORTCUT
+                break
+            default:
+                this.#log(`#getKeyBinding: ${commandId} shortcut is supported by Q `)
+                break
+        }
+
+        if (defaultKey === '') {
+            return null
+        }
+
+        //TODO: handle case: user change default keybind, suggestion: read `keybinding.json` provided by VSC
+
+        return defaultKey
+    }
+
     #processToolConfirmation(
         toolUse: ToolUse,
         requiresAcceptance: Boolean,
@@ -2520,7 +2884,7 @@ export class AgenticChatController implements ChatHandlers {
     async #handleFinalResult(
         result: Result<AgenticChatResultWithMetadata, string>,
         session: ChatSessionService,
-        params: ChatParams,
+        tabId: string,
         metric: Metric<CombinedConversationEvent>,
         triggerContext: TriggerContext,
         isNewConversation: boolean,
@@ -2533,17 +2897,17 @@ export class AgenticChatController implements ChatHandlers {
         this.#debug('Final session conversation id:', conversationId || '')
 
         if (conversationId) {
-            this.#telemetryController.setConversationId(params.tabId, conversationId)
+            this.#telemetryController.setConversationId(tabId, conversationId)
 
             if (isNewConversation) {
-                this.#telemetryController.updateTriggerInfo(params.tabId, {
+                this.#telemetryController.updateTriggerInfo(tabId, {
                     startTrigger: {
                         hasUserSnippet: metric.metric.cwsprChatHasCodeSnippet ?? false,
                         triggerType: triggerContext.triggerType,
                     },
                 })
 
-                this.#telemetryController.emitStartConversationMetric(params.tabId, metric.metric)
+                this.#telemetryController.emitStartConversationMetric(tabId, metric.metric)
             }
         }
 
@@ -2578,9 +2942,9 @@ export class AgenticChatController implements ChatHandlers {
                 cwsprChatPinnedPromptContextCount: triggerContext.contextInfo.pinnedContextCount.promptContextCount,
             })
         }
-        await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Succeeded')
+        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Succeeded')
 
-        this.#telemetryController.updateTriggerInfo(params.tabId, {
+        this.#telemetryController.updateTriggerInfo(tabId, {
             lastMessageTrigger: {
                 ...triggerContext,
                 messageId: result.data?.chatResult.messageId,
@@ -3169,6 +3533,29 @@ export class AgenticChatController implements ChatHandlers {
         return triggerContext
     }
 
+    async #invalidateCompactCommand(tabId: string, messageIds: string[]) {
+        for (const messageId of messageIds) {
+            await this.#features.chat.sendChatUpdate({
+                tabId,
+                state: { inProgress: false },
+                data: {
+                    messages: [
+                        {
+                            messageId,
+                            type: 'tool',
+                            body: COMPACTION_BODY,
+                            header: {
+                                body: COMPACTION_HEADER_BODY,
+                                status: { icon: 'block', text: 'Ignored' },
+                                buttons: [],
+                            },
+                        },
+                    ],
+                },
+            })
+        }
+    }
+
     async #invalidateAllShellCommands(tabId: string, session: ChatSessionService) {
         for (const [toolUseId, toolUse] of session.toolUseLookup.entries()) {
             if (toolUse.name !== 'executeBash' || this.#stoppedToolUses.has(toolUseId)) continue
@@ -3425,7 +3812,8 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
-        contextList?: FileList
+        contextList?: FileList,
+        isCompaction?: boolean
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const abortController = new AbortController()
         let timeoutId: NodeJS.Timeout | undefined
@@ -3448,7 +3836,8 @@ export class AgenticChatController implements ChatHandlers {
             streamWriter,
             session,
             contextList,
-            abortController.signal
+            abortController.signal,
+            isCompaction
         )
         try {
             const result = await Promise.race([processResponsePromise, timeoutPromise])
@@ -3526,14 +3915,15 @@ export class AgenticChatController implements ChatHandlers {
         streamWriter: ResultStreamWriter,
         session: ChatSessionService,
         contextList?: FileList,
-        abortSignal?: AbortSignal
+        abortSignal?: AbortSignal,
+        isCompaction?: boolean
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging)
 
         // Display context transparency list once at the beginning of response
         // Use a flag to track if contextList has been sent already to avoid ux flickering
-        if (contextList?.filePaths && contextList.filePaths.length > 0 && !session.contextListSent) {
+        if (!isCompaction && contextList?.filePaths && contextList.filePaths.length > 0 && !session.contextListSent) {
             await streamWriter.write({ body: '', contextList })
             session.contextListSent = true
         }
@@ -3569,7 +3959,7 @@ export class AgenticChatController implements ChatHandlers {
                 this.recordChunk('chunk')
             }
 
-            // make sure to save code reference events
+            // update the UI with response
             if (chatEvent.assistantResponseEvent || chatEvent.codeReferenceEvent) {
                 await streamWriter.write(result.data.chatResult)
             }
@@ -3587,6 +3977,15 @@ export class AgenticChatController implements ChatHandlers {
         if (isEmptyResponse) {
             // If the response is empty, we need to send an empty answer message to remove the Thinking... indicator
             await streamWriter.write({ type: 'answer', body: '', messageId: uuid() })
+        }
+
+        if (isCompaction) {
+            // Show a dummy message to the UI for compaction completion
+            await streamWriter.write({
+                type: 'answer',
+                body: 'Conversation history has been compacted successfully!',
+                messageId: uuid(),
+            })
         }
         await streamWriter.close()
 

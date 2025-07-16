@@ -22,6 +22,9 @@
         "compile": "tsc --build",
         "test": "npm run test-unit",
         "test-unit": "mocha --timeout 0 \"./out/**/*.test.js\"",
+        "test-unit:coverage": "npm run compile && c8 mocha --timeout 0 \"./out/**/*.test.js\"",
+        "test:coverage": "npm run test-unit:coverage",
+        "coverage:report": "c8 report --reporter=html --reporter=text",
         "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
@@ -39,6 +42,7 @@
         "@types/chai-as-promised": "^7.1.5",
         "@types/mocha": "^10.0.9",
         "@types/mock-fs": "^4.13.1",
+        "c8": "^10.1.2",
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
         "mocha": "^11.0.1",

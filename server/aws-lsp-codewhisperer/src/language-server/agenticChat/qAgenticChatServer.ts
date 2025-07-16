@@ -6,17 +6,16 @@
 import { InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
-import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
+import { CLEAR_QUICK_ACTION, COMPACT_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
-import { isUsingIAMAuth, safeGet, enabledModelSelection } from '../../shared/utils'
+import { isUsingIAMAuth, safeGet } from '../../shared/utils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
 import { QClientCapabilities } from '../configuration/qConfigurationServer'
 
@@ -55,7 +54,7 @@ export const QAgenticChatServer =
                         quickActions: {
                             quickActionsCommandGroups: [
                                 {
-                                    commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION],
+                                    commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION, COMPACT_QUICK_ACTION],
                                 },
                             ],
                         },
