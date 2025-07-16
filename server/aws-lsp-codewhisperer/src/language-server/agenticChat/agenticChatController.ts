@@ -929,7 +929,7 @@ export class AgenticChatController implements ChatHandlers {
             // Phase 3: Request Execution
             // Note: these logs are very noisy, but contain information redacted on the backend.
             this.#debug(
-                `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
+                `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
             )
             const response = await session.getChatResponse(currentRequestInput)
             if (response.$metadata.requestId) {
@@ -3761,5 +3761,14 @@ export class AgenticChatController implements ChatHandlers {
 
     #debug(...messages: string[]) {
         this.#features.logging.debug(messages.join(' '))
+    }
+
+    // Helper function to sanitize the 'images' field for logging by replacing large binary data (e.g., Uint8Array) with a concise summary.
+    // This prevents logs from being overwhelmed by raw byte arrays and keeps log output readable.
+    #imageReplacer(key: string, value: any) {
+        if (key === 'bytes' && value && typeof value.length === 'number') {
+            return `[Uint8Array, length: ${value.length}]`
+        }
+        return value
     }
 }
