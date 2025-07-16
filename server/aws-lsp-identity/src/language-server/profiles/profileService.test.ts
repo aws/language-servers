@@ -500,7 +500,7 @@ describe('ProfileService', async () => {
     describe('IAM credential discovery from environment variables', () => {
         it('updateProfile accepts IAM role instance profile with Environment credential source', async () => {
             const profile = {
-                kinds: [ProfileKind.IamRoleInstanceProfile],
+                kinds: [ProfileKind.IamCredentialSourceProfile],
                 name: 'env-role-profile',
                 settings: {
                     role_arn: 'arn:aws:iam::123456789012:role/MyRole',
@@ -517,7 +517,7 @@ describe('ProfileService', async () => {
 
         it('updateProfile accepts IAM role instance profile with Ec2InstanceMetadata credential source', async () => {
             const profile = {
-                kinds: [ProfileKind.IamRoleInstanceProfile],
+                kinds: [ProfileKind.IamCredentialSourceProfile],
                 name: 'ec2-role-profile',
                 settings: {
                     role_arn: 'arn:aws:iam::123456789012:role/EC2Role',
@@ -534,7 +534,7 @@ describe('ProfileService', async () => {
 
         it('updateProfile accepts IAM role instance profile with EcsContainer credential source', async () => {
             const profile = {
-                kinds: [ProfileKind.IamRoleInstanceProfile],
+                kinds: [ProfileKind.IamCredentialSourceProfile],
                 name: 'ecs-role-profile',
                 settings: {
                     role_arn: 'arn:aws:iam::123456789012:role/ECSRole',
