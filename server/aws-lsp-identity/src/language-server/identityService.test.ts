@@ -41,7 +41,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamUserProfile],
+                        kinds: [ProfileKind.IamCredentialsProfile],
                         name: 'my-iam-profile',
                         settings: {
                             aws_access_key_id: 'my-access-key',
@@ -49,7 +49,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamUserProfile],
+                        kinds: [ProfileKind.IamCredentialsProfile],
                         name: 'my-sts-profile',
                         settings: {
                             aws_access_key_id: 'my-access-key',
@@ -58,7 +58,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        kinds: [ProfileKind.IamSourceProfileProfile],
                         name: 'my-role-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -66,7 +66,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamRoleSourceProfile],
+                        kinds: [ProfileKind.IamSourceProfileProfile],
                         name: 'my-mfa-profile',
                         settings: {
                             role_arn: 'my-role-arn',
@@ -75,7 +75,7 @@ describe('IdentityService', () => {
                         },
                     },
                     {
-                        kinds: [ProfileKind.IamProcessProfile],
+                        kinds: [ProfileKind.IamCredentialProcessProfile],
                         name: 'my-process-profile',
                         settings: {
                             credential_process: 'my-process',
