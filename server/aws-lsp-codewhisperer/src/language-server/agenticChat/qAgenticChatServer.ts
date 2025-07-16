@@ -2,8 +2,11 @@
  * Copied from ../qChatServer.ts for the purpose of developing a divergent implementation.
  * Will be deleted or merged.
  */
-
-import { InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
+import {
+    InitializeParams,
+    Server,
+    SUBSCRIPTION_SHOW_COMMAND_METHOD,
+} from '@aws/language-server-runtimes/server-interface'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
 import { CLEAR_QUICK_ACTION, COMPACT_QUICK_ACTION, HELP_QUICK_ACTION } from '../chat/quickActions'
@@ -18,6 +21,7 @@ import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceMa
 import { isUsingIAMAuth, safeGet } from '../../shared/utils'
 import { enabledMCP } from './tools/mcp/mcpUtils'
 import { QClientCapabilities } from '../configuration/qConfigurationServer'
+import { isSubscriptionDetailsEnabled } from '../subscription/subscriptionUtils'
 
 export function enabledReroute(params: InitializeParams | undefined): boolean {
     const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
@@ -40,13 +44,18 @@ export const QAgenticChatServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             const rerouteEnabled = enabledReroute(params)
+            
+            const subscriptionDetailsEnabled = isSubscriptionDetailsEnabled(params)
+
+            const supportedExecutionCommands: string[] = ['aws/chat/manageSubscription']
+            if (subscriptionDetailsEnabled) {
+                supportedExecutionCommands.push(SUBSCRIPTION_SHOW_COMMAND_METHOD)
+            }
 
             return {
                 capabilities: {
                     executeCommandProvider: {
-                        commands: [
-                            'aws/chat/manageSubscription',
-                        ],
+                        commands: supportedExecutionCommands,
                     }
                 },
                 awsServerCapabilities: {
@@ -63,7 +72,8 @@ export const QAgenticChatServer =
                         modelSelection: true,
                         history: true,
                         export: TabBarController.enableChatExport(params),
-                        reroute: rerouteEnabled
+                        reroute: rerouteEnabled,
+                        subscriptionDetails: subscriptionDetailsEnabled,
                     },
                 },
             }

@@ -37,6 +37,7 @@ import {
     RuleClickResult,
     SourceLinkClickParams,
     ListAvailableModelsResult,
+    SubscriptionDetailsParams,
 } from '@aws/language-server-runtimes-types'
 import {
     ChatItem,
@@ -104,6 +105,7 @@ export interface InboundChatApi {
     addSelectedFilesToContext(params: OpenFileDialogParams): void
     sendPinnedContext(params: PinnedContextParams): void
     listAvailableModels(params: ListAvailableModelsResult): void
+    showSubscriptionDetails(params: SubscriptionDetailsParams): void
 }
 
 type ContextCommandGroups = MynahUIDataModel['contextCommands']
@@ -1561,6 +1563,51 @@ ${params.message}`,
         mynahUi.addCustomContextToPrompt(params.tabId, commands, params.insertPosition)
     }
 
+    const showSubscriptionDetails = (params: SubscriptionDetailsParams) => {
+        // todo: deduplicate tabs
+
+        const tabId = createTabId()
+        if (tabId === undefined) {
+            return
+        }
+
+        const tabStore = mynahUi.getTabData(tabId).getStore()
+        if (tabStore === null) {
+            return
+        }
+
+        mynahUi.updateStore(tabId, {
+            tabBackground: false,
+            compactMode: false,
+            tabTitle: 'Account Details',
+            promptInputVisible: false,
+            tabHeaderDetails: {
+                title: `Account details`,
+            },
+            chatItems: [
+                {
+                    type: ChatItemType.ANSWER,
+                    body: '### Subscription' + '\n' + 'Free Tier',
+                    buttons: [
+                        {
+                            status: 'primary',
+                            id: 'upgrade-subscription',
+                            text: `Upgrade`,
+                        },
+                    ],
+                },
+                {
+                    type: ChatItemType.ANSWER,
+                    body:
+                        '### Usage \n' +
+                        '591/1000 queries used \n' +
+                        '$0.00 incurred in overages \n' +
+                        'Limits reset on 8/1/2025 at 12:00:00 GMT \n',
+                },
+            ],
+        })
+    }
+
     const chatHistoryList = new ChatHistoryList(mynahUi, messager)
     const listConversations = (params: ListConversationsResult) => {
         chatHistoryList.show(params)
@@ -1686,6 +1733,7 @@ ${params.message}`,
         ruleClicked: ruleClicked,
         listAvailableModels: listAvailableModels,
         addSelectedFilesToContext: addSelectedFilesToContext,
+        showSubscriptionDetails: showSubscriptionDetails,
     }
 
     return [mynahUi, api]

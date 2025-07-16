@@ -107,6 +107,8 @@ import {
     OpenFileDialogParams,
     OPEN_FILE_DIALOG_METHOD,
     OpenFileDialogResult,
+    SUBSCRIPTION_DETAILS_NOTIFICATION_METHOD,
+    SubscriptionDetailsParams,
 } from '@aws/language-server-runtimes-types'
 import { ConfigTexts, MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
@@ -347,6 +349,10 @@ export const createChat = (
                             : [],
                     })
                 }
+                break
+            }
+            case SUBSCRIPTION_DETAILS_NOTIFICATION_METHOD: {
+                mynahApi.showSubscriptionDetails(message.params as SubscriptionDetailsParams)
                 break
             }
             default:
