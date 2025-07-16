@@ -407,13 +407,17 @@ export async function loadAgentConfig(
                 serverNameMapping.set(sanitizedName, name)
 
                 // Add to agent config
-                agentConfig.mcpServers[name] = {
-                    command: cfg.command,
-                    args: cfg.args,
-                    env: cfg.env,
-                    initializationTimeout: cfg.initializationTimeout,
-                    timeout: cfg.timeout,
+                const agentEntry: any = {}
+                if (cfg.command) agentEntry.command = cfg.command
+                if (cfg.url) agentEntry.url = cfg.url
+                if (cfg.args && cfg.args.length) agentEntry.args = cfg.args
+                if (cfg.env && Object.keys(cfg.env).length) agentEntry.env = cfg.env
+                if (cfg.headers && Object.keys(cfg.headers).length) agentEntry.headers = cfg.headers
+                if (typeof cfg.initializationTimeout === 'number') {
+                    agentEntry.initializationTimeout = cfg.initializationTimeout
                 }
+                if (typeof cfg.timeout === 'number') agentEntry.timeout = cfg.timeout
+                agentConfig.mcpServers[name] = agentEntry
 
                 logging.info(
                     `Loaded MCP server with sanitizedName: '${sanitizedName}' and originalName: '${name}' from ${fsPath}`

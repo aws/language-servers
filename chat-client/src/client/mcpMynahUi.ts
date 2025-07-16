@@ -461,12 +461,13 @@ export class McpMynahUi {
                     this.messager.onListMcpServers()
                 },
                 onFilterValueChange: (filterValues: Record<string, any>) => {
-                    const newTransport = filterValues.transport
-                    // only fire when transport actually changes
-                    if (newTransport !== _lastTransport) {
-                        _lastTransport = newTransport
-                        this.messager.onMcpServerClick(MCP_IDS.CHANGE_TRANSPORT, filterValues.name, filterValues)
+                    const newTransport = filterValues?.transport
+                    if (!newTransport || newTransport === _lastTransport) {
+                        return
                     }
+
+                    _lastTransport = newTransport
+                    this.messager.onMcpServerClick(MCP_IDS.CHANGE_TRANSPORT, filterValues.name, filterValues)
                 },
                 onFilterActionClick: (
                     actionParams: McpServerClickResult,

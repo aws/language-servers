@@ -547,26 +547,16 @@ export class McpEventHandler {
         }
 
         const transport = values.transport
-        const usingStdio = !!values.command?.trim()
-        const usingHttp = !!values.url?.trim()
+        const command = values.command?.trim() || ''
+        const url = values.url?.trim() || ''
 
-        if (transport) {
-            if (transport === 'stdio') {
-                if (!usingStdio) {
-                    errors.push('Command is required for stdio transport')
-                }
-            } else {
-                if (!usingHttp) {
-                    errors.push(`URL is required for ${transport} transport`)
-                }
-            }
-        }
-
-        // Validate mutual exclusivity and presence of either
-        if (usingStdio && usingHttp) {
-            errors.push('Provide either command OR url, not both')
-        } else if (!usingStdio && !usingHttp) {
+        // Basic validation for command/url presence and exclusivity
+        if (!command && !url) {
             errors.push('Either command or url is required')
+        } else if (command && url) {
+            errors.push('Provide either command OR url, not both')
+        } else if (transport && ((transport === 'stdio' && !command) || (transport !== 'stdio' && !url))) {
+            errors.push(`${transport === 'stdio' ? 'Command' : 'URL'} is required for ${transport} transport`)
         }
 
         if (values.timeout && values.timeout.trim() !== '') {
@@ -601,17 +591,19 @@ export class McpEventHandler {
 
         if (Array.isArray(values.headers)) {
             const hdrs = values.headers as Array<{ key: string; value: string }>
-            const emptyKeyWithValue = hdrs.some(
-                h => (!h.key || h.key.trim() === '') && h.value && h.value.trim() !== ''
-            )
-            const keyWithEmptyValue = hdrs.some(
-                h => h.key && h.key.trim() !== '' && (!h.value || h.value.trim() === '')
-            )
-            if (emptyKeyWithValue) {
-                errors.push('Header key cannot be empty when value is provided')
-            }
-            if (keyWithEmptyValue) {
-                errors.push('Header value cannot be empty when key is provided')
+            const invalidHeaders = hdrs.find(h => {
+                const key = h.key?.trim() || ''
+                const value = h.value?.trim() || ''
+                return (key === '' && value !== '') || (key !== '' && value === '')
+            })
+
+            if (invalidHeaders) {
+                const hasKey = invalidHeaders.key?.trim()
+                errors.push(
+                    hasKey
+                        ? 'Header value cannot be empty when key is provided'
+                        : 'Header key cannot be empty when value is provided'
+                )
             }
         }
 
@@ -660,7 +652,7 @@ export class McpEventHandler {
                     )
                     .filter(Boolean)
             } catch (e) {
-                this.#features.logging.warn(`Failed to process args: ${e}`)
+                this.#features.logging.warn(`MCP: Failed to process args: ${e}`)
             }
 
             try {
@@ -673,7 +665,7 @@ export class McpEventHandler {
                     return acc
                 }, {})
             } catch (e) {
-                this.#features.logging.warn(`Failed to process env variables: ${e}`)
+                this.#features.logging.warn(`MCP: Failed to process env variables: ${e}`)
             }
         }
 
@@ -694,7 +686,7 @@ export class McpEventHandler {
                     return acc
                 }, {})
             } catch (e) {
-                this.#features.logging.warn(`Failed to process headers: ${e}`)
+                this.#features.logging.warn(`MCP: Failed to process headers: ${e}`)
             }
         }
 
@@ -1054,29 +1046,26 @@ export class McpEventHandler {
     }
 
     async #handleChangeTransport(params: McpServerClickParams) {
+        const { optionsValues, title } = params
         const editingServerName = this.#currentEditingServerName
 
-        if (params.optionsValues) {
-            const transport = params.optionsValues.transport ?? 'stdio'
-            if (transport === 'http') {
-                delete params.optionsValues.command
-                delete params.optionsValues.args
-                delete params.optionsValues.env_variables
-            } else {
-                delete params.optionsValues.url
-                delete params.optionsValues.headers
-            }
+        // Clean up transport-specific fields
+        if (optionsValues) {
+            const transport = optionsValues.transport ?? 'stdio' // Maintain default to 'stdio'
+            const fieldsToDelete = transport === 'http' ? ['command', 'args', 'env_variables'] : ['url', 'headers']
+
+            fieldsToDelete.forEach(field => delete optionsValues[field])
         }
 
-        // Handle server name change if in edit mode
-        if (editingServerName && params.title && editingServerName !== params.title) {
+        // Handle server name change in edit mode
+        if (editingServerName && title && editingServerName !== title) {
             const servers = McpManager.instance.getAllServerConfigs()
             const existingConfig = servers.get(editingServerName)
 
             if (existingConfig) {
                 const updatedServers = new Map(servers)
                 updatedServers.delete(editingServerName)
-                updatedServers.set(params.title, existingConfig)
+                updatedServers.set(title, existingConfig)
                 await McpManager.instance.updateServerMap(updatedServers)
             }
             this.#serverNameBeforeUpdate = editingServerName

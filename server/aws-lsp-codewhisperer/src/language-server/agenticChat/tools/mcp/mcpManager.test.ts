@@ -235,7 +235,22 @@ describe('addServer()', () => {
     })
 
     it('persists and initializes an HTTP server', async () => {
-        loadStub.resolves({ servers: new Map(), serverNameMapping: new Map(), errors: new Map() })
+        loadStub.resolves({
+            servers: new Map(),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: {},
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
         const mgr = await McpManager.init([], features)
 
         const httpCfg: MCPServerConfig = {

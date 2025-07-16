@@ -633,7 +633,6 @@ export class McpManager {
 
             // We don't need to store configPath anymore as we're using agent config
             const newCfg: MCPServerConfig = { ...cfg, __configPath__: agentPath }
-
             this.mcpServers.set(sanitizedName, newCfg)
             this.serverNameMapping.set(sanitizedName, serverName)
 
