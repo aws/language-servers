@@ -143,7 +143,7 @@ import { CancellationError, workspaceUtils } from '@aws/lsp-core'
 import { FsRead, FsReadParams } from './tools/fsRead'
 import { ListDirectory, ListDirectoryParams } from './tools/listDirectory'
 import { FsWrite, FsWriteParams } from './tools/fsWrite'
-import { ExecuteBash, ExecuteBashParams, outOfWorkspaceWarningmessage } from './tools/executeBash'
+import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
@@ -159,6 +159,9 @@ import {
     RESPONSE_TIMEOUT_MS,
     RESPONSE_TIMEOUT_PARTIAL_MSG,
     DEFAULT_MODEL_ID,
+    OUT_OF_WORKSPACE_WARNING_MSG,
+    CREDENTIAL_FILE_WARNING_MSG,
+    BINARY_FILE_WARNING_MSG,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -1342,9 +1345,12 @@ export class AgenticChatController implements ChatHandlers {
                             approvedPaths
                         )
                         // check if tool execution's path is out of workspace
-                        const isOutOfWorkSpace = warning === outOfWorkspaceWarningmessage
+                        const isOutOfWorkSpace = warning === OUT_OF_WORKSPACE_WARNING_MSG
+                        const isSecuredFilesInvoled =
+                            warning === BINARY_FILE_WARNING_MSG || warning === CREDENTIAL_FILE_WARNING_MSG
                         // Honor built-in permission if available, otherwise use tool's requiresAcceptance
-                        const toolRequiresAcceptance = (builtInPermission || isOutOfWorkSpace) ?? requiresAcceptance
+                        const toolRequiresAcceptance =
+                            (builtInPermission || isOutOfWorkSpace || isSecuredFilesInvoled) ?? requiresAcceptance
 
                         if (toolRequiresAcceptance || toolUse.name === 'executeBash') {
                             // for executeBash, we till send the confirmation message without action buttons
@@ -2101,7 +2107,7 @@ export class AgenticChatController implements ChatHandlers {
                           {
                               id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,
-                              text: 'Deny',
+                              text: 'Reject',
                               icon: 'cancel',
                           },
                       ]
@@ -2131,6 +2137,8 @@ export class AgenticChatController implements ChatHandlers {
                               ),
                           }
                         : {},
+                    icon: 'warning',
+                    iconForegroundStatus: 'warning',
                     body: 'shell',
                     buttons,
                 }
