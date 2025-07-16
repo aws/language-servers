@@ -2,7 +2,12 @@
 
 import { CodeWhispererServiceToken } from '../../../../shared/codeWhispererService'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { Q_CODE_REVIEW_TOOL_NAME, Q_CODE_REVIEW_TOOL_DESCRIPTION, FULL_REVIEW } from './qCodeReviewConstants'
+import {
+    Q_CODE_REVIEW_TOOL_NAME,
+    Q_CODE_REVIEW_TOOL_DESCRIPTION,
+    FULL_REVIEW,
+    CODE_DIFF_REVIEW,
+} from './qCodeReviewConstants'
 import { QCodeReviewUtils } from './qCodeReviewUtils'
 import { Q_CODE_REVIEW_INPUT_SCHEMA, Z_Q_CODE_REVIEW_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
 import { randomUUID } from 'crypto'
@@ -105,11 +110,22 @@ export class QCodeReview {
             await chatStreamWriter?.write('Reviewing your code...')
 
             // 4. Wait for scan to complete
-            await this.pollForCompletion(analysisResult.jobId, setup.scanName, setup.artifactType, chatStreamWriter)
+            await this.pollForCompletion(
+                analysisResult.jobId,
+                setup.scanName,
+                setup.isFullReviewRequest,
+                setup.artifactType,
+                chatStreamWriter
+            )
             this.checkCancellation()
 
             // 5. Process scan result
-            const results = await this.processResults(setup, uploadResult.isCodeDiffPresent, analysisResult.jobId)
+            const results = await this.processResults(
+                setup,
+                uploadResult.isCodeDiffPresent,
+                analysisResult.jobId,
+                setup.isFullReviewRequest
+            )
 
             return {
                 output: {
@@ -325,6 +341,7 @@ export class QCodeReview {
     private async pollForCompletion(
         jobId: string,
         scanName: string,
+        isFullReviewRequest: boolean,
         artifactType: string,
         chatStreamWriter: WritableStreamDefaultWriter<any> | undefined
     ) {
@@ -351,7 +368,7 @@ export class QCodeReview {
                         codeReviewId: jobId,
                         status,
                         artifactType,
-                        message: statusResponse.errorMessage,
+                        scope: isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
                     },
                     this.logging,
                     this.telemetry,
@@ -379,6 +396,7 @@ export class QCodeReview {
                 {
                     codeReviewId: jobId,
                     status: 'Timeout',
+                    scope: isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
                     maxAttempts: QCodeReview.MAX_POLLING_ATTEMPTS,
                 },
                 this.logging,
@@ -401,7 +419,8 @@ export class QCodeReview {
     private async processResults(
         setup: ValidateInputAndSetupResult,
         isCodeDiffPresent: boolean,
-        jobId: string
+        jobId: string,
+        isFullReviewRequest: boolean
     ): Promise<CodeReviewResult> {
         const { totalFindings, findingsExceededLimit } = await this.collectFindings(
             jobId,
@@ -418,6 +437,7 @@ export class QCodeReview {
             {
                 codeReviewId: jobId,
                 findingsCount: totalFindings.length,
+                scope: isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
             },
             this.logging,
             this.telemetry,
