@@ -130,11 +130,14 @@ export class McpEventHandler {
         const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
         const builtInTools = allTools
             .filter(tool => {
-                return builtInToolNames.has(tool.toolSpecification.name)
+                return builtInToolNames.has(tool.toolSpecification.name) && tool.toolSpecification.name !== 'fsReplace'
             })
             .map(tool => ({
                 name: tool.toolSpecification.name,
-                description: tool.toolSpecification.description || `${tool.toolSpecification.name} tool`,
+                description:
+                    this.#getBuiltInToolDescription(tool.toolSpecification.name) ||
+                    tool.toolSpecification.description ||
+                    `${tool.toolSpecification.name} tool`,
             }))
 
         // Add built-in tools as a server in the active items
@@ -729,16 +732,22 @@ export class McpEventHandler {
             // Handle Built-in server specially
             const allTools = this.#features.agent.getTools({ format: 'bedrock' })
             const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
+            // combine fsWrite and fsReplace into fsWrite
             const builtInTools = allTools
                 .filter(tool => {
-                    return builtInToolNames.has(tool.toolSpecification.name)
+                    return (
+                        builtInToolNames.has(tool.toolSpecification.name) && tool.toolSpecification.name !== 'fsReplace'
+                    )
                 })
                 .map(tool => {
                     const permission = McpManager.instance.getToolPerm(serverName, tool.toolSpecification.name)
                     return {
                         tool: {
                             toolName: tool.toolSpecification.name,
-                            description: tool.toolSpecification.description || `${tool.toolSpecification.name} tool`,
+                            description:
+                                this.#getBuiltInToolDescription(tool.toolSpecification.name) ||
+                                tool.toolSpecification.description ||
+                                `${tool.toolSpecification.name} tool`,
                         },
                         permission,
                     }
@@ -952,7 +961,10 @@ export class McpEventHandler {
             const currentPermission = this.#getCurrentPermission(item.permission)
             // For Built-in server, use a special function that doesn't include the 'Deny' option
             let permissionOptions = this.#buildPermissionOptions(item.permission)
-            if (serverName === 'Built-in') permissionOptions = this.#buildBuiltInPermissionOptions(item.permission)
+
+            if (serverName === 'Built-in') {
+                permissionOptions = this.#buildBuiltInPermissionOptions(item.permission)
+            }
 
             filterOptions.push({
                 type: 'select',
@@ -1024,13 +1036,39 @@ export class McpEventHandler {
         return permissionOptions
     }
 
+    #getBuiltInToolDescription(toolName: string) {
+        switch (toolName) {
+            case 'fsRead':
+                return 'Read the content of files.'
+            case 'listDirectory':
+                return 'List the structure of a directory and its subdirectories.'
+            case 'fileSearch':
+                return 'Search for files and directories using fuzzy name matching.'
+            case 'executeBash':
+                return 'Run shell or powershell commands.\n\nNote: read-only commands are auto-run'
+            case 'fsWrite':
+            case 'fsReplace':
+                return 'Create or edit files.'
+            case 'qCodeReview':
+                return 'Review tool analyzes code for security vulnerabilities, quality issues, and best practices across multiple programming languages.'
+            default:
+                return ''
+        }
+    }
+
     /**
      * Handles MCP permission change events to update the pending permission config without applying changes
      */
     async #handleMcpPermissionChange(params: McpServerClickParams) {
         const serverName = params.title
-        const updatedPermissionConfig = params.optionsValues
 
+        // combine fsWrite and fsReplace into fsWrite
+        if (serverName === 'Built-in' && params.optionsValues?.fsWrite) {
+            // add fsReplace along
+            params.optionsValues.fsReplace = params.optionsValues.fsWrite
+        }
+
+        const updatedPermissionConfig = params.optionsValues
         if (!serverName || !updatedPermissionConfig) {
             return { id: params.id }
         }
