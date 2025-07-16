@@ -302,6 +302,8 @@ export type AddMessageEvent = {
     enabled?: boolean
     languageServerVersion?: string
     requestIds?: string[]
+    experimentName?: string
+    userVariation?: string
 
     // context related metrics
     cwsprChatHasContextList?: boolean

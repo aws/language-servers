@@ -1,0 +1,28 @@
+{
+    "name": "@aws/q-agentic-chat-server-integration-tests",
+    "version": "0.0.1",
+    "description": "Integration tests for Q Agentic Chat Server",
+    "main": "out/index.js",
+    "scripts": {
+        "clean": "rm -rf out/ node_modules/ tsconfig.tsbuildinfo .tsbuildinfo",
+        "compile": "tsc --build && cp -r src/tests/testFixture out/tests/",
+        "test-integ": "npm run compile && mocha --timeout 30000 \"./out/**/*.test.js\" --retries 2"
+    },
+    "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.105",
+        "@aws/lsp-core": "*"
+    },
+    "devDependencies": {
+        "@types/chai": "^4.3.5",
+        "@types/chai-as-promised": "^7.1.5",
+        "@types/mocha": "^10.0.9",
+        "@types/yauzl-promise": "^4.0.1",
+        "chai": "^4.3.7",
+        "chai-as-promised": "^7.1.1",
+        "jose": "^5.10.0",
+        "mocha": "^11.0.1",
+        "ts-lsp-client": "^1.0.3",
+        "typescript": "^5.0.0",
+        "yauzl-promise": "^4.0.0"
+    }
+}

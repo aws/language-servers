@@ -839,6 +839,8 @@ describe('TelemetryService', () => {
                     enabled: true,
                     languageServerVersion: undefined,
                     requestIds: undefined,
+                    experimentName: undefined,
+                    userVariation: undefined,
                     cwsprChatHasContextList: true,
                     cwsprChatFolderContextCount: 0,
                     cwsprChatFileContextCount: 0,

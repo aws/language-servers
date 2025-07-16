@@ -192,7 +192,9 @@ export class ChatTelemetryController {
         toolCallLatency?: number[],
         cwsprChatTimeToFirstChunk?: number,
         cwsprChatTimeBetweenChunks?: number[],
-        agenticCodingMode?: boolean
+        agenticCodingMode?: boolean,
+        experimentName?: string,
+        userVariation?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.AgencticLoop_InvokeLLM,
@@ -211,6 +213,8 @@ export class ChatTelemetryController {
                 requestId,
                 enabled: agenticCodingMode,
                 modelId,
+                experimentName: experimentName,
+                userVariation: userVariation,
             },
         })
     }
@@ -220,7 +224,9 @@ export class ChatTelemetryController {
         conversationId: string,
         languageServerVersion: string,
         latency?: number,
-        agenticCodingMode?: boolean
+        agenticCodingMode?: boolean,
+        experimentName?: string,
+        userVariation?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.ToolUseSuggested,
@@ -234,6 +240,8 @@ export class ChatTelemetryController {
                 result: 'Succeeded',
                 languageServerVersion: languageServerVersion,
                 enabled: agenticCodingMode,
+                experimentName: experimentName,
+                userVariation: userVariation,
             },
         })
     }
@@ -242,7 +250,9 @@ export class ChatTelemetryController {
         interactionType: AgenticChatInteractionType,
         tabId: string,
         agenticCodingMode?: boolean,
-        conversationType?: string
+        conversationType?: string,
+        experimentName?: string,
+        userVariation?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.InteractWithAgenticChat,
@@ -253,6 +263,8 @@ export class ChatTelemetryController {
                 cwsprAgenticChatInteractionType: interactionType,
                 result: 'Succeeded',
                 enabled: agenticCodingMode,
+                experimentName: experimentName,
+                userVariation: userVariation,
             },
         })
     }
@@ -310,6 +322,8 @@ export class ChatTelemetryController {
                 cwsprChatPinnedPromptContextCount: metric.cwsprChatPinnedPromptContextCount,
                 languageServerVersion: metric.languageServerVersion,
                 requestIds: metric.requestIds,
+                experimentName: metric.experimentName,
+                userVariation: metric.userVariation,
             }
         )
     }
@@ -413,6 +427,8 @@ export class ChatTelemetryController {
                 enabled: agenticCodingMode,
                 [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
                 languageServerVersion: metric.languageServerVersion,
+                experimentName: metric.experimentName,
+                userVariation: metric.userVariation,
             },
         })
     }
