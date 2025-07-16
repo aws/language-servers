@@ -601,8 +601,7 @@ export const CodewhispererServerFactory =
                         }
                         // Emit user trigger decision at session close time for active session
                         sessionManager.discardSession(currentSession)
-                        // TODO add streakLength back once the model is updated
-                        // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                        const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                         await emitUserTriggerDecisionTelemetry(
                             telemetry,
                             telemetryService,
@@ -611,7 +610,8 @@ export const CodewhispererServerFactory =
                             0,
                             0,
                             [],
-                            []
+                            [],
+                            streakLength
                         )
                     }
 
@@ -714,13 +714,17 @@ export const CodewhispererServerFactory =
             if (session.discardInflightSessionOnNewInvocation) {
                 session.discardInflightSessionOnNewInvocation = false
                 sessionManager.discardSession(session)
-                // TODO add streakLength back once the model is updated
-                // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
                     session,
-                    timeSinceLastUserModification
+                    timeSinceLastUserModification,
+                    0,
+                    0,
+                    [],
+                    [],
+                    streakLength
                 )
             }
 
@@ -1004,8 +1008,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            // TODO add streakLength back once the model is updated
-            // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,
@@ -1014,7 +1017,8 @@ export const CodewhispererServerFactory =
                 addedCharactersForEditSuggestion.length,
                 deletedCharactersForEditSuggestion.length,
                 addedDiagnostics,
-                removedDiagnostics
+                removedDiagnostics,
+                streakLength
             )
         }
 
