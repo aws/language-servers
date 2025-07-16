@@ -17,8 +17,6 @@ import {
     SsoSession,
     SsoTokenSourceKind,
     ProfileKind,
-    GetMfaCodeParams,
-    GetMfaCodeResult,
 } from '@aws/language-server-runtimes/server-interface'
 
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
@@ -72,7 +70,6 @@ export class IdentityService {
         private readonly ssoCache: SsoCache,
         private readonly autoRefresher: SsoTokenAutoRefresher,
         private readonly handlers: SsoFlowParams['handlers'],
-        private readonly sendGetMfaCode: (params: GetMfaCodeParams) => Promise<GetMfaCodeResult>,
         private readonly clientName: string,
         private readonly observability: Observability,
         private readonly authFlows: AuthFlows = flows
