@@ -307,7 +307,7 @@ describe('ProfileService', async () => {
         await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Source profile required on profile.')
     })
 
-    it('updateProfile throws on missing role ARN for role instance profile', async () => {
+    it('updateProfile throws on missing role ARN for IamCredentialSourceProfile', async () => {
         const profile = {
             kinds: [ProfileKind.IamCredentialSourceProfile],
             name: 'profile-name',
@@ -320,7 +320,7 @@ describe('ProfileService', async () => {
         await expectAwsError(sut, { profile }, AwsErrorCodes.E_INVALID_PROFILE, 'Role ARN required on profile.')
     })
 
-    it('updateProfile throws on missing credential source for role instance profile', async () => {
+    it('updateProfile throws on missing credential source for IamCredentialSourceProfile', async () => {
         const profile = {
             kinds: [ProfileKind.IamCredentialSourceProfile],
             name: 'profile-name',
