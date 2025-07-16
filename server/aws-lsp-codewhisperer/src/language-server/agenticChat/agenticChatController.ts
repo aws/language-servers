@@ -194,7 +194,6 @@ import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 
-
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
     | 'openTab'
