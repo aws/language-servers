@@ -1585,9 +1585,33 @@ ${params.message}`,
         }
 
         mynahUi.updateStore(tabId, {
+            tabBackground: false,
+            compactMode: false,
             tabTitle: 'Account Details',
+            promptInputVisible: false,
+            tabHeaderDetails: {
+                title: `Account details`,
+            },
             chatItems: [
-                // todo: show account details here
+                {
+                    type: ChatItemType.ANSWER,
+                    body: '### Subscription' + '\n' + 'Free Tier',
+                    buttons: [
+                        {
+                            status: 'primary',
+                            id: 'upgrade-subscription',
+                            text: `Upgrade`,
+                        },
+                    ],
+                },
+                {
+                    type: ChatItemType.ANSWER,
+                    body:
+                        '### Usage \n' +
+                        '591/1000 queries used \n' +
+                        '$0.00 incurred in overages \n' +
+                        'Limits reset on 8/1/2025 at 12:00:00 GMT \n',
+                },
             ],
         })
     }

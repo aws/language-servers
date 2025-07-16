@@ -242,6 +242,7 @@ type ChatHandlers = Omit<
     | 'onOpenFileDialog'
     | 'onListAvailableModels'
     | 'sendSubscriptionDetails'
+    | 'onSubscriptionUpgrade'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -369,6 +370,8 @@ export class AgenticChatController implements ChatHandlers {
                 return this.onManageSubscription('', awsAccountId)
             }
             case SUBSCRIPTION_SHOW_COMMAND_METHOD: {
+                this.#log(`ExecuteCommand: ${SUBSCRIPTION_SHOW_COMMAND_METHOD}`)
+
                 if (!isSubscriptionDetailsEnabled(this.#features.lsp.getClientInitializeParams())) {
                     return
                 }
@@ -380,6 +383,19 @@ export class AgenticChatController implements ChatHandlers {
                 // Unknown command.
                 return
         }
+    }
+
+    async onShowSubscription(): Promise<void> {
+        // todo: load account details
+
+        // for now, send a sample payload, so that clients under development can start seeing data
+        await this.#features.chat.sendSubscriptionDetails({
+            subscriptionTier: 'temp',
+            daysRemaining: 2,
+            queryLimit: 1000,
+            queryUsage: 457,
+            queryOverage: 0,
+        })
     }
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
@@ -3850,19 +3866,6 @@ export class AgenticChatController implements ChatHandlers {
 
             return
         }
-    }
-
-    async onShowSubscription(): Promise<void> {
-        // todo: load account details
-
-        // for now, send a sample payload, so that clients under development can start seeing data
-        await this.#features.chat.sendSubscriptionDetails({
-            subscriptionTier: 'temp',
-            daysRemaining: 2,
-            queryLimit: 1000,
-            queryUsage: 457,
-            queryOverage: 0,
-        })
     }
 
     async #processAgenticChatResponseWithTimeout(
