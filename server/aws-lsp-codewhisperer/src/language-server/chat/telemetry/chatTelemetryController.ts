@@ -365,6 +365,7 @@ export class ChatTelemetryController {
 
     public emitMCPServerInitializeEvent(data?: {
         command?: string
+        url?: string
         enabled?: boolean
         initializeTime?: number
         numTools?: number
@@ -378,6 +379,7 @@ export class ChatTelemetryController {
             data: {
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 command: data?.command,
+                url: data?.url,
                 enabled: data?.enabled,
                 initializeTime: data?.initializeTime,
                 languageServerVersion: data?.languageServerVersion,

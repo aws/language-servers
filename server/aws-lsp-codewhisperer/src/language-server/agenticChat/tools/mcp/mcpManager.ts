@@ -323,6 +323,7 @@ export class McpManager {
                     const base = new URL(cfg.url!)
                     try {
                         try {
+                            // try streamable http first
                             transport = new StreamableHTTPClientTransport(base, this.buildHttpOpts(cfg.headers))
                             this.features.logging.info(`MCP: Connecting MCP server using StreamableHTTPClientTransport`)
                             await client.connect(transport)
@@ -372,7 +373,6 @@ export class McpManager {
                 await connectPromise
             }
 
-            // tools discovery
             this.clients.set(serverName, client)
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
 
@@ -403,6 +403,13 @@ export class McpManager {
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
             this.handleError(serverName, e)
         }
+    }
+
+    /**
+     * Update server map
+     */
+    public updateServerMap(newMap: Map<string, MCPServerConfig>): void {
+        this.mcpServers = new Map(newMap)
     }
 
     /**
@@ -1222,21 +1229,17 @@ export class McpManager {
     }
 
     /**
-     * Creates the minimal option bag for `SSEClientTransport` that
-     * just forwards caller-supplied headers to both the EventSource
-     * GET stream and every POST back-channel request.
+     * Creates the option bag for SSEClientTransport
      * @private
      */
     private buildSseOpts(headers?: Record<string, string>): SSEClientTransportOptions | undefined {
         if (!headers || Object.keys(headers).length === 0) {
             return
         }
-        // POST back‑channel
         const requestInit: RequestInit = { headers }
 
         // override only the SSE‐GET:
         const eventSourceInit = {
-            // cast to any because EventSourceInit doesn’t list `fetch`
             fetch: (input: RequestInfo | URL | string, init: RequestInit = {}) => {
                 const merged = new Headers(init.headers || {})
                 for (const [k, v] of Object.entries(headers)) {
@@ -1253,8 +1256,7 @@ export class McpManager {
     }
 
     /**
-     * Creates the minimal option bag for `StreamableHTTPClientTransport`
-     * that forwards caller-supplied headers to all HTTP requests.
+     * Creates the option bag for StreamableHTTPClientTransport
      * @private
      */
     private buildHttpOpts(headers?: Record<string, string>): StreamableHTTPClientTransportOptions | undefined {

@@ -29,6 +29,7 @@ export const MCP_IDS = {
     EDIT: 'edit-mcp',
     SAVE: 'save-mcp',
     CANCEL: 'cancel-mcp',
+    CHANGE_TRANSPORT: 'change-transport',
 
     // Permission actions
     PERMISSION_CHANGE: 'mcp-permission-change',
@@ -448,11 +449,24 @@ export class McpMynahUi {
         const typedParams = params as McpServerParams
         if (params.id === MCP_IDS.ADD_NEW || params.id === MCP_IDS.EDIT || params.id === MCP_IDS.FIX_SERVER) {
             this.mynahUi.toggleSplashLoader(false)
+
+            const uiFilters = (typedParams.filterOptions ?? []) as McpFilterOption[]
+            const initial = uiFilters.find(f => f.id === 'transport')
+            let _lastTransport = initial?.value as unknown as string
+
             const detailedList = this.createAddMcpServerDetailedList(typedParams)
 
             const events = {
                 onBackClick: () => {
                     this.messager.onListMcpServers()
+                },
+                onFilterValueChange: (filterValues: Record<string, any>) => {
+                    const newTransport = filterValues.transport
+                    // only fire when transport actually changes
+                    if (newTransport !== _lastTransport) {
+                        _lastTransport = newTransport
+                        this.messager.onMcpServerClick(MCP_IDS.CHANGE_TRANSPORT, filterValues.name, filterValues)
+                    }
                 },
                 onFilterActionClick: (
                     actionParams: McpServerClickResult,

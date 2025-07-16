@@ -207,7 +207,6 @@ describe('addServer()', () => {
     beforeEach(() => {
         loadStub = stubAgentConfig()
         initOneStub = stubInitOneServer()
-        // 只 stub saveAgentConfig
         saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
     })
 
