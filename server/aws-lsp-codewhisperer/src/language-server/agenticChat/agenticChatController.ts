@@ -67,6 +67,8 @@ import {
     ListAvailableModelsResult,
     OpenFileDialogParams,
     OpenFileDialogResult,
+    SUBSCRIPTION_SHOW_COMMAND_METHOD,
+    SubscriptionUpgradeParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -218,6 +220,7 @@ import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { isSubscriptionDetailsEnabled } from '../subscription/subscriptionUtils'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -238,6 +241,7 @@ type ChatHandlers = Omit<
     | 'onPinnedContextRemove'
     | 'onOpenFileDialog'
     | 'onListAvailableModels'
+    | 'sendSubscriptionDetails'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -363,6 +367,14 @@ export class AgenticChatController implements ChatHandlers {
             case 'aws/chat/manageSubscription': {
                 const awsAccountId = params.arguments?.[0]
                 return this.onManageSubscription('', awsAccountId)
+            }
+            case SUBSCRIPTION_SHOW_COMMAND_METHOD: {
+                if (!isSubscriptionDetailsEnabled(this.#features.lsp.getClientInitializeParams())) {
+                    return
+                }
+
+                await this.onShowSubscription()
+                return
             }
             default:
                 // Unknown command.
@@ -3840,6 +3852,19 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async onShowSubscription(): Promise<void> {
+        // todo: load account details
+
+        // for now, send a sample payload, so that clients under development can start seeing data
+        await this.#features.chat.sendSubscriptionDetails({
+            subscriptionTier: 'temp',
+            daysRemaining: 2,
+            queryLimit: 1000,
+            queryUsage: 457,
+            queryOverage: 0,
+        })
+    }
+
     async #processAgenticChatResponseWithTimeout(
         response: ChatCommandOutput,
         metric: Metric<AddMessageEvent>,
@@ -4132,6 +4157,12 @@ export class AgenticChatController implements ChatHandlers {
 
         this.#chatHistoryDb.setModelId(session.modelId)
         this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
+    }
+
+    onSubscriptionUpgrade(param: SubscriptionUpgradeParams) {
+        this.#log('onSubscriptionUpgrade')
+
+        // TODO : future development here
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
