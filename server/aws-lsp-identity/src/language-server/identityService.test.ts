@@ -8,7 +8,6 @@ import { createStubInstance, restore, spy, SinonSpy, stub } from 'sinon'
 import {
     AuthorizationFlowKind,
     CancellationToken,
-    IamCredentials,
     ProfileKind,
     SsoTokenSourceKind,
 } from '@aws/language-server-runtimes/protocol'
@@ -17,7 +16,6 @@ import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interfa
 import { Observability } from '@aws/lsp-core'
 import { StsCache } from '../sts/cache/stsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
-import * as processProvider from '../providers/processProvider'
 import { STSClient } from '@aws-sdk/client-sts'
 import { IAMClient } from '@aws-sdk/client-iam'
 
@@ -33,6 +31,7 @@ let autoRefresher: StubbedInstance<SsoTokenAutoRefresher>
 let stsAutoRefresher: StubbedInstance<StsAutoRefresher>
 let observability: StubbedInstance<Observability>
 let authFlowFn: SinonSpy
+let credentialProvider: SinonSpy
 
 describe('IdentityService', () => {
     beforeEach(() => {
@@ -127,6 +126,30 @@ describe('IdentityService', () => {
                             source_profile: 'my-iam-profile',
                         },
                     },
+                    {
+                        kinds: [ProfileKind.IamCredentialSourceProfile],
+                        name: 'my-env-profile',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            credential_source: 'Environment',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamCredentialSourceProfile],
+                        name: 'my-ec2-profile',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            credential_source: 'Ec2InstanceMetadata',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamCredentialSourceProfile],
+                        name: 'my-ecs-profile',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            credential_source: 'EcsContainer',
+                        },
+                    },
                 ],
                 ssoSessions: [
                     {
@@ -177,6 +200,40 @@ describe('IdentityService', () => {
             } satisfies SSOToken)
         )
 
+        credentialProvider = spy(() => {
+            return () => {
+                return {
+                    accessKeyId: 'provider-access-key',
+                    secretAccessKey: 'provider-secret-key',
+                    sessionToken: 'provider-session-token',
+                    credentialScope: 'provider-credential-scope',
+                    accountId: 'provider-account-id',
+                }
+            }
+        })
+
+        const iamClientStub = {
+            send: stub().resolves({
+                EvaluationResults: [],
+            }),
+        } as unknown as IAMClient
+
+        const stsClientStub = {
+            send: stub().resolves({
+                Credentials: {
+                    AccessKeyId: 'role-access-key',
+                    SecretAccessKey: 'role-secret-key',
+                    SessionToken: 'role-session-token',
+                    Expiration: new Date('2024-09-25T18:09:20.455Z'),
+                },
+                AssumedRoleUser: {
+                    Arn: 'role-arn',
+                    AssumedRoleId: 'role-id',
+                },
+                Arn: 'role-arn',
+            }),
+        } as unknown as STSClient
+
         observability = stubInterface<Observability>()
         observability.logging = stubInterface<Logging>()
         observability.telemetry = stubInterface<Telemetry>()
@@ -198,34 +255,18 @@ describe('IdentityService', () => {
             {
                 [AuthorizationFlowKind.Pkce]: authFlowFn,
                 [AuthorizationFlowKind.DeviceCode]: authFlowFn,
+            },
+            {
+                fromProcess: credentialProvider,
+                fromInstanceMetadata: credentialProvider,
+                fromContainerMetadata: credentialProvider,
+                fromEnv: credentialProvider,
+            },
+            {
+                IAM: () => iamClientStub,
+                STS: () => stsClientStub,
             }
         )
-
-        stub(STSClient.prototype, 'send').resolves({
-            Credentials: {
-                AccessKeyId: 'role-access-key',
-                SecretAccessKey: 'role-secret-key',
-                SessionToken: 'role-session-token',
-                Expiration: new Date('2024-09-25T18:09:20.455Z'),
-            },
-            AssumedRoleUser: {
-                Arn: 'role-arn',
-                AssumedRoleId: 'role-id',
-            },
-            Arn: 'role-arn',
-        })
-
-        stub(IAMClient.prototype, 'send').resolves({
-            EvaluationResults: [],
-        })
-
-        const getProcessCredentialStub = stub(processProvider, 'getProcessCredential')
-        getProcessCredentialStub.resolves({
-            accessKeyId: 'process-access-key',
-            secretAccessKey: 'process-secret-key',
-            sessionToken: 'process-session-token',
-            expiration: new Date('2024-09-25T18:09:20.455Z'),
-        } as IamCredentials)
     })
 
     afterEach(() => {
@@ -479,10 +520,39 @@ describe('IdentityService', () => {
         it('Can login with credential process.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-process-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('process-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('process-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('process-session-token')
+            expect(actual.credentials.accessKeyId).to.equal('provider-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('provider-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('provider-session-token')
+        })
+
+        it('Can assume role with environment variables', async () => {
+            const actual = await sut.getIamCredential({ profileName: 'my-env-profile' }, CancellationToken.None)
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
             expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+        })
+
+        it('Can assume role with EC2 metadata', async () => {
+            const actual = await sut.getIamCredential({ profileName: 'my-ec2-profile' }, CancellationToken.None)
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+        })
+
+        it('Can assume role with ECS metadata', async () => {
+            const actual = await sut.getIamCredential({ profileName: 'my-ecs-profile' }, CancellationToken.None)
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
     })
 

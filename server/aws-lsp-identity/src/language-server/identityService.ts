@@ -36,23 +36,60 @@ import {
     SsoFlowParams,
 } from '../sso/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { GetCallerIdentityCommand, STSClient, AssumeRoleCommand, AssumeRoleCommandInput } from '@aws-sdk/client-sts'
+import {
+    GetCallerIdentityCommand,
+    STSClient,
+    AssumeRoleCommand,
+    AssumeRoleCommandInput,
+    STSClientConfig,
+} from '@aws-sdk/client-sts'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
-import { fromContainerMetadata, fromInstanceMetadata } from '@smithy/credential-provider-imds'
-import { IAMClient, SimulatePrincipalPolicyCommand, SimulatePrincipalPolicyCommandOutput } from '@aws-sdk/client-iam'
-import { getProcessCredential } from '../providers/processProvider'
-import { fromEnv } from '@aws-sdk/credential-provider-env'
+import { fromProcess, FromProcessInit } from '@aws-sdk/credential-provider-process'
+import {
+    fromContainerMetadata,
+    fromInstanceMetadata,
+    InstanceMetadataCredentials,
+    RemoteProviderInit,
+} from '@smithy/credential-provider-imds'
+import {
+    IAMClient,
+    IAMClientConfig,
+    SimulatePrincipalPolicyCommand,
+    SimulatePrincipalPolicyCommandOutput,
+} from '@aws-sdk/client-iam'
+import { fromEnv, FromEnvInit } from '@aws-sdk/credential-provider-env'
+import { AwsCredentialIdentityProvider, Provider, RuntimeConfigAwsCredentialIdentityProvider } from '@aws-sdk/types'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
+type CredentialProviders = {
+    fromProcess: (init?: FromProcessInit) => RuntimeConfigAwsCredentialIdentityProvider
+    fromContainerMetadata: (init?: RemoteProviderInit) => AwsCredentialIdentityProvider
+    fromInstanceMetadata: (init?: RemoteProviderInit) => Provider<InstanceMetadataCredentials>
+    fromEnv: (init?: FromEnvInit) => AwsCredentialIdentityProvider
+}
+type AwsClientFactories = {
+    IAM: (config: IAMClientConfig) => IAMClient
+    STS: (config: STSClientConfig) => STSClient
+}
 
 const sourceProfileRecursionMax = 5
 const mfaTimeout = 2 * 60 * 1000 // 2 minutes
 const flows: AuthFlows = {
     [AuthorizationFlowKind.DeviceCode]: deviceCodeFlow,
     [AuthorizationFlowKind.Pkce]: authorizationCodePkceFlow,
+}
+const defaultCredentialProviders = {
+    fromProcess: fromProcess,
+    fromContainerMetadata: fromContainerMetadata,
+    fromInstanceMetadata: fromInstanceMetadata,
+    fromEnv: fromEnv,
+}
+const defaultAwsClientFactories = {
+    IAM: (config: IAMClientConfig) => new IAMClient(config),
+    STS: (config: STSClientConfig) => new STSClient(config),
 }
 const qPermissions = [
     'q:StartConversation',
@@ -85,7 +122,9 @@ export class IdentityService {
         private readonly sendGetMfaCode: (params: GetMfaCodeParams) => Promise<GetMfaCodeResult>,
         private readonly clientName: string,
         private readonly observability: Observability,
-        private readonly authFlows: AuthFlows = flows
+        private readonly authFlows: AuthFlows = flows,
+        private readonly credentialProviders: CredentialProviders = defaultCredentialProviders,
+        private readonly awsClientFactories: AwsClientFactories = defaultAwsClientFactories
     ) {}
 
     async getSsoToken(params: GetSsoTokenParams, token: CancellationToken): Promise<GetSsoTokenResult> {
@@ -212,7 +251,7 @@ export class IdentityService {
             }
             // Get the credentials from the process output
             else if (profile.kinds.includes(ProfileKind.IamCredentialProcessProfile)) {
-                credentials = await getProcessCredential(profile.settings!.credential_process!)
+                credentials = await this.credentialProviders.fromProcess({ profile: profile.name })()
             }
             // Get the credentials directly from the profile
             else if (profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
@@ -324,14 +363,15 @@ export class IdentityService {
             }
         } else if (profile.kinds.includes(ProfileKind.IamCredentialSourceProfile)) {
             switch (profile.settings?.credential_source) {
+                // TODO: test whether EC2 and ECS metadata credentials are retrieved as expected
                 case 'Ec2InstanceMetadata':
-                    parentCredentials = await fromInstanceMetadata()()
+                    parentCredentials = await this.credentialProviders.fromInstanceMetadata()()
                     break
                 case 'EcsContainer':
-                    parentCredentials = await fromContainerMetadata()()
+                    parentCredentials = await this.credentialProviders.fromContainerMetadata()()
                     break
                 case 'Environment':
-                    parentCredentials = await fromEnv()()
+                    parentCredentials = await this.credentialProviders.fromEnv()()
                     break
                 default:
                     throw new AwsError(
@@ -348,7 +388,7 @@ export class IdentityService {
     private async generateStsCredential(profile: Profile): Promise<StsCredential> {
         try {
             const parentCredentials = await this.getParentCredential(profile)
-            const stsClient = new STSClient({
+            const stsClient = this.awsClientFactories.STS({
                 region: profile.settings?.region || 'us-east-1',
                 credentials: parentCredentials,
             })
@@ -557,14 +597,14 @@ export class IdentityService {
         region?: string
     ): Promise<SimulatePrincipalPolicyCommandOutput> {
         // Get the identity associated with the credentials
-        const stsClient = new STSClient({ region: region || 'us-east-1', credentials: credentials })
+        const stsClient = this.awsClientFactories.STS({ region: region || 'us-east-1', credentials: credentials })
         const identity = await stsClient.send(new GetCallerIdentityCommand({}))
         if (!identity.Arn) {
             throw new AwsError('Caller identity ARN not found.', AwsErrorCodes.E_INVALID_PROFILE)
         }
 
         // Check the permissions attached to the identity
-        const iamClient = new IAMClient({ region: region || 'us-east-1', credentials: credentials })
+        const iamClient = this.awsClientFactories.IAM({ region: region || 'us-east-1', credentials: credentials })
         return await iamClient.send(
             new SimulatePrincipalPolicyCommand({
                 PolicySourceArn: this.convertToIamArn(identity.Arn),
