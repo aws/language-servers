@@ -43,6 +43,7 @@ export interface ChatEventHandler
         | 'onPromptTopBarItemAdded'
         | 'onPromptTopBarItemRemoved'
         | 'onPromptTopBarButtonClick'
+        | 'onSearchShortcut'
     > {}
 
 /**
