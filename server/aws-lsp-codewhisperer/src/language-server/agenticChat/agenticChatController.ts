@@ -3765,7 +3765,7 @@ export class AgenticChatController implements ChatHandlers {
 
     // Helper function to sanitize the 'images' field for logging by replacing large binary data (e.g., Uint8Array) with a concise summary.
     // This prevents logs from being overwhelmed by raw byte arrays and keeps log output readable.
-    #imageReplacer(key: string, value: any) {
+    #imageReplacer(key: string, value: any): string | any {
         if (key === 'bytes' && value && typeof value.length === 'number') {
             return `[Uint8Array, length: ${value.length}]`
         }
