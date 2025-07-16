@@ -194,7 +194,9 @@ export class AgenticChatController implements ChatHandlers {
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
         this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
+
         const session = this.#chatSessionManagementService.getSession(params.tabId)
+
         if (
             params.buttonId === 'run-shell-command' ||
             params.buttonId === 'reject-shell-command' ||
@@ -203,6 +205,19 @@ export class AgenticChatController implements ChatHandlers {
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
             }
+
+            // For run-shell-command, check if there's edited text and update the stored command
+            if (params.buttonId === 'run-shell-command' && params.editedText) {
+                const toolUse = session.data.toolUseLookup.get(params.messageId!)
+                if (toolUse) {
+                    const originalCmd = (toolUse.input as unknown as ExecuteBashParams)?.command ?? ''
+                    ;(toolUse.input as unknown as ExecuteBashParams).command = params.editedText
+                    this.#log(
+                        `Updated command for messageId: ${params.messageId}, original: "${originalCmd}", edited: "${params.editedText}"`
+                    )
+                }
+            }
+
             // For 'allow-tools', remove suffix as permission card needs to be seperate from file list card
             const messageId =
                 params.buttonId === 'allow-tools' && params.messageId.endsWith('_permission')
@@ -252,6 +267,12 @@ export class AgenticChatController implements ChatHandlers {
             this.#stoppedToolUses.add(params.messageId)
             await this.#renderStoppedShellCommand(params.tabId, params.messageId)
             return { success: true }
+        } else if (params.buttonId === 'modify-bash-command') {
+            return await this.#handleModifyBashCommand(params)
+        } else if (params.buttonId === 'accept-bash-command') {
+            return await this.#handleAcceptBashCommand(params)
+        } else if (params.buttonId === 'cancel-bash-edit') {
+            return await this.#handleCancelBashEdit(params)
         } else {
             return {
                 success: false,
@@ -381,7 +402,7 @@ export class AgenticChatController implements ChatHandlers {
         // Phase 1: Initial Setup - This happens only once
         const maybeDefaultResponse = getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
-            return maybeDefaultResponse
+            return { ...maybeDefaultResponse, editable: true } as ChatResult
         }
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
@@ -1216,7 +1237,6 @@ export class AgenticChatController implements ChatHandlers {
 
         return results
     }
-
     #shouldSendBackErrorContent(toolResult: ToolResult) {
         if (toolResult.status === ToolResultStatus.ERROR) {
             for (const content of toolResult.content ?? []) {
@@ -1567,9 +1587,9 @@ export class AgenticChatController implements ChatHandlers {
                               icon: 'cancel',
                           },
                           {
-                              id: 'modify-shell-command',
+                              id: 'modify-bash-command',
                               text: 'Modify',
-                              icon: 'edit',
+                              icon: 'pencil',
                           },
                       ]
                     : []
@@ -2679,6 +2699,132 @@ export class AgenticChatController implements ChatHandlers {
         } catch (error) {
             this.#log('Error restoring previous chats: ' + error)
         }
+    }
+
+    /**
+     * Helper method to create a shell command message for chat updates
+     */
+    #createShellCommandMessage(messageId: string, command: string, editable: boolean, buttons: any[]): any {
+        return {
+            messageId,
+            type: 'tool' as const,
+            body: `\`\`\`shell\n${command}\n\`\`\``,
+            editable,
+            header: {
+                body: 'shell',
+                buttons,
+            },
+        }
+    }
+
+    /**
+     * Helper method to send chat update with error handling
+     */
+    async #sendChatUpdate(tabId: string, message: any): Promise<void> {
+        await this.#features.chat.sendChatUpdate({
+            tabId,
+            state: { inProgress: false },
+            data: {
+                messages: [message],
+            },
+        })
+    }
+
+    /**
+     * Handle modify bash command button click
+     */
+    async #handleModifyBashCommand(params: ButtonClickParams): Promise<ButtonClickResult> {
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+
+        if (!sessionResult.success) {
+            return { success: false, failureReason: 'no session' }
+        }
+
+        const chatSession = sessionResult.data
+        const toolUse = chatSession.toolUseLookup.get(params.messageId!)
+        const oldCmd = (toolUse?.input as unknown as ExecuteBashParams)?.command ?? ''
+
+        try {
+            this.#log(`Setting editable=true for messageId: ${params.messageId}, command: ${oldCmd}`)
+
+            const messageToSend = this.#createShellCommandMessage(params.messageId, oldCmd, true, [
+                { id: 'accept-bash-command', text: 'Save', icon: 'ok' },
+                { id: 'cancel-bash-edit', text: 'Cancel', icon: 'cancel', status: 'clear' as const },
+            ])
+
+            await this.#sendChatUpdate(params.tabId, messageToSend)
+            this.#log(`Chat update sent successfully for messageId: ${params.messageId}`)
+            return { success: true }
+        } catch (error) {
+            this.#log(`Modify error: ${error}`)
+            return { success: false, failureReason: `modify error: ${error}` }
+        }
+    }
+
+    /**
+     * Handle accept bash command button click
+     */
+    async #handleAcceptBashCommand(params: ButtonClickParams): Promise<ButtonClickResult> {
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        if (!sessionResult.success) {
+            return { success: false, failureReason: 'no session' }
+        }
+
+        const chatSession = sessionResult.data
+        const toolUse = chatSession.toolUseLookup.get(params.messageId!)
+
+        if (toolUse) {
+            const originalCmd = (toolUse.input as unknown as ExecuteBashParams)?.command ?? ''
+            const editedCmd = params.editedText || originalCmd
+
+            // Update the toolUse with the accepted command
+            ;(toolUse.input as unknown as ExecuteBashParams).command = editedCmd
+
+            this.#log(
+                `Saving edited command for messageId: ${params.messageId}, original: "${originalCmd}", edited: "${editedCmd}"`
+            )
+
+            const messageToSend = this.#createShellCommandMessage(params.messageId, editedCmd, false, [
+                { id: 'run-shell-command', text: 'Run', icon: 'play' },
+                { id: 'reject-shell-command', text: 'Reject', icon: 'cancel', status: 'clear' as const },
+                { id: 'modify-bash-command', text: 'Modify', icon: 'pencil' },
+            ])
+
+            try {
+                await this.#sendChatUpdate(params.tabId, messageToSend)
+                this.#log(`Command saved and UI updated for messageId: ${params.messageId}`)
+            } catch (error) {
+                this.#log(`Error sending chat update: ${error}`)
+                return { success: false, failureReason: `Failed to update chat: ${error}` }
+            }
+        }
+        return { success: true }
+    }
+
+    /**
+     * Handle cancel bash edit button click
+     */
+    async #handleCancelBashEdit(params: ButtonClickParams): Promise<ButtonClickResult> {
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        if (!sessionResult.success) {
+            return { success: false, failureReason: 'no session' }
+        }
+
+        const chatSession = sessionResult.data
+        const toolUse = chatSession.toolUseLookup.get(params.messageId!)
+        const originalCmd = (toolUse?.input as unknown as ExecuteBashParams)?.command ?? ''
+
+        this.#log(`Setting editable=false for messageId: ${params.messageId}, command: ${originalCmd}`)
+
+        const messageToSend = this.#createShellCommandMessage(params.messageId, originalCmd, false, [
+            { id: 'run-shell-command', text: 'Run', icon: 'play' },
+            { id: 'reject-shell-command', text: 'Reject', icon: 'cancel', status: 'clear' as const },
+            { id: 'modify-bash-command', text: 'Modify', icon: 'pencil' },
+        ])
+
+        await this.#sendChatUpdate(params.tabId, messageToSend)
+        this.#log(`Chat update sent successfully for messageId: ${params.messageId}`)
+        return { success: true }
     }
 
     #createDeferred() {

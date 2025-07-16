@@ -30,6 +30,17 @@ import {
     OpenTabParams,
     SourceLinkClickParams,
 } from '@aws/language-server-runtimes-types'
+
+// Extend ChatMessage to include editable property
+declare module '@aws/language-server-runtimes-types' {
+    interface ChatMessage {
+        editable?: boolean
+    }
+
+    interface ButtonClickParams {
+        editedText?: string
+    }
+}
 import {
     ChatItem,
     ChatItemType,
@@ -181,6 +192,70 @@ const initializeChatResponse = (mynahUi: MynahUI, tabId: string, userPrompt?: st
     mynahUi.addChatItem(tabId, {
         type: ChatItemType.ANSWER_STREAM,
     })
+}
+
+/**
+ * Helper function to find textarea value for a specific message ID
+ * Consolidates the DOM querying logic for finding shell command textareas
+ */
+const findTextareaValueForMessage = (messageId: string): string | undefined => {
+    console.log(`Looking for textarea for messageId: ${messageId}`)
+
+    // Try multiple approaches to find the textarea
+    let textarea: HTMLTextAreaElement | null = null
+
+    // Approach 1: Try by message ID attribute
+    const chatItemElement = document.querySelector(`[data-message-id="${messageId}"]`)
+    console.log(`Found chat item element: ${!!chatItemElement}`)
+    if (chatItemElement) {
+        textarea = chatItemElement.querySelector('.mynah-shell-command-input') as HTMLTextAreaElement
+        console.log(`Found textarea in chat item: ${!!textarea}`)
+    }
+
+    // Approach 2: If not found, try searching all textareas
+    if (!textarea) {
+        const allTextareas = document.querySelectorAll('.mynah-shell-command-input') as NodeListOf<HTMLTextAreaElement>
+        console.log(`Total textareas found: ${allTextareas.length}`)
+
+        // Check each textarea to see which one belongs to our message
+        for (let i = 0; i < allTextareas.length; i++) {
+            const ta = allTextareas[i]
+            const parentCard = ta.closest('[data-message-id]')
+            const parentMessageId = parentCard?.getAttribute('data-message-id')
+            console.log(`Textarea ${i}: parent messageId = ${parentMessageId}`)
+
+            if (parentMessageId === messageId) {
+                textarea = ta
+                console.log(`Found matching textarea!`)
+                break
+            }
+        }
+
+        // If still not found, just use the last one (most recently created)
+        if (!textarea && allTextareas.length > 0) {
+            textarea = allTextareas[allTextareas.length - 1]
+            console.log(`Using last textarea as fallback`)
+        }
+    }
+
+    if (textarea) {
+        const editedText = textarea.value.trim()
+        console.log(`SUCCESS: Found edited text: "${editedText}"`)
+        console.log(`Textarea element:`, textarea)
+        console.log(`Textarea value length: ${textarea.value.length}`)
+        return editedText
+    } else {
+        console.log(`ERROR: No textarea found for messageId: ${messageId}`)
+        // Log all available elements for debugging
+        const allElements = document.querySelectorAll('[data-message-id]')
+        console.log(`Available message elements:`)
+        allElements.forEach((el, i) => {
+            const msgId = el.getAttribute('data-message-id')
+            const hasTextarea = !!el.querySelector('.mynah-shell-command-input')
+            console.log(`  ${i}: messageId=${msgId}, hasTextarea=${hasTextarea}`)
+        })
+        return undefined
+    }
 }
 
 export const createMynahUi = (
@@ -398,10 +473,18 @@ export const createMynahUi = (
             } else if (action.id === OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID) {
                 messager.onOpenSettings('amazonQ.workspaceIndex')
             } else {
+                let editedText: string | undefined = undefined
+
+                // For accept or run buttons, get the current edited text from any textarea
+                if (action.id === 'accept-bash-command' || action.id === 'run-shell-command') {
+                    editedText = findTextareaValueForMessage(messageId)
+                }
+
                 const payload: ButtonClickParams = {
                     tabId,
                     messageId,
                     buttonId: action.id,
+                    editedText, // Include the edited text if available
                 }
                 messager.onButtonClick(payload)
             }
@@ -951,6 +1034,7 @@ export const createMynahUi = (
                       ? { 'insert-to-cursor': null }
                       : undefined,
             ...(shouldMute ? { muted: true } : {}),
+            editable: message.editable,
         }
     }
 

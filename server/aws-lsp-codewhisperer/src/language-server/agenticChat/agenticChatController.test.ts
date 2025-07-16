@@ -2504,6 +2504,625 @@ ${' '.repeat(8)}}
             setModelIdStub.restore()
         })
     })
+
+    describe('Modify Button Functionality', () => {
+        let sendChatUpdateStub: sinon.SinonStub
+
+        beforeEach(() => {
+            chatController.onTabAdd({ tabId: mockTabId })
+            // Create the sendChatUpdate stub
+            sendChatUpdateStub = sinon.stub().resolves()
+            testFeatures.chat.sendChatUpdate = sendChatUpdateStub as any
+        })
+
+        afterEach(() => {
+            if (sendChatUpdateStub && sendChatUpdateStub.restore) {
+                sendChatUpdateStub.restore()
+            }
+        })
+
+        describe('modify-bash-command button', () => {
+            it('should switch shell command to editable mode with Accept/Cancel buttons', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "hello world"'
+
+                // Set up the tool use in the session
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'modify-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                })
+
+                // Verify the result is successful
+                assert.deepStrictEqual(result, { success: true })
+
+                // Verify sendChatUpdate was called with correct parameters
+                sinon.assert.calledOnce(sendChatUpdateStub)
+                const updateCall = sendChatUpdateStub.firstCall.args[0]
+
+                assert.strictEqual(updateCall.tabId, mockTabId)
+                assert.deepStrictEqual(updateCall.state, { inProgress: false })
+                assert.strictEqual(updateCall.data.messages.length, 1)
+
+                const message = updateCall.data.messages[0]
+                assert.strictEqual(message.messageId, toolUseId)
+                assert.strictEqual(message.type, 'tool')
+                assert.strictEqual(message.body, `\`\`\`shell\n${originalCommand}\n\`\`\``)
+                assert.strictEqual(message.editable, true)
+
+                // Verify the header has Accept/Cancel buttons
+                assert.strictEqual(message.header.body, 'shell')
+                assert.strictEqual(message.header.buttons.length, 2)
+                assert.deepStrictEqual(message.header.buttons[0], {
+                    id: 'accept-bash-command',
+                    text: 'Accept',
+                    icon: 'check',
+                })
+                assert.deepStrictEqual(message.header.buttons[1], {
+                    id: 'cancel-bash-edit',
+                    text: 'Cancel',
+                    icon: 'cancel',
+                    status: 'clear',
+                })
+            })
+
+            it('should handle toolUse not found gracefully', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'modify-bash-command',
+                    messageId: 'nonexistent-tool-use-id',
+                    tabId: mockTabId,
+                })
+
+                // Should still succeed but with empty command
+                assert.deepStrictEqual(result, { success: true })
+                sinon.assert.calledOnce(sendChatUpdateStub)
+
+                const updateCall = sendChatUpdateStub.firstCall.args[0]
+                const message = updateCall.data.messages[0]
+                assert.strictEqual(message.body, '```shell\n\n```')
+            })
+
+            it('should handle toolUse not found gracefully', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'modify-bash-command',
+                    messageId: 'nonexistent-tool-use-id',
+                    tabId: mockTabId,
+                })
+
+                // Should still succeed but with empty command
+                assert.deepStrictEqual(result, { success: true })
+                sinon.assert.calledOnce(sendChatUpdateStub)
+
+                const updateCall = sendChatUpdateStub.firstCall.args[0]
+                const message = updateCall.data.messages[0]
+                assert.strictEqual(message.body, '```shell\n\n```')
+            })
+
+            it('should handle sendChatUpdate errors', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: 'test command' },
+                })
+
+                // Make sendChatUpdate throw an error
+                sendChatUpdateStub.rejects(new Error('Update failed'))
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'modify-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                })
+
+                assert.deepStrictEqual(result, {
+                    success: false,
+                    failureReason: 'modify error: Error: Update failed',
+                })
+            })
+        })
+
+        describe('accept-bash-command button', () => {
+            it('should save edited command and show Run/Reject/Modify buttons', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "hello"'
+                const editedCommand = 'echo "hello world"'
+
+                // Set up the tool use in the session
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: editedCommand,
+                })
+
+                // Verify the result is successful
+                assert.deepStrictEqual(result, { success: true })
+
+                // Verify the tool use command was updated
+                const updatedToolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((updatedToolUse!.input as any).command, editedCommand)
+
+                // Verify sendChatUpdate was called with correct parameters
+                sinon.assert.calledOnce(sendChatUpdateStub)
+                const updateCall = sendChatUpdateStub.firstCall.args[0]
+
+                const message = updateCall.data.messages[0]
+                assert.strictEqual(message.messageId, toolUseId)
+                assert.strictEqual(message.type, 'tool')
+                assert.strictEqual(message.body, `\`\`\`shell\n${editedCommand}\n\`\`\``)
+                assert.strictEqual(message.editable, false)
+
+                // Verify the header has Run/Reject/Modify buttons
+                assert.strictEqual(message.header.buttons.length, 3)
+                assert.deepStrictEqual(message.header.buttons[0], {
+                    id: 'run-shell-command',
+                    text: 'Run',
+                    icon: 'play',
+                })
+                assert.deepStrictEqual(message.header.buttons[1], {
+                    id: 'reject-shell-command',
+                    text: 'Reject',
+                    icon: 'cancel',
+                    status: 'clear',
+                })
+                assert.deepStrictEqual(message.header.buttons[2], {
+                    id: 'modify-bash-command',
+                    text: 'Modify',
+                    icon: 'edit',
+                })
+            })
+
+            it('should use original command when editedText is not provided', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "hello"'
+
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    // No editedText provided
+                })
+
+                assert.deepStrictEqual(result, { success: true })
+
+                // Verify the original command is preserved
+                const updatedToolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((updatedToolUse!.input as any).command, originalCommand)
+
+                const updateCall = sendChatUpdateStub.firstCall.args[0]
+                const message = updateCall.data.messages[0]
+                assert.strictEqual(message.body, `\`\`\`shell\n${originalCommand}\n\`\`\``)
+            })
+
+            it('should use editedText when both original and edited commands are provided', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "hello"'
+                const editedCommand = 'echo "goodbye"'
+
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: editedCommand,
+                })
+
+                assert.deepStrictEqual(result, { success: true })
+
+                // Verify the edited command is used
+                const updatedToolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((updatedToolUse!.input as any).command, editedCommand)
+            })
+
+            it('should handle missing toolUse gracefully', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: 'nonexistent-tool-use-id',
+                    tabId: mockTabId,
+                    editedText: 'some command',
+                })
+
+                // Should still return success even if toolUse is not found
+                assert.deepStrictEqual(result, { success: true })
+            })
+
+            it('should handle sendChatUpdate errors', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: 'test command' },
+                })
+
+                sendChatUpdateStub.rejects(new Error('Update failed'))
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: 'edited command',
+                })
+
+                assert.deepStrictEqual(result, {
+                    success: false,
+                    failureReason: 'Failed to update chat: Error: Update failed',
+                })
+            })
+        })
+
+        describe('cancel-bash-edit button', () => {
+            it('should revert to original command and show Run/Reject/Modify buttons', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "original"'
+
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'cancel-bash-edit',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                })
+
+                // Verify the result is successful
+                assert.deepStrictEqual(result, { success: true })
+
+                // Verify sendChatUpdate was called with correct parameters
+                sinon.assert.calledOnce(sendChatUpdateStub)
+                const updateCall = sendChatUpdateStub.firstCall.args[0]
+
+                const message = updateCall.data.messages[0]
+                assert.strictEqual(message.messageId, toolUseId)
+                assert.strictEqual(message.type, 'tool')
+                assert.strictEqual(message.body, `\`\`\`shell\n${originalCommand}\n\`\`\``)
+                assert.strictEqual(message.editable, false)
+
+                // Verify the header has Run/Reject/Modify buttons
+                assert.strictEqual(message.header.buttons.length, 3)
+                assert.deepStrictEqual(message.header.buttons[0], {
+                    id: 'run-shell-command',
+                    text: 'Run',
+                    icon: 'play',
+                })
+                assert.deepStrictEqual(message.header.buttons[1], {
+                    id: 'reject-shell-command',
+                    text: 'Reject',
+                    icon: 'cancel',
+                    status: 'clear',
+                })
+                assert.deepStrictEqual(message.header.buttons[2], {
+                    id: 'modify-bash-command',
+                    text: 'Modify',
+                    icon: 'edit',
+                })
+            })
+
+            it('should handle missing toolUse gracefully', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'cancel-bash-edit',
+                    messageId: 'nonexistent-tool-use-id',
+                    tabId: mockTabId,
+                })
+
+                // Should still succeed but with empty command
+                assert.deepStrictEqual(result, { success: true })
+                sinon.assert.calledOnce(sendChatUpdateStub)
+
+                const updateCall = sendChatUpdateStub.firstCall.args[0]
+                const message = updateCall.data.messages[0]
+                assert.strictEqual(message.body, '```shell\n\n```')
+            })
+        })
+
+        describe('run-shell-command with editedText', () => {
+            it('should update stored command with editedText before execution', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "original"'
+                const editedCommand = 'echo "edited"'
+
+                // Set up the tool use in the session
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                // Set up a deferred tool execution
+                const mockResolve = sinon.stub()
+                const mockReject = sinon.stub()
+                session.setDeferredToolExecution(toolUseId, mockResolve, mockReject)
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'run-shell-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: editedCommand,
+                })
+
+                // Verify the result is successful
+                assert.deepStrictEqual(result, { success: true })
+
+                // Verify the stored command was updated
+                const updatedToolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((updatedToolUse!.input as any).command, editedCommand)
+
+                // Verify the deferred execution was resolved
+                sinon.assert.calledOnce(mockResolve)
+            })
+
+            it('should not update command if editedText is not provided', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "original"'
+
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                const mockResolve = sinon.stub()
+                const mockReject = sinon.stub()
+                session.setDeferredToolExecution(toolUseId, mockResolve, mockReject)
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'run-shell-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    // No editedText provided
+                })
+
+                assert.deepStrictEqual(result, { success: true })
+
+                // Verify the original command is preserved
+                const toolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((toolUse!.input as any).command, originalCommand)
+
+                sinon.assert.calledOnce(mockResolve)
+            })
+
+            it('should handle missing toolUse gracefully', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'nonexistent-tool-use-id'
+
+                const mockResolve = sinon.stub()
+                const mockReject = sinon.stub()
+                session.setDeferredToolExecution(toolUseId, mockResolve, mockReject)
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'run-shell-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: 'some command',
+                })
+
+                // Should still succeed and resolve the deferred execution
+                assert.deepStrictEqual(result, { success: true })
+                sinon.assert.calledOnce(mockResolve)
+            })
+        })
+
+        describe('Integration tests', () => {
+            it('should handle complete modify -> edit -> accept workflow', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "hello"'
+                const editedCommand = 'echo "hello world"'
+
+                // Set up the tool use
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                // Step 1: Click modify button
+                const modifyResult = await chatController.onButtonClick({
+                    buttonId: 'modify-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                })
+
+                assert.deepStrictEqual(modifyResult, { success: true })
+                sinon.assert.calledOnce(sendChatUpdateStub)
+
+                // Verify the message was set to editable mode
+                let updateCall = sendChatUpdateStub.firstCall.args[0]
+                let message = updateCall.data.messages[0]
+                assert.strictEqual(message.editable, true)
+                assert.strictEqual(message.header.buttons[0].id, 'accept-bash-command')
+
+                // Reset stub for next call
+                sendChatUpdateStub.resetHistory()
+
+                // Step 2: Click accept button with edited text
+                const acceptResult = await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: editedCommand,
+                })
+
+                assert.deepStrictEqual(acceptResult, { success: true })
+                sinon.assert.calledOnce(sendChatUpdateStub)
+
+                // Verify the command was updated and message is no longer editable
+                const updatedToolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((updatedToolUse!.input as any).command, editedCommand)
+
+                updateCall = sendChatUpdateStub.firstCall.args[0]
+                message = updateCall.data.messages[0]
+                assert.strictEqual(message.editable, false)
+                assert.strictEqual(message.body, `\`\`\`shell\n${editedCommand}\n\`\`\``)
+                assert.strictEqual(message.header.buttons[0].id, 'run-shell-command')
+            })
+
+            it('should handle complete modify -> edit -> cancel workflow', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "original"'
+
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                // Step 1: Click modify button
+                await chatController.onButtonClick({
+                    buttonId: 'modify-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                })
+
+                sendChatUpdateStub.resetHistory()
+
+                // Step 2: Click cancel button
+                const cancelResult = await chatController.onButtonClick({
+                    buttonId: 'cancel-bash-edit',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                })
+
+                assert.deepStrictEqual(cancelResult, { success: true })
+
+                // Verify the original command is preserved and message is no longer editable
+                const toolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((toolUse!.input as any).command, originalCommand)
+
+                const updateCall = sendChatUpdateStub.firstCall.args[0]
+                const message = updateCall.data.messages[0]
+                assert.strictEqual(message.editable, false)
+                assert.strictEqual(message.body, `\`\`\`shell\n${originalCommand}\n\`\`\``)
+                assert.strictEqual(message.header.buttons[0].id, 'run-shell-command')
+            })
+
+            it('should handle modify button clicked multiple times', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "hello"'
+                const firstEdit = 'echo "hello world"'
+                const secondEdit = 'echo "hello universe"'
+
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                // First modify-accept cycle
+                await chatController.onButtonClick({
+                    buttonId: 'modify-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                })
+
+                await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: firstEdit,
+                })
+
+                // Verify first edit was saved
+                let toolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((toolUse!.input as any).command, firstEdit)
+
+                // Second modify-accept cycle
+                await chatController.onButtonClick({
+                    buttonId: 'modify-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                })
+
+                await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: secondEdit,
+                })
+
+                // Verify second edit was saved
+                toolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((toolUse!.input as any).command, secondEdit)
+            })
+        })
+
+        describe('Error handling', () => {
+            it('should handle empty/undefined editedText gracefully', async () => {
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                const toolUseId = 'test-tool-use-id'
+                const originalCommand = 'echo "original"'
+
+                session.toolUseLookup.set(toolUseId, {
+                    name: 'executeBash',
+                    toolUseId,
+                    input: { command: originalCommand },
+                })
+
+                // Test with undefined editedText
+                const result1 = await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: undefined,
+                })
+
+                assert.deepStrictEqual(result1, { success: true })
+
+                // Test with empty string editedText
+                const result2 = await chatController.onButtonClick({
+                    buttonId: 'accept-bash-command',
+                    messageId: toolUseId,
+                    tabId: mockTabId,
+                    editedText: '',
+                })
+
+                assert.deepStrictEqual(result2, { success: true })
+
+                // Verify original command is preserved in both cases
+                const toolUse = session.toolUseLookup.get(toolUseId)
+                assert.strictEqual((toolUse!.input as any).command, originalCommand)
+            })
+        })
+    })
 })
 
 // The body may include text-based progress updates from tool invocations.

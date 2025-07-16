@@ -5,5 +5,11 @@
         "outDir": "./out",
         "resolveJsonModule": true
     },
-    "include": ["src", "src/language-server/inline-completion/auto-trigger/coefficients.json"]
+    "include": [
+        "src",
+        "src/language-server/inline-completion/auto-trigger/coefficients.json",
+        "src/types/**/*.d.ts",
+        "server/aws-lsp-codewhisperer/types/**/*.d.ts",
+        "/Users/qjhuang/Desktop/AWS Intern Repos 25/language-servers/server/aws-lsp-codewhisperer/types/protocol-extensions.d.ts"
+    ]
 }
