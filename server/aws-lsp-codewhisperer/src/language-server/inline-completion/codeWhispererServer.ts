@@ -426,9 +426,14 @@ export const CodewhispererServerFactory =
                         ? workspaceState.workspaceId
                         : undefined
 
-                    // TODO: Can we get this derived from a keyboard event in the future?
-                    // This picks the last non-whitespace character, if any, before the cursor
-                    const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
+                    let triggerCharacters = ''
+                    // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
+                    if (params.documentChangeParams?.contentChanges?.[0].text !== undefined) {
+                        triggerCharacters = params.documentChangeParams?.contentChanges?.[0].text
+                    } else {
+                        // if the client does not emit document change for the trigger, use left most character.
+                        triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
+                    }
                     const codewhispererAutoTriggerType = triggerType(fileContext)
                     const previousSession = sessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
@@ -443,7 +448,7 @@ export const CodewhispererServerFactory =
                         {
                             fileContext, // The left/right file context and programming language
                             lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                            char: triggerCharacter, // Add the character just inserted, if any, before the invication position
+                            char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                             ide: ideCategory ?? '',
                             os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                             previousDecision, // The last decision by the user on the previous invocation
@@ -523,7 +528,7 @@ export const CodewhispererServerFactory =
                                 const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
                                     fileContext: fileContext,
                                     lineNum: params.position.line,
-                                    char: triggerCharacter,
+                                    char: triggerCharacters,
                                     previousDecision: previousDecision,
                                     cursorHistory: cursorTracker,
                                     recentEdits: recentEditTracker,
@@ -643,7 +648,7 @@ export const CodewhispererServerFactory =
                         language: fileContext.programmingLanguage.languageName,
                         requestContext: requestContext,
                         autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
-                        triggerCharacter: triggerCharacter,
+                        triggerCharacter: triggerCharacters,
                         classifierResult: autoTriggerResult?.classifierResult,
                         classifierThreshold: autoTriggerResult?.classifierThreshold,
                         credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
