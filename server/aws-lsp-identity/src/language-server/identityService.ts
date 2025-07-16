@@ -186,7 +186,7 @@ export class IdentityService {
             const options = { ...getIamCredentialOptionsDefaults, ...params.options }
 
             token.onCancellationRequested(_ => {
-                if (options.generateOnInvalidStsCredential) {
+                if (options.callStsOnInvalidIamCredential) {
                     emitMetric('Cancelled', null)
                 }
             })
@@ -201,11 +201,11 @@ export class IdentityService {
 
             let credentials: IamCredentials
             // Assume the role matching the found ARN
-            if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
-                credentials = await this.getAssumedRoleCredential(profile, options.generateOnInvalidStsCredential)
+            if (profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
+                credentials = await this.getAssumedRoleCredential(profile, options.callStsOnInvalidIamCredential)
             }
             // Get the credentials directly from the profile
-            else if (profile.kinds.includes(ProfileKind.IamUserProfile)) {
+            else if (profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
                 credentials = {
                     accessKeyId: profile.settings!.aws_access_key_id!,
                     secretAccessKey: profile.settings!.aws_secret_access_key!,
@@ -215,7 +215,7 @@ export class IdentityService {
                 throw new AwsError('Credentials could not be found for profile', AwsErrorCodes.E_INVALID_PROFILE)
             }
 
-            // Validate permissions on user or assumed role
+            // Validate permissions
             if (options.validatePermissions) {
                 const response = await this.simulatePermissions(credentials, qPermissions, profile.settings?.region)
                 if (!response?.EvaluationResults?.every(result => result.EvalDecision === 'allowed')) {
@@ -297,7 +297,7 @@ export class IdentityService {
 
     private async getParentCredential(profile: Profile): Promise<IamCredentials> {
         let parentCredentials: IamCredentials
-        if (profile.kinds.includes(ProfileKind.IamRoleSourceProfile)) {
+        if (profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
             const parentOptions = {
                 profileName: profile.settings!.source_profile!,
                 // Do not validate Q permissions on source profile
@@ -523,20 +523,20 @@ export class IdentityService {
         return ssoSession
     }
 
-    // Returns whether the identity associated with the provided credentials has sufficient permissions
+    // Simulate permissions on the identity associated with the credentials
     private async simulatePermissions(
         credentials: IamCredentials,
         permissions: string[],
         region?: string
     ): Promise<SimulatePrincipalPolicyCommandOutput> {
-        // Get the identity associated with the credentials
+        // Convert the credentials into an identity
         const stsClient = new STSClient({ region: region || 'us-east-1', credentials: credentials })
         const identity = await stsClient.send(new GetCallerIdentityCommand({}))
         if (!identity.Arn) {
             throw new AwsError('Caller identity ARN not found.', AwsErrorCodes.E_INVALID_PROFILE)
         }
 
-        // Check the permissions attached to the identity
+        // Simulate permissions on the identity
         const iamClient = new IAMClient({ region: region || 'us-east-1', credentials: credentials })
         return await iamClient.send(
             new SimulatePrincipalPolicyCommand({
