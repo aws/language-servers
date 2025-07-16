@@ -200,7 +200,8 @@ export const handleChatPrompt = (
         prompt.command &&
         ['/dev', '/test', '/doc'].includes(prompt.command)
 
-    if (prompt.command && !isReroutedCommand) {
+    if (prompt.command && !isReroutedCommand && prompt.command !== '/compact') {
+        // Send /compact quick action as normal regular chat prompt
         // Handle non-rerouted commands (/clear, /help, /transform, /review) as quick actions
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
