@@ -428,8 +428,12 @@ export const CodewhispererServerFactory =
 
                     let triggerCharacters = ''
                     // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
-                    if (params.documentChangeParams?.contentChanges?.[0].text !== undefined) {
-                        triggerCharacters = params.documentChangeParams?.contentChanges?.[0].text
+                    if (
+                        params.documentChangeParams?.contentChanges &&
+                        params.documentChangeParams.contentChanges.length > 0 &&
+                        params.documentChangeParams.contentChanges[0].text !== undefined
+                    ) {
+                        triggerCharacters = params.documentChangeParams.contentChanges[0].text
                     } else {
                         // if the client does not emit document change for the trigger, use left most character.
                         triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
