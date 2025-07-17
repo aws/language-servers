@@ -174,13 +174,7 @@ export class McpManager {
             this.setState(sanitizedName, McpServerStatus.UNINITIALIZED, 0)
 
             // Initialize permissions for this server
-            // Check if server is enabled (either as @server or has specific tools like @server/tool)
             const serverPrefix = `@${name}`
-            const isEnabled = this.agentConfig.tools.some(
-                tool =>
-                    tool === serverPrefix ||
-                    (tool.startsWith(serverPrefix + '/') && tool.length > serverPrefix.length + 1)
-            )
 
             // Extract tool permissions from agent config
             const toolPerms: Record<string, McpPermissionType> = {}
@@ -217,7 +211,7 @@ export class McpManager {
             }
 
             this.mcpServerPermissions.set(sanitizedName, {
-                enabled: isEnabled,
+                enabled: true,
                 toolPerms,
             })
         }
@@ -928,70 +922,6 @@ export class McpManager {
             this.handleError(serverName, err)
             return
         }
-    }
-
-    /**
-     * Read, mutate, and write the MCP JSON config at the given path.
-     * @private
-     */
-    private async mutateConfigFile(configPath: string, mutator: (json: any) => void): Promise<void> {
-        return McpManager.configMutex
-            .runExclusive(async () => {
-                let json: any = { mcpServers: {} }
-                try {
-                    const raw = await this.features.workspace.fs.readFile(configPath)
-                    this.features.logging.info(`Updating MCP config file: ${configPath}`)
-                    const existing = JSON.parse(raw.toString())
-                    json = { mcpServers: {}, ...existing }
-                } catch (err: any) {
-                    // ignore fire not exist error
-                    if (err?.code !== 'ENOENT') throw err
-                }
-                mutator(json)
-
-                let fsPath: string
-                try {
-                    const uri = URI.parse(configPath)
-                    fsPath = uri.scheme === 'file' ? uri.fsPath : configPath
-                } catch {
-                    fsPath = configPath
-                }
-                fsPath = path.normalize(fsPath)
-
-                const dir = path.dirname(fsPath)
-                await this.features.workspace.fs.mkdir(dir, { recursive: true })
-
-                await this.features.workspace.fs.writeFile(fsPath, JSON.stringify(json, null, 2))
-                this.features.logging.debug(`MCP config file write complete: ${configPath}`)
-            })
-            .catch((e: any) => {
-                this.features.logging.error(`MCP: failed to update config at ${configPath}: ${e.message}`)
-                throw e
-            })
-    }
-
-    /**
-     * Read, mutate, and write the Persona YAML config at the given path.
-     * @private
-     */
-    private async mutatePersonaFile(personaPath: string, mutator: (p: PersonaModel) => void): Promise<void> {
-        await McpManager.personaMutex
-            .runExclusive(async () => {
-                this.features.logging.info(`Updating persona file: ${personaPath}`)
-                let raw = ''
-                try {
-                    raw = (await this.features.workspace.fs.readFile(personaPath)).toString()
-                } catch {}
-
-                const model = PersonaModel.fromJson(raw ? JSON.parse(raw) : {})
-                mutator(model)
-                await this.features.workspace.fs.writeFile(personaPath, JSON.stringify(model.toJson(), null, 2))
-                this.features.logging.debug(`Persona file write complete: ${personaPath}`)
-            })
-            .catch((e: any) => {
-                this.features.logging.error(`MCP: failed to update persona file at ${personaPath}: ${e.message}`)
-                throw e
-            })
     }
 
     /**
