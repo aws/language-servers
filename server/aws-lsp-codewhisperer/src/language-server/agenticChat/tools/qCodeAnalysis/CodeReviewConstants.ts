@@ -4,7 +4,7 @@
  */
 
 /**
- * Constants related to programming languages and findings for QCodeReview
+ * Constants related to programming languages and findings for CodeReview
  */
 
 /**
@@ -94,14 +94,14 @@ export const EXTENSION_TO_LANGUAGE: Record<string, string> = {
 }
 
 /**
- * Tool name for QCodeReview
+ * Tool name for CodeReview
  */
-export const Q_CODE_REVIEW_TOOL_NAME = 'qCodeReview'
+export const CODE_REVIEW_TOOL_NAME = 'CodeReview'
 
 /**
- * Tool description for QCodeReview
+ * Tool description for CodeReview
  */
-export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
+export const CODE_REVIEW_TOOL_DESCRIPTION = [
     'The primary tool for comprehensive code analysis and review. This tool should be used by default whenever a user requests code review, file analysis, or code examination unless explicitly instructed otherwise.',
     'This tool can be used to perform code review of full code or modified code. Modified code refers to the changes made that are not committed yet.',
     '',
@@ -127,7 +127,7 @@ export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     `- "${Object.keys(EXTENSION_TO_LANGUAGE).join('", "')}"`,
     '',
     '**Tool start message**',
-    'Before running the tool, you must inform the user that you will use Amazon Q Code Review tool for their request.',
+    'Before running the tool, you must inform the user that you will use Code Review tool for their request.',
     'Under no condition you will use the tool without informing the user.',
     '',
     '**Tool Input**',
@@ -201,6 +201,6 @@ export const SKIP_DIRECTORIES = [
     'temp',
 ]
 
-export const FINDINGS_MESSAGE_SUFFIX = '_qCodeReviewFindings'
+export const FINDINGS_MESSAGE_SUFFIX = '_CodeReviewFindings'
 
-export const Q_CODE_REVIEW_METRICS_PARENT_NAME = 'amazonq_qCodeReviewTool'
+export const CODE_REVIEW_METRICS_PARENT_NAME = 'amazonq_CodeReviewTool'

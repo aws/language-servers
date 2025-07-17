@@ -3,13 +3,13 @@
 import { CodeWhispererServiceToken } from '../../../../shared/codeWhispererService'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import {
-    Q_CODE_REVIEW_TOOL_NAME,
-    Q_CODE_REVIEW_TOOL_DESCRIPTION,
+    CODE_REVIEW_TOOL_NAME,
+    CODE_REVIEW_TOOL_DESCRIPTION,
     FULL_REVIEW,
     CODE_DIFF_REVIEW,
-} from './qCodeReviewConstants'
-import { QCodeReviewUtils } from './qCodeReviewUtils'
-import { Q_CODE_REVIEW_INPUT_SCHEMA, Z_Q_CODE_REVIEW_INPUT_SCHEMA, Q_FINDINGS_SCHEMA } from './qCodeReviewSchemas'
+} from './CodeReviewConstants'
+import { CodeReviewUtils } from './CodeReviewUtils'
+import { CODE_REVIEW_INPUT_SCHEMA, Z_CODE_REVIEW_INPUT_SCHEMA, FINDINGS_SCHEMA } from './CodeReviewSchemas'
 import { randomUUID } from 'crypto'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -17,7 +17,7 @@ import * as JSZip from 'jszip'
 import { existsSync, statSync } from 'fs'
 import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
 import { InvokeOutput } from '../toolShared'
-import { QCodeReviewInternalError, QCodeReviewTimeoutError, QCodeReviewValidationError } from './qCodeReviewErrors'
+import { CodeReviewInternalError, CodeReviewTimeoutError, CodeReviewValidationError } from './CodeReviewErrors'
 import {
     FileArtifacts,
     FolderArtifacts,
@@ -26,13 +26,13 @@ import {
     PrepareAndUploadArtifactsResult,
     StartCodeAnalysisResult,
     CodeReviewResult,
-    QCodeReviewFinding,
+    CodeReviewFinding,
     FailedMetricName,
     SuccessMetricName,
-} from './qCodeReviewTypes'
+} from './CodeReviewTypes'
 import { CancellationError } from '@aws/lsp-core'
 
-export class QCodeReview {
+export class CodeReview {
     private static readonly CUSTOMER_CODE_BASE_PATH = 'customerCodeBaseFolder'
     private static readonly CODE_ARTIFACT_PATH = 'code_artifact'
     private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
@@ -47,9 +47,9 @@ export class QCodeReview {
 
     private static readonly ERROR_MESSAGES = {
         MISSING_CLIENT: 'CodeWhisperer client not available',
-        MISSING_ARTIFACTS: `Missing fileLevelArtifacts and folderLevelArtifacts for ${Q_CODE_REVIEW_TOOL_NAME} tool. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
+        MISSING_ARTIFACTS: `Missing fileLevelArtifacts and folderLevelArtifacts for ${CODE_REVIEW_TOOL_NAME} tool. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
         MISSING_FILES_TO_SCAN: `There are no valid files to scan. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
-        UPLOAD_FAILED: `Failed to upload artifact for code review in ${Q_CODE_REVIEW_TOOL_NAME} tool.`,
+        UPLOAD_FAILED: `Failed to upload artifact for code review in ${CODE_REVIEW_TOOL_NAME} tool.`,
         START_CODE_ANALYSIS_FAILED: (scanName: string, errorMessage?: string) =>
             `Failed to start code analysis for scanName - ${scanName} due to - ${errorMessage}`,
         CODE_ANALYSIS_FAILED: (jobId: string, message: string) =>
@@ -76,14 +76,14 @@ export class QCodeReview {
         this.workspace = features.workspace
     }
 
-    static readonly toolName = Q_CODE_REVIEW_TOOL_NAME
+    static readonly toolName = CODE_REVIEW_TOOL_NAME
 
-    static readonly toolDescription = Q_CODE_REVIEW_TOOL_DESCRIPTION
+    static readonly toolDescription = CODE_REVIEW_TOOL_DESCRIPTION
 
-    static readonly inputSchema = Q_CODE_REVIEW_INPUT_SCHEMA
+    static readonly inputSchema = CODE_REVIEW_INPUT_SCHEMA
 
     /**
-     * Main execution method for the QCodeReview tool
+     * Main execution method for the CodeReview tool
      * @param input User input parameters for code review
      * @param context Execution context containing clients and tokens
      * @returns Output containing code review results or error message
@@ -92,7 +92,7 @@ export class QCodeReview {
         let chatStreamWriter: WritableStreamDefaultWriter<any> | undefined
 
         try {
-            this.logging.info(`Executing ${Q_CODE_REVIEW_TOOL_NAME}: ${JSON.stringify(input)}`)
+            this.logging.info(`Executing ${CODE_REVIEW_TOOL_NAME}: ${JSON.stringify(input)}`)
 
             // 1. Validate input
             const setup = await this.validateInputAndSetup(input, context)
@@ -162,26 +162,26 @@ export class QCodeReview {
 
         this.codeWhispererClient = context.codeWhispererClient as CodeWhispererServiceToken
         if (!this.codeWhispererClient) {
-            throw new Error(QCodeReview.ERROR_MESSAGES.MISSING_CLIENT)
+            throw new Error(CodeReview.ERROR_MESSAGES.MISSING_CLIENT)
         }
 
         // parse input
-        const validatedInput = Z_Q_CODE_REVIEW_INPUT_SCHEMA.parse(input)
+        const validatedInput = Z_CODE_REVIEW_INPUT_SCHEMA.parse(input)
         const fileArtifacts = validatedInput.fileLevelArtifacts || []
         const folderArtifacts = validatedInput.folderLevelArtifacts || []
         const ruleArtifacts = validatedInput.ruleArtifacts || []
 
         if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
-            QCodeReviewUtils.emitMetric(
+            CodeReviewUtils.emitMetric(
                 {
                     name: FailedMetricName.MissingFileOrFolder,
                     result: 'Failed',
-                    reason: QCodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS,
+                    reason: CodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS,
                 },
                 this.logging,
                 this.telemetry
             )
-            throw new QCodeReviewValidationError(QCodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS)
+            throw new CodeReviewValidationError(CodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS)
         }
 
         const isFullReviewRequest = validatedInput.scopeOfReview?.toUpperCase() === FULL_REVIEW
@@ -222,7 +222,7 @@ export class QCodeReview {
         const uploadUrlResponse = await this.codeWhispererClient!.createUploadUrl({
             contentLength: zipBuffer.length,
             contentMd5: md5Hash,
-            uploadIntent: QCodeReview.UPLOAD_INTENT,
+            uploadIntent: CodeReview.UPLOAD_INTENT,
             uploadContext: {
                 codeAnalysisUploadContext: {
                     codeScanName: setup.scanName,
@@ -231,11 +231,11 @@ export class QCodeReview {
         })
 
         if (!uploadUrlResponse.uploadUrl || !uploadUrlResponse.uploadId) {
-            QCodeReviewUtils.emitMetric(
+            CodeReviewUtils.emitMetric(
                 {
                     name: FailedMetricName.CreateUploadUrlFailed,
                     result: 'Failed',
-                    reason: QCodeReview.ERROR_MESSAGES.UPLOAD_FAILED,
+                    reason: CodeReview.ERROR_MESSAGES.UPLOAD_FAILED,
                     metadata: {
                         codeReviewScanName: setup.scanName,
                         codeReviewArtifactSize: zipBuffer.length,
@@ -245,10 +245,10 @@ export class QCodeReview {
                 this.logging,
                 this.telemetry
             )
-            throw new QCodeReviewValidationError(QCodeReview.ERROR_MESSAGES.UPLOAD_FAILED)
+            throw new CodeReviewValidationError(CodeReview.ERROR_MESSAGES.UPLOAD_FAILED)
         }
 
-        await QCodeReviewUtils.uploadFileToPresignedUrl(
+        await CodeReviewUtils.uploadFileToPresignedUrl(
             uploadUrlResponse.uploadUrl,
             zipBuffer,
             uploadUrlResponse.requestHeaders || {},
@@ -271,18 +271,18 @@ export class QCodeReview {
         const createResponse = await this.codeWhispererClient!.startCodeAnalysis({
             artifacts: { SourceCode: uploadResult.uploadId },
             programmingLanguage: { languageName: setup.programmingLanguage },
-            clientToken: QCodeReviewUtils.generateClientToken(),
+            clientToken: CodeReviewUtils.generateClientToken(),
             codeScanName: setup.scanName,
-            scope: QCodeReview.SCAN_SCOPE,
+            scope: CodeReview.SCAN_SCOPE,
             codeDiffMetadata: uploadResult.isCodeDiffPresent ? { codeDiffPath: '/code_artifact/codeDiff/' } : undefined,
         })
 
         if (!createResponse.jobId) {
-            QCodeReviewUtils.emitMetric(
+            CodeReviewUtils.emitMetric(
                 {
                     name: FailedMetricName.CodeScanFailed,
                     result: 'Failed',
-                    reason: QCodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(
+                    reason: CodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(
                         setup.scanName,
                         createResponse.errorMessage
                     ),
@@ -298,8 +298,8 @@ export class QCodeReview {
                 this.logging,
                 this.telemetry
             )
-            throw new QCodeReviewInternalError(
-                QCodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(setup.scanName, createResponse.errorMessage)
+            throw new CodeReviewInternalError(
+                CodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(setup.scanName, createResponse.errorMessage)
             )
         }
 
@@ -326,20 +326,20 @@ export class QCodeReview {
         let status = 'Pending'
         let attemptCount = 0
 
-        while (status === 'Pending' && attemptCount < QCodeReview.MAX_POLLING_ATTEMPTS) {
+        while (status === 'Pending' && attemptCount < CodeReview.MAX_POLLING_ATTEMPTS) {
             this.logging.info(`Code scan status: ${status}, waiting...`)
-            await new Promise(resolve => setTimeout(resolve, QCodeReview.POLLING_INTERVAL_MS))
+            await new Promise(resolve => setTimeout(resolve, CodeReview.POLLING_INTERVAL_MS))
 
             const statusResponse = await this.getCodeAnalysisStatus(jobId)
             status = statusResponse.status
             attemptCount++
 
             if (statusResponse.errorMessage) {
-                QCodeReviewUtils.emitMetric(
+                CodeReviewUtils.emitMetric(
                     {
                         name: FailedMetricName.CodeScanFailed,
                         result: 'Failed',
-                        reason: QCodeReview.ERROR_MESSAGES.CODE_ANALYSIS_FAILED(jobId, statusResponse.errorMessage),
+                        reason: CodeReview.ERROR_MESSAGES.CODE_ANALYSIS_FAILED(jobId, statusResponse.errorMessage),
                         metadata: {
                             codeReviewId: jobId,
                             status: status,
@@ -352,12 +352,12 @@ export class QCodeReview {
                     this.logging,
                     this.telemetry
                 )
-                throw new QCodeReviewInternalError(
-                    QCodeReview.ERROR_MESSAGES.CODE_ANALYSIS_FAILED(jobId, statusResponse.errorMessage)
+                throw new CodeReviewInternalError(
+                    CodeReview.ERROR_MESSAGES.CODE_ANALYSIS_FAILED(jobId, statusResponse.errorMessage)
                 )
             }
 
-            if (attemptCount == QCodeReview.MID_POLLING_ATTEMPTS) {
+            if (attemptCount == CodeReview.MID_POLLING_ATTEMPTS) {
                 await chatStreamWriter?.write('Still reviewing your code, it is taking just a bit longer than usual...')
             }
 
@@ -365,17 +365,17 @@ export class QCodeReview {
         }
 
         if (status === 'Pending') {
-            QCodeReviewUtils.emitMetric(
+            CodeReviewUtils.emitMetric(
                 {
                     name: FailedMetricName.CodeScanTimeout,
                     result: 'Failed',
-                    reason: QCodeReview.ERROR_MESSAGES.TIMEOUT(QCodeReview.MAX_POLLING_ATTEMPTS),
+                    reason: CodeReview.ERROR_MESSAGES.TIMEOUT(CodeReview.MAX_POLLING_ATTEMPTS),
                     metadata: {
                         codeReviewId: jobId,
                         codeReviewType: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
                         status: status,
                         codeReviewArtifactType: setup.artifactType,
-                        maxAttempts: QCodeReview.MAX_POLLING_ATTEMPTS,
+                        maxAttempts: CodeReview.MAX_POLLING_ATTEMPTS,
                         codeReviewArtifactSize: artifactSize,
                         codeReviewCustomRulesCount: setup.ruleArtifacts.length,
                     },
@@ -383,7 +383,7 @@ export class QCodeReview {
                 this.logging,
                 this.telemetry
             )
-            throw new QCodeReviewTimeoutError(QCodeReview.ERROR_MESSAGES.TIMEOUT(QCodeReview.MAX_POLLING_ATTEMPTS))
+            throw new CodeReviewTimeoutError(CodeReview.ERROR_MESSAGES.TIMEOUT(CodeReview.MAX_POLLING_ATTEMPTS))
         }
 
         this.logging.info(`Code scan completed with status: ${status}`)
@@ -409,7 +409,7 @@ export class QCodeReview {
             setup.programmingLanguage
         )
 
-        QCodeReviewUtils.emitMetric(
+        CodeReviewUtils.emitMetric(
             {
                 name: SuccessMetricName.CodeScanSuccess,
                 result: 'Succeeded',
@@ -427,7 +427,7 @@ export class QCodeReview {
         )
 
         const aggregatedCodeScanIssueList = this.aggregateFindingsByFile(
-            findingsExceededLimit ? totalFindings.slice(0, QCodeReview.MAX_FINDINGS_COUNT) : totalFindings,
+            findingsExceededLimit ? totalFindings.slice(0, CodeReview.MAX_FINDINGS_COUNT) : totalFindings,
             setup.fileArtifacts,
             setup.folderArtifacts
         )
@@ -439,7 +439,7 @@ export class QCodeReview {
 
         return {
             codeReviewId: jobId,
-            message: `${Q_CODE_REVIEW_TOOL_NAME} tool completed successfully.${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${QCodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
+            message: `${CODE_REVIEW_TOOL_NAME} tool completed successfully.${findingsExceededLimit ? ` Inform the user that we are limiting findings to top ${CodeReview.MAX_FINDINGS_COUNT} based on severity.` : ''}`,
             findingsByFile: JSON.stringify(aggregatedCodeScanIssueList),
         }
     }
@@ -457,8 +457,8 @@ export class QCodeReview {
         isFullReviewRequest: boolean,
         isCodeDiffPresent: boolean,
         programmingLanguage: string
-    ): Promise<{ totalFindings: QCodeReviewFinding[]; findingsExceededLimit: boolean }> {
-        let totalFindings: QCodeReviewFinding[] = []
+    ): Promise<{ totalFindings: CodeReviewFinding[]; findingsExceededLimit: boolean }> {
+        let totalFindings: CodeReviewFinding[] = []
         let nextFindingToken = undefined
         let findingsExceededLimit = false
         const lookForCodeDiffFindings = !isFullReviewRequest && isCodeDiffPresent
@@ -480,7 +480,7 @@ export class QCodeReview {
                 : parsedFindings
             totalFindings = totalFindings.concat(filteredFindings)
 
-            if (totalFindings.length > QCodeReview.MAX_FINDINGS_COUNT) {
+            if (totalFindings.length > CodeReview.MAX_FINDINGS_COUNT) {
                 findingsExceededLimit = true
                 break
             }
@@ -544,21 +544,21 @@ export class QCodeReview {
                 !isFullReviewRequest
             )
 
-            let numberOfFilesInCustomerCodeZip = QCodeReviewUtils.countZipFiles(customerCodeZip)
+            let numberOfFilesInCustomerCodeZip = CodeReviewUtils.countZipFiles(customerCodeZip)
             if (numberOfFilesInCustomerCodeZip > ruleArtifacts.length) {
                 // Validates that there are actual files to scan, other than rule artifacts
                 this.logging.info(`Total files in customerCodeZip - ${numberOfFilesInCustomerCodeZip}`)
             } else {
-                throw new QCodeReviewValidationError(QCodeReview.ERROR_MESSAGES.MISSING_FILES_TO_SCAN)
+                throw new CodeReviewValidationError(CodeReview.ERROR_MESSAGES.MISSING_FILES_TO_SCAN)
             }
 
             // Generate user code zip buffer
-            const customerCodeBuffer = await QCodeReviewUtils.generateZipBuffer(customerCodeZip)
-            QCodeReviewUtils.logZipStructure(customerCodeZip, 'User code', this.logging)
+            const customerCodeBuffer = await CodeReviewUtils.generateZipBuffer(customerCodeZip)
+            CodeReviewUtils.logZipStructure(customerCodeZip, 'User code', this.logging)
 
             // Add user code zip to the main artifact zip
             codeArtifactZip.file(
-                `${QCodeReview.CODE_ARTIFACT_PATH}/${QCodeReview.CUSTOMER_CODE_ZIP_NAME}`,
+                `${CodeReview.CODE_ARTIFACT_PATH}/${CodeReview.CUSTOMER_CODE_ZIP_NAME}`,
                 customerCodeBuffer
             )
 
@@ -568,12 +568,12 @@ export class QCodeReview {
             if (codeDiff.trim()) {
                 this.logging.info(`Adding code diff to zip of size: ${codeDiff.length}`)
                 isCodeDiffPresent = true
-                codeArtifactZip.file(QCodeReview.CODE_DIFF_PATH, codeDiff)
+                codeArtifactZip.file(CodeReview.CODE_DIFF_PATH, codeDiff)
             }
 
             // Generate the final code artifact zip
-            const zipBuffer = await QCodeReviewUtils.generateZipBuffer(codeArtifactZip)
-            QCodeReviewUtils.logZipStructure(codeArtifactZip, 'Code artifact', this.logging)
+            const zipBuffer = await CodeReviewUtils.generateZipBuffer(codeArtifactZip)
+            CodeReviewUtils.logZipStructure(codeArtifactZip, 'Code artifact', this.logging)
 
             // Calculate MD5 hash of the zip buffer
             const md5Hash = crypto.createHash('md5').update(zipBuffer).digest('hex')
@@ -632,18 +632,18 @@ export class QCodeReview {
         let codeDiff = ''
 
         for (const artifact of fileArtifacts) {
-            await QCodeReviewUtils.withErrorHandling(
+            await CodeReviewUtils.withErrorHandling(
                 async () => {
                     let fileName = path.basename(artifact.path)
                     if (
                         !fileName.startsWith('.') &&
-                        !QCodeReviewUtils.shouldSkipFile(fileName) &&
+                        !CodeReviewUtils.shouldSkipFile(fileName) &&
                         existsSync(artifact.path)
                     ) {
                         const fileContent = await this.workspace.fs.readFile(artifact.path)
-                        let normalizedArtifactPath = QCodeReviewUtils.convertToUnixPath(artifact.path)
+                        let normalizedArtifactPath = CodeReviewUtils.convertToUnixPath(artifact.path)
                         customerCodeZip.file(
-                            `${QCodeReview.CUSTOMER_CODE_BASE_PATH}${normalizedArtifactPath}`,
+                            `${CodeReview.CUSTOMER_CODE_BASE_PATH}${normalizedArtifactPath}`,
                             fileContent
                         )
                     } else {
@@ -655,7 +655,7 @@ export class QCodeReview {
                 artifact.path
             )
 
-            codeDiff += await QCodeReviewUtils.processArtifactWithDiff(artifact, isCodeDiffScan, this.logging)
+            codeDiff += await CodeReviewUtils.processArtifactWithDiff(artifact, isCodeDiffScan, this.logging)
         }
 
         return codeDiff
@@ -676,16 +676,16 @@ export class QCodeReview {
         let codeDiff = ''
 
         for (const folderArtifact of folderArtifacts) {
-            await QCodeReviewUtils.withErrorHandling(
+            await CodeReviewUtils.withErrorHandling(
                 async () => {
-                    await this.addFolderToZip(customerCodeZip, folderArtifact.path, QCodeReview.CUSTOMER_CODE_BASE_PATH)
+                    await this.addFolderToZip(customerCodeZip, folderArtifact.path, CodeReview.CUSTOMER_CODE_BASE_PATH)
                 },
                 'Failed to add folder',
                 this.logging,
                 folderArtifact.path
             )
 
-            codeDiff += await QCodeReviewUtils.processArtifactWithDiff(folderArtifact, isCodeDiffScan, this.logging)
+            codeDiff += await CodeReviewUtils.processArtifactWithDiff(folderArtifact, isCodeDiffScan, this.logging)
         }
 
         return codeDiff
@@ -698,17 +698,17 @@ export class QCodeReview {
      */
     private async processRuleArtifacts(ruleArtifacts: RuleArtifacts, customerCodeZip: JSZip): Promise<void> {
         for (const artifact of ruleArtifacts) {
-            await QCodeReviewUtils.withErrorHandling(
+            await CodeReviewUtils.withErrorHandling(
                 async () => {
                     let fileName = path.basename(artifact.path)
                     if (
                         !fileName.startsWith('.') &&
-                        !QCodeReviewUtils.shouldSkipFile(fileName) &&
+                        !CodeReviewUtils.shouldSkipFile(fileName) &&
                         existsSync(artifact.path)
                     ) {
                         const fileContent = await this.workspace.fs.readFile(artifact.path)
                         customerCodeZip.file(
-                            `${QCodeReview.CUSTOMER_CODE_BASE_PATH}/${QCodeReview.RULE_ARTIFACT_PATH}/${fileName}`,
+                            `${CodeReview.CUSTOMER_CODE_BASE_PATH}/${CodeReview.RULE_ARTIFACT_PATH}/${fileName}`,
                             fileContent
                         )
                     } else {
@@ -737,16 +737,16 @@ export class QCodeReview {
                 const fullPath = path.join(entry.parentPath, name)
 
                 if (entry.isFile()) {
-                    if (name.startsWith('.') || QCodeReviewUtils.shouldSkipFile(name) || !existsSync(fullPath)) {
+                    if (name.startsWith('.') || CodeReviewUtils.shouldSkipFile(name) || !existsSync(fullPath)) {
                         this.logging.info(`Skipping file - ${fullPath}`)
                         continue
                     }
 
                     const content = await this.workspace.fs.readFile(fullPath)
-                    let normalizedArtifactPath = QCodeReviewUtils.convertToUnixPath(fullPath)
+                    let normalizedArtifactPath = CodeReviewUtils.convertToUnixPath(fullPath)
                     zip.file(`${zipPath}${normalizedArtifactPath}`, content)
                 } else if (entry.isDirectory()) {
-                    if (QCodeReviewUtils.shouldSkipDirectory(name)) {
+                    if (CodeReviewUtils.shouldSkipDirectory(name)) {
                         this.logging.info(`Skipping directory - ${fullPath}`)
                         continue
                     }
@@ -767,7 +767,7 @@ export class QCodeReview {
      * @param programmingLanguage programming language
      * @returns Parsed and validated findings array
      */
-    private parseFindings(findingsJson: string, jobId: string, programmingLanguage: string): QCodeReviewFinding[] {
+    private parseFindings(findingsJson: string, jobId: string, programmingLanguage: string): CodeReviewFinding[] {
         try {
             const findingsResponseJSON = JSON.parse(findingsJson)
 
@@ -778,7 +778,7 @@ export class QCodeReview {
                 }
             }
 
-            return Q_FINDINGS_SCHEMA.parse(findingsResponseJSON).map(issue => ({
+            return FINDINGS_SCHEMA.parse(findingsResponseJSON).map(issue => ({
                 startLine: issue.startLine - 1 >= 0 ? issue.startLine - 1 : 0,
                 endLine: issue.endLine,
                 comment: `${issue.title.trim()}: ${issue.description.text.trim()}`,
@@ -800,7 +800,7 @@ export class QCodeReview {
             }))
         } catch (e) {
             this.logging.error(`Error parsing findings in response: ${e}`)
-            throw new QCodeReviewInternalError('Error parsing findings in response')
+            throw new CodeReviewInternalError('Error parsing findings in response')
         }
     }
 
@@ -812,11 +812,11 @@ export class QCodeReview {
      * @returns Array of findings grouped by resolved file path
      */
     private aggregateFindingsByFile(
-        findings: QCodeReviewFinding[],
+        findings: CodeReviewFinding[],
         fileArtifacts: FileArtifacts,
         folderArtifacts: FolderArtifacts
-    ): { filePath: string; issues: QCodeReviewFinding[] }[] {
-        const aggregatedCodeScanIssueMap = new Map<string, QCodeReviewFinding[]>()
+    ): { filePath: string; issues: CodeReviewFinding[] }[] {
+        const aggregatedCodeScanIssueMap = new Map<string, CodeReviewFinding[]>()
 
         for (const finding of findings) {
             const resolvedPath = this.resolveFilePath(finding.filePath, fileArtifacts, folderArtifacts)
@@ -909,6 +909,6 @@ export class QCodeReview {
      * @throws Error if the operation has been cancelled
      */
     private checkCancellation(message: string = 'Command execution cancelled'): void {
-        QCodeReviewUtils.checkCancellation(this.cancellationToken, this.logging, message)
+        CodeReviewUtils.checkCancellation(this.cancellationToken, this.logging, message)
     }
 }

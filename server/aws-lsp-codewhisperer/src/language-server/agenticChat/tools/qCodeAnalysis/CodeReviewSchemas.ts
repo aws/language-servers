@@ -4,12 +4,12 @@
  */
 
 import { z } from 'zod'
-import { FINDING_SEVERITY, SCOPE_OF_CODE_REVIEW } from './qCodeReviewConstants'
+import { FINDING_SEVERITY, SCOPE_OF_CODE_REVIEW } from './CodeReviewConstants'
 
 /**
- * Input schema for QCodeReview tool
+ * Input schema for CodeReview tool
  */
-export const Q_CODE_REVIEW_INPUT_SCHEMA = {
+export const CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
     description: [
         '**3 main fields in the tool:**',
@@ -88,9 +88,9 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
 }
 
 /**
- * Zod schema for input validation during execution of Q Code Review tool
+ * Zod schema for input validation during execution of Code Review tool
  */
-export const Z_Q_CODE_REVIEW_INPUT_SCHEMA = z.object({
+export const Z_CODE_REVIEW_INPUT_SCHEMA = z.object({
     scopeOfReview: z.enum(SCOPE_OF_CODE_REVIEW as [string, ...string[]]),
     fileLevelArtifacts: z
         .array(
@@ -118,7 +118,7 @@ export const Z_Q_CODE_REVIEW_INPUT_SCHEMA = z.object({
 /**
  * Schema for a single finding
  */
-export const Q_FINDING_SCHEMA = z.object({
+export const FINDING_SCHEMA = z.object({
     description: z.object({
         markdown: z.string(),
         text: z.string(),
@@ -146,4 +146,4 @@ export const Q_FINDING_SCHEMA = z.object({
 /**
  * Schema for an array of findings
  */
-export const Q_FINDINGS_SCHEMA = z.array(Q_FINDING_SCHEMA)
+export const FINDINGS_SCHEMA = z.array(FINDING_SCHEMA)

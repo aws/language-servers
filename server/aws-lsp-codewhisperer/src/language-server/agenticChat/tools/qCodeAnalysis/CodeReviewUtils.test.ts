@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { QCodeReviewUtils } from './qCodeReviewUtils'
-import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE } from './qCodeReviewConstants'
+import { CodeReviewUtils } from './CodeReviewUtils'
+import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE } from './CodeReviewConstants'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -16,7 +16,7 @@ import { assert } from 'sinon'
 import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { QCodeReviewMetric, SuccessMetricName, FailedMetricName } from './qCodeReviewTypes'
+import { CodeReviewMetric, SuccessMetricName, FailedMetricName } from './CodeReviewTypes'
 
 describe('QCodeReviewUtils', () => {
     // Sinon sandbox for managing stubs
@@ -46,39 +46,39 @@ describe('QCodeReviewUtils', () => {
 
     describe('shouldSkipFile', () => {
         it('should skip files with no extension', () => {
-            expect(QCodeReviewUtils.shouldSkipFile('file')).to.be.true
+            expect(CodeReviewUtils.shouldSkipFile('file')).to.be.true
         })
 
         it('should skip files with empty extension', () => {
-            expect(QCodeReviewUtils.shouldSkipFile('file.')).to.be.true
+            expect(CodeReviewUtils.shouldSkipFile('file.')).to.be.true
         })
 
         it('should not skip files with supported extensions', () => {
-            expect(QCodeReviewUtils.shouldSkipFile('file.js')).to.be.false
-            expect(QCodeReviewUtils.shouldSkipFile('file.py')).to.be.false
-            expect(QCodeReviewUtils.shouldSkipFile('file.ts')).to.be.false
+            expect(CodeReviewUtils.shouldSkipFile('file.js')).to.be.false
+            expect(CodeReviewUtils.shouldSkipFile('file.py')).to.be.false
+            expect(CodeReviewUtils.shouldSkipFile('file.ts')).to.be.false
         })
 
         it('should skip files with unsupported extensions', () => {
-            expect(QCodeReviewUtils.shouldSkipFile('file.xyz')).to.be.true
+            expect(CodeReviewUtils.shouldSkipFile('file.xyz')).to.be.true
         })
 
         it('should handle uppercase extensions', () => {
-            expect(QCodeReviewUtils.shouldSkipFile('file.JS')).to.be.false
-            expect(QCodeReviewUtils.shouldSkipFile('file.PY')).to.be.false
+            expect(CodeReviewUtils.shouldSkipFile('file.JS')).to.be.false
+            expect(CodeReviewUtils.shouldSkipFile('file.PY')).to.be.false
         })
     })
 
     describe('shouldSkipDirectory', () => {
         it('should skip directories in the skip list', () => {
             SKIP_DIRECTORIES.forEach(dir => {
-                expect(QCodeReviewUtils.shouldSkipDirectory(dir)).to.be.true
+                expect(CodeReviewUtils.shouldSkipDirectory(dir)).to.be.true
             })
         })
 
         it('should not skip directories not in the skip list', () => {
-            expect(QCodeReviewUtils.shouldSkipDirectory('src')).to.be.false
-            expect(QCodeReviewUtils.shouldSkipDirectory('app')).to.be.false
+            expect(CodeReviewUtils.shouldSkipDirectory('src')).to.be.false
+            expect(CodeReviewUtils.shouldSkipDirectory('app')).to.be.false
         })
     })
 
@@ -97,15 +97,15 @@ describe('QCodeReviewUtils', () => {
         })
 
         it('should return directory path for file paths', () => {
-            expect(QCodeReviewUtils.getFolderPath('/path/to/file.js')).to.equal('/path/to')
+            expect(CodeReviewUtils.getFolderPath('/path/to/file.js')).to.equal('/path/to')
         })
 
         it('should return the same path for directory paths', () => {
-            expect(QCodeReviewUtils.getFolderPath('/path/to/dir')).to.equal('/path/to/dir')
+            expect(CodeReviewUtils.getFolderPath('/path/to/dir')).to.equal('/path/to/dir')
         })
 
         it('should handle paths with trailing slashes', () => {
-            expect(QCodeReviewUtils.getFolderPath('/path/to/dir/')).to.equal('/path/to/dir')
+            expect(CodeReviewUtils.getFolderPath('/path/to/dir/')).to.equal('/path/to/dir')
         })
     })
 
@@ -121,7 +121,7 @@ describe('QCodeReviewUtils', () => {
                 },
             } as unknown as JSZip
 
-            QCodeReviewUtils.logZipSummary(mockZip, mockLogging)
+            CodeReviewUtils.logZipSummary(mockZip, mockLogging)
 
             sinon.assert.calledWith(mockLogging.info, 'Zip summary: 3 files, 2 folders')
             sinon.assert.calledWith(
@@ -133,7 +133,7 @@ describe('QCodeReviewUtils', () => {
         it('should handle errors gracefully', () => {
             const mockZip = {} as unknown as JSZip
 
-            QCodeReviewUtils.logZipSummary(mockZip, mockLogging)
+            CodeReviewUtils.logZipSummary(mockZip, mockLogging)
 
             sinon.assert.calledWith(
                 mockLogging.warn,
@@ -144,8 +144,8 @@ describe('QCodeReviewUtils', () => {
 
     describe('generateClientToken', () => {
         it('should generate a unique token', () => {
-            const token1 = QCodeReviewUtils.generateClientToken()
-            const token2 = QCodeReviewUtils.generateClientToken()
+            const token1 = CodeReviewUtils.generateClientToken()
+            const token2 = CodeReviewUtils.generateClientToken()
 
             expect(token1).to.match(/^code-scan-\d+-[a-z0-9]+$/)
             expect(token2).to.match(/^code-scan-\d+-[a-z0-9]+$/)
@@ -160,7 +160,7 @@ describe('QCodeReviewUtils', () => {
                 return {} as childProcess.ChildProcess
             })
 
-            const result = await QCodeReviewUtils.executeGitCommand('git status', 'status', mockLogging)
+            const result = await CodeReviewUtils.executeGitCommand('git status', 'status', mockLogging)
             expect(result).to.equal('command output')
             sinon.assert.calledWith(execStub, 'git status', sinon.match.func)
         })
@@ -171,7 +171,7 @@ describe('QCodeReviewUtils', () => {
                 return {} as childProcess.ChildProcess
             })
 
-            const result = await QCodeReviewUtils.executeGitCommand('git status', 'status', mockLogging)
+            const result = await CodeReviewUtils.executeGitCommand('git status', 'status', mockLogging)
             expect(result).to.equal('')
             sinon.assert.calledWith(
                 mockLogging.warn,
@@ -186,8 +186,8 @@ describe('QCodeReviewUtils', () => {
 
         beforeEach(() => {
             // Stub getFolderPath and executeGitCommand
-            getFolderPathStub = sandbox.stub(QCodeReviewUtils, 'getFolderPath').returns('/mock/path')
-            executeGitCommandStub = sandbox.stub(QCodeReviewUtils, 'executeGitCommand')
+            getFolderPathStub = sandbox.stub(CodeReviewUtils, 'getFolderPath').returns('/mock/path')
+            executeGitCommandStub = sandbox.stub(CodeReviewUtils, 'executeGitCommand')
             executeGitCommandStub.callsFake(async cmd => {
                 if (cmd.includes('--staged')) {
                     return 'staged diff'
@@ -197,20 +197,20 @@ describe('QCodeReviewUtils', () => {
         })
 
         it('should get combined git diff for a path', async () => {
-            const result = await QCodeReviewUtils.getGitDiff('/mock/path/file.js', mockLogging)
+            const result = await CodeReviewUtils.getGitDiff('/mock/path/file.js', mockLogging)
             expect(result).to.equal('unstaged diff\n\nstaged diff')
             sinon.assert.calledTwice(executeGitCommandStub)
         })
 
         it('should return null if no diff is found', async () => {
             executeGitCommandStub.resolves('')
-            const result = await QCodeReviewUtils.getGitDiff('/mock/path/file.js', mockLogging)
+            const result = await CodeReviewUtils.getGitDiff('/mock/path/file.js', mockLogging)
             expect(result).to.be.null
         })
 
         it('should handle errors', async () => {
             executeGitCommandStub.rejects(new Error('git error'))
-            const result = await QCodeReviewUtils.getGitDiff('/mock/path/file.js', mockLogging)
+            const result = await CodeReviewUtils.getGitDiff('/mock/path/file.js', mockLogging)
             expect(result).to.be.null
             sinon.assert.calledWith(
                 mockLogging.error,
@@ -229,7 +229,7 @@ describe('QCodeReviewUtils', () => {
                 },
             } as unknown as JSZip
 
-            QCodeReviewUtils.logZipStructure(mockZip, 'test-zip', mockLogging)
+            CodeReviewUtils.logZipStructure(mockZip, 'test-zip', mockLogging)
 
             sinon.assert.calledWith(mockLogging.info, 'test-zip zip structure:')
             sinon.assert.calledWith(mockLogging.info, '  file1.js')
@@ -249,13 +249,13 @@ describe('QCodeReviewUtils', () => {
                 },
             } as unknown as JSZip
 
-            const count = QCodeReviewUtils.countZipFiles(mockZip)
+            const count = CodeReviewUtils.countZipFiles(mockZip)
             expect(count).to.equal(3)
         })
 
         it('should return 0 for empty zip', () => {
             const mockZip = { files: {} } as unknown as JSZip
-            const count = QCodeReviewUtils.countZipFiles(mockZip)
+            const count = CodeReviewUtils.countZipFiles(mockZip)
             expect(count).to.equal(0)
         })
     })
@@ -267,7 +267,7 @@ describe('QCodeReviewUtils', () => {
                 generateAsync: generateAsyncStub,
             } as unknown as JSZip
 
-            await QCodeReviewUtils.generateZipBuffer(mockZip)
+            await CodeReviewUtils.generateZipBuffer(mockZip)
 
             sinon.assert.calledWith(generateAsyncStub, {
                 type: 'nodebuffer',
@@ -293,7 +293,7 @@ describe('QCodeReviewUtils', () => {
         it('should save zip buffer to downloads folder', () => {
             const mockBuffer = Buffer.from('zip-data')
 
-            QCodeReviewUtils.saveZipToDownloads(mockBuffer, mockLogging)
+            CodeReviewUtils.saveZipToDownloads(mockBuffer, mockLogging)
 
             sinon.assert.calledWith(
                 writeFileSyncStub,
@@ -310,7 +310,7 @@ describe('QCodeReviewUtils', () => {
             writeFileSyncStub.throws(new Error('write error'))
 
             const mockBuffer = Buffer.from('zip-data')
-            QCodeReviewUtils.saveZipToDownloads(mockBuffer, mockLogging)
+            CodeReviewUtils.saveZipToDownloads(mockBuffer, mockLogging)
 
             sinon.assert.calledWith(
                 mockLogging.error,
@@ -323,30 +323,30 @@ describe('QCodeReviewUtils', () => {
         let getGitDiffStub: sinon.SinonStub
 
         beforeEach(() => {
-            getGitDiffStub = sandbox.stub(QCodeReviewUtils, 'getGitDiff').resolves('mock diff')
+            getGitDiffStub = sandbox.stub(CodeReviewUtils, 'getGitDiff').resolves('mock diff')
         })
 
         it('should return empty string if not a code diff scan', async () => {
-            const result = await QCodeReviewUtils.processArtifactWithDiff({ path: '/path/file.js' }, false, mockLogging)
+            const result = await CodeReviewUtils.processArtifactWithDiff({ path: '/path/file.js' }, false, mockLogging)
             expect(result).to.equal('')
             sinon.assert.notCalled(getGitDiffStub)
         })
 
         it('should return diff with newline if code diff scan', async () => {
-            const result = await QCodeReviewUtils.processArtifactWithDiff({ path: '/path/file.js' }, true, mockLogging)
+            const result = await CodeReviewUtils.processArtifactWithDiff({ path: '/path/file.js' }, true, mockLogging)
             expect(result).to.equal('mock diff\n')
             sinon.assert.calledWith(getGitDiffStub, '/path/file.js', mockLogging)
         })
 
         it('should handle null diff result', async () => {
             getGitDiffStub.resolves(null)
-            const result = await QCodeReviewUtils.processArtifactWithDiff({ path: '/path/file.js' }, true, mockLogging)
+            const result = await CodeReviewUtils.processArtifactWithDiff({ path: '/path/file.js' }, true, mockLogging)
             expect(result).to.equal('')
         })
 
         it('should handle errors', async () => {
             getGitDiffStub.rejects(new Error('diff error'))
-            const result = await QCodeReviewUtils.processArtifactWithDiff({ path: '/path/file.js' }, true, mockLogging)
+            const result = await CodeReviewUtils.processArtifactWithDiff({ path: '/path/file.js' }, true, mockLogging)
             expect(result).to.equal('')
             sinon.assert.calledWith(
                 mockLogging.warn,
@@ -359,7 +359,7 @@ describe('QCodeReviewUtils', () => {
         it('should return operation result on success', async () => {
             const operation = sandbox.stub().resolves('success')
 
-            const result = await QCodeReviewUtils.withErrorHandling(
+            const result = await CodeReviewUtils.withErrorHandling(
                 operation,
                 'Error message',
                 mockLogging,
@@ -375,7 +375,7 @@ describe('QCodeReviewUtils', () => {
             const operation = sandbox.stub().rejects(error)
 
             try {
-                await QCodeReviewUtils.withErrorHandling(operation, 'Error message', mockLogging, '/path/file.js')
+                await CodeReviewUtils.withErrorHandling(operation, 'Error message', mockLogging, '/path/file.js')
                 // Should not reach here
                 expect.fail('Expected error was not thrown')
             } catch (e: any) {
@@ -393,7 +393,7 @@ describe('QCodeReviewUtils', () => {
             const operation = sandbox.stub().rejects(error)
 
             try {
-                await QCodeReviewUtils.withErrorHandling(operation, 'Error message', mockLogging)
+                await CodeReviewUtils.withErrorHandling(operation, 'Error message', mockLogging)
                 expect.fail('Expected error was not thrown')
             } catch (e: any) {
                 expect(e.message).to.include('operation failed')
@@ -419,7 +419,7 @@ describe('QCodeReviewUtils', () => {
                 },
             }
 
-            expect(QCodeReviewUtils.isAgenticReviewEnabled(params as any)).to.be.true
+            expect(CodeReviewUtils.isAgenticReviewEnabled(params as any)).to.be.true
         })
 
         it('should return false when qCodeReviewInChat is disabled', () => {
@@ -435,7 +435,7 @@ describe('QCodeReviewUtils', () => {
                 },
             }
 
-            expect(QCodeReviewUtils.isAgenticReviewEnabled(params as any)).to.be.false
+            expect(CodeReviewUtils.isAgenticReviewEnabled(params as any)).to.be.false
         })
 
         it('should return false when q capabilities are undefined', () => {
@@ -447,11 +447,11 @@ describe('QCodeReviewUtils', () => {
                 },
             }
 
-            expect(QCodeReviewUtils.isAgenticReviewEnabled(params as any)).to.be.false
+            expect(CodeReviewUtils.isAgenticReviewEnabled(params as any)).to.be.false
         })
 
         it('should return false when params are undefined', () => {
-            expect(QCodeReviewUtils.isAgenticReviewEnabled(undefined)).to.be.false
+            expect(CodeReviewUtils.isAgenticReviewEnabled(undefined)).to.be.false
         })
     })
 
@@ -467,7 +467,7 @@ describe('QCodeReviewUtils', () => {
             // Setup the stub to return a Windows-style normalized path
             normalizeStub.returns('C:\\Users\\test\\file.js')
 
-            const result = QCodeReviewUtils.convertToUnixPath('C:\\Users\\test\\file.js')
+            const result = CodeReviewUtils.convertToUnixPath('C:\\Users\\test\\file.js')
 
             // Verify the regex replacements work correctly
             expect(result).to.match(/^\/Users\/test\/file\.js$/)
@@ -476,7 +476,7 @@ describe('QCodeReviewUtils', () => {
         it('should handle paths without drive letter', () => {
             normalizeStub.returns('Users\\test\\file.js')
 
-            const result = QCodeReviewUtils.convertToUnixPath('Users\\test\\file.js')
+            const result = CodeReviewUtils.convertToUnixPath('Users\\test\\file.js')
 
             // Verify backslashes are converted to forward slashes
             expect(result).to.match(/^Users\/test\/file\.js$/)
@@ -485,7 +485,7 @@ describe('QCodeReviewUtils', () => {
         it('should not modify Unix paths', () => {
             normalizeStub.returns('/Users/test/file.js')
 
-            const result = QCodeReviewUtils.convertToUnixPath('/Users/test/file.js')
+            const result = CodeReviewUtils.convertToUnixPath('/Users/test/file.js')
 
             // Unix paths should remain unchanged
             expect(result).to.equal('/Users/test/file.js')
@@ -495,7 +495,7 @@ describe('QCodeReviewUtils', () => {
     describe('createErrorOutput', () => {
         it('should create standardized error output object', () => {
             const errorObj = { message: 'Test error' }
-            const result = QCodeReviewUtils.createErrorOutput(errorObj)
+            const result = CodeReviewUtils.createErrorOutput(errorObj)
 
             expect(result).to.deep.equal({
                 output: {
@@ -554,7 +554,7 @@ describe('QCodeReviewUtils', () => {
             const fileContent = Buffer.from('test content')
             const requestHeaders = { 'Content-Type': 'application/octet-stream' }
 
-            await QCodeReviewUtils.uploadFileToPresignedUrl(uploadUrl, fileContent, requestHeaders, mockLogging)
+            await CodeReviewUtils.uploadFileToPresignedUrl(uploadUrl, fileContent, requestHeaders, mockLogging)
 
             sinon.assert.calledOnce(httpsRequestStub)
             sinon.assert.calledWith(requestWriteStub, fileContent)
@@ -574,7 +574,7 @@ describe('QCodeReviewUtils', () => {
             })
 
             try {
-                await QCodeReviewUtils.uploadFileToPresignedUrl(uploadUrl, fileContent, requestHeaders, mockLogging)
+                await CodeReviewUtils.uploadFileToPresignedUrl(uploadUrl, fileContent, requestHeaders, mockLogging)
                 expect.fail('Expected error was not thrown')
             } catch (e: any) {
                 expect(e.message).to.include('Upload failed with status code: 403')
@@ -604,7 +604,7 @@ describe('QCodeReviewUtils', () => {
             httpsRequestStub.returns(mockRequest as any)
 
             try {
-                await QCodeReviewUtils.uploadFileToPresignedUrl(uploadUrl, fileContent, requestHeaders, mockLogging)
+                await CodeReviewUtils.uploadFileToPresignedUrl(uploadUrl, fileContent, requestHeaders, mockLogging)
                 expect.fail('Expected error was not thrown')
             } catch (e: any) {
                 expect(e.message).to.equal('Network error')
@@ -618,7 +618,7 @@ describe('QCodeReviewUtils', () => {
             const cancellationToken = { isCancellationRequested: false }
 
             expect(() => {
-                QCodeReviewUtils.checkCancellation(cancellationToken as any, mockLogging)
+                CodeReviewUtils.checkCancellation(cancellationToken as any, mockLogging)
             }).to.not.throw()
         })
 
@@ -626,7 +626,7 @@ describe('QCodeReviewUtils', () => {
             const cancellationToken = { isCancellationRequested: true }
 
             try {
-                QCodeReviewUtils.checkCancellation(cancellationToken as any, mockLogging)
+                CodeReviewUtils.checkCancellation(cancellationToken as any, mockLogging)
                 expect.fail('Expected error was not thrown')
             } catch (e: any) {
                 expect(e).to.be.instanceOf(CancellationError)
@@ -639,7 +639,7 @@ describe('QCodeReviewUtils', () => {
             const customMessage = 'Custom cancellation message'
 
             try {
-                QCodeReviewUtils.checkCancellation(cancellationToken as any, mockLogging, customMessage)
+                CodeReviewUtils.checkCancellation(cancellationToken as any, mockLogging, customMessage)
                 expect.fail('Expected error was not thrown')
             } catch (e: any) {
                 expect(e).to.be.instanceOf(CancellationError)
@@ -649,7 +649,7 @@ describe('QCodeReviewUtils', () => {
 
         it('should not throw when cancellation token is undefined', () => {
             expect(() => {
-                QCodeReviewUtils.checkCancellation(undefined, mockLogging)
+                CodeReviewUtils.checkCancellation(undefined, mockLogging)
             }).to.not.throw()
         })
     })
@@ -668,9 +668,9 @@ describe('QCodeReviewUtils', () => {
                 name: SuccessMetricName.CodeScanSuccess,
                 result: 'Succeeded',
                 metadata: { jobId: '123', scanType: 'full', credentialStartUrl: 'https://example.com' },
-            } as QCodeReviewMetric
+            } as CodeReviewMetric
 
-            QCodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
+            CodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
                 name: 'amazonq_qCodeReviewTool_codeScanSuccess',
@@ -691,9 +691,9 @@ describe('QCodeReviewUtils', () => {
                 result: 'Failed',
                 reason: 'Required failure reason',
                 metadata: { jobId: '456' },
-            } as QCodeReviewMetric
+            } as CodeReviewMetric
 
-            QCodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
+            CodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
                 name: 'amazonq_qCodeReviewTool_codeScanFailed',
@@ -710,9 +710,9 @@ describe('QCodeReviewUtils', () => {
                 name: FailedMetricName.MissingFileOrFolder,
                 result: 'Failed',
                 reason: 'File not found',
-            } as QCodeReviewMetric
+            } as CodeReviewMetric
 
-            QCodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
+            CodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
                 name: 'amazonq_qCodeReviewTool_missingFileOrFolder',

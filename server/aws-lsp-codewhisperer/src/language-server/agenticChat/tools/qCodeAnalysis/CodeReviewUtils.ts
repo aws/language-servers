@@ -6,7 +6,7 @@
 /* eslint-disable import/no-nodejs-modules */
 
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE, Q_CODE_REVIEW_METRICS_PARENT_NAME } from './qCodeReviewConstants'
+import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE, CODE_REVIEW_METRICS_PARENT_NAME } from './CodeReviewConstants'
 import JSZip = require('jszip')
 import { exec } from 'child_process'
 import * as path from 'path'
@@ -18,12 +18,12 @@ import { QClientCapabilities } from '../../../configuration/qConfigurationServer
 import { CancellationError } from '@aws/lsp-core'
 import { InvokeOutput } from '../toolShared'
 import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
-import { QCodeReviewMetric } from './qCodeReviewTypes'
+import { CodeReviewMetric } from './CodeReviewTypes'
 
 /**
- * Utility functions for QCodeReview
+ * Utility functions for CodeReview
  */
-export class QCodeReviewUtils {
+export class CodeReviewUtils {
     /**
      * Check if a file should be skipped during zip creation
      * @param fileName Name of the file to check
@@ -127,7 +127,7 @@ export class QCodeReviewUtils {
     public static async getGitDiff(artifactPath: string, logging: Features['logging']): Promise<string | null> {
         logging.info(`Get git diff for path - ${artifactPath}`)
 
-        const directoryPath = QCodeReviewUtils.getFolderPath(artifactPath)
+        const directoryPath = CodeReviewUtils.getFolderPath(artifactPath)
         const gitDiffCommandUnstaged = `cd ${directoryPath} && git diff ${artifactPath}`
         const gitDiffCommandStaged = `cd ${directoryPath} && git diff --staged ${artifactPath}`
 
@@ -135,8 +135,8 @@ export class QCodeReviewUtils {
 
         try {
             const [unstagedDiff, stagedDiff] = await Promise.all([
-                QCodeReviewUtils.executeGitCommand(gitDiffCommandUnstaged, 'unstaged', logging),
-                QCodeReviewUtils.executeGitCommand(gitDiffCommandStaged, 'staged', logging),
+                CodeReviewUtils.executeGitCommand(gitDiffCommandUnstaged, 'unstaged', logging),
+                CodeReviewUtils.executeGitCommand(gitDiffCommandStaged, 'staged', logging),
             ])
 
             const combinedDiff = [unstagedDiff, stagedDiff].filter(Boolean).join('\n\n')
@@ -225,7 +225,7 @@ export class QCodeReviewUtils {
         if (!isCodeDiffScan) return ''
 
         try {
-            const diff = await QCodeReviewUtils.getGitDiff(artifact.path, logging)
+            const diff = await CodeReviewUtils.getGitDiff(artifact.path, logging)
             return diff ? `${diff}\n` : ''
         } catch (diffError) {
             logging.warn(`Failed to get git diff for ${artifact.path}: ${diffError}`)
@@ -265,7 +265,7 @@ export class QCodeReviewUtils {
         const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
             | QClientCapabilities
             | undefined
-        return qCapabilities?.qCodeReviewInChat || false
+        return qCapabilities?.CodeReviewInChat || false
     }
 
     /**
@@ -360,13 +360,13 @@ export class QCodeReviewUtils {
      * @param credentialStartUrl Optional credential start URL
      */
     public static emitMetric(
-        metric: QCodeReviewMetric,
+        metric: CodeReviewMetric,
         logging: Features['logging'],
         telemetry: Features['telemetry']
     ): void {
         const { name, metadata, ...metricStatus } = metric
         const metricPayload = {
-            name: `${Q_CODE_REVIEW_METRICS_PARENT_NAME}_${name}`,
+            name: `${CODE_REVIEW_METRICS_PARENT_NAME}_${name}`,
             data: {
                 // metadata is optional attribute
                 ...(metadata || {}),

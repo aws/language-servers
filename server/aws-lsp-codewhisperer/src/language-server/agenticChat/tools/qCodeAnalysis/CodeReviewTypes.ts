@@ -39,7 +39,7 @@ export type CodeReviewResult = {
     findingsByFile: string
 }
 
-export type QCodeReviewFinding = {
+export type CodeReviewFinding = {
     filePath: string
     startLine: number
     endLine: number
@@ -60,7 +60,7 @@ export type QCodeReviewFinding = {
     findingContext: string | null | undefined
 }
 
-export type QCodeReviewMetric =
+export type CodeReviewMetric =
     | {
           name: SuccessMetricName
           result: 'Succeeded'

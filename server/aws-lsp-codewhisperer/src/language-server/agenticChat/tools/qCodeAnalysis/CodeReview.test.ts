@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { QCodeReview } from './qCodeReview'
-import { QCodeReviewUtils } from './qCodeReviewUtils'
-import { Q_CODE_REVIEW_TOOL_NAME, FULL_REVIEW, CODE_DIFF_REVIEW } from './qCodeReviewConstants'
+import { CodeReview } from './CodeReview'
+import { CodeReviewUtils } from './CodeReviewUtils'
+import { CODE_REVIEW_TOOL_NAME, FULL_REVIEW, CODE_DIFF_REVIEW } from './CodeReviewConstants'
 import * as sinon from 'sinon'
 import * as path from 'path'
 import { expect } from 'chai'
@@ -14,7 +14,7 @@ import * as JSZip from 'jszip'
 
 describe('QCodeReview', () => {
     let sandbox: sinon.SinonSandbox
-    let qCodeReview: QCodeReview
+    let qCodeReview: CodeReview
     let mockFeatures: any
     let mockCodeWhispererClient: any
     let mockCancellationToken: any
@@ -66,7 +66,7 @@ describe('QCodeReview', () => {
             },
         }
 
-        qCodeReview = new QCodeReview(mockFeatures)
+        qCodeReview = new CodeReview(mockFeatures)
     })
 
     afterEach(() => {
@@ -75,15 +75,15 @@ describe('QCodeReview', () => {
 
     describe('static properties', () => {
         it('should have correct tool name', () => {
-            expect(QCodeReview.toolName).to.equal(Q_CODE_REVIEW_TOOL_NAME)
+            expect(CodeReview.toolName).to.equal(CODE_REVIEW_TOOL_NAME)
         })
 
         it('should have tool description', () => {
-            expect(QCodeReview.toolDescription).to.be.a('string')
+            expect(CodeReview.toolDescription).to.be.a('string')
         })
 
         it('should have input schema', () => {
-            expect(QCodeReview.inputSchema).to.be.an('object')
+            expect(CodeReview.inputSchema).to.be.an('object')
         })
     })
 
@@ -128,7 +128,7 @@ describe('QCodeReview', () => {
                 nextToken: undefined,
             })
 
-            sandbox.stub(QCodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
+            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
             sandbox.stub(qCodeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
@@ -196,7 +196,7 @@ describe('QCodeReview', () => {
                 jobId: undefined,
             })
 
-            sandbox.stub(QCodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
+            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
             sandbox.stub(qCodeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
@@ -226,7 +226,7 @@ describe('QCodeReview', () => {
                 status: 'Pending',
             })
 
-            sandbox.stub(QCodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
+            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
             sandbox.stub(qCodeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
@@ -339,7 +339,7 @@ describe('QCodeReview', () => {
             const folderArtifacts: any[] = []
             const ruleArtifacts: any[] = []
 
-            sandbox.stub(QCodeReviewUtils, 'processArtifactWithDiff').resolves('diff content\n')
+            sandbox.stub(CodeReviewUtils, 'processArtifactWithDiff').resolves('diff content\n')
 
             const result = await (qCodeReview as any).prepareFilesAndFoldersForUpload(
                 fileArtifacts,
@@ -357,7 +357,7 @@ describe('QCodeReview', () => {
             const ruleArtifacts = [{ path: '/test/rule.json' }]
 
             // Mock countZipFiles to return only rule artifacts count
-            sandbox.stub(QCodeReviewUtils, 'countZipFiles').returns(1)
+            sandbox.stub(CodeReviewUtils, 'countZipFiles').returns(1)
 
             try {
                 await (qCodeReview as any).prepareFilesAndFoldersForUpload(
