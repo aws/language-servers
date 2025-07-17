@@ -1,4 +1,4 @@
-import { AWSError, Request, Service } from 'aws-sdk'
+import { AWSError, Endpoint, Request, Service } from 'aws-sdk'
 import { ServiceConfigurationOptions } from 'aws-sdk/lib/service'
 const apiConfig = require('./bearer-token-service.json')
 import CodeWhispererClient = require('./codewhispererbearertokenclient')
@@ -44,6 +44,8 @@ function createService(
         originalClient(request)
         listeners.forEach(l => l(request as AWS.Request<any, AWSError> & RequestExtras))
     }
+
+    client.endpoint = new Endpoint('https://rts.gamma-us-east-1.codewhisperer.ai.aws.dev/')
 
     return client
 }

@@ -63,6 +63,7 @@ import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/cod
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 import { getAddedAndDeletedChars } from './diffUtils'
+import { isEditsInvolveEmptyLinesOnly } from '../../shared/nepUtils'
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -842,10 +843,19 @@ export const CodewhispererServerFactory =
                             if (isSimilarToRejected) {
                                 // Mark as rejected in the session
                                 session.setSuggestionState(suggestion.itemId, 'Reject')
-                                logging.debug(
-                                    `[EDIT_PREDICTION] Filtered out suggestion similar to previously rejected edit`
-                                )
+                                logging.debug(`[nep] Filtered out suggestion similar to previously rejected edit`)
                                 // Return empty item that will be filtered out
+                                return {
+                                    insertText: '',
+                                    isInlineEdit: true,
+                                    itemId: suggestion.itemId,
+                                }
+                            } else if (isEditsInvolveEmptyLinesOnly(suggestion.content)) {
+                                session.setSuggestionState(suggestion.itemId, 'Discard')
+                                logging.debug(
+                                    `[nep]: filtered out edits suggestion only involving empty lines\n${suggestion.content}`
+                                )
+
                                 return {
                                     insertText: '',
                                     isInlineEdit: true,
