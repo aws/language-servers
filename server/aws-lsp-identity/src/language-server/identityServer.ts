@@ -23,6 +23,8 @@ import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
+import { SendGetMfaCode } from '../iam/utils'
+import { IamProvider } from '../iam/iamProvider'
 
 export class IdentityServer extends ServerBase {
     constructor(features: Features) {
@@ -43,6 +45,7 @@ export class IdentityServer extends ServerBase {
         const showMessageRequest: ShowMessageRequest = (params: ShowMessageRequestParams) =>
             this.features.lsp.window.showMessageRequest(params)
         const showProgress: ShowProgress = this.features.lsp.sendProgress
+        const sendGetMfaCode: SendGetMfaCode = this.features.identityManagement.sendGetMfaCode
 
         // Initialize dependencies
         const profileStore = new SharedConfigProfileStore(this.observability)
@@ -54,13 +57,13 @@ export class IdentityServer extends ServerBase {
         )
 
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
-
         const stsCache = new RefreshingStsCache(new FileSystemStsCache(this.observability), this.observability)
         const stsAutoRefresher = new StsAutoRefresher(
             stsCache,
             this.features.identityManagement.sendStsCredentialChanged,
             this.observability
         )
+        const iamProvider = new IamProvider()
 
         const identityService = new IdentityService(
             profileStore,
@@ -68,8 +71,8 @@ export class IdentityServer extends ServerBase {
             autoRefresher,
             stsCache,
             stsAutoRefresher,
-            { showUrl, showMessageRequest, showProgress },
-            this.features.identityManagement.sendGetMfaCode,
+            iamProvider,
+            { showUrl, showMessageRequest, showProgress, sendGetMfaCode },
             this.getClientName(params),
             this.observability
         )

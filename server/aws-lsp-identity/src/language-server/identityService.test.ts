@@ -18,6 +18,7 @@ import { StsCache } from '../sts/cache/stsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { STSClient } from '@aws-sdk/client-sts'
 import { IAMClient } from '@aws-sdk/client-iam'
+import { IamProvider } from '../iam/iamProvider'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -29,6 +30,7 @@ let ssoCache: StubbedInstance<SsoCache>
 let stsCache: StubbedInstance<StsCache>
 let autoRefresher: StubbedInstance<SsoTokenAutoRefresher>
 let stsAutoRefresher: StubbedInstance<StsAutoRefresher>
+let iamProvider: IamProvider
 let observability: StubbedInstance<Observability>
 let authFlowFn: SinonSpy
 let credentialProvider: SinonSpy
@@ -193,6 +195,8 @@ describe('IdentityService', () => {
             unwatch: undefined,
         }) as StubbedInstance<StsAutoRefresher>
 
+        iamProvider = new IamProvider()
+
         authFlowFn = spy(() =>
             Promise.resolve({
                 accessToken: 'my-access-token',
@@ -244,27 +248,18 @@ describe('IdentityService', () => {
             autoRefresher,
             stsCache,
             stsAutoRefresher,
+            iamProvider,
             {
                 showUrl: _ => {},
                 showMessageRequest: _ => Promise.resolve({ title: 'client-response' }),
                 showProgress: _ => Promise.resolve(),
+                sendGetMfaCode: () => Promise.resolve({ code: 'mfa-code' }),
             },
-            () => Promise.resolve({ code: 'mfa-code' }),
             'My Client',
             observability,
             {
                 [AuthorizationFlowKind.Pkce]: authFlowFn,
                 [AuthorizationFlowKind.DeviceCode]: authFlowFn,
-            },
-            {
-                fromProcess: credentialProvider,
-                fromInstanceMetadata: credentialProvider,
-                fromContainerMetadata: credentialProvider,
-                fromEnv: credentialProvider,
-            },
-            {
-                IAM: () => iamClientStub,
-                STS: () => stsClientStub,
             }
         )
     })
@@ -426,28 +421,21 @@ describe('IdentityService', () => {
     })
 
     describe('getIamCredential', () => {
-        it('Can login with access key and secret key.', async () => {
-            const actual = await sut.getIamCredential({ profileName: 'my-iam-profile' }, CancellationToken.None)
-
-            expect(actual.credentials.accessKeyId).to.equal('my-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('my-secret-key')
-        })
-
         it('Can login with access key, secret key, and session token.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-sts-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('my-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('my-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('my-session-token')
+            expect(actual.credential.credentials.accessKeyId).to.equal('my-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('my-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('my-session-token')
         })
 
         it('Can login with assumed role.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-role-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('role-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credential.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credential.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
 
@@ -467,10 +455,10 @@ describe('IdentityService', () => {
                 })) as any
             const actual = await sut.getIamCredential({ profileName: 'my-role-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('other-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('other-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('other-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-10-25T18:09:20.455Z')
+            expect(actual.credential.credentials.accessKeyId).to.equal('other-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('other-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('other-session-token')
+            expect(actual.credential.credentials.expiration?.toISOString()).to.equal('2024-10-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
 
@@ -492,10 +480,10 @@ describe('IdentityService', () => {
         it('Can login with chained IamSourceProfileProfiles.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'base-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('role-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credential.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credential.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.called).to.be.true
         })
 
@@ -520,38 +508,38 @@ describe('IdentityService', () => {
         it('Can login with credential process.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-process-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('provider-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('provider-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('provider-session-token')
+            expect(actual.credential.credentials.accessKeyId).to.equal('provider-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('provider-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('provider-session-token')
         })
 
         it('Can assume role with environment variables', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-env-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('role-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credential.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credential.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
 
         it('Can assume role with EC2 metadata', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-ec2-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('role-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credential.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credential.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
 
         it('Can assume role with ECS metadata', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-ecs-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('role-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credential.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credential.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
     })
