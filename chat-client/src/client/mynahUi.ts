@@ -1572,8 +1572,6 @@ ${params.message}`,
     }
 
     const showSubscriptionDetails = (params: SubscriptionDetailsParams) => {
-        // todo: deduplicate tabs
-
         const tabId = createTabId()
         if (tabId === undefined) {
             return
@@ -1583,6 +1581,11 @@ ${params.message}`,
         if (tabStore === null) {
             return
         }
+
+        const usageString = `${params.queryUsage}/${params.queryLimit} queries used`
+        const overageString = `$${params.queryOverage.toFixed(2)} incurred in overages`
+        const resetString =
+            params.daysRemaining === 1 ? 'Limits reset tomorrow' : `Limits reset in ${params.daysRemaining} days`
 
         mynahUi.updateStore(tabId, {
             tabBackground: false,
@@ -1595,22 +1598,27 @@ ${params.message}`,
             chatItems: [
                 {
                     type: ChatItemType.ANSWER,
-                    body: '### Subscription' + '\n' + 'Free Tier',
-                    buttons: [
-                        {
-                            status: 'primary',
-                            id: 'upgrade-subscription',
-                            text: `Upgrade`,
-                        },
-                    ],
+                    body: '### Subscription' + '\n' + params.subscriptionTier,
+                    buttons:
+                        params.subscriptionTier.toLowerCase() === 'free tier'
+                            ? [
+                                  {
+                                      status: 'primary',
+                                      id: 'upgrade-subscription',
+                                      text: `Upgrade`,
+                                  },
+                              ]
+                            : [
+                                  {
+                                      status: 'primary',
+                                      id: 'manage-subscription',
+                                      text: `Manage Subscription`,
+                                  },
+                              ],
                 },
                 {
                     type: ChatItemType.ANSWER,
-                    body:
-                        '### Usage \n' +
-                        '591/1000 queries used \n' +
-                        '$0.00 incurred in overages \n' +
-                        'Limits reset on 8/1/2025 at 12:00:00 GMT \n',
+                    body: '### Usage \n' + `${usageString} \n` + `${overageString} \n` + `${resetString} \n` + ` \n`,
                 },
             ],
         })
