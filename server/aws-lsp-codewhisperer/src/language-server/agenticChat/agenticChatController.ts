@@ -880,7 +880,7 @@ export class AgenticChatController implements ChatHandlers {
             )
         } catch (err) {
             // HACK: the chat-client needs to have a partial event with the associated messageId sent before it can accept the final result.
-            // Without this, the `thinking` indicator never goes away.
+            // Without this, the `working` indicator never goes away.
             // Note: buttons being explicitly empty is required for this hack to work.
             const errorMessageId = `error-message-id-${uuid()}`
             await this.#sendProgressToClient(
@@ -2197,7 +2197,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
-            buttons: [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Stop', icon: 'stop' }],
+            buttons: [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }],
         }
 
         const completedHeader: ChatMessage['header'] = {
@@ -2274,7 +2274,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Stop', icon: 'stop' }] : [],
+                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }] : [],
                 },
             }
         }
@@ -2371,7 +2371,7 @@ export class AgenticChatController implements ChatHandlers {
                             status: {
                                 status: 'error',
                                 icon: 'stop',
-                                text: 'Stopped',
+                                text: 'Canceled',
                             },
                             buttons: [],
                         },
@@ -2451,7 +2451,7 @@ export class AgenticChatController implements ChatHandlers {
         const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
         return {
             id: 'stop-shell-command',
-            text: 'Stop',
+            text: 'Cancel',
             icon: 'stop',
             ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
         }
@@ -4008,7 +4008,7 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
         if (isEmptyResponse) {
-            // If the response is empty, we need to send an empty answer message to remove the Thinking... indicator
+            // If the response is empty, we need to send an empty answer message to remove the Working... indicator
             await streamWriter.write({ type: 'answer', body: '', messageId: uuid() })
         }
 

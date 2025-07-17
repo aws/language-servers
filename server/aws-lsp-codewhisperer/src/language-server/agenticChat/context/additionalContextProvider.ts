@@ -804,7 +804,7 @@ export class AdditionalContextProvider {
         // Create fake assistant response
         const assistantMessage: ChatMessage = {
             assistantResponseMessage: {
-                content: 'Thinking...',
+                content: 'Working...',
             },
         }
 
