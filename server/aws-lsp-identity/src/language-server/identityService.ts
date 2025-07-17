@@ -9,14 +9,12 @@ import {
     getIamCredentialOptionsDefaults,
     GetSsoTokenParams,
     GetSsoTokenResult,
-    IamCredentials,
     IamIdentityCenterSsoTokenSource,
     InvalidateSsoTokenParams,
     InvalidateSsoTokenResult,
     MetricEvent,
     SsoSession,
     SsoTokenSourceKind,
-    ProfileKind,
 } from '@aws/language-server-runtimes/server-interface'
 
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
@@ -28,45 +26,31 @@ import {
     throwOnInvalidSsoSession,
     throwOnInvalidSsoSessionName,
     SsoFlowParams,
+    SsoHandlers,
 } from '../sso/utils'
+import { IamHandlers, simulatePermissions } from '../iam/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
-import { IAMClient, SimulatePrincipalPolicyCommand, SimulatePrincipalPolicyCommandOutput } from '@aws-sdk/client-iam'
+import { IamProvider } from '../iam/iamProvider'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
+type Handlers = SsoHandlers & IamHandlers
 
 const flows: AuthFlows = {
     [AuthorizationFlowKind.DeviceCode]: deviceCodeFlow,
     [AuthorizationFlowKind.Pkce]: authorizationCodePkceFlow,
 }
-const qPermissions = [
-    'q:StartConversation',
-    'q:SendMessage',
-    'q:GetConversation',
-    'q:ListConversations',
-    'q:UpdateConversation',
-    'q:DeleteConversation',
-    'q:PassRequest',
-    'q:StartTroubleshootingAnalysis',
-    'q:StartTroubleshootingResolutionExplanation',
-    'q:GetTroubleshootingResults',
-    'q:UpdateTroubleshootingCommandResult',
-    'q:GetIdentityMetaData',
-    'q:GenerateCodeFromCommands',
-    'q:UsePlugin',
-    'codewhisperer:GenerateRecommendations',
-]
 
 export class IdentityService {
     constructor(
         private readonly profileStore: ProfileStore,
         private readonly ssoCache: SsoCache,
         private readonly autoRefresher: SsoTokenAutoRefresher,
-        private readonly handlers: SsoFlowParams['handlers'],
+        private readonly iamProvider: IamProvider,
+        private readonly handlers: Handlers,
         private readonly clientName: string,
         private readonly observability: Observability,
         private readonly authFlows: AuthFlows = flows
@@ -119,7 +103,7 @@ export class IdentityService {
                     clientName: this.clientName,
                     clientRegistration,
                     ssoSession,
-                    handlers: this.handlers,
+                    handlers: this.handlers as Pick<Handlers, keyof SsoHandlers>,
                     token,
                     observability: this.observability,
                 }
@@ -173,9 +157,7 @@ export class IdentityService {
             const options = { ...getIamCredentialOptionsDefaults, ...params.options }
 
             token.onCancellationRequested(_ => {
-                if (options.callStsOnInvalidIamCredential) {
-                    emitMetric('Cancelled', null)
-                }
+                emitMetric('Cancelled', null)
             })
 
             // Get the profile with provided name
@@ -186,33 +168,20 @@ export class IdentityService {
                 throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
             }
 
-            let credentials: IamCredentials
-            // Get the credentials directly from the profile
-            if (profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
-                credentials = {
-                    accessKeyId: profile.settings!.aws_access_key_id!,
-                    secretAccessKey: profile.settings!.aws_secret_access_key!,
-                    sessionToken: profile.settings!.aws_session_token!,
-                }
-            } else {
-                throw new AwsError('Credentials could not be found for profile', AwsErrorCodes.E_INVALID_PROFILE)
-            }
+            const credentials = await this.iamProvider.getCredential(profile, options.callStsOnInvalidIamCredential)
 
             // Validate permissions
-            if (options.validatePermissions) {
-                const response = await this.simulatePermissions(credentials, qPermissions, profile.settings?.region)
+            if (options.permissionSet.length > 0) {
+                const response = await simulatePermissions(credentials, options.permissionSet, profile.settings?.region)
                 if (!response?.EvaluationResults?.every(result => result.EvalDecision === 'allowed')) {
-                    throw new AwsError(
-                        `User or assumed role has insufficient permissions.`,
-                        AwsErrorCodes.E_INVALID_PROFILE
-                    )
+                    throw new AwsError(`Credentials have insufficient permissions.`, AwsErrorCodes.E_INVALID_PROFILE)
                 }
             }
 
             emitMetric('Succeeded')
+
             return {
-                id: profile.name,
-                credentials: credentials,
+                credential: { id: params.profileName, credentials: credentials },
                 updateCredentialsParams: { data: credentials, encrypted: false },
             }
         } catch (e) {
@@ -331,28 +300,5 @@ export class IdentityService {
         ;(ssoSession.settings ||= {}).sso_registration_scopes = ssoSession.settings.sso_registration_scopes
 
         return ssoSession
-    }
-
-    // Simulate permissions on the identity associated with the credentials
-    private async simulatePermissions(
-        credentials: IamCredentials,
-        permissions: string[],
-        region?: string
-    ): Promise<SimulatePrincipalPolicyCommandOutput> {
-        // Convert the credentials into an identity
-        const stsClient = new STSClient({ region: region || 'us-east-1', credentials: credentials })
-        const identity = await stsClient.send(new GetCallerIdentityCommand({}))
-        if (!identity.Arn) {
-            throw new AwsError('Caller identity ARN not found.', AwsErrorCodes.E_INVALID_PROFILE)
-        }
-
-        // Simulate permissions on the identity
-        const iamClient = new IAMClient({ region: region || 'us-east-1', credentials: credentials })
-        return await iamClient.send(
-            new SimulatePrincipalPolicyCommand({
-                PolicySourceArn: identity.Arn,
-                ActionNames: permissions,
-            })
-        )
     }
 }
