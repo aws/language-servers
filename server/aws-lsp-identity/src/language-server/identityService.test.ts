@@ -16,6 +16,7 @@ import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interfa
 import { Observability } from '@aws/lsp-core'
 import { STSClient } from '@aws-sdk/client-sts'
 import { IAMClient } from '@aws-sdk/client-iam'
+import { IamProvider } from '../iam/iamProvider'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -25,6 +26,7 @@ let sut: IdentityService
 let profileStore: StubbedInstance<ProfileStore>
 let ssoCache: StubbedInstance<SsoCache>
 let autoRefresher: StubbedInstance<SsoTokenAutoRefresher>
+let iamProvider: StubbedInstance<IamProvider>
 let observability: StubbedInstance<Observability>
 let authFlowFn: SinonSpy
 
@@ -113,6 +115,14 @@ describe('IdentityService', () => {
             unwatch: undefined,
         }) as StubbedInstance<SsoTokenAutoRefresher>
 
+        iamProvider = stubInterface<IamProvider>({
+            getCredential: Promise.resolve({
+                accessKeyId: 'my-access-key',
+                secretAccessKey: 'my-secret-key',
+                sessionToken: 'my-session-token',
+            }),
+        })
+
         authFlowFn = spy(() =>
             Promise.resolve({
                 accessToken: 'my-access-token',
@@ -128,10 +138,12 @@ describe('IdentityService', () => {
             profileStore,
             ssoCache,
             autoRefresher,
+            iamProvider,
             {
                 showUrl: _ => {},
                 showMessageRequest: _ => Promise.resolve({ title: 'client-response' }),
                 showProgress: _ => Promise.resolve(),
+                sendGetMfaCode: () => Promise.resolve({ code: 'mfa-code' }),
             },
             'My Client',
             observability,
@@ -317,19 +329,12 @@ describe('IdentityService', () => {
     })
 
     describe('getIamCredential', () => {
-        it('Can login with access key and secret key.', async () => {
-            const actual = await sut.getIamCredential({ profileName: 'my-iam-profile' }, CancellationToken.None)
-
-            expect(actual.credentials.accessKeyId).to.equal('my-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('my-secret-key')
-        })
-
         it('Can login with access key, secret key, and session token.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-sts-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('my-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('my-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('my-session-token')
+            expect(actual.credential.credentials.accessKeyId).to.equal('my-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('my-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('my-session-token')
         })
     })
 
