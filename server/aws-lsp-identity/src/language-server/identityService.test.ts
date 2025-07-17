@@ -18,6 +18,7 @@ import { StsCache } from '../sts/cache/stsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { STSClient } from '@aws-sdk/client-sts'
 import { IAMClient } from '@aws-sdk/client-iam'
+import { IamProvider } from '../iam/iamProvider'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -29,6 +30,7 @@ let ssoCache: StubbedInstance<SsoCache>
 let stsCache: StubbedInstance<StsCache>
 let autoRefresher: StubbedInstance<SsoTokenAutoRefresher>
 let stsAutoRefresher: StubbedInstance<StsAutoRefresher>
+let iamProvider: IamProvider
 let observability: StubbedInstance<Observability>
 let authFlowFn: SinonSpy
 
@@ -168,6 +170,8 @@ describe('IdentityService', () => {
             unwatch: undefined,
         }) as StubbedInstance<StsAutoRefresher>
 
+        iamProvider = new IamProvider()
+
         authFlowFn = spy(() =>
             Promise.resolve({
                 accessToken: 'my-access-token',
@@ -185,13 +189,13 @@ describe('IdentityService', () => {
             autoRefresher,
             stsCache,
             stsAutoRefresher,
+            iamProvider,
             {
                 showUrl: _ => {},
                 showMessageRequest: _ => Promise.resolve({ title: 'client-response' }),
                 showProgress: _ => Promise.resolve(),
                 sendGetMfaCode: () => Promise.resolve({ code: 'mfa-code' }),
             },
-            () => Promise.resolve({ code: 'mfa-code' }),
             'My Client',
             observability,
             {
@@ -387,10 +391,10 @@ describe('IdentityService', () => {
         it('Can login with assumed role.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'my-role-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('role-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credential.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credential.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
 
@@ -410,10 +414,10 @@ describe('IdentityService', () => {
                 })) as any
             const actual = await sut.getIamCredential({ profileName: 'my-role-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('other-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('other-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('other-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-10-25T18:09:20.455Z')
+            expect(actual.credential.credentials.accessKeyId).to.equal('other-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('other-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('other-session-token')
+            expect(actual.credential.credentials.expiration?.toISOString()).to.equal('2024-10-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
 
@@ -435,10 +439,10 @@ describe('IdentityService', () => {
         it('Can login with chained role source profiles.', async () => {
             const actual = await sut.getIamCredential({ profileName: 'base-profile' }, CancellationToken.None)
 
-            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
-            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.credentials.sessionToken).to.equal('role-session-token')
-            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credential.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credential.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.called).to.be.true
         })
 

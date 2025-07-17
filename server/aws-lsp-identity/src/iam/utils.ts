@@ -2,11 +2,16 @@ import { IAMClient, SimulatePrincipalPolicyCommand, SimulatePrincipalPolicyComma
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
 import {
     AwsErrorCodes,
+    CancellationToken,
     GetMfaCodeParams,
     GetMfaCodeResult,
     IamCredentials,
+    Profile,
 } from '@aws/language-server-runtimes/server-interface'
-import { AwsError } from '@aws/lsp-core'
+import { AwsError, Observability } from '@aws/lsp-core'
+import { StsCache } from '../sts/cache/stsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
+import { ProfileStore } from '../language-server/profiles/profileService'
 
 // Simulate permissions on the identity associated with the credentials
 export async function simulatePermissions(
@@ -25,14 +30,36 @@ export async function simulatePermissions(
     const iamClient = new IAMClient({ region: region || 'us-east-1', credentials: credentials })
     return await iamClient.send(
         new SimulatePrincipalPolicyCommand({
-            PolicySourceArn: identity.Arn,
+            PolicySourceArn: convertToIamArn(identity.Arn),
             ActionNames: permissions,
         })
     )
+}
+
+// Converts an assumed role ARN into an IAM role ARN
+function convertToIamArn(arn: string) {
+    if (arn.includes(':assumed-role/')) {
+        const parts = arn.split(':')
+        const roleName = parts[5].split('/')[1]
+        return `arn:aws:iam::${parts[4]}:role/${roleName}`
+    } else {
+        return arn
+    }
 }
 
 export type SendGetMfaCode = (params: GetMfaCodeParams) => Promise<GetMfaCodeResult>
 
 export type IamHandlers = {
     sendGetMfaCode: SendGetMfaCode
+}
+
+export type IamFlowParams = {
+    profile: Profile
+    callStsOnInvalidIamCredential: boolean
+    profileStore: ProfileStore
+    stsCache: StsCache
+    stsAutoRefresher: StsAutoRefresher
+    handlers: IamHandlers
+    token: CancellationToken
+    observability: Observability
 }

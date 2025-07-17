@@ -99,7 +99,9 @@ describe('SharedConfigProfileStore', async () => {
                 {
                     kinds: [ProfileKind.Unknown],
                     name: 'subsettings',
-                    settings: {},
+                    settings: {
+                        region: undefined,
+                    },
                 },
                 {
                     kinds: [ProfileKind.SsoTokenProfile],
@@ -190,7 +192,9 @@ describe('SharedConfigProfileStore', async () => {
                     {
                         kinds: [ProfileKind.Unknown],
                         name: 'subsettings',
-                        settings: {},
+                        settings: {
+                            region: undefined,
+                        },
                     },
                     {
                         kinds: [ProfileKind.SsoTokenProfile],
@@ -286,7 +290,9 @@ describe('SharedConfigProfileStore', async () => {
                     {
                         kinds: [ProfileKind.Unknown],
                         name: 'subsettings',
-                        settings: {},
+                        settings: {
+                            region: undefined,
+                        },
                     },
                     {
                         kinds: ['SsoTokenProfile'],
@@ -434,7 +440,9 @@ describe('SharedConfigProfileStore', async () => {
                 {
                     kinds: [ProfileKind.Unknown],
                     name: 'subsettings',
-                    settings: {},
+                    settings: {
+                        region: undefined,
+                    },
                 },
             ],
             ssoSessions: [
