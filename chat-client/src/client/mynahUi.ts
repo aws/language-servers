@@ -85,6 +85,7 @@ import {
     freeTierLimitDirective,
 } from './texts/paidTier'
 import { isSupportedImageExtension, MAX_IMAGE_CONTEXT, verifyClientImages } from './imageVerification'
+import { upgradeToPaidTierButton } from './texts/subscription'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -1572,8 +1573,6 @@ ${params.message}`,
     }
 
     const showSubscriptionDetails = (params: SubscriptionDetailsParams) => {
-        // todo: deduplicate tabs
-
         const tabId = createTabId()
         if (tabId === undefined) {
             return
@@ -1584,11 +1583,41 @@ ${params.message}`,
             return
         }
 
+        const usageString = `${params.queryUsage}/${params.queryLimit} queries used`
+        const overageString = `$${params.queryOverage.toFixed(2)} incurred in overages`
+        const resetString =
+            params.daysRemaining === 1 ? 'Limits reset tomorrow' : `Limits reset in ${params.daysRemaining} days`
+
+        const subscriptionSection: ChatItem = {
+            type: ChatItemType.ANSWER,
+            body: '## Subscription \n' + '### ' + params.subscriptionTier + '\n', // + upgradeToPaidTierButton + '\n\n' + `## Usage\n${usageString}\n${overageString}\n${resetString}`,
+            buttons:
+                params.subscriptionTier.toLowerCase() === 'free tier'
+                    ? [upgradeToPaidTierButton]
+                    : [
+                          {
+                              status: 'primary',
+                              id: 'manage-subscription',
+                              text: 'Manage Subscription',
+                          },
+                      ],
+        }
+
+        const usageSection: ChatItem = {
+            type: ChatItemType.ANSWER,
+            body: `Usage\n${usageString}\n${overageString}\n${resetString}`,
+        }
+
         mynahUi.updateStore(tabId, {
+            tabBackground: false,
+            compactMode: false,
             tabTitle: 'Account Details',
-            chatItems: [
-                // todo: show account details here
-            ],
+            promptInputVisible: false,
+            tabHeaderDetails: {
+                icon: MynahIcons.Q,
+                title: 'Account Details',
+            },
+            chatItems: [subscriptionSection], // usageSection],
         })
     }
 

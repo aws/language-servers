@@ -242,6 +242,7 @@ type ChatHandlers = Omit<
     | 'onOpenFileDialog'
     | 'onListAvailableModels'
     | 'sendSubscriptionDetails'
+    | 'onSubscriptionUpgrade'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -369,6 +370,8 @@ export class AgenticChatController implements ChatHandlers {
                 return this.onManageSubscription('', awsAccountId)
             }
             case SUBSCRIPTION_SHOW_COMMAND_METHOD: {
+                this.#log(`ExecuteCommand: ${SUBSCRIPTION_SHOW_COMMAND_METHOD}`)
+
                 if (!isSubscriptionDetailsEnabled(this.#features.lsp.getClientInitializeParams())) {
                     return
                 }
@@ -452,6 +455,8 @@ export class AgenticChatController implements ChatHandlers {
         } else if (params.buttonId === BUTTON_PAIDTIER_UPGRADE_Q) {
             await this.onManageSubscription(params.tabId)
 
+            return { success: true }
+        } else if (params.buttonId === 'upgrade-to-paid-tier') {
             return { success: true }
         } else {
             return {
@@ -3852,19 +3857,6 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async onShowSubscription(): Promise<void> {
-        // todo: load account details
-
-        // for now, send a sample payload, so that clients under development can start seeing data
-        await this.#features.chat.sendSubscriptionDetails({
-            subscriptionTier: 'temp',
-            daysRemaining: 2,
-            queryLimit: 1000,
-            queryUsage: 457,
-            queryOverage: 0,
-        })
-    }
-
     async #processAgenticChatResponseWithTimeout(
         response: ChatCommandOutput,
         metric: Metric<AddMessageEvent>,
@@ -4375,5 +4367,44 @@ export class AgenticChatController implements ChatHandlers {
             return `[Uint8Array, length: ${value.length}]`
         }
         return value
+    }
+
+    /**
+     * Handles when a user invokes "Account Details" from IDE.
+     *
+     * - Opens a new tab with "Account Details" for the user.
+     */
+    async onShowSubscription(): Promise<void> {
+        let codeWhispererServiceToken: CodeWhispererServiceToken
+        try {
+            codeWhispererServiceToken = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+        } catch (error) {
+            // getCodewhispererService only returns the cwspr client if the service manager was initialized
+            // i.e. profile was selected otherwise it throws an error
+            // we will not evaluate a/b status until profile is selected and service manager is fully initialized
+            return
+        }
+
+        const profileArn = this.#serviceManager?.getActiveProfileArn()
+
+        try {
+            const response = await codeWhispererServiceToken.getUsageLimits({
+                profileArn: profileArn,
+                // resourceType: 'CODE_GENERATION',    // todo
+                // serviceNamespace: 'codewhisperer'   // todo
+            })
+            const codeCompletionsLimit = response.limits.find(limit => limit.type === 'CODE_COMPLETIONS')
+
+            await this.#features.chat.sendSubscriptionDetails({
+                subscriptionTier: 'Free Tier', // You might need to determine this from another source
+                daysRemaining: response.daysUntilReset,
+                queryLimit: codeCompletionsLimit?.totalUsageLimit ?? 0, // response.usageBreakdown?.usageLimit ?? 0,
+                queryUsage: codeCompletionsLimit?.currentUsage ?? 0, // response.usageBreakdown?.currentUsage ?? 0,
+                queryOverage: 0, // response.usageBreakdown?.currentOverages ?? 0,
+            })
+        } catch (error) {
+            console.error('Failed to fetch usage limits:', error)
+            throw error
+        }
     }
 }
