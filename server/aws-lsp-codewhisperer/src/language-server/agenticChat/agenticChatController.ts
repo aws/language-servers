@@ -193,6 +193,7 @@ import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelect
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
+import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 
@@ -236,6 +237,7 @@ export class AgenticChatController implements ChatHandlers {
     #mcpEventHandler: McpEventHandler
     #paidTierMode: PaidTierMode | undefined
     #origin: Origin
+    #activeUserTracker: ActiveUserTracker
 
     // latency metrics
     #llmRequestStartTime: number = 0
@@ -328,6 +330,7 @@ export class AgenticChatController implements ChatHandlers {
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
+        this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -611,6 +614,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#contextCommandsProvider?.dispose()
         this.#userWrittenCodeTracker?.dispose()
         this.#mcpEventHandler.dispose()
+        this.#activeUserTracker.dispose()
         clearInterval(this.#abTestingFetchingTimeout)
     }
 
@@ -701,6 +705,11 @@ export class AgenticChatController implements ChatHandlers {
             experimentName: this.#abTestingAllocation?.experimentName,
             userVariation: this.#abTestingAllocation?.userVariation,
         })
+
+        const isNewActiveUser = this.#activeUserTracker.isNewActiveUser()
+        if (isNewActiveUser) {
+            this.#telemetryController.emitActiveUser()
+        }
 
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
