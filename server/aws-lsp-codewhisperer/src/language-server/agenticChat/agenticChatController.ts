@@ -17,6 +17,28 @@ import {
     ImageBlock,
 } from '@amzn/codewhisperer-streaming'
 import {
+    FS_READ,
+    FS_WRITE,
+    FS_REPLACE,
+    LIST_DIRECTORY,
+    GREP_SEARCH,
+    FILE_SEARCH,
+    EXECUTE_BASH,
+    Q_CODE_REVIEW,
+    BUTTON_RUN_SHELL_COMMAND,
+    BUTTON_REJECT_SHELL_COMMAND,
+    BUTTON_REJECT_MCP_TOOL,
+    BUTTON_ALLOW_TOOLS,
+    BUTTON_UNDO_CHANGES,
+    BUTTON_UNDO_ALL_CHANGES,
+    BUTTON_STOP_SHELL_COMMAND,
+    BUTTON_PAIDTIER_UPGRADE_Q_LEARNMORE,
+    BUTTON_PAIDTIER_UPGRADE_Q,
+    SUFFIX_PERMISSION,
+    SUFFIX_UNDOALL,
+    SUFFIX_EXPLANATION,
+} from './constants/toolConstants'
+import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
     ChatCommandInput,
@@ -193,6 +215,7 @@ import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelect
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
+import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 
@@ -236,6 +259,7 @@ export class AgenticChatController implements ChatHandlers {
     #mcpEventHandler: McpEventHandler
     #paidTierMode: PaidTierMode | undefined
     #origin: Origin
+    #activeUserTracker: ActiveUserTracker
 
     // latency metrics
     #llmRequestStartTime: number = 0
@@ -263,7 +287,9 @@ export class AgenticChatController implements ChatHandlers {
     #getMessageIdForToolUse(toolType: string | undefined, toolUse: ToolUse): string {
         const toolUseId = toolUse.toolUseId!
         // Return plain toolUseId for executeBash, add "_permission" suffix for all other tools
-        return toolUse.name === 'executeBash' || toolType === 'executeBash' ? toolUseId : `${toolUseId}_permission`
+        return toolUse.name === EXECUTE_BASH || toolType === EXECUTE_BASH
+            ? toolUseId
+            : `${toolUseId}${SUFFIX_PERMISSION}`
     }
 
     /**
@@ -328,6 +354,7 @@ export class AgenticChatController implements ChatHandlers {
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
+        this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -347,18 +374,18 @@ export class AgenticChatController implements ChatHandlers {
         this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
         const session = this.#chatSessionManagementService.getSession(params.tabId)
         if (
-            params.buttonId === 'run-shell-command' ||
-            params.buttonId === 'reject-shell-command' ||
-            params.buttonId === 'reject-mcp-tool' ||
-            params.buttonId === 'allow-tools'
+            params.buttonId === BUTTON_RUN_SHELL_COMMAND ||
+            params.buttonId === BUTTON_REJECT_SHELL_COMMAND ||
+            params.buttonId === BUTTON_REJECT_MCP_TOOL ||
+            params.buttonId === BUTTON_ALLOW_TOOLS
         ) {
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
             }
             // For 'allow-tools', remove suffix as permission card needs to be seperate from file list card
             const messageId =
-                params.buttonId === 'allow-tools' && params.messageId.endsWith('_permission')
-                    ? params.messageId.replace('_permission', '')
+                params.buttonId === BUTTON_ALLOW_TOOLS && params.messageId.endsWith(SUFFIX_PERMISSION)
+                    ? params.messageId.replace(SUFFIX_PERMISSION, '')
                     : params.messageId
 
             const handler = session.data.getDeferredToolExecution(messageId)
@@ -368,7 +395,7 @@ export class AgenticChatController implements ChatHandlers {
                     failureReason: `could not find deferred tool execution for message: ${messageId} `,
                 }
             }
-            params.buttonId === 'reject-shell-command' || params.buttonId === 'reject-mcp-tool'
+            params.buttonId === BUTTON_REJECT_SHELL_COMMAND || params.buttonId === BUTTON_REJECT_MCP_TOOL
                 ? (() => {
                       handler.reject(new ToolApprovalException('Command was rejected.', true))
                       this.#stoppedToolUses.add(messageId)
@@ -377,7 +404,7 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 success: true,
             }
-        } else if (params.buttonId === 'undo-changes') {
+        } else if (params.buttonId === BUTTON_UNDO_CHANGES) {
             const toolUseId = params.messageId
             try {
                 await this.#undoFileChange(toolUseId, session.data)
@@ -396,21 +423,21 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 success: true,
             }
-        } else if (params.buttonId === 'undo-all-changes') {
-            const toolUseId = params.messageId.replace('_undoall', '')
+        } else if (params.buttonId === BUTTON_UNDO_ALL_CHANGES) {
+            const toolUseId = params.messageId.replace(SUFFIX_UNDOALL, '')
             await this.#undoAllFileChanges(params.tabId, toolUseId, session.data)
             return {
                 success: true,
             }
-        } else if (params.buttonId === 'stop-shell-command') {
+        } else if (params.buttonId === BUTTON_STOP_SHELL_COMMAND) {
             this.#stoppedToolUses.add(params.messageId)
             await this.#renderStoppedShellCommand(params.tabId, params.messageId)
             return { success: true }
-        } else if (params.buttonId === 'paidtier-upgrade-q-learnmore') {
+        } else if (params.buttonId === BUTTON_PAIDTIER_UPGRADE_Q_LEARNMORE) {
             onPaidTierLearnMore(this.#features.lsp, this.#features.logging)
 
             return { success: true }
-        } else if (params.buttonId === 'paidtier-upgrade-q') {
+        } else if (params.buttonId === BUTTON_PAIDTIER_UPGRADE_Q) {
             await this.onManageSubscription(params.tabId)
 
             return { success: true }
@@ -444,7 +471,7 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
         const fileList = cachedToolUse.chatResult?.header?.fileList
-        const button = cachedToolUse.chatResult?.header?.buttons?.filter(button => button.id !== 'undo-changes')
+        const button = cachedToolUse.chatResult?.header?.buttons?.filter(button => button.id !== BUTTON_UNDO_CHANGES)
 
         const updatedHeader = {
             ...cachedToolUse.chatResult?.header,
@@ -499,7 +526,7 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
         for (const messageId of [...toUndo].reverse()) {
-            await this.onButtonClick({ buttonId: 'undo-changes', messageId, tabId })
+            await this.onButtonClick({ buttonId: BUTTON_UNDO_CHANGES, messageId, tabId })
         }
     }
 
@@ -611,6 +638,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#contextCommandsProvider?.dispose()
         this.#userWrittenCodeTracker?.dispose()
         this.#mcpEventHandler.dispose()
+        this.#activeUserTracker.dispose()
         clearInterval(this.#abTestingFetchingTimeout)
     }
 
@@ -701,6 +729,11 @@ export class AgenticChatController implements ChatHandlers {
             experimentName: this.#abTestingAllocation?.experimentName,
             userVariation: this.#abTestingAllocation?.userVariation,
         })
+
+        const isNewActiveUser = this.#activeUserTracker.isNewActiveUser()
+        if (isNewActiveUser) {
+            this.#telemetryController.emitActiveUser()
+        }
 
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
@@ -1184,7 +1217,7 @@ export class AgenticChatController implements ChatHandlers {
             // Phase 3: Request Execution
             // Note: these logs are very noisy, but contain information redacted on the backend.
             this.#debug(
-                `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
+                `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
             )
             const response = await session.getChatResponse(currentRequestInput)
             if (response.$metadata.requestId) {
@@ -1570,36 +1603,36 @@ export class AgenticChatController implements ChatHandlers {
                 await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
 
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
-                if (!['fsWrite', 'fsReplace', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
+                if (![FS_WRITE, FS_REPLACE, FS_READ, LIST_DIRECTORY].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
-                if (toolUse.name !== 'fsWrite' && toolUse.name !== 'fsReplace') {
+                if (toolUse.name !== FS_WRITE && toolUse.name !== FS_REPLACE) {
                     const { explanation } = toolUse.input as unknown as ExplanatoryParams
                     if (explanation) {
                         await chatResultStream.writeResultBlock({
                             type: 'directive',
-                            messageId: toolUse.toolUseId + '_explanation',
+                            messageId: toolUse.toolUseId + SUFFIX_EXPLANATION,
                             body: explanation,
                         })
                     }
                 }
                 switch (toolUse.name) {
-                    case 'fsRead':
-                    case 'listDirectory':
-                    case 'grepSearch':
-                    case 'fileSearch':
-                    case 'fsWrite':
-                    case 'fsReplace':
-                    case 'executeBash': {
+                    case FS_READ:
+                    case LIST_DIRECTORY:
+                    case GREP_SEARCH:
+                    case FILE_SEARCH:
+                    case FS_WRITE:
+                    case FS_REPLACE:
+                    case EXECUTE_BASH: {
                         const toolMap = {
-                            fsRead: { Tool: FsRead },
-                            listDirectory: { Tool: ListDirectory },
-                            fsWrite: { Tool: FsWrite },
-                            fsReplace: { Tool: FsReplace },
-                            executeBash: { Tool: ExecuteBash },
-                            grepSearch: { Tool: GrepSearch },
-                            fileSearch: { Tool: FileSearch },
+                            [FS_READ]: { Tool: FsRead },
+                            [LIST_DIRECTORY]: { Tool: ListDirectory },
+                            [FS_WRITE]: { Tool: FsWrite },
+                            [FS_REPLACE]: { Tool: FsReplace },
+                            [EXECUTE_BASH]: { Tool: ExecuteBash },
+                            [GREP_SEARCH]: { Tool: GrepSearch },
+                            [FILE_SEARCH]: { Tool: FileSearch },
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
@@ -1622,7 +1655,7 @@ export class AgenticChatController implements ChatHandlers {
                         // Honor built-in permission if available, otherwise use tool's requiresAcceptance
                         // const requiresAcceptance = builtInPermission || toolRequiresAcceptance
 
-                        if (requiresAcceptance || toolUse.name === 'executeBash') {
+                        if (requiresAcceptance || toolUse.name === EXECUTE_BASH) {
                             // for executeBash, we till send the confirmation message without action buttons
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
@@ -1631,7 +1664,7 @@ export class AgenticChatController implements ChatHandlers {
                                 commandCategory
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-                            const isExecuteBash = toolUse.name === 'executeBash'
+                            const isExecuteBash = toolUse.name === EXECUTE_BASH
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -1729,7 +1762,7 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
 
-                if (toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') {
+                if (toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) {
                     const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                     const document = await this.#triggerContext.getTextDocumentFromPath(input.path, true, true)
 
@@ -1782,27 +1815,27 @@ export class AgenticChatController implements ChatHandlers {
                 })
 
                 switch (toolUse.name) {
-                    case 'fsRead':
-                    case 'listDirectory':
-                    case 'fileSearch':
+                    case FS_READ:
+                    case LIST_DIRECTORY:
+                    case FILE_SEARCH:
                         const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                         if (initialListDirResult) {
                             await chatResultStream.writeResultBlock(initialListDirResult)
                         }
                         break
                     // no need to write tool result for listDir,fsRead,fileSearch into chat stream
-                    case 'executeBash':
+                    case EXECUTE_BASH:
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
                         break
-                    case 'grepSearch':
+                    case GREP_SEARCH:
                         const grepSearchResult = this.#processGrepSearchResult(toolUse, result, chatResultStream)
                         if (grepSearchResult) {
                             await chatResultStream.writeResultBlock(grepSearchResult)
                         }
                         break
-                    case 'fsReplace':
-                    case 'fsWrite':
+                    case FS_REPLACE:
+                    case FS_WRITE:
                         const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                         // Load from the filesystem instead of workspace.
                         // Workspace is likely out of date - when files
@@ -1910,13 +1943,13 @@ export class AgenticChatController implements ChatHandlers {
                     }
 
                     // Rethrow error for executeBash or any named tool
-                    if (toolUse.name === 'executeBash' || toolUse.name) {
+                    if (toolUse.name === EXECUTE_BASH || toolUse.name) {
                         throw err
                     }
                 }
 
                 // display fs write failure status in the UX of that file card
-                if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && toolUse.toolUseId) {
+                if ((toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
                     const fsParam = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                     if (fsParam.path) {
@@ -1949,7 +1982,7 @@ export class AgenticChatController implements ChatHandlers {
                             await chatResultStream.writeResultBlock(errorResult)
                         }
                     }
-                } else if (toolUse.name === 'executeBash' && toolUse.toolUseId) {
+                } else if (toolUse.name === EXECUTE_BASH && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
                     const command = (toolUse.input as unknown as ExecuteBashParams).command
                     const completedErrorResult = {
@@ -2010,10 +2043,10 @@ export class AgenticChatController implements ChatHandlers {
      * Updates the currentUndoAllId state in the session
      */
     #updateUndoAllState(toolUse: ToolUse, session: ChatSessionService) {
-        if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
+        if (toolUse.name === FS_READ || toolUse.name === LIST_DIRECTORY) {
             return
         }
-        if (toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') {
+        if (toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) {
             if (session.currentUndoAllId === undefined) {
                 session.currentUndoAllId = toolUse.toolUseId
             }
@@ -2051,10 +2084,10 @@ export class AgenticChatController implements ChatHandlers {
 
         await chatResultStream.writeResultBlock({
             type: 'answer',
-            messageId: `${session.currentUndoAllId}_undoall`,
+            messageId: `${session.currentUndoAllId}${SUFFIX_UNDOALL}`,
             buttons: [
                 {
-                    id: 'undo-all-changes',
+                    id: BUTTON_UNDO_ALL_CHANGES,
                     text: 'Undo all changes',
                     icon: 'undo',
                     status: 'clear',
@@ -2087,11 +2120,11 @@ export class AgenticChatController implements ChatHandlers {
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
         let maxToolResponseSize
         switch (toolUse.name) {
-            case 'fsRead':
-            case 'executeBash':
+            case FS_READ:
+            case EXECUTE_BASH:
                 // fsRead and executeBash already have truncation logic
                 return
-            case 'listDirectory':
+            case LIST_DIRECTORY:
                 maxToolResponseSize = 50_000
                 break
             default:
@@ -2154,7 +2187,7 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name === QCodeReview.toolName) {
             return this.#getToolOverWritableStream(chatResultStream, toolUse)
         }
-        if (toolUse.name !== 'executeBash') {
+        if (toolUse.name !== EXECUTE_BASH) {
             return
         }
 
@@ -2164,7 +2197,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
-            buttons: [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }],
+            buttons: [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Stop', icon: 'stop' }],
         }
 
         const completedHeader: ChatMessage['header'] = {
@@ -2225,7 +2258,7 @@ export class AgenticChatController implements ChatHandlers {
         const toolName = originalToolName ?? (toolType || toolUse.name)
 
         // Handle bash commands with special formatting
-        if (toolName === 'executeBash') {
+        if (toolName === EXECUTE_BASH) {
             return {
                 messageId: toolUse.toolUseId,
                 type: 'tool',
@@ -2241,7 +2274,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }] : [],
+                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Stop', icon: 'stop' }] : [],
                 },
             }
         }
@@ -2254,10 +2287,10 @@ export class AgenticChatController implements ChatHandlers {
         let body: string | undefined
 
         switch (toolName) {
-            case 'fsReplace':
-            case 'fsWrite':
-            case 'fsRead':
-            case 'listDirectory':
+            case FS_REPLACE:
+            case FS_WRITE:
+            case FS_READ:
+            case LIST_DIRECTORY:
                 header = {
                     body: undefined,
                     status: {
@@ -2268,7 +2301,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 break
 
-            case 'fileSearch':
+            case FILE_SEARCH:
                 const searchPath = (toolUse.input as unknown as FileSearchParams).path
                 header = {
                     body: 'File Search',
@@ -2486,13 +2519,13 @@ export class AgenticChatController implements ChatHandlers {
 
         // Configure tool-specific UI elements
         switch (toolName) {
-            case 'executeBash': {
+            case EXECUTE_BASH: {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 buttons = requiresAcceptance
                     ? [
-                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
+                          { id: BUTTON_RUN_SHELL_COMMAND, text: 'Run', icon: 'play' },
                           {
-                              id: 'reject-shell-command',
+                              id: BUTTON_REJECT_SHELL_COMMAND,
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
@@ -2531,14 +2564,14 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
-            case 'fsWrite': {
+            case FS_WRITE: {
                 const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
 
                 // Validate the path using our synchronous utility
                 validatePathBasic(writeFilePath)
 
                 this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
-                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
                     iconForegroundStatus: 'warning',
@@ -2553,14 +2586,14 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
-            case 'fsReplace': {
+            case FS_REPLACE: {
                 const writeFilePath = (toolUse.input as unknown as FsReplaceParams).path
 
                 // For replace, we need to verify the file exists
                 validatePathExists(writeFilePath)
 
                 this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
-                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
                     iconForegroundStatus: 'warning',
@@ -2575,9 +2608,9 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
-            case 'fsRead':
-            case 'listDirectory': {
-                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+            case FS_READ:
+            case LIST_DIRECTORY: {
+                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'tools',
@@ -2587,7 +2620,7 @@ export class AgenticChatController implements ChatHandlers {
                     buttons,
                 }
 
-                if (toolName === 'fsRead') {
+                if (toolName === FS_READ) {
                     const paths = (toolUse.input as unknown as FsReadParams).paths
 
                     // Validate paths using our synchronous utility
@@ -2615,7 +2648,7 @@ export class AgenticChatController implements ChatHandlers {
 
             default: {
                 // — DEFAULT ⇒ MCP tools
-                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'warning',
@@ -2635,7 +2668,7 @@ export class AgenticChatController implements ChatHandlers {
                 type: 'tool',
                 messageId: this.#getMessageIdForToolUse(toolType, toolUse),
                 header,
-                body: warning ? (toolName === 'executeBash' ? '' : '\n\n') + body : body,
+                body: warning ? (toolName === EXECUTE_BASH ? '' : '\n\n') + body : body,
             }
         } else {
             return {
@@ -2647,9 +2680,9 @@ export class AgenticChatController implements ChatHandlers {
                             icon: 'tools',
                             body: `${toolName}`,
                             buttons: [
-                                { id: 'allow-tools', text: 'Run', icon: 'play', status: 'clear' },
+                                { id: BUTTON_ALLOW_TOOLS, text: 'Run', icon: 'play', status: 'clear' },
                                 {
-                                    id: 'reject-mcp-tool',
+                                    id: BUTTON_REJECT_MCP_TOOL,
                                     text: 'Reject',
                                     icon: 'cancel',
                                     status: 'dimmed-clear' as Status,
@@ -2702,7 +2735,7 @@ export class AgenticChatController implements ChatHandlers {
                         },
                     },
                 },
-                buttons: [{ id: 'undo-changes', text: 'Undo', icon: 'undo' }],
+                buttons: [{ id: BUTTON_UNDO_CHANGES, text: 'Undo', icon: 'undo' }],
             },
         }
     }
@@ -2717,7 +2750,7 @@ export class AgenticChatController implements ChatHandlers {
             chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
         }
         let currentPaths = []
-        if (toolUse.name === 'fsRead') {
+        if (toolUse.name === FS_READ) {
             currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
         } else {
             currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
@@ -2747,9 +2780,9 @@ export class AgenticChatController implements ChatHandlers {
             title = 'Gathering context'
         } else {
             title =
-                toolUse.name === 'fsRead'
+                toolUse.name === FS_READ
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === 'fileSearch'
+                    : toolUse.name === FILE_SEARCH
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
@@ -2782,7 +2815,7 @@ export class AgenticChatController implements ChatHandlers {
         result: any,
         chatResultStream: AgenticChatResultStream
     ): ChatMessage | undefined {
-        if (toolUse.name !== 'grepSearch') {
+        if (toolUse.name !== GREP_SEARCH) {
             return undefined
         }
 
@@ -3275,7 +3308,7 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseId = params.messageId
         const toolUse = toolUseId ? session.data?.toolUseLookup.get(toolUseId) : undefined
 
-        if (toolUse?.name === 'fsWrite' || toolUse?.name === 'fsReplace') {
+        if (toolUse?.name === FS_WRITE || toolUse?.name === FS_REPLACE) {
             const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
             this.#features.lsp.workspace.openFileDiff({
                 originalFileUri: input.path,
@@ -3283,7 +3316,7 @@ export class AgenticChatController implements ChatHandlers {
                 isDeleted: false,
                 fileContent: toolUse.fileChange?.after,
             })
-        } else if (toolUse?.name === 'fsRead') {
+        } else if (toolUse?.name === FS_READ) {
             await this.#features.lsp.window.showDocument({ uri: URI.file(params.filePath).toString() })
         } else {
             const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
@@ -3558,7 +3591,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async #invalidateAllShellCommands(tabId: string, session: ChatSessionService) {
         for (const [toolUseId, toolUse] of session.toolUseLookup.entries()) {
-            if (toolUse.name !== 'executeBash' || this.#stoppedToolUses.has(toolUseId)) continue
+            if (toolUse.name !== EXECUTE_BASH || this.#stoppedToolUses.has(toolUseId)) continue
 
             const params = toolUse.input as unknown as ExecuteBashParams
             const command = params.command
@@ -3866,7 +3899,7 @@ export class AgenticChatController implements ChatHandlers {
         }
         const toolUses = Object.values(data.toolUses)
         for (const toolUse of toolUses) {
-            if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && typeof toolUse.input === 'string') {
+            if ((toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) && typeof toolUse.input === 'string') {
                 const filepath = extractKey(toolUse.input, 'path')
                 const msgId = progressPrefix + toolUse.toolUseId
                 // render fs write UI as soon as fs write starts
@@ -3895,7 +3928,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 // render the tool use explanatory as soon as this is received for fsWrite/fsReplace
                 const explanation = extractKey(toolUse.input, 'explanation')
-                const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
+                const messageId = progressPrefix + toolUse.toolUseId + SUFFIX_EXPLANATION
                 if (explanation && !chatResultStream.hasMessage(messageId)) {
                     await streamWriter.close()
                     await chatResultStream.writeResultBlock({
@@ -4302,5 +4335,14 @@ export class AgenticChatController implements ChatHandlers {
 
     #debug(...messages: string[]) {
         this.#features.logging.debug(messages.join(' '))
+    }
+
+    // Helper function to sanitize the 'images' field for logging by replacing large binary data (e.g., Uint8Array) with a concise summary.
+    // This prevents logs from being overwhelmed by raw byte arrays and keeps log output readable.
+    #imageReplacer(key: string, value: any): string | any {
+        if (key === 'bytes' && value && typeof value.length === 'number') {
+            return `[Uint8Array, length: ${value.length}]`
+        }
+        return value
     }
 }
