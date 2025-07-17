@@ -428,6 +428,8 @@ export class AgenticChatController implements ChatHandlers {
             await this.onManageSubscription(params.tabId)
 
             return { success: true }
+        } else if (params.buttonId === 'upgrade-to-paid-tier') {
+            return { success: true }
         } else {
             return {
                 success: false,

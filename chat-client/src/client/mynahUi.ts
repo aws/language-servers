@@ -85,6 +85,7 @@ import {
     freeTierLimitDirective,
 } from './texts/paidTier'
 import { isSupportedImageExtension, MAX_IMAGE_CONTEXT, verifyClientImages } from './imageVerification'
+import { upgradeToPaidTierButton } from './texts/subscription'
 
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
@@ -1579,40 +1580,36 @@ ${params.message}`,
         const resetString =
             params.daysRemaining === 1 ? 'Limits reset tomorrow' : `Limits reset in ${params.daysRemaining} days`
 
+        const subscriptionSection: ChatItem = {
+            type: ChatItemType.ANSWER,
+            body: '## Subscription \n' + '### ' + params.subscriptionTier + '\n', // + upgradeToPaidTierButton + '\n\n' + `## Usage\n${usageString}\n${overageString}\n${resetString}`,
+            buttons:
+                params.subscriptionTier.toLowerCase() === 'free tier'
+                    ? [upgradeToPaidTierButton]
+                    : [
+                          {
+                              status: 'primary',
+                              id: 'manage-subscription',
+                              text: 'Manage Subscription',
+                          },
+                      ],
+        }
+
+        const usageSection: ChatItem = {
+            type: ChatItemType.ANSWER,
+            body: `Usage\n${usageString}\n${overageString}\n${resetString}`,
+        }
+
         mynahUi.updateStore(tabId, {
             tabBackground: false,
             compactMode: false,
             tabTitle: 'Account Details',
             promptInputVisible: false,
             tabHeaderDetails: {
-                title: `Account details`,
+                icon: MynahIcons.Q,
+                title: 'Account Details',
             },
-            chatItems: [
-                {
-                    type: ChatItemType.ANSWER,
-                    body: '### Subscription' + '\n' + params.subscriptionTier,
-                    buttons:
-                        params.subscriptionTier.toLowerCase() === 'free tier'
-                            ? [
-                                  {
-                                      status: 'primary',
-                                      id: 'upgrade-subscription',
-                                      text: `Upgrade`,
-                                  },
-                              ]
-                            : [
-                                  {
-                                      status: 'primary',
-                                      id: 'manage-subscription',
-                                      text: `Manage Subscription`,
-                                  },
-                              ],
-                },
-                {
-                    type: ChatItemType.ANSWER,
-                    body: '### Usage \n' + `${usageString} \n` + `${overageString} \n` + `${resetString} \n` + ` \n`,
-                },
-            ],
+            chatItems: [subscriptionSection], // usageSection],
         })
     }
 
