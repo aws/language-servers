@@ -243,7 +243,37 @@ export const autoTrigger = (
         previousDecisionCoefficient +
         languageCoefficient +
         leftContextLengthCoefficient
-
+    console.log(
+        'Classifier Debug:',
+        JSON.stringify(
+            {
+                lengthOfRight: lengthOfRight,
+                lengthOfLeftCurrent: lengthOfLeftCurrent,
+                lengthOfLeftPrev: lengthOfLeftPrev,
+                rightLengthComponent: coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight'),
+                leftCurrentLengthComponent:
+                    coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur'),
+                leftPreviousLengthComponent:
+                    coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev'),
+                lineNumberComponent: coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum'),
+                osCoefficient,
+                triggerTypeCoefficient,
+                charCoefficient,
+                keyWordCoefficient,
+                ideCoefficient,
+                intercept: coefficients.intercept,
+                previousDecisionCoefficient,
+                languageCoefficient,
+                leftContextLengthCoefficient,
+                finalClassifierResult: classifierResult,
+                sigmoidResult: sigmoid(classifierResult),
+                threshold: TRIGGER_THRESHOLD,
+                shouldTrigger: sigmoid(classifierResult) > TRIGGER_THRESHOLD,
+            },
+            null,
+            2
+        )
+    )
     const shouldTrigger = sigmoid(classifierResult) > TRIGGER_THRESHOLD
 
     return {
