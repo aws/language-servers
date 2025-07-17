@@ -41,8 +41,7 @@ export class IdentityServer extends ServerBase {
         const showMessageRequest: ShowMessageRequest = (params: ShowMessageRequestParams) =>
             this.features.lsp.window.showMessageRequest(params)
         const showProgress: ShowProgress = this.features.lsp.sendProgress
-        const sendGetMfaCode: SendGetMfaCode = (params: GetMfaCodeParams) =>
-            this.features.identityManagement.sendGetMfaCode(params)
+        const sendGetMfaCode: SendGetMfaCode = this.features.identityManagement.sendGetMfaCode
 
         // Initialize dependencies
         const profileStore = new SharedConfigProfileStore(this.observability)
@@ -61,7 +60,8 @@ export class IdentityServer extends ServerBase {
             profileStore,
             ssoCache,
             autoRefresher,
-            { showUrl, showMessageRequest, showProgress },
+            iamProvider,
+            { showUrl, showMessageRequest, showProgress, sendGetMfaCode },
             this.getClientName(params),
             this.observability
         )
