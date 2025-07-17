@@ -6,7 +6,7 @@
 /* eslint-disable import/no-nodejs-modules */
 
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE } from './qCodeReviewConstants'
+import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE, Q_CODE_REVIEW_METRICS_PARENT_NAME } from './qCodeReviewConstants'
 import JSZip = require('jszip')
 import { exec } from 'child_process'
 import * as path from 'path'
@@ -361,21 +361,19 @@ export class QCodeReviewUtils {
      */
     public static emitMetric(
         metric: QCodeReviewMetric,
-        metricData: object,
         logging: Features['logging'],
-        telemetry: Features['telemetry'],
-        credentialStartUrl?: string
+        telemetry: Features['telemetry']
     ): void {
-        const metricName = `amazonq_qCodeReviewTool`
+        const { name, metadata, ...metricStatus } = metric
         const metricPayload = {
-            name: metricName,
+            name: `${Q_CODE_REVIEW_METRICS_PARENT_NAME}_${name}`,
             data: {
-                ...(credentialStartUrl ? { credentialStartUrl } : {}),
-                ...metricData,
-                ...metric,
+                // metadata is optional attribute
+                ...(metadata || {}),
+                ...metricStatus,
             },
         }
-        logging.info(`Emitting telemetry metric: ${metricName} with data: ${JSON.stringify(metricPayload.data)}`)
+        logging.info(`Emitting telemetry metric: ${metric.name} with data: ${JSON.stringify(metricPayload.data)}`)
         telemetry.emitMetric(metricPayload)
     }
 

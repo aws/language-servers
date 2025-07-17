@@ -202,3 +202,5 @@ export const SKIP_DIRECTORIES = [
 ]
 
 export const FINDINGS_MESSAGE_SUFFIX = '_qCodeReviewFindings'
+
+export const Q_CODE_REVIEW_METRICS_PARENT_NAME = 'amazonq_qCodeReviewTool'

@@ -2,14 +2,15 @@ export type FileArtifacts = Array<{ path: string }>
 export type FolderArtifacts = Array<{ path: string }>
 export type RuleArtifacts = Array<{ path: string }>
 export type ArtifactType = 'FILE' | 'FOLDER'
-type metricType =
-    | 'MissingFileOrFolder'
-    | 'CreateUploadUrlFailed'
-    | 'CodeScanTimeout'
-    | 'CodeScanSuccess'
-    | 'CodeScanFailed'
-    | 'CreateUploadUrlSucceded'
-type metricResult = 'Succeeded' | 'Failed'
+export enum FailedMetricName {
+    MissingFileOrFolder = 'missingFileOrFolder',
+    CreateUploadUrlFailed = 'createUploadUrlFailed',
+    CodeScanTimeout = 'codeScanTimeout',
+    CodeScanFailed = 'codeScanFailed',
+}
+export enum SuccessMetricName {
+    CodeScanSuccess = 'codeScanSuccess',
+}
 
 export type ValidateInputAndSetupResult = {
     fileArtifacts: FileArtifacts
@@ -24,6 +25,7 @@ export type ValidateInputAndSetupResult = {
 export type PrepareAndUploadArtifactsResult = {
     uploadId: string
     isCodeDiffPresent: boolean
+    artifactSize: number
 }
 
 export type StartCodeAnalysisResult = {
@@ -60,11 +62,13 @@ export type QCodeReviewFinding = {
 
 export type QCodeReviewMetric =
     | {
-          type: metricType
+          name: SuccessMetricName
           result: 'Succeeded'
+          metadata?: object
       }
     | {
-          type: metricType
+          name: FailedMetricName
           result: 'Failed'
           reason: string
+          metadata?: object
       }

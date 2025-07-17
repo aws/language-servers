@@ -27,6 +27,8 @@ import {
     StartCodeAnalysisResult,
     CodeReviewResult,
     QCodeReviewFinding,
+    FailedMetricName,
+    SuccessMetricName,
 } from './qCodeReviewTypes'
 import { CancellationError } from '@aws/lsp-core'
 
@@ -48,8 +50,8 @@ export class QCodeReview {
         MISSING_ARTIFACTS: `Missing fileLevelArtifacts and folderLevelArtifacts for ${Q_CODE_REVIEW_TOOL_NAME} tool. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
         MISSING_FILES_TO_SCAN: `There are no valid files to scan. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
         UPLOAD_FAILED: `Failed to upload artifact for code review in ${Q_CODE_REVIEW_TOOL_NAME} tool.`,
-        START_CODE_ANALYSIS_FAILED: (jobId: string) =>
-            `Failed to start code analysis in ${Q_CODE_REVIEW_TOOL_NAME} tool for jobId - ${jobId}`,
+        START_CODE_ANALYSIS_FAILED: (scanName: string, errorMessage?: string) =>
+            `Failed to start code analysis for scanName - ${scanName} due to - ${errorMessage}`,
         CODE_ANALYSIS_FAILED: (jobId: string, message: string) =>
             `Code analysis failed for jobId - ${jobId} due to ${message}`,
         SCAN_FAILED: 'Code scan failed',
@@ -110,21 +112,15 @@ export class QCodeReview {
             await chatStreamWriter?.write('Reviewing your code...')
 
             // 4. Wait for scan to complete
-            await this.pollForCompletion(
-                analysisResult.jobId,
-                setup.scanName,
-                setup.isFullReviewRequest,
-                setup.artifactType,
-                chatStreamWriter
-            )
+            await this.pollForCompletion(analysisResult.jobId, setup, uploadResult.artifactSize, chatStreamWriter)
             this.checkCancellation()
 
             // 5. Process scan result
             const results = await this.processResults(
                 setup,
                 uploadResult.isCodeDiffPresent,
-                analysisResult.jobId,
-                setup.isFullReviewRequest
+                uploadResult.artifactSize,
+                analysisResult.jobId
             )
 
             return {
@@ -178,14 +174,12 @@ export class QCodeReview {
         if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
             QCodeReviewUtils.emitMetric(
                 {
-                    type: 'MissingFileOrFolder',
+                    name: FailedMetricName.MissingFileOrFolder,
                     result: 'Failed',
                     reason: QCodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS,
                 },
-                {},
                 this.logging,
-                this.telemetry,
-                this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+                this.telemetry
             )
             throw new QCodeReviewValidationError(QCodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS)
         }
@@ -239,19 +233,17 @@ export class QCodeReview {
         if (!uploadUrlResponse.uploadUrl || !uploadUrlResponse.uploadId) {
             QCodeReviewUtils.emitMetric(
                 {
-                    type: 'CreateUploadUrlFailed',
+                    name: FailedMetricName.CreateUploadUrlFailed,
                     result: 'Failed',
                     reason: QCodeReview.ERROR_MESSAGES.UPLOAD_FAILED,
-                },
-                {
-                    codeScanName: setup.scanName,
-                    contentLength: zipBuffer.length,
-                    uploadIntent: QCodeReview.UPLOAD_INTENT,
-                    response: uploadUrlResponse,
+                    metadata: {
+                        codeScanName: setup.scanName,
+                        agenticReviewArtifactSize: zipBuffer.length,
+                        agenticReviewArtifactType: setup.artifactType,
+                    },
                 },
                 this.logging,
-                this.telemetry,
-                this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+                this.telemetry
             )
             throw new QCodeReviewValidationError(QCodeReview.ERROR_MESSAGES.UPLOAD_FAILED)
         }
@@ -263,22 +255,7 @@ export class QCodeReview {
             this.logging
         )
 
-        QCodeReviewUtils.emitMetric(
-            {
-                type: 'CreateUploadUrlSucceded',
-                result: 'Succeeded',
-            },
-            {
-                codeScanName: setup.scanName,
-                codeArtifactId: uploadUrlResponse.uploadId,
-                artifactSize: zipBuffer.length,
-                artifactType: setup.artifactType,
-            },
-            this.logging,
-            this.telemetry,
-            this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
-        )
-        return { uploadId: uploadUrlResponse.uploadId, isCodeDiffPresent }
+        return { uploadId: uploadUrlResponse.uploadId, isCodeDiffPresent, artifactSize: zipBuffer.length }
     }
 
     /**
@@ -303,24 +280,25 @@ export class QCodeReview {
         if (!createResponse.jobId) {
             QCodeReviewUtils.emitMetric(
                 {
-                    type: 'CodeScanFailed',
+                    name: FailedMetricName.CodeScanFailed,
                     result: 'Failed',
-                    reason: QCodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(createResponse.jobId),
-                },
-                {
-                    artifacts: { SourceCode: uploadResult.uploadId },
-                    programmingLanguage: { languageName: setup.programmingLanguage },
-                    codeScanName: setup.scanName,
-                    scope: QCodeReview.SCAN_SCOPE,
-                    artifactType: setup.artifactType,
-                    response: createResponse,
+                    reason: QCodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(
+                        setup.scanName,
+                        createResponse.errorMessage
+                    ),
+                    metadata: {
+                        sourceCodeArtifactId: uploadResult.uploadId,
+                        codeScanName: setup.scanName,
+                        agenticReviewArtifactType: setup.artifactType,
+                        agenticReviewType: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                        agenticReviewArtifactSize: uploadResult.artifactSize,
+                    },
                 },
                 this.logging,
-                this.telemetry,
-                this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+                this.telemetry
             )
             throw new QCodeReviewInternalError(
-                QCodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(createResponse.jobId)
+                QCodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(setup.scanName, createResponse.errorMessage)
             )
         }
 
@@ -340,9 +318,8 @@ export class QCodeReview {
      */
     private async pollForCompletion(
         jobId: string,
-        scanName: string,
-        isFullReviewRequest: boolean,
-        artifactType: string,
+        setup: ValidateInputAndSetupResult,
+        artifactSize: number,
         chatStreamWriter: WritableStreamDefaultWriter<any> | undefined
     ) {
         let status = 'Pending'
@@ -359,20 +336,19 @@ export class QCodeReview {
             if (statusResponse.errorMessage) {
                 QCodeReviewUtils.emitMetric(
                     {
-                        type: 'CodeScanFailed',
+                        name: FailedMetricName.CodeScanFailed,
                         result: 'Failed',
                         reason: QCodeReview.ERROR_MESSAGES.CODE_ANALYSIS_FAILED(jobId, statusResponse.errorMessage),
-                    },
-                    {
-                        codeScanName: scanName,
-                        codeReviewId: jobId,
-                        status,
-                        artifactType,
-                        scope: isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                        metadata: {
+                            codeReviewId: jobId,
+                            status: status,
+                            agenticReviewArtifactType: setup.artifactType,
+                            agenticReviewType: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                            agenticReviewArtifactSize: artifactSize,
+                        },
                     },
                     this.logging,
-                    this.telemetry,
-                    this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+                    this.telemetry
                 )
                 throw new QCodeReviewInternalError(
                     QCodeReview.ERROR_MESSAGES.CODE_ANALYSIS_FAILED(jobId, statusResponse.errorMessage)
@@ -389,19 +365,20 @@ export class QCodeReview {
         if (status === 'Pending') {
             QCodeReviewUtils.emitMetric(
                 {
-                    type: 'CodeScanTimeout',
+                    name: FailedMetricName.CodeScanTimeout,
                     result: 'Failed',
                     reason: QCodeReview.ERROR_MESSAGES.TIMEOUT(QCodeReview.MAX_POLLING_ATTEMPTS),
-                },
-                {
-                    codeReviewId: jobId,
-                    status: 'Timeout',
-                    scope: isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
-                    maxAttempts: QCodeReview.MAX_POLLING_ATTEMPTS,
+                    metadata: {
+                        codeReviewId: jobId,
+                        agenticReviewType: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                        status: status,
+                        agenticReviewArtifactType: setup.artifactType,
+                        maxAttempts: QCodeReview.MAX_POLLING_ATTEMPTS,
+                        agenticReviewArtifactSize: artifactSize,
+                    },
                 },
                 this.logging,
-                this.telemetry,
-                this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+                this.telemetry
             )
             throw new QCodeReviewTimeoutError(QCodeReview.ERROR_MESSAGES.TIMEOUT(QCodeReview.MAX_POLLING_ATTEMPTS))
         }
@@ -419,8 +396,8 @@ export class QCodeReview {
     private async processResults(
         setup: ValidateInputAndSetupResult,
         isCodeDiffPresent: boolean,
-        jobId: string,
-        isFullReviewRequest: boolean
+        artifactSize: number,
+        jobId: string
     ): Promise<CodeReviewResult> {
         const { totalFindings, findingsExceededLimit } = await this.collectFindings(
             jobId,
@@ -431,17 +408,19 @@ export class QCodeReview {
 
         QCodeReviewUtils.emitMetric(
             {
-                type: 'CodeScanSuccess',
+                name: SuccessMetricName.CodeScanSuccess,
                 result: 'Succeeded',
-            },
-            {
-                codeReviewId: jobId,
-                findingsCount: totalFindings.length,
-                scope: isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                metadata: {
+                    codeReviewId: jobId,
+                    agenticReviewFindingsCount: totalFindings.length,
+                    agenticReviewType: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                    agenticReviewCustomRulesCount: setup.ruleArtifacts.length,
+                    agenticReviewArtifactType: setup.artifactType,
+                    agenticReviewArtifactSize: artifactSize,
+                },
             },
             this.logging,
-            this.telemetry,
-            this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+            this.telemetry
         )
 
         const aggregatedCodeScanIssueList = this.aggregateFindingsByFile(

@@ -16,7 +16,7 @@ import { assert } from 'sinon'
 import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { QCodeReviewMetric } from './qCodeReviewTypes'
+import { QCodeReviewMetric, SuccessMetricName, FailedMetricName } from './qCodeReviewTypes'
 
 describe('QCodeReviewUtils', () => {
     // Sinon sandbox for managing stubs
@@ -665,64 +665,58 @@ describe('QCodeReviewUtils', () => {
 
         it('should emit a success metric with all parameters', () => {
             const metric = {
-                type: 'CodeScanSuccess',
+                name: SuccessMetricName.CodeScanSuccess,
                 result: 'Succeeded',
+                metadata: { jobId: '123', scanType: 'full', credentialStartUrl: 'https://example.com' },
             } as QCodeReviewMetric
 
-            const metricData = { jobId: '123', scanType: 'full' }
-            const credentialStartUrl = 'https://example.com'
-
-            QCodeReviewUtils.emitMetric(metric, metricData, mockLogging, mockTelemetry, credentialStartUrl)
+            QCodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
-                name: 'amazonq_qCodeReviewTool',
+                name: 'amazonq_qCodeReviewTool_codeScanSuccess',
                 data: {
-                    credentialStartUrl: 'https://example.com',
                     jobId: '123',
                     scanType: 'full',
-                    type: 'CodeScanSuccess',
+                    credentialStartUrl: 'https://example.com',
                     result: 'Succeeded',
                 },
             })
 
-            sinon.assert.calledWith(mockLogging.info, sinon.match(/Emitting telemetry metric: amazonq_qCodeReviewTool/))
+            sinon.assert.calledWith(mockLogging.info, sinon.match(/Emitting telemetry metric: codeScanSuccess/))
         })
 
         it('should emit a failure metric with required reason', () => {
             const metric = {
-                type: 'CodeScanFailed',
+                name: FailedMetricName.CodeScanFailed,
                 result: 'Failed',
                 reason: 'Required failure reason',
+                metadata: { jobId: '456' },
             } as QCodeReviewMetric
 
-            const metricData = { jobId: '456' }
-
-            QCodeReviewUtils.emitMetric(metric, metricData, mockLogging, mockTelemetry)
+            QCodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
-                name: 'amazonq_qCodeReviewTool',
+                name: 'amazonq_qCodeReviewTool_codeScanFailed',
                 data: {
                     jobId: '456',
-                    type: 'CodeScanFailed',
                     result: 'Failed',
                     reason: 'Required failure reason',
                 },
             })
         })
 
-        it('should handle empty metricData object', () => {
+        it('should handle metrics without metadata', () => {
             const metric = {
-                type: 'MissingFileOrFolder',
+                name: FailedMetricName.MissingFileOrFolder,
                 result: 'Failed',
                 reason: 'File not found',
             } as QCodeReviewMetric
 
-            QCodeReviewUtils.emitMetric(metric, {}, mockLogging, mockTelemetry)
+            QCodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
-                name: 'amazonq_qCodeReviewTool',
+                name: 'amazonq_qCodeReviewTool_missingFileOrFolder',
                 data: {
-                    type: 'MissingFileOrFolder',
                     result: 'Failed',
                     reason: 'File not found',
                 },
