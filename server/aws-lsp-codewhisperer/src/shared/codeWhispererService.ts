@@ -437,6 +437,15 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     /**
+     * @description get the usage limits
+     */
+    async getUsageLimits(
+        request: CodeWhispererTokenClient.GetUsageLimitsRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.GetUsageLimitsResponse, AWSError>> {
+        return this.client.getUsageLimits(this.withProfileArn(request)).promise()
+    }
+
+    /**
      * (debounced by default)
      *
      * cool api you have there 🥹
