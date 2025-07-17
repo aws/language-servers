@@ -238,6 +238,8 @@ type ChatHandlers = Omit<
     | 'onPinnedContextRemove'
     | 'onOpenFileDialog'
     | 'onListAvailableModels'
+    | 'sendSubscriptionDetails'
+    | 'onSubscriptionUpgrade'
 >
 
 export class AgenticChatController implements ChatHandlers {
