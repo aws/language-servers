@@ -9,20 +9,14 @@ import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
 import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
-import { GrepSearch } from './grepSearch'
 import { QCodeReview } from './qCodeAnalysis/qCodeReview'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
-    getGlobalMcpConfigPath,
-    getGlobalPersonaConfigPath,
-    getWorkspaceMcpConfigPaths,
-    getWorkspacePersonaConfigPaths,
     getGlobalAgentConfigPath,
     getWorkspaceAgentConfigPaths,
     createNamespacedToolName,
     enabledMCP,
-    sanitizeName,
     migrateToAgentConfig,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
@@ -34,7 +28,6 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsWriteTool = new FsWrite({ workspace, lsp, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
     const fileSearchTool = new FileSearch({ workspace, lsp, logging })
-    const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
     const fsReplaceTool = new FsReplace({ workspace, lsp, logging })
 
     agent.addTool(
@@ -194,7 +187,6 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
         // 2) add new enabled tools
         for (const def of defs) {
             // Sanitize the tool name
-            const sanitizedToolName = sanitizeName(def.toolName)
 
             // Check if this tool name is already in use
             const namespaced = createNamespacedToolName(
@@ -250,12 +242,8 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             const globalAgentPath = getGlobalAgentConfigPath(workspace.fs.getUserHomeDir())
             const allAgentPaths = [...wsAgentPaths, globalAgentPath]
 
-            const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
-            const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
-            const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
-
             // Migrate config and persona files to agent config
-            await migrateToAgentConfig(workspace, logging)
+            await migrateToAgentConfig(workspace, logging, agent)
 
             const mgr = await McpManager.init(allAgentPaths, {
                 logging,
@@ -270,6 +258,8 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             McpManager.instance.clearToolNameMapping()
 
             const byServer: Record<string, McpToolDefinition[]> = {}
+
+            logging.info(`enabled Tools: ${mgr.getEnabledTools().entries()}`)
             // only register enabled tools
             for (const d of mgr.getEnabledTools()) {
                 ;(byServer[d.serverName] ||= []).push(d)

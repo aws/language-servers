@@ -3,12 +3,13 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import { InitializeParams, Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
+import { Agent, InitializeParams, Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
 import { URI } from 'vscode-uri'
 import { MCPServerConfig, PersonaConfig, MCPServerPermission, McpPermissionType, AgentConfig } from './mcpTypes'
 import path = require('path')
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
 import crypto = require('crypto')
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
@@ -573,12 +574,13 @@ export function enabledMCP(params: InitializeParams | undefined): boolean {
  */
 export function convertPersonaToAgent(
     persona: PersonaConfig,
-    mcpServers: Record<string, MCPServerConfig>
+    mcpServers: Record<string, MCPServerConfig>,
+    featureAgent: Agent
 ): AgentConfig {
     const agent: AgentConfig = {
-        name: 'migrated-agent',
+        name: 'default-agent',
         version: '1.0.0',
-        description: 'Agent migrated from persona configuration',
+        description: 'Default agent configuration',
         mcpServers: {},
         tools: [],
         allowedTools: [],
@@ -587,109 +589,87 @@ export function convertPersonaToAgent(
         resources: [],
     }
 
-    // Convert mcpServers
-    for (const serverName of persona.mcpServers) {
-        if (serverName === '*') {
-            // Include all servers
-            Object.entries(mcpServers).forEach(([name, config]) => {
-                agent.mcpServers[name] = {
-                    command: config.command,
-                    args: config.args,
-                    env: config.env,
-                    timeout: config.timeout,
-                    initializationTimeout: config.initializationTimeout,
+    // Include all servers from MCP config
+    Object.entries(mcpServers).forEach(([name, config]) => {
+        agent.mcpServers[name] = {
+            command: config.command,
+            args: config.args,
+            env: config.env,
+            timeout: config.timeout,
+            initializationTimeout: config.initializationTimeout,
+        }
+    })
+
+    // Add all server names to tools section
+    Object.keys(mcpServers).forEach(serverName => {
+        const serverPrefix = `@${serverName}`
+        if (!agent.tools.includes(serverPrefix)) {
+            agent.tools.push(serverPrefix)
+        }
+    })
+
+    // Check persona for alwaysAllowed tools
+    if (persona.toolPerms) {
+        // Handle server-specific tools
+        for (const [serverName, toolPerms] of Object.entries(persona.toolPerms)) {
+            if (serverName === 'builtIn' || serverName === 'Built-in') {
+                continue // Already handled above
+            }
+
+            // Add specific tools that are alwaysAllow
+            for (const [toolName, permission] of Object.entries(toolPerms)) {
+                if (permission === McpPermissionType.alwaysAllow) {
+                    const toolId = `@${serverName}/${toolName}`
+                    if (!agent.allowedTools.includes(toolId)) {
+                        agent.allowedTools.push(toolId)
+                    }
                 }
-            })
-        } else if (mcpServers[serverName]) {
-            agent.mcpServers[serverName] = {
-                command: mcpServers[serverName].command,
-                args: mcpServers[serverName].args,
-                env: mcpServers[serverName].env,
-                timeout: mcpServers[serverName].timeout,
-                initializationTimeout: mcpServers[serverName].initializationTimeout,
+
+                // Add tool settings if any
+                if (typeof permission === 'object') {
+                    const toolId = `@${serverName}/${toolName}`
+                    agent.toolsSettings![toolId] = permission
+                }
             }
         }
     }
 
-    // Convert tools and permissions
-    if (persona.toolPerms) {
-        // Track which servers have specific tools enabled
-        const serversWithSpecificTools = new Set<string>()
-
-        // First pass: identify servers with specific tools
-        for (const [serverName, toolPerms] of Object.entries(persona.toolPerms)) {
-            if (serverName !== 'builtIn' && Object.keys(toolPerms).length > 0) {
-                serversWithSpecificTools.add(serverName)
-            }
+    // Handle built-in tools
+    // Add default built-in tools
+    for (const toolName of featureAgent.getBuiltInToolNames()) {
+        if (!agent.tools.includes(toolName)) {
+            agent.tools.push(toolName)
         }
+    }
 
-        // Second pass: add tools to agent config
-        for (const [serverName, toolPerms] of Object.entries(persona.toolPerms)) {
-            // For built-in tools, handle directly
-            if (serverName === 'builtIn') {
-                for (const [toolName, permission] of Object.entries(toolPerms)) {
-                    // Add to tools list
-                    if (!agent.tools.includes(toolName)) {
-                        agent.tools.push(toolName)
-                    }
-
-                    // Add to allowedTools if alwaysAllow
-                    if (permission === McpPermissionType.alwaysAllow) {
-                        if (!agent.allowedTools.includes(toolName)) {
-                            agent.allowedTools.push(toolName)
-                        }
-                    }
-
-                    // Add tool settings if any
-                    if (typeof permission === 'object') {
-                        agent.toolsSettings![toolName] = permission
-                    }
-                }
-            } else {
-                // For MCP servers
-                // If server has specific tools, add each tool individually
-                if (serversWithSpecificTools.has(serverName)) {
-                    for (const [toolName, permission] of Object.entries(toolPerms)) {
-                        const toolId = `@${serverName}/${toolName}`
-
-                        // Add to tools list
-                        if (!agent.tools.includes(toolId)) {
-                            agent.tools.push(toolId)
-                        }
-
-                        // Add to allowedTools if alwaysAllow
-                        if (permission === McpPermissionType.alwaysAllow) {
-                            if (!agent.allowedTools.includes(toolId)) {
-                                agent.allowedTools.push(toolId)
-                            }
-                        }
-
-                        // Add tool settings if any
-                        if (typeof permission === 'object') {
-                            agent.toolsSettings![toolId] = permission
-                        }
-                    }
-                } else {
-                    // If server has no specific tools, enable the whole server
-                    const serverPrefix = `@${serverName}`
-                    if (!agent.tools.includes(serverPrefix)) {
-                        agent.tools.push(serverPrefix)
-                    }
-
-                    // Check if all tools are alwaysAllow
-                    const allToolsAlwaysAllow = Object.values(toolPerms).every(
-                        perm => perm === McpPermissionType.alwaysAllow
-                    )
-
-                    if (allToolsAlwaysAllow) {
-                        // Add server prefix to allowedTools
-                        if (!agent.allowedTools.includes(serverPrefix)) {
-                            agent.allowedTools.push(serverPrefix)
-                        }
-                    }
-                }
-            }
+    // Add default allowed tools
+    const writeToolNames = new Set(featureAgent.getBuiltInWriteToolNames())
+    const defaultAllowedTools = featureAgent.getBuiltInToolNames().filter(toolName => !writeToolNames.has(toolName))
+    for (const toolName of defaultAllowedTools) {
+        if (!agent.allowedTools.includes(toolName)) {
+            agent.allowedTools.push(toolName)
         }
+    }
+
+    // Add default tool settings
+    if (!agent.toolsSettings) {
+        agent.toolsSettings = {}
+    }
+
+    agent.toolsSettings['execute_bash'] = {
+        alwaysAllow: [
+            {
+                preset: 'readOnly',
+            },
+        ],
+    }
+
+    agent.toolsSettings['use_aws'] = {
+        alwaysAllow: [
+            {
+                preset: 'readOnly',
+            },
+        ],
     }
 
     return agent
@@ -756,7 +736,7 @@ export function normalizePathFromUri(path: string, logging?: Logger): string {
 /**
  * Migrate MCP servers and their permissions from config and persona files to agent config
  */
-export async function migrateToAgentConfig(workspace: Workspace, logging: Logger): Promise<void> {
+export async function migrateToAgentConfig(workspace: Workspace, logging: Logger, agent: Agent): Promise<void> {
     // Process global and workspace paths separately
     const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
     const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
@@ -769,12 +749,12 @@ export async function migrateToAgentConfig(workspace: Workspace, logging: Logger
     const wsAgentPaths = getWorkspaceAgentConfigPaths(wsUris)
 
     // Migrate global config
-    await migrateConfigToAgent(workspace, logging, [globalConfigPath], [globalPersonaPath], globalAgentPath)
+    await migrateConfigToAgent(workspace, logging, globalConfigPath, globalPersonaPath, globalAgentPath, agent, true)
 
     // Migrate workspace configs
     for (let i = 0; i < wsUris.length; i++) {
         if (wsConfigPaths[i] && wsPersonaPaths[i] && wsAgentPaths[i]) {
-            await migrateConfigToAgent(workspace, logging, [wsConfigPaths[i]], [wsPersonaPaths[i]], wsAgentPaths[i])
+            await migrateConfigToAgent(workspace, logging, wsConfigPaths[i], wsPersonaPaths[i], wsAgentPaths[i], agent)
         }
     }
 }
@@ -785,10 +765,17 @@ export async function migrateToAgentConfig(workspace: Workspace, logging: Logger
 async function migrateConfigToAgent(
     workspace: Workspace,
     logging: Logger,
-    configPaths: string[],
-    personaPaths: string[],
-    agentPath: string
+    configPath: string,
+    personaPath: string,
+    agentPath: string,
+    agent: Agent,
+    isGlobalDefault: boolean = false
 ): Promise<void> {
+    // Normalize all paths to ensure consistent handling
+    const normalizedConfigPath = normalizePathFromUri(configPath, logging)
+    const normalizedPersonaPath = normalizePathFromUri(personaPath, logging)
+    agentPath = normalizePathFromUri(agentPath)
+
     // Check if agent config exists
     const agentExists = await workspace.fs.exists(agentPath).catch(() => false)
 
@@ -798,71 +785,68 @@ async function migrateConfigToAgent(
         try {
             const raw = (await workspace.fs.readFile(agentPath)).toString().trim()
             existingAgentConfig = raw ? JSON.parse(raw) : undefined
-            logging.info(`Found existing agent configuration at ${agentPath}, will merge with new settings`)
         } catch (err) {
             logging.warn(`Failed to read existing agent config at ${agentPath}: ${err}`)
         }
     }
 
-    // Read MCP server configs directly from files
+    // Read MCP server configs directly from file
     const serverConfigs: Record<string, MCPServerConfig> = {}
-    for (const configPath of configPaths) {
-        try {
-            if (await workspace.fs.exists(configPath)) {
-                const raw = (await workspace.fs.readFile(configPath)).toString().trim()
-                if (raw) {
-                    const config = JSON.parse(raw)
-                    if (config.mcpServers && typeof config.mcpServers === 'object') {
-                        // Add each server to the serverConfigs
-                        for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
-                            serverConfigs[name] = {
-                                command: (serverConfig as any).command,
-                                args: Array.isArray((serverConfig as any).args)
-                                    ? (serverConfig as any).args
+    try {
+        const configExists = await workspace.fs.exists(normalizedConfigPath)
+
+        if (configExists) {
+            const raw = (await workspace.fs.readFile(normalizedConfigPath)).toString().trim()
+            if (raw) {
+                const config = JSON.parse(raw)
+
+                if (config.mcpServers && typeof config.mcpServers === 'object') {
+                    // Add each server to the serverConfigs
+                    for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
+                        serverConfigs[name] = {
+                            command: (serverConfig as any).command,
+                            args: Array.isArray((serverConfig as any).args) ? (serverConfig as any).args : undefined,
+                            env: typeof (serverConfig as any).env === 'object' ? (serverConfig as any).env : undefined,
+                            initializationTimeout:
+                                typeof (serverConfig as any).initializationTimeout === 'number'
+                                    ? (serverConfig as any).initializationTimeout
                                     : undefined,
-                                env:
-                                    typeof (serverConfig as any).env === 'object'
-                                        ? (serverConfig as any).env
-                                        : undefined,
-                                initializationTimeout:
-                                    typeof (serverConfig as any).initializationTimeout === 'number'
-                                        ? (serverConfig as any).initializationTimeout
-                                        : undefined,
-                                timeout:
-                                    typeof (serverConfig as any).timeout === 'number'
-                                        ? (serverConfig as any).timeout
-                                        : undefined,
-                            }
+                            timeout:
+                                typeof (serverConfig as any).timeout === 'number'
+                                    ? (serverConfig as any).timeout
+                                    : undefined,
                         }
+                        logging.info(`Added server ${name} to serverConfigs`)
                     }
                 }
             }
-        } catch (err) {
-            logging.warn(`Failed to read MCP config file ${configPath}: ${err}`)
         }
+    } catch (err) {
+        logging.warn(`Failed to read MCP config file ${normalizedConfigPath}: ${err}`)
     }
 
     // Read persona config directly from file
     let personaConfig: any = { mcpServers: [], toolPerms: {} }
-    for (const personaPath of personaPaths) {
-        try {
-            if (await workspace.fs.exists(personaPath)) {
-                const raw = (await workspace.fs.readFile(personaPath)).toString().trim()
-                if (raw) {
-                    const config = JSON.parse(raw)
-                    if (config.mcpServers || config.toolPerms) {
-                        personaConfig = config
-                        break // Use the first valid persona config found
-                    }
+    try {
+        const personaExists = await workspace.fs.exists(normalizedPersonaPath)
+
+        if (personaExists) {
+            const raw = (await workspace.fs.readFile(normalizedPersonaPath)).toString().trim()
+            if (raw) {
+                const config = JSON.parse(raw)
+                if (config.mcpServers || config.toolPerms) {
+                    personaConfig = config
                 }
             }
-        } catch (err) {
-            logging.warn(`Failed to read persona config at ${personaPath}: ${err}`)
         }
+    } catch (err) {
+        logging.warn(`Failed to read persona config at ${normalizedPersonaPath}: ${err}`)
     }
 
     // Convert to agent config
-    const newAgentConfig = convertPersonaToAgent(personaConfig, serverConfigs)
+    const newAgentConfig = convertPersonaToAgent(personaConfig, serverConfigs, agent)
+    newAgentConfig.includedFiles = ['AmazonQ.md', 'README.md', '.amazonq/rules/**/*.md']
+    newAgentConfig.resources = [] // Initialize with empty array
 
     // Merge with existing config if available
     let finalAgentConfig: AgentConfig
@@ -891,6 +875,7 @@ async function migrateConfigToAgent(
         }
     } else {
         finalAgentConfig = newAgentConfig
+        logging.info(`Using new config (no existing config to merge)`)
     }
 
     // Save agent config
