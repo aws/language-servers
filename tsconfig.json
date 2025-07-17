@@ -80,6 +80,9 @@
         },
         {
             "path": "./app/aws-lsp-partiql-runtimes"
+        },
+        {
+            "path": "./integration-tests/q-agentic-chat-server"
         }
     ]
 }

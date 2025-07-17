@@ -10,6 +10,7 @@
         "compile": "tsc --build"
     },
     "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.109",
         "@aws/lsp-s3": "^0.0.1"
     }
 }

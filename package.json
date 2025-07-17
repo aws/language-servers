@@ -9,7 +9,8 @@
         "chat-client",
         "core/*",
         "server/*",
-        "server/**"
+        "server/**",
+        "integration-tests/*"
     ],
     "scripts": {
         "prepare": "husky .husky",
@@ -29,12 +30,12 @@
         "test-integ": "npm run compile && npm run test-integ --workspaces --if-present",
         "test-unit": "npm run compile && npm run test-unit --workspaces --if-present",
         "test:coverage": "npm run compile && npm run test:coverage --workspaces --if-present",
-        "coverage:report": "c8 report --reporter=html --reporter=text",
-        "coverage:check": "c8 check-coverage --lines 70 --functions 70 --branches 70 --statements 70",
+        "coverage:report": "npm run coverage:report --workspaces --if-present",
+        "coverage:check": "npm run coverage:check --workspaces --if-present",
         "package": "npm run compile && npm run package --workspaces --if-present"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.105",
+        "@aws/language-server-runtimes": "^0.2.109",
         "@smithy/types": "4.2.0",
         "clean": "^4.0.2",
         "typescript": "^5.8.2"
