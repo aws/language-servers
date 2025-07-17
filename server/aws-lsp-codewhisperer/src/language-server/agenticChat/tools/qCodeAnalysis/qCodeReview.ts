@@ -36,8 +36,8 @@ export class QCodeReview {
     private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
     private static readonly CODE_DIFF_PATH = 'code_artifact/codeDiff/customerCodeDiff.diff'
     private static readonly RULE_ARTIFACT_PATH = '.amazonq/rules'
-    private static readonly MAX_POLLING_ATTEMPTS = 30
-    private static readonly MID_POLLING_ATTEMPTS = 15
+    private static readonly MAX_POLLING_ATTEMPTS = 60
+    private static readonly MID_POLLING_ATTEMPTS = 20
     private static readonly POLLING_INTERVAL_MS = 10000
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
