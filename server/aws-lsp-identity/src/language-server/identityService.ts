@@ -33,13 +33,11 @@ import {
 } from '../sso/utils'
 import { IamFlowParams, IamHandlers, simulatePermissions } from '../iam/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { STSClient, STSClientConfig } from '@aws-sdk/client-sts'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { fromProcess } from '@aws-sdk/credential-provider-process'
 import { fromContainerMetadata, fromInstanceMetadata } from '@smithy/credential-provider-imds'
-import { IAMClient, IAMClientConfig } from '@aws-sdk/client-iam'
 import { fromEnv } from '@aws-sdk/credential-provider-env'
 import { IamProvider } from '../iam/iamProvider'
 
@@ -190,10 +188,6 @@ export class IdentityService {
                     fromContainerMetadata: fromContainerMetadata,
                     fromInstanceMetadata: fromInstanceMetadata,
                     fromEnv: fromEnv,
-                },
-                awsClientFactories: {
-                    IAM: (config: IAMClientConfig) => new IAMClient(config),
-                    STS: (config: STSClientConfig) => new STSClient(config),
                 },
                 token: token,
                 observability: this.observability,

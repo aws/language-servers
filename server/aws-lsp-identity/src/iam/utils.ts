@@ -1,10 +1,5 @@
-import {
-    IAMClient,
-    IAMClientConfig,
-    SimulatePrincipalPolicyCommand,
-    SimulatePrincipalPolicyCommandOutput,
-} from '@aws-sdk/client-iam'
-import { GetCallerIdentityCommand, STSClient, STSClientConfig } from '@aws-sdk/client-sts'
+import { IAMClient, SimulatePrincipalPolicyCommand, SimulatePrincipalPolicyCommandOutput } from '@aws-sdk/client-iam'
+import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts'
 import {
     AwsErrorCodes,
     CancellationToken,
@@ -63,11 +58,6 @@ export type CredentialProviders = {
     fromEnv: (init?: FromEnvInit) => AwsCredentialIdentityProvider
 }
 
-export type AwsClientFactories = {
-    IAM: (config: IAMClientConfig) => IAMClient
-    STS: (config: STSClientConfig) => STSClient
-}
-
 export type SendGetMfaCode = (params: GetMfaCodeParams) => Promise<GetMfaCodeResult>
 
 export type IamHandlers = {
@@ -82,7 +72,6 @@ export type IamFlowParams = {
     stsAutoRefresher: StsAutoRefresher
     handlers: IamHandlers
     providers: CredentialProviders
-    awsClientFactories: AwsClientFactories
     token: CancellationToken
     observability: Observability
 }
