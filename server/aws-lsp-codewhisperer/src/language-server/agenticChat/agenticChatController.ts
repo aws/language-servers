@@ -46,6 +46,7 @@ import {
     OpenFileDialogParams,
     OpenFileDialogResult,
     SUBSCRIPTION_SHOW_COMMAND_METHOD,
+    SubscriptionUpgradeParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -4115,6 +4116,12 @@ export class AgenticChatController implements ChatHandlers {
 
         this.#chatHistoryDb.setModelId(session.modelId)
         this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
+    }
+
+    onSubscriptionUpgrade(param: SubscriptionUpgradeParams) {
+        this.#log('onSubscriptionUpgrade')
+
+        // TODO : future development here
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {
