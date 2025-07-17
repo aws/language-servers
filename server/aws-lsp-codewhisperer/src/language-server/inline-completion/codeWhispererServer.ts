@@ -588,7 +588,7 @@ export const CodewhispererServerFactory =
                                 document: {
                                     relativeFilePath: textDocument.uri,
                                     programmingLanguage: {
-                                        languageName: textDocument.languageId,
+                                        languageName: requestContext.fileContext.programmingLanguage.languageName,
                                     },
                                     text: textDocument.getText(),
                                 },
