@@ -17,7 +17,7 @@ import {
     IdeDiagnostic,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
+import { autoTrigger, getAutoTriggerType, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
@@ -427,6 +427,7 @@ export const CodewhispererServerFactory =
                         : undefined
 
                     let triggerCharacters = ''
+                    let codewhispererAutoTriggerType = undefined
                     // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
                     if (
                         params.documentChangeParams?.contentChanges &&
@@ -434,11 +435,13 @@ export const CodewhispererServerFactory =
                         params.documentChangeParams.contentChanges[0].text !== undefined
                     ) {
                         triggerCharacters = params.documentChangeParams.contentChanges[0].text
+                        codewhispererAutoTriggerType = getAutoTriggerType(params.documentChangeParams.contentChanges)
                     } else {
                         // if the client does not emit document change for the trigger, use left most character.
                         triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
+                        codewhispererAutoTriggerType = triggerType(fileContext)
                     }
-                    const codewhispererAutoTriggerType = triggerType(fileContext)
+
                     const previousSession = sessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
                     const previousSuggestionType = previousSession?.suggestionType ?? ''
@@ -448,6 +451,13 @@ export const CodewhispererServerFactory =
                     if (initializeParams !== undefined) {
                         ideCategory = getIdeCategory(initializeParams)
                     }
+
+                    // See: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L132
+                    // In such cases, do not auto trigger.
+                    if (codewhispererAutoTriggerType === undefined) {
+                        return EMPTY_RESULT
+                    }
+
                     const autoTriggerResult = autoTrigger(
                         {
                             fileContext, // The left/right file context and programming language
