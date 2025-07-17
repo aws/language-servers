@@ -9,7 +9,8 @@
         "chat-client",
         "core/*",
         "server/*",
-        "server/**"
+        "server/**",
+        "integration-tests/*"
     ],
     "scripts": {
         "prepare": "husky .husky",
@@ -36,6 +37,7 @@
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.111",
         "@smithy/types": "4.2.0",
+        "clean": "^4.0.2",
         "typescript": "^5.8.2"
     },
     "devDependencies": {

@@ -148,7 +148,7 @@ export class ContextCommandsProvider implements Disposable {
 
         const imageCmdGroup: ContextCommand = {
             command: 'Image',
-            description: 'Add a image to context',
+            description: 'Add image to context',
             icon: 'image',
             placeholder: 'Select an image file',
         }
