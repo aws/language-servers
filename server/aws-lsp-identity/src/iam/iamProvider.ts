@@ -144,11 +144,13 @@ export class IamProvider {
                 }
                 assumeRoleInput.SerialNumber = params.profile.settings?.mfa_serial
                 // Request an MFA code from the language client
-                const timeout = new Promise<never>((_, reject) =>
-                    setTimeout(
-                        () => reject(new AwsError('MFA code request timed out', AwsErrorCodes.E_MFA_REQUIRED)),
-                        mfaTimeout
-                    )
+                let timeoutId: NodeJS.Timeout | undefined
+                const timeout = new Promise<never>(
+                    (_, reject) =>
+                        (timeoutId = setTimeout(
+                            () => reject(new AwsError('MFA code request timed out', AwsErrorCodes.E_MFA_REQUIRED)),
+                            mfaTimeout
+                        ))
                 )
                 const response = await Promise.race([
                     params.handlers.sendGetMfaCode({
@@ -157,6 +159,7 @@ export class IamProvider {
                     }),
                     timeout,
                 ])
+                clearTimeout(timeoutId)
                 if (!response.code) {
                     throw new AwsError(
                         'MFA code required when assuming role with MultiFactorAuthPresent permission condition',
