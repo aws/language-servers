@@ -17,7 +17,7 @@ import {
     IdeDiagnostic,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
+import { autoTrigger, getAutoTriggerType, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
@@ -426,10 +426,22 @@ export const CodewhispererServerFactory =
                         ? workspaceState.workspaceId
                         : undefined
 
-                    // TODO: Can we get this derived from a keyboard event in the future?
-                    // This picks the last non-whitespace character, if any, before the cursor
-                    const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
-                    const codewhispererAutoTriggerType = triggerType(fileContext)
+                    let triggerCharacters = ''
+                    let codewhispererAutoTriggerType = undefined
+                    // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
+                    if (
+                        params.documentChangeParams?.contentChanges &&
+                        params.documentChangeParams.contentChanges.length > 0 &&
+                        params.documentChangeParams.contentChanges[0].text !== undefined
+                    ) {
+                        triggerCharacters = params.documentChangeParams.contentChanges[0].text
+                        codewhispererAutoTriggerType = getAutoTriggerType(params.documentChangeParams.contentChanges)
+                    } else {
+                        // if the client does not emit document change for the trigger, use left most character.
+                        triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
+                        codewhispererAutoTriggerType = triggerType(fileContext)
+                    }
+
                     const previousSession = sessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
                     const previousSuggestionType = previousSession?.suggestionType ?? ''
@@ -439,11 +451,18 @@ export const CodewhispererServerFactory =
                     if (initializeParams !== undefined) {
                         ideCategory = getIdeCategory(initializeParams)
                     }
+
+                    // See: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L132
+                    // In such cases, do not auto trigger.
+                    if (codewhispererAutoTriggerType === undefined) {
+                        return EMPTY_RESULT
+                    }
+
                     const autoTriggerResult = autoTrigger(
                         {
                             fileContext, // The left/right file context and programming language
                             lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                            char: triggerCharacter, // Add the character just inserted, if any, before the invication position
+                            char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                             ide: ideCategory ?? '',
                             os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                             previousDecision, // The last decision by the user on the previous invocation
@@ -523,7 +542,7 @@ export const CodewhispererServerFactory =
                                 const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
                                     fileContext: fileContext,
                                     lineNum: params.position.line,
-                                    char: triggerCharacter,
+                                    char: triggerCharacters,
                                     previousDecision: previousDecision,
                                     cursorHistory: cursorTracker,
                                     recentEdits: recentEditTracker,
@@ -601,8 +620,7 @@ export const CodewhispererServerFactory =
                         }
                         // Emit user trigger decision at session close time for active session
                         sessionManager.discardSession(currentSession)
-                        // TODO add streakLength back once the model is updated
-                        // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                        const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                         await emitUserTriggerDecisionTelemetry(
                             telemetry,
                             telemetryService,
@@ -611,7 +629,8 @@ export const CodewhispererServerFactory =
                             0,
                             0,
                             [],
-                            []
+                            [],
+                            streakLength
                         )
                     }
 
@@ -643,7 +662,7 @@ export const CodewhispererServerFactory =
                         language: fileContext.programmingLanguage.languageName,
                         requestContext: requestContext,
                         autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
-                        triggerCharacter: triggerCharacter,
+                        triggerCharacter: triggerCharacters,
                         classifierResult: autoTriggerResult?.classifierResult,
                         classifierThreshold: autoTriggerResult?.classifierThreshold,
                         credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
@@ -714,13 +733,17 @@ export const CodewhispererServerFactory =
             if (session.discardInflightSessionOnNewInvocation) {
                 session.discardInflightSessionOnNewInvocation = false
                 sessionManager.discardSession(session)
-                // TODO add streakLength back once the model is updated
-                // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
                     session,
-                    timeSinceLastUserModification
+                    timeSinceLastUserModification,
+                    0,
+                    0,
+                    [],
+                    [],
+                    streakLength
                 )
             }
 
@@ -1004,8 +1027,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            // TODO add streakLength back once the model is updated
-            // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,
@@ -1014,7 +1036,8 @@ export const CodewhispererServerFactory =
                 addedCharactersForEditSuggestion.length,
                 deletedCharactersForEditSuggestion.length,
                 addedDiagnostics,
-                removedDiagnostics
+                removedDiagnostics,
+                streakLength
             )
         }
 

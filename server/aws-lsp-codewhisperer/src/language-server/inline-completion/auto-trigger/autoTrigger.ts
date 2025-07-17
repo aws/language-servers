@@ -1,6 +1,7 @@
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { FileContext } from '../../../shared/codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
+import { TextDocumentContentChangeEvent } from 'vscode-languageserver-textdocument'
 
 type TypedCoefficients = typeof typedCoefficients
 type Coefficients = TypedCoefficients & {
@@ -59,6 +60,78 @@ export const triggerType = (fileContext: FileContext): CodewhispererAutomatedTri
     }
 
     return 'Classifier'
+}
+
+// Enter key should always start with ONE '\n' or '\r\n' and potentially following spaces due to IDE reformat
+function isEnterKey(str: string): boolean {
+    if (str.length === 0) {
+        return false
+    }
+    return (
+        (str.startsWith('\r\n') && str.substring(2).trim() === '') ||
+        (str[0] === '\n' && str.substring(1).trim() === '')
+    )
+}
+
+function isSingleLine(str: string): boolean {
+    let newLineCounts = 0
+    for (const ch of str) {
+        if (ch === '\n') {
+            newLineCounts += 1
+        }
+    }
+
+    // since pressing Enter key possibly will generate string like '\n        ' due to indention
+    if (isEnterKey(str)) {
+        return true
+    }
+    if (newLineCounts >= 1) {
+        return false
+    }
+    return true
+}
+
+function isUserTypingSpecialChar(str: string): boolean {
+    return ['(', '()', '[', '[]', '{', '{}', ':'].includes(str)
+}
+
+function isTabKey(str: string): boolean {
+    const tabSize = 4 // TODO: Use IDE real tab size
+    if (str.length % tabSize === 0 && str.trim() === '') {
+        return true
+    }
+    return false
+}
+
+// Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L222
+// Enter, Special character guarantees a trigger
+// Regular keystroke input will be evaluated by classifier
+export const getAutoTriggerType = (
+    contentChanges: TextDocumentContentChangeEvent[]
+): CodewhispererAutomatedTriggerType | undefined => {
+    if (contentChanges.length !== 1) {
+        // Won't trigger cwspr on multi-line changes
+        // event.contentChanges.length will be 2 when user press Enter key multiple times
+        return undefined
+    }
+    const changedText = contentChanges[0].text
+    if (isSingleLine(changedText)) {
+        if (changedText.length === 0) {
+            return undefined
+        } else if (isEnterKey(changedText)) {
+            return 'Enter'
+        } else if (isTabKey(changedText)) {
+            return undefined
+        } else if (isUserTypingSpecialChar(changedText)) {
+            return 'SpecialCharacters'
+        } else if (changedText.length === 1) {
+            return 'Classifier'
+        } else if (new RegExp('^[ ]+$').test(changedText)) {
+            // single line && single place reformat should consist of space chars only
+            return undefined
+        }
+    }
+    return undefined
 }
 
 // Normalize values based on minn and maxx values in the coefficients.
