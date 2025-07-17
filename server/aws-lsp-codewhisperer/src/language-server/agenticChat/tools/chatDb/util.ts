@@ -123,6 +123,11 @@ export type TabWithDbMetadata = {
  */
 export type DbReference = { collection: Collection<Tab>; db: Loki }
 
+export type MessagesWithCharacterCount = {
+    messages: Message[]
+    count: number
+}
+
 /**
  * Converts Message to codewhisperer-streaming ChatMessage
  */

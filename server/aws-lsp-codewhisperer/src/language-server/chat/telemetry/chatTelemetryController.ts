@@ -169,6 +169,16 @@ export class ChatTelemetryController {
         }
     }
 
+    public emitActiveUser() {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.ActiveUser,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
+            },
+        })
+    }
+
     public emitAgencticLoop_InvokeLLM(
         requestId: string,
         conversationId: string,
