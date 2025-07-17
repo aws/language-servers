@@ -973,6 +973,9 @@ export class McpEventHandler {
                 description: item.tool.description,
                 placeholder: currentPermission,
                 options: permissionOptions,
+                ...(toolName === 'fsWrite'
+                    ? { disabled: true, madantory: true, tooltip: 'Permission for this tool is not configurable yet' }
+                    : {}),
             })
         })
 

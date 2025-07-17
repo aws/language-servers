@@ -1344,15 +1344,25 @@ export class AgenticChatController implements ChatHandlers {
                             toolUse.input as any,
                             approvedPaths
                         )
+
+                        const isExecuteBash = toolUse.name === 'executeBash'
+
                         // check if tool execution's path is out of workspace
                         const isOutOfWorkSpace = warning === OUT_OF_WORKSPACE_WARNING_MSG
+                        // check if tool involved secured files
                         const isSecuredFilesInvoled =
                             warning === BINARY_FILE_WARNING_MSG || warning === CREDENTIAL_FILE_WARNING_MSG
+
                         // Honor built-in permission if available, otherwise use tool's requiresAcceptance
-                        const toolRequiresAcceptance =
+                        let toolRequiresAcceptance =
                             (builtInPermission || isOutOfWorkSpace || isSecuredFilesInvoled) ?? requiresAcceptance
 
-                        if (toolRequiresAcceptance || toolUse.name === 'executeBash') {
+                        // if the command is read-only and in-workspace --> flip back to no approval needed
+                        if (isExecuteBash && commandCategory === CommandCategory.ReadOnly && !isOutOfWorkSpace) {
+                            toolRequiresAcceptance = false
+                        }
+
+                        if (toolRequiresAcceptance || isExecuteBash) {
                             // for executeBash, we till send the confirmation message without action buttons
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
@@ -1363,7 +1373,7 @@ export class AgenticChatController implements ChatHandlers {
                                 builtInPermission
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-                            const isExecuteBash = toolUse.name === 'executeBash'
+
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -2137,8 +2147,6 @@ export class AgenticChatController implements ChatHandlers {
                               ),
                           }
                         : {},
-                    icon: 'warning',
-                    iconForegroundStatus: 'warning',
                     body: 'shell',
                     buttons,
                 }
