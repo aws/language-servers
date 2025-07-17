@@ -2951,6 +2951,7 @@ export class AgenticChatController implements ChatHandlers {
                 useRelevantDocuments: false,
             }
 
+        // Clear images to avoid passing them again in follow-up toolUse/toolResult loops, as it is may confuse the model
         updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.images = []
 
         for (const toolResult of toolResults) {
