@@ -837,7 +837,7 @@ export class ChatDatabase {
                 try {
                     for (const image of message.images) {
                         let imageTokenInCharacter = estimateCharacterCountFromImageBlock(image)
-                        count += imageTokenInCharacter
+                        bodyCount += imageTokenInCharacter
                     }
                 } catch (e) {
                     this.#features.logging.error(`Error counting images: ${String(e)}`)
