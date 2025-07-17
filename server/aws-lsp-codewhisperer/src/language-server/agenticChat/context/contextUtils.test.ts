@@ -365,7 +365,7 @@ describe('contextUtils', () => {
             } as ContextCommandItem
 
             const result = getCodeSymbolDescription(item, false)
-            expect(result).to.equal('Function, workspace/src/utils.ts')
+            expect(result).to.equal(`Function, ${path.join('workspace', 'src', 'utils.ts')}`)
         })
 
         it('should format description with line numbers', () => {
@@ -385,7 +385,7 @@ describe('contextUtils', () => {
             } as ContextCommandItem
 
             const result = getCodeSymbolDescription(item, true)
-            expect(result).to.equal('Class, workspace/src/utils.ts, L10-20')
+            expect(result).to.equal(`Class, ${path.join('workspace', 'src', 'utils.ts')}, L10-20`)
         })
 
         it('should handle different workspace folder names', () => {
@@ -405,7 +405,7 @@ describe('contextUtils', () => {
             } as ContextCommandItem
 
             const result = getCodeSymbolDescription(item, true)
-            expect(result).to.equal('Method, my-project/src/utils.ts, L5-8')
+            expect(result).to.equal(`Method, ${path.join('my-project', 'src', 'utils.ts')}, L5-8`)
         })
 
         it('should handle different symbol kinds', () => {
@@ -425,7 +425,7 @@ describe('contextUtils', () => {
             } as ContextCommandItem
 
             const result = getCodeSymbolDescription(item, false)
-            expect(result).to.equal('Interface, workspace/src/models.ts')
+            expect(result).to.equal(`Interface, ${path.join('workspace', 'src', 'models.ts')}`)
         })
     })
 })
