@@ -80,6 +80,21 @@ Ask me to do things like:
 3. Modify your files`,
 }
 
+export const reviewRerouteCard: ChatItem = {
+    type: ChatItemType.ANSWER,
+    border: true,
+    header: {
+        padding: true,
+        iconForegroundStatus: 'warning',
+        icon: MynahIcons.INFO,
+        body: 'You can now ask to run code reviews directly in the chat.',
+    },
+    body: `You don't need to explicitly use /review. We've redirected your request to chat.
+Ask me to do things like:
+• Review the open file
+• Review the open workspace`,
+}
+
 export const createRerouteCard = (command: string): ChatItem => {
     switch (command) {
         case '/test':
@@ -88,6 +103,8 @@ export const createRerouteCard = (command: string): ChatItem => {
             return docRerouteCard
         case '/dev':
             return devRerouteCard
+        case '/review':
+            return reviewRerouteCard
         default:
             return devRerouteCard // Default fallback
     }

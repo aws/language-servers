@@ -198,7 +198,7 @@ export const handleChatPrompt = (
         agenticMode &&
         tabFactory?.isRerouteEnabled() &&
         prompt.command &&
-        ['/dev', '/test', '/doc'].includes(prompt.command)
+        ['/dev', '/test', '/doc', '/review'].includes(prompt.command)
 
     if (prompt.command && !isReroutedCommand && prompt.command !== '/compact') {
         // Send /compact quick action as normal regular chat prompt
@@ -225,7 +225,7 @@ export const handleChatPrompt = (
     } else {
         // Go agentic chat workflow when:
         // 1. Regular prompts without commands
-        // 2. Rerouted commands (/dev, /test, /doc) when feature flag: reroute is enabled
+        // 2. Rerouted commands (/dev, /test, /doc, /review) when feature flag: reroute is enabled
 
         // Special handling for /doc command - always send fixed prompt for fixed response
         if (isReroutedCommand && prompt.command === '/doc') {
@@ -250,6 +250,9 @@ export const handleChatPrompt = (
                     break
                 case '/doc':
                     defaultPrompt = DEFAULT_DOC_PROMPT
+                    break
+                case '/review':
+                    defaultPrompt = DEFAULT_REVIEW_PROMPT
                     break
             }
 
@@ -1700,6 +1703,8 @@ const DEFAULT_DOC_PROMPT = `You are Amazon Q. Start with a warm greeting, then a
 const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then help me generate unit tests`
 
 const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
+
+const DEFAULT_REVIEW_PROMPT = `You are Amazon Q. Start with a warm greeting, then run a code review on the open file`
 
 export const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
