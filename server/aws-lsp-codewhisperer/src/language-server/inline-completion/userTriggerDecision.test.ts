@@ -1251,7 +1251,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: 0.30173811481459184,
+                    classifierResult: getNormalizeOsName() === 'Linux' ? 0.30173811481459184 : 0.2458381148145919,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {
