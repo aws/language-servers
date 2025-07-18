@@ -735,7 +735,10 @@ export const CodewhispererServerFactory =
             }
 
             // session was closed by user already made decisions consequent completion request before new paginated API response was received
-            if (session.state === 'CLOSED' || session.state === 'DISCARD') {
+            if (
+                session.suggestionType !== SuggestionType.EDIT && // TODO: this is a shorterm fix to allow Edits tabtabtab experience, however the real solution is to manage such sessions correctly
+                (session.state === 'CLOSED' || session.state === 'DISCARD')
+            ) {
                 return EMPTY_RESULT
             }
 
