@@ -547,7 +547,7 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
         }
     }
 
-    return await fg(['**/*'], {
+    const absolutePaths = await fg(['**/*'], {
         cwd: directory,
         dot: true,
         ignore: ignorePatterns,
@@ -555,6 +555,7 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
         followSymbolicLinks: false,
         absolute: true,
     })
+    return absolutePaths.slice(0, 500_000)
 }
 
 export function getFileExtensionName(filepath: string): string {
