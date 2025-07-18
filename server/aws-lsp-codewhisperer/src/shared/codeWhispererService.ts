@@ -563,4 +563,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         return !!r
     }
+
+    public async getUsageLimits(
+        request: CodeWhispererTokenClient.GetUsageLimitsRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.GetUsageLimitsResponse, AWSError>> {
+        return this.client.getUsageLimits(this.withProfileArn(request)).promise()
+    }
 }
