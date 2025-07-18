@@ -2065,8 +2065,8 @@ describe('CodeWhisperer Server', () => {
                 expectedSessionData
             )
         })
-
-        it('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+        // we decided to temporarily stop concurrent trigger and disable such logic
+        it.skip('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
             const getCompletionsResponses = await Promise.all([
                 features.doInlineCompletionWithReferences(
                     {
@@ -2128,7 +2128,47 @@ describe('CodeWhisperer Server', () => {
             )
         })
 
-        it('should record all sessions that were created in session log', async () => {
+        it('should block inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+            const getCompletionsResponses = await Promise.all([
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+            ])
+
+            // 3 requests were processed by server, but only first should return results
+            const EXPECTED_COMPLETION_RESPONSES = [
+                { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items, partialResultToken: undefined }, // First session wins
+                { sessionId: '', items: [] },
+                { sessionId: '', items: [] },
+            ]
+            // Only last request must return completion items
+            assert.deepEqual(getCompletionsResponses, EXPECTED_COMPLETION_RESPONSES)
+
+            assert.equal(sessionManagerSpy.createSession.callCount, 1)
+        })
+
+        it.skip('should record all sessions that were created in session log', async () => {
             // Start 3 session, 2 will be cancelled inflight
             await Promise.all([
                 features.doInlineCompletionWithReferences(
