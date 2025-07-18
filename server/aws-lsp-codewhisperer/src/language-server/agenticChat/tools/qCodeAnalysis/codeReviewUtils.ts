@@ -364,16 +364,16 @@ export class CodeReviewUtils {
         logging: Features['logging'],
         telemetry: Features['telemetry']
     ): void {
-        const { name, metadata, ...metricStatus } = metric
+        const { metadata, ...metricDetails } = metric
         const metricPayload = {
-            name: `${CODE_REVIEW_METRICS_PARENT_NAME}_${name}`,
+            name: CODE_REVIEW_METRICS_PARENT_NAME,
             data: {
                 // metadata is optional attribute
                 ...(metadata || {}),
-                ...metricStatus,
+                ...metricDetails,
             },
         }
-        logging.info(`Emitting telemetry metric: ${metric.name} with data: ${JSON.stringify(metricPayload.data)}`)
+        logging.info(`Emitting telemetry metric: ${metric.reason} with data: ${JSON.stringify(metricPayload.data)}`)
         telemetry.emitMetric(metricPayload)
     }
 

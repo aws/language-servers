@@ -665,7 +665,7 @@ describe('CodeReviewUtils', () => {
 
         it('should emit a success metric with all parameters', () => {
             const metric = {
-                name: SuccessMetricName.CodeScanSuccess,
+                reason: SuccessMetricName.CodeScanSuccess,
                 result: 'Succeeded',
                 metadata: { jobId: '123', scanType: 'full', credentialStartUrl: 'https://example.com' },
             } as CodeReviewMetric
@@ -673,12 +673,13 @@ describe('CodeReviewUtils', () => {
             CodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
-                name: 'amazonq_codeReviewTool_codeScanSuccess',
+                name: 'amazonq_codeReviewTool',
                 data: {
                     jobId: '123',
                     scanType: 'full',
                     credentialStartUrl: 'https://example.com',
                     result: 'Succeeded',
+                    reason: 'codeScanSuccess',
                 },
             })
 
@@ -687,38 +688,40 @@ describe('CodeReviewUtils', () => {
 
         it('should emit a failure metric with required reason', () => {
             const metric = {
-                name: FailedMetricName.CodeScanFailed,
+                reason: FailedMetricName.CodeScanFailed,
                 result: 'Failed',
-                reason: 'Required failure reason',
+                reasonDesc: 'Required failure reason',
                 metadata: { jobId: '456' },
             } as CodeReviewMetric
 
             CodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
-                name: 'amazonq_codeReviewTool_codeScanFailed',
+                name: 'amazonq_codeReviewTool',
                 data: {
                     jobId: '456',
                     result: 'Failed',
-                    reason: 'Required failure reason',
+                    reason: 'codeScanFailed',
+                    reasonDesc: 'Required failure reason',
                 },
             })
         })
 
         it('should handle metrics without metadata', () => {
             const metric = {
-                name: FailedMetricName.MissingFileOrFolder,
+                reason: FailedMetricName.MissingFileOrFolder,
                 result: 'Failed',
-                reason: 'File not found',
+                reasonDesc: 'File not found',
             } as CodeReviewMetric
 
             CodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
-                name: 'amazonq_codeReviewTool_missingFileOrFolder',
+                name: 'amazonq_codeReviewTool',
                 data: {
                     result: 'Failed',
-                    reason: 'File not found',
+                    reason: 'missingFileOrFolder',
+                    reasonDesc: 'File not found',
                 },
             })
         })

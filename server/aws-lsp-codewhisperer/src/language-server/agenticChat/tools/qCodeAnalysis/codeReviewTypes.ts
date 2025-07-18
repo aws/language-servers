@@ -62,13 +62,13 @@ export type CodeReviewFinding = {
 
 export type CodeReviewMetric =
     | {
-          name: SuccessMetricName
+          reason: SuccessMetricName
           result: 'Succeeded'
           metadata?: object
       }
     | {
-          name: FailedMetricName
+          reason: FailedMetricName
           result: 'Failed'
-          reason: string
+          reasonDesc: string
           metadata?: object
       }

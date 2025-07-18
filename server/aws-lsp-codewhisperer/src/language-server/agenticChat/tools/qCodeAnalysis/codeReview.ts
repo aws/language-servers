@@ -174,9 +174,9 @@ export class CodeReview {
         if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
             CodeReviewUtils.emitMetric(
                 {
-                    name: FailedMetricName.MissingFileOrFolder,
+                    reason: FailedMetricName.MissingFileOrFolder,
                     result: 'Failed',
-                    reason: CodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS,
+                    reasonDesc: CodeReview.ERROR_MESSAGES.MISSING_ARTIFACTS,
                 },
                 this.logging,
                 this.telemetry
@@ -233,13 +233,13 @@ export class CodeReview {
         if (!uploadUrlResponse.uploadUrl || !uploadUrlResponse.uploadId) {
             CodeReviewUtils.emitMetric(
                 {
-                    name: FailedMetricName.CreateUploadUrlFailed,
+                    reason: FailedMetricName.CreateUploadUrlFailed,
                     result: 'Failed',
-                    reason: CodeReview.ERROR_MESSAGES.UPLOAD_FAILED,
+                    reasonDesc: CodeReview.ERROR_MESSAGES.UPLOAD_FAILED,
                     metadata: {
-                        codeReviewScanName: setup.scanName,
-                        codeReviewArtifactSize: zipBuffer.length,
-                        codeReviewArtifactType: setup.artifactType,
+                        codewhispererCodeScanJobId: setup.scanName,
+                        codewhispererCodeScanSrcZipFileBytes: zipBuffer.length,
+                        artifactType: setup.artifactType,
                     },
                 },
                 this.logging,
@@ -280,19 +280,18 @@ export class CodeReview {
         if (!createResponse.jobId) {
             CodeReviewUtils.emitMetric(
                 {
-                    name: FailedMetricName.CodeScanFailed,
+                    reason: FailedMetricName.CodeScanFailed,
                     result: 'Failed',
-                    reason: CodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(
+                    reasonDesc: CodeReview.ERROR_MESSAGES.START_CODE_ANALYSIS_FAILED(
                         setup.scanName,
                         createResponse.errorMessage
                     ),
                     metadata: {
-                        codeReviewArtifactId: uploadResult.uploadId,
-                        codeReviewScanName: setup.scanName,
-                        codeReviewArtifactType: setup.artifactType,
-                        codeReviewType: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
-                        codeReviewArtifactSize: uploadResult.artifactSize,
-                        codeReviewCustomRulesCount: setup.ruleArtifacts.length,
+                        codewhispererCodeScanJobId: setup.scanName,
+                        artifactType: setup.artifactType,
+                        scope: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                        codewhispererCodeScanSrcZipFileBytes: uploadResult.artifactSize,
+                        customRules: setup.ruleArtifacts.length,
                     },
                 },
                 this.logging,
@@ -337,16 +336,16 @@ export class CodeReview {
             if (statusResponse.errorMessage) {
                 CodeReviewUtils.emitMetric(
                     {
-                        name: FailedMetricName.CodeScanFailed,
+                        reason: FailedMetricName.CodeScanFailed,
                         result: 'Failed',
-                        reason: CodeReview.ERROR_MESSAGES.CODE_ANALYSIS_FAILED(jobId, statusResponse.errorMessage),
+                        reasonDesc: CodeReview.ERROR_MESSAGES.CODE_ANALYSIS_FAILED(jobId, statusResponse.errorMessage),
                         metadata: {
-                            codeReviewId: jobId,
+                            codewhispererCodeScanJobId: jobId,
                             status: status,
-                            codeReviewArtifactType: setup.artifactType,
-                            codeReviewType: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
-                            codeReviewArtifactSize: artifactSize,
-                            codeReviewCustomRulesCount: setup.ruleArtifacts.length,
+                            artifactType: setup.artifactType,
+                            scope: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                            codewhispererCodeScanSrcZipFileBytes: artifactSize,
+                            customRules: setup.ruleArtifacts.length,
                         },
                     },
                     this.logging,
@@ -367,17 +366,17 @@ export class CodeReview {
         if (status === 'Pending') {
             CodeReviewUtils.emitMetric(
                 {
-                    name: FailedMetricName.CodeScanTimeout,
+                    reason: FailedMetricName.CodeScanTimeout,
                     result: 'Failed',
-                    reason: CodeReview.ERROR_MESSAGES.TIMEOUT(CodeReview.MAX_POLLING_ATTEMPTS),
+                    reasonDesc: CodeReview.ERROR_MESSAGES.TIMEOUT(CodeReview.MAX_POLLING_ATTEMPTS),
                     metadata: {
-                        codeReviewId: jobId,
-                        codeReviewType: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                        codewhispererCodeScanJobId: jobId,
+                        scope: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
                         status: status,
-                        codeReviewArtifactType: setup.artifactType,
+                        artifactType: setup.artifactType,
                         maxAttempts: CodeReview.MAX_POLLING_ATTEMPTS,
-                        codeReviewArtifactSize: artifactSize,
-                        codeReviewCustomRulesCount: setup.ruleArtifacts.length,
+                        codewhispererCodeScanSrcZipFileBytes: artifactSize,
+                        customRules: setup.ruleArtifacts.length,
                     },
                 },
                 this.logging,
@@ -411,15 +410,15 @@ export class CodeReview {
 
         CodeReviewUtils.emitMetric(
             {
-                name: SuccessMetricName.CodeScanSuccess,
+                reason: SuccessMetricName.CodeScanSuccess,
                 result: 'Succeeded',
                 metadata: {
-                    codeReviewId: jobId,
-                    codeReviewFindingsCount: totalFindings.length,
-                    codeReviewType: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
-                    codeReviewCustomRulesCount: setup.ruleArtifacts.length,
-                    codeReviewArtifactType: setup.artifactType,
-                    codeReviewArtifactSize: artifactSize,
+                    codewhispererCodeScanJobId: jobId,
+                    codewhispererCodeScanTotalIssues: totalFindings.length,
+                    scope: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                    customRules: setup.ruleArtifacts.length,
+                    artifactType: setup.artifactType,
+                    codewhispererCodeScanSrcZipFileBytes: artifactSize,
                 },
             },
             this.logging,
