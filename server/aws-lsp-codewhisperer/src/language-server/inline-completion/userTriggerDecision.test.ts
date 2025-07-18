@@ -1266,8 +1266,9 @@ describe('Telemetry', () => {
             })
         })
 
+        // we are blocking subsequent completion request as long as inflight is running
         describe('Case 4. Inflight session is closed by subsequent completion request', function () {
-            it('should emit Discard user trigger decision event when REQUESTING session is closed before becoming ACTIVE', async () => {
+            it.skip('should emit Discard user trigger decision event when REQUESTING session is closed before becoming ACTIVE', async () => {
                 // Chain requests in a callbacks
                 let concurrentCount = 0
                 let requests: Promise<InlineCompletionListWithReferences>[] = []

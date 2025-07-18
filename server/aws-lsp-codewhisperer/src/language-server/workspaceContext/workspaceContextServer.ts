@@ -23,7 +23,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 import { FileUploadJobManager, FileUploadJobType } from './fileUploadJobManager'
 import { DependencyEventBundler } from './dependency/dependencyEventBundler'
 import ignore = require('ignore')
-import { INTERNAL_USER_START_URL } from '../../shared/constants'
+import { BUILDER_ID_START_URL, INTERNAL_USER_START_URL } from '../../shared/constants'
 
 const Q_CONTEXT_CONFIGURATION_SECTION = 'aws.q.workspaceContext'
 
@@ -141,19 +141,35 @@ export const WorkspaceContextServer = (): Server => features => {
 
     const updateConfiguration = async () => {
         try {
-            let workspaceContextConfig = (await lsp.workspace.getConfiguration('amazonQ.workspaceContext')) || false
-            const configJetBrains = await lsp.workspace.getConfiguration('aws.codeWhisperer')
-            if (configJetBrains) {
-                workspaceContextConfig = workspaceContextConfig || configJetBrains['workspaceContext']
-            }
+            const clientInitializParams = safeGet(lsp.getClientInitializeParams())
+            const extensionName = clientInitializParams.initializationOptions?.aws?.clientInfo?.extension.name
+            if (extensionName === 'AmazonQ-For-VSCode') {
+                const amazonQSettings = (await lsp.workspace.getConfiguration('amazonQ'))?.['server-sideContext']
+                isOptedIn = amazonQSettings || false
 
-            // TODO, removing client side opt in temporarily
-            isOptedIn = true
-            // isOptedIn = workspaceContextConfig === true
+                // We want this temporary override for Amazon internal users and BuilderId users who are still using
+                // the old VSCode extension versions. Will remove this later.
+                if (amazonQSettings === undefined) {
+                    const startUrl = credentialsProvider.getConnectionMetadata()?.sso?.startUrl
+                    const isInternalOrBuilderIdUser =
+                        startUrl &&
+                        (startUrl.includes(INTERNAL_USER_START_URL) || startUrl.includes(BUILDER_ID_START_URL))
+                    if (isInternalOrBuilderIdUser) {
+                        isOptedIn = true
+                    }
+                }
+            } else {
+                isOptedIn = (await lsp.workspace.getConfiguration('aws.codeWhisperer'))?.['workspaceContext'] || false
+            }
+            logging.log(`Workspace context server opt-in flag is: ${isOptedIn}`)
 
             if (!isOptedIn) {
                 isWorkflowInitialized = false
-                await workspaceFolderManager.clearAllWorkspaceResources()
+                fileUploadJobManager?.dispose()
+                dependencyEventBundler?.dispose()
+                workspaceFolderManager.clearAllWorkspaceResources()
+                // Delete remote workspace when user chooses to opt-out
+                await workspaceFolderManager.deleteRemoteWorkspace()
             }
         } catch (error) {
             logging.error(`Error in getConfiguration: ${error}`)
@@ -292,19 +308,18 @@ export const WorkspaceContextServer = (): Server => features => {
 
                     fileUploadJobManager.startFileUploadJobConsumer()
                     dependencyEventBundler.startDependencyEventBundler()
-                    workspaceFolderManager.initializeWorkspaceStatusMonitor().catch(error => {
-                        logging.error(`Error while initializing workspace status monitoring: ${error}`)
-                    })
+                    await Promise.all([
+                        workspaceFolderManager.initializeWorkspaceStatusMonitor(),
+                        workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders),
+                    ])
                     logging.log(`Workspace context workflow initialized`)
-                    artifactManager.updateWorkspaceFolders(workspaceFolders)
-                    workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders).catch(error => {
-                        logging.error(`Error while processing new workspace folders: ${error}`)
-                    })
                 } else if (!isLoggedIn) {
                     if (isWorkflowInitialized) {
                         // If user is not logged in but the workflow is marked as initialized, it means user was logged in and is now logged out
                         // In this case, clear the resources and stop the monitoring
-                        await workspaceFolderManager.clearAllWorkspaceResources()
+                        fileUploadJobManager?.dispose()
+                        dependencyEventBundler?.dispose()
+                        workspaceFolderManager.clearAllWorkspaceResources()
                     }
                     isWorkflowInitialized = false
                 }
@@ -523,11 +538,7 @@ export const WorkspaceContextServer = (): Server => features => {
             dependencyEventBundler.dispose()
         }
         if (workspaceFolderManager) {
-            workspaceFolderManager.clearAllWorkspaceResources().catch(error => {
-                logging.warn(
-                    `Error while clearing workspace resources: ${error instanceof Error ? error.message : 'Unknown error'}`
-                )
-            })
+            workspaceFolderManager.clearAllWorkspaceResources()
         }
     }
 }
