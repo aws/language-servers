@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.0.67](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.66...lsp-codewhisperer/v0.0.67) (2025-07-18)
+
+
+### Bug Fixes
+
+* **amazonq:** continueous edits trigger returns earlier as first session is already closed ([#1907](https://github.com/aws/language-servers/issues/1907)) ([a2dc5a8](https://github.com/aws/language-servers/commit/a2dc5a87e488e523c12270b98749c1f835b55e87))
+* **amazonq:** make JSTSDependencyHandler process scoped packages correctly ([#1910](https://github.com/aws/language-servers/issues/1910)) ([3034494](https://github.com/aws/language-servers/commit/303449454254987047649c49b7a377d45ad284b6))
+* Make the classifier of auto trigger output the same score as the IDE auto trigger classifier ([#1930](https://github.com/aws/language-servers/issues/1930)) ([be3231f](https://github.com/aws/language-servers/commit/be3231f27d545daf137df149e5f9fd23042c82a9))
+* remove hardcoded EDITS predictionTypes for trigger on acceptance ([#1937](https://github.com/aws/language-servers/issues/1937)) ([8ef7986](https://github.com/aws/language-servers/commit/8ef7986424dc4ced8e7414c1378dfca872150fb4))
+* update ChatHandlers before adding new types dependency ([#1925](https://github.com/aws/language-servers/issues/1925)) ([e94e581](https://github.com/aws/language-servers/commit/e94e581a00fb99d862527ee7b91bf37ef47f4013))
+
 ## [0.0.66](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.65...lsp-codewhisperer/v0.0.66) (2025-07-17)
 
 
