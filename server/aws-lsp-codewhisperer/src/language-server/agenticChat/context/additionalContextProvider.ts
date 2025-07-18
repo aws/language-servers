@@ -227,7 +227,13 @@ export class AdditionalContextProvider {
         let contextInfo: ContextCommandInfo[] = (context?.map(item => ({ ...item, pinned: false })) || []).concat(
             this.chatDb
                 .getPinnedContext(tabId)
-                .filter(item => !context?.find(innerItem => item.id === innerItem.id))
+                .filter(item =>
+                    item.label === 'image'
+                        ? !context?.find(
+                              innerItem => innerItem.label === 'image' && innerItem.description === item.description
+                          )
+                        : !context?.find(innerItem => item.id === innerItem.id)
+                )
                 .map(item => ({ ...item, pinned: true }))
         )
         // If Active File context pill was removed from pinned context, remove it from payload
@@ -329,7 +335,9 @@ export class AdditionalContextProvider {
         }
 
         if (promptContextCommands.length === 0 && pinnedContextCommands.length === 0) {
-            return []
+            // image context does not come from workspace
+            const imageContext = this.getImageContextEntries(tabId, context)
+            return [...imageContext.nonPinned, ...imageContext.pinned]
         }
 
         let promptContextPrompts: AdditionalContextPrompt[] = []
@@ -385,7 +393,27 @@ export class AdditionalContextProvider {
             promptContextLength,
             codeContextLength,
         }
-        return contextEntry
+        const imageContext = this.getImageContextEntries(tabId, context)
+        // Build maps for fast lookup
+        const docEntries = Array.isArray(contextEntry) ? contextEntry : [contextEntry]
+        const docMap = new Map(docEntries.map(entry => [entry.path, entry]))
+        const imageMap = new Map(imageContext.nonPinned.map(entry => [entry.description, entry]))
+
+        // Maintain order of context (excluding pinned) using contextInfo
+        const ordered: any[] = []
+        for (const item of (contextInfo ?? []).filter(c => !c.pinned)) {
+            if (item.label === 'image') {
+                const image = imageMap.get(item.description)
+                if (image) ordered.push(image)
+            } else {
+                const doc = item.route ? docMap.get(item.route.join('/')) : undefined
+                if (doc) ordered.push(doc)
+            }
+        }
+        // Append pinned context entries (docs and images)
+        const pinnedDocs = docEntries.filter(entry => entry.pinned)
+        const pinnedImages = imageContext.pinned
+        return [...ordered, ...pinnedDocs, ...pinnedImages]
     }
 
     getFileListFromContext(context: AdditionalContentEntryAddition[]): FileList {
@@ -461,38 +489,36 @@ export class AdditionalContextProvider {
         return mergedContext.slice(0, MAX_IMAGE_CONTEXT_COUNT)
     }
 
-    public async appendCustomContextToTriggerContext(
-        triggerContext: TriggerContext,
-        contextArr?: ContextCommand[],
-        tabId?: string
-    ) {
-        const mergedContext = this.getMergedImageContext(contextArr, tabId)
-        if (mergedContext.length > 0) {
-            const imageFilePaths: string[] = []
-            const imageDetails: Record<string, FileDetails> = {}
+    /**
+     * Returns image context items as two arrays: non-pinned and pinned.
+     * nonPinned: images from context (pinned: false)
+     * pinned: images from DB not present in context (pinned: true)
+     */
+    public getImageContextEntries(
+        tabId: string,
+        context?: ContextCommand[]
+    ): { nonPinned: AdditionalContentEntryAddition[]; pinned: AdditionalContentEntryAddition[] } {
+        const contextImages = (context ?? []).filter(item => item.label === 'image')
+        const pinnedImages = this.chatDb
+            .getPinnedContext(tabId)
+            .filter(item => item.label === 'image')
+            .filter(item => !contextImages.find(ctx => ctx.description === item.description))
 
-            for (const contextCommand of mergedContext) {
-                if (contextCommand.label === 'image' && contextCommand.route && contextCommand.route.length > 0) {
-                    let filePath = contextCommand.route[0]
-                    imageFilePaths.push(filePath)
-                    imageDetails[filePath] = {
-                        description: contextCommand.description || filePath,
-                        lineRanges: [{ first: -1, second: -1 }],
-                    }
-                }
-            }
+        const toEntry = (item: any, pinned: boolean) => ({
+            name: item.command?.substring(0, additionalContentNameLimit) ?? '',
+            description: item.description ?? '',
+            innerContext: '',
+            type: 'image',
+            path: item.route?.[0] ?? '',
+            relativePath: item.route?.[0] ?? '',
+            startLine: -1,
+            endLine: -1,
+            pinned,
+        })
 
-            if (imageFilePaths.length > 0) {
-                const imageFileList: FileList = {
-                    filePaths: imageFilePaths,
-                    details: imageDetails,
-                }
-                if (triggerContext.documentReference) {
-                    triggerContext.documentReference = mergeFileLists(triggerContext.documentReference, imageFileList)
-                } else {
-                    triggerContext.documentReference = imageFileList
-                }
-            }
+        return {
+            nonPinned: contextImages.map(item => toEntry(item, false)),
+            pinned: pinnedImages.map(item => toEntry(item, true)),
         }
     }
 
