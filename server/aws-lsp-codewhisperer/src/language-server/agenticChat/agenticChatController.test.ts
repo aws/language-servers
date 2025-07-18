@@ -524,6 +524,59 @@ describe('AgenticChatController', () => {
             assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
         })
 
+        it('includes chat history from the database in the compaction request input', async () => {
+            // Mock chat history
+            const mockHistory = [
+                {
+                    type: 'prompt',
+                    body: 'Previous question',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                { type: 'answer', body: 'Previous answer' },
+            ]
+            const expectedRequestHistory = [
+                {
+                    userInputMessage: {
+                        content: 'Previous question',
+                        origin: 'IDE',
+                        userInputMessageContext: { toolResults: [] },
+                        userIntent: undefined,
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Previous answer',
+                        messageId: undefined,
+                        toolUses: [],
+                    },
+                },
+            ]
+
+            chatDbInitializedStub.returns(true)
+            getMessagesStub.returns(mockHistory)
+
+            // Make the request
+            const result = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: '', command: '/compact' } },
+                mockCancellationToken
+            )
+
+            // Verify that history was requested from the db
+            sinon.assert.calledWith(getMessagesStub, mockTabId)
+
+            assert.ok(generateAssistantResponseStub.calledOnce)
+
+            // Verify that the history was passed to the request
+            const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
+            assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
+            assert.deepStrictEqual(
+                requestInput.conversationState?.currentMessage?.userInputMessage?.content,
+                constants.COMPACTION_PROMPT
+            )
+        })
+
         it('skips adding user message to history when token is cancelled', async () => {
             // Create a cancellation token that is already cancelled
             const cancelledToken = {

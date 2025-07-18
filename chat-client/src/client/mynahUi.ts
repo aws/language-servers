@@ -179,8 +179,8 @@ export const handleChatPrompt = (
         // Add cancellation message BEFORE showing the new prompt
         mynahUi.addChatItem(tabId, {
             type: ChatItemType.DIRECTIVE,
-            messageId: 'stopped' + Date.now(),
-            body: 'You stopped your current work and asked me to work on the following task instead.',
+            messageId: 'canceled' + Date.now(),
+            body: 'You canceled your current work and asked me to work on the following task instead.',
         })
 
         // Reset loading state
@@ -200,7 +200,8 @@ export const handleChatPrompt = (
         prompt.command &&
         ['/dev', '/test', '/doc'].includes(prompt.command)
 
-    if (prompt.command && !isReroutedCommand) {
+    if (prompt.command && !isReroutedCommand && prompt.command !== '/compact') {
+        // Send /compact quick action as normal regular chat prompt
         // Handle non-rerouted commands (/clear, /help, /transform, /review) as quick actions
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -703,8 +704,8 @@ export const createMynahUi = (
                 // Add cancellation message when stop button is clicked
                 mynahUi.addChatItem(tabId, {
                     type: ChatItemType.DIRECTIVE,
-                    messageId: 'stopped' + Date.now(),
-                    body: 'You stopped your current work, please provide additional examples or ask another question.',
+                    messageId: 'canceled' + Date.now(),
+                    body: 'You canceled your current work, please provide additional examples or ask another question.',
                 })
             }, 500) // 500ms delay
         },
@@ -778,13 +779,21 @@ export const createMynahUi = (
                 // Add valid files to context commands
                 mynahUi.addCustomContextToPrompt(tabId, commands, insertPosition)
             }
-            const uniqueErrors = [...new Set(errors)]
-            for (const error of uniqueErrors) {
-                mynahUi.notify({
-                    content: error,
-                    type: NotificationType.WARNING,
-                })
+
+            const imageVerificationBanner: Partial<ChatItem> = {
+                messageId: 'image-verification-banner',
+                header: {
+                    icon: 'warning',
+                    iconStatus: 'warning',
+                    body: '### Invalid Image',
+                },
+                body: `${errors.join('\n')}`,
+                canBeDismissed: true,
             }
+
+            mynahUi.updateStore(tabId, {
+                promptInputStickyCard: imageVerificationBanner,
+            })
         },
     }
 
@@ -1371,7 +1380,7 @@ export const createMynahUi = (
         // Adding this conditional check to show the stop message in the center.
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
-        // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
+        // If message.header?.status?.text is Canceled or Rejected or Ignored or Completed etc.. card should be in disabled state.
         const shouldMute = message.header?.status?.text !== undefined && message.header?.status?.text !== 'Completed'
 
         return {
@@ -1716,9 +1725,9 @@ export const uiComponentsTexts = {
     save: 'Save',
     cancel: 'Cancel',
     submit: 'Submit',
-    stopGenerating: 'Stop',
+    stopGenerating: 'Cancel',
     copyToClipboard: 'Copied to clipboard',
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
-    spinnerText: 'Thinking...',
+    spinnerText: 'Working...',
 }
