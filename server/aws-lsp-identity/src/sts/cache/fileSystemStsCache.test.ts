@@ -3,12 +3,11 @@ import mock = require('mock-fs')
 import { FileSystemStsCache, getStsCredentialFilepath } from './fileSystemStsCache'
 import { expect, use } from 'chai'
 import { DirectoryItems } from 'mock-fs/lib/filesystem'
-import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { Logging, IamCredentials, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { access } from 'fs/promises'
 import * as fs from 'fs'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { Observability } from '@aws/lsp-core'
-import { StsCredential } from './stsCache'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -17,29 +16,30 @@ let sut: FileSystemStsCache
 
 let observability: StubbedInstance<Observability>
 
-const profileName: string = 'someprofile'
+const id: string = 'someid'
 
-const stsCredential: StsCredential = {
-    Credentials: {
-        AccessKeyId: 'someaccesskeyid',
-        SecretAccessKey: 'somesecretaccesskey',
-        SessionToken: 'somesessiontoken',
-        Expiration: new Date('2024-09-25T18:09:20.455Z'),
-    },
-    AssumedRoleUser: {
-        Arn: 'arn:aws:sts::123456789012:assumed-role/somerole/somesession',
-        AssumedRoleId: 'someassumedroleid',
-    },
+const credential: IamCredentials = {
+    accessKeyId: 'someaccesskeyid',
+    secretAccessKey: 'somesecretaccesskey',
+    sessionToken: 'somesessiontoken',
+    expiration: new Date('2024-09-25T18:09:20.455Z'),
 }
 
-function setupTest(args?: { profileName?: string; stsCredential?: StsCredential }): void {
+function setupTest(args?: { id?: string; credential?: IamCredentials }): void {
     // Just for sanity, safe to call restore if mock not currently active
     mock.restore()
 
-    args = { ...{ profileName, stsCredential }, ...args }
+    args = { ...{ id, credential }, ...args }
 
     const mockConfig: DirectoryItems = {}
-    mockConfig[getStsCredentialFilepath(args.profileName!)] = JSON.stringify(args.stsCredential)
+    mockConfig[getStsCredentialFilepath(args.id!)] = JSON.stringify({
+        Credentials: {
+            AccessKeyId: credential.accessKeyId,
+            SecretAccessKey: credential.secretAccessKey,
+            SessionToken: credential.sessionToken,
+            Expiration: credential.expiration,
+        },
+    })
 
     mock(mockConfig)
 }
@@ -62,18 +62,18 @@ describe('FileSystemStsCache', () => {
     })
 
     it('removeStsCredential deletes a valid credential', async () => {
-        const filename = getStsCredentialFilepath(profileName)
+        const filename = getStsCredentialFilepath(id)
         setupTest()
 
         await expectFileExists(filename).to.not.be.rejectedWith()
 
-        await sut.removeStsCredential(profileName)
+        await sut.removeStsCredential(id)
 
         await expectFileExists(filename).to.be.rejectedWith()
     })
 
     it('removeStsCredential does nothing on invalid/non-existent credential', async () => {
-        const filename = getStsCredentialFilepath(profileName)
+        const filename = getStsCredentialFilepath(id)
         setupTest()
 
         await expectFileExists(filename).to.not.be.rejectedWith()
@@ -84,23 +84,22 @@ describe('FileSystemStsCache', () => {
     })
 
     it('removeStsCredential throws on invalid profile name', async () => {
-        await expect(sut.removeStsCredential(null!)).to.be.rejectedWith()
+        await expect(sut.removeStsCredential(' ')).to.be.rejectedWith()
     })
 
     it('getStsCredential returns valid credential', async () => {
         setupTest()
 
-        const actual = await sut.getStsCredential(profileName)
+        const actual = await sut.getStsCredential(id)
+        console.log('testabc')
+        console.log(actual?.expiration)
+        console.log(typeof actual?.expiration)
 
         expect(actual).to.not.be.null.and.not.undefined
-        expect(actual?.Credentials?.AccessKeyId).to.equal(stsCredential.Credentials?.AccessKeyId)
-        expect(actual?.Credentials?.SecretAccessKey).to.equal(stsCredential.Credentials?.SecretAccessKey)
-        expect(actual?.Credentials?.SessionToken).to.equal(stsCredential.Credentials?.SessionToken)
-        expect(actual?.Credentials?.Expiration?.toISOString()).to.equal(
-            stsCredential.Credentials?.Expiration?.toISOString()
-        )
-        expect(actual?.AssumedRoleUser?.Arn).to.equal(stsCredential.AssumedRoleUser?.Arn)
-        expect(actual?.AssumedRoleUser?.AssumedRoleId).to.equal(stsCredential.AssumedRoleUser?.AssumedRoleId)
+        expect(actual?.accessKeyId).to.equal(credential.accessKeyId)
+        expect(actual?.secretAccessKey).to.equal(credential.secretAccessKey)
+        expect(actual?.sessionToken).to.equal(credential.sessionToken)
+        expect(actual?.expiration?.toISOString()).to.equal(credential.expiration?.toISOString())
     })
 
     it('getStsCredential returns undefined when file does not exist', async () => {
@@ -112,79 +111,63 @@ describe('FileSystemStsCache', () => {
     })
 
     it('getStsCredential returns undefined on invalid credential', async () => {
-        setupTest({ profileName: 'invalid-profile', stsCredential: {} as StsCredential })
+        setupTest({ id: 'invalid-profile', credential: {} as IamCredentials })
 
-        const actual = await sut.getStsCredential(profileName)
+        const actual = await sut.getStsCredential(id)
 
         expect(actual).to.be.undefined
     })
 
     it('setStsCredential writes new valid credential', async () => {
         setupTest()
-        await sut.setStsCredential(profileName, stsCredential)
+        await sut.setStsCredential(id, credential)
 
-        const actual = await sut.getStsCredential(profileName)
+        const actual = await sut.getStsCredential(id)
 
         expect(actual).to.not.be.null.and.not.undefined
-        expect(actual?.Credentials?.AccessKeyId).to.equal(stsCredential.Credentials?.AccessKeyId)
-        expect(actual?.Credentials?.SecretAccessKey).to.equal(stsCredential.Credentials?.SecretAccessKey)
-        expect(actual?.Credentials?.SessionToken).to.equal(stsCredential.Credentials?.SessionToken)
-        expect(actual?.Credentials?.Expiration?.toISOString()).to.equal(
-            stsCredential.Credentials?.Expiration?.toISOString()
-        )
-        expect(actual?.AssumedRoleUser?.Arn).to.equal(stsCredential.AssumedRoleUser?.Arn)
-        expect(actual?.AssumedRoleUser?.AssumedRoleId).to.equal(stsCredential.AssumedRoleUser?.AssumedRoleId)
+        expect(actual?.accessKeyId).to.equal(credential.accessKeyId)
+        expect(actual?.secretAccessKey).to.equal(credential.secretAccessKey)
+        expect(actual?.sessionToken).to.equal(credential.sessionToken)
+        expect(actual?.expiration?.toISOString()).to.equal(credential.expiration?.toISOString())
     })
 
     it('setStsCredential writes new valid credential when ~/.aws does not exist', async () => {
         mock.restore()
         mock({})
 
-        await sut.setStsCredential(profileName, stsCredential)
+        await sut.setStsCredential(id, credential)
 
-        const actual = await sut.getStsCredential(profileName)
+        const actual = await sut.getStsCredential(id)
 
         expect(actual).to.not.be.null.and.not.undefined
-        expect(actual?.Credentials?.AccessKeyId).to.equal(stsCredential.Credentials?.AccessKeyId)
-        expect(actual?.Credentials?.SecretAccessKey).to.equal(stsCredential.Credentials?.SecretAccessKey)
-        expect(actual?.Credentials?.SessionToken).to.equal(stsCredential.Credentials?.SessionToken)
-        expect(actual?.Credentials?.Expiration?.toISOString()).to.equal(
-            stsCredential.Credentials?.Expiration?.toISOString()
-        )
-        expect(actual?.AssumedRoleUser?.Arn).to.equal(stsCredential.AssumedRoleUser?.Arn)
-        expect(actual?.AssumedRoleUser?.AssumedRoleId).to.equal(stsCredential.AssumedRoleUser?.AssumedRoleId)
+        expect(actual?.accessKeyId).to.equal(credential.accessKeyId)
+        expect(actual?.secretAccessKey).to.equal(credential.secretAccessKey)
+        expect(actual?.sessionToken).to.equal(credential.sessionToken)
+        expect(actual?.expiration?.toISOString()).to.equal(credential.expiration?.toISOString())
     })
 
     it('setStsCredential writes updated existing credential', async () => {
         setupTest()
 
-        await sut.setStsCredential(profileName, {
-            Credentials: {
-                AccessKeyId: 'newaccesskeyid',
-                SecretAccessKey: 'newsecretaccesskey',
-                SessionToken: 'newsessiontoken',
-                Expiration: new Date('2024-10-14T12:00:00.000Z'),
-            },
-            AssumedRoleUser: {
-                Arn: 'newarn',
-                AssumedRoleId: 'newroleid',
-            },
+        await sut.setStsCredential(id, {
+            accessKeyId: 'newaccesskeyid',
+            secretAccessKey: 'newsecretaccesskey',
+            sessionToken: 'newsessiontoken',
+            expiration: new Date('2024-10-14T12:00:00.000Z'),
         })
 
-        const actual = await sut.getStsCredential(profileName)
+        const actual = await sut.getStsCredential(id)
 
         expect(actual).to.not.be.null.and.not.undefined
-        expect(actual?.Credentials?.AccessKeyId).to.equal('newaccesskeyid')
-        expect(actual?.Credentials?.SecretAccessKey).to.equal('newsecretaccesskey')
-        expect(actual?.Credentials?.SessionToken).to.equal('newsessiontoken')
-        expect(actual?.Credentials?.Expiration?.toISOString()).to.equal('2024-10-14T12:00:00.000Z')
-        expect(actual?.AssumedRoleUser?.Arn).to.equal('newarn')
-        expect(actual?.AssumedRoleUser?.AssumedRoleId).to.equal('newroleid')
+        expect(actual?.accessKeyId).to.equal('newaccesskeyid')
+        expect(actual?.secretAccessKey).to.equal('newsecretaccesskey')
+        expect(actual?.sessionToken).to.equal('newsessiontoken')
+        expect(actual?.expiration?.toISOString()).to.equal('2024-10-14T12:00:00.000Z')
     })
 
     it('setStsCredential returns without error on invalid credential', async () => {
         setupTest()
 
-        await sut.setStsCredential(profileName, {} as StsCredential) // no throw
+        await sut.setStsCredential(id, {} as IamCredentials) // no throw
     })
 })
