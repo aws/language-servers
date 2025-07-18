@@ -7,17 +7,24 @@ import {
     AwsErrorCodes,
     GetSsoTokenParams,
     InvalidateSsoTokenParams,
+    InvalidateStsCredentialParams,
     InitializeParams,
     PartialInitializeResult,
     ShowMessageRequestParams,
+    GetIamCredentialParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
+import { RefreshingStsCache } from '../sts/cache/refreshingStsCache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { FileSystemStsCache } from '../sts/cache/fileSystemStsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
+import { SendGetMfaCode } from '../iam/utils'
+import { IamProvider } from '../iam/iamProvider'
 
 export class IdentityServer extends ServerBase {
     constructor(features: Features) {
@@ -38,6 +45,7 @@ export class IdentityServer extends ServerBase {
         const showMessageRequest: ShowMessageRequest = (params: ShowMessageRequestParams) =>
             this.features.lsp.window.showMessageRequest(params)
         const showProgress: ShowProgress = this.features.lsp.sendProgress
+        const sendGetMfaCode: SendGetMfaCode = this.features.identityManagement.sendGetMfaCode
 
         // Initialize dependencies
         const profileStore = new SharedConfigProfileStore(this.observability)
@@ -49,12 +57,22 @@ export class IdentityServer extends ServerBase {
         )
 
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
+        const stsCache = new RefreshingStsCache(new FileSystemStsCache(this.observability), this.observability)
+        const stsAutoRefresher = new StsAutoRefresher(
+            stsCache,
+            this.features.identityManagement.sendStsCredentialChanged,
+            this.observability
+        )
+        const iamProvider = new IamProvider()
 
         const identityService = new IdentityService(
             profileStore,
             ssoCache,
             autoRefresher,
-            { showUrl, showMessageRequest, showProgress },
+            stsCache,
+            stsAutoRefresher,
+            iamProvider,
+            { showUrl, showMessageRequest, showProgress, sendGetMfaCode },
             this.getClientName(params),
             this.observability
         )
@@ -70,10 +88,26 @@ export class IdentityServer extends ServerBase {
                 })
         )
 
+        this.features.identityManagement.onGetIamCredential(
+            async (params: GetIamCredentialParams, token: CancellationToken) =>
+                await identityService.getIamCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`GetIamCredential failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
         this.features.identityManagement.onInvalidateSsoToken(
             async (params: InvalidateSsoTokenParams, token: CancellationToken) =>
                 await identityService.invalidateSsoToken(params, token).catch(reason => {
                     this.observability.logging.log(`InvalidateSsoToken failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.features.identityManagement.onInvalidateStsCredential(
+            async (params: InvalidateStsCredentialParams, token: CancellationToken) =>
+                await identityService.invalidateStsCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`InvalidateIamCredentials failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })
         )
@@ -95,6 +129,7 @@ export class IdentityServer extends ServerBase {
         )
 
         this.disposables.push(autoRefresher)
+        this.disposables.push(stsAutoRefresher)
 
         return {
             ...result,

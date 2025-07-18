@@ -3,12 +3,17 @@ import {
     AwsBuilderIdSsoTokenSource,
     AwsErrorCodes,
     CancellationToken,
+    GetIamCredentialParams,
+    GetIamCredentialResult,
     getSsoTokenOptionsDefaults,
+    getIamCredentialOptionsDefaults,
     GetSsoTokenParams,
     GetSsoTokenResult,
     IamIdentityCenterSsoTokenSource,
     InvalidateSsoTokenParams,
     InvalidateSsoTokenResult,
+    InvalidateStsCredentialParams,
+    InvalidateStsCredentialResult,
     MetricEvent,
     SsoSession,
     SsoTokenSourceKind,
@@ -17,19 +22,25 @@ import { normalizeSettingList, ProfileStore } from './profiles/profileService'
 import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion } from '../sso'
 import { SsoCache, SsoClientRegistration } from '../sso/cache'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { StsCache } from '../sts/cache/stsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import {
     throwOnInvalidClientRegistration,
     throwOnInvalidSsoSession,
     throwOnInvalidSsoSessionName,
     SsoFlowParams,
+    SsoHandlers,
 } from '../sso/utils'
+import { IamFlowParams, IamHandlers, simulatePermissions, throwOnInvalidCredentialId } from '../iam/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
+import { IamProvider } from '../iam/iamProvider'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
+type Handlers = SsoHandlers & IamHandlers
 
 const flows: AuthFlows = {
     [AuthorizationFlowKind.DeviceCode]: deviceCodeFlow,
@@ -41,7 +52,10 @@ export class IdentityService {
         private readonly profileStore: ProfileStore,
         private readonly ssoCache: SsoCache,
         private readonly autoRefresher: SsoTokenAutoRefresher,
-        private readonly handlers: SsoFlowParams['handlers'],
+        private readonly stsCache: StsCache,
+        private readonly stsAutoRefresher: StsAutoRefresher,
+        private readonly iamProvider: IamProvider,
+        private readonly handlers: Handlers,
         private readonly clientName: string,
         private readonly observability: Observability,
         private readonly authFlows: AuthFlows = flows
@@ -94,7 +108,7 @@ export class IdentityService {
                     clientName: this.clientName,
                     clientRegistration,
                     ssoSession,
-                    handlers: this.handlers,
+                    handlers: this.handlers as Pick<Handlers, keyof SsoHandlers>,
                     token,
                     observability: this.observability,
                 }
@@ -136,6 +150,65 @@ export class IdentityService {
         }
     }
 
+    async getIamCredential(params: GetIamCredentialParams, token: CancellationToken): Promise<GetIamCredentialResult> {
+        const emitMetric = this.emitMetric.bind(
+            this,
+            'flareIdentity_getIamCredential',
+            this.getIamCredential.name,
+            Date.now()
+        )
+
+        try {
+            const options = { ...getIamCredentialOptionsDefaults, ...params.options }
+
+            token.onCancellationRequested(_ => {
+                emitMetric('Cancelled', null)
+            })
+
+            // Get the profile with provided name
+            const profileData = await this.profileStore.load()
+            const profile = profileData.profiles.find(p => p.name === params.profileName)
+            if (!profile) {
+                this.observability.logging.log('Profile not found.')
+                throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
+            }
+
+            const flowOpts: IamFlowParams = {
+                profile: profile,
+                callStsOnInvalidIamCredential: options.callStsOnInvalidIamCredential,
+                profileStore: this.profileStore,
+                stsCache: this.stsCache,
+                stsAutoRefresher: this.stsAutoRefresher,
+                handlers: { sendGetMfaCode: this.handlers.sendGetMfaCode },
+                token: token,
+                observability: this.observability,
+            }
+            const credential = await this.iamProvider.getCredential(flowOpts)
+
+            // Validate permissions
+            if (options.permissionSet.length > 0) {
+                const response = await simulatePermissions(
+                    credential.credentials,
+                    options.permissionSet,
+                    profile.settings?.region
+                )
+                if (!response?.EvaluationResults?.every(result => result.EvalDecision === 'allowed')) {
+                    throw new AwsError(`Credentials have insufficient permissions.`, AwsErrorCodes.E_INVALID_PROFILE)
+                }
+            }
+
+            emitMetric('Succeeded')
+
+            return {
+                credential: credential,
+                updateCredentialsParams: { data: credential.credentials, encrypted: false },
+            }
+        } catch (e) {
+            emitMetric('Failed', e)
+            throw e
+        }
+    }
+
     async invalidateSsoToken(
         params: InvalidateSsoTokenParams,
         token: CancellationToken
@@ -164,6 +237,37 @@ export class IdentityService {
         } catch (e) {
             emitMetric('Failed', e)
 
+            throw e
+        }
+    }
+
+    async invalidateStsCredential(
+        params: InvalidateStsCredentialParams,
+        token: CancellationToken
+    ): Promise<InvalidateStsCredentialResult> {
+        const emitMetric = this.emitMetric.bind(
+            this,
+            'flareIdentity_invalidateStsCredential',
+            this.invalidateStsCredential.name,
+            Date.now()
+        )
+
+        token.onCancellationRequested(_ => {
+            emitMetric('Cancelled')
+        })
+
+        try {
+            throwOnInvalidCredentialId(params.iamCredentialId)
+
+            this.stsAutoRefresher.unwatch(params.iamCredentialId)
+
+            await this.stsCache.removeStsCredential(params.iamCredentialId)
+
+            emitMetric('Succeeded')
+            this.observability.logging.log('Successfully invalidated STS credentials.')
+            return {}
+        } catch (e) {
+            emitMetric('Failed', e)
             throw e
         }
     }
