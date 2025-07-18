@@ -17,6 +17,28 @@ import {
     ImageBlock,
 } from '@amzn/codewhisperer-streaming'
 import {
+    FS_READ,
+    FS_WRITE,
+    FS_REPLACE,
+    LIST_DIRECTORY,
+    GREP_SEARCH,
+    FILE_SEARCH,
+    EXECUTE_BASH,
+    Q_CODE_REVIEW,
+    BUTTON_RUN_SHELL_COMMAND,
+    BUTTON_REJECT_SHELL_COMMAND,
+    BUTTON_REJECT_MCP_TOOL,
+    BUTTON_ALLOW_TOOLS,
+    BUTTON_UNDO_CHANGES,
+    BUTTON_UNDO_ALL_CHANGES,
+    BUTTON_STOP_SHELL_COMMAND,
+    BUTTON_PAIDTIER_UPGRADE_Q_LEARNMORE,
+    BUTTON_PAIDTIER_UPGRADE_Q,
+    SUFFIX_PERMISSION,
+    SUFFIX_UNDOALL,
+    SUFFIX_EXPLANATION,
+} from './constants/toolConstants'
+import {
     SendMessageCommandInput,
     SendMessageCommandOutput,
     ChatCommandInput,
@@ -43,7 +65,6 @@ import {
     FollowUpClickParams,
     ListAvailableModelsParams,
     ListAvailableModelsResult,
-    Model,
     OpenFileDialogParams,
     OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
@@ -59,7 +80,6 @@ import {
     ListConversationsParams,
     ListMcpServersParams,
     McpServerClickParams,
-    McpServerClickResult,
     TabBarActionParams,
     CreatePromptParams,
     FileClickParams,
@@ -102,7 +122,6 @@ import {
     getSsoConnectionType,
     isUsageLimitError,
     isNullish,
-    enabledModelSelection,
     getOriginFromClientInfo,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
@@ -112,7 +131,6 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
@@ -124,7 +142,7 @@ import {
 } from './agenticChatEventParser'
 import { ChatSessionService } from '../chat/chatSessionService'
 import { AgenticChatResultStream, progressPrefix, ResultStreamWriter } from './agenticChatResultStream'
-import { executeToolMessage, toolResultMessage } from './textFormatting'
+import { toolResultMessage } from './textFormatting'
 import {
     AdditionalContentEntryAddition,
     AgenticChatTriggerContext,
@@ -159,6 +177,14 @@ import {
     RESPONSE_TIMEOUT_MS,
     RESPONSE_TIMEOUT_PARTIAL_MSG,
     DEFAULT_MODEL_ID,
+    COMPACTION_BODY,
+    COMPACTION_HEADER_BODY,
+    DEFAULT_MACOS_RUN_SHORTCUT,
+    DEFAULT_WINDOW_RUN_SHORTCUT,
+    DEFAULT_MACOS_REJECT_SHORTCUT,
+    DEFAULT_WINDOW_REJECT_SHORTCUT,
+    DEFAULT_MACOS_STOP_SHORTCUT,
+    DEFAULT_WINDOW_STOP_SHORTCUT,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -180,7 +206,6 @@ import { McpTool } from './tools/mcp/mcpTool'
 import {
     freeTierLimitUserMsg,
     onPaidTierLearnMore,
-    paidTierLearnMoreUrl,
     paidTierManageSubscription,
     PaidTierMode,
     qProName,
@@ -190,6 +215,7 @@ import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelect
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
+import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 
@@ -233,6 +259,7 @@ export class AgenticChatController implements ChatHandlers {
     #mcpEventHandler: McpEventHandler
     #paidTierMode: PaidTierMode | undefined
     #origin: Origin
+    #activeUserTracker: ActiveUserTracker
 
     // latency metrics
     #llmRequestStartTime: number = 0
@@ -260,7 +287,9 @@ export class AgenticChatController implements ChatHandlers {
     #getMessageIdForToolUse(toolType: string | undefined, toolUse: ToolUse): string {
         const toolUseId = toolUse.toolUseId!
         // Return plain toolUseId for executeBash, add "_permission" suffix for all other tools
-        return toolUse.name === 'executeBash' || toolType === 'executeBash' ? toolUseId : `${toolUseId}_permission`
+        return toolUse.name === EXECUTE_BASH || toolType === EXECUTE_BASH
+            ? toolUseId
+            : `${toolUseId}${SUFFIX_PERMISSION}`
     }
 
     /**
@@ -281,6 +310,15 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         this.#features.logging.info(`System Information: ${JSON.stringify(systemInfo)}`)
+    }
+
+    /**
+     * Determines the appropriate message ID for a compaction confirmation
+     * @param messageId The original messageId
+     * @returns The message ID to use
+     */
+    #getMessageIdForCompact(messageId: string): string {
+        return `${messageId}_compact`
     }
 
     constructor(
@@ -316,6 +354,7 @@ export class AgenticChatController implements ChatHandlers {
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
+        this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -335,18 +374,18 @@ export class AgenticChatController implements ChatHandlers {
         this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
         const session = this.#chatSessionManagementService.getSession(params.tabId)
         if (
-            params.buttonId === 'run-shell-command' ||
-            params.buttonId === 'reject-shell-command' ||
-            params.buttonId === 'reject-mcp-tool' ||
-            params.buttonId === 'allow-tools'
+            params.buttonId === BUTTON_RUN_SHELL_COMMAND ||
+            params.buttonId === BUTTON_REJECT_SHELL_COMMAND ||
+            params.buttonId === BUTTON_REJECT_MCP_TOOL ||
+            params.buttonId === BUTTON_ALLOW_TOOLS
         ) {
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
             }
             // For 'allow-tools', remove suffix as permission card needs to be seperate from file list card
             const messageId =
-                params.buttonId === 'allow-tools' && params.messageId.endsWith('_permission')
-                    ? params.messageId.replace('_permission', '')
+                params.buttonId === BUTTON_ALLOW_TOOLS && params.messageId.endsWith(SUFFIX_PERMISSION)
+                    ? params.messageId.replace(SUFFIX_PERMISSION, '')
                     : params.messageId
 
             const handler = session.data.getDeferredToolExecution(messageId)
@@ -356,7 +395,7 @@ export class AgenticChatController implements ChatHandlers {
                     failureReason: `could not find deferred tool execution for message: ${messageId} `,
                 }
             }
-            params.buttonId === 'reject-shell-command' || params.buttonId === 'reject-mcp-tool'
+            params.buttonId === BUTTON_REJECT_SHELL_COMMAND || params.buttonId === BUTTON_REJECT_MCP_TOOL
                 ? (() => {
                       handler.reject(new ToolApprovalException('Command was rejected.', true))
                       this.#stoppedToolUses.add(messageId)
@@ -365,7 +404,7 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 success: true,
             }
-        } else if (params.buttonId === 'undo-changes') {
+        } else if (params.buttonId === BUTTON_UNDO_CHANGES) {
             const toolUseId = params.messageId
             try {
                 await this.#undoFileChange(toolUseId, session.data)
@@ -384,21 +423,21 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 success: true,
             }
-        } else if (params.buttonId === 'undo-all-changes') {
-            const toolUseId = params.messageId.replace('_undoall', '')
+        } else if (params.buttonId === BUTTON_UNDO_ALL_CHANGES) {
+            const toolUseId = params.messageId.replace(SUFFIX_UNDOALL, '')
             await this.#undoAllFileChanges(params.tabId, toolUseId, session.data)
             return {
                 success: true,
             }
-        } else if (params.buttonId === 'stop-shell-command') {
+        } else if (params.buttonId === BUTTON_STOP_SHELL_COMMAND) {
             this.#stoppedToolUses.add(params.messageId)
             await this.#renderStoppedShellCommand(params.tabId, params.messageId)
             return { success: true }
-        } else if (params.buttonId === 'paidtier-upgrade-q-learnmore') {
+        } else if (params.buttonId === BUTTON_PAIDTIER_UPGRADE_Q_LEARNMORE) {
             onPaidTierLearnMore(this.#features.lsp, this.#features.logging)
 
             return { success: true }
-        } else if (params.buttonId === 'paidtier-upgrade-q') {
+        } else if (params.buttonId === BUTTON_PAIDTIER_UPGRADE_Q) {
             await this.onManageSubscription(params.tabId)
 
             return { success: true }
@@ -432,7 +471,7 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
         const fileList = cachedToolUse.chatResult?.header?.fileList
-        const button = cachedToolUse.chatResult?.header?.buttons?.filter(button => button.id !== 'undo-changes')
+        const button = cachedToolUse.chatResult?.header?.buttons?.filter(button => button.id !== BUTTON_UNDO_CHANGES)
 
         const updatedHeader = {
             ...cachedToolUse.chatResult?.header,
@@ -487,7 +526,7 @@ export class AgenticChatController implements ChatHandlers {
             return
         }
         for (const messageId of [...toUndo].reverse()) {
-            await this.onButtonClick({ buttonId: 'undo-changes', messageId, tabId })
+            await this.onButtonClick({ buttonId: BUTTON_UNDO_CHANGES, messageId, tabId })
         }
     }
 
@@ -599,6 +638,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#contextCommandsProvider?.dispose()
         this.#userWrittenCodeTracker?.dispose()
         this.#mcpEventHandler.dispose()
+        this.#activeUserTracker.dispose()
         clearInterval(this.#abTestingFetchingTimeout)
     }
 
@@ -679,6 +719,8 @@ export class AgenticChatController implements ChatHandlers {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
 
+        const compactIds = session.getAllDeferredCompactMessageIds()
+        await this.#invalidateCompactCommand(params.tabId, compactIds)
         session.rejectAllDeferredToolExecutions(new ToolApprovalException('Command ignored: new prompt', false))
         await this.#invalidateAllShellCommands(params.tabId, session)
 
@@ -687,6 +729,11 @@ export class AgenticChatController implements ChatHandlers {
             experimentName: this.#abTestingAllocation?.experimentName,
             userVariation: this.#abTestingAllocation?.userVariation,
         })
+
+        const isNewActiveUser = this.#activeUserTracker.isNewActiveUser()
+        if (isNewActiveUser) {
+            this.#telemetryController.emitActiveUser()
+        }
 
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
@@ -707,6 +754,8 @@ export class AgenticChatController implements ChatHandlers {
 
                 // Abort all operations immediately
                 session.abortRequest()
+                const compactIds = session.getAllDeferredCompactMessageIds()
+                await this.#invalidateCompactCommand(params.tabId, compactIds)
                 void this.#invalidateAllShellCommands(params.tabId, session)
                 session.rejectAllDeferredToolExecutions(new CancellationError('user'))
 
@@ -768,39 +817,62 @@ export class AgenticChatController implements ChatHandlers {
                 params.context,
                 params.tabId
             )
-            // Get the initial request input
-            const initialRequestInput = await this.#prepareRequestInput(
-                params,
-                session,
-                triggerContext,
-                additionalContext,
-                chatResultStream,
-                customContext
-            )
 
-            // Generate a unique ID for this prompt
-            const promptId = crypto.randomUUID()
-            session.setCurrentPromptId(promptId)
+            let finalResult
+            if (params.prompt.command === QuickAction.Compact) {
+                // Get the compaction request input
+                const compactionRequestInput = this.#getCompactionRequestInput(session)
+                // Generate a unique ID for this prompt
+                const promptId = crypto.randomUUID()
+                session.setCurrentPromptId(promptId)
 
-            // Start the agent loop
-            const finalResult = await this.#runAgentLoop(
-                initialRequestInput,
-                session,
-                metric,
-                chatResultStream,
-                params.tabId,
-                promptId,
-                session.conversationId,
-                token,
-                triggerContext.documentReference,
-                additionalContext.filter(item => item.pinned)
-            )
+                // Start the compaction call
+                finalResult = await this.#runCompaction(
+                    compactionRequestInput,
+                    session,
+                    metric,
+                    chatResultStream,
+                    params.tabId,
+                    promptId,
+                    session.conversationId,
+                    token,
+                    triggerContext.documentReference
+                )
+            } else {
+                // Get the initial request input
+                const initialRequestInput = await this.#prepareRequestInput(
+                    params,
+                    session,
+                    triggerContext,
+                    additionalContext,
+                    chatResultStream,
+                    customContext
+                )
 
-            // Phase 5: Result Handling - This happens only once
+                // Generate a unique ID for this prompt
+                const promptId = crypto.randomUUID()
+                session.setCurrentPromptId(promptId)
+
+                // Start the agent loop
+                finalResult = await this.#runAgentLoop(
+                    initialRequestInput,
+                    session,
+                    metric,
+                    chatResultStream,
+                    params.tabId,
+                    promptId,
+                    session.conversationId,
+                    token,
+                    triggerContext.documentReference,
+                    additionalContext.filter(item => item.pinned)
+                )
+            }
+
+            // Result Handling - This happens only once
             return await this.#handleFinalResult(
                 finalResult,
                 session,
-                params,
+                params.tabId,
                 metric,
                 triggerContext,
                 isNewConversation,
@@ -808,7 +880,7 @@ export class AgenticChatController implements ChatHandlers {
             )
         } catch (err) {
             // HACK: the chat-client needs to have a partial event with the associated messageId sent before it can accept the final result.
-            // Without this, the `thinking` indicator never goes away.
+            // Without this, the `working` indicator never goes away.
             // Note: buttons being explicitly empty is required for this hack to work.
             const errorMessageId = `error-message-id-${uuid()}`
             await this.#sendProgressToClient(
@@ -865,7 +937,6 @@ export class AgenticChatController implements ChatHandlers {
             this.#customizationArn,
             chatResultStream,
             profileArn,
-            [],
             this.#getTools(session),
             additionalContext,
             session.modelId,
@@ -873,6 +944,186 @@ export class AgenticChatController implements ChatHandlers {
             customContext
         )
         return requestInput
+    }
+
+    /**
+     * Prepares the initial request input for the chat prompt
+     */
+    #getCompactionRequestInput(session: ChatSessionService): ChatCommandInput {
+        this.#debug('Preparing compaction request input')
+        // Get profileArn from the service manager if available
+        const profileArn = this.#serviceManager?.getActiveProfileArn()
+        const requestInput = this.#triggerContext.getCompactionChatCommandInput(
+            profileArn,
+            this.#getTools(session),
+            session.modelId,
+            this.#origin
+        )
+        return requestInput
+    }
+
+    /**
+     * Runs the compaction, making requests and processing tool uses until completion
+     */
+    #shouldCompact(currentRequestCount: number): boolean {
+        // 80% of 570K limit
+        if (currentRequestCount > 456_000) {
+            this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
+            return true
+        } else {
+            return false
+        }
+    }
+
+    /**
+     * Runs the compaction to compact history into a single summary
+     */
+    async #runCompaction(
+        compactionRequestInput: ChatCommandInput,
+        session: ChatSessionService,
+        metric: Metric<CombinedConversationEvent>,
+        chatResultStream: AgenticChatResultStream,
+        tabId: string,
+        promptId: string,
+        conversationIdentifier?: string,
+        token?: CancellationToken,
+        documentReference?: FileList
+    ): Promise<Result<AgenticChatResultWithMetadata, string>> {
+        let currentRequestInput = { ...compactionRequestInput }
+        let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
+        metric.recordStart()
+
+        this.#debug(`Running compaction for conversation id:`, conversationIdentifier || '')
+
+        this.#timeToFirstChunk = -1
+        this.#timeBetweenChunks = []
+
+        // Check for cancellation
+        if (this.#isPromptCanceled(token, session, promptId)) {
+            this.#debug('Stopping compaction loop - cancelled by user')
+            throw new CancellationError('user')
+        }
+
+        const currentMessage = currentRequestInput.conversationState?.currentMessage
+        let messages: DbMessage[] = []
+        let characterCount = 0
+        if (currentMessage) {
+            //  Get and process the messages from history DB to maintain invariants for service requests
+            try {
+                const { messages: historyMessages, count: historyCharCount } = this.#chatHistoryDb.fixAndGetHistory(
+                    tabId,
+                    currentMessage,
+                    []
+                )
+                messages = historyMessages
+                characterCount = historyCharCount
+            } catch (err) {
+                if (err instanceof ToolResultValidationError) {
+                    this.#features.logging.error(`Tool validation error: ${err.message}`)
+                    return (
+                        finalResult || {
+                            success: false,
+                            error: 'Compaction loop failed to produce a final result',
+                            data: { chatResult: {}, toolUses: {} },
+                        }
+                    )
+                }
+            }
+        }
+
+        currentRequestInput.conversationState!.history = messages.map(msg => messageToStreamingMessage(msg))
+
+        const resultStreamWriter = chatResultStream.getResultStreamWriter()
+
+        if (currentRequestInput.conversationState!.history.length == 0) {
+            // early terminate
+            await resultStreamWriter.write({
+                type: 'answer',
+                body: 'History is empty, there is nothing to compact.',
+                messageId: uuid(),
+            })
+            return {
+                success: true,
+                data: {
+                    chatResult: {},
+                    toolUses: {},
+                },
+            }
+        } else {
+            await resultStreamWriter.write({
+                type: 'answer',
+                body: 'Compacting your chat history, this may take a moment.',
+                messageId: uuid(),
+            })
+        }
+        await resultStreamWriter.close()
+
+        // Add loading message before making the request
+        const loadingMessageId = `loading-${uuid()}`
+        await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
+
+        this.#debug(`Compacting history with ${characterCount} characters`)
+        this.#llmRequestStartTime = Date.now()
+        // Phase 3: Request Execution
+        // Note: these logs are very noisy, but contain information redacted on the backend.
+        this.#debug(
+            `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
+        )
+        const response = await session.getChatResponse(currentRequestInput)
+        if (response.$metadata.requestId) {
+            metric.mergeWith({
+                requestIds: [response.$metadata.requestId],
+            })
+        }
+        this.#features.logging.info(
+            `generateAssistantResponse/SendMessage ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
+        )
+        await chatResultStream.removeResultBlock(loadingMessageId)
+
+        // Phase 4: Response Processing
+        const result = await this.#processAgenticChatResponseWithTimeout(
+            response,
+            metric.mergeWith({
+                cwsprChatResponseCode: response.$metadata.httpStatusCode,
+                cwsprChatMessageId: response.$metadata.requestId,
+            }),
+            chatResultStream,
+            session,
+            documentReference,
+            true
+        )
+
+        const llmLatency = Date.now() - this.#llmRequestStartTime
+        this.#debug(`LLM Response Latency for compaction: ${llmLatency}`)
+        this.#telemetryController.emitAgencticLoop_InvokeLLM(
+            response.$metadata.requestId!,
+            conversationIdentifier ?? '',
+            'AgenticChatWithCompaction',
+            undefined,
+            undefined,
+            'Succeeded',
+            this.#features.runtime.serverInfo.version ?? '',
+            session.modelId,
+            llmLatency,
+            [],
+            this.#timeToFirstChunk,
+            this.#timeBetweenChunks,
+            session.pairProgrammingMode
+        )
+
+        // replace the history with summary in history DB
+        if (result.data?.chatResult.body !== undefined) {
+            this.#chatHistoryDb.replaceWithSummary(tabId, 'cwc', conversationIdentifier ?? '', {
+                body: result.data?.chatResult.body,
+                type: 'prompt' as any,
+                shouldDisplayMessage: true,
+                timestamp: new Date(),
+            })
+        } else {
+            this.#features.logging.warn('No ChatResult body in response, skipping adding to history')
+        }
+
+        return result
     }
 
     /**
@@ -894,6 +1145,7 @@ export class AgenticChatController implements ChatHandlers {
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
         let shouldDisplayMessage = true
+        let currentRequestCount = 0
         metric.recordStart()
         this.logSystemInformation()
         while (true) {
@@ -929,7 +1181,20 @@ export class AgenticChatController implements ChatHandlers {
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    messages = this.#chatHistoryDb.fixAndGetHistory(tabId, currentMessage, pinnedContextMessages)
+                    const newUserInputCount = this.#chatHistoryDb.calculateNewMessageCharacterCount(
+                        currentMessage,
+                        pinnedContextMessages
+                    )
+                    const { messages: historyMessages, count: historyCharacterCount } =
+                        this.#chatHistoryDb.fixAndGetHistory(
+                            tabId,
+                            currentMessage,
+                            pinnedContextMessages,
+                            newUserInputCount
+                        )
+                    messages = historyMessages
+                    currentRequestCount = newUserInputCount + historyCharacterCount
+                    this.#debug(`Request total character count: ${currentRequestCount}`)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
                         this.#features.logging.warn(`Tool validation error: ${err.message}`)
@@ -938,7 +1203,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
             }
 
-            //  Do not include chatHistory for requests going to Mynah Backend
+            // Do not include chatHistory for requests going to Mynah Backend
             currentRequestInput.conversationState!.history = currentRequestInput.conversationState?.currentMessage
                 ?.userInputMessage?.userIntent
                 ? []
@@ -952,7 +1217,7 @@ export class AgenticChatController implements ChatHandlers {
             // Phase 3: Request Execution
             // Note: these logs are very noisy, but contain information redacted on the backend.
             this.#debug(
-                `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
+                `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
             )
             const response = await session.getChatResponse(currentRequestInput)
             if (response.$metadata.requestId) {
@@ -985,7 +1250,6 @@ export class AgenticChatController implements ChatHandlers {
                 }
             }
             shouldDisplayMessage = true
-
             // Phase 4: Response Processing
             const result = await this.#processAgenticChatResponseWithTimeout(
                 response,
@@ -1152,6 +1416,27 @@ export class AgenticChatController implements ChatHandlers {
             currentRequestInput = this.#updateRequestInputWithToolResults(currentRequestInput, toolResults, content)
         }
 
+        if (this.#shouldCompact(currentRequestCount)) {
+            const messageId = this.#getMessageIdForCompact(uuid())
+            const confirmationResult = this.#processCompactConfirmation(messageId)
+            const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
+            await this.waitForCompactApproval(messageId, chatResultStream, cachedButtonBlockId, session)
+            // Get the compaction request input
+            const compactionRequestInput = this.#getCompactionRequestInput(session)
+            // Start the compaction call
+            return await this.#runCompaction(
+                compactionRequestInput,
+                session,
+                metric,
+                chatResultStream,
+                tabId,
+                promptId,
+                session.conversationId,
+                token,
+                documentReference
+            )
+        }
+
         return (
             finalResult || {
                 success: false,
@@ -1254,6 +1539,7 @@ export class AgenticChatController implements ChatHandlers {
     #getPendingToolUses(toolUses: Record<string, ToolUse & { stop: boolean }>): Array<ToolUse & { stop: boolean }> {
         return Object.values(toolUses).filter(toolUse => toolUse.stop)
     }
+
     /**
      * Creates a promise that does not resolve until the user accepts or rejects the tool usage.
      * @param toolUseId
@@ -1317,36 +1603,36 @@ export class AgenticChatController implements ChatHandlers {
                 await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
 
                 // fsRead and listDirectory write to an existing card and could show nothing in the current position
-                if (!['fsWrite', 'fsReplace', 'fsRead', 'listDirectory'].includes(toolUse.name)) {
+                if (![FS_WRITE, FS_REPLACE, FS_READ, LIST_DIRECTORY].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
-                if (toolUse.name !== 'fsWrite' && toolUse.name !== 'fsReplace') {
+                if (toolUse.name !== FS_WRITE && toolUse.name !== FS_REPLACE) {
                     const { explanation } = toolUse.input as unknown as ExplanatoryParams
                     if (explanation) {
                         await chatResultStream.writeResultBlock({
                             type: 'directive',
-                            messageId: toolUse.toolUseId + '_explanation',
+                            messageId: toolUse.toolUseId + SUFFIX_EXPLANATION,
                             body: explanation,
                         })
                     }
                 }
                 switch (toolUse.name) {
-                    case 'fsRead':
-                    case 'listDirectory':
-                    case 'grepSearch':
-                    case 'fileSearch':
-                    case 'fsWrite':
-                    case 'fsReplace':
-                    case 'executeBash': {
+                    case FS_READ:
+                    case LIST_DIRECTORY:
+                    case GREP_SEARCH:
+                    case FILE_SEARCH:
+                    case FS_WRITE:
+                    case FS_REPLACE:
+                    case EXECUTE_BASH: {
                         const toolMap = {
-                            fsRead: { Tool: FsRead },
-                            listDirectory: { Tool: ListDirectory },
-                            fsWrite: { Tool: FsWrite },
-                            fsReplace: { Tool: FsReplace },
-                            executeBash: { Tool: ExecuteBash },
-                            grepSearch: { Tool: GrepSearch },
-                            fileSearch: { Tool: FileSearch },
+                            [FS_READ]: { Tool: FsRead },
+                            [LIST_DIRECTORY]: { Tool: ListDirectory },
+                            [FS_WRITE]: { Tool: FsWrite },
+                            [FS_REPLACE]: { Tool: FsReplace },
+                            [EXECUTE_BASH]: { Tool: ExecuteBash },
+                            [GREP_SEARCH]: { Tool: GrepSearch },
+                            [FILE_SEARCH]: { Tool: FileSearch },
                         }
 
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
@@ -1369,7 +1655,7 @@ export class AgenticChatController implements ChatHandlers {
                         // Honor built-in permission if available, otherwise use tool's requiresAcceptance
                         // const requiresAcceptance = builtInPermission || toolRequiresAcceptance
 
-                        if (requiresAcceptance || toolUse.name === 'executeBash') {
+                        if (requiresAcceptance || toolUse.name === EXECUTE_BASH) {
                             // for executeBash, we till send the confirmation message without action buttons
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
@@ -1378,7 +1664,7 @@ export class AgenticChatController implements ChatHandlers {
                                 commandCategory
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-                            const isExecuteBash = toolUse.name === 'executeBash'
+                            const isExecuteBash = toolUse.name === EXECUTE_BASH
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -1476,7 +1762,7 @@ export class AgenticChatController implements ChatHandlers {
                         break
                 }
 
-                if (toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') {
+                if (toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) {
                     const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                     const document = await this.#triggerContext.getTextDocumentFromPath(input.path, true, true)
 
@@ -1529,27 +1815,27 @@ export class AgenticChatController implements ChatHandlers {
                 })
 
                 switch (toolUse.name) {
-                    case 'fsRead':
-                    case 'listDirectory':
-                    case 'fileSearch':
+                    case FS_READ:
+                    case LIST_DIRECTORY:
+                    case FILE_SEARCH:
                         const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
                         if (initialListDirResult) {
                             await chatResultStream.writeResultBlock(initialListDirResult)
                         }
                         break
                     // no need to write tool result for listDir,fsRead,fileSearch into chat stream
-                    case 'executeBash':
+                    case EXECUTE_BASH:
                         // no need to write tool result for listDir and fsRead into chat stream
                         // executeBash will stream the output instead of waiting until the end
                         break
-                    case 'grepSearch':
+                    case GREP_SEARCH:
                         const grepSearchResult = this.#processGrepSearchResult(toolUse, result, chatResultStream)
                         if (grepSearchResult) {
                             await chatResultStream.writeResultBlock(grepSearchResult)
                         }
                         break
-                    case 'fsReplace':
-                    case 'fsWrite':
+                    case FS_REPLACE:
+                    case FS_WRITE:
                         const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                         // Load from the filesystem instead of workspace.
                         // Workspace is likely out of date - when files
@@ -1657,13 +1943,13 @@ export class AgenticChatController implements ChatHandlers {
                     }
 
                     // Rethrow error for executeBash or any named tool
-                    if (toolUse.name === 'executeBash' || toolUse.name) {
+                    if (toolUse.name === EXECUTE_BASH || toolUse.name) {
                         throw err
                     }
                 }
 
                 // display fs write failure status in the UX of that file card
-                if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && toolUse.toolUseId) {
+                if ((toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
                     const fsParam = toolUse.input as unknown as FsWriteParams | FsReplaceParams
                     if (fsParam.path) {
@@ -1696,7 +1982,7 @@ export class AgenticChatController implements ChatHandlers {
                             await chatResultStream.writeResultBlock(errorResult)
                         }
                     }
-                } else if (toolUse.name === 'executeBash' && toolUse.toolUseId) {
+                } else if (toolUse.name === EXECUTE_BASH && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
                     const command = (toolUse.input as unknown as ExecuteBashParams).command
                     const completedErrorResult = {
@@ -1757,10 +2043,10 @@ export class AgenticChatController implements ChatHandlers {
      * Updates the currentUndoAllId state in the session
      */
     #updateUndoAllState(toolUse: ToolUse, session: ChatSessionService) {
-        if (toolUse.name === 'fsRead' || toolUse.name === 'listDirectory') {
+        if (toolUse.name === FS_READ || toolUse.name === LIST_DIRECTORY) {
             return
         }
-        if (toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') {
+        if (toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) {
             if (session.currentUndoAllId === undefined) {
                 session.currentUndoAllId = toolUse.toolUseId
             }
@@ -1798,10 +2084,10 @@ export class AgenticChatController implements ChatHandlers {
 
         await chatResultStream.writeResultBlock({
             type: 'answer',
-            messageId: `${session.currentUndoAllId}_undoall`,
+            messageId: `${session.currentUndoAllId}${SUFFIX_UNDOALL}`,
             buttons: [
                 {
-                    id: 'undo-all-changes',
+                    id: BUTTON_UNDO_ALL_CHANGES,
                     text: 'Undo all changes',
                     icon: 'undo',
                     status: 'clear',
@@ -1834,11 +2120,11 @@ export class AgenticChatController implements ChatHandlers {
     #validateToolResult(toolUse: ToolUse, result: ToolResultContentBlock) {
         let maxToolResponseSize
         switch (toolUse.name) {
-            case 'fsRead':
-            case 'executeBash':
+            case FS_READ:
+            case EXECUTE_BASH:
                 // fsRead and executeBash already have truncation logic
                 return
-            case 'listDirectory':
+            case LIST_DIRECTORY:
                 maxToolResponseSize = 50_000
                 break
             default:
@@ -1901,7 +2187,7 @@ export class AgenticChatController implements ChatHandlers {
         if (toolUse.name === QCodeReview.toolName) {
             return this.#getToolOverWritableStream(chatResultStream, toolUse)
         }
-        if (toolUse.name !== 'executeBash') {
+        if (toolUse.name !== EXECUTE_BASH) {
             return
         }
 
@@ -1911,7 +2197,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
-            buttons: [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }],
+            buttons: [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }],
         }
 
         const completedHeader: ChatMessage['header'] = {
@@ -1972,7 +2258,7 @@ export class AgenticChatController implements ChatHandlers {
         const toolName = originalToolName ?? (toolType || toolUse.name)
 
         // Handle bash commands with special formatting
-        if (toolName === 'executeBash') {
+        if (toolName === EXECUTE_BASH) {
             return {
                 messageId: toolUse.toolUseId,
                 type: 'tool',
@@ -1988,7 +2274,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }] : [],
+                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }] : [],
                 },
             }
         }
@@ -2001,10 +2287,10 @@ export class AgenticChatController implements ChatHandlers {
         let body: string | undefined
 
         switch (toolName) {
-            case 'fsReplace':
-            case 'fsWrite':
-            case 'fsRead':
-            case 'listDirectory':
+            case FS_REPLACE:
+            case FS_WRITE:
+            case FS_READ:
+            case LIST_DIRECTORY:
                 header = {
                     body: undefined,
                     status: {
@@ -2015,7 +2301,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 break
 
-            case 'fileSearch':
+            case FILE_SEARCH:
                 const searchPath = (toolUse.input as unknown as FileSearchParams).path
                 header = {
                     body: 'File Search',
@@ -2085,7 +2371,7 @@ export class AgenticChatController implements ChatHandlers {
                             status: {
                                 status: 'error',
                                 icon: 'stop',
-                                text: 'Stopped',
+                                text: 'Canceled',
                             },
                             buttons: [],
                         },
@@ -2093,6 +2379,117 @@ export class AgenticChatController implements ChatHandlers {
                 ],
             },
         })
+    }
+
+    #processCompactConfirmation(messageId: string): ChatResult {
+        const buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+        const header = {
+            icon: 'warning',
+            iconForegroundStatus: 'warning',
+            body: COMPACTION_HEADER_BODY,
+            buttons,
+        } as any
+        const body = COMPACTION_BODY
+        return {
+            type: 'tool',
+            messageId,
+            header,
+            body,
+        }
+    }
+
+    /**
+     * Creates a promise that does not resolve until the user accepts or rejects the compaction usage.
+     * @param messageId
+     * @param resultStream
+     * @param promptBlockId id of approval block. This allows us to overwrite the buttons with 'accepted' or 'rejected' text.
+     */
+    async waitForCompactApproval(
+        messageId: string,
+        resultStream: AgenticChatResultStream,
+        promptBlockId: number,
+        session: ChatSessionService
+    ) {
+        const deferred = this.#createDeferred()
+        session.setDeferredToolExecution(messageId, deferred.resolve, deferred.reject)
+        this.#log(`Prompting for compaction approval for messageId: ${messageId}`)
+        await deferred.promise
+        // Note: we want to overwrite the button block because it already exists in the stream.
+        await resultStream.overwriteResultBlock(this.#getUpdateCompactConfirmResult(messageId), promptBlockId)
+    }
+
+    /**
+     * Creates an updated ChatResult for compaction confirmation
+     * @param messageId The messageId
+     * @returns ChatResult with appropriate confirmation UI
+     */
+    #getUpdateCompactConfirmResult(messageId: string): ChatResult {
+        let header: {
+            body: string | undefined
+            status: { status: 'info' | 'success' | 'warning' | 'error'; icon: string; text: string }
+        }
+        let body: string | undefined
+
+        header = {
+            body: undefined,
+            status: {
+                status: 'success',
+                icon: 'ok',
+                text: 'Allowed',
+            },
+        }
+
+        return {
+            messageId,
+            type: 'tool',
+            body,
+            header,
+        }
+    }
+
+    #renderStopShellCommandButton() {
+        const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
+        return {
+            id: 'stop-shell-command',
+            text: 'Cancel',
+            icon: 'stop',
+            ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
+        }
+    }
+
+    #getKeyBinding(commandId: string): string | null {
+        // Check for feature flag
+        const shortcut =
+            this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.shortcut
+        if (!shortcut) {
+            return null
+        }
+        let defaultKey = ''
+        const OS = os.platform()
+
+        switch (commandId) {
+            case 'aws.amazonq.runCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_RUN_SHORTCUT : DEFAULT_WINDOW_RUN_SHORTCUT
+                break
+            case 'aws.amazonq.rejectCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_REJECT_SHORTCUT : DEFAULT_WINDOW_REJECT_SHORTCUT
+                break
+            case 'aws.amazonq.stopCmdExecution':
+                defaultKey = OS === 'darwin' ? DEFAULT_MACOS_STOP_SHORTCUT : DEFAULT_WINDOW_STOP_SHORTCUT
+                break
+            default:
+                this.#log(`#getKeyBinding: ${commandId} shortcut is supported by Q `)
+                break
+        }
+
+        if (defaultKey === '') {
+            return null
+        }
+
+        //TODO: handle case: user change default keybind, suggestion: read `keybinding.json` provided by VSC
+
+        return defaultKey
     }
 
     #processToolConfirmation(
@@ -2122,13 +2519,13 @@ export class AgenticChatController implements ChatHandlers {
 
         // Configure tool-specific UI elements
         switch (toolName) {
-            case 'executeBash': {
+            case EXECUTE_BASH: {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 buttons = requiresAcceptance
                     ? [
-                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
+                          { id: BUTTON_RUN_SHELL_COMMAND, text: 'Run', icon: 'play' },
                           {
-                              id: 'reject-shell-command',
+                              id: BUTTON_REJECT_SHELL_COMMAND,
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
@@ -2167,14 +2564,14 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
-            case 'fsWrite': {
+            case FS_WRITE: {
                 const writeFilePath = (toolUse.input as unknown as FsWriteParams).path
 
                 // Validate the path using our synchronous utility
                 validatePathBasic(writeFilePath)
 
                 this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
-                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
                     iconForegroundStatus: 'warning',
@@ -2189,14 +2586,14 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
-            case 'fsReplace': {
+            case FS_REPLACE: {
                 const writeFilePath = (toolUse.input as unknown as FsReplaceParams).path
 
                 // For replace, we need to verify the file exists
                 validatePathExists(writeFilePath)
 
                 this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
-                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'warning',
                     iconForegroundStatus: 'warning',
@@ -2211,9 +2608,9 @@ export class AgenticChatController implements ChatHandlers {
                 break
             }
 
-            case 'fsRead':
-            case 'listDirectory': {
-                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+            case FS_READ:
+            case LIST_DIRECTORY: {
+                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'tools',
@@ -2223,7 +2620,7 @@ export class AgenticChatController implements ChatHandlers {
                     buttons,
                 }
 
-                if (toolName === 'fsRead') {
+                if (toolName === FS_READ) {
                     const paths = (toolUse.input as unknown as FsReadParams).paths
 
                     // Validate paths using our synchronous utility
@@ -2251,7 +2648,7 @@ export class AgenticChatController implements ChatHandlers {
 
             default: {
                 // — DEFAULT ⇒ MCP tools
-                buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'warning',
@@ -2271,7 +2668,7 @@ export class AgenticChatController implements ChatHandlers {
                 type: 'tool',
                 messageId: this.#getMessageIdForToolUse(toolType, toolUse),
                 header,
-                body: warning ? (toolName === 'executeBash' ? '' : '\n\n') + body : body,
+                body: warning ? (toolName === EXECUTE_BASH ? '' : '\n\n') + body : body,
             }
         } else {
             return {
@@ -2283,9 +2680,9 @@ export class AgenticChatController implements ChatHandlers {
                             icon: 'tools',
                             body: `${toolName}`,
                             buttons: [
-                                { id: 'allow-tools', text: 'Run', icon: 'play', status: 'clear' },
+                                { id: BUTTON_ALLOW_TOOLS, text: 'Run', icon: 'play', status: 'clear' },
                                 {
-                                    id: 'reject-mcp-tool',
+                                    id: BUTTON_REJECT_MCP_TOOL,
                                     text: 'Reject',
                                     icon: 'cancel',
                                     status: 'dimmed-clear' as Status,
@@ -2338,7 +2735,7 @@ export class AgenticChatController implements ChatHandlers {
                         },
                     },
                 },
-                buttons: [{ id: 'undo-changes', text: 'Undo', icon: 'undo' }],
+                buttons: [{ id: BUTTON_UNDO_CHANGES, text: 'Undo', icon: 'undo' }],
             },
         }
     }
@@ -2353,7 +2750,7 @@ export class AgenticChatController implements ChatHandlers {
             chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
         }
         let currentPaths = []
-        if (toolUse.name === 'fsRead') {
+        if (toolUse.name === FS_READ) {
             currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
         } else {
             currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
@@ -2383,9 +2780,9 @@ export class AgenticChatController implements ChatHandlers {
             title = 'Gathering context'
         } else {
             title =
-                toolUse.name === 'fsRead'
+                toolUse.name === FS_READ
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === 'fileSearch'
+                    : toolUse.name === FILE_SEARCH
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }
@@ -2418,7 +2815,7 @@ export class AgenticChatController implements ChatHandlers {
         result: any,
         chatResultStream: AgenticChatResultStream
     ): ChatMessage | undefined {
-        if (toolUse.name !== 'grepSearch') {
+        if (toolUse.name !== GREP_SEARCH) {
             return undefined
         }
 
@@ -2520,7 +2917,7 @@ export class AgenticChatController implements ChatHandlers {
     async #handleFinalResult(
         result: Result<AgenticChatResultWithMetadata, string>,
         session: ChatSessionService,
-        params: ChatParams,
+        tabId: string,
         metric: Metric<CombinedConversationEvent>,
         triggerContext: TriggerContext,
         isNewConversation: boolean,
@@ -2533,17 +2930,17 @@ export class AgenticChatController implements ChatHandlers {
         this.#debug('Final session conversation id:', conversationId || '')
 
         if (conversationId) {
-            this.#telemetryController.setConversationId(params.tabId, conversationId)
+            this.#telemetryController.setConversationId(tabId, conversationId)
 
             if (isNewConversation) {
-                this.#telemetryController.updateTriggerInfo(params.tabId, {
+                this.#telemetryController.updateTriggerInfo(tabId, {
                     startTrigger: {
                         hasUserSnippet: metric.metric.cwsprChatHasCodeSnippet ?? false,
                         triggerType: triggerContext.triggerType,
                     },
                 })
 
-                this.#telemetryController.emitStartConversationMetric(params.tabId, metric.metric)
+                this.#telemetryController.emitStartConversationMetric(tabId, metric.metric)
             }
         }
 
@@ -2578,9 +2975,9 @@ export class AgenticChatController implements ChatHandlers {
                 cwsprChatPinnedPromptContextCount: triggerContext.contextInfo.pinnedContextCount.promptContextCount,
             })
         }
-        await this.#telemetryController.emitAddMessageMetric(params.tabId, metric.metric, 'Succeeded')
+        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Succeeded')
 
-        this.#telemetryController.updateTriggerInfo(params.tabId, {
+        this.#telemetryController.updateTriggerInfo(tabId, {
             lastMessageTrigger: {
                 ...triggerContext,
                 messageId: result.data?.chatResult.messageId,
@@ -2911,7 +3308,7 @@ export class AgenticChatController implements ChatHandlers {
         const toolUseId = params.messageId
         const toolUse = toolUseId ? session.data?.toolUseLookup.get(toolUseId) : undefined
 
-        if (toolUse?.name === 'fsWrite' || toolUse?.name === 'fsReplace') {
+        if (toolUse?.name === FS_WRITE || toolUse?.name === FS_REPLACE) {
             const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
             this.#features.lsp.workspace.openFileDiff({
                 originalFileUri: input.path,
@@ -2919,7 +3316,7 @@ export class AgenticChatController implements ChatHandlers {
                 isDeleted: false,
                 fileContent: toolUse.fileChange?.after,
             })
-        } else if (toolUse?.name === 'fsRead') {
+        } else if (toolUse?.name === FS_READ) {
             await this.#features.lsp.window.showDocument({ uri: URI.file(params.filePath).toString() })
         } else {
             const absolutePath = params.fullPath ?? (await this.#resolveAbsolutePath(params.filePath))
@@ -3169,9 +3566,32 @@ export class AgenticChatController implements ChatHandlers {
         return triggerContext
     }
 
+    async #invalidateCompactCommand(tabId: string, messageIds: string[]) {
+        for (const messageId of messageIds) {
+            await this.#features.chat.sendChatUpdate({
+                tabId,
+                state: { inProgress: false },
+                data: {
+                    messages: [
+                        {
+                            messageId,
+                            type: 'tool',
+                            body: COMPACTION_BODY,
+                            header: {
+                                body: COMPACTION_HEADER_BODY,
+                                status: { icon: 'block', text: 'Ignored' },
+                                buttons: [],
+                            },
+                        },
+                    ],
+                },
+            })
+        }
+    }
+
     async #invalidateAllShellCommands(tabId: string, session: ChatSessionService) {
         for (const [toolUseId, toolUse] of session.toolUseLookup.entries()) {
-            if (toolUse.name !== 'executeBash' || this.#stoppedToolUses.has(toolUseId)) continue
+            if (toolUse.name !== EXECUTE_BASH || this.#stoppedToolUses.has(toolUseId)) continue
 
             const params = toolUse.input as unknown as ExecuteBashParams
             const command = params.command
@@ -3425,7 +3845,8 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
-        contextList?: FileList
+        contextList?: FileList,
+        isCompaction?: boolean
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const abortController = new AbortController()
         let timeoutId: NodeJS.Timeout | undefined
@@ -3448,7 +3869,8 @@ export class AgenticChatController implements ChatHandlers {
             streamWriter,
             session,
             contextList,
-            abortController.signal
+            abortController.signal,
+            isCompaction
         )
         try {
             const result = await Promise.race([processResponsePromise, timeoutPromise])
@@ -3477,7 +3899,7 @@ export class AgenticChatController implements ChatHandlers {
         }
         const toolUses = Object.values(data.toolUses)
         for (const toolUse of toolUses) {
-            if ((toolUse.name === 'fsWrite' || toolUse.name === 'fsReplace') && typeof toolUse.input === 'string') {
+            if ((toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) && typeof toolUse.input === 'string') {
                 const filepath = extractKey(toolUse.input, 'path')
                 const msgId = progressPrefix + toolUse.toolUseId
                 // render fs write UI as soon as fs write starts
@@ -3506,7 +3928,7 @@ export class AgenticChatController implements ChatHandlers {
                 }
                 // render the tool use explanatory as soon as this is received for fsWrite/fsReplace
                 const explanation = extractKey(toolUse.input, 'explanation')
-                const messageId = progressPrefix + toolUse.toolUseId + '_explanation'
+                const messageId = progressPrefix + toolUse.toolUseId + SUFFIX_EXPLANATION
                 if (explanation && !chatResultStream.hasMessage(messageId)) {
                     await streamWriter.close()
                     await chatResultStream.writeResultBlock({
@@ -3526,14 +3948,15 @@ export class AgenticChatController implements ChatHandlers {
         streamWriter: ResultStreamWriter,
         session: ChatSessionService,
         contextList?: FileList,
-        abortSignal?: AbortSignal
+        abortSignal?: AbortSignal,
+        isCompaction?: boolean
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
         const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging)
 
         // Display context transparency list once at the beginning of response
         // Use a flag to track if contextList has been sent already to avoid ux flickering
-        if (contextList?.filePaths && contextList.filePaths.length > 0 && !session.contextListSent) {
+        if (!isCompaction && contextList?.filePaths && contextList.filePaths.length > 0 && !session.contextListSent) {
             await streamWriter.write({ body: '', contextList })
             session.contextListSent = true
         }
@@ -3569,7 +3992,7 @@ export class AgenticChatController implements ChatHandlers {
                 this.recordChunk('chunk')
             }
 
-            // make sure to save code reference events
+            // update the UI with response
             if (chatEvent.assistantResponseEvent || chatEvent.codeReferenceEvent) {
                 await streamWriter.write(result.data.chatResult)
             }
@@ -3585,8 +4008,17 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
         if (isEmptyResponse) {
-            // If the response is empty, we need to send an empty answer message to remove the Thinking... indicator
+            // If the response is empty, we need to send an empty answer message to remove the Working... indicator
             await streamWriter.write({ type: 'answer', body: '', messageId: uuid() })
+        }
+
+        if (isCompaction) {
+            // Show a dummy message to the UI for compaction completion
+            await streamWriter.write({
+                type: 'answer',
+                body: 'Conversation history has been compacted successfully!',
+                messageId: uuid(),
+            })
         }
         await streamWriter.close()
 
@@ -3903,5 +4335,14 @@ export class AgenticChatController implements ChatHandlers {
 
     #debug(...messages: string[]) {
         this.#features.logging.debug(messages.join(' '))
+    }
+
+    // Helper function to sanitize the 'images' field for logging by replacing large binary data (e.g., Uint8Array) with a concise summary.
+    // This prevents logs from being overwhelmed by raw byte arrays and keeps log output readable.
+    #imageReplacer(key: string, value: any): string | any {
+        if (key === 'bytes' && value && typeof value.length === 'number') {
+            return `[Uint8Array, length: ${value.length}]`
+        }
+        return value
     }
 }

@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.0.66](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.65...lsp-codewhisperer/v0.0.66) (2025-07-17)
+
+
+### Features
+
+* add active user tracking with state persistence ([#1892](https://github.com/aws/language-servers/issues/1892)) ([a5587c5](https://github.com/aws/language-servers/commit/a5587c59e4a07074ad8afba930c6596dc28c693b))
+* add conversation compaction ([#1895](https://github.com/aws/language-servers/issues/1895)) ([8bb7144](https://github.com/aws/language-servers/commit/8bb7144e45cfce6cc9337fd49de7edbee61105b8))
+* adding streakLength back to UTDE telemetry ([#1902](https://github.com/aws/language-servers/issues/1902)) ([152f1c5](https://github.com/aws/language-servers/commit/152f1c5f23698f8c574120bcf4f2214e4540e7e6))
+
+
+### Bug Fixes
+
+* add proper encoding support for shell output ([#1903](https://github.com/aws/language-servers/issues/1903)) ([44a6d62](https://github.com/aws/language-servers/commit/44a6d629af7702662a02f384a6a542c0d72ccc39))
+* align auto trigger classifier with documentChangeEvent ([#1914](https://github.com/aws/language-servers/issues/1914)) ([f308e17](https://github.com/aws/language-servers/commit/f308e17912df0b8f03f4e655cc34f2f875f4e65c))
+* **amazonq:** replacing image's large binary in log ([#1905](https://github.com/aws/language-servers/issues/1905)) ([a06ed62](https://github.com/aws/language-servers/commit/a06ed626e118c5f846e494630ef0577ce1ace628))
+* editor state does not use the same language id as file context ([#1924](https://github.com/aws/language-servers/issues/1924)) ([c10866d](https://github.com/aws/language-servers/commit/c10866d70070173aba63be1c78945a4da6129018))
+* pinned `@Code` symbols do not persist between IDE sessions ([#1887](https://github.com/aws/language-servers/issues/1887)) ([b5c715f](https://github.com/aws/language-servers/commit/b5c715ff5ee303c2d48ffb9c1c6c98a9d985e2f1))
+* replace thinking with working and replace stop with cancel ([#1922](https://github.com/aws/language-servers/issues/1922)) ([371e731](https://github.com/aws/language-servers/commit/371e731545f7572d3356d061cd8b94db35e4c333))
+* should trigger edits if one of the following lines is non-empty ([#1915](https://github.com/aws/language-servers/issues/1915)) ([b298602](https://github.com/aws/language-servers/commit/b2986026293e26bff0cacbaf1554999c12fb429c))
+* treat `echo`/`find`/`grep` as mutating ([#1921](https://github.com/aws/language-servers/issues/1921)) ([ef801a3](https://github.com/aws/language-servers/commit/ef801a3b9c435c25899eaa3712cabf6d5c4b9922))
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.11 to ^0.0.12
+
 ## [0.0.65](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.64...lsp-codewhisperer/v0.0.65) (2025-07-15)
 
 

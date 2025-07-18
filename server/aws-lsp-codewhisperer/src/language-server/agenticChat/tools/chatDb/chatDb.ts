@@ -22,6 +22,7 @@ import {
     getChatDbNameFromWorkspaceId,
     getSha256WorkspaceId,
     getMd5WorkspaceId,
+    MessagesWithCharacterCount,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -510,10 +511,16 @@ export class ChatDatabase {
         let historyId = this.#historyIdMapping.get(tabId)
 
         if (!historyId) {
-            historyId = crypto.randomUUID()
-            this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
-            this.setHistoryIdMapping(tabId, historyId)
+            historyId = this.createHistoryId(tabId)
         }
+
+        return historyId
+    }
+
+    createHistoryId(tabId: string) {
+        const historyId = crypto.randomUUID()
+        this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
+        this.setHistoryIdMapping(tabId, historyId)
 
         return historyId
     }
@@ -569,6 +576,63 @@ export class ChatDatabase {
         }
     }
 
+    /**
+     * Replace history with summary/dummyResponse pair within a specified tab.
+     *
+     * This method manages chat messages by creating a new history with compacted summary and dummy response pairs
+     */
+    replaceWithSummary(tabId: string, tabType: TabType, conversationId: string, message: Message) {
+        if (this.isInitialized()) {
+            const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
+            const tabCollection = this.#db.getCollection<Tab>(TabCollection)
+
+            this.#features.logging.log(
+                `Replace history with summary: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
+            )
+
+            const oldHistoryId = this.getOrCreateHistoryId(tabId)
+            // create a new historyId to start fresh
+            const historyId = this.createHistoryId(tabId)
+
+            const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
+            const tabTitle =
+                (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
+                    ? message.body
+                    : tabData?.title) || 'Amazon Q Chat'
+            message = this.formatChatHistoryMessage(message)
+            this.#features.logging.log(`Overriding tab with new historyId=${historyId}`)
+            tabCollection.insert({
+                historyId,
+                updatedAt: new Date(),
+                isOpen: true,
+                tabType: tabType,
+                title: tabTitle,
+                conversations: [
+                    {
+                        conversationId,
+                        clientType,
+                        updatedAt: new Date(),
+                        messages: [
+                            // summary
+                            message,
+                            // dummy response
+                            {
+                                body: 'Working...',
+                                type: 'answer',
+                                shouldDisplayMessage: false,
+                                timestamp: new Date(),
+                            },
+                        ],
+                    },
+                ],
+            })
+
+            if (oldHistoryId) {
+                tabCollection.findAndRemove({ historyId: oldHistoryId })
+            }
+        }
+    }
+
     formatChatHistoryMessage(message: Message): Message {
         if (message.type === ('prompt' as ChatItemType)) {
             let hasToolResults = false
@@ -596,9 +660,15 @@ export class ChatDatabase {
      * 3. The toolUse and toolResult relationship is valid
      * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndGetHistory(tabId: string, newUserMessage: ChatMessage, pinnedContextMessages: ChatMessage[]) {
+    fixAndGetHistory(
+        tabId: string,
+        newUserMessage: ChatMessage,
+        pinnedContextMessages: ChatMessage[],
+        newUserInputCount?: number
+    ): MessagesWithCharacterCount {
+        let messagesWithCount: MessagesWithCharacterCount = { messages: [], count: 0 }
         if (!this.isInitialized()) {
-            return []
+            return messagesWithCount
         }
 
         this.#features.logging.info(`Fixing history: tabId=${tabId}`)
@@ -612,10 +682,14 @@ export class ChatDatabase {
             // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
             this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
 
+            if (!newUserInputCount) {
+                newUserInputCount = this.calculateNewMessageCharacterCount(newUserMessage, pinnedContextMessages)
+            }
+
             // 4. NOTE: Keep this trimming logic at the end of the preprocess.
             // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
-            allMessages = this.trimMessagesToMaxLength(allMessages, newUserMessage, pinnedContextMessages)
-
+            messagesWithCount = this.trimMessagesToMaxLength(allMessages, newUserInputCount)
+            allMessages = messagesWithCount.messages
             // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
             if (
                 allMessages.length === 0 &&
@@ -630,10 +704,13 @@ export class ChatDatabase {
 
         // Prepend pinned context fake message pair to beginning of history
         if (pinnedContextMessages.length === 2) {
-            allMessages = [...pinnedContextMessages.map(msg => chatMessageToMessage(msg)), ...allMessages]
+            messagesWithCount.messages = [
+                ...pinnedContextMessages.map(msg => chatMessageToMessage(msg)),
+                ...allMessages,
+            ]
         }
 
-        return allMessages
+        return messagesWithCount
     }
 
     /**
@@ -662,25 +739,11 @@ export class ChatDatabase {
         return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
     }
 
-    private trimMessagesToMaxLength(
-        messages: Message[],
-        newUserMessage: ChatMessage,
-        pinnedContextMessages: ChatMessage[]
-    ): Message[] {
-        let totalCharacters = this.calculateMessagesCharacterCount(messages)
-        this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
-        const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
-            chatMessageToMessage(newUserMessage),
-            ...pinnedContextMessages.map(msg => chatMessageToMessage(msg)),
-        ])
-        const currentInputToolSpecCount = this.calculateToolSpecCharacterCount(newUserMessage)
-        const currentUserInputCount = currentUserInputCharacterCount + currentInputToolSpecCount
-        this.#features.logging.debug(
-            `Current user message characters input: ${currentUserInputCharacterCount} + toolSpec: ${currentInputToolSpecCount}`
-        )
-        const maxHistoryCharacterSize = Math.max(0, MaxOverallCharacters - currentUserInputCount)
+    private trimMessagesToMaxLength(messages: Message[], newUserInputCount: number): MessagesWithCharacterCount {
+        let historyCharacterCount = this.calculateMessagesCharacterCount(messages)
+        const maxHistoryCharacterSize = Math.max(0, MaxOverallCharacters - newUserInputCount)
         this.#features.logging.debug(`Current remaining character budget: ${maxHistoryCharacterSize}`)
-        while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
+        while (historyCharacterCount > maxHistoryCharacterSize && messages.length > 2) {
             // Find the next valid user message to start from
             const indexToTrim = this.findIndexToTrim(messages)
             if (indexToTrim !== undefined && indexToTrim > 0) {
@@ -692,12 +755,14 @@ export class ChatDatabase {
                 this.#features.logging.debug(
                     'Could not find a valid point to trim, reset history to reduce character count'
                 )
-                return []
+                return { messages: [], count: 0 }
             }
-            totalCharacters = this.calculateMessagesCharacterCount(messages)
-            this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
+            historyCharacterCount = this.calculateMessagesCharacterCount(messages)
         }
-        return messages
+        return {
+            messages,
+            count: historyCharacterCount,
+        }
     }
 
     private calculateToolSpecCharacterCount(currentMessage: ChatMessage): number {
@@ -714,17 +779,36 @@ export class ChatDatabase {
         return count
     }
 
-    private calculateMessagesCharacterCount(allMessages: Message[]): number {
-        let count = 0
+    calculateNewMessageCharacterCount(newUserMessage: ChatMessage, pinnedContextMessages: ChatMessage[]): number {
+        const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
+            chatMessageToMessage(newUserMessage),
+        ])
+        const pinnedContextCount = this.calculateMessagesCharacterCount([
+            ...pinnedContextMessages.map(msg => chatMessageToMessage(msg)),
+        ])
+        const currentInputToolSpecCount = this.calculateToolSpecCharacterCount(newUserMessage)
+        const totalCount = currentUserInputCharacterCount + currentInputToolSpecCount + pinnedContextCount
+        this.#features.logging.debug(
+            `Current user message characters input: ${currentUserInputCharacterCount} + toolSpec: ${currentInputToolSpecCount} + pinnedContext: ${pinnedContextCount} = total: ${totalCount}`
+        )
+        return totalCount
+    }
+
+    calculateMessagesCharacterCount(allMessages: Message[]): number {
+        let bodyCount = 0
+        let toolUsesCount = 0
+        let toolResultsCount = 0
+        let editorStateCount = 0
+
         for (const message of allMessages) {
             // Count characters of all message text
-            count += message.body.length
+            bodyCount += message.body.length
 
             // Count characters in tool uses
             if (message.toolUses) {
                 try {
                     for (const toolUse of message.toolUses) {
-                        count += JSON.stringify(toolUse).length
+                        toolUsesCount += JSON.stringify(toolUse).length
                     }
                 } catch (e) {
                     this.#features.logging.error(`Error counting toolUses: ${String(e)}`)
@@ -734,7 +818,7 @@ export class ChatDatabase {
             if (message.userInputMessageContext?.toolResults) {
                 try {
                     for (const toolResul of message.userInputMessageContext.toolResults) {
-                        count += JSON.stringify(toolResul).length
+                        toolResultsCount += JSON.stringify(toolResul).length
                     }
                 } catch (e) {
                     this.#features.logging.error(`Error counting toolResults: ${String(e)}`)
@@ -742,13 +826,18 @@ export class ChatDatabase {
             }
             if (message.userInputMessageContext?.editorState) {
                 try {
-                    count += JSON.stringify(message.userInputMessageContext?.editorState).length
+                    editorStateCount += JSON.stringify(message.userInputMessageContext?.editorState).length
                 } catch (e) {
                     this.#features.logging.error(`Error counting editorState: ${String(e)}`)
                 }
             }
         }
-        return count
+
+        const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount
+        this.#features.logging.debug(
+            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} = total: ${totalCount}`
+        )
+        return totalCount
     }
 
     /**
@@ -808,7 +897,7 @@ export class ChatDatabase {
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
             // Add an assistant response to both request and DB to maintain a valid sequence
             const dummyResponse: Message = {
-                body: 'Thinking...',
+                body: 'Working...',
                 type: 'answer',
                 shouldDisplayMessage: false,
                 timestamp: new Date(),

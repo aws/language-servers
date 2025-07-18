@@ -120,8 +120,6 @@ import { modelSelectionForRegion } from './texts/modelSelection'
 const getDefaultTabConfig = (agenticMode?: boolean) => {
     return {
         tabTitle: 'Chat',
-        promptInputInfo:
-            'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
         promptInputPlaceholder: `Ask a question. Use${agenticMode ? ' @ to add context,' : ''} / for quick actions`,
     }
 }
