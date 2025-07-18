@@ -1668,7 +1668,12 @@ export class AgenticChatController implements ChatHandlers {
                             (builtInPermission || isOutOfWorkSpace || isSecuredFilesInvoled) ?? requiresAcceptance
 
                         // if the command is read-only and in-workspace --> flip back to no approval needed
-                        if (isExecuteBash && commandCategory === CommandCategory.ReadOnly && !isOutOfWorkSpace) {
+                        if (
+                            isExecuteBash &&
+                            commandCategory === CommandCategory.ReadOnly &&
+                            !isOutOfWorkSpace &&
+                            !requiresAcceptance
+                        ) {
                             toolRequiresAcceptance = false
                         }
 
