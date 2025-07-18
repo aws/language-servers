@@ -3971,16 +3971,31 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onShowSubscription(): Promise<void> {
-        // todo: load account details
+        try {
+            const serviceClient = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
 
-        // for now, send a sample payload, so that clients under development can start seeing data
-        await this.#features.chat.sendSubscriptionDetails({
-            subscriptionTier: 'temp',
-            daysRemaining: 2,
-            queryLimit: 1000,
-            queryUsage: 457,
-            queryOverage: 0,
-        })
+            const response = await serviceClient.getUsageLimits({
+                resourceType: 'AGENTIC_REQUEST',
+            })
+
+            // todo: remove temporary log
+            this.#log(JSON.stringify(response, null, 4))
+
+            // todo: update with subscription tier
+
+            await this.#features.chat.sendSubscriptionDetails({
+                subscriptionTier: 'temp',
+                daysRemaining: response.daysUntilReset,
+                queryLimit: response.usageBreakdown?.usageLimit ?? 0,
+                queryUsage: response.usageBreakdown?.currentUsage ?? 0,
+                queryOverage: response.usageBreakdown?.currentOverages ?? 0,
+            })
+        } catch (error) {
+            // getCodewhispererService can throw if user isn't properly connected
+            this.#log(`Unable to get subscription details: ${error}`)
+
+            return
+        }
     }
 
     async #processAgenticChatResponseWithTimeout(
