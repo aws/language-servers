@@ -617,7 +617,7 @@ export class ChatDatabase {
                             message,
                             // dummy response
                             {
-                                body: 'Thinking...',
+                                body: 'Working...',
                                 type: 'answer',
                                 shouldDisplayMessage: false,
                                 timestamp: new Date(),
@@ -897,7 +897,7 @@ export class ChatDatabase {
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
             // Add an assistant response to both request and DB to maintain a valid sequence
             const dummyResponse: Message = {
-                body: 'Thinking...',
+                body: 'Working...',
                 type: 'answer',
                 shouldDisplayMessage: false,
                 timestamp: new Date(),

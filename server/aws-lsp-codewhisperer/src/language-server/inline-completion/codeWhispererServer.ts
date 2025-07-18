@@ -17,7 +17,7 @@ import {
     IdeDiagnostic,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { autoTrigger, getAutoTriggerType, triggerType } from './auto-trigger/autoTrigger'
+import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
@@ -313,8 +313,6 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
-        // Threshold to avoid getting the same suggestion type due to unexpected issue
-        const timeSinceCloseTimeEditStreakThreshold: number = 2000
 
         const sessionManager = SessionManager.getInstance()
 
@@ -444,8 +442,6 @@ export const CodewhispererServerFactory =
 
                     const previousSession = sessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
-                    const previousSuggestionType = previousSession?.suggestionType ?? ''
-                    const previousCloseTime = previousSession?.closeTime
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
@@ -464,7 +460,7 @@ export const CodewhispererServerFactory =
                             lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
                             char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                             ide: ideCategory ?? '',
-                            os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                            os: getNormalizeOsName(),
                             previousDecision, // The last decision by the user on the previous invocation
                             triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                         },
@@ -515,42 +511,33 @@ export const CodewhispererServerFactory =
                         if (editsEnabled) {
                             const predictionTypes: string[][] = []
 
+                            /**
+                             * Manual trigger - should always have 'Completions'
+                             * Auto trigger
+                             *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
+                             *  - Others - should always have 'Completions'
+                             */
                             if (
-                                previousDecision === 'Accept' &&
-                                previousSuggestionType === SuggestionType.EDIT &&
-                                previousCloseTime &&
-                                new Date().getTime() - previousCloseTime < timeSinceCloseTimeEditStreakThreshold
+                                !isAutomaticLspTriggerKind ||
+                                (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
+                                (isAutomaticLspTriggerKind &&
+                                    codewhispererAutoTriggerType === 'Classifier' &&
+                                    autoTriggerResult.shouldTrigger)
                             ) {
+                                predictionTypes.push(['COMPLETIONS'])
+                            }
+
+                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
+                                fileContext: fileContext,
+                                lineNum: params.position.line,
+                                char: triggerCharacters,
+                                previousDecision: previousDecision,
+                                cursorHistory: cursorTracker,
+                                recentEdits: recentEditTracker,
+                            })
+
+                            if (editPredictionAutoTriggerResult.shouldTrigger) {
                                 predictionTypes.push(['EDITS'])
-                            } else {
-                                /**
-                                 * Manual trigger - should always have 'Completions'
-                                 * Auto trigger
-                                 *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
-                                 *  - Others - should always have 'Completions'
-                                 */
-                                if (
-                                    !isAutomaticLspTriggerKind ||
-                                    (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
-                                    (isAutomaticLspTriggerKind &&
-                                        codewhispererAutoTriggerType === 'Classifier' &&
-                                        autoTriggerResult.shouldTrigger)
-                                ) {
-                                    predictionTypes.push(['COMPLETIONS'])
-                                }
-
-                                const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
-                                    fileContext: fileContext,
-                                    lineNum: params.position.line,
-                                    char: triggerCharacters,
-                                    previousDecision: previousDecision,
-                                    cursorHistory: cursorTracker,
-                                    recentEdits: recentEditTracker,
-                                })
-
-                                if (editPredictionAutoTriggerResult.shouldTrigger) {
-                                    predictionTypes.push(['EDITS'])
-                                }
                             }
 
                             if (predictionTypes.length === 0) {
@@ -588,7 +575,7 @@ export const CodewhispererServerFactory =
                                 document: {
                                     relativeFilePath: textDocument.uri,
                                     programmingLanguage: {
-                                        languageName: textDocument.languageId,
+                                        languageName: requestContext.fileContext.programmingLanguage.languageName,
                                     },
                                     text: textDocument.getText(),
                                 },
@@ -748,7 +735,10 @@ export const CodewhispererServerFactory =
             }
 
             // session was closed by user already made decisions consequent completion request before new paginated API response was received
-            if (session.state === 'CLOSED' || session.state === 'DISCARD') {
+            if (
+                session.suggestionType !== SuggestionType.EDIT && // TODO: this is a shorterm fix to allow Edits tabtabtab experience, however the real solution is to manage such sessions correctly
+                (session.state === 'CLOSED' || session.state === 'DISCARD')
+            ) {
                 return EMPTY_RESULT
             }
 

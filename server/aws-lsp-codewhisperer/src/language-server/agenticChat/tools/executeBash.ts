@@ -27,12 +27,10 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['cat', CommandCategory.ReadOnly],
     ['bat', CommandCategory.ReadOnly],
     ['pwd', CommandCategory.ReadOnly],
-    ['echo', CommandCategory.ReadOnly],
     ['file', CommandCategory.ReadOnly],
     ['less', CommandCategory.ReadOnly],
     ['more', CommandCategory.ReadOnly],
     ['tree', CommandCategory.ReadOnly],
-    ['find', CommandCategory.ReadOnly],
     ['top', CommandCategory.ReadOnly],
     ['htop', CommandCategory.ReadOnly],
     ['ps', CommandCategory.ReadOnly],
@@ -54,7 +52,6 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['diff', CommandCategory.ReadOnly],
     ['head', CommandCategory.ReadOnly],
     ['tail', CommandCategory.ReadOnly],
-    ['grep', CommandCategory.ReadOnly],
 
     // Mutable commands
     ['chmod', CommandCategory.Mutate],
@@ -81,6 +78,9 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['exec', CommandCategory.Mutate],
     ['eval', CommandCategory.Mutate],
     ['xargs', CommandCategory.Mutate],
+    ['echo', CommandCategory.Mutate],
+    ['grep', CommandCategory.Mutate],
+    ['find', CommandCategory.Mutate],
 
     // Destructive commands
     ['rm', CommandCategory.Destructive],

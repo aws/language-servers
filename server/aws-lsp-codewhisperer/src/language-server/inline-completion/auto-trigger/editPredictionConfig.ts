@@ -18,6 +18,7 @@ export interface EditPredictionConfig {
     // Edit tracking
     editHistoryDurationMs: number
     editAdjacentLineRange: number
+    maxLinesToScanForContent: number
 
     // Feature flags
     enableLanguageKeywordTrigger: boolean
@@ -36,6 +37,7 @@ export const DEFAULT_EDIT_PREDICTION_CONFIG: EditPredictionConfig = {
     cursorUpdateIntervalMs: 250, // 250 milliseconds
     editHistoryDurationMs: 300000, // 5 minutes
     editAdjacentLineRange: 3,
+    maxLinesToScanForContent: 3,
     enableLanguageKeywordTrigger: true,
     enableOperatorDelimiterTrigger: true,
     enableUserPauseTrigger: true,
