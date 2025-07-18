@@ -1655,7 +1655,7 @@ export class AgenticChatController implements ChatHandlers {
                             approvedPaths
                         )
 
-                        const isExecuteBash = toolUse.name === 'executeBash'
+                        const isExecuteBash = toolUse.name === EXECUTE_BASH
 
                         // check if tool execution's path is out of workspace
                         const isOutOfWorkSpace = warning === OUT_OF_WORKSPACE_WARNING_MSG
