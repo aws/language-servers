@@ -693,24 +693,7 @@ export const createMynahUi = (
             }
         },
         onStopChatResponse: tabId => {
-            messager.onStopChatResponse(tabId)
-
-            // Reset loading state
-            mynahUi.updateStore(tabId, {
-                loadingChat: false,
-                cancelButtonWhenLoading: true,
-                promptInputDisabledState: false,
-            })
-
-            // Add a small delay before adding the chat item
-            setTimeout(() => {
-                // Add cancellation message when stop button is clicked
-                mynahUi.addChatItem(tabId, {
-                    type: ChatItemType.DIRECTIVE,
-                    messageId: 'canceled' + Date.now(),
-                    body: 'You canceled your current work, please provide additional examples or ask another question.',
-                })
-            }, 500) // 500ms delay
+            handleUIStopChatResponse(messager, mynahUi, tabId)
         },
         onOpenFileDialogClick: (tabId, fileType, insertPosition) => {
             const imageContext = getImageContextCount(tabId)
@@ -1464,6 +1447,8 @@ ${params.message}`,
     }
 
     const executeShellCommandShortCut = (params: ExecuteShellCommandParams) => {
+        const activeElement = document.activeElement as HTMLElement
+
         const tabId = mynahUi.getSelectedTabId()
         if (!tabId) return
 
@@ -1490,15 +1475,24 @@ ${params.message}`,
             }
             messager.onButtonClick(payload)
             if (buttonId === 'stop-shell-command') {
-                messager.onStopChatResponse(tabId)
+                handleUIStopChatResponse(messager, mynahUi, tabId)
             }
         } else {
             // handle global stop
             const isLoading = mynahUi.getTabData(tabId)?.getStore()?.loadingChat
             if (isLoading && buttonId === 'stop-shell-command') {
-                messager.onStopChatResponse(tabId)
+                handleUIStopChatResponse(messager, mynahUi, tabId)
             }
         }
+        // this is a short-term solution to re-gain focus after executing a shortcut
+        // current behavior will emit exitFocus telemetry immediadately.
+        // use this to re-gain focus, so that user can use shortcut after shortcut
+        // without manually re-gain focus.
+        setTimeout(() => {
+            if (activeElement && activeElement.focus) {
+                activeElement.focus()
+            }
+        }, 100)
     }
 
     const openTab = (requestId: string, params: OpenTabParams) => {
@@ -1778,11 +1772,32 @@ export const uiComponentsTexts = {
 }
 
 const getStopGeneratingToolTipText = (os: string | undefined, agenticMode: boolean | undefined): string => {
-    if (os) {
+    if (agenticMode && os) {
         return os === 'darwin'
-            ? `Stop:  ${uiComponentsTexts.macStopButtonShortcut}`
-            : `Stop:  ${uiComponentsTexts.windowStopButtonShortcut}`
+            ? `Cancel:  ${uiComponentsTexts.macStopButtonShortcut}`
+            : `Cancel:  ${uiComponentsTexts.windowStopButtonShortcut}`
     }
 
     return agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating'
+}
+
+const handleUIStopChatResponse = (messenger: Messager, mynahUi: MynahUI, tabId: string) => {
+    messenger.onStopChatResponse(tabId)
+
+    // Reset loading state
+    mynahUi.updateStore(tabId, {
+        loadingChat: false,
+        cancelButtonWhenLoading: true,
+        promptInputDisabledState: false,
+    })
+
+    // Add a small delay before adding the chat item
+    setTimeout(() => {
+        // Add cancellation message when stop button is clicked
+        mynahUi.addChatItem(tabId, {
+            type: ChatItemType.DIRECTIVE,
+            messageId: 'canceled' + Date.now(),
+            body: 'You canceled your current work, please provide additional examples or ask another question.',
+        })
+    }, 500) // 500ms delay
 }

@@ -2197,7 +2197,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
-            buttons: [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }],
+            buttons: [this.#renderStopShellCommandButton()],
         }
 
         const completedHeader: ChatMessage['header'] = {
@@ -2274,7 +2274,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }] : [],
+                    buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
                 },
             }
         }
@@ -2450,10 +2450,10 @@ export class AgenticChatController implements ChatHandlers {
     #renderStopShellCommandButton() {
         const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
         return {
-            id: 'stop-shell-command',
+            id: BUTTON_STOP_SHELL_COMMAND,
             text: 'Cancel',
             icon: 'stop',
-            ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
+            ...(stopKey ? { description: `Cancel:  ${stopKey}` } : {}),
         }
     }
 
