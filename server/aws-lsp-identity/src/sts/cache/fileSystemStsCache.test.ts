@@ -91,9 +91,6 @@ describe('FileSystemStsCache', () => {
         setupTest()
 
         const actual = await sut.getStsCredential(id)
-        console.log('testabc')
-        console.log(actual?.expiration)
-        console.log(typeof actual?.expiration)
 
         expect(actual).to.not.be.null.and.not.undefined
         expect(actual?.accessKeyId).to.equal(credential.accessKeyId)
