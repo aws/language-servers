@@ -23,7 +23,10 @@ import {
     DEFAULT_AWS_Q_REGION,
 } from '../constants'
 import * as qDeveloperProfilesFetcherModule from './qDeveloperProfiles'
-import { setTokenCredentialsForAmazonQServiceManagerFactory } from '../testUtils'
+import {
+    setTokenCredentialsForAmazonQServiceManagerFactory,
+    setIamCredentialsForAmazonQServiceManagerFactory,
+} from '../testUtils'
 import { StreamingClientService } from '../streamingClientService'
 import { generateSingletonInitializationTests } from './testUtils'
 import * as utils from '../utils'
@@ -55,7 +58,7 @@ export const mockedProfiles: qDeveloperProfilesFetcherModule.AmazonQDeveloperPro
 const TEST_ENDPOINT_US_EAST_1 = 'http://amazon-q-in-us-east-1-endpoint'
 const TEST_ENDPOINT_EU_CENTRAL_1 = 'http://amazon-q-in-eu-central-1-endpoint'
 
-describe('AmazonQServiceManager', () => {
+describe('Token', () => {
     let codewhispererServiceStub: StubbedInstance<CodeWhispererService>
     let codewhispererStubFactory: sinon.SinonStub<any[], StubbedInstance<CodeWhispererService>>
     let sdkInitializatorSpy: sinon.SinonSpy
@@ -1036,7 +1039,7 @@ describe('AmazonQServiceManager', () => {
     })
 })
 
-describe('AmazonQServiceManager', () => {
+describe('IAM', () => {
     describe('Initialization process', () => {
         generateSingletonInitializationTests(AmazonQServiceManager)
     })
@@ -1046,8 +1049,11 @@ describe('AmazonQServiceManager', () => {
         let features: TestFeatures
         let updateCachedServiceConfigSpy: sinon.SinonSpy
 
+        const setCredentials = setIamCredentialsForAmazonQServiceManagerFactory(() => features)
+
         beforeEach(() => {
             features = new TestFeatures()
+            features.lsp.getClientInitializeParams.resolves({})
 
             updateCachedServiceConfigSpy = sinon.spy(
                 AmazonQServiceManager.prototype,
@@ -1065,6 +1071,7 @@ describe('AmazonQServiceManager', () => {
         })
 
         it('should initialize the CodeWhisperer service only once', () => {
+            setCredentials()
             const service = serviceManager.getCodewhispererService()
             sinon.assert.calledOnce(updateCachedServiceConfigSpy)
 
@@ -1073,6 +1080,7 @@ describe('AmazonQServiceManager', () => {
         })
 
         it('should initialize the streaming client only once', () => {
+            setCredentials()
             // Mock getIAMCredentialsFromProvider to return dummy credentials
             const getIAMCredentialsStub = sinon.stub(utils, 'getIAMCredentialsFromProvider').returns({
                 accessKeyId: 'dummy-access-key',

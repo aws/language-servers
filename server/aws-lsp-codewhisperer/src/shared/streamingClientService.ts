@@ -81,7 +81,22 @@ export class StreamingClientService extends StreamingClientServiceBase {
             `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
 
-        if (credentialsProvider.getCredentialsType() === 'bearer') {
+        if (credentialsProvider.getCredentialsType() === 'iam') {
+            const credentials = credentialsProvider.getCredentials() as Credentials
+            this.client = sdkInitializator(QDeveloperStreaming, {
+                region: region,
+                endpoint: endpoint,
+                // Do not pass credentials directly or you will get "object is not extensible" error when AWS SDK tries to modify frozen credentials
+                credentials: {
+                    accessKeyId: credentials.accessKeyId,
+                    secretAccessKey: credentials.secretAccessKey,
+                    sessionToken: credentials.sessionToken,
+                },
+                retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
+            }) as QDeveloperStreaming
+        }
+        // Use bearer token if credentials type is 'bearer' or undefined
+        else {
             const tokenProvider = async () => {
                 const creds = credentialsProvider.getCredentials() as BearerCredentials
                 const token = creds.token
@@ -98,21 +113,6 @@ export class StreamingClientService extends StreamingClientServiceBase {
                 }),
                 customUserAgent: customUserAgent,
             })
-        } else if (credentialsProvider.getCredentialsType() === 'iam') {
-            const credentials = credentialsProvider.getCredentials() as Credentials
-            this.client = sdkInitializator(QDeveloperStreaming, {
-                region: region,
-                endpoint: endpoint,
-                // Do not pass credentials directly or you will get "object is not extensible" error when AWS SDK tries to modify frozen credentials
-                credentials: {
-                    accessKeyId: credentials.accessKeyId,
-                    secretAccessKey: credentials.secretAccessKey,
-                    sessionToken: credentials.sessionToken,
-                },
-                retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
-            }) as QDeveloperStreaming
-        } else {
-            throw new Error('invalid credentialsType in constructor')
         }
     }
 

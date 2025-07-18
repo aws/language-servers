@@ -188,7 +188,7 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
         const credentialsType = this.features.credentialsProvider.getCredentialsType()
 
         if (credentialsType === 'iam') {
-            if (!this.cachedStreamingClient) {
+            if (!this.cachedCodewhispererService) {
                 const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(
                     this.features.runtime,
                     this.features.logging
@@ -207,15 +207,8 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
             }
             this.state = 'INITIALIZED'
             return
-        } else if (credentialsType === 'bearer') {
-            this.handleSsoConnectionChange()
-            return
         } else {
-            this.log(`Unknown connection type: ${credentialsType}`)
-            this.resetCodewhispererService()
-            this.connectionType = 'none'
-            this.state = 'PENDING_CONNECTION'
-
+            this.handleSsoConnectionChange()
             return
         }
     }
@@ -229,7 +222,7 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
 
         this.logServiceState('Validate State of SSO Connection')
 
-        const noCreds = !this.features.credentialsProvider.hasCredentials()
+        const noCreds = !this.features.credentialsProvider.hasCredentials('bearer')
         const noConnectionType = newConnectionType === 'none'
         if (noCreds || noConnectionType) {
             // Connection was reset, wait for SSO connection token from client
@@ -563,7 +556,7 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
             this.getCustomUserAgent()
         )
 
-        if (this.features.credentialsProvider.getCredentialsType() == 'bearer') {
+        if (this.features.credentialsProvider.getCredentialsType() !== 'iam') {
             streamingClient.profileArn = this.activeIdcProfile?.arn
         }
 

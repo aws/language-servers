@@ -19,6 +19,7 @@ import {
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
 } from './codeWhispererService'
+import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 
 describe('CodeWhispererService', function () {
     let sandbox: sinon.SinonSandbox
@@ -32,6 +33,7 @@ describe('CodeWhispererService', function () {
 
         mockCredentialsProvider = {
             getCredentials: sandbox.stub(),
+            getCredentialsType: sandbox.stub(),
             hasCredentials: sandbox.stub(),
             refresh: sandbox.stub(),
         } as any
@@ -58,7 +60,7 @@ describe('CodeWhispererService', function () {
         sandbox.restore()
     })
 
-    describe('CodeWhispererServiceBase', function () {
+    describe('Base', function () {
         let service: CodeWhispererServiceBase
 
         beforeEach(function () {
@@ -67,7 +69,7 @@ describe('CodeWhispererService', function () {
                 client: any = {}
 
                 getCredentialsType(): CredentialsType {
-                    return 'iam'
+                    return 'bearer'
                 }
 
                 // Add public getters for protected properties
@@ -192,95 +194,104 @@ describe('CodeWhispererService', function () {
         })
     })
 
-    // TODO: fix unit test to work with unified service
-    // describe('CodeWhispererServiceIAM', function () {
-    //     let service: CodeWhispererService
+    describe('IAM', function () {
+        let service: CodeWhispererService
 
-    //     beforeEach(function () {
-    //         // Mock the createCodeWhispererSigv4Client function to avoid real client creation
-    //         const mockClient = {
-    //             generateRecommendations: sandbox.stub().returns({
-    //                 promise: sandbox.stub().resolves({
-    //                     recommendations: [],
-    //                     $response: {
-    //                         requestId: 'test-request-id',
-    //                         httpResponse: {
-    //                             headers: { 'x-amzn-sessionid': 'test-session-id' },
-    //                         },
-    //                     },
-    //                 }),
-    //             }),
-    //             setupRequestListeners: sandbox.stub(),
-    //             config: {
-    //                 update: sandbox.stub(),
-    //             },
-    //         }
+        beforeEach(function () {
+            // Mock the createCodeWhispererSigv4Client function to avoid real client creation
+            const mockClient = {
+                generateRecommendations: sandbox.stub().returns({
+                    promise: sandbox.stub().resolves({
+                        recommendations: [],
+                        $response: {
+                            requestId: 'test-request-id',
+                            httpResponse: {
+                                headers: { 'x-amzn-sessionid': 'test-session-id' },
+                            },
+                        },
+                    }),
+                }),
+                setupRequestListeners: sandbox.stub(),
+                config: {
+                    update: sandbox.stub(),
+                },
+            }
 
-    //         // Mock the client creation
-    //         const createClientStub = sandbox.stub(
-    //             require('../client/sigv4/codewhisperer'),
-    //             'createCodeWhispererSigv4Client'
-    //         )
-    //         createClientStub.returns(mockClient)
+            // Mock the client creation
+            const createClientStub = sandbox.stub(
+                require('../client/sigv4/codewhisperer'),
+                'createCodeWhispererSigv4Client'
+            )
+            createClientStub.returns(mockClient)
 
-    //         service = new CodeWhispererService(
-    //             mockCredentialsProvider as any,
-    //             {} as any, // workspace parameter
-    //             mockLogging as any,
-    //             'us-east-1',
-    //             'https://codewhisperer.us-east-1.amazonaws.com',
-    //             mockSDKInitializator as any
-    //         )
-    //     })
+            // Mock bearer credentials
+            mockCredentialsProvider.getCredentials.returns({
+                accessKeyId: 'mock-access-key',
+                secretAccessKey: 'mock-secret-key',
+                sessionToken: 'mock-session-token',
+            })
+            mockCredentialsProvider.getCredentialsType.returns('iam')
 
-    //     describe('getCredentialsType', function () {
-    //         it('should return iam credentials type', function () {
-    //             assert.strictEqual(service.getCredentialsType(), 'iam')
-    //         })
-    //     })
+            service = new CodeWhispererService(
+                mockCredentialsProvider as any,
+                {} as any, // workspace parameter
+                mockLogging as any,
+                'us-east-1',
+                'https://codewhisperer.us-east-1.amazonaws.com',
+                mockSDKInitializator as any
+            )
+        })
 
-    //     describe('generateSuggestions', function () {
-    //         it('should call client.generateRecommendations and process response', async function () {
-    //             const mockRequest: GenerateSuggestionsRequest = {
-    //                 fileContext: {
-    //                     filename: 'test.js',
-    //                     programmingLanguage: { languageName: 'javascript' },
-    //                     leftFileContent: 'const x = ',
-    //                     rightFileContent: '',
-    //                 },
-    //                 maxResults: 5,
-    //             }
+        describe('getCredentialsType', function () {
+            it('should return iam credentials type', function () {
+                assert.strictEqual(service.getCredentialsType(), 'iam')
+            })
+        })
 
-    //             const result = await service.generateSuggestions(mockRequest)
+        describe('generateSuggestions', function () {
+            it('should call client.generateRecommendations and process response', async function () {
+                const mockRequest: GenerateSuggestionsRequest = {
+                    fileContext: {
+                        filename: 'test.js',
+                        programmingLanguage: { languageName: 'javascript' },
+                        leftFileContent: 'const x = ',
+                        rightFileContent: '',
+                    },
+                    maxResults: 5,
+                }
 
-    //             assert.strictEqual(Array.isArray(result.suggestions), true)
-    //             assert.strictEqual(typeof result.responseContext.requestId, 'string')
-    //             assert.strictEqual(typeof result.responseContext.codewhispererSessionId, 'string')
-    //         })
+                const result = await service.generateSuggestions(mockRequest)
 
-    //         it('should add customizationArn to request if set', async function () {
-    //             service.customizationArn = 'test-arn'
+                assert.strictEqual(Array.isArray(result.suggestions), true)
+                assert.strictEqual(typeof result.responseContext.requestId, 'string')
+                assert.strictEqual(typeof result.responseContext.codewhispererSessionId, 'string')
+            })
 
-    //             const mockRequest: GenerateSuggestionsRequest = {
-    //                 fileContext: {
-    //                     filename: 'test.js',
-    //                     programmingLanguage: { languageName: 'javascript' },
-    //                     leftFileContent: 'const x = ',
-    //                     rightFileContent: '',
-    //                 },
-    //                 maxResults: 5,
-    //             }
+            it('should add customizationArn to request if set', async function () {
+                service.customizationArn = 'test-arn'
 
-    //             await service.generateSuggestions(mockRequest)
+                const mockRequest: GenerateSuggestionsRequest = {
+                    fileContext: {
+                        filename: 'test.js',
+                        programmingLanguage: { languageName: 'javascript' },
+                        leftFileContent: 'const x = ',
+                        rightFileContent: '',
+                    },
+                    maxResults: 5,
+                }
 
-    //             // Verify that the client was called with the customizationArn
-    //             const clientCall = (service.client.generateRecommendations as sinon.SinonStub).getCall(0)
-    //             assert.strictEqual(clientCall.args[0].customizationArn, 'test-arn')
-    //         })
-    //     })
-    // })
+                await service.generateSuggestions(mockRequest)
 
-    describe('CodeWhispererService', function () {
+                // Verify that the client was called with the customizationArn
+                const clientCall = (
+                    (service.client as CodeWhispererSigv4Client).generateRecommendations as sinon.SinonStub
+                ).getCall(0)
+                assert.strictEqual(clientCall.args[0].customizationArn, 'test-arn')
+            })
+        })
+    })
+
+    describe('Token', function () {
         let service: CodeWhispererService
         let mockClient: any
 
@@ -319,6 +330,7 @@ describe('CodeWhispererService', function () {
             mockCredentialsProvider.getCredentials.returns({
                 token: 'mock-bearer-token',
             })
+            mockCredentialsProvider.getCredentialsType.returns('bearer')
 
             service = new CodeWhispererService(
                 mockCredentialsProvider as any,

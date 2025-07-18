@@ -147,7 +147,19 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
     private CreateCodeWhispererConfigurationOptions(): CodeWhispererConfigurationOptions {
         const credentialsType = this.credentialsProvider.getCredentialsType()
 
-        if (credentialsType === 'bearer') {
+        if (credentialsType === 'iam') {
+            const credentials = this.credentialsProvider.getCredentials() as Credentials
+            const options: CodeWhispererSigv4ClientConfigurationOptions = {
+                region: this.codeWhispererRegion,
+                endpoint: this.codeWhispererEndpoint,
+                credentials: {
+                    accessKeyId: credentials.accessKeyId,
+                    secretAccessKey: credentials.secretAccessKey,
+                    sessionToken: credentials.sessionToken,
+                },
+            }
+            return options
+        } else {
             const options: CodeWhispererTokenClientConfigurationOptions = {
                 region: this.codeWhispererRegion,
                 endpoint: this.codeWhispererEndpoint,
@@ -195,20 +207,6 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
                 ],
             }
             return options
-        } else if (credentialsType === 'iam') {
-            const credentials = this.credentialsProvider.getCredentials() as Credentials
-            const options: CodeWhispererSigv4ClientConfigurationOptions = {
-                region: this.codeWhispererRegion,
-                endpoint: this.codeWhispererEndpoint,
-                credentials: {
-                    accessKeyId: credentials.accessKeyId,
-                    secretAccessKey: credentials.secretAccessKey,
-                    sessionToken: credentials.sessionToken,
-                },
-            }
-            return options
-        } else {
-            throw new Error('invalid credentialsType for CreateCodeWhispererConfigurationOptions')
         }
     }
 
@@ -220,9 +218,7 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
     ): CodeWhispererClient {
         const credentialsType = credentialsProvider.getCredentialsType()
 
-        if (credentialsType === 'bearer') {
-            return createCodeWhispererTokenClient(options, sdkInitializator, logging)
-        } else if (credentialsType === 'iam') {
+        if (credentialsType === 'iam') {
             const client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
             const clientRequestListeners = client.setupRequestListeners
             client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
@@ -232,8 +228,9 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
                 request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
             }
             return client
+        } else {
+            return createCodeWhispererTokenClient(options, sdkInitializator, logging)
         }
-        throw new Error('invalid credentialsType for createAppropriateClient')
     }
 
     getCredentialsType(): CredentialsType {

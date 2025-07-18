@@ -15,7 +15,7 @@ import { rejects } from 'assert'
 
 const TIME_TO_ADVANCE_MS = 100
 
-describe('StreamingClientService', () => {
+describe('Token', () => {
     let streamingClientService: StreamingClientService
     let features: TestFeatures
     let clock: sinon.SinonFakeTimers
@@ -192,8 +192,8 @@ describe('StreamingClientService', () => {
     })
 })
 
-describe('StreamingClientService', () => {
-    let streamingClientServiceIAM: StreamingClientService
+describe('IAM', () => {
+    let streamingClientService: StreamingClientService
     let features: TestFeatures
     let clock: sinon.SinonFakeTimers
     let sendMessageStub: sinon.SinonStub
@@ -227,12 +227,13 @@ describe('StreamingClientService', () => {
 
         features.credentialsProvider.hasCredentials.returns(true)
         features.credentialsProvider.getCredentials.returns(MOCKED_IAM_CREDENTIALS)
+        features.credentialsProvider.getCredentialsType.returns('iam')
 
         sendMessageStub = sinon
             .stub(QDeveloperStreaming.prototype, 'sendMessage')
             .callsFake(() => Promise.resolve(MOCKED_SEND_MESSAGE_RESPONSE))
 
-        streamingClientServiceIAM = new StreamingClientService(
+        streamingClientService = new StreamingClientService(
             features.credentialsProvider,
             features.sdkInitializator,
             features.logging,
@@ -249,16 +250,16 @@ describe('StreamingClientService', () => {
     })
 
     it('initializes with IAM credentials', () => {
-        expect(streamingClientServiceIAM.client).to.not.be.undefined
-        if ('credentials' in streamingClientServiceIAM.client.config) {
-            expect(streamingClientServiceIAM.client.config.credentials).to.not.be.undefined
+        expect(streamingClientService.client).to.not.be.undefined
+        if ('credentials' in streamingClientService.client.config) {
+            expect(streamingClientService.client.config.credentials).to.not.be.undefined
         } else {
             expect.fail('credentials property is not defined on the client config')
         }
     })
 
     it('sends message with correct parameters', async () => {
-        const promise = streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
+        const promise = streamingClientService.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
 
         await clock.tickAsync(TIME_TO_ADVANCE_MS)
         await promise
@@ -268,12 +269,12 @@ describe('StreamingClientService', () => {
     })
 
     it('aborts in flight requests', async () => {
-        streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
-        streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
+        streamingClientService.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
+        streamingClientService.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
 
-        streamingClientServiceIAM.abortInflightRequests()
+        streamingClientService.abortInflightRequests()
 
         sinon.assert.calledTwice(abortStub)
-        expect(streamingClientServiceIAM['inflightRequests'].size).to.eq(0)
+        expect(streamingClientService['inflightRequests'].size).to.eq(0)
     })
 })
