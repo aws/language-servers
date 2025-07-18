@@ -1571,10 +1571,20 @@ ${params.message}`,
         mynahUi.addCustomContextToPrompt(params.tabId, commands, params.insertPosition)
     }
 
-    const showSubscriptionDetails = (params: SubscriptionDetailsParams) => {
-        // todo: deduplicate tabs
+    const getOrCreateSubscriptionDetailsTabId = (): string | undefined => {
+        const tabs = mynahUi.getAllTabs()
 
-        const tabId = createTabId()
+        for (const [tabId, tab] of Object.entries(tabs)) {
+            if (tab.store?.tabMetadata?.isSubscriptionDetails ?? false) {
+                return tabId
+            }
+        }
+
+        return createTabId()
+    }
+
+    const showSubscriptionDetails = (params: SubscriptionDetailsParams) => {
+        const tabId = getOrCreateSubscriptionDetailsTabId()
         if (tabId === undefined) {
             return
         }
@@ -1584,12 +1594,21 @@ ${params.message}`,
             return
         }
 
+        // Mark the tab as the one holding subscription details, so that
+        // we can look for it again later
+        const metadata = tabStore.tabMetadata ?? {}
+        metadata['isSubscriptionDetails'] = true
+
         mynahUi.updateStore(tabId, {
             tabTitle: 'Account Details',
             chatItems: [
                 // todo: show account details here
             ],
+            tabMetadata: metadata,
         })
+
+        // Switch to tab in case we're updating an existing tab
+        mynahUi.selectTab(tabId, 'show-subscription-details')
     }
 
     const chatHistoryList = new ChatHistoryList(mynahUi, messager)
