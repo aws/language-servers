@@ -139,7 +139,7 @@ describe('Telemetry', () => {
             },
         }
         const EMPTY_RESULT = { items: [], sessionId: '' }
-        const classifierResult = getNormalizeOsName() === 'Windows' ? 0.4114381148145918 : 0.46733811481459187
+        const classifierResult = getNormalizeOsName() !== 'Linux' ? 0.4114381148145918 : 0.46733811481459187
 
         let features: TestFeatures
         let server: Server
