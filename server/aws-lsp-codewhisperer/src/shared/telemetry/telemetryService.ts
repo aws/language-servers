@@ -1,4 +1,4 @@
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererService } from '../codeWhispererService'
 import {
     CredentialsProvider,
     CredentialsType,
@@ -101,9 +101,8 @@ export class TelemetryService {
         return this.serviceManager.getCodewhispererService().getCredentialsType()
     }
 
-    // NOTE : CWSPR Service GetManager
-    private getService(): CodeWhispererServiceToken {
-        const service = this.serviceManager.getCodewhispererService() as CodeWhispererServiceToken
+    private getService(): CodeWhispererService {
+        const service = this.serviceManager.getCodewhispererService() as CodeWhispererService
 
         if (!service.sendTelemetryEvent) {
             throw new Error(

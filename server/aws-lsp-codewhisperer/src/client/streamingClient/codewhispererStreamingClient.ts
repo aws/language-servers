@@ -1,6 +1,6 @@
 import { CodeWhispererStreaming, CodeWhispererStreamingClientConfig } from '@amzn/codewhisperer-streaming'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
-import { SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
+import { SDKInitializator, Logging, BearerCredentials } from '@aws/language-server-runtimes/server-interface'
 
 // TODO: refactor and combine with language-server/streamingClientService.ts when no longer in use
 export class StreamingClient {
@@ -30,7 +30,7 @@ export async function createStreamingClient(
     logging: Logging,
     config?: CodeWhispererStreamingClientConfig
 ): Promise<CodeWhispererStreaming> {
-    const creds = credentialsProvider.getCredentials('bearer')
+    const creds = credentialsProvider.getCredentials() as BearerCredentials
 
     logging.log(
         `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`

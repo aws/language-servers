@@ -11,7 +11,7 @@ import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
 import { QCodeReview } from './qCodeAnalysis/qCodeReview'
-import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
+import { CodeWhispererService } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
     getGlobalMcpConfigPath,
@@ -119,7 +119,7 @@ export const QCodeAnalysisServer: Server = ({
         }
 
         // Create the CodeWhisperer client
-        const codeWhispererClient = new CodeWhispererServiceToken(
+        const codeWhispererClient = new CodeWhispererService(
             credentialsProvider,
             workspace,
             logging,

@@ -14,7 +14,7 @@ import {
     ListAllAvailableProfilesHandler,
 } from '../../shared/amazonQServiceManager/qDeveloperProfiles'
 import { Customization, Customizations } from '../../client/token/codewhispererbearertokenclient'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { AWS_Q_ENDPOINTS, Q_CONFIGURATION_SECTION } from '../../shared/constants'
 import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 
@@ -52,7 +52,7 @@ type QConfigurationResponse =
 export const QConfigurationServerToken =
     (): Server =>
     ({ credentialsProvider, lsp, logging }) => {
-        let amazonQServiceManager: AmazonQTokenServiceManager
+        let amazonQServiceManager: AmazonQServiceManager
         let serverConfigurationProvider: ServerConfigurationProvider
         let enableCustomizationsWithMetadata = false
 
@@ -101,7 +101,7 @@ export const QConfigurationServerToken =
         })
 
         lsp.onInitialized(async () => {
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+            amazonQServiceManager = AmazonQServiceManager.getInstance()
 
             serverConfigurationProvider = new ServerConfigurationProvider(
                 amazonQServiceManager,
@@ -184,7 +184,7 @@ export class ServerConfigurationProvider {
     private listAllAvailableProfilesHandler: ListAllAvailableProfilesHandler
 
     constructor(
-        private serviceManager: AmazonQTokenServiceManager,
+        private serviceManager: AmazonQServiceManager,
         private credentialsProvider: CredentialsProvider,
         private logging: Logging
     ) {

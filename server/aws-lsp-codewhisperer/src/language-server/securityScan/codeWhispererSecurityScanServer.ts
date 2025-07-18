@@ -1,5 +1,6 @@
 import {
     CancellationToken,
+    CredentialsType,
     ExecuteCommandParams,
     InitializeParams,
     LSPErrorCodes,
@@ -17,7 +18,7 @@ import { SecurityScanRequestParams, SecurityScanResponse } from './types'
 import { SecurityScanEvent } from '../../shared/telemetry/types'
 import { getErrorMessage, parseJson } from '../../shared/utils'
 import { v4 as uuidv4 } from 'uuid'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { hasConnectionExpired } from '../../shared/utils'
 import { AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 
@@ -27,7 +28,7 @@ const CancelSecurityScanCommand = 'aws/codewhisperer/cancelSecurityScan'
 export const SecurityScanServerToken =
     (): Server =>
     ({ credentialsProvider, workspace, logging, lsp, telemetry, runtime, sdkInitializator }) => {
-        let amazonQServiceManager: AmazonQTokenServiceManager
+        let amazonQServiceManager: AmazonQServiceManager
         let scanHandler: SecurityScanHandler
 
         const diagnosticsProvider = new SecurityScanDiagnosticsProvider(lsp, logging)
@@ -55,7 +56,7 @@ export const SecurityScanServerToken =
                 credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
             }
             try {
-                if (!credentialsProvider.hasCredentials('bearer')) {
+                if (!credentialsProvider.hasCredentials() || credentialsProvider.getCredentialsType() !== 'bearer') {
                     throw new Error('Credentials provider does not have bearer token credentials')
                 }
 
@@ -241,7 +242,7 @@ export const SecurityScanServerToken =
         }
 
         const onInitializedHandler = async () => {
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+            amazonQServiceManager = AmazonQServiceManager.getInstance()
 
             scanHandler = new SecurityScanHandler(amazonQServiceManager, workspace, logging)
         }
