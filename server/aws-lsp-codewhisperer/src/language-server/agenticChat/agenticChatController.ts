@@ -197,8 +197,8 @@ import {
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
-import { CodeReview } from './tools/qCodeAnalysis/CodeReview'
-import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/CodeReviewConstants'
+import { CodeReview } from './tools/qCodeAnalysis/codeReview'
+import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/codeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -1866,16 +1866,16 @@ export class AgenticChatController implements ChatHandlers {
                     case CodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
                         // Push result in message so that it is picked by IDE plugin to show in issues panel
-                        const CodeReviewResult = result as InvokeOutput
+                        const codeReviewResult = result as InvokeOutput
                         if (
-                            CodeReviewResult?.output?.kind === 'json' &&
-                            CodeReviewResult.output.success &&
-                            (CodeReviewResult.output.content as any)?.findingsByFile
+                            codeReviewResult?.output?.kind === 'json' &&
+                            codeReviewResult.output.success &&
+                            (codeReviewResult.output.content as any)?.findingsByFile
                         ) {
                             await chatResultStream.writeResultBlock({
                                 type: 'tool',
                                 messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
-                                body: (CodeReviewResult.output.content as any).findingsByFile,
+                                body: (codeReviewResult.output.content as any).findingsByFile,
                             })
                         }
                         break

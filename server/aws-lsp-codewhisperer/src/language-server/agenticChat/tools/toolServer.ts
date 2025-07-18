@@ -10,7 +10,7 @@ import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
-import { CodeReview } from './qCodeAnalysis/CodeReview'
+import { CodeReview } from './qCodeAnalysis/codeReview'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
@@ -23,7 +23,7 @@ import {
     sanitizeName,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
-import { CodeReviewUtils } from './qCodeAnalysis/CodeReviewUtils'
+import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
@@ -98,7 +98,7 @@ export const QCodeAnalysisServer: Server = ({
     workspace,
 }) => {
     logging.info('QCodeAnalysisServer')
-    const CodeReviewTool = new CodeReview({
+    const codeReviewTool = new CodeReview({
         credentialsProvider,
         logging,
         telemetry,
@@ -135,7 +135,7 @@ export const QCodeAnalysisServer: Server = ({
                 inputSchema: CodeReview.inputSchema,
             },
             async (input: any, token?: CancellationToken, updates?: WritableStream) => {
-                return await CodeReviewTool.execute(input, {
+                return await codeReviewTool.execute(input, {
                     codeWhispererClient: codeWhispererClient,
                     cancellationToken: token,
                     writableStream: updates,

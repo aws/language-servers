@@ -6,7 +6,7 @@
 /* eslint-disable import/no-nodejs-modules */
 
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE, CODE_REVIEW_METRICS_PARENT_NAME } from './CodeReviewConstants'
+import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE, CODE_REVIEW_METRICS_PARENT_NAME } from './codeReviewConstants'
 import JSZip = require('jszip')
 import { exec } from 'child_process'
 import * as path from 'path'
@@ -18,7 +18,7 @@ import { QClientCapabilities } from '../../../configuration/qConfigurationServer
 import { CancellationError } from '@aws/lsp-core'
 import { InvokeOutput } from '../toolShared'
 import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
-import { CodeReviewMetric } from './CodeReviewTypes'
+import { CodeReviewMetric } from './codeReviewTypes'
 
 /**
  * Utility functions for CodeReview
@@ -265,7 +265,7 @@ export class CodeReviewUtils {
         const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
             | QClientCapabilities
             | undefined
-        return qCapabilities?.CodeReviewInChat || false
+        return qCapabilities?.codeReviewInChat || false
     }
 
     /**

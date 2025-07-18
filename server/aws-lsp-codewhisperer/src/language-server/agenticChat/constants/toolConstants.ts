@@ -19,7 +19,7 @@ export const FILE_SEARCH = 'fileSearch'
 export const EXECUTE_BASH = 'executeBash'
 
 // Code analysis tools
-export const CODE_REVIEW = 'CodeReview'
+export const CODE_REVIEW = 'codeReview'
 
 // Tool use button IDs
 export const BUTTON_RUN_SHELL_COMMAND = 'run-shell-command'

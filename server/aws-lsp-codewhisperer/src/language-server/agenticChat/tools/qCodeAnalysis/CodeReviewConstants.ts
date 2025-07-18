@@ -96,7 +96,7 @@ export const EXTENSION_TO_LANGUAGE: Record<string, string> = {
 /**
  * Tool name for CodeReview
  */
-export const CODE_REVIEW_TOOL_NAME = 'CodeReview'
+export const CODE_REVIEW_TOOL_NAME = 'codeReview'
 
 /**
  * Tool description for CodeReview
@@ -201,6 +201,6 @@ export const SKIP_DIRECTORIES = [
     'temp',
 ]
 
-export const FINDINGS_MESSAGE_SUFFIX = '_CodeReviewFindings'
+export const FINDINGS_MESSAGE_SUFFIX = '_codeReviewFindings'
 
-export const CODE_REVIEW_METRICS_PARENT_NAME = 'amazonq_CodeReviewTool'
+export const CODE_REVIEW_METRICS_PARENT_NAME = 'amazonq_codeReviewTool'

@@ -7,9 +7,9 @@ import {
     CODE_REVIEW_TOOL_DESCRIPTION,
     FULL_REVIEW,
     CODE_DIFF_REVIEW,
-} from './CodeReviewConstants'
-import { CodeReviewUtils } from './CodeReviewUtils'
-import { CODE_REVIEW_INPUT_SCHEMA, Z_CODE_REVIEW_INPUT_SCHEMA, FINDINGS_SCHEMA } from './CodeReviewSchemas'
+} from './codeReviewConstants'
+import { CodeReviewUtils } from './codeReviewUtils'
+import { CODE_REVIEW_INPUT_SCHEMA, Z_CODE_REVIEW_INPUT_SCHEMA, FINDINGS_SCHEMA } from './codeReviewSchemas'
 import { randomUUID } from 'crypto'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -17,7 +17,7 @@ import * as JSZip from 'jszip'
 import { existsSync, statSync } from 'fs'
 import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
 import { InvokeOutput } from '../toolShared'
-import { CodeReviewInternalError, CodeReviewTimeoutError, CodeReviewValidationError } from './CodeReviewErrors'
+import { CodeReviewInternalError, CodeReviewTimeoutError, CodeReviewValidationError } from './codeReviewErrors'
 import {
     FileArtifacts,
     FolderArtifacts,
@@ -29,7 +29,7 @@ import {
     CodeReviewFinding,
     FailedMetricName,
     SuccessMetricName,
-} from './CodeReviewTypes'
+} from './codeReviewTypes'
 import { CancellationError } from '@aws/lsp-core'
 
 export class CodeReview {

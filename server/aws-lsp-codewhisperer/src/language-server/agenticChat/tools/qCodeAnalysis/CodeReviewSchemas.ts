@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod'
-import { FINDING_SEVERITY, SCOPE_OF_CODE_REVIEW } from './CodeReviewConstants'
+import { FINDING_SEVERITY, SCOPE_OF_CODE_REVIEW } from './codeReviewConstants'
 
 /**
  * Input schema for CodeReview tool

@@ -41,7 +41,7 @@ export interface QClientCapabilities {
     mcp?: boolean
     modelSelection?: boolean
     reroute?: boolean
-    CodeReviewInChat?: boolean
+    codeReviewInChat?: boolean
 }
 
 type QConfigurationResponse =

@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CodeReviewUtils } from './CodeReviewUtils'
-import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE } from './CodeReviewConstants'
+import { CodeReviewUtils } from './codeReviewUtils'
+import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE } from './codeReviewConstants'
 import * as path from 'path'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -16,9 +16,9 @@ import { assert } from 'sinon'
 import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { CodeReviewMetric, SuccessMetricName, FailedMetricName } from './CodeReviewTypes'
+import { CodeReviewMetric, SuccessMetricName, FailedMetricName } from './codeReviewTypes'
 
-describe('QCodeReviewUtils', () => {
+describe('CodeReviewUtils', () => {
     // Sinon sandbox for managing stubs
     let sandbox: sinon.SinonSandbox
 
@@ -406,13 +406,13 @@ describe('QCodeReviewUtils', () => {
     })
 
     describe('isAgenticReviewEnabled', () => {
-        it('should return true when qCodeReviewInChat is enabled', () => {
+        it('should return true when codeReviewInChat is enabled', () => {
             const params = {
                 initializationOptions: {
                     aws: {
                         awsClientCapabilities: {
                             q: {
-                                qCodeReviewInChat: true,
+                                codeReviewInChat: true,
                             },
                         },
                     },
@@ -422,13 +422,13 @@ describe('QCodeReviewUtils', () => {
             expect(CodeReviewUtils.isAgenticReviewEnabled(params as any)).to.be.true
         })
 
-        it('should return false when qCodeReviewInChat is disabled', () => {
+        it('should return false when codeReviewInChat is disabled', () => {
             const params = {
                 initializationOptions: {
                     aws: {
                         awsClientCapabilities: {
                             q: {
-                                qCodeReviewInChat: false,
+                                codeReviewInChat: false,
                             },
                         },
                     },
@@ -673,7 +673,7 @@ describe('QCodeReviewUtils', () => {
             CodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
-                name: 'amazonq_qCodeReviewTool_codeScanSuccess',
+                name: 'amazonq_codeReviewTool_codeScanSuccess',
                 data: {
                     jobId: '123',
                     scanType: 'full',
@@ -696,7 +696,7 @@ describe('QCodeReviewUtils', () => {
             CodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
-                name: 'amazonq_qCodeReviewTool_codeScanFailed',
+                name: 'amazonq_codeReviewTool_codeScanFailed',
                 data: {
                     jobId: '456',
                     result: 'Failed',
@@ -715,7 +715,7 @@ describe('QCodeReviewUtils', () => {
             CodeReviewUtils.emitMetric(metric, mockLogging, mockTelemetry)
 
             sinon.assert.calledWith(mockTelemetry.emitMetric as sinon.SinonStub, {
-                name: 'amazonq_qCodeReviewTool_missingFileOrFolder',
+                name: 'amazonq_codeReviewTool_missingFileOrFolder',
                 data: {
                     result: 'Failed',
                     reason: 'File not found',
