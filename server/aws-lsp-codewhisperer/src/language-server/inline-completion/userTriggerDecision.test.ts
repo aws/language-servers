@@ -19,6 +19,7 @@ import {
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import { getNormalizeOsName } from './auto-trigger/autoTrigger'
 
 describe('Telemetry', () => {
     const sandbox = sinon.createSandbox()
@@ -138,6 +139,7 @@ describe('Telemetry', () => {
             },
         }
         const EMPTY_RESULT = { items: [], sessionId: '' }
+        const classifierResult = getNormalizeOsName() === 'Windows' ? 0.4114381148145918 : 0.46733811481459187
 
         let features: TestFeatures
         let server: Server
@@ -253,7 +255,7 @@ describe('Telemetry', () => {
                 triggerType: 'AutoTrigger',
                 autoTriggerType: 'SpecialCharacters',
                 triggerCharacter: '(',
-                classifierResult: 0.46733811481459187,
+                classifierResult: classifierResult,
                 classifierThreshold: 0.43,
                 language: 'csharp',
                 requestContext: {
@@ -1045,7 +1047,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: 0.46733811481459187,
+                    classifierResult: classifierResult,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {
@@ -1359,7 +1361,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: 0.46733811481459187,
+                    classifierResult: classifierResult,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {
