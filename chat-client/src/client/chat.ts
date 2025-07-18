@@ -108,7 +108,7 @@ import {
     OPEN_FILE_DIALOG_METHOD,
     OpenFileDialogResult,
 } from '@aws/language-server-runtimes-types'
-import { MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
+import { ConfigTexts, MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { Messager, OutboundChatApi } from './messager'
 import { InboundChatApi, createMynahUi } from './mynahUi'
@@ -120,8 +120,6 @@ import { modelSelectionForRegion } from './texts/modelSelection'
 const getDefaultTabConfig = (agenticMode?: boolean) => {
     return {
         tabTitle: 'Chat',
-        promptInputInfo:
-            'Amazon Q Developer uses generative AI. You may need to verify responses. See the [AWS Responsible AI Policy](https://aws.amazon.com/machine-learning/responsible-ai/policy/).',
         promptInputPlaceholder: `Ask a question. Use${agenticMode ? ' @ to add context,' : ''} / for quick actions`,
     }
 }
@@ -131,6 +129,7 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     pairProgrammingAcknowledged?: boolean
     agenticMode?: boolean
     modelSelectionEnabled?: boolean
+    stringOverrides?: Partial<ConfigTexts>
 }
 
 export const createChat = (
@@ -537,7 +536,8 @@ export const createChat = (
         config?.pairProgrammingAcknowledged ?? false,
         chatClientAdapter,
         featureConfig,
-        !!config?.agenticMode
+        !!config?.agenticMode,
+        config?.stringOverrides
     )
 
     mynahApi = api

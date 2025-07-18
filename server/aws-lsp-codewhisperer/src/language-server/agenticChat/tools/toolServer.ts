@@ -10,6 +10,8 @@ import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
+import { QCodeReview } from './qCodeAnalysis/qCodeReview'
+import { CodeWhispererService } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
     getGlobalMcpConfigPath,
@@ -21,6 +23,8 @@ import {
     sanitizeName,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
+import { QCodeReviewUtils } from './qCodeAnalysis/qCodeReviewUtils'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -80,6 +84,66 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     //     await grepSearchTool.validate(input)
     //     return await grepSearchTool.invoke(input, token)
     // }, ToolClassification.BuiltIn)
+
+    return () => {}
+}
+
+export const QCodeAnalysisServer: Server = ({
+    agent,
+    credentialsProvider,
+    logging,
+    lsp,
+    sdkInitializator,
+    telemetry,
+    workspace,
+}) => {
+    logging.info('QCodeAnalysisServer')
+    const qCodeReviewTool = new QCodeReview({
+        credentialsProvider,
+        logging,
+        telemetry,
+        workspace,
+    })
+
+    lsp.onInitialized(async () => {
+        if (!QCodeReviewUtils.isAgenticReviewEnabled(lsp.getClientInitializeParams())) {
+            logging.warn('Agentic Review is currently not supported')
+            return
+        }
+
+        logging.info('LSP on initialize for QCodeAnalysisServer')
+        // Get credentials provider from the LSP context
+        if (!credentialsProvider.hasCredentials) {
+            logging.error('Credentials provider not available')
+            return
+        }
+
+        // Create the CodeWhisperer client
+        const codeWhispererClient = new CodeWhispererService(
+            credentialsProvider,
+            workspace,
+            logging,
+            process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+            process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+            sdkInitializator
+        )
+
+        agent.addTool(
+            {
+                name: QCodeReview.toolName,
+                description: QCodeReview.toolDescription,
+                inputSchema: QCodeReview.inputSchema,
+            },
+            async (input: any, token?: CancellationToken, updates?: WritableStream) => {
+                return await qCodeReviewTool.execute(input, {
+                    codeWhispererClient: codeWhispererClient,
+                    cancellationToken: token,
+                    writableStream: updates,
+                })
+            },
+            ToolClassification.BuiltIn
+        )
+    })
 
     return () => {}
 }
@@ -151,59 +215,68 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
                 },
             }
 
-            agent.addTool(
-                {
-                    name: namespaced,
-                    description: (def.description?.trim() || 'undefined').substring(0, 10240),
-                    inputSchema: inputSchemaWithExplanation,
-                },
-                input => tool.invoke(input),
-                ToolClassification.MCP
-            )
-            registered[server].push(namespaced)
-            logging.info(`MCP: registered tool ${namespaced} (original: ${def.toolName})`)
+            const loggedToolName = `${namespaced} (original: ${def.toolName})`
+            try {
+                agent.addTool(
+                    {
+                        name: namespaced,
+                        description: (def.description?.trim() || 'undefined').substring(0, 10240),
+                        inputSchema: inputSchemaWithExplanation,
+                    },
+                    input => tool.invoke(input),
+                    ToolClassification.MCP
+                )
+                registered[server].push(namespaced)
+                logging.info(`MCP: registered tool ${loggedToolName}`)
+            } catch (e) {
+                console.warn(`Failed to register tool ${loggedToolName}:`, e)
+            }
         }
     }
 
     lsp.onInitialized(async () => {
-        if (!enabledMCP(lsp.getClientInitializeParams())) {
-            logging.warn('MCP is currently not supported')
-            return
+        try {
+            if (!enabledMCP(lsp.getClientInitializeParams())) {
+                logging.warn('MCP is currently not supported')
+                return
+            }
+
+            const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
+            const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
+            const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
+            const allConfigPaths = [...wsConfigPaths, globalConfigPath]
+
+            const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
+            const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
+            const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
+
+            const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, {
+                logging,
+                workspace,
+                lsp,
+                telemetry,
+                credentialsProvider,
+                runtime,
+            })
+
+            // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
+            McpManager.instance.clearToolNameMapping()
+
+            const byServer: Record<string, McpToolDefinition[]> = {}
+            // only register enabled tools
+            for (const d of mgr.getEnabledTools()) {
+                ;(byServer[d.serverName] ||= []).push(d)
+            }
+            for (const [server, defs] of Object.entries(byServer)) {
+                registerServerTools(server, defs)
+            }
+
+            mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
+                registerServerTools(server, defs)
+            })
+        } catch (e) {
+            console.warn('Caught error during MCP tool initialization; initialization may be incomplete:', e)
         }
-
-        const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
-        const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
-        const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
-        const allConfigPaths = [...wsConfigPaths, globalConfigPath]
-
-        const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
-        const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
-        const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
-
-        const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, {
-            logging,
-            workspace,
-            lsp,
-            telemetry,
-            credentialsProvider,
-            runtime,
-        })
-
-        // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
-        McpManager.instance.clearToolNameMapping()
-
-        const byServer: Record<string, McpToolDefinition[]> = {}
-        // only register enabled tools
-        for (const d of mgr.getEnabledTools()) {
-            ;(byServer[d.serverName] ||= []).push(d)
-        }
-        for (const [server, defs] of Object.entries(byServer)) {
-            registerServerTools(server, defs)
-        }
-
-        mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
-            registerServerTools(server, defs)
-        })
     })
 
     return async () => {

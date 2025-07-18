@@ -50,6 +50,7 @@ import {
     ChatItemButton,
     MynahIcons,
     CustomQuickActionCommand,
+    ConfigTexts,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -178,8 +179,8 @@ export const handleChatPrompt = (
         // Add cancellation message BEFORE showing the new prompt
         mynahUi.addChatItem(tabId, {
             type: ChatItemType.DIRECTIVE,
-            messageId: 'stopped' + Date.now(),
-            body: 'You stopped your current work and asked me to work on the following task instead.',
+            messageId: 'canceled' + Date.now(),
+            body: 'You canceled your current work and asked me to work on the following task instead.',
         })
 
         // Reset loading state
@@ -199,7 +200,8 @@ export const handleChatPrompt = (
         prompt.command &&
         ['/dev', '/test', '/doc'].includes(prompt.command)
 
-    if (prompt.command && !isReroutedCommand) {
+    if (prompt.command && !isReroutedCommand && prompt.command !== '/compact') {
+        // Send /compact quick action as normal regular chat prompt
         // Handle non-rerouted commands (/clear, /help, /transform, /review) as quick actions
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -310,7 +312,8 @@ export const createMynahUi = (
     pairProgrammingCardAcknowledged: boolean,
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>,
-    agenticMode?: boolean
+    agenticMode?: boolean,
+    stringOverrides?: Partial<ConfigTexts>
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -584,6 +587,7 @@ export const createMynahUi = (
                                     },
                                 ],
                             },
+                            validateOnChange: true,
                             description: "Use this prompt by typing '@' followed by the prompt name.",
                         },
                     ],
@@ -700,8 +704,8 @@ export const createMynahUi = (
                 // Add cancellation message when stop button is clicked
                 mynahUi.addChatItem(tabId, {
                     type: ChatItemType.DIRECTIVE,
-                    messageId: 'stopped' + Date.now(),
-                    body: 'You stopped your current work, please provide additional examples or ask another question.',
+                    messageId: 'canceled' + Date.now(),
+                    body: 'You canceled your current work, please provide additional examples or ask another question.',
                 })
             }, 500) // 500ms delay
         },
@@ -767,6 +771,7 @@ export const createMynahUi = (
                             label: 'image',
                             icon: icon,
                             content: bytes,
+                            id: fileName,
                         }
                     })
                 )
@@ -774,13 +779,21 @@ export const createMynahUi = (
                 // Add valid files to context commands
                 mynahUi.addCustomContextToPrompt(tabId, commands, insertPosition)
             }
-            const uniqueErrors = [...new Set(errors)]
-            for (const error of uniqueErrors) {
-                mynahUi.notify({
-                    content: error,
-                    type: NotificationType.WARNING,
-                })
+
+            const imageVerificationBanner: Partial<ChatItem> = {
+                messageId: 'image-verification-banner',
+                header: {
+                    icon: 'warning',
+                    iconStatus: 'warning',
+                    body: '### Invalid Image',
+                },
+                body: `${errors.join('\n')}`,
+                canBeDismissed: true,
             }
+
+            mynahUi.updateStore(tabId, {
+                promptInputStickyCard: imageVerificationBanner,
+            })
         },
     }
 
@@ -799,11 +812,14 @@ export const createMynahUi = (
         },
         config: {
             maxTabs: 10,
+            dragOverlayIcon: MynahIcons.IMAGE,
             texts: {
                 ...uiComponentsTexts,
+                dragOverlayText: 'Add image to context',
                 // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
+                ...stringOverrides,
             },
             // Total model context window limit 600k.
             // 500k for user input, 100k for context, history, system prompt.
@@ -1364,7 +1380,7 @@ export const createMynahUi = (
         // Adding this conditional check to show the stop message in the center.
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
-        // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
+        // If message.header?.status?.text is Canceled or Rejected or Ignored or Completed etc.. card should be in disabled state.
         const shouldMute = message.header?.status?.text !== undefined && message.header?.status?.text !== 'Completed'
 
         return {
@@ -1479,13 +1495,15 @@ ${params.message}`,
 
     const sendPinnedContext = (params: PinnedContextParams) => {
         const pinnedContext = toContextCommands(params.contextCommandGroups[0]?.commands || [])
-        const activeEditor = pinnedContext[0]?.id === ACTIVE_EDITOR_CONTEXT_ID
+        let activeEditor = pinnedContext[0]?.id === ACTIVE_EDITOR_CONTEXT_ID
         // Update Active File pill description with active editor URI passed from IDE
         if (activeEditor) {
             if (params.textDocument != null) {
                 pinnedContext[0].description = params.textDocument.uri
             } else {
+                // IDE did not pass in active file, remove it from pinned context
                 pinnedContext.shift()
+                activeEditor = false
             }
         }
         let promptTopBarTitle = '@'
@@ -1535,7 +1553,7 @@ ${params.message}`,
         }
         const commands: QuickActionCommand[] = []
         for (const filePath of params.filePaths) {
-            const fileName = filePath.split('/').pop() || filePath
+            const fileName = filePath.split(/[\\/]/).pop() || filePath
             if (params.fileType === 'image') {
                 commands.push({
                     command: fileName,
@@ -1543,6 +1561,7 @@ ${params.message}`,
                     label: 'image',
                     route: [filePath],
                     icon: MynahIcons.IMAGE,
+                    id: fileName,
                 })
             }
         }
@@ -1690,7 +1709,7 @@ const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then 
 
 const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
 
-const uiComponentsTexts = {
+export const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
     copy: 'Copy',
     insertAtCursorLabel: 'Insert at cursor',
@@ -1706,9 +1725,9 @@ const uiComponentsTexts = {
     save: 'Save',
     cancel: 'Cancel',
     submit: 'Submit',
-    stopGenerating: 'Stop',
+    stopGenerating: 'Cancel',
     copyToClipboard: 'Copied to clipboard',
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
-    spinnerText: 'Thinking...',
+    spinnerText: 'Working...',
 }

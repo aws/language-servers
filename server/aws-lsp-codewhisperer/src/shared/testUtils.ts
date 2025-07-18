@@ -146,6 +146,18 @@ export const EXPECTED_RESULT = {
     partialResultToken: undefined,
 }
 
+export const EXPECTED_RESULT_EDITS = {
+    sessionId: EXPECTED_SESSION_ID,
+    items: [
+        {
+            itemId: EXPECTED_SUGGESTION[0].itemId,
+            insertText: EXPECTED_SUGGESTION[0].content,
+            isInlineEdit: true,
+        },
+    ],
+    partialResultToken: undefined,
+}
+
 export const EXPECTED_NEXT_TOKEN = 'randomNextToken'
 
 export const EXPECTED_REFERENCE = {

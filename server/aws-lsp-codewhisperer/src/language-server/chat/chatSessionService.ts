@@ -81,13 +81,17 @@ export class ChatSessionService {
         this.#deferredToolExecution[messageId] = { resolve, reject }
     }
 
+    public getAllDeferredCompactMessageIds(): string[] {
+        return Object.keys(this.#deferredToolExecution).filter(messageId => messageId.endsWith('_compact'))
+    }
+
     public rejectAllDeferredToolExecutions(error: Error): void {
-        for (const messageId in this.#deferredToolExecution) {
+        Object.keys(this.#deferredToolExecution).forEach(messageId => {
             const handler = this.#deferredToolExecution[messageId]
             if (handler && handler.reject) {
                 handler.reject(error)
             }
-        }
+        })
         // Clear all handlers after rejecting them
         this.#deferredToolExecution = {}
     }

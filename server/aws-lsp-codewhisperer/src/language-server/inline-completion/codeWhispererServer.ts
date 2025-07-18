@@ -17,7 +17,7 @@ import {
     IdeDiagnostic,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
+import { autoTrigger, getAutoTriggerType, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererService,
     GenerateSuggestionsRequest,
@@ -334,27 +334,41 @@ export const CodewhispererServerFactory =
         const cursorTracker = CursorTracker.getInstance()
         const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
         let editsEnabled = false
+        let isOnInlineCompletionHandlerInProgress = false
 
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            // On every new completion request close current inflight session.
-            const currentSession = sessionManager.getCurrentSession()
-            if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
-                currentSession.discardInflightSessionOnNewInvocation = true
+            // this handle should not run concurrently because
+            // 1. it would create a high volume of traffic, causing throttling
+            // 2. it is not designed to handle concurrent changes to these state variables.
+            // when one handler is at the API call stage, it has not yet update the session state
+            // but another request can start, causing the state to be incorrect.
+            if (isOnInlineCompletionHandlerInProgress) {
+                logging.log(`Skip concurrent inline completion`)
+                return EMPTY_RESULT
             }
+            isOnInlineCompletionHandlerInProgress = true
 
-            if (cursorTracker) {
-                cursorTracker.trackPosition(params.textDocument.uri, params.position)
-            }
+            try {
+                // On every new completion request close current inflight session.
+                const currentSession = sessionManager.getCurrentSession()
+                if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
+                    // this REQUESTING state only happens when the session is initialized, which is rare
+                    currentSession.discardInflightSessionOnNewInvocation = true
+                }
 
-            return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
+                if (cursorTracker) {
+                    cursorTracker.trackPosition(params.textDocument.uri, params.position)
+                }
+                const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
                 if (params.partialResultToken && currentSession) {
                     // subsequent paginated requests for current session
-                    return codeWhispererService
-                        .generateSuggestions({
+                    try {
+                        const suggestionResponse = await codeWhispererService.generateSuggestions({
                             ...currentSession.requestContext,
                             fileContext: {
                                 ...currentSession.requestContext.fileContext,
@@ -367,17 +381,15 @@ export const CodewhispererServerFactory =
                             },
                             nextToken: `${params.partialResultToken}`,
                         })
-                        .then(async suggestionResponse => {
-                            return await processSuggestionResponse(
-                                suggestionResponse,
-                                currentSession,
-                                false,
-                                params.context.selectedCompletionInfo?.range
-                            )
-                        })
-                        .catch(error => {
-                            return handleSuggestionsErrors(error, currentSession)
-                        })
+                        return await processSuggestionResponse(
+                            suggestionResponse,
+                            currentSession,
+                            false,
+                            params.context.selectedCompletionInfo?.range
+                        )
+                    } catch (error) {
+                        return handleSuggestionsErrors(error as Error, currentSession)
+                    }
                 } else {
                     // request for new session
                     if (!textDocument) {
@@ -410,10 +422,22 @@ export const CodewhispererServerFactory =
                         ? workspaceState.workspaceId
                         : undefined
 
-                    // TODO: Can we get this derived from a keyboard event in the future?
-                    // This picks the last non-whitespace character, if any, before the cursor
-                    const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
-                    const codewhispererAutoTriggerType = triggerType(fileContext)
+                    let triggerCharacters = ''
+                    let codewhispererAutoTriggerType = undefined
+                    // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
+                    if (
+                        params.documentChangeParams?.contentChanges &&
+                        params.documentChangeParams.contentChanges.length > 0 &&
+                        params.documentChangeParams.contentChanges[0].text !== undefined
+                    ) {
+                        triggerCharacters = params.documentChangeParams.contentChanges[0].text
+                        codewhispererAutoTriggerType = getAutoTriggerType(params.documentChangeParams.contentChanges)
+                    } else {
+                        // if the client does not emit document change for the trigger, use left most character.
+                        triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
+                        codewhispererAutoTriggerType = triggerType(fileContext)
+                    }
+
                     const previousSession = sessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
                     const previousSuggestionType = previousSession?.suggestionType ?? ''
@@ -423,11 +447,18 @@ export const CodewhispererServerFactory =
                     if (initializeParams !== undefined) {
                         ideCategory = getIdeCategory(initializeParams)
                     }
+
+                    // See: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L132
+                    // In such cases, do not auto trigger.
+                    if (codewhispererAutoTriggerType === undefined) {
+                        return EMPTY_RESULT
+                    }
+
                     const autoTriggerResult = autoTrigger(
                         {
                             fileContext, // The left/right file context and programming language
                             lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                            char: triggerCharacter, // Add the character just inserted, if any, before the invication position
+                            char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                             ide: ideCategory ?? '',
                             os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
                             previousDecision, // The last decision by the user on the previous invocation
@@ -507,7 +538,7 @@ export const CodewhispererServerFactory =
                                 const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
                                     fileContext: fileContext,
                                     lineNum: params.position.line,
-                                    char: triggerCharacter,
+                                    char: triggerCharacters,
                                     previousDecision: previousDecision,
                                     cursorHistory: cursorTracker,
                                     recentEdits: recentEditTracker,
@@ -553,7 +584,7 @@ export const CodewhispererServerFactory =
                                 document: {
                                     relativeFilePath: textDocument.uri,
                                     programmingLanguage: {
-                                        languageName: textDocument.languageId,
+                                        languageName: requestContext.fileContext.programmingLanguage.languageName,
                                     },
                                     text: textDocument.getText(),
                                 },
@@ -585,8 +616,7 @@ export const CodewhispererServerFactory =
                         }
                         // Emit user trigger decision at session close time for active session
                         sessionManager.discardSession(currentSession)
-                        // TODO add streakLength back once the model is updated
-                        // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                        const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                         await emitUserTriggerDecisionTelemetry(
                             telemetry,
                             telemetryService,
@@ -595,7 +625,8 @@ export const CodewhispererServerFactory =
                             0,
                             0,
                             [],
-                            []
+                            [],
+                            streakLength
                         )
                     }
 
@@ -627,7 +658,7 @@ export const CodewhispererServerFactory =
                         language: fileContext.programmingLanguage.languageName,
                         requestContext: requestContext,
                         autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
-                        triggerCharacter: triggerCharacter,
+                        triggerCharacter: triggerCharacters,
                         classifierResult: autoTriggerResult?.classifierResult,
                         classifierThreshold: autoTriggerResult?.classifierThreshold,
                         credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
@@ -655,17 +686,16 @@ export const CodewhispererServerFactory =
                         },
                         ...(workspaceId ? { workspaceId: workspaceId } : {}),
                     }
-
-                    return codeWhispererService
-                        .generateSuggestions(generateCompletionReq)
-                        .then(async suggestionResponse => {
-                            return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
-                        })
-                        .catch(err => {
-                            return handleSuggestionsErrors(err, newSession)
-                        })
+                    try {
+                        const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
+                        return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
+                    } catch (error) {
+                        return handleSuggestionsErrors(error as Error, newSession)
+                    }
                 }
-            })
+            } finally {
+                isOnInlineCompletionHandlerInProgress = false
+            }
         }
 
         const processSuggestionResponse = async (
@@ -699,13 +729,17 @@ export const CodewhispererServerFactory =
             if (session.discardInflightSessionOnNewInvocation) {
                 session.discardInflightSessionOnNewInvocation = false
                 sessionManager.discardSession(session)
-                // TODO add streakLength back once the model is updated
-                // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
                     session,
-                    timeSinceLastUserModification
+                    timeSinceLastUserModification,
+                    0,
+                    0,
+                    [],
+                    [],
+                    streakLength
                 )
             }
 
@@ -833,6 +867,7 @@ export const CodewhispererServerFactory =
                         })
                         .filter(item => item.insertText !== ''),
                     sessionId: session.id,
+                    partialResultToken: suggestionResponse.responseContext.nextToken,
                 }
             }
         }
@@ -988,8 +1023,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            // TODO add streakLength back once the model is updated
-            // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,
@@ -998,7 +1032,8 @@ export const CodewhispererServerFactory =
                 addedCharactersForEditSuggestion.length,
                 deletedCharactersForEditSuggestion.length,
                 addedDiagnostics,
-                removedDiagnostics
+                removedDiagnostics,
+                streakLength
             )
         }
 

@@ -270,8 +270,7 @@ export class TelemetryService {
             deletedCharacterCount: deletedCharacterCount,
             addedIdeDiagnostics: addedIdeDiagnostics,
             removedIdeDiagnostics: removedIdeDiagnostics,
-            // TODO add streakLength back once the model is updated
-            // streakLength: streakLength,
+            streakLength: streakLength ?? 0,
         }
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
@@ -528,6 +527,8 @@ export class TelemetryService {
             cwsprChatPinnedPromptContextCount?: number
             languageServerVersion?: string
             requestIds?: string[]
+            experimentName?: string
+            userVariation?: string
         }>
     ) {
         const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
@@ -579,6 +580,8 @@ export class TelemetryService {
                     enabled: params.agenticCodingMode,
                     languageServerVersion: additionalParams.languageServerVersion,
                     requestIds: truncatedRequestIds,
+                    experimentName: additionalParams.experimentName,
+                    userVariation: additionalParams.userVariation,
                 },
             })
         }

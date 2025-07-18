@@ -25,13 +25,15 @@ import {
     getUserPromptsDirectory,
     getInitialContextInfo,
     promptFileExtension,
+    getCodeSymbolDescription,
 } from './contextUtils'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { Features } from '../../types'
 import { ChatDatabase } from '../tools/chatDb/chatDb'
 import { ChatMessage, ImageBlock, ImageFormat } from '@amzn/codewhisperer-streaming'
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
-import { isSupportedImageExtension } from '../../../shared/imageVerification'
+import { isSupportedImageExtension, MAX_IMAGE_CONTEXT_COUNT } from '../../../shared/imageVerification'
+import { mergeFileLists } from './contextUtils'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
 
@@ -176,7 +178,8 @@ export class AdditionalContextProvider {
         if (prompt.filePath.endsWith(promptFileExtension)) {
             if (
                 pathUtils.isInDirectory(path.join('.amazonq', 'rules'), prompt.relativePath) ||
-                path.basename(prompt.relativePath) === 'AmazonQ.md'
+                path.basename(prompt.relativePath) === 'AmazonQ.md' ||
+                path.basename(prompt.relativePath) === 'README.md'
             ) {
                 return 'rule'
             } else if (pathUtils.isInDirectory(getUserPromptsDirectory(), prompt.filePath)) {
@@ -238,6 +241,45 @@ export class AdditionalContextProvider {
 
         if (contextInfo.some(item => item.id === '@workspace')) {
             triggerContext.hasWorkspace = true
+        }
+        // Handle code symbol ID mismatches between indexing sessions
+        // When a workspace is re-indexed, code symbols receive new IDs
+        // If a pinned symbol's ID is no longer found in the current index:
+        // 1. Extract the symbol's name, filepath, and kind (without line numbers)
+        // 2. Search for a matching symbol in the current index with the same attributes
+        // 3. Update the pinned symbol's ID to reference the newly indexed equivalent
+        try {
+            let pinnedCodeItems = contextInfo.filter(item => item.pinned).filter(item => item.label === 'code')
+            if (pinnedCodeItems.length > 0) {
+                const localProjectContextController = await LocalProjectContextController.getInstance()
+
+                const availableContextItems = await localProjectContextController.getContextCommandItems()
+                const availableCodeContextItems = availableContextItems.filter(item => item.symbol)
+                for (const command of pinnedCodeItems) {
+                    // First check if the pinned symbol's ID still exists in the current index
+                    let matchedId = availableCodeContextItems.find(item => item.id === command.id)
+                    if (!matchedId) {
+                        // If ID no longer exists, try to find a matching symbol by name and description
+                        // Remove line numbers from description for comparison
+                        const pinnedItemDescription = command.description?.replace(/,\s*L\d+[-]\d+$/, '')
+                        if (pinnedItemDescription) {
+                            const matchedDescription = availableCodeContextItems.find(availableItem => {
+                                let availableItemDescription = getCodeSymbolDescription(availableItem, false)
+                                return (
+                                    command.command === availableItem.symbol?.name &&
+                                    availableItemDescription === pinnedItemDescription
+                                )
+                            })
+
+                            if (matchedDescription) {
+                                command.id = matchedDescription.id
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            // Do nothing if local project indexing fails
         }
 
         const contextCounts = getInitialContextInfo()
@@ -401,6 +443,60 @@ export class AdditionalContextProvider {
     }
 
     /**
+     * Returns merged image context from params.context and DB, deduplicated and limited to 20 items.
+     */
+    private getMergedImageContext(contextArr?: ContextCommand[], tabId?: string): ContextCommand[] {
+        let mergedContext: ContextCommand[] = contextArr ? [...contextArr] : []
+        if (tabId) {
+            const pinnedContext = this.chatDb.getPinnedContext(tabId)
+            for (const pc of pinnedContext) {
+                if (
+                    pc.label === 'image' &&
+                    !mergedContext.some(c => c.label === 'image' && c.description === pc.description)
+                ) {
+                    mergedContext.push(pc)
+                }
+            }
+        }
+        return mergedContext.slice(0, MAX_IMAGE_CONTEXT_COUNT)
+    }
+
+    public async appendCustomContextToTriggerContext(
+        triggerContext: TriggerContext,
+        contextArr?: ContextCommand[],
+        tabId?: string
+    ) {
+        const mergedContext = this.getMergedImageContext(contextArr, tabId)
+        if (mergedContext.length > 0) {
+            const imageFilePaths: string[] = []
+            const imageDetails: Record<string, FileDetails> = {}
+
+            for (const contextCommand of mergedContext) {
+                if (contextCommand.label === 'image' && contextCommand.route && contextCommand.route.length > 0) {
+                    let filePath = contextCommand.route[0]
+                    imageFilePaths.push(filePath)
+                    imageDetails[filePath] = {
+                        description: contextCommand.description || filePath,
+                        lineRanges: [{ first: -1, second: -1 }],
+                    }
+                }
+            }
+
+            if (imageFilePaths.length > 0) {
+                const imageFileList: FileList = {
+                    filePaths: imageFilePaths,
+                    details: imageDetails,
+                }
+                if (triggerContext.documentReference) {
+                    triggerContext.documentReference = mergeFileLists(triggerContext.documentReference, imageFileList)
+                } else {
+                    triggerContext.documentReference = imageFileList
+                }
+            }
+        }
+    }
+
+    /**
      * Extracts image blocks from a context array, reading image files and returning them as ImageBlock objects.
      * Optionally, appends pinned image context from chatDb for the given tabId.
      * @param contextArr The context array to extract image blocks from.
@@ -409,28 +505,19 @@ export class AdditionalContextProvider {
     public async getImageBlocksFromContext(contextArr?: ContextCommand[], tabId?: string): Promise<ImageBlock[]> {
         const imageBlocks: ImageBlock[] = []
 
-        // 1. Start with the provided contextArr or an empty array
-        let mergedContext: ContextCommand[] = contextArr ? [...contextArr] : []
+        // Use the helper to get merged and deduplicated image context
+        const mergedContext: ContextCommand[] = this.getMergedImageContext(contextArr, tabId)
 
-        // 2. If tabId is provided, append pinned image context from chatDb (avoid duplicates)
-        if (tabId) {
-            const pinnedContext = this.chatDb.getPinnedContext(tabId)
-            for (const pc of pinnedContext) {
-                if (pc.label === 'image' && !mergedContext.some(c => c.label === 'image' && c.id === pc.id)) {
-                    mergedContext.push(pc)
-                }
-            }
-        }
-
-        // 3. Limit mergedContext to 20 items
-        mergedContext = mergedContext.slice(0, 20)
-
-        // 4. Process all image contexts in mergedContext
+        // Process all image contexts in mergedContext
         for (const context of mergedContext) {
             if (context.label === 'image' && context.route && context.route.length > 0) {
                 try {
                     const imagePath = context.route[0]
-                    const format = imagePath.split('.').pop()?.toLowerCase() || ''
+                    let format = imagePath.split('.').pop()?.toLowerCase() || ''
+                    // Both .jpg and .jpeg files use the exact same JPEG compression algorithm and file structure.
+                    if (format === 'jpg') {
+                        format = 'jpeg'
+                    }
                     if (!isSupportedImageExtension(format)) {
                         this.features.logging.warn(`Unsupported image format: ${format}`)
                         continue
@@ -527,7 +614,6 @@ export class AdditionalContextProvider {
     }
 
     onPinnedContextAdd(params: PinnedContextParams) {
-        // add to this.#pinnedContext if that id isnt already in there
         let itemToAdd = params.contextCommandGroups[0]?.commands?.[0]
         if (itemToAdd) {
             this.chatDb.addPinnedContext(params.tabId, itemToAdd)
@@ -543,7 +629,7 @@ export class AdditionalContextProvider {
         this.sendPinnedContext(params.tabId)
     }
 
-    private convertRulesToRulesFolders(workspaceRules: ContextCommandItem[], tabId: string): RulesFolder[] {
+    convertRulesToRulesFolders(workspaceRules: ContextCommandItem[], tabId: string): RulesFolder[] {
         // Check if there's only one workspace folder
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)
         const isSingleWorkspace = workspaceFolders.length <= 1
@@ -570,7 +656,11 @@ export class AdditionalContextProvider {
                 // Root files will use the workspace folder name
                 // Subdir files will use workspace folder name + subdir
                 const workspaceFolderName = path.basename(rule.workspaceFolder)
-                folderName = dirPath === '.' ? workspaceFolderName : `${workspaceFolderName}/${dirPath}`
+                folderName =
+                    dirPath === '.'
+                        ? workspaceFolderName
+                        : // Escape backslashes since folderName is displayed in innerHTML
+                          path.join(workspaceFolderName, dirPath).replace(/\\/g, '\\\\')
             }
 
             // Get or create the folder's rule list
@@ -714,7 +804,7 @@ export class AdditionalContextProvider {
         // Create fake assistant response
         const assistantMessage: ChatMessage = {
             assistantResponseMessage: {
-                content: '',
+                content: 'Working...',
             },
         }
 
