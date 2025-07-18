@@ -1,3 +1,4 @@
+import * as os from 'os'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { FileContext } from '../../../shared/codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
@@ -133,6 +134,35 @@ export const getAutoTriggerType = (
     }
     return undefined
 }
+// reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L579
+export function getNormalizeOsName(): string {
+    const name = os.platform()
+    const version = os.version()
+    const lowercaseName = name.toLowerCase()
+    if (lowercaseName.includes('windows')) {
+        if (!version) {
+            return 'Windows'
+        } else if (version.includes('Windows NT 10') || version.startsWith('10')) {
+            return 'Windows 10'
+        } else if (version.includes('6.1')) {
+            return 'Windows 7'
+        } else if (version.includes('6.3')) {
+            return 'Windows 8.1'
+        } else {
+            return 'Windows'
+        }
+    } else if (
+        lowercaseName.includes('macos') ||
+        lowercaseName.includes('mac os') ||
+        lowercaseName.includes('darwin')
+    ) {
+        return 'Mac OS X'
+    } else if (lowercaseName.includes('linux')) {
+        return 'Linux'
+    } else {
+        return name
+    }
+}
 
 // Normalize values based on minn and maxx values in the coefficients.
 const normalize = (val: number, field: keyof typeof typedCoefficients.minn & keyof typeof typedCoefficients.maxx) =>
@@ -243,7 +273,6 @@ export const autoTrigger = (
         previousDecisionCoefficient +
         languageCoefficient +
         leftContextLengthCoefficient
-
     const shouldTrigger = sigmoid(classifierResult) > TRIGGER_THRESHOLD
 
     return {

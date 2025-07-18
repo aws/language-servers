@@ -17,7 +17,7 @@ import {
     IdeDiagnostic,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { autoTrigger, getAutoTriggerType, triggerType } from './auto-trigger/autoTrigger'
+import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
@@ -460,7 +460,7 @@ export const CodewhispererServerFactory =
                             lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
                             char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                             ide: ideCategory ?? '',
-                            os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                            os: getNormalizeOsName(),
                             previousDecision, // The last decision by the user on the previous invocation
                             triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                         },
