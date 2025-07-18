@@ -313,8 +313,6 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
-        // Threshold to avoid getting the same suggestion type due to unexpected issue
-        const timeSinceCloseTimeEditStreakThreshold: number = 2000
 
         const sessionManager = SessionManager.getInstance()
 
@@ -444,8 +442,6 @@ export const CodewhispererServerFactory =
 
                     const previousSession = sessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
-                    const previousSuggestionType = previousSession?.suggestionType ?? ''
-                    const previousCloseTime = previousSession?.closeTime
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
@@ -515,42 +511,33 @@ export const CodewhispererServerFactory =
                         if (editsEnabled) {
                             const predictionTypes: string[][] = []
 
+                            /**
+                             * Manual trigger - should always have 'Completions'
+                             * Auto trigger
+                             *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
+                             *  - Others - should always have 'Completions'
+                             */
                             if (
-                                previousDecision === 'Accept' &&
-                                previousSuggestionType === SuggestionType.EDIT &&
-                                previousCloseTime &&
-                                new Date().getTime() - previousCloseTime < timeSinceCloseTimeEditStreakThreshold
+                                !isAutomaticLspTriggerKind ||
+                                (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
+                                (isAutomaticLspTriggerKind &&
+                                    codewhispererAutoTriggerType === 'Classifier' &&
+                                    autoTriggerResult.shouldTrigger)
                             ) {
+                                predictionTypes.push(['COMPLETIONS'])
+                            }
+
+                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
+                                fileContext: fileContext,
+                                lineNum: params.position.line,
+                                char: triggerCharacters,
+                                previousDecision: previousDecision,
+                                cursorHistory: cursorTracker,
+                                recentEdits: recentEditTracker,
+                            })
+
+                            if (editPredictionAutoTriggerResult.shouldTrigger) {
                                 predictionTypes.push(['EDITS'])
-                            } else {
-                                /**
-                                 * Manual trigger - should always have 'Completions'
-                                 * Auto trigger
-                                 *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
-                                 *  - Others - should always have 'Completions'
-                                 */
-                                if (
-                                    !isAutomaticLspTriggerKind ||
-                                    (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
-                                    (isAutomaticLspTriggerKind &&
-                                        codewhispererAutoTriggerType === 'Classifier' &&
-                                        autoTriggerResult.shouldTrigger)
-                                ) {
-                                    predictionTypes.push(['COMPLETIONS'])
-                                }
-
-                                const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
-                                    fileContext: fileContext,
-                                    lineNum: params.position.line,
-                                    char: triggerCharacters,
-                                    previousDecision: previousDecision,
-                                    cursorHistory: cursorTracker,
-                                    recentEdits: recentEditTracker,
-                                })
-
-                                if (editPredictionAutoTriggerResult.shouldTrigger) {
-                                    predictionTypes.push(['EDITS'])
-                                }
                             }
 
                             if (predictionTypes.length === 0) {
