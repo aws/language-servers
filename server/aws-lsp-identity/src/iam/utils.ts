@@ -47,6 +47,12 @@ function convertToIamArn(arn: string) {
     }
 }
 
+export function throwOnInvalidCredentialId(iamCredentialId?: string): asserts iamCredentialId is string {
+    if (!iamCredentialId?.trim()) {
+        throw new AwsError('IAM credential id is invalid.', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)
+    }
+}
+
 export type SendGetMfaCode = (params: GetMfaCodeParams) => Promise<GetMfaCodeResult>
 
 export type IamHandlers = {

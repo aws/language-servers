@@ -1,5 +1,5 @@
-import { StsCache, StsCredential } from './stsCache'
-import { AwsErrorCodes } from '@aws/language-server-runtimes/server-interface'
+import { StsCache } from './stsCache'
+import { AwsErrorCodes, IamCredentials } from '@aws/language-server-runtimes/server-interface'
 import { AwsError, Observability } from '@aws/lsp-core'
 
 interface StsCredentialDetail {
@@ -23,27 +23,27 @@ export class RefreshingStsCache implements StsCache {
         await this.next.removeStsCredential(name)
     }
 
-    async getStsCredential(name: string): Promise<StsCredential | undefined> {
+    async getStsCredential(name: string): Promise<IamCredentials | undefined> {
         this.observability.logging.log('Retrieving STS Credential.')
 
         if (!name.trim()) {
             throw new AwsError('Profile name is invalid.', AwsErrorCodes.E_INVALID_PROFILE)
         }
 
-        const stsCredential = await this.next.getStsCredential(name)
+        const credential = await this.next.getStsCredential(name)
 
-        if (!stsCredential || !stsCredential.Credentials?.Expiration) {
+        if (!credential?.expiration) {
             this.observability.logging.log('STS Credential not found.')
             return undefined
         }
 
         const nowMillis = Date.now()
-        const expirationMillis = new Date(stsCredential.Credentials.Expiration).getTime()
+        const expirationMillis = new Date(credential.expiration).getTime()
 
         // Check if credential is still valid (not in refresh window)
         if (nowMillis < expirationMillis) {
             this.observability.logging.log('STS credential before refresh window.  Returning current STS credential.')
-            return stsCredential
+            return credential
         } else {
             // Credential is in refresh window or expired
             this.observability.logging.log('STS credential has expired.')
@@ -51,7 +51,7 @@ export class RefreshingStsCache implements StsCache {
         }
     }
 
-    async setStsCredential(name: string, credentials: StsCredential): Promise<void> {
+    async setStsCredential(name: string, credentials: IamCredentials): Promise<void> {
         this.observability.logging.log('Storing STS Credential.')
         await this.next.setStsCredential(name, credentials)
     }

@@ -2,9 +2,8 @@ import { expect, use } from 'chai'
 import { StsAutoRefresher } from './stsAutoRefresher'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { restore, spy } from 'sinon'
-import { AwsErrorCodes, Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { AwsErrorCodes, IamCredentials, Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { StsCredential } from './cache/stsCache'
 import { RefreshingStsCache } from './cache/refreshingStsCache'
 
 // eslint-disable-next-line
@@ -15,40 +14,28 @@ let observability: StubbedInstance<Observability>
 const profileName = 'someprofile'
 const now = Date.now()
 
-function createStsCredential(expiresAsOffsetMillis: number): StsCredential {
+function createStsCredential(expiresAsOffsetMillis: number): IamCredentials {
     return {
-        Credentials: {
-            AccessKeyId: 'someaccesskeyid',
-            SecretAccessKey: 'somesecretaccesskey',
-            SessionToken: 'somesessiontoken',
-            Expiration: new Date(now + expiresAsOffsetMillis),
-        },
-        AssumedRoleUser: {
-            Arn: 'arn:aws:sts::123456789012:assumed-role/somerole/somesession',
-            AssumedRoleId: 'someassumedroleid',
-        },
-    } satisfies StsCredential
+        accessKeyId: 'someaccesskeyid',
+        secretAccessKey: 'somesecretaccesskey',
+        sessionToken: 'somesessiontoken',
+        expiration: new Date(now + expiresAsOffsetMillis),
+    } satisfies IamCredentials
 }
 
-function refreshStsCredential(): Promise<StsCredential> {
+function refreshStsCredential(): Promise<IamCredentials> {
     return Promise.resolve({
-        Credentials: {
-            AccessKeyId: 'newaccesskeyid',
-            SecretAccessKey: 'newsecretaccesskey',
-            SessionToken: 'newsessiontoken',
-            Expiration: new Date(now + 60 * 60 * 1000 /* 1 hour in relative seconds */),
-        },
-        AssumedRoleUser: {
-            Arn: 'arn:aws:sts::123456789012:assumed-role/newrole/newsession',
-            AssumedRoleId: 'newassumedroleid',
-        },
-    } satisfies StsCredential)
+        accessKeyId: 'newaccesskeyid',
+        secretAccessKey: 'newsecretaccesskey',
+        sessionToken: 'newsessiontoken',
+        expiration: new Date(now + 60 * 60 * 1000 /* 1 hour in relative seconds */),
+    } satisfies IamCredentials)
 }
 
-function stubStsCache(stsCredential?: StsCredential): RefreshingStsCache {
+function stubStsCache(credential?: IamCredentials): RefreshingStsCache {
     return stubInterface<RefreshingStsCache>({
-        getStsCredential: stsCredential
-            ? Promise.resolve(stsCredential)
+        getStsCredential: credential
+            ? Promise.resolve(credential)
             : Promise.reject(new AwsError('Test: No STS credential', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)),
     })
 }

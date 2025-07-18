@@ -31,7 +31,7 @@ import {
     SsoFlowParams,
     SsoHandlers,
 } from '../sso/utils'
-import { IamFlowParams, IamHandlers, simulatePermissions } from '../iam/utils'
+import { IamFlowParams, IamHandlers, simulatePermissions, throwOnInvalidCredentialId } from '../iam/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
@@ -183,11 +183,15 @@ export class IdentityService {
                 token: token,
                 observability: this.observability,
             }
-            const credentials = await this.iamProvider.getCredential(flowOpts)
+            const credential = await this.iamProvider.getCredential(flowOpts)
 
             // Validate permissions
             if (options.permissionSet.length > 0) {
-                const response = await simulatePermissions(credentials, options.permissionSet, profile.settings?.region)
+                const response = await simulatePermissions(
+                    credential.credentials,
+                    options.permissionSet,
+                    profile.settings?.region
+                )
                 if (!response?.EvaluationResults?.every(result => result.EvalDecision === 'allowed')) {
                     throw new AwsError(`Credentials have insufficient permissions.`, AwsErrorCodes.E_INVALID_PROFILE)
                 }
@@ -196,8 +200,8 @@ export class IdentityService {
             emitMetric('Succeeded')
 
             return {
-                credential: { id: params.profileName, credentials: credentials },
-                updateCredentialsParams: { data: credentials, encrypted: false },
+                credential: credential,
+                updateCredentialsParams: { data: credential.credentials, encrypted: false },
             }
         } catch (e) {
             emitMetric('Failed', e)
@@ -253,13 +257,11 @@ export class IdentityService {
         })
 
         try {
-            if (!params?.profileName?.trim()) {
-                throw new AwsError('Profile name is invalid.', AwsErrorCodes.E_INVALID_PROFILE)
-            }
+            throwOnInvalidCredentialId(params.iamCredentialId)
 
-            this.stsAutoRefresher.unwatch(params.profileName)
+            this.stsAutoRefresher.unwatch(params.iamCredentialId)
 
-            await this.stsCache.removeStsCredential(params.profileName)
+            await this.stsCache.removeStsCredential(params.iamCredentialId)
 
             emitMetric('Succeeded')
             this.observability.logging.log('Successfully invalidated STS credentials.')

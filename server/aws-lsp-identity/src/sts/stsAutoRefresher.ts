@@ -1,6 +1,10 @@
-import { StsCache, StsCredential } from './cache/stsCache'
+import { StsCache } from './cache/stsCache'
 import { Observability } from '@aws/lsp-core'
-import { StsCredentialChangedKind, StsCredentialChangedParams } from '@aws/language-server-runtimes/protocol'
+import {
+    IamCredentials,
+    StsCredentialChangedKind,
+    StsCredentialChangedParams,
+} from '@aws/language-server-runtimes/protocol'
 
 // Modified to match SSO token refresh behavior
 const refreshWindowMillis = 5 * 60 * 1000 // 5 minutes (matching SSO)
@@ -32,13 +36,13 @@ export class StsAutoRefresher implements Disposable {
         }
     }
 
-    async watch(name: string, refreshCallback: () => Promise<StsCredential>): Promise<void> {
+    async watch(name: string, refreshCallback: () => Promise<IamCredentials>): Promise<void> {
         try {
             this.unwatch(name)
 
-            const stsCredentials = await this.stsCache.getStsCredential(name).catch(_ => undefined)
+            const credential = await this.stsCache.getStsCredential(name).catch(_ => undefined)
 
-            if (!stsCredentials || !stsCredentials.Credentials?.Expiration) {
+            if (!credential?.expiration) {
                 this.observability.logging.log(
                     'STS credentials do not exist or have no expiration, will not be auto-refreshed.'
                 )
@@ -46,7 +50,7 @@ export class StsAutoRefresher implements Disposable {
             }
 
             const nowMillis = Date.now()
-            const expirationMillis = new Date(stsCredentials.Credentials?.Expiration).getTime()
+            const expirationMillis = new Date(credential.expiration).getTime()
 
             // Get or create StsCredentialDetail (matching SSO pattern)
             const stsCredentialDetail =
