@@ -164,9 +164,9 @@ describe('IamProvider', () => {
             }
             const actual = await sut.getCredential({ ...defaultParams, profile: profile })
 
-            expect(actual.accessKeyId).to.equal('access-key')
-            expect(actual.secretAccessKey).to.equal('secret-key')
-            expect(actual.sessionToken).to.equal('session-token')
+            expect(actual.credentials.accessKeyId).to.equal('access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('secret-key')
+            expect(actual.credentials.sessionToken).to.equal('session-token')
         })
 
         it('Can generate credentials by assuming role.', async () => {
@@ -180,10 +180,10 @@ describe('IamProvider', () => {
             }
             const actual = await sut.getCredential({ ...defaultParams, profile: profile })
 
-            expect(actual.accessKeyId).to.equal('role-access-key')
-            expect(actual.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.sessionToken).to.equal('role-session-token')
-            expect(actual.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
 
@@ -210,10 +210,10 @@ describe('IamProvider', () => {
             }
             const actual = await sut.getCredential({ ...defaultParams, profile: profile })
 
-            expect(actual.accessKeyId).to.equal('role-access-key')
-            expect(actual.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.sessionToken).to.equal('role-session-token')
-            expect(actual.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(handlers.sendGetMfaCode.calledOnce).to.be.true
         })
 
@@ -228,23 +228,17 @@ describe('IamProvider', () => {
             }
             stsCache.getStsCredential = (() =>
                 Promise.resolve({
-                    Credentials: {
-                        AccessKeyId: 'other-access-key',
-                        SecretAccessKey: 'other-secret-key',
-                        SessionToken: 'other-session-token',
-                        Expiration: new Date('2024-10-25T18:09:20.455Z'),
-                    },
-                    AssumedRoleUser: {
-                        Arn: 'other-role-arn',
-                        AssumedRoleId: 'other-role-id',
-                    },
+                    accessKeyId: 'other-access-key',
+                    secretAccessKey: 'other-secret-key',
+                    sessionToken: 'other-session-token',
+                    expiration: new Date('2024-10-25T18:09:20.455Z'),
                 })) as any
             const actual = await sut.getCredential({ ...defaultParams, profile: profile })
 
-            expect(actual.accessKeyId).to.equal('other-access-key')
-            expect(actual.secretAccessKey).to.equal('other-secret-key')
-            expect(actual.sessionToken).to.equal('other-session-token')
-            expect(actual.expiration?.toISOString()).to.equal('2024-10-25T18:09:20.455Z')
+            expect(actual.credentials.accessKeyId).to.equal('other-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('other-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('other-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-10-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
 
@@ -276,10 +270,10 @@ describe('IamProvider', () => {
             }
             const actual = await sut.getCredential({ ...defaultParams, profile: profile })
 
-            expect(actual.accessKeyId).to.equal('role-access-key')
-            expect(actual.secretAccessKey).to.equal('role-secret-key')
-            expect(actual.sessionToken).to.equal('role-session-token')
-            expect(actual.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.called).to.be.true
         })
 

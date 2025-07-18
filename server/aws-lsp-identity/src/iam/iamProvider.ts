@@ -1,8 +1,14 @@
-import { AwsErrorCodes, IamCredentials, ProfileKind } from '@aws/language-server-runtimes/server-interface'
+import {
+    AwsErrorCodes,
+    IamCredential,
+    IamCredentialId,
+    IamCredentials,
+    ProfileKind,
+} from '@aws/language-server-runtimes/server-interface'
 import { AwsError } from '@aws/lsp-core'
 import { AssumeRoleCommand, AssumeRoleCommandInput, STSClient } from '@aws-sdk/client-sts'
 import { IamFlowParams, simulatePermissions } from './utils'
-import { StsCredential } from '../sts/cache/stsCache'
+import { createHash } from 'crypto'
 
 const sourceProfileRecursionMax = 5
 const mfaTimeout = 2 * 60 * 1000 // 2 minutes
@@ -10,12 +16,19 @@ const mfaTimeout = 2 * 60 * 1000 // 2 minutes
 export class IamProvider {
     private sourceProfileRecursionCount = 0
 
-    async getCredential(params: IamFlowParams): Promise<IamCredentials> {
+    async getCredential(params: IamFlowParams): Promise<IamCredential> {
         try {
+            let id: IamCredentialId = ''
             let credentials: IamCredentials
             // Assume the role matching the found ARN
             if (params.profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
-                credentials = await this.getAssumedRoleCredential(params)
+                const key = JSON.stringify({
+                    RoleArn: params.profile.settings?.role_arn,
+                    RoleSessionName: params.profile.settings?.role_session_name,
+                    SerialNumber: params.profile.settings?.mfa_serial,
+                })
+                id = createHash('sha1').update(key).digest('hex')
+                credentials = await this.getAssumedRoleCredential(id, params)
             }
             // Get the credentials directly from the profile
             else if (params.profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
@@ -31,50 +44,44 @@ export class IamProvider {
                 )
             }
 
-            return credentials
+            return { id: id, kinds: params.profile.kinds, credentials: credentials }
         } catch (e) {
             this.sourceProfileRecursionCount = 0
             throw e
         }
     }
 
-    private async getAssumedRoleCredential(params: IamFlowParams): Promise<IamCredentials> {
+    private async getAssumedRoleCredential(id: IamCredentialId, params: IamFlowParams): Promise<IamCredentials> {
         if (!params.profile.settings) {
             throw new AwsError('Profile settings not found when assuming role.', AwsErrorCodes.E_INVALID_PROFILE)
         }
 
         // Try to get the STS credentials from cache
         let result: IamCredentials
-        const stsCredentials = await params.stsCache.getStsCredential(params.profile.name).catch(_ => undefined)
+        const credential = await params.stsCache.getStsCredential(id).catch(_ => undefined)
 
-        if (stsCredentials?.Credentials) {
+        if (credential) {
             result = {
-                accessKeyId: stsCredentials.Credentials.AccessKeyId!,
-                secretAccessKey: stsCredentials.Credentials.SecretAccessKey!,
-                sessionToken: stsCredentials.Credentials.SessionToken!,
-                expiration: stsCredentials.Credentials.Expiration!,
+                accessKeyId: credential.accessKeyId,
+                secretAccessKey: credential.secretAccessKey,
+                sessionToken: credential.sessionToken,
+                expiration: credential.expiration,
             }
         } else if (params.callStsOnInvalidIamCredential) {
             // Generate STS credentials
             const response = await this.generateStsCredential(params)
-            if (!response.Credentials) {
-                throw new AwsError(
-                    'Failed to assume role: No credentials returned',
-                    AwsErrorCodes.E_INVALID_STS_CREDENTIAL
-                )
-            }
             // Cache STS credentials
-            await params.stsCache.setStsCredential(params.profile.name, response)
+            await params.stsCache.setStsCredential(id, response)
             result = {
-                accessKeyId: response.Credentials.AccessKeyId!,
-                secretAccessKey: response.Credentials.SecretAccessKey!,
-                sessionToken: response.Credentials.SessionToken!, // Always present in STS response
-                expiration: response.Credentials.Expiration!,
+                accessKeyId: response.accessKeyId,
+                secretAccessKey: response.secretAccessKey,
+                sessionToken: response.sessionToken,
+                expiration: response.expiration,
             }
         } else {
             // If we could not get the cached STS credential and cannot generate a new credential, give up
             params.observability.logging.log(
-                'STS credential not found an generateOnInvalidStsCredential = false, returning no credential.'
+                'STS credential not found an callStsOnInvalidIamCredential = false, returning no credential.'
             )
             throw new AwsError('STS credential not found.', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)
         }
@@ -82,7 +89,7 @@ export class IamProvider {
         // Set up auto-refresh if MFA is disabled
         if (!params.profile.settings.mfa_serial) {
             await params.stsAutoRefresher
-                .watch(params.profile.name, () => this.generateStsCredential(params))
+                .watch(id, () => this.generateStsCredential(params))
                 .catch(reason => {
                     params.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
                 })
@@ -104,7 +111,8 @@ export class IamProvider {
             // Obtain parent profile credentials if IamRoleSourceProfile chain isn't too long
             if (this.sourceProfileRecursionCount <= sourceProfileRecursionMax) {
                 this.sourceProfileRecursionCount += 1
-                parentCredentials = await this.getCredential({ ...params, profile: sourceProfile })
+                const response = await this.getCredential({ ...params, profile: sourceProfile })
+                parentCredentials = response.credentials
                 this.sourceProfileRecursionCount = 0
             } else {
                 throw new AwsError('Source profile chain exceeded max length.', AwsErrorCodes.E_INVALID_PROFILE)
@@ -115,7 +123,7 @@ export class IamProvider {
         return parentCredentials
     }
 
-    private async generateStsCredential(params: IamFlowParams): Promise<StsCredential> {
+    private async generateStsCredential(params: IamFlowParams): Promise<IamCredentials> {
         try {
             const parentCredentials = await this.getParentCredential(params)
             const stsClient = new STSClient({
@@ -170,8 +178,19 @@ export class IamProvider {
             }
 
             const command = new AssumeRoleCommand(assumeRoleInput)
-            const { Credentials, AssumedRoleUser } = await stsClient.send(command)
-            return { Credentials, AssumedRoleUser }
+            const { Credentials } = await stsClient.send(command)
+            if (!Credentials?.AccessKeyId || !Credentials.SecretAccessKey) {
+                throw new AwsError(
+                    'Failed to generate credentials for assumed role',
+                    AwsErrorCodes.E_CANNOT_CREATE_STS_CREDENTIAL
+                )
+            }
+            return {
+                accessKeyId: Credentials.AccessKeyId,
+                secretAccessKey: Credentials.SecretAccessKey,
+                sessionToken: Credentials.SessionToken,
+                expiration: Credentials.Expiration,
+            }
         } catch (e) {
             params.observability.logging.log(`Error generating STS credentials.`)
             throw e

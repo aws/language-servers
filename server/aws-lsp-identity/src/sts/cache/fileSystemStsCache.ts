@@ -1,27 +1,34 @@
-import { StsCache, StsCredential, stsCredentialDuckTyper } from './stsCache'
+import { StsCache } from './stsCache'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { AwsErrorCodes } from '@aws/language-server-runtimes/protocol'
+import { AwsErrorCodes, IamCredentials } from '@aws/language-server-runtimes/protocol'
 import path, { join } from 'path'
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises'
-import { createHash } from 'crypto'
 import { getHomeDir } from '@smithy/shared-ini-file-loader'
+import { throwOnInvalidCredentialId } from '../../iam/utils'
 
 export class FileSystemStsCache implements StsCache {
     constructor(private readonly observability: Observability) {}
 
     async removeStsCredential(name: string): Promise<void> {
+        throwOnInvalidCredentialId(name)
+
         await unlink(getStsCredentialFilepath(name)).catch(reason => this.ignoreDoesNotExistOrThrow(reason))
     }
 
-    async getStsCredential(name: string): Promise<StsCredential | undefined> {
+    async getStsCredential(name: string): Promise<IamCredentials | undefined> {
         return await getStsCredentialFromFile(name)
-            .then(stsCredential => {
-                if (stsCredentialDuckTyper.eval(stsCredential)) {
+            .then(credential => {
+                if (
+                    credential.accessKeyId &&
+                    credential.secretAccessKey &&
+                    credential.sessionToken &&
+                    credential.expiration
+                ) {
                     // Ensure Expiration is a Date object
-                    if (typeof stsCredential.Credentials?.Expiration === 'string') {
-                        stsCredential.Credentials.Expiration = new Date(stsCredential.Credentials.Expiration)
+                    if (typeof credential.expiration === 'string') {
+                        credential = { ...credential, expiration: new Date(credential.expiration) }
                     }
-                    return stsCredential
+                    return credential
                 } else {
                     return undefined
                 }
@@ -29,13 +36,15 @@ export class FileSystemStsCache implements StsCache {
             .catch(reason => this.ignoreDoesNotExistOrThrow(reason))
     }
 
-    async setStsCredential(name: string, credentials: StsCredential): Promise<void> {
-        if (!stsCredentialDuckTyper.eval(credentials)) {
+    async setStsCredential(name: string, credential: IamCredentials): Promise<void> {
+        if (
+            !(credential.accessKeyId && credential.secretAccessKey && credential.sessionToken && credential.expiration)
+        ) {
             this.observability.logging.log('File read from STS cache is not an STS credential.')
             return
         }
 
-        await writeStsObjectToFile(name, credentials).catch(reason => {
+        await writeStsObjectToFile(name, credential).catch(reason => {
             throw AwsError.wrap(reason, AwsErrorCodes.E_CANNOT_WRITE_SSO_CACHE)
         })
     }
@@ -54,26 +63,41 @@ export class FileSystemStsCache implements StsCache {
 
 // Based on:
 // https://github.com/smithy-lang/smithy-typescript/blob/main/packages/shared-ini-file-loader/src/getSSOTokenFilepath.ts
-export function getStsCredentialFilepath(id: string) {
-    const hasher = createHash('sha1')
-    const cacheName = hasher.update(id).digest('hex')
-    return join(getHomeDir(), '.aws', 'cli', 'cache', `${cacheName}.json`)
+export function getStsCredentialFilepath(id: string): string {
+    return join(getHomeDir(), '.aws', 'flare', 'cache', `${id}.json`)
 }
 
 // Based on:
 // https://github.com/smithy-lang/smithy-typescript/blob/main/packages/shared-ini-file-loader/src/getSSOTokenFromFile.ts
-async function getStsCredentialFromFile(id: string) {
+async function getStsCredentialFromFile(id: string): Promise<IamCredentials> {
     const stsCredentialFilepath = getStsCredentialFilepath(id)
-    const stsCredentialText = await readFile(stsCredentialFilepath, 'utf8')
-    return JSON.parse(stsCredentialText) as StsCredential
+    const text = await readFile(stsCredentialFilepath, 'utf8')
+    const json = JSON.parse(text)
+    return {
+        accessKeyId: json.Credentials.AccessKeyId,
+        secretAccessKey: json.Credentials.SecretAccessKey,
+        sessionToken: json.Credentials.SessionToken,
+        expiration: json.Credentials.Expiration,
+    } as IamCredentials
 }
 
 // Based on:
 // https://github.com/aws/aws-sdk-js-v3/blob/6e61f0e78ff7a9e3b1f2cd651bde5fc656d85ba9/packages/token-providers/src/writeSSOTokenToFile.ts
-async function writeStsObjectToFile(id: string, credentials: StsCredential): Promise<void> {
+async function writeStsObjectToFile(id: string, credentials: IamCredentials): Promise<void> {
     const filepath = getStsCredentialFilepath(id)
     await mkdir(path.dirname(filepath), { mode: 0o755, recursive: true })
-    const json = JSON.stringify(credentials, null, 2)
+    const json = JSON.stringify(
+        {
+            Credentials: {
+                AccessKeyId: credentials.accessKeyId,
+                SecretAccessKey: credentials.secretAccessKey,
+                SessionToken: credentials.sessionToken,
+                Expiration: credentials.expiration,
+            },
+        },
+        null,
+        2
+    )
     return await writeFile(filepath, json, { encoding: 'utf-8', flush: true, mode: 0o600 })
 }
 
