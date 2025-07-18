@@ -16,7 +16,7 @@ import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-se
 import { getBearerTokenFromProvider, getIAMCredentialsFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
-import { clientTimeoutMs } from '../language-server/agenticChat/constants'
+import { CLIENT_TIMEOUT_MS } from '../language-server/agenticChat/constants/constants'
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
 
@@ -83,7 +83,7 @@ export class StreamingClientServiceToken extends StreamingClientServiceBase {
             token: tokenProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
             requestHandler: new NodeHttpHandler({
-                requestTimeout: clientTimeoutMs,
+                requestTimeout: CLIENT_TIMEOUT_MS,
             }),
             customUserAgent: customUserAgent,
         })

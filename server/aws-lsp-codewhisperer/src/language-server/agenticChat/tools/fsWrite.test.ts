@@ -7,10 +7,17 @@ import { InvokeOutput } from './toolShared'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { StubbedInstance } from 'ts-sinon'
+import * as sinon from 'sinon'
+import { LocalProjectContextController } from '../../../shared/localProjectContextController'
+import { URI } from 'vscode-uri'
 
 describe('FsWrite Tool', function () {
     let tempFolder: testFolder.TestFolder
     let features: TestFeatures
+    let localProjectContextControllerStub: sinon.SinonStub
+    let mockController: {
+        updateIndexAndContextCommand: sinon.SinonStub
+    }
     const expectedOutput: InvokeOutput = {
         output: {
             kind: 'text',
@@ -40,14 +47,26 @@ describe('FsWrite Tool', function () {
             } as Workspace['fs'],
         } as StubbedInstance<Workspace>
         tempFolder = await testFolder.TestFolder.create()
+
+        // Set up LocalProjectContextController mock
+        mockController = {
+            updateIndexAndContextCommand: sinon.stub().resolves(),
+        }
+        localProjectContextControllerStub = sinon
+            .stub(LocalProjectContextController, 'getInstance')
+            .resolves(mockController as any)
     })
 
     afterEach(async function () {
         await tempFolder.clear()
+        // Reset the mock between tests
+        mockController.updateIndexAndContextCommand.resetHistory()
     })
 
     after(async function () {
         await tempFolder.delete()
+        // Restore the stub
+        localProjectContextControllerStub.restore()
     })
 
     it('writes a empty space to updates stream', async function () {
@@ -82,6 +101,18 @@ describe('FsWrite Tool', function () {
             assert.strictEqual(content, 'Hello World')
 
             assert.deepStrictEqual(output, expectedOutput)
+
+            // Verify LocalProjectContextController was called
+            assert.ok(localProjectContextControllerStub.calledOnce)
+
+            // Wait a bit for the async void call to complete
+            await new Promise(resolve => setTimeout(resolve, 10))
+
+            // Verify updateIndexAndContextCommand was called with correct parameters
+            assert.ok(mockController.updateIndexAndContextCommand.calledOnce)
+            const [paths, isAdded] = mockController.updateIndexAndContextCommand.firstCall.args
+            assert.deepStrictEqual(paths, [URI.file(filePath).fsPath])
+            assert.strictEqual(isAdded, true)
         })
 
         it('replaces existing file with fileText content', async function () {
