@@ -15,7 +15,7 @@ import sinon, { StubbedInstance } from 'ts-sinon'
 import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
-    CodeWhispererServiceToken,
+    CodeWhispererService,
     ResponseContext,
     Suggestion,
     SuggestionType,
@@ -771,8 +771,8 @@ describe('CodeWhisperer Server', () => {
         describe('Supplemental Context', () => {
             it('should send supplemental context when using token authentication', async () => {
                 const test_service = sinon.createStubInstance(
-                    CodeWhispererServiceToken
-                ) as StubbedInstance<CodeWhispererServiceToken>
+                    CodeWhispererService
+                ) as StubbedInstance<CodeWhispererService>
 
                 test_service.generateSuggestions.returns(
                     Promise.resolve({

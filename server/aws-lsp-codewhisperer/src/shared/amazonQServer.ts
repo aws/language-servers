@@ -6,8 +6,7 @@ import {
     UpdateConfigurationParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { AmazonQBaseServiceManager, QServiceManagerFeatures } from './amazonQServiceManager/BaseAmazonQServiceManager'
-import { initBaseIAMServiceManager } from './amazonQServiceManager/AmazonQIAMServiceManager'
-import { initBaseTokenServiceManager } from './amazonQServiceManager/AmazonQTokenServiceManager'
+import { initBaseServiceManager } from './amazonQServiceManager/AmazonQServiceManager'
 
 const LOGGING_PREFIX = '[AMAZON Q SERVER]: '
 
@@ -21,10 +20,10 @@ export const AmazonQServiceServerFactory =
         }
 
         /*
-         The service manager relies on client params to fully initialize, so the initialization needs
-         to be deferred to the LSP handshake. Dependent servers may assume the service manager is 
-         available when the initialized notification has been received.
-        */
+                 The service manager relies on client params to fully initialize, so the initialization needs
+                 to be deferred to the LSP handshake. Dependent servers may assume the service manager is 
+                 available when the initialized notification has been received.
+                */
         lsp.addInitializer((_params: InitializeParams) => {
             amazonQServiceManager = serviceManager({
                 credentialsProvider,
@@ -65,5 +64,4 @@ export const AmazonQServiceServerFactory =
         return () => {}
     }
 
-export const AmazonQServiceServerIAM = AmazonQServiceServerFactory(initBaseIAMServiceManager)
-export const AmazonQServiceServerToken = AmazonQServiceServerFactory(initBaseTokenServiceManager)
+export const AmazonQServiceServer = AmazonQServiceServerFactory(initBaseServiceManager)

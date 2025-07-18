@@ -1,6 +1,6 @@
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererService } from '../codeWhispererService'
 import { SsoConnectionType } from '../utils'
 import {
     AWSInitializationOptions,
@@ -38,7 +38,7 @@ const UNHAPPY_SSO_CONNECTION_TYPES: SsoConnectionType[] = ['builderId', 'none']
 describe('ListAllAvailableProfiles Handler', () => {
     let logging: StubbedInstance<Logging>
 
-    let codeWhispererService: StubbedInstance<CodeWhispererServiceToken>
+    let codeWhispererService: StubbedInstance<CodeWhispererService>
     let handler: ListAllAvailableProfilesHandler
     let tokenSource: CancellationTokenSource
 
@@ -54,7 +54,7 @@ describe('ListAllAvailableProfiles Handler', () => {
 
     beforeEach(() => {
         logging = stubInterface<Logging>()
-        codeWhispererService = stubInterface<CodeWhispererServiceToken>()
+        codeWhispererService = stubInterface<CodeWhispererService>()
         codeWhispererService.listAvailableProfiles.resolves(listAvailableProfilesResponse)
 
         handler = getListAllAvailableProfilesHandler(() => codeWhispererService)

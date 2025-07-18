@@ -111,9 +111,7 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
@@ -215,7 +213,7 @@ export class AgenticChatController implements ChatHandlers {
     #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #serviceManager?: AmazonQBaseServiceManager
+    #serviceManager?: AmazonQServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
@@ -252,7 +250,7 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        serviceManager?: AmazonQBaseServiceManager
+        serviceManager?: AmazonQServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
@@ -585,7 +583,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
+        const region = AmazonQServiceManager.getInstance().getRegion()
         const models = region && modelOptionsForRegion[region] ? modelOptionsForRegion[region] : modelOptions
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
@@ -2849,7 +2847,7 @@ export class AgenticChatController implements ChatHandlers {
         // In that case, we use the default modelId.
         let modelId = this.#chatHistoryDb.getModelId() ?? defaultModelId
 
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
+        const region = AmazonQServiceManager.getInstance().getRegion()
         if (region === 'eu-central-1') {
             // Only 3.7 Sonnet is available in eu-central-1 for now
             modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'

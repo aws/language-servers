@@ -1,19 +1,16 @@
 import { InitializeParams, Server, TextDocumentSyncKind } from '@aws/language-server-runtimes/server-interface'
-import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { URI } from 'vscode-uri'
-import { isUsingIAMAuth } from '../../shared/utils'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 export const LocalProjectContextServer =
     (): Server =>
     ({ credentialsProvider, telemetry, logging, lsp, workspace }) => {
         let localProjectContextController: LocalProjectContextController
-        let amazonQServiceManager: AmazonQBaseServiceManager
+        let amazonQServiceManager: AmazonQServiceManager
         let telemetryService: TelemetryService
 
         let localProjectContextEnabled: boolean = false
@@ -63,9 +60,7 @@ export const LocalProjectContextServer =
 
         lsp.onInitialized(async () => {
             try {
-                amazonQServiceManager = isUsingIAMAuth()
-                    ? getOrThrowBaseIAMServiceManager()
-                    : getOrThrowBaseTokenServiceManager()
+                amazonQServiceManager = AmazonQServiceManager.getInstance()
                 telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
                 await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)

@@ -9,7 +9,7 @@ import sinon from 'ts-sinon'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
 import { QAgenticChatServer } from './qAgenticChatServer'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { Features } from '../types'
 
@@ -21,7 +21,7 @@ describe('QAgenticChatServer', () => {
         ChatSessionManagementService
     >
     let testFeatures: TestFeatures
-    let amazonQServiceManager: AmazonQTokenServiceManager
+    let amazonQServiceManager: AmazonQServiceManager
     let disposeServer: () => void
     let chatSessionManagementService: ChatSessionManagementService
 
@@ -52,10 +52,10 @@ describe('QAgenticChatServer', () => {
         }
         testFeatures.setClientParams(cachedInitializeParams)
 
-        AmazonQTokenServiceManager.resetInstance()
+        AmazonQServiceManager.resetInstance()
 
-        AmazonQTokenServiceManager.initInstance(testFeatures)
-        amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+        AmazonQServiceManager.initInstance(testFeatures)
+        amazonQServiceManager = AmazonQServiceManager.getInstance()
 
         disposeStub = sinon.stub(ChatSessionManagementService.prototype, 'dispose')
         chatSessionManagementService = ChatSessionManagementService.getInstance()
@@ -75,7 +75,7 @@ describe('QAgenticChatServer', () => {
         testFeatures.dispose()
     })
 
-    it('should initialize ChatSessionManagementService with AmazonQTokenServiceManager instance', () => {
+    it('should initialize ChatSessionManagementService with AmazonQServiceManager instance', () => {
         sinon.assert.calledOnceWithExactly(withAmazonQServiceSpy, amazonQServiceManager, testFeatures.lsp)
     })
 
