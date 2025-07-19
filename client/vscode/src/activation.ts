@@ -5,6 +5,7 @@
 
 import * as cp from 'child_process'
 import * as path from 'path'
+import * as os from 'os'
 
 import { ExtensionContext, env, version } from 'vscode'
 
@@ -147,13 +148,15 @@ export async function activateDocumentsLanguageServer(extensionContext: Extensio
     const enableChat = process.env.ENABLE_CHAT === 'true'
     const agenticMode = process.env.ENABLE_AGENTIC_UI_MODE === 'true'
     const modelSelectionEnabled = process.env.ENABLE_MODEL_SELECTION === 'true'
+    const osPlatform = os.platform()
     if (enableChat) {
         registerChat(
             client,
             extensionContext.extensionUri,
             enableEncryptionInit ? encryptionKey : undefined,
             agenticMode,
-            modelSelectionEnabled
+            modelSelectionEnabled,
+            osPlatform
         )
     }
 

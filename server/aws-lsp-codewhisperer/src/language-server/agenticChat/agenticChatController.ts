@@ -2199,7 +2199,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
-            buttons: [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }],
+            buttons: [this.#renderStopShellCommandButton()],
         }
 
         const completedHeader: ChatMessage['header'] = {
@@ -2276,7 +2276,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }] : [],
+                    buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
                 },
             }
         }
@@ -2452,10 +2452,10 @@ export class AgenticChatController implements ChatHandlers {
     #renderStopShellCommandButton() {
         const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
         return {
-            id: 'stop-shell-command',
+            id: BUTTON_STOP_SHELL_COMMAND,
             text: 'Cancel',
             icon: 'stop',
-            ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
+            ...(stopKey ? { description: `Cancel:  ${stopKey}` } : {}),
         }
     }
 
@@ -2523,14 +2523,28 @@ export class AgenticChatController implements ChatHandlers {
         switch (toolName) {
             case EXECUTE_BASH: {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
+                // get feature flag
+                const shortcut =
+                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                        ?.shortcut
+
+                const runKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
+                const rejectKey = this.#getKeyBinding('aws.amazonq.rejectCmdExecution')
+
                 buttons = requiresAcceptance
                     ? [
-                          { id: BUTTON_RUN_SHELL_COMMAND, text: 'Run', icon: 'play' },
+                          {
+                              id: BUTTON_RUN_SHELL_COMMAND,
+                              text: 'Run',
+                              icon: 'play',
+                              ...(runKey ? { description: `Run:  ${runKey}` } : {}),
+                          },
                           {
                               id: BUTTON_REJECT_SHELL_COMMAND,
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
+                              ...(rejectKey ? { description: `Reject:  ${rejectKey}` } : {}),
                           },
                       ]
                     : []
