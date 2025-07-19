@@ -13,12 +13,13 @@ import {
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
 import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
-import { getBearerTokenFromProvider, getIAMCredentialsFromProvider, isUsageLimitError } from './utils'
+import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
 import { CLIENT_TIMEOUT_MS } from '../language-server/agenticChat/constants/constants'
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
+import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
@@ -171,10 +172,23 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
         logging.log(
             `Passing client for class QDeveloperStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
+
+        // Create a credential provider that fetches fresh credentials on each request
+        const iamCredentialProvider: AwsCredentialIdentityProvider = async (): Promise<AwsCredentialIdentity> => {
+            logging.log(`Fetching new IAM credentials`)
+            const creds = (await credentialsProvider.getCredentials('iam')) as Credentials
+            return {
+                accessKeyId: creds.accessKeyId,
+                secretAccessKey: creds.secretAccessKey,
+                sessionToken: creds.sessionToken,
+                expiration: new Date(), // Force refresh on each request
+            }
+        }
+
         this.client = sdkInitializator(QDeveloperStreaming, {
             region: region,
             endpoint: endpoint,
-            credentials: getIAMCredentialsFromProvider(credentialsProvider),
+            credentials: iamCredentialProvider,
             retryStrategy: new ConfiguredRetryStrategy(0, (attempt: number) => 500 + attempt ** 10),
         })
     }
