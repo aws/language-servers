@@ -14,7 +14,6 @@ import { BUILDER_ID_START_URL } from './constants'
 import {
     getBearerTokenFromProvider,
     getEndPositionForAcceptedSuggestion,
-    getIAMCredentialsFromProvider,
     getSsoConnectionType,
     getUnmodifiedAcceptedTokens,
     isAwsThrottlingError,
@@ -91,44 +90,6 @@ describe('getOriginFromClientInfo', () => {
     it('returns IDE for empty string client name', () => {
         const result = getOriginFromClientInfo('')
         assert.strictEqual(result, 'IDE')
-    })
-})
-
-describe('getIAMCredentialsFromProvider', () => {
-    const mockIAMCredentials = {
-        accessKeyId: 'mock-access-key',
-        secretAccessKey: 'mock-secret-key',
-        sessionToken: 'mock-session-token',
-    }
-
-    it('returns the IAM credentials from the provider', () => {
-        const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
-            getCredentials: sinon.stub().returns(mockIAMCredentials),
-            getConnectionMetadata: sinon.stub(),
-            getConnectionType: sinon.stub(),
-            onCredentialsDeleted: sinon.stub(),
-        }
-
-        const result = getIAMCredentialsFromProvider(mockCredentialsProvider)
-
-        assert.deepStrictEqual(result, {
-            accessKeyId: 'mock-access-key',
-            secretAccessKey: 'mock-secret-key',
-            sessionToken: 'mock-session-token',
-        })
-    })
-
-    it('throws an error if the credentials provider does not have IAM credentials', () => {
-        const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(false),
-            getCredentials: sinon.stub().returns(mockIAMCredentials),
-            getConnectionMetadata: sinon.stub(),
-            getConnectionType: sinon.stub(),
-            onCredentialsDeleted: sinon.stub(),
-        }
-
-        assert.throws(() => getIAMCredentialsFromProvider(mockCredentialsProvider), Error, 'Missing IAM creds')
     })
 })
 
