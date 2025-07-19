@@ -271,4 +271,24 @@ describe('StreamingClientServiceIAM', () => {
         sinon.assert.calledTwice(abortStub)
         expect(streamingClientServiceIAM['inflightRequests'].size).to.eq(0)
     })
+
+    it('returns expiration date for credential refresh', async () => {
+        // Get the credential provider function from the client config
+        const credentialProvider = streamingClientServiceIAM.client.config.credentials
+        expect(credentialProvider).to.not.be.undefined
+
+        // Reset call count on the stub
+        features.credentialsProvider.getCredentials.resetHistory()
+
+        // First call to get credentials
+        const firstCredentialsPromise = (credentialProvider as any)()
+        await clock.tickAsync(TIME_TO_ADVANCE_MS)
+        const firstCredentials = await firstCredentialsPromise
+
+        // Verify the credentials match what we expect
+        expect(firstCredentials.accessKeyId).to.equal(MOCKED_IAM_CREDENTIALS.accessKeyId)
+        expect(firstCredentials.secretAccessKey).to.equal(MOCKED_IAM_CREDENTIALS.secretAccessKey)
+        expect(firstCredentials.sessionToken).to.equal(MOCKED_IAM_CREDENTIALS.sessionToken)
+        expect(firstCredentials.expiration).to.be.instanceOf(Date)
+    })
 })
