@@ -754,7 +754,18 @@ export async function migrateToAgentConfig(workspace: Workspace, logging: Logger
     // Migrate workspace configs
     for (let i = 0; i < wsUris.length; i++) {
         if (wsConfigPaths[i] && wsPersonaPaths[i] && wsAgentPaths[i]) {
-            await migrateConfigToAgent(workspace, logging, wsConfigPaths[i], wsPersonaPaths[i], wsAgentPaths[i], agent)
+            // Check if the workspace config path exists before migrating
+            const wsConfigExists = await workspace.fs.exists(wsConfigPaths[i]).catch(() => false)
+            if (wsConfigExists) {
+                await migrateConfigToAgent(
+                    workspace,
+                    logging,
+                    wsConfigPaths[i],
+                    wsPersonaPaths[i],
+                    wsAgentPaths[i],
+                    agent
+                )
+            }
         }
     }
 }
@@ -870,8 +881,10 @@ async function migrateConfigToAgent(
             // Keep other properties from existing config
             includedFiles: existingAgentConfig.includedFiles || newAgentConfig.includedFiles,
             createHooks: existingAgentConfig.createHooks || newAgentConfig.createHooks,
-            promptHooks: existingAgentConfig.promptHooks || newAgentConfig.promptHooks,
-            resources: existingAgentConfig.resources || newAgentConfig.resources,
+            promptHooks: [
+                ...new Set([...(existingAgentConfig.promptHooks || []), ...(newAgentConfig.promptHooks || [])]),
+            ],
+            resources: [...new Set([...(existingAgentConfig.resources || []), ...(newAgentConfig.resources || [])])],
         }
     } else {
         finalAgentConfig = newAgentConfig
