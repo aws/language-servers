@@ -39,12 +39,32 @@ export class QChatTriggerContext {
             'context' in params
                 ? params.context?.some(context => typeof context !== 'string' && context.command === '@workspace')
                 : false
-        const relevantDocuments = useRelevantDocuments ? await this.extractProjectContext(params.prompt.prompt) : []
+        let relevantDocuments = useRelevantDocuments ? await this.extractProjectContext(params.prompt.prompt) : []
+
+        // Add extra context for inline chat
+        if (this.amazonQServiceManager && 'textDocument' in params) {
+            const config = this.amazonQServiceManager.getConfiguration()
+            const extraContext = config.inlineChat?.extraContext
+
+            if (extraContext && extraContext.trim().length > 0) {
+                this.#logger.log('Adding extra context as markdown document for inline chat')
+
+                // Create a markdown document from extra context
+                const extraContextDocument: RelevantTextDocument = {
+                    relativeFilePath: 'extra-context.md',
+                    programmingLanguage: {
+                        languageName: 'markdown',
+                    },
+                    text: extraContext,
+                }
+                relevantDocuments = [...relevantDocuments, extraContextDocument]
+            }
+        }
 
         return {
             ...documentContext,
             userIntent: this.#guessIntentFromPrompt(params.prompt.prompt),
-            useRelevantDocuments,
+            useRelevantDocuments: useRelevantDocuments || relevantDocuments.length > 0,
             relevantDocuments,
         }
     }
