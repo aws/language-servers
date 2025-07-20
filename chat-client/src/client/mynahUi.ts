@@ -1583,6 +1583,41 @@ ${params.message}`,
         return createTabId()
     }
 
+    const getSubscriptionDisplayName = (subscriptionTier: string): string => {
+        switch (subscriptionTier) {
+            case 'Q_DEVELOPER_STANDALONE_FREE':
+                return 'Free Tier'
+            case 'Q_DEVELOPER_STANDALONE_PRO_PLUS':
+                return 'Pro+ Tier'
+            case 'Q_DEVELOPER_STANDALONE':
+                return 'Pro Tier'
+            default:
+                return subscriptionTier // fallback to original value if unknown
+        }
+    }
+
+    const getAccountDetailsPageContent = (params: SubscriptionDetailsParams) => {
+        const usageString = `${params.queryUsage}/${params.queryLimit} queries used`
+        const overageString = `$${params.queryOverage.toFixed(2)} incurred in overages`
+        const resetString =
+            params.daysRemaining === 1 ? 'Limits reset tomorrow' : `Limits reset in ${params.daysRemaining} days`
+        const subscriptionDisplay = getSubscriptionDisplayName(params.subscriptionTier)
+
+        const chatContent: ChatItem = {
+            type: ChatItemType.ANSWER,
+            customRenderer: `<h1>Account details</h1>
+<h2 style="margin-bottom: 4px;">Subscription</h2>
+<div style="font-size: 15px; margin-bottom: 8px;">${subscriptionDisplay}</div>
+<h2 style="margin-bottom: 4px;">Usage</h2>
+<div style="font-size: 14px; line-height: 1.5;">
+    <div>${usageString}</div>
+    <div>${overageString}</div>
+    <div>${resetString}</div>
+</div>`,
+        }
+        return chatContent
+    }
+
     const showSubscriptionDetails = (params: SubscriptionDetailsParams) => {
         const tabId = getOrCreateSubscriptionDetailsTabId()
         if (tabId === undefined) {
@@ -1601,9 +1636,11 @@ ${params.message}`,
 
         mynahUi.updateStore(tabId, {
             tabTitle: 'Account Details',
-            chatItems: [
-                // todo: show account details here
-            ],
+            tabBackground: false,
+            compactMode: false,
+            promptInputVisible: false,
+
+            chatItems: [getAccountDetailsPageContent(params)],
             tabMetadata: metadata,
         })
 

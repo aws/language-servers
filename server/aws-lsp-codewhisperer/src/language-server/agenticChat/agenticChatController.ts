@@ -3866,11 +3866,11 @@ export class AgenticChatController implements ChatHandlers {
             // todo: update with subscription tier
 
             await this.#features.chat.sendSubscriptionDetails({
-                subscriptionTier: 'temp',
+                subscriptionTier: response.subscriptionInfo?.type ?? 'Free Tier',
                 daysRemaining: response.daysUntilReset,
                 queryLimit: response.usageBreakdown?.usageLimit ?? 0,
                 queryUsage: response.usageBreakdown?.currentUsage ?? 0,
-                queryOverage: response.usageBreakdown?.currentOverages ?? 0,
+                queryOverage: response.usageBreakdown?.overageCharges ?? 0,
             })
         } catch (error) {
             // getCodewhispererService can throw if user isn't properly connected

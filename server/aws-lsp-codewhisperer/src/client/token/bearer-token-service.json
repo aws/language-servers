@@ -3264,6 +3264,14 @@
                 "usageBreakdown": {
                     "shape": "UsageBreakdown",
                     "documentation": "<p>Usage breakdown by SKU type</p>"
+                },
+                "subscriptionInfo": {
+                    "shape": "SubscriptionInfo",
+                    "documentation": "<p>Subscription Info</p>"
+                },
+                "overageConfiguration": {
+                    "shape": "OverageConfiguration",
+                    "documentation": "<p>Overage Configuration</p>"
                 }
             }
         },
@@ -4032,6 +4040,19 @@
                 "OPENSEARCH_DASHBOARD",
                 "GITLAB"
             ]
+        },
+        "OverageConfiguration": {
+            "type": "structure",
+            "required": ["overageStatus"],
+            "members": {
+                "overageStatus": {
+                    "shape": "OverageStatus"
+                }
+            }
+        },
+        "OverageStatus": {
+            "type": "string",
+            "enum": ["ENABLED", "DISABLED"]
         },
         "PackageInfo": {
             "type": "structure",
@@ -4982,9 +5003,23 @@
             "min": 1,
             "sensitive": true
         },
+        "SubscriptionInfo": {
+            "type": "structure",
+            "required": ["type"],
+            "members": {
+                "type": {
+                    "shape": "SubscriptionType",
+                    "documentation": "<p>Granted subscription type</p>"
+                }
+            }
+        },
         "SubscriptionStatus": {
             "type": "string",
             "enum": ["INACTIVE", "ACTIVE"]
+        },
+        "SubscriptionType": {
+            "type": "string",
+            "enum": ["Q_DEVELOPER_STANDALONE", "Q_DEVELOPER_STANDALONE_FREE", "Q_DEVELOPER_STANDALONE_PRO_PLUS"]
         },
         "SuggestedFix": {
             "type": "structure",
