@@ -218,6 +218,7 @@ import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { enabledCompaction } from './qAgenticChatServer'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -969,7 +970,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     #shouldCompact(currentRequestCount: number): boolean {
         // 80% of 570K limit
-        if (currentRequestCount > 456_000) {
+        if (enabledCompaction(this.#features.lsp.getClientInitializeParams()) && currentRequestCount > 456_000) {
             this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
             return true
         } else {
