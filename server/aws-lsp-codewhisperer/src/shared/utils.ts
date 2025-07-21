@@ -526,7 +526,7 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
         )
     } catch (err: any) {
         if (err.code !== 'ENOENT') {
-            throw err
+            console.log('Preindexing walk: gitIgnore file could not be read', err)
         }
     }
 
@@ -542,7 +542,7 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
         )
     } catch (err: any) {
         if (err.code !== 'ENOENT') {
-            throw err
+            console.log('Preindexing walk: npmIgnore file could not be read', err)
         }
     }
 
