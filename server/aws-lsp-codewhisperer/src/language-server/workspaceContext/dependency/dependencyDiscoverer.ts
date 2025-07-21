@@ -10,6 +10,7 @@ import {
 } from './dependencyHandler/LanguageDependencyHandler'
 import { ArtifactManager } from '../artifactManager'
 import { supportedWorkspaceContextLanguages } from '../../../shared/languageDetection'
+import { DependencyEventBundler } from './dependencyEventBundler'
 
 export class DependencyDiscoverer {
     private logging: Logging
@@ -17,6 +18,7 @@ export class DependencyDiscoverer {
     public dependencyHandlerRegistry: LanguageDependencyHandler<BaseDependencyInfo>[] = []
     private initializedWorkspaceFolder = new Map<WorkspaceFolder, boolean>()
     private sharedState: DependencyHandlerSharedState = { isDisposed: false, dependencyUploadedSizeSum: 0 }
+    private dependencyEventsIngestedFolderUris = new Set<string>()
 
     constructor(
         workspace: Workspace,
@@ -69,6 +71,9 @@ export class DependencyDiscoverer {
 
     async searchDependencies(folders: WorkspaceFolder[]): Promise<void> {
         this.logging.log('Starting dependency search across workspace folders')
+
+        // ingest recorded dependency events to corresponding dependency maps first
+        this.ingestRecordedDependencyEvents(folders)
 
         for (const workspaceFolder of folders) {
             if (
@@ -144,12 +149,45 @@ export class DependencyDiscoverer {
         }
     }
 
-    async handleDependencyUpdateFromLSP(language: string, paths: string[], workspaceRoot?: WorkspaceFolder) {
+    public isDependencyEventsIngested(workspaceFolderUri: string): boolean {
+        return this.dependencyEventsIngestedFolderUris.has(workspaceFolderUri)
+    }
+
+    private ingestRecordedDependencyEvents(workspaceFolders: WorkspaceFolder[]): void {
+        let ingestedDependencyCount = 0
+        for (const workspaceFolder of workspaceFolders) {
+            for (const dependencyHandler of this.dependencyHandlerRegistry) {
+                try {
+                    const recordedPaths = DependencyEventBundler.getRecordedDependencyPaths(
+                        dependencyHandler.language,
+                        workspaceFolder.uri
+                    )
+                    if (!recordedPaths) {
+                        continue
+                    }
+                    dependencyHandler.updateDependencyMapBasedOnLSP(recordedPaths, workspaceFolder)
+                    ingestedDependencyCount += recordedPaths.length
+                } catch (error) {
+                    this.logging.debug(`Error ingesting dependency events for ${workspaceFolder.uri}: ${error}`)
+                }
+            }
+            this.dependencyEventsIngestedFolderUris.add(workspaceFolder.uri)
+        }
+        if (ingestedDependencyCount > 0) {
+            this.logging.log(`Ingested ${ingestedDependencyCount} dependencies from didChangeDependencyPaths events`)
+        }
+    }
+
+    async handleDependencyUpdateFromLSP(language: string, paths: string[], folder?: WorkspaceFolder) {
+        if (folder === undefined) {
+            return
+        }
         for (const dependencyHandler of this.dependencyHandlerRegistry) {
             if (dependencyHandler.language != language) {
                 continue
             }
-            await dependencyHandler.updateDependencyMapBasedOnLSP(paths, workspaceRoot)
+            const changedDependencyList = dependencyHandler.updateDependencyMapBasedOnLSP(paths, folder)
+            await dependencyHandler.zipAndUploadDependenciesByChunk(changedDependencyList, folder)
         }
     }
 
@@ -160,6 +198,7 @@ export class DependencyDiscoverer {
 
     public dispose(): void {
         this.initializedWorkspaceFolder.clear()
+        this.dependencyEventsIngestedFolderUris.clear()
         this.dependencyHandlerRegistry.forEach(dependencyHandler => {
             dependencyHandler.dispose()
         })

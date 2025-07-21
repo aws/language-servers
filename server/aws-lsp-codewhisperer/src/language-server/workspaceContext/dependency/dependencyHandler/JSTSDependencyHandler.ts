@@ -186,10 +186,13 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                 const callBackDependencyUpdate = async (events: string[]) => {
                     this.logging.log(`Change detected in ${packageJsonPath}`)
                     const updatedDependencyMap = this.generateDependencyMap(jstsDependencyInfo)
-                    await this.compareAndUpdateDependencyMap(
+                    const changedDependencyList = this.compareAndUpdateDependencyMap(
                         jstsDependencyInfo.workspaceFolder,
-                        updatedDependencyMap,
-                        true
+                        updatedDependencyMap
+                    )
+                    await this.zipAndUploadDependenciesByChunk(
+                        changedDependencyList,
+                        jstsDependencyInfo.workspaceFolder
                     )
                 }
                 const watcher = new DependencyWatcher(
@@ -206,7 +209,9 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
     }
 
     // JS and TS are not using LSP to sync dependencies
-    override async updateDependencyMapBasedOnLSP(paths: string[], workspaceFolder?: WorkspaceFolder): Promise<void> {}
+    override updateDependencyMapBasedOnLSP(paths: string[], workspaceFolder?: WorkspaceFolder): Dependency[] {
+        return []
+    }
     override transformPathToDependency(
         dependencyName: string,
         dependencyPath: string,
