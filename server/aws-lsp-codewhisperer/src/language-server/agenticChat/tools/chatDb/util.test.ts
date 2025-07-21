@@ -645,7 +645,7 @@ describe('Image Block Utilities', () => {
             }
 
             const result = estimateCharacterCountFromImageBlock(imageBlock)
-            // 1MB * 1100 tokens/MB * 3 chars/token = 3,300,000 characters
+            // (1,000,000 / 1,000,000) * 1100 * 3 = 3300 characters
             assert.strictEqual(result, 3300)
         })
 
