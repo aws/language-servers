@@ -67,8 +67,6 @@ export class SharedConfigProfileStore implements ProfileStore {
                     // If the profile does not match any profile type, mark it as an unknown profile
                     if (profile.kinds.length === 0) {
                         profile.kinds.push(ProfileKind.Unknown)
-                        // Dummy field to avoid deleting profile when loading and saving 0 changes to the profile
-                        profile.settings!['region'] = settings['region']
                     }
                     result.profiles.push(profile)
                     break
