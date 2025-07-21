@@ -1325,9 +1325,6 @@ export class AgenticChatController implements ChatHandlers {
                         const { Tool } = toolMap[toolUse.name as keyof typeof toolMap]
                         const tool = new Tool(this.#features)
 
-                        // Note: Removed automatic openFileDiff calls to prevent redundant notifications
-                        // The streaming system will handle diff notifications through the streaming chunk processor
-
                         // For MCP tools, get the permission from McpManager
                         // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
                         // If permission is 'alwaysAllow', we don't need to ask for acceptance
@@ -2850,6 +2847,12 @@ export class AgenticChatController implements ChatHandlers {
         await this.restorePreviousChats()
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
+            if (!localProjectContextController) {
+                this.#features.logging.warn(
+                    '[AgenticChatController] LocalProjectContextController not available - skipping context initialization'
+                )
+                return
+            }
             const contextItems = await localProjectContextController.getContextCommandItems()
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
@@ -3487,17 +3490,6 @@ export class AgenticChatController implements ChatHandlers {
                     toolUseLoadingTimeouts
                 )
                 await this.#showToolUseIntermediateResult(result.data, chatResultStream, streamWriter)
-
-                // **CRITICAL FIX**: Introduce streaming delay to simulate real-time streaming
-                // The language model returns all chunks at once, so we need to add delays
-                if (chatEvent.toolUseEvent.name === 'fsWrite' && !chatEvent.toolUseEvent.stop) {
-                    // Add a small delay between chunks to simulate real streaming
-                    await new Promise(resolve => setTimeout(resolve, 50))
-                }
-
-                // NOTE: Streaming is now handled by AgenticChatEventParser.#sendStreamingChunk()
-                // to avoid duplicate streaming chunks. The processToolUseChunkForStreaming method
-                // was causing duplicate chunks to be sent to the client.
             }
         }
         if (isEmptyResponse) {
@@ -3773,99 +3765,6 @@ export class AgenticChatController implements ChatHandlers {
             body: toolResultMessage(toolUse, result),
         })
     }
-
-    /**
-     * Process tool use chunk for streaming diff animations
-     */
-    protected async processToolUseChunkForStreaming(
-        toolUseEvent: ToolUseEvent,
-        data: AgenticChatResultWithMetadata,
-        tabId?: string
-    ): Promise<void> {
-        if (toolUseEvent.name !== 'fsWrite' || !toolUseEvent.toolUseId) {
-            return
-        }
-
-        // **CRITICAL FIX**: Check if this tool use has already been marked as complete
-        // This prevents redundant streaming chunks from being sent after completion
-        if (this.#streamedToolUses.has(toolUseEvent.toolUseId)) {
-            this.#debug(`Skipping redundant streaming chunk for completed tool use: ${toolUseEvent.toolUseId}`)
-            return
-        }
-
-        // **CRITICAL FIX**: Check if session is still active before sending streaming chunks
-        if (tabId) {
-            const sessionResult = this.#chatSessionManagementService.getSession(tabId)
-            if (!sessionResult.success || !sessionResult.data) {
-                this.#debug(`Skipping streaming chunk - session not found for tab: ${tabId}`)
-                return
-            }
-        }
-
-        try {
-            const toolUse = data.toolUses[toolUseEvent.toolUseId]
-            if (!toolUse) {
-                return
-            }
-
-            let path: string | undefined
-            let content: string | undefined
-
-            if (typeof toolUse.input === 'string') {
-                try {
-                    const parsedInput = JSON.parse(toolUse.input)
-                    path = parsedInput.path
-                    content = parsedInput.fileText || parsedInput.content
-                } catch (error) {
-                    // Simple regex extraction for path and content
-                    const pathMatch = toolUse.input.match(/"path"\s*:\s*"([^"]*)"/)
-                    path = pathMatch?.[1]
-
-                    const contentMatch = toolUse.input.match(/"fileText"\s*:\s*"([^"]*)"/)
-                    content = contentMatch?.[1]
-                }
-            } else if (typeof toolUse.input === 'object' && toolUse.input !== null) {
-                const inputObj = toolUse.input as any
-                path = inputObj.path
-                content = inputObj.fileText || inputObj.content
-            }
-
-            if (!path) {
-                return
-            }
-
-            // **CRITICAL FIX**: Mark tool use as complete when stop=true to prevent further chunks
-            if (toolUse.stop) {
-                this.#streamedToolUses.add(toolUseEvent.toolUseId)
-                this.#debug(
-                    `Marked tool use ${toolUseEvent.toolUseId} as complete - no more streaming chunks will be sent`
-                )
-            }
-
-            await this.#features.chat.sendChatUpdate({
-                tabId: tabId || 'streaming',
-                data: {
-                    streamingChunk: {
-                        toolUseId: toolUse.toolUseId,
-                        toolName: toolUse.name,
-                        filePath: path,
-                        content: content || '',
-                        isComplete: toolUse.stop || false,
-                        timestamp: Date.now(),
-                        chunkSize: content?.length || 0,
-                        totalSize: content?.length || 0,
-                    },
-                },
-            } as any)
-
-            this.#debug(
-                `Sent streaming chunk for ${toolUseEvent.toolUseId}: ${content?.length || 0} chars (complete: ${toolUse.stop})`
-            )
-        } catch (error) {
-            this.#debug(`Failed to process streaming chunk: ${error}`)
-        }
-    }
-
     #log(...messages: string[]) {
         this.#features.logging.log(messages.join(' '))
     }

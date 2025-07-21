@@ -71,55 +71,93 @@ export class FsReplace {
         return {
             name: 'fsReplace',
             description:
-                'A tool for search and replace contents of an existing file.\n\n' +
+                'A tool for search and replace contents of an existing file using SMALL, GRANULAR diff pairs for optimal animation.\n\n' +
                 '## Overview\n' +
-                'This tool replaces sections of content in an existing file using `oldStr`/`newStr` blocks that define exact changes to specific parts of the file. You MUST ALWAYS group as many changes as you can by populating the diffs array with multiple `oldStr`/`newStr` pairs, DO NOT be overly cautious and methodical by making one change at a time on the same file.\n\n' +
+                'This tool replaces sections of content using MULTIPLE SMALL `oldStr`/`newStr` pairs (30-50 chars MAXIMUM each) that define precise, granular changes.' +
+                'CRITICAL: Create MANY small diff pairs instead of few large ones for better visual animation.\n' +
+                'SUPER IMPORTANT: The file path should ALWAYS be the first parameter in the JSON, followed by the diffs and explanation.\n\n' +
+                '## GRANULAR DIFF STRATEGY (REQUIRED)\n' +
+                '- **BREAK DOWN LARGE CHANGES**: Split big modifications into multiple small diff pairs\n' +
+                '- **ONE CONCEPT PER DIFF**: Each diff pair should change only one small concept (variable name, single line, small block)\n' +
+                '- **OPTIMAL SIZE RANGE**: Keep each oldStr/newStr between 50-150 characters for best animation balance\n' +
+                "- **AVOID TOO SMALL**: Don't make diff pairs smaller than 50 characters to prevent race conditions\n" +
+                '- **MULTIPLE PAIRS FOR FUNCTIONS**: When modifying a function, create separate diff pairs for:\n' +
+                '  * Function name change\n' +
+                '  * Parameter changes\n' +
+                '  * Individual line changes inside function body\n' +
+                '  * Return statement changes\n\n' +
+                '## EXAMPLES OF GOOD GRANULAR DIFFS\n' +
+                '```json\n' +
+                '// GOOD: Multiple small diff pairs\n' +
+                '{\n' +
+                '  "diffs": [\n' +
+                '    {"oldStr": "function oldName(", "newStr": "function newName("},\n' +
+                '    {"oldStr": "param1, param2", "newStr": "param1, param2, param3"},\n' +
+                '    {"oldStr": "  let x = 5;", "newStr": "  let x = 10;"},\n' +
+                '    {"oldStr": "  return x;", "newStr": "  return x * 2;"}\n' +
+                '  ]\n' +
+                '}\n' +
+                '```\n\n' +
+                '## EXAMPLES OF BAD DIFFS (AVOID)\n' +
+                '```json\n' +
+                '// BAD: One large diff pair (hard to animate)\n' +
+                '{\n' +
+                '  "diffs": [\n' +
+                '    {"oldStr": "function oldName(param1, param2) {\\n  let x = 5;\\n  return x;\\n}", "newStr": "function newName(param1, param2, param3) {\\n  let x = 10;\\n  return x * 2;\\n}"}\n' +
+                '  ]\n' +
+                '}\n' +
+                '```\n\n' +
                 '## When to use\n' +
                 '- When you need to make targeted changes to specific parts of a file\n' +
                 '- When you need to update multiple sections of the same file\n' +
+                '- When you want smooth, granular animation of changes\n' +
                 '## When not to use\n' +
-                '- When you need to create a new file\n' +
-                '- When you need to rename or move a file\n\n' +
-                '## IMPORTANT Notes\n' +
-                '- Use this tool to delete code by using empty `newStr` parameter\n' +
-                '- The `oldStr` parameter should match EXACTLY one or more consecutive lines from the target file. Be mindful of whitespaces including the tabs and spaces! Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`\n' +
-                '- When multiple edits to the same file are needed, ALWAYS populate the diffs array with MULTIPLE `oldStr` and `newStr` pairs. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state',
+                '- When you need to create a new file (use fsWrite instead)\n' +
+                '- When you need to rename or move a file\n' +
+                '- When replacing entire file content (use fsWrite instead)\n\n' +
+                '## CRITICAL REQUIREMENTS\n' +
+                '- **ABSOLUTE PATH FIRST**: Always calculate the absolute path as the first parameter\n' +
+                '- **EXACT MATCHING**: `oldStr` must match EXACTLY including whitespaces, tabs, and line breaks\n' +
+                '- **SMALL DIFF PAIRS**: Each oldStr/newStr should be 20-50 characters maximum\n' +
+                '- **MULTIPLE PAIRS**: Create 3-10+ small diff pairs instead of 1-2 large ones\n' +
+                '- **UNIQUE MATCHING**: Include minimal surrounding context if needed for uniqueness\n' +
+                '- **DELETE WITH EMPTY**: Use empty `newStr` to delete content\n\n',
             inputSchema: {
                 type: 'object',
                 properties: {
-                    explanation: {
+                    path: {
                         description:
-                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
+                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows. This MUST be the first parameter in the JSON before the diffs and explanation.',
                         type: 'string',
                     },
                     diffs: {
                         description:
-                            'A list of `oldStr`/`newStr` pairs to replace content in an existing file. Example: `[{"oldStr": "existingContent", "newStr": "newContent"}]`. CRITICAL: Use JSON array syntax [{}], NOT string "[{}]". Common error: wrapping array in quotes.',
+                            'A list of SMALL, GRANULAR `oldStr`/`newStr` pairs (20-50 chars each) to replace content. Create MULTIPLE small diff pairs instead of few large ones for smooth animation. Example: `[{"oldStr": "oldName", "newStr": "newName"}, {"oldStr": "param1", "newStr": "param1, param2"}]`. CRITICAL: Use JSON array syntax [{}], NOT string "[{}]". REQUIRED: Each oldStr/newStr should be 20-50 characters maximum for optimal animation.',
                         type: 'array',
                         items: {
                             type: 'object',
                             properties: {
                                 oldStr: {
                                     description:
-                                        'The exact string content to be replaced in the file. Must match EXACTLY including whitespaces (indentations, tabs, spaces) and line breaks.',
+                                        'The exact string content to be replaced (20-50 chars max). Must match EXACTLY including whitespaces. Focus on ONE small concept per diff pair for granular animation.',
                                     type: 'string',
                                 },
                                 newStr: {
                                     description:
-                                        'The new string content that will replace the oldStr. Use empty string to delete content.',
+                                        'The new string content (20-50 chars max) that will replace the oldStr. Use empty string to delete content. Keep changes small and focused.',
                                     type: 'string',
                                 },
                             },
                             required: ['oldStr'],
                         },
                     },
-                    path: {
+                    explanation: {
                         description:
-                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows.',
+                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
                         type: 'string',
                     },
                 },
-                required: ['diffs', 'path'],
+                required: ['path', 'diffs'],
             },
         } as const
     }

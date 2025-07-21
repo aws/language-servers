@@ -57,6 +57,7 @@ export class AgenticChatEventParser implements ChatResult {
     #metric: Metric<AddMessageEvent>
     #logging: Features['logging']
     #lastChunkTime: number = 0
+    #lastStreamingChunkTime: number = 0
     #features?: Features
     #totalEvents = {
         followupPromptEvent: 0,
@@ -65,6 +66,18 @@ export class AgenticChatEventParser implements ChatResult {
         assistantResponseEvent: 0,
         toolUserEvent: 0,
     }
+    // Track fsReplace sessions by file path instead of toolUseId to handle multiple diff pairs correctly
+    #fsReplaceSessionsByFile: Map<
+        string,
+        {
+            toolUseId: string
+            sentDiffPairs: Set<string>
+            processedDiffCount: number
+            lastSendTime: number
+            totalExpectedPairs: number
+            completedPairs: number
+        }
+    > = new Map()
 
     static getReferencedInformation(reference: Reference): string {
         return `Reference code under **${reference.licenseName}** license from repository \`${reference.repository}\``
@@ -103,80 +116,571 @@ export class AgenticChatEventParser implements ChatResult {
     }
 
     /**
-     * Send final complete fsReplace result to VSCode for line-by-line diff animation
+     * Create a unique key for a diff pair to track duplicates
      */
-    #sendFsReplaceComplete(toolUseId: string, completeInput: string) {
+    #createDiffPairKey(oldStr: string, newStr: string): string {
+        return `${oldStr.length}:${newStr.length}:${oldStr.substring(0, 50)}:${newStr.substring(0, 50)}`
+    }
+
+    /**
+     * Get or create fsReplace session for a file path
+     */
+    #getOrCreateFsReplaceSession(filePath: string, toolUseId: string) {
+        if (!this.#fsReplaceSessionsByFile.has(filePath)) {
+            this.#fsReplaceSessionsByFile.set(filePath, {
+                toolUseId,
+                sentDiffPairs: new Set(),
+                processedDiffCount: 0,
+                lastSendTime: 0,
+                totalExpectedPairs: 0,
+                completedPairs: 0,
+            })
+        }
+        return this.#fsReplaceSessionsByFile.get(filePath)!
+    }
+
+    /**
+     * Check if a diff pair has already been sent for a file
+     */
+    #isDiffPairAlreadySent(filePath: string, oldStr: string, newStr: string): boolean {
+        const session = this.#fsReplaceSessionsByFile.get(filePath)
+        if (!session) {
+            return false
+        }
+        const pairKey = this.#createDiffPairKey(oldStr, newStr)
+        return session.sentDiffPairs.has(pairKey)
+    }
+
+    /**
+     * Mark a diff pair as sent for a file
+     */
+    #markDiffPairAsSent(filePath: string, oldStr: string, newStr: string): void {
+        const session = this.#getOrCreateFsReplaceSession(filePath, '')
+        const pairKey = this.#createDiffPairKey(oldStr, newStr)
+        session.sentDiffPairs.add(pairKey)
+        session.completedPairs++
+    }
+
+    /**
+     * **OPTIMIZED**: Extract only NEW complete diff pairs from streaming JSON
+     * Uses incremental parsing to avoid re-processing already sent pairs
+     */
+    #extractNewCompleteDiffPairs(
+        filePath: string,
+        accumulatedInput: string
+    ): Array<{ oldStr: string; newStr: string; index: number }> {
+        const newPairs: Array<{ oldStr: string; newStr: string; index: number }> = []
+        const session = this.#getOrCreateFsReplaceSession(filePath, '')
+        const processedCount = session.processedDiffCount
+
+        try {
+            this.#logging.debug(
+                `[AgenticChatEventParser] 🔍 Incremental extraction for ${filePath}: already processed ${processedCount} pairs`
+            )
+
+            // **OPTIMIZATION 1**: Try complete JSON parsing first (most efficient)
+            try {
+                const parsedJson = JSON.parse(accumulatedInput)
+                if (parsedJson.diffs && Array.isArray(parsedJson.diffs)) {
+                    // **OPTIMIZATION 2**: Only process NEW diff pairs beyond processedCount
+                    for (let i = processedCount; i < parsedJson.diffs.length; i++) {
+                        const diff = parsedJson.diffs[i]
+                        if (diff.oldStr !== undefined && diff.newStr !== undefined) {
+                            newPairs.push({
+                                oldStr: diff.oldStr,
+                                newStr: diff.newStr,
+                                index: i,
+                            })
+
+                            // **DEBUG**: Print extracted diff pair content
+                            this.#logging.info(`[AgenticChatEventParser] 📝 EXTRACTED DIFF PAIR ${i + 1}:`)
+                            this.#logging.info(
+                                `[AgenticChatEventParser]   oldStr (${diff.oldStr.length} chars): "${diff.oldStr.substring(0, 200)}${diff.oldStr.length > 200 ? '...' : ''}"`
+                            )
+                            this.#logging.info(
+                                `[AgenticChatEventParser]   newStr (${diff.newStr.length} chars): "${diff.newStr.substring(0, 200)}${diff.newStr.length > 200 ? '...' : ''}"`
+                            )
+                        }
+                    }
+
+                    // **OPTIMIZATION 3**: Update processed count to avoid re-parsing
+                    session.processedDiffCount = parsedJson.diffs.length
+
+                    this.#logging.info(
+                        `[AgenticChatEventParser] ✅ Complete JSON: extracted ${newPairs.length} NEW diff pairs (${processedCount} already processed)`
+                    )
+                    return newPairs
+                }
+            } catch (parseError) {
+                this.#logging.debug(`[AgenticChatEventParser] JSON incomplete, trying incremental parsing`)
+            }
+
+            // **OPTIMIZATION 4**: Incremental parsing - only look for NEW complete objects
+            const diffsStartMatch = accumulatedInput.match(/"diffs":\s*\[/)
+            if (!diffsStartMatch) {
+                return newPairs
+            }
+
+            const diffsStartIndex = diffsStartMatch.index! + diffsStartMatch[0].length
+            const remainingContent = accumulatedInput.substring(diffsStartIndex)
+
+            // **OPTIMIZATION 5**: Skip already processed objects by counting braces
+            let searchIndex = 0
+            let foundObjectCount = 0
+
+            // Skip already processed objects
+            while (foundObjectCount < processedCount && searchIndex < remainingContent.length) {
+                const objectStart = remainingContent.indexOf('{', searchIndex)
+                if (objectStart === -1) break
+
+                // Find matching closing brace
+                let braceCount = 0
+                let inString = false
+                let escapeNext = false
+
+                for (let i = objectStart; i < remainingContent.length; i++) {
+                    const char = remainingContent[i]
+
+                    if (escapeNext) {
+                        escapeNext = false
+                        continue
+                    }
+                    if (char === '\\') {
+                        escapeNext = true
+                        continue
+                    }
+                    if (char === '"') {
+                        inString = !inString
+                        continue
+                    }
+                    if (!inString) {
+                        if (char === '{') {
+                            braceCount++
+                        } else if (char === '}') {
+                            braceCount--
+                            if (braceCount === 0) {
+                                searchIndex = i + 1
+                                foundObjectCount++
+                                break
+                            }
+                        }
+                    }
+                }
+
+                if (braceCount !== 0) break // Incomplete object
+            }
+
+            // **OPTIMIZATION 6**: Now parse only NEW complete objects
+            while (searchIndex < remainingContent.length) {
+                const objectStart = remainingContent.indexOf('{', searchIndex)
+                if (objectStart === -1) break
+
+                // Find matching closing brace
+                let braceCount = 0
+                let objectEnd = -1
+                let inString = false
+                let escapeNext = false
+
+                for (let i = objectStart; i < remainingContent.length; i++) {
+                    const char = remainingContent[i]
+
+                    if (escapeNext) {
+                        escapeNext = false
+                        continue
+                    }
+                    if (char === '\\') {
+                        escapeNext = true
+                        continue
+                    }
+                    if (char === '"') {
+                        inString = !inString
+                        continue
+                    }
+                    if (!inString) {
+                        if (char === '{') {
+                            braceCount++
+                        } else if (char === '}') {
+                            braceCount--
+                            if (braceCount === 0) {
+                                objectEnd = i + 1
+                                break
+                            }
+                        }
+                    }
+                }
+
+                if (objectEnd > objectStart) {
+                    const objectJson = remainingContent.substring(objectStart, objectEnd)
+                    try {
+                        const diffObj = JSON.parse(objectJson)
+                        if (diffObj.oldStr !== undefined && diffObj.newStr !== undefined) {
+                            const pairIndex = processedCount + newPairs.length
+                            newPairs.push({
+                                oldStr: diffObj.oldStr,
+                                newStr: diffObj.newStr,
+                                index: pairIndex,
+                            })
+
+                            // **DEBUG**: Print extracted diff pair content from incremental parsing
+                            this.#logging.info(
+                                `[AgenticChatEventParser] 📝 INCREMENTAL EXTRACTED DIFF PAIR ${pairIndex + 1}:`
+                            )
+                            this.#logging.info(
+                                `[AgenticChatEventParser]   oldStr (${diffObj.oldStr.length} chars): "${diffObj.oldStr.substring(0, 200)}${diffObj.oldStr.length > 200 ? '...' : ''}"`
+                            )
+                            this.#logging.info(
+                                `[AgenticChatEventParser]   newStr (${diffObj.newStr.length} chars): "${diffObj.newStr.substring(0, 200)}${diffObj.newStr.length > 200 ? '...' : ''}"`
+                            )
+                        }
+                    } catch (parseError) {
+                        this.#logging.debug(`[AgenticChatEventParser] Failed to parse diff object: ${parseError}`)
+                    }
+
+                    searchIndex = objectEnd
+                } else {
+                    break // Incomplete object
+                }
+            }
+
+            // **OPTIMIZATION 7**: Update processed count
+            if (newPairs.length > 0) {
+                session.processedDiffCount = processedCount + newPairs.length
+            }
+        } catch (error) {
+            this.#logging.error(`[AgenticChatEventParser] Error in incremental diff extraction: ${error}`)
+        }
+
+        this.#logging.info(
+            `[AgenticChatEventParser] 🚀 Incremental extraction: ${newPairs.length} NEW pairs (${processedCount} already processed)`
+        )
+        return newPairs
+    }
+
+    /**
+     * Send a single diff pair as an animation chunk
+     * Similar to Cline's approach of sending individual SEARCH/REPLACE blocks
+     */
+    async #sendFsReplaceDiffChunk(
+        toolUseId: string,
+        filePath: string,
+        startLine: number | undefined,
+        oldStr: string,
+        newStr: string,
+        pairIndex: number,
+        totalPairs: number,
+        isComplete: boolean
+    ) {
         if (!this.#features?.chat) {
             return
         }
 
         try {
-            let path: string | undefined
-            let diffString = ''
+            // **CRITICAL FIX**: Never mark individual diff pairs as complete during streaming
+            // Only mark complete when the entire fsReplace JSON is complete AND it's the last pair
+            const isLastPairAndComplete = isComplete && pairIndex === totalPairs - 1
 
-            try {
-                const parsed = JSON.parse(completeInput || '{}')
-                path = parsed.path
-
-                // Send structured diffs for proper line mapping in StreamingDiffController
-                if (parsed.diffs && Array.isArray(parsed.diffs) && parsed.diffs.length > 0) {
-                    const structuredDiffs = parsed.diffs.map((diff: any) => ({
-                        oldStr: diff.oldStr || '',
-                        newStr: diff.newStr || '',
-                    }))
-
-                    diffString = JSON.stringify({
-                        type: 'structured_diffs',
-                        diffs: structuredDiffs,
-                    })
-                }
-            } catch (error) {
-                this.#logging.error(`[AgenticChatEventParser] Failed to parse fsReplace JSON: ${error}`)
-                return
+            const diffChunkPayload = {
+                toolUseId: toolUseId,
+                toolName: 'fsReplace',
+                filePath: filePath,
+                content: newStr, // The new content for this diff
+                isComplete: isLastPairAndComplete, // **FIXED**: Only mark complete on the very last pair of a complete JSON
+                fsWriteParams: {
+                    command: 'fsReplace_diffPair',
+                    path: filePath,
+                    startLine: startLine,
+                    oldStr: oldStr,
+                    newStr: newStr,
+                    pairIndex: pairIndex,
+                    totalPairs: totalPairs,
+                },
+                timestamp: Date.now(),
+                chunkSize: newStr.length,
             }
 
-            if (!path) {
-                return
-            }
+            this.#logging.info(
+                `[AgenticChatEventParser] 🔄 Sending fsReplace diff pair ${pairIndex + 1}/${totalPairs}: oldStr=${oldStr.length} chars, newStr=${newStr.length} chars`
+            )
 
-            const finalPayload = {
+            // **CRITICAL DEBUG**: Log the exact payload being sent
+            this.#logging.info(`[AgenticChatEventParser] 📤 SENDING DIFF CHUNK PAYLOAD:`)
+            this.#logging.info(`[AgenticChatEventParser]   toolUseId: ${diffChunkPayload.toolUseId}`)
+            this.#logging.info(`[AgenticChatEventParser]   toolName: ${diffChunkPayload.toolName}`)
+            this.#logging.info(`[AgenticChatEventParser]   filePath: ${diffChunkPayload.filePath}`)
+            this.#logging.info(
+                `[AgenticChatEventParser]   content: "${diffChunkPayload.content.substring(0, 100)}${diffChunkPayload.content.length > 100 ? '...' : ''}"`
+            )
+            this.#logging.info(`[AgenticChatEventParser]   isComplete: ${diffChunkPayload.isComplete}`)
+            this.#logging.info(
+                `[AgenticChatEventParser]   fsWriteParams.oldStr: "${oldStr.substring(0, 100)}${oldStr.length > 100 ? '...' : ''}"`
+            )
+            this.#logging.info(
+                `[AgenticChatEventParser]   fsWriteParams.newStr: "${newStr.substring(0, 100)}${newStr.length > 100 ? '...' : ''}"`
+            )
+            this.#logging.info(
+                `[AgenticChatEventParser]   fsWriteParams: ${JSON.stringify(diffChunkPayload.fsWriteParams, null, 2)}`
+            )
+
+            await this.#features!.chat.sendChatUpdate({
                 tabId: '',
                 data: {
-                    fsReplaceComplete: {
-                        toolUseId: toolUseId,
-                        filePath: path,
-                        diffString: diffString,
-                        timestamp: Date.now(),
-                    },
+                    streamingChunk: diffChunkPayload,
                 },
-            }
+            } as any)
 
-            this.#features!.chat.sendChatUpdate(finalPayload as any)
+            this.#logging.info(`[AgenticChatEventParser] ✅ Successfully sent fsReplace diff chunk via sendChatUpdate`)
         } catch (error) {
-            this.#logging.error(`[AgenticChatEventParser] Failed to send fsReplace complete: ${error}`)
+            this.#logging.error(`[AgenticChatEventParser] Failed to send fsReplace diff chunk: ${error}`)
         }
     }
 
     /**
-     * Send streaming chunk to client for diff animations with complete fsWrite parameters
+     * **DEDICATED**: Handle fsReplace streaming with diff pair extraction and animation
+     * Completely separate from fsWrite logic to avoid conflicts
      */
-    async #sendStreamingChunk(
-        toolUseId: string,
-        toolName: string,
-        accumulatedInput: string,
-        isComplete: boolean
-    ): Promise<void> {
+    async #sendFsReplaceStreaming(toolUseId: string, accumulatedInput: string, isComplete: boolean): Promise<void> {
         if (!this.#features?.chat) {
             return
         }
 
         try {
-            // Only process fsWrite for streaming - fsReplace uses complete chunks only
-            if (toolName !== 'fsWrite') {
+            this.#logging.info(
+                `[AgenticChatEventParser] 🔍 fsReplace streaming (${toolUseId}, complete=${isComplete}): ${accumulatedInput.substring(0, 200)}...`
+            )
+
+            // **WINDOWS COMPATIBILITY FIX**: Handle escaped backslashes in Windows paths
+            // Windows paths like "C:\\Users\\file.txt" are escaped as "C:\\\\Users\\\\file.txt" in JSON
+            const pathMatch = accumulatedInput.match(/"path":\s*"((?:[^"\\]|\\.)*)"/)
+            const path = pathMatch?.[1]
+
+            if (!path) {
+                this.#logging.debug(`[AgenticChatEventParser] 🔍 fsReplace: No path found, waiting for more data`)
                 return
             }
 
-            // Try to extract path, content, and fsWrite operation parameters
+            if (isComplete) {
+                // **COMPLETE JSON**: Parse all diffs and only send NEW ones that haven't been sent during streaming
+                try {
+                    const parsed = JSON.parse(accumulatedInput)
+                    if (parsed.diffs && Array.isArray(parsed.diffs) && parsed.diffs.length > 0) {
+                        this.#logging.info(
+                            `[AgenticChatEventParser] ✅ Complete fsReplace with ${parsed.diffs.length} diffs`
+                        )
+
+                        // Filter out already-sent diff pairs
+                        const newDiffPairs: Array<{ oldStr: string; newStr: string; index: number }> = []
+                        for (let i = 0; i < parsed.diffs.length; i++) {
+                            const diff = parsed.diffs[i]
+                            if (diff.oldStr && diff.newStr) {
+                                if (!this.#isDiffPairAlreadySent(path, diff.oldStr, diff.newStr)) {
+                                    newDiffPairs.push({ oldStr: diff.oldStr, newStr: diff.newStr, index: i })
+                                } else {
+                                    this.#logging.debug(
+                                        `[AgenticChatEventParser] 🔄 Skipping already-sent diff pair ${i + 1}/${parsed.diffs.length}`
+                                    )
+                                }
+                            }
+                        }
+
+                        if (newDiffPairs.length > 0) {
+                            this.#logging.info(
+                                `[AgenticChatEventParser] 🔄 Sending ${newDiffPairs.length} NEW diff pairs (${parsed.diffs.length - newDiffPairs.length} already sent)`
+                            )
+
+                            // Send each NEW diff pair as a separate animation chunk with smart throttling
+                            const session = this.#getOrCreateFsReplaceSession(path, toolUseId)
+                            for (let i = 0; i < newDiffPairs.length; i++) {
+                                const { oldStr, newStr, index } = newDiffPairs[i]
+
+                                // **SMART THROTTLING**: Only add delay if time interval is too short
+                                const now = Date.now()
+                                const timeSinceLastSend = session.lastSendTime
+                                const minInterval = 250 // 250ms minimum interval for session initialization
+
+                                if (timeSinceLastSend > 0 && now - timeSinceLastSend < minInterval) {
+                                    const delayNeeded = minInterval - (now - timeSinceLastSend)
+                                    this.#logging.info(
+                                        `[AgenticChatEventParser] ⏱️ Smart throttling: waiting ${delayNeeded}ms before sending diff pair ${index + 1}/${parsed.diffs.length} (last sent ${now - timeSinceLastSend}ms ago)`
+                                    )
+                                    await new Promise(resolve => setTimeout(resolve, delayNeeded))
+                                }
+
+                                // Update last send time
+                                session.lastSendTime = Date.now()
+
+                                // Mark as sent before sending to avoid race conditions
+                                this.#markDiffPairAsSent(path, oldStr, newStr)
+                                await this.#sendFsReplaceDiffChunk(
+                                    toolUseId,
+                                    path,
+                                    undefined,
+                                    oldStr,
+                                    newStr,
+                                    index,
+                                    parsed.diffs.length,
+                                    true
+                                )
+                            }
+                        } else {
+                            this.#logging.info(
+                                `[AgenticChatEventParser] ✅ All diff pairs already sent during streaming - no duplicates needed`
+                            )
+                        }
+
+                        // **CRITICAL FIX**: Always send a final completion signal when JSON is complete
+                        // This ensures cleanup is triggered even if all diff pairs were sent during streaming
+                        this.#logging.info(
+                            `[AgenticChatEventParser] 🏁 Sending final completion signal for fsReplace ${toolUseId} (isComplete=true)`
+                        )
+
+                        const finalChunkPayload = {
+                            toolUseId: toolUseId,
+                            toolName: 'fsReplace',
+                            filePath: path,
+                            content: '', // Empty content for completion signal
+                            isComplete: true, // **CRITICAL**: This triggers cleanup
+                            fsWriteParams: {
+                                command: 'fsReplace_completion',
+                                path: path,
+                            },
+                            timestamp: Date.now(),
+                            chunkSize: 0,
+                        }
+
+                        await this.#features!.chat.sendChatUpdate({
+                            tabId: '',
+                            data: {
+                                streamingChunk: finalChunkPayload,
+                            },
+                        } as any)
+
+                        this.#logging.info(
+                            `[AgenticChatEventParser] ✅ Final completion signal sent for fsReplace ${toolUseId}`
+                        )
+                    }
+                } catch (parseError) {
+                    this.#logging.error(
+                        `[AgenticChatEventParser] ❌ Failed to parse complete fsReplace JSON: ${parseError}`
+                    )
+                }
+            } else {
+                // **STREAMING JSON**: Extract and send complete diff pairs as they become available
+                this.#logging.debug(
+                    `[AgenticChatEventParser] 🔍 Processing streaming fsReplace JSON for complete diff pairs`
+                )
+
+                const completeDiffPairs = this.#extractNewCompleteDiffPairs(path, accumulatedInput)
+
+                if (completeDiffPairs.length > 0) {
+                    this.#logging.info(
+                        `[AgenticChatEventParser] 🔄 Found ${completeDiffPairs.length} complete diff pairs during streaming`
+                    )
+
+                    // Filter out already-sent diff pairs and send only new ones
+                    const newDiffPairs: Array<{ oldStr: string; newStr: string; index: number }> = []
+                    for (let i = 0; i < completeDiffPairs.length; i++) {
+                        const { oldStr, newStr } = completeDiffPairs[i]
+                        if (!this.#isDiffPairAlreadySent(path, oldStr, newStr)) {
+                            newDiffPairs.push({ oldStr, newStr, index: i })
+                        } else {
+                            this.#logging.debug(
+                                `[AgenticChatEventParser] 🔄 Skipping already-sent streaming diff pair ${i + 1}/${completeDiffPairs.length}`
+                            )
+                        }
+                    }
+
+                    if (newDiffPairs.length > 0) {
+                        this.#logging.info(
+                            `[AgenticChatEventParser] 🔄 Sending ${newDiffPairs.length} NEW streaming diff pairs`
+                        )
+
+                        // Send each NEW complete diff pair as a separate animation chunk with smart throttling
+                        const session = this.#getOrCreateFsReplaceSession(path, toolUseId)
+                        for (let i = 0; i < newDiffPairs.length; i++) {
+                            const { oldStr, newStr, index } = newDiffPairs[i]
+
+                            // **SMART THROTTLING**: Only add delay if time interval is too short
+                            const now = Date.now()
+                            const timeSinceLastSend = session.lastSendTime
+                            const minInterval = 250 // 250ms minimum interval for session initialization
+
+                            if (timeSinceLastSend > 0 && now - timeSinceLastSend < minInterval) {
+                                const delayNeeded = minInterval - (now - timeSinceLastSend)
+                                this.#logging.info(
+                                    `[AgenticChatEventParser] ⏱️ Smart throttling (streaming): waiting ${delayNeeded}ms before sending diff pair ${index + 1}/${completeDiffPairs.length} (last sent ${now - timeSinceLastSend}ms ago)`
+                                )
+                                await new Promise(resolve => setTimeout(resolve, delayNeeded))
+                            }
+
+                            // Update last send time
+                            session.lastSendTime = Date.now()
+
+                            // Mark as sent before sending to avoid race conditions
+                            this.#markDiffPairAsSent(path, oldStr, newStr)
+
+                            // **CRITICAL FIX**: Never mark streaming diff pairs as complete
+                            // Only the final complete JSON should trigger cleanup
+
+                            // Send diff pair for immediate animation
+                            this.#logging.info(
+                                `[AgenticChatEventParser] 🎬 STREAMING ANIMATION: Sending diff pair ${index + 1} for streaming animation (never marked complete during streaming)`
+                            )
+                            await this.#sendFsReplaceDiffChunk(
+                                toolUseId,
+                                path,
+                                undefined,
+                                oldStr,
+                                newStr,
+                                index,
+                                completeDiffPairs.length,
+                                false
+                            ) // **FIXED**: Always false during streaming
+                        }
+                    } else {
+                        this.#logging.debug(
+                            `[AgenticChatEventParser] 🔄 All streaming diff pairs already sent - no new ones to send`
+                        )
+                    }
+                } else {
+                    // If no complete pairs found, skip this chunk (wait for more data)
+                    this.#logging.debug(
+                        `[AgenticChatEventParser] 🔍 No complete diff pairs found, waiting for more data`
+                    )
+                }
+            }
+        } catch (error) {
+            this.#logging.error(`[AgenticChatEventParser] Failed to process fsReplace streaming: ${error}`)
+        }
+    }
+
+    /**
+     * **DEDICATED**: Handle fsWrite streaming with progressive content updates
+     * Completely separate from fsReplace logic to avoid conflicts
+     * Throttled to ensure at least 40ms between deliveries to prevent race conditions
+     */
+    async #sendFsWriteStreaming(toolUseId: string, accumulatedInput: string, isComplete: boolean): Promise<void> {
+        if (!this.#features?.chat) {
+            return
+        }
+
+        try {
+            // **THROTTLING**: Only for fsWrite to prevent overwhelming the UI
+            const now = Date.now()
+            const timeSinceLastChunk = now - this.#lastStreamingChunkTime
+            const minInterval = 40 // 40ms minimum interval for fsWrite
+
+            if (!isComplete && timeSinceLastChunk < minInterval) {
+                const delayNeeded = minInterval - timeSinceLastChunk
+                this.#logging.debug(
+                    `[AgenticChatEventParser] ⏱️ Throttling fsWrite streaming chunk for ${toolUseId}: waiting ${delayNeeded}ms`
+                )
+                await new Promise(resolve => setTimeout(resolve, delayNeeded))
+            }
+
+            // Update last chunk time for fsWrite
+            this.#lastStreamingChunkTime = Date.now()
+
+            // Try to extract path, content, and operation parameters
             let path: string | undefined
             let content: string | undefined
             let fsWriteParams: any = {}
@@ -211,7 +715,9 @@ export class AgenticChatEventParser implements ChatResult {
             // If we don't have complete JSON or parsing failed, try progressive extraction
             if (!path || content === undefined) {
                 if (!path) {
-                    const pathMatch = accumulatedInput.match(/"path":\s*"([^"]*)"/)
+                    // **WINDOWS COMPATIBILITY FIX**: Handle escaped backslashes in Windows paths
+                    // Windows paths like "C:\\Users\\file.txt" are escaped as "C:\\\\Users\\\\file.txt" in JSON
+                    const pathMatch = accumulatedInput.match(/"path":\s*"((?:[^"\\]|\\.)*)"/)
                     path = pathMatch?.[1]
                 }
 
@@ -327,7 +833,7 @@ export class AgenticChatEventParser implements ChatResult {
                             data: {
                                 streamingChunk: {
                                     toolUseId: toolUseId,
-                                    toolName: toolName,
+                                    toolName: 'fsWrite',
                                     filePath: '',
                                     content: '',
                                     isComplete: true,
@@ -337,6 +843,9 @@ export class AgenticChatEventParser implements ChatResult {
                                 },
                             },
                         } as any)
+                        this.#logging.info(
+                            `[AgenticChatEventParser] ✅ Sent final cleanup chunk for ${toolUseId} (no path)`
+                        )
                     } catch (error) {
                         this.#logging.error(`[AgenticChatEventParser] Failed to send final cleanup chunk: ${error}`)
                     }
@@ -346,28 +855,79 @@ export class AgenticChatEventParser implements ChatResult {
 
             const finalContent = content || ''
 
+            // **DEBUG: Print the streaming chunk before sending**
+            const streamingChunkPayload = {
+                toolUseId: toolUseId,
+                toolName: 'fsWrite',
+                filePath: path,
+                content: finalContent,
+                isComplete: isComplete,
+                fsWriteParams: fsWriteParams,
+                timestamp: Date.now(),
+                chunkSize: finalContent.length,
+            }
+
+            this.#logging.info(`[AgenticChatEventParser] DEBUG - fsWrite streaming chunk payload:`)
+            this.#logging.info(`[AgenticChatEventParser]   toolUseId: ${streamingChunkPayload.toolUseId}`)
+            this.#logging.info(`[AgenticChatEventParser]   toolName: ${streamingChunkPayload.toolName}`)
+            this.#logging.info(`[AgenticChatEventParser]   filePath: ${streamingChunkPayload.filePath}`)
+            this.#logging.info(
+                `[AgenticChatEventParser]   content: "${streamingChunkPayload.content?.substring(0, 100)}${streamingChunkPayload.content && streamingChunkPayload.content.length > 100 ? '...' : ''}"`
+            )
+            this.#logging.info(`[AgenticChatEventParser]   isComplete: ${streamingChunkPayload.isComplete}`)
+            this.#logging.info(
+                `[AgenticChatEventParser]   fsWriteParams: ${JSON.stringify(streamingChunkPayload.fsWriteParams, null, 2)}`
+            )
+            this.#logging.info(`[AgenticChatEventParser]   chunkSize: ${streamingChunkPayload.chunkSize}`)
+
             // Send streaming chunk to client
             try {
                 await this.#features!.chat.sendChatUpdate({
                     tabId: '',
                     data: {
-                        streamingChunk: {
-                            toolUseId: toolUseId,
-                            toolName: toolName,
-                            filePath: path,
-                            content: finalContent,
-                            isComplete: isComplete,
-                            fsWriteParams: fsWriteParams,
-                            timestamp: Date.now(),
-                            chunkSize: finalContent.length,
-                        },
+                        streamingChunk: streamingChunkPayload,
                     },
                 } as any)
             } catch (error) {
-                this.#logging.error(`[AgenticChatEventParser] Failed to send streaming chunk: ${error}`)
+                this.#logging.error(`[AgenticChatEventParser] Failed to send fsWrite streaming chunk: ${error}`)
             }
         } catch (error) {
-            this.#logging.error(`[AgenticChatEventParser] ❌ Failed to process streaming chunk: ${error}`)
+            this.#logging.error(`[AgenticChatEventParser] ❌ Failed to process fsWrite streaming chunk: ${error}`)
+        }
+    }
+
+    /**
+     * **DISPATCHER**: Route streaming chunks to appropriate dedicated handlers
+     * Completely separates fsReplace and fsWrite logic to avoid conflicts
+     */
+    async #sendStreamingChunk(
+        toolUseId: string,
+        toolName: string,
+        accumulatedInput: string,
+        isComplete: boolean
+    ): Promise<void> {
+        if (!this.#features?.chat) {
+            return
+        }
+
+        this.#logging.info(
+            `[AgenticChatEventParser] 🚦 DISPATCHER: Routing ${toolName} streaming chunk for ${toolUseId} (complete: ${isComplete})`
+        )
+
+        try {
+            if (toolName === 'fsReplace') {
+                // **DEDICATED**: Route to fsReplace handler - NO fsWrite logic interference
+                await this.#sendFsReplaceStreaming(toolUseId, accumulatedInput, isComplete)
+            } else if (toolName === 'fsWrite') {
+                // **DEDICATED**: Route to fsWrite handler - NO fsReplace logic interference
+                await this.#sendFsWriteStreaming(toolUseId, accumulatedInput, isComplete)
+            } else {
+                this.#logging.debug(`[AgenticChatEventParser] 🚦 DISPATCHER: Unsupported tool name: ${toolName}`)
+            }
+        } catch (error: any) {
+            this.#logging.error(
+                `[AgenticChatEventParser] ❌ DISPATCHER: Failed to route ${toolName} streaming chunk: ${error}`
+            )
         }
     }
 
@@ -423,29 +983,53 @@ export class AgenticChatEventParser implements ChatResult {
                     stop: !!toolUseEvent.stop,
                 }
 
-                // Send streaming chunk for fsWrite tools only (fsReplace uses different approach)
-                if (name === 'fsWrite' && this.#features?.chat && input) {
+                // **CRITICAL DEBUG**: Log every toolUseEvent to track when stop becomes true
+                this.#logging.info(
+                    `[AgenticChatEventParser] 🔧 ToolUseEvent for ${toolUseId}: name=${name}, stop=${!!toolUseEvent.stop}, inputLength=${input?.length || 0}, totalInputLength=${String(this.toolUses[toolUseId].input || '').length}`
+                )
+
+                // **ADDITIONAL DEBUG**: Track when stop becomes true for fsReplace
+                if (name === 'fsReplace' && toolUseEvent.stop) {
+                    this.#logging.info(
+                        `[AgenticChatEventParser] 🏁 STOP=TRUE detected for fsReplace ${toolUseId}! This should trigger final cleanup.`
+                    )
+                }
+
+                // Send streaming chunk for fsWrite and fsReplace tools
+                if ((name === 'fsWrite' || name === 'fsReplace') && this.#features?.chat && input) {
+                    const isComplete = !!toolUseEvent.stop
+                    this.#logging.info(
+                        `[AgenticChatEventParser] 🔄 Sending ${name} streaming chunk for ${toolUseId}, isComplete: ${isComplete}, inputLength: ${String(this.toolUses[toolUseId].input || '').length}`
+                    )
+
                     this.#sendStreamingChunk(
                         toolUseId,
                         name,
                         String(this.toolUses[toolUseId].input || ''),
-                        !!toolUseEvent.stop
+                        isComplete
                     ).catch(error => {
-                        this.#logging.error(`[AgenticChatEventParser] Failed to send streaming chunk: ${error}`)
+                        this.#logging.error(`[AgenticChatEventParser] Failed to send ${name} streaming chunk: ${error}`)
                     })
                 }
-
-                // For fsReplace, send animation event BEFORE actual tool execution
-                // This prevents race condition where file is modified before animation starts
-                if (name === 'fsReplace' && toolUseEvent.stop && this.#features?.chat) {
-                    try {
-                        this.#sendFsReplaceComplete(toolUseId, String(this.toolUses[toolUseId].input || ''))
-                    } catch (error) {
-                        this.#logging.error(
-                            `[AgenticChatEventParser] Failed to send fsReplace animation event: ${error}`
-                        )
+                // **CRITICAL DEBUG**: Special handling when toolUseEvent.stop is true
+                if (toolUseEvent.stop) {
+                    // For fsWrite and fsReplace, ensure we send a final chunk even if no input in this event
+                    if ((name === 'fsWrite' || name === 'fsReplace') && this.#features?.chat && !input) {
+                        this.#sendStreamingChunk(
+                            toolUseId,
+                            name,
+                            String(this.toolUses[toolUseId].input || ''),
+                            true // isComplete = true
+                        ).catch(error => {
+                            this.#logging.error(
+                                `[AgenticChatEventParser] Failed to send final streaming chunk: ${error}`
+                            )
+                        })
                     }
                 }
+
+                // NOTE: fsReplace animation is now handled via the new diff pair approach
+                // in #sendStreamingChunk method, so no additional processing needed here
 
                 if (toolUseEvent.stop) {
                     const finalInput = this.toolUses[toolUseId].input
@@ -539,185 +1123,5 @@ export class AgenticChatEventParser implements ChatResult {
                   success: true,
                   data: chatResultWithMetadata,
               }
-    }
-    #streamPartialContent(toolUseId: string, partialInput: string): void {
-        try {
-            const content = this.#extractContentFromPartialInput(partialInput)
-            if (content) {
-                this.#logging.info(`[LSP-STREAM] 🚀 Streaming content update for ${toolUseId}: ${content.length} chars`)
-
-                // Try multiple approaches to access the LSP connection
-                let notificationSent = false
-
-                // Method 1: Try runtime connection (if available)
-                if (this.#features?.runtime && !notificationSent) {
-                    try {
-                        const runtimeConnection = (this.#features.runtime as any).connection
-                        if (runtimeConnection && runtimeConnection.sendNotification) {
-                            runtimeConnection.sendNotification('aws/chat/streamingDiffUpdate', {
-                                toolUseId,
-                                partialContent: content,
-                                isFinal: false,
-                            })
-                            this.#logging.info(`[LSP-STREAM] ✅ Streaming update sent via runtime.connection`)
-                            notificationSent = true
-                        } else {
-                            this.#logging.debug(
-                                `[LSP-STREAM] 🔍 Runtime connection not available: ${!!runtimeConnection}`
-                            )
-                        }
-                    } catch (error) {
-                        this.#logging.debug(`[LSP-STREAM] 🔍 Runtime connection failed: ${error}`)
-                    }
-                }
-
-                // Method 2: Try features connection (if available)
-                if (this.#features && !notificationSent) {
-                    try {
-                        const featuresConnection = (this.#features as any).connection
-                        if (featuresConnection && featuresConnection.sendNotification) {
-                            featuresConnection.sendNotification('aws/chat/streamingDiffUpdate', {
-                                toolUseId,
-                                partialContent: content,
-                                isFinal: false,
-                            })
-                            this.#logging.info(`[LSP-STREAM] ✅ Streaming update sent via features.connection`)
-                            notificationSent = true
-                        } else {
-                            this.#logging.debug(
-                                `[LSP-STREAM] 🔍 Features connection not available: ${!!featuresConnection}`
-                            )
-                        }
-                    } catch (error) {
-                        this.#logging.debug(`[LSP-STREAM] 🔍 Features connection failed: ${error}`)
-                    }
-                }
-
-                // Method 3: Try LSP connection (previous approach)
-                if (this.#features?.lsp && !notificationSent) {
-                    try {
-                        const lspConnection = (this.#features.lsp as any).connection
-                        if (lspConnection && lspConnection.sendNotification) {
-                            lspConnection.sendNotification('aws/chat/streamingDiffUpdate', {
-                                toolUseId,
-                                partialContent: content,
-                                isFinal: false,
-                            })
-                            this.#logging.info(`[LSP-STREAM] ✅ Streaming update sent via lsp.connection`)
-                            notificationSent = true
-                        } else {
-                            this.#logging.debug(`[LSP-STREAM] 🔍 LSP connection not available: ${!!lspConnection}`)
-                        }
-                    } catch (error) {
-                        this.#logging.debug(`[LSP-STREAM] 🔍 LSP connection failed: ${error}`)
-                    }
-                }
-
-                // Method 4: Try accessing through telemetry (as a workaround)
-                if (this.#features?.telemetry && !notificationSent) {
-                    try {
-                        // Send as a telemetry event that the client can intercept
-                        this.#features.telemetry.emitMetric({
-                            name: 'aws_streaming_diff_update',
-                            data: {
-                                toolUseId,
-                                partialContent: content,
-                                isFinal: false,
-                            },
-                        })
-                        this.#logging.info(`[LSP-STREAM] ✅ Streaming update sent via telemetry workaround`)
-                        notificationSent = true
-                    } catch (error) {
-                        this.#logging.debug(`[LSP-STREAM] 🔍 Telemetry workaround failed: ${error}`)
-                    }
-                }
-
-                if (!notificationSent) {
-                    this.#logging.warn(`[LSP-STREAM] ⚠️ All notification methods failed`)
-                    this.#logging.debug(`[LSP-STREAM] 🔍 Available features: ${Object.keys(this.#features || {})}`)
-                    if (this.#features?.runtime) {
-                        this.#logging.debug(
-                            `[LSP-STREAM] 🔍 Runtime keys: ${Object.keys(this.#features.runtime || {})}`
-                        )
-                    }
-                }
-            }
-        } catch (error) {
-            this.#logging.warn(`[LSP-STREAM] ⚠️ Failed to stream partial content: ${error}`)
-        }
-    }
-
-    /**
-     * 🚀 NEW: Extract content field from partial JSON input
-     */
-    #extractContentFromPartialInput(partialInput: string): string | null {
-        try {
-            if (typeof partialInput === 'string' && partialInput.length > 0) {
-                // Log the partial input for debugging
-                this.#logging.info(
-                    `[LSP-STREAM] 🔍 Parsing partial input (${partialInput.length} chars): ${partialInput.substring(0, 200)}${partialInput.length > 200 ? '...' : ''}`
-                )
-
-                // 🔧 FIX: Look for "fileText" field (fsWrite/fsReplace) instead of "content"
-                const fileTextMatch = partialInput.match(/"fileText":\s*"((?:[^"\\]|\\.)*)"/s)
-                if (fileTextMatch) {
-                    const rawContent = fileTextMatch[1]
-                    // Unescape JSON string content
-                    const unescapedContent = rawContent
-                        .replace(/\\n/g, '\n')
-                        .replace(/\\"/g, '"')
-                        .replace(/\\\\/g, '\\')
-                        .replace(/\\t/g, '\t')
-                        .replace(/\\r/g, '\r')
-
-                    this.#logging.info(
-                        `[LSP-STREAM] ✅ Extracted fileText content (${unescapedContent.length} chars): ${unescapedContent.substring(0, 100)}${unescapedContent.length > 100 ? '...' : ''}`
-                    )
-                    return unescapedContent
-                }
-
-                // Try partial JSON parsing for incomplete fileText field
-                const partialFileTextMatch = partialInput.match(/"fileText":\s*"([^"]*)$/s)
-                if (partialFileTextMatch) {
-                    const partialContent = partialFileTextMatch[1]
-                        .replace(/\\n/g, '\n')
-                        .replace(/\\"/g, '"')
-                        .replace(/\\\\/g, '\\')
-                        .replace(/\\t/g, '\t')
-                        .replace(/\\r/g, '\r')
-
-                    this.#logging.info(
-                        `[LSP-STREAM] ⚡ Extracted partial fileText (${partialContent.length} chars): ${partialContent.substring(0, 100)}${partialContent.length > 100 ? '...' : ''}`
-                    )
-                    return partialContent
-                }
-
-                // Fallback: Try legacy "content" field for other tool types
-                const contentMatch = partialInput.match(/"content":\s*"((?:[^"\\]|\\.)*)"/s)
-                if (contentMatch) {
-                    const rawContent = contentMatch[1]
-                    const unescapedContent = rawContent
-                        .replace(/\\n/g, '\n')
-                        .replace(/\\"/g, '"')
-                        .replace(/\\\\/g, '\\')
-                        .replace(/\\t/g, '\t')
-                        .replace(/\\r/g, '\r')
-
-                    this.#logging.info(
-                        `[LSP-STREAM] ✅ Extracted content (${unescapedContent.length} chars): ${unescapedContent.substring(0, 100)}${unescapedContent.length > 100 ? '...' : ''}`
-                    )
-                    return unescapedContent
-                }
-
-                this.#logging.debug(`[LSP-STREAM] 🔍 No fileText or content field found in partial input`)
-                return null
-            }
-
-            this.#logging.debug(`[LSP-STREAM] ⚠️ Invalid or empty partial input`)
-            return null
-        } catch (error) {
-            this.#logging.warn(`[LSP-STREAM] ⚠️ Failed to parse partial input: ${error}`)
-            return null
-        }
     }
 }
