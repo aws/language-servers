@@ -10,12 +10,16 @@ import * as path from 'path'
 import {
     loadMcpServerConfigs,
     loadPersonaPermissions,
+    loadAgentConfig,
     getWorkspacePersonaConfigPaths,
     getGlobalPersonaConfigPath,
+    getWorkspaceAgentConfigPaths,
+    getGlobalAgentConfigPath,
     createNamespacedToolName,
     MAX_TOOL_NAME_LENGTH,
     enabledMCP,
     normalizePathFromUri,
+    saveAgentConfig,
 } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { pathToFileURL } from 'url'
@@ -146,7 +150,84 @@ describe('loadPersonaPermissions', () => {
     })
 })
 
-describe('persona path helpers', () => {
+describe('loadAgentConfig', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+
+    beforeEach(() => {
+        sinon.restore()
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentConfigTest-'))
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                writeFile: (p: string, d: string) => Promise.resolve(fs.writeFileSync(p, d)),
+                mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
+                getUserHomeDir: () => tmpDir,
+            },
+        }
+        logger = { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('creates a default agent config when none exists', async () => {
+        // Add the global agent path to the paths array
+        const agentPath = getGlobalAgentConfigPath(tmpDir)
+        const result = await loadAgentConfig(workspace, logger, [agentPath])
+
+        // Check that the agent config has the expected structure
+        expect(result.agentConfig).to.have.property('name')
+        expect(result.agentConfig).to.have.property('tools').that.is.an('array')
+        expect(result.agentConfig).to.have.property('allowedTools').that.is.an('array')
+
+        // The default file should have been written under ~/.aws/amazonq/agents/default.json
+        expect(fs.existsSync(agentPath)).to.be.true
+        const content = fs.readFileSync(agentPath, 'utf-8')
+        expect(content).to.contain('tools')
+    })
+
+    it('loads valid server configs from agent config', async () => {
+        // Create an agent config with a server
+        const agentPath = getGlobalAgentConfigPath(tmpDir)
+        await workspace.fs.mkdir(path.dirname(agentPath), { recursive: true })
+
+        const agentConfig = {
+            name: 'test-agent',
+            version: '1.0.0',
+            description: 'Test agent',
+            mcpServers: {
+                testServer: {
+                    command: 'test-command',
+                    args: ['arg1', 'arg2'],
+                    env: { TEST_ENV: 'value' },
+                },
+            },
+            tools: ['@testServer'],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        await workspace.fs.writeFile(agentPath, JSON.stringify(agentConfig))
+
+        const result = await loadAgentConfig(workspace, logger, [agentPath])
+
+        // Check that the server was loaded correctly
+        expect(result.servers.size).to.equal(1)
+        expect(result.servers.has('testServer')).to.be.true
+        const serverConfig = result.servers.get('testServer')
+        expect(serverConfig?.command).to.equal('test-command')
+        expect(serverConfig?.args).to.deep.equal(['arg1', 'arg2'])
+        expect(serverConfig?.env).to.deep.equal({ TEST_ENV: 'value' })
+    })
+})
+
+describe('path helpers', () => {
     it('getWorkspacePersonaConfigPaths()', () => {
         const uris = ['uri1', 'uri2']
         const expected = [
@@ -161,6 +242,90 @@ describe('persona path helpers', () => {
         const homePath = path.resolve('home_dir')
         const expected = path.join(homePath, '.aws', 'amazonq', 'personas', 'default.json')
         expect(getGlobalPersonaConfigPath(homePath)).to.equal(expected)
+    })
+
+    it('getWorkspaceAgentConfigPaths()', () => {
+        const uris = ['uri1', 'uri2']
+        const expected = [
+            path.join('uri1', '.amazonq', 'agents', 'default.json'),
+            path.join('uri2', '.amazonq', 'agents', 'default.json'),
+        ]
+        expect(getWorkspaceAgentConfigPaths(uris)).to.deep.equal(expected)
+    })
+
+    it('getGlobalAgentConfigPath()', () => {
+        // Use a platform-neutral path for testing
+        const homePath = path.resolve('home_dir')
+        const expected = path.join(homePath, '.aws', 'amazonq', 'agents', 'default.json')
+        expect(getGlobalAgentConfigPath(homePath)).to.equal(expected)
+    })
+})
+
+describe('saveAgentConfig', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+
+    beforeEach(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'saveAgentTest-'))
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                writeFile: (p: string, d: string) => Promise.resolve(fs.writeFileSync(p, d)),
+                mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
+                getUserHomeDir: () => tmpDir,
+            },
+        }
+        logger = { warn: () => {}, info: () => {}, error: () => {} }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('saves agent config to the specified path', async () => {
+        const configPath = path.join(tmpDir, 'agent-config.json')
+        const config = {
+            name: 'test-agent',
+            version: '1.0.0',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: ['tool1', 'tool2'],
+            allowedTools: ['tool1'],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        await saveAgentConfig(workspace, logger, config, configPath)
+
+        // Verify the file was created
+        expect(fs.existsSync(configPath)).to.be.true
+
+        // Verify the content
+        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        expect(content).to.deep.equal(config)
+    })
+
+    it('creates parent directories if they do not exist', async () => {
+        const configPath = path.join(tmpDir, 'nested', 'dir', 'agent-config.json')
+        const config = {
+            name: 'test-agent',
+            version: '1.0.0',
+            description: 'Test agent',
+            mcpServers: {},
+            tools: [],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        await saveAgentConfig(workspace, logger, config, configPath)
+
+        // Verify the file was created
+        expect(fs.existsSync(configPath)).to.be.true
     })
 })
 
