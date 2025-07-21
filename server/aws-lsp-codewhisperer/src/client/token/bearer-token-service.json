@@ -6218,6 +6218,10 @@
                 "overageCharges": {
                     "shape": "BigDecimal",
                     "documentation": "<p>Total overage charges</p>"
+                },
+                "nextDateReset": {
+                    "shape": "Timestamp",
+                    "documentation": "<p>The next reset date in UTC timezone.</p>"
                 }
             }
         },

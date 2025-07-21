@@ -1237,7 +1237,10 @@ export const createMynahUi = (
         return true
     }
 
-    const onIdcRequestLimitReached = (tabId: string, limitReached: boolean | undefined) => {
+    const onIdcRequestLimitReached = (tabId: string, params: any | undefined) => {
+        const limitReached = (params as any).limitReached
+        const resetDate = (params as any).resetDate
+
         if (!limitReached) {
             return false
         }
@@ -1247,7 +1250,7 @@ export const createMynahUi = (
         mynahUi.addChatItem(tabId, {
             type: ChatItemType.PROMPT,
             followUp: {
-                text: "Amazon Q can't answer your question because you've reached your monthly request limit. Limit resets on MM/DD",
+                text: `Amazon Q can't answer your question because you've reached your monthly request limit. Limit resets on ${resetDate}`,
             },
         })
         return true
@@ -1257,7 +1260,7 @@ export const createMynahUi = (
         // HACK: Special field sent by `agenticChatController.ts:setPaidTierMode()`.
         if (
             onPaidTierModeChange(params.tabId, (params as any).paidTierMode as string) ||
-            onIdcRequestLimitReached(params.tabId, (params as any).limitReached as boolean)
+            onIdcRequestLimitReached(params.tabId, params)
         ) {
             return
         }

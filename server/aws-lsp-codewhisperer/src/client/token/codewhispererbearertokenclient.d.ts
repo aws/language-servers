@@ -2008,6 +2008,10 @@ declare namespace CodeWhispererBearerTokenClient {
      * Total overage charges
      */
     overageCharges: BigDecimal;
+    /**
+     * The next reset date in UTC timezone.
+     */
+    nextDateReset?: Timestamp;
   }
   export interface UsageLimitList {
     type: UsageLimitType;
