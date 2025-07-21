@@ -23,6 +23,7 @@ import {
     getSha256WorkspaceId,
     getMd5WorkspaceId,
     MessagesWithCharacterCount,
+    estimateCharacterCountFromImageBlock,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -799,6 +800,7 @@ export class ChatDatabase {
         let toolUsesCount = 0
         let toolResultsCount = 0
         let editorStateCount = 0
+        let imageCharCount = 0
 
         for (const message of allMessages) {
             // Count characters of all message text
@@ -831,11 +833,22 @@ export class ChatDatabase {
                     this.#features.logging.error(`Error counting editorState: ${String(e)}`)
                 }
             }
+
+            if (message.images) {
+                try {
+                    for (const image of message.images) {
+                        let imageTokenInCharacter = estimateCharacterCountFromImageBlock(image)
+                        imageCharCount += imageTokenInCharacter
+                    }
+                } catch (e) {
+                    this.#features.logging.error(`Error counting images: ${String(e)}`)
+                }
+            }
         }
 
-        const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount
+        const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount + imageCharCount
         this.#features.logging.debug(
-            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} = total: ${totalCount}`
+            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} + images: ${imageCharCount} = total: ${totalCount}`
         )
         return totalCount
     }
