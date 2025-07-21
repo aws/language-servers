@@ -848,7 +848,7 @@ export class ChatDatabase {
 
         const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount + imageCharCount
         this.#features.logging.debug(
-            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} + imageTokenCount: ${imageCharCount} = total: ${totalCount}`
+            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} + imageCharCount: ${imageCharCount} = total: ${totalCount}`
         )
         return totalCount
     }
