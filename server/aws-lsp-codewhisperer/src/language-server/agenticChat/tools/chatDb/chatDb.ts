@@ -800,7 +800,7 @@ export class ChatDatabase {
         let toolUsesCount = 0
         let toolResultsCount = 0
         let editorStateCount = 0
-        let imageTokenCount = 0
+        let imageCharCount = 0
 
         for (const message of allMessages) {
             // Count characters of all message text
@@ -838,7 +838,7 @@ export class ChatDatabase {
                 try {
                     for (const image of message.images) {
                         let imageTokenInCharacter = estimateCharacterCountFromImageBlock(image)
-                        imageTokenCount += imageTokenInCharacter
+                        imageCharCount += imageTokenInCharacter
                     }
                 } catch (e) {
                     this.#features.logging.error(`Error counting images: ${String(e)}`)
@@ -846,9 +846,9 @@ export class ChatDatabase {
             }
         }
 
-        const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount + imageTokenCount
+        const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount + imageCharCount
         this.#features.logging.debug(
-            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} + imageTokenCount: ${imageTokenCount} = total: ${totalCount}`
+            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} + imageTokenCount: ${imageCharCount} = total: ${totalCount}`
         )
         return totalCount
     }
