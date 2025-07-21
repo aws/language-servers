@@ -46,6 +46,8 @@ export class McpEventHandler {
     #newlyAddedServers: Set<string> = new Set()
     #fileWatcher: ChokidarFileWatcher
     #isProgrammaticChange: boolean = false
+    #debounceTimer: NodeJS.Timeout | null = null
+    #lastProgrammaticState: boolean = false
 
     constructor(features: Features, telemetryService: TelemetryService) {
         this.#features = features
@@ -655,9 +657,8 @@ export class McpEventHandler {
                 await McpManager.instance.addServer(serverName, config, agentPath)
                 this.#newlyAddedServers.add(serverName)
             }
-        } finally {
-            // Reset flag after operations
-            this.#isProgrammaticChange = false
+        } catch (error) {
+            this.#features.logging.error(`Failed to enable MCP server: ${error}`)
         }
 
         this.#currentEditingServerName = undefined
@@ -684,6 +685,7 @@ export class McpEventHandler {
             }
 
             // Stay on add/edit page and show error to user
+            // Keep isProgrammaticChange true during error handling to prevent file watcher triggers
             if (isEditMode) {
                 params.id = 'edit-mcp'
                 params.title = sanitizedServerName
@@ -697,6 +699,8 @@ export class McpEventHandler {
             if (this.#newlyAddedServers.has(serverName)) {
                 this.#newlyAddedServers.delete(serverName)
             }
+
+            this.#isProgrammaticChange = false
 
             // Go to tools permissions page
             return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: sanitizedServerName })
@@ -802,10 +806,8 @@ export class McpEventHandler {
             this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to enable MCP server: ${error}`)
-        } finally {
-            // Reset flag after operations
-            this.#isProgrammaticChange = false
         }
+        this.#isProgrammaticChange = false
         return { id: params.id }
     }
 
@@ -835,11 +837,9 @@ export class McpEventHandler {
             this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to disable MCP server: ${error}`)
-        } finally {
-            // Reset flag after operations
-            this.#isProgrammaticChange = false
         }
 
+        this.#isProgrammaticChange = false
         return { id: params.id }
     }
 
@@ -857,23 +857,25 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.removeServer(serverName)
+
+            return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to delete MCP server: ${error}`)
-        } finally {
-            // Reset flag after operations
             this.#isProgrammaticChange = false
+            return { id: params.id }
         }
-
-        return { id: params.id }
     }
 
     /**
      * Handles edit MCP configuration
      */
     async #handleEditMcpServer(params: McpServerClickParams, error?: string) {
+        // Set programmatic change flag to true to prevent file watcher triggers
+        this.#isProgrammaticChange = true
         await this.#handleSavePermissionChange({ id: 'save-mcp-permission' })
         const serverName = params.title
         if (!serverName) {
+            this.#isProgrammaticChange = false
             return { id: params.id }
         }
         this.#currentEditingServerName = serverName
@@ -1091,13 +1093,12 @@ export class McpEventHandler {
             this.#pendingPermissionConfig = undefined
 
             this.#features.logging.info(`Applied permission changes for server: ${serverName}`)
+            this.#isProgrammaticChange = false
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to save MCP permissions: ${error}`)
-            return { id: params.id }
-        } finally {
-            // Reset flag after operations
             this.#isProgrammaticChange = false
+            return { id: params.id }
         }
     }
 
@@ -1307,11 +1308,37 @@ export class McpEventHandler {
 
         const allPaths = [...agentPaths]
 
-        this.#fileWatcher.watchPaths(allPaths, async () => {
-            if (this.#isProgrammaticChange) {
-                return
+        this.#fileWatcher.watchPaths(allPaths, () => {
+            // Store the current programmatic state when the event is triggered
+            this.#lastProgrammaticState = this.#isProgrammaticChange
+
+            // Log the values for debugging
+            this.#features.logging.info(
+                `File watcher triggered - isProgrammaticChange: ${this.#isProgrammaticChange}, ` +
+                    `lastProgrammaticState: ${this.#lastProgrammaticState}`
+            )
+
+            // Clear any existing timer
+            if (this.#debounceTimer) {
+                clearTimeout(this.#debounceTimer)
             }
-            await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
+
+            // Set a new timer with 2 second debounce
+            this.#debounceTimer = setTimeout(async () => {
+                // Log the values again when the timer fires
+                this.#features.logging.debug(
+                    `Debounce timer fired - lastProgrammaticState: ${this.#lastProgrammaticState}`
+                )
+
+                // Only proceed if the stored state allows it
+                if (!this.#lastProgrammaticState) {
+                    await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
+                } else {
+                    this.#isProgrammaticChange = false
+                    this.#features.logging.debug('Skipping refresh due to programmatic change')
+                }
+                this.#debounceTimer = null
+            }, 2000)
         })
     }
 
@@ -1319,6 +1346,10 @@ export class McpEventHandler {
      * Cleanup file watchers
      */
     dispose(): void {
+        if (this.#debounceTimer) {
+            clearTimeout(this.#debounceTimer)
+            this.#debounceTimer = null
+        }
         this.#fileWatcher.close()
     }
 }

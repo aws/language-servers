@@ -508,6 +508,7 @@ export class McpMynahUi {
                         },
                         onClose: () => {
                             this.messager.onMcpServerClick(MCP_IDS.SAVE_PERMISSION_CHANGE)
+                            this.isMcpServersListActive = false
                         },
                         onBackClick: () => {
                             this.messager.onMcpServerClick(MCP_IDS.SAVE_PERMISSION_CHANGE)
