@@ -34,6 +34,7 @@ import { URI } from 'vscode-uri'
 interface PermissionOption {
     label: string
     value: string
+    description?: string
 }
 
 export class McpEventHandler {
@@ -958,7 +959,6 @@ export class McpEventHandler {
         // Add tool select options
         toolsWithPermissions.forEach(item => {
             const toolName = item.tool.toolName
-            const currentPermission = this.#getCurrentPermission(item.permission)
             // For Built-in server, use a special function that doesn't include the 'Deny' option
             let permissionOptions = this.#buildPermissionOptions(item.permission)
 
@@ -971,11 +971,11 @@ export class McpEventHandler {
                 id: `${toolName}`,
                 title: toolName,
                 description: item.tool.description,
-                placeholder: currentPermission,
                 options: permissionOptions,
                 ...(toolName === 'fsWrite'
-                    ? { disabled: true, madantory: true, tooltip: 'Permission for this tool is not configurable yet' }
+                    ? { disabled: true, selectTooltip: 'Permission for this tool is not configurable yet' }
                     : {}),
+                ...{ value: item.permission, boldTitle: true, mandatory: true, hideMandatoryIcon: true },
             })
         })
 
@@ -1001,17 +1001,19 @@ export class McpEventHandler {
     #buildPermissionOptions(currentPermission: string) {
         const permissionOptions: PermissionOption[] = []
 
-        if (currentPermission !== McpPermissionType.alwaysAllow) {
-            permissionOptions.push({ label: 'Always allow', value: McpPermissionType.alwaysAllow })
-        }
+        permissionOptions.push({
+            label: 'Ask',
+            value: McpPermissionType.ask,
+            description: 'Ask for your approval each time this tool is run',
+        })
 
-        if (currentPermission !== McpPermissionType.ask) {
-            permissionOptions.push({ label: 'Ask', value: McpPermissionType.ask })
-        }
+        permissionOptions.push({
+            label: 'Always allow',
+            value: McpPermissionType.alwaysAllow,
+            description: 'Always allow this tool to run without asking for approval',
+        })
 
-        if (currentPermission !== McpPermissionType.deny) {
-            permissionOptions.push({ label: 'Deny', value: McpPermissionType.deny })
-        }
+        permissionOptions.push({ label: 'Deny', value: McpPermissionType.deny, description: 'Never run this tool' })
 
         return permissionOptions
     }
@@ -1022,19 +1024,17 @@ export class McpEventHandler {
     #buildBuiltInPermissionOptions(currentPermission: string) {
         const permissionOptions: PermissionOption[] = []
 
-        if (currentPermission !== 'alwaysAllow') {
-            permissionOptions.push({
-                label: 'Always Allow',
-                value: 'alwaysAllow',
-            })
-        }
+        permissionOptions.push({
+            label: 'Ask',
+            value: 'ask',
+            description: 'Ask for your approval each time this tool is run',
+        })
 
-        if (currentPermission !== 'ask') {
-            permissionOptions.push({
-                label: 'Ask',
-                value: 'ask',
-            })
-        }
+        permissionOptions.push({
+            label: 'Always Allow',
+            value: 'alwaysAllow',
+            description: 'Always allow this tool to run without asking for approval',
+        })
 
         return permissionOptions
     }
