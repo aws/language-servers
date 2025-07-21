@@ -372,19 +372,6 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
     return credentials.token
 }
 
-export function getIAMCredentialsFromProvider(credentialsProvider: CredentialsProvider) {
-    if (!credentialsProvider.hasCredentials('iam')) {
-        throw new Error('Missing IAM creds')
-    }
-
-    const credentials = credentialsProvider.getCredentials('iam') as Credentials
-    return {
-        accessKeyId: credentials.accessKeyId,
-        secretAccessKey: credentials.secretAccessKey,
-        sessionToken: credentials.sessionToken,
-    }
-}
-
 export function getOriginFromClientInfo(clientName: string | undefined): Origin {
     if (clientName?.startsWith('AmazonQ-For-SMUS-IDE')) {
         return 'MD_IDE'

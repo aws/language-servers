@@ -9,7 +9,7 @@
         "test-integ": "npm run compile && mocha --timeout 30000 \"./out/**/*.test.js\" --retries 2"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.109",
+        "@aws/language-server-runtimes": "^0.2.112",
         "@aws/lsp-core": "*"
     },
     "devDependencies": {
