@@ -550,7 +550,7 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
         cwd: directory,
         dot: true,
         ignore: ignorePatterns,
-        onlyFiles: true,
+        onlyFiles: false,
         followSymbolicLinks: false,
         absolute: true,
     })
