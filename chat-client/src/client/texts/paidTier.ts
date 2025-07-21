@@ -182,3 +182,14 @@ Provide your AWS account number to enable your ${qProName} subscription. Upon co
     buttons: [continueUpgradeQButton],
     snapToTop: true,
 }
+
+export const IdCRequestLimtReachedSticky: Partial<ChatItem> = {
+    messageId: 'Idc-request-limit-reached-banner',
+    body: `To increase your limit, contact your administrator to enable overages or upgrade your subscription tier.`,
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: '### Monthly request limit reached',
+    },
+    canBeDismissed: false,
+}

@@ -125,6 +125,7 @@ import {
     isUsageLimitError,
     isNullish,
     getOriginFromClientInfo,
+    isQuotaExceededError,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -3027,9 +3028,19 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.cwsprChatConversationId = conversationId
         await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed')
 
-        if (isUsageLimitError(err)) {
+        if (isUsageLimitError(err) || isQuotaExceededError(err)) {
             if (this.#paidTierMode !== 'paidtier') {
                 this.setPaidTierMode(tabId, 'freetier-limit')
+            }
+            const isBuilderId = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
+            if (!isBuilderId) {
+                // IdC user
+                const chatParams: ChatUpdateParams = {
+                    tabId: tabId ?? '',
+                }
+                // Special flag recognized by `chat-client/src/client/mynahUi.ts`.
+                ;(chatParams as any).limitReached = true
+                this.#features.chat.sendChatUpdate(chatParams)
             }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',

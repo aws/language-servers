@@ -83,6 +83,7 @@ import {
     upgradePendingSticky,
     plansAndPricingTitle,
     freeTierLimitDirective,
+    IdCRequestLimtReachedSticky,
 } from './texts/paidTier'
 import { isSupportedImageExtension, MAX_IMAGE_CONTEXT, verifyClientImages } from './imageVerification'
 
@@ -1236,9 +1237,22 @@ export const createMynahUi = (
         return true
     }
 
+    const onIdcRequestLimitReached = (tabId: string, limitReached: boolean | undefined) => {
+        if (!limitReached) {
+            return false
+        }
+        mynahUi.updateStore(tabId, {
+            promptInputStickyCard: IdCRequestLimtReachedSticky,
+        })
+        return true
+    }
+
     const updateChat = (params: ChatUpdateParams) => {
         // HACK: Special field sent by `agenticChatController.ts:setPaidTierMode()`.
-        if (onPaidTierModeChange(params.tabId, (params as any).paidTierMode as string)) {
+        if (
+            onPaidTierModeChange(params.tabId, (params as any).paidTierMode as string) ||
+            onIdcRequestLimitReached(params.tabId, (params as any).limitReached as boolean)
+        ) {
             return
         }
 
