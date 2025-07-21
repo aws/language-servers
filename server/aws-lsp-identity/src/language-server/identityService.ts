@@ -181,7 +181,7 @@ export class IdentityService {
             emitMetric('Succeeded')
 
             return {
-                credential: { id: params.profileName, credentials: credentials },
+                credential: { id: params.profileName, kinds: profile.kinds, credentials: credentials },
                 updateCredentialsParams: { data: credentials, encrypted: false },
             }
         } catch (e) {
