@@ -175,7 +175,9 @@ describe('loadAgentConfig', () => {
     })
 
     it('creates a default agent config when none exists', async () => {
-        const result = await loadAgentConfig(workspace, logger, [])
+        // Add the global agent path to the paths array
+        const agentPath = getGlobalAgentConfigPath(tmpDir)
+        const result = await loadAgentConfig(workspace, logger, [agentPath])
 
         // Check that the agent config has the expected structure
         expect(result.agentConfig).to.have.property('name')
@@ -183,7 +185,6 @@ describe('loadAgentConfig', () => {
         expect(result.agentConfig).to.have.property('allowedTools').that.is.an('array')
 
         // The default file should have been written under ~/.aws/amazonq/agents/default.json
-        const agentPath = getGlobalAgentConfigPath(tmpDir)
         expect(fs.existsSync(agentPath)).to.be.true
         const content = fs.readFileSync(agentPath, 'utf-8')
         expect(content).to.contain('tools')
