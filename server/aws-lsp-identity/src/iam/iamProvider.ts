@@ -134,7 +134,7 @@ export class IamProvider {
             // Add MFA fields to assume role request if MultiFactorAuthPresent is required
             const assumeRoleInput: AssumeRoleCommandInput = {
                 RoleArn: params.profile.settings?.role_arn,
-                RoleSessionName: `session-${Date.now()}`,
+                RoleSessionName: params.profile.settings?.role_session_name || `session-${Date.now()}`,
                 DurationSeconds: 3600,
             }
             const response = await simulatePermissions(
