@@ -3041,6 +3041,11 @@ export class AgenticChatController implements ChatHandlers {
                 // Special flag recognized by `chat-client/src/client/mynahUi.ts`.
                 ;(chatParams as any).limitReached = true
                 this.#features.chat.sendChatUpdate(chatParams)
+                return {
+                    body: '',
+                    additionalMessages: [],
+                    messageId: 'request-limit-reached',
+                }
             }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',

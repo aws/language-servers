@@ -1244,6 +1244,12 @@ export const createMynahUi = (
         mynahUi.updateStore(tabId, {
             promptInputStickyCard: IdCRequestLimtReachedSticky,
         })
+        mynahUi.addChatItem(tabId, {
+            type: ChatItemType.PROMPT,
+            followUp: {
+                text: "Amazon Q can't answer your question because you've reached your monthly request limit. Limit resets on MM/DD",
+            },
+        })
         return true
     }
 
