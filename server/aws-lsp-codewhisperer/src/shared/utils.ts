@@ -25,7 +25,6 @@ import {
 import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
 import { promises as fs } from 'fs'
-import { promisify } from 'util'
 import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 import ignore = require('ignore')
