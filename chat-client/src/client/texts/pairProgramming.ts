@@ -91,8 +91,9 @@ export const reviewRerouteCard: ChatItem = {
     },
     body: `You don't need to explicitly use /review. We've redirected your request to chat.
 Ask me to do things like:
-• Review the open file
-• Review the open workspace`,
+• Perform a code review of my active file
+• Perform a code review of uncommitted changes in my active file
+• Perform a code review of my @workspace`,
 }
 
 export const createRerouteCard = (command: string): ChatItem => {

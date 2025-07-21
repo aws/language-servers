@@ -13,7 +13,7 @@ export const CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
     description: [
         '**3 main fields in the tool:**',
-        '- scopeOfReview: CRITICAL - Must be set to either FULL_REVIEW (analyze entire codebase) or CODE_DIFF_REVIEW (focus only on changes/modifications). This is a required field.',
+        '- scopeOfReview: CRITICAL - Must be set to either FULL_REVIEW (analyze entire file/folder/project/workspace) or CODE_DIFF_REVIEW (focus only on changes/modifications in the file/folder/project/workspace). This is a required field.',
         '- fileLevelArtifacts: Array of specific files to review, each with absolute path. Use this when reviewing individual files, not folders. Format: [{"path": "/absolute/path/to/file.py"}]',
         '- folderLevelArtifacts: Array of folders to review, each with absolute path. Use this when reviewing entire directories, not individual files. Format: [{"path": "/absolute/path/to/folder/"}]',
         "Note: Either fileLevelArtifacts OR folderLevelArtifacts should be provided based on what's being reviewed, but not both for the same items.",
@@ -22,7 +22,7 @@ export const CODE_REVIEW_INPUT_SCHEMA = {
         scopeOfReview: {
             type: <const>'string',
             description: [
-                'CRITICAL: You must explicitly set the value of "scopeOfReview" based on user request analysis.',
+                'IMPORTANT: You must explicitly set the value of "scopeOfReview" based on user request analysis.',
                 '',
                 'Set "scopeOfReview" to CODE_DIFF_REVIEW when:',
                 '- User explicitly asks to review only changes/modifications/diffs in their code',
@@ -37,7 +37,7 @@ export const CODE_REVIEW_INPUT_SCHEMA = {
                 '- When user asks to review specific files or folders without mentioning changes',
                 '- When user asks for security analysis or best practices review of their code',
                 '',
-                'This is a required field. You must inform the user whether you are performing a full review or only reviewing changes.',
+                'This is a required field.',
             ].join('\n'),
             enum: SCOPE_OF_CODE_REVIEW,
         },
