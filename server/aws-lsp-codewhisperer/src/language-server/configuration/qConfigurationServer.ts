@@ -43,6 +43,7 @@ export interface QClientCapabilities {
     reroute?: boolean
     qCodeReviewInChat?: boolean
     compaction?: boolean
+    shortcut?: boolean
 }
 
 type QConfigurationResponse =
