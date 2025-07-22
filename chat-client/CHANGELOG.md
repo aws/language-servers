@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.27](https://github.com/aws/language-servers/compare/chat-client/v0.1.26...chat-client/v0.1.27) (2025-07-22)
+
+
+### Features
+
+* **amazonq:** enable show logs feature ([#1947](https://github.com/aws/language-servers/issues/1947)) ([86ea83d](https://github.com/aws/language-servers/commit/86ea83dd53b447f6decccf16559b76f4989ea712))
+
 ## [0.1.26](https://github.com/aws/language-servers/compare/chat-client/v0.1.25...chat-client/v0.1.26) (2025-07-22)
 
 
