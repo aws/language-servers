@@ -17,7 +17,7 @@ import {
     IdeDiagnostic,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
+import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
@@ -313,8 +313,6 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
-        // Threshold to avoid getting the same suggestion type due to unexpected issue
-        const timeSinceCloseTimeEditStreakThreshold: number = 2000
 
         const sessionManager = SessionManager.getInstance()
 
@@ -426,26 +424,43 @@ export const CodewhispererServerFactory =
                         ? workspaceState.workspaceId
                         : undefined
 
-                    // TODO: Can we get this derived from a keyboard event in the future?
-                    // This picks the last non-whitespace character, if any, before the cursor
-                    const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
-                    const codewhispererAutoTriggerType = triggerType(fileContext)
+                    let triggerCharacters = ''
+                    let codewhispererAutoTriggerType = undefined
+                    // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
+                    if (
+                        params.documentChangeParams?.contentChanges &&
+                        params.documentChangeParams.contentChanges.length > 0 &&
+                        params.documentChangeParams.contentChanges[0].text !== undefined
+                    ) {
+                        triggerCharacters = params.documentChangeParams.contentChanges[0].text
+                        codewhispererAutoTriggerType = getAutoTriggerType(params.documentChangeParams.contentChanges)
+                    } else {
+                        // if the client does not emit document change for the trigger, use left most character.
+                        triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
+                        codewhispererAutoTriggerType = triggerType(fileContext)
+                    }
+
                     const previousSession = sessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
-                    const previousSuggestionType = previousSession?.suggestionType ?? ''
-                    const previousCloseTime = previousSession?.closeTime
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
                         ideCategory = getIdeCategory(initializeParams)
                     }
+
+                    // See: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L132
+                    // In such cases, do not auto trigger.
+                    if (codewhispererAutoTriggerType === undefined) {
+                        return EMPTY_RESULT
+                    }
+
                     const autoTriggerResult = autoTrigger(
                         {
                             fileContext, // The left/right file context and programming language
                             lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                            char: triggerCharacter, // Add the character just inserted, if any, before the invication position
+                            char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                             ide: ideCategory ?? '',
-                            os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                            os: getNormalizeOsName(),
                             previousDecision, // The last decision by the user on the previous invocation
                             triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                         },
@@ -496,42 +511,33 @@ export const CodewhispererServerFactory =
                         if (editsEnabled) {
                             const predictionTypes: string[][] = []
 
+                            /**
+                             * Manual trigger - should always have 'Completions'
+                             * Auto trigger
+                             *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
+                             *  - Others - should always have 'Completions'
+                             */
                             if (
-                                previousDecision === 'Accept' &&
-                                previousSuggestionType === SuggestionType.EDIT &&
-                                previousCloseTime &&
-                                new Date().getTime() - previousCloseTime < timeSinceCloseTimeEditStreakThreshold
+                                !isAutomaticLspTriggerKind ||
+                                (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
+                                (isAutomaticLspTriggerKind &&
+                                    codewhispererAutoTriggerType === 'Classifier' &&
+                                    autoTriggerResult.shouldTrigger)
                             ) {
+                                predictionTypes.push(['COMPLETIONS'])
+                            }
+
+                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
+                                fileContext: fileContext,
+                                lineNum: params.position.line,
+                                char: triggerCharacters,
+                                previousDecision: previousDecision,
+                                cursorHistory: cursorTracker,
+                                recentEdits: recentEditTracker,
+                            })
+
+                            if (editPredictionAutoTriggerResult.shouldTrigger) {
                                 predictionTypes.push(['EDITS'])
-                            } else {
-                                /**
-                                 * Manual trigger - should always have 'Completions'
-                                 * Auto trigger
-                                 *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
-                                 *  - Others - should always have 'Completions'
-                                 */
-                                if (
-                                    !isAutomaticLspTriggerKind ||
-                                    (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
-                                    (isAutomaticLspTriggerKind &&
-                                        codewhispererAutoTriggerType === 'Classifier' &&
-                                        autoTriggerResult.shouldTrigger)
-                                ) {
-                                    predictionTypes.push(['COMPLETIONS'])
-                                }
-
-                                const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
-                                    fileContext: fileContext,
-                                    lineNum: params.position.line,
-                                    char: triggerCharacter,
-                                    previousDecision: previousDecision,
-                                    cursorHistory: cursorTracker,
-                                    recentEdits: recentEditTracker,
-                                })
-
-                                if (editPredictionAutoTriggerResult.shouldTrigger) {
-                                    predictionTypes.push(['EDITS'])
-                                }
                             }
 
                             if (predictionTypes.length === 0) {
@@ -569,7 +575,7 @@ export const CodewhispererServerFactory =
                                 document: {
                                     relativeFilePath: textDocument.uri,
                                     programmingLanguage: {
-                                        languageName: textDocument.languageId,
+                                        languageName: requestContext.fileContext.programmingLanguage.languageName,
                                     },
                                     text: textDocument.getText(),
                                 },
@@ -601,8 +607,7 @@ export const CodewhispererServerFactory =
                         }
                         // Emit user trigger decision at session close time for active session
                         sessionManager.discardSession(currentSession)
-                        // TODO add streakLength back once the model is updated
-                        // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                        const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                         await emitUserTriggerDecisionTelemetry(
                             telemetry,
                             telemetryService,
@@ -611,7 +616,8 @@ export const CodewhispererServerFactory =
                             0,
                             0,
                             [],
-                            []
+                            [],
+                            streakLength
                         )
                     }
 
@@ -643,7 +649,7 @@ export const CodewhispererServerFactory =
                         language: fileContext.programmingLanguage.languageName,
                         requestContext: requestContext,
                         autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
-                        triggerCharacter: triggerCharacter,
+                        triggerCharacter: triggerCharacters,
                         classifierResult: autoTriggerResult?.classifierResult,
                         classifierThreshold: autoTriggerResult?.classifierThreshold,
                         credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
@@ -714,18 +720,25 @@ export const CodewhispererServerFactory =
             if (session.discardInflightSessionOnNewInvocation) {
                 session.discardInflightSessionOnNewInvocation = false
                 sessionManager.discardSession(session)
-                // TODO add streakLength back once the model is updated
-                // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
                     session,
-                    timeSinceLastUserModification
+                    timeSinceLastUserModification,
+                    0,
+                    0,
+                    [],
+                    [],
+                    streakLength
                 )
             }
 
             // session was closed by user already made decisions consequent completion request before new paginated API response was received
-            if (session.state === 'CLOSED' || session.state === 'DISCARD') {
+            if (
+                session.suggestionType !== SuggestionType.EDIT && // TODO: this is a shorterm fix to allow Edits tabtabtab experience, however the real solution is to manage such sessions correctly
+                (session.state === 'CLOSED' || session.state === 'DISCARD')
+            ) {
                 return EMPTY_RESULT
             }
 
@@ -1004,8 +1017,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            // TODO add streakLength back once the model is updated
-            // const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,
@@ -1014,7 +1026,8 @@ export const CodewhispererServerFactory =
                 addedCharactersForEditSuggestion.length,
                 deletedCharactersForEditSuggestion.length,
                 addedDiagnostics,
-                removedDiagnostics
+                removedDiagnostics,
+                streakLength
             )
         }
 

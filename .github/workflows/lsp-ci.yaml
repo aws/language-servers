@@ -20,9 +20,15 @@ jobs:
               run: |
                   npm ci
                   npm run check:formatting
-            - name: Test
+            - name: Test with Coverage
               run: |
-                  npm run test
+                  npm run test:coverage
+            - name: Upload Coverage to Codecov
+              uses: codecov/codecov-action@v5
+              with:
+                  flags: unittests
+                  fail_ci_if_error: false
+                  token: ${{ secrets.CODECOV_TOKEN }}
     build:
         name: Package
         runs-on: ubuntu-latest

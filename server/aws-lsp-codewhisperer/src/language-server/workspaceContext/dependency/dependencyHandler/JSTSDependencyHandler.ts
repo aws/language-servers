@@ -105,7 +105,8 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
 
         // process each dependency
         for (const [name, declaredVersion] of Object.entries(allDependencies)) {
-            const dependencyPath = path.join(nodeModulesPath, name)
+            // Handle scoped packages (@scope/package) by splitting on '/' for cross-platform compatibility
+            const dependencyPath = path.join(nodeModulesPath, ...name.split('/'))
             // Check if dependency exists in node_modules
             if (fs.existsSync(dependencyPath)) {
                 // Read the actual version from the dependency's package.json
@@ -125,6 +126,7 @@ export class JSTSDependencyHandler extends LanguageDependencyHandler<JSTSDepende
                     name,
                     version: actualVersion.toString().replace(/[\^~]/g, ''), // Remove ^ and ~ from version
                     path: dependencyPath,
+                    pathInZipOverride: name, // either package or @scope/package
                     size: this.getDirectorySize(dependencyPath),
                     zipped: false,
                 })

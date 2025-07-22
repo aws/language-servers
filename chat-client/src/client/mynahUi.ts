@@ -200,7 +200,8 @@ export const handleChatPrompt = (
         prompt.command &&
         ['/dev', '/test', '/doc'].includes(prompt.command)
 
-    if (prompt.command && !isReroutedCommand) {
+    if (prompt.command && !isReroutedCommand && prompt.command !== '/compact') {
+        // Send /compact quick action as normal regular chat prompt
         // Handle non-rerouted commands (/clear, /help, /transform, /review) as quick actions
         // Temporary solution to handle clear quick actions on the client side
         if (prompt.command === '/clear') {
@@ -781,13 +782,21 @@ export const createMynahUi = (
                 // Add valid files to context commands
                 mynahUi.addCustomContextToPrompt(tabId, commands, insertPosition)
             }
-            const uniqueErrors = [...new Set(errors)]
-            for (const error of uniqueErrors) {
-                mynahUi.notify({
-                    content: error,
-                    type: NotificationType.WARNING,
-                })
+
+            const imageVerificationBanner: Partial<ChatItem> = {
+                messageId: 'image-verification-banner',
+                header: {
+                    icon: 'warning',
+                    iconStatus: 'warning',
+                    body: '### Invalid Image',
+                },
+                body: `${errors.join('\n')}`,
+                canBeDismissed: true,
             }
+
+            mynahUi.updateStore(tabId, {
+                promptInputStickyCard: imageVerificationBanner,
+            })
         },
     }
 
@@ -1724,5 +1733,5 @@ export const uiComponentsTexts = {
     copyToClipboard: 'Copied to clipboard',
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
-    spinnerText: 'Thinking...',
+    spinnerText: 'Working...',
 }

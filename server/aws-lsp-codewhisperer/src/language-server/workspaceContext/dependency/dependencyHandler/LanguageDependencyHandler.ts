@@ -10,6 +10,7 @@ export interface Dependency {
     name: string
     version: string
     path: string
+    pathInZipOverride?: string
     size: number
     zipped: boolean
 }
@@ -213,7 +214,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
                         workspaceFolder,
                         dependency.path,
                         this.language,
-                        path.basename(dependency.path)
+                        dependency.pathInZipOverride || path.basename(dependency.path)
                     )
                     fileMetadataList.push(...fileMetadata)
                 }

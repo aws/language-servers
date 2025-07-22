@@ -208,6 +208,7 @@ export enum ChatTelemetryEventName {
     ChatHistoryAction = 'amazonq_performChatHistoryAction',
     ExportTab = 'amazonq_exportTab',
     UiClick = 'ui_click',
+    ActiveUser = 'amazonq_activeUser',
 }
 
 export interface ChatTelemetryEventMap {
@@ -230,6 +231,7 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
     [ChatTelemetryEventName.ExportTab]: ExportTabEvent
     [ChatTelemetryEventName.UiClick]: UiClickEvent
+    [ChatTelemetryEventName.ActiveUser]: ActiveUserEvent
 }
 
 export type AgencticLoop_InvokeLLMEvent = {
@@ -260,6 +262,11 @@ export type InteractWithAgenticChatEvent = {
     cwsprChatConversationType: ChatConversationType
     cwsprAgenticChatInteractionType: AgenticChatInteractionType
     enabled?: boolean
+}
+
+export type ActiveUserEvent = {
+    credentialStartUrl?: string
+    result: string
 }
 
 export type ModifyCodeEvent = {
