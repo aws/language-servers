@@ -40,7 +40,7 @@ export class FileSystemStsCache implements StsCache {
         if (
             !(credential.accessKeyId && credential.secretAccessKey && credential.sessionToken && credential.expiration)
         ) {
-            this.observability.logging.log('File read from STS cache is not an STS credential.')
+            this.observability.logging.log('Cannot set credential: missing fields.')
             return
         }
 

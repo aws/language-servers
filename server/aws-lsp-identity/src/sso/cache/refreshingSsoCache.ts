@@ -128,14 +128,18 @@ export class RefreshingSsoCache implements SsoCache {
             // Current time is before start of refresh window? Just return it
             const refreshAfterMillis = accessTokenExpiresAtMillis - refreshWindowMillis
             if (nowMillis < refreshAfterMillis) {
-                this.observability.logging.log('SSO token before refresh window.  Returning current SSO token.')
+                this.observability.logging.log(
+                    'SSO token expiration is before refresh window.  Returning current SSO token.'
+                )
                 return ssoToken
             }
 
             // Last refresh attempt was less than the retry window?  Just return it
             const retryAfterMillis = ssoTokenDetail.lastRefreshMillis + retryCooldownWindowMillis
             if (nowMillis < retryAfterMillis) {
-                this.observability.logging.log('SSO token in retry cooldown window.  Returning current SSO token.')
+                this.observability.logging.log(
+                    'SSO token expiration is in retry cooldown window.  Returning current SSO token.'
+                )
                 return ssoToken
             }
         }

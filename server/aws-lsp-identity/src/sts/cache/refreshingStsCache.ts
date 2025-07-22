@@ -42,7 +42,9 @@ export class RefreshingStsCache implements StsCache {
 
         // Check if credential is still valid (not in refresh window)
         if (nowMillis < expirationMillis) {
-            this.observability.logging.log('STS credential before refresh window.  Returning current STS credential.')
+            this.observability.logging.log(
+                'STS credential expiration is before refresh window.  Returning current STS credential.'
+            )
             return credential
         } else {
             // Credential is in refresh window or expired
