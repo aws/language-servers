@@ -13,6 +13,8 @@ import {
     ShowMessageRequestParams,
     GetIamCredentialParams,
     GetMfaCodeParams,
+    StsCredentialChangedParams,
+    SsoTokenChangedParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
@@ -23,8 +25,8 @@ import { FileSystemStsCache } from '../sts/cache/fileSystemStsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
-import { SendGetMfaCode } from '../iam/utils'
+import { ShowUrl, ShowMessageRequest, ShowProgress, SendSsoTokenChanged } from '../sso/utils'
+import { SendGetMfaCode, SendStsCredentialChanged } from '../iam/utils'
 import { IamProvider } from '../iam/iamProvider'
 
 export class IdentityServer extends ServerBase {
@@ -49,22 +51,24 @@ export class IdentityServer extends ServerBase {
         const sendGetMfaCode: SendGetMfaCode = (params: GetMfaCodeParams) =>
             this.features.identityManagement.sendGetMfaCode(params)
 
+        // Callbacks for client->server JSON-RPC calls
+        const sendSsoTokenChanged: SendSsoTokenChanged = (params: SsoTokenChangedParams) =>
+            this.features.identityManagement.sendSsoTokenChanged(params)
+        const sendStsCredentialChanged: SendStsCredentialChanged = (params: StsCredentialChangedParams) =>
+            this.features.identityManagement.sendStsCredentialChanged(params)
+
         // Initialize dependencies
         const profileStore = new SharedConfigProfileStore(this.observability)
 
         const ssoCache = new RefreshingSsoCache(
             new FileSystemSsoCache(this.observability),
-            this.features.identityManagement.sendSsoTokenChanged,
+            sendSsoTokenChanged,
             this.observability
         )
 
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
         const stsCache = new RefreshingStsCache(new FileSystemStsCache(this.observability), this.observability)
-        const stsAutoRefresher = new StsAutoRefresher(
-            stsCache,
-            this.features.identityManagement.sendStsCredentialChanged,
-            this.observability
-        )
+        const stsAutoRefresher = new StsAutoRefresher(stsCache, sendStsCredentialChanged, this.observability)
         const iamProvider = new IamProvider()
 
         const identityService = new IdentityService(

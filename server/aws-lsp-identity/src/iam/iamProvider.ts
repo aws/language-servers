@@ -7,21 +7,31 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AwsError } from '@aws/lsp-core'
 import { AssumeRoleCommand, AssumeRoleCommandInput, STSClient } from '@aws-sdk/client-sts'
-import { IamFlowParams, simulatePermissions } from './utils'
+import { checkMfaRequired, IamFlowParams } from './utils'
 import { createHash } from 'crypto'
 
 const sourceProfileRecursionMax = 5
 const mfaTimeout = 2 * 60 * 1000 // 2 minutes
 
 export class IamProvider {
+    readonly defaultRegion = 'us-east-1'
     private sourceProfileRecursionCount = 0
 
     async getCredential(params: IamFlowParams): Promise<IamCredential> {
         try {
             let id: IamCredentialId = ''
             let credentials: IamCredentials
+
+            // Get the credentials directly from the profile
+            if (params.profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
+                credentials = {
+                    accessKeyId: params.profile.settings!.aws_access_key_id!,
+                    secretAccessKey: params.profile.settings!.aws_secret_access_key!,
+                    sessionToken: params.profile.settings!.aws_session_token!,
+                }
+            }
             // Assume the role matching the found ARN
-            if (params.profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
+            else if (params.profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
                 const key = JSON.stringify({
                     RoleArn: params.profile.settings?.role_arn,
                     RoleSessionName: params.profile.settings?.role_session_name,
@@ -29,14 +39,6 @@ export class IamProvider {
                 })
                 id = createHash('sha1').update(key).digest('hex')
                 credentials = await this.getAssumedRoleCredential(id, params)
-            }
-            // Get the credentials directly from the profile
-            else if (params.profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
-                credentials = {
-                    accessKeyId: params.profile.settings!.aws_access_key_id!,
-                    secretAccessKey: params.profile.settings!.aws_secret_access_key!,
-                    sessionToken: params.profile.settings!.aws_session_token!,
-                }
             } else {
                 throw new AwsError(
                     'Credentials could not be found for provided profile kind',
@@ -127,7 +129,7 @@ export class IamProvider {
         try {
             const parentCredentials = await this.getParentCredential(params)
             const stsClient = new STSClient({
-                region: params.profile.settings?.region || 'us-east-1',
+                region: params.profile.settings?.region || this.defaultRegion,
                 credentials: parentCredentials,
             })
 
@@ -137,12 +139,12 @@ export class IamProvider {
                 RoleSessionName: params.profile.settings?.role_session_name || `session-${Date.now()}`,
                 DurationSeconds: 3600,
             }
-            const response = await simulatePermissions(
+            const mfaRequired = await checkMfaRequired(
                 parentCredentials,
                 ['sts:AssumeRole'],
                 params.profile.settings?.region
             )
-            if (response.EvaluationResults?.[0]?.MissingContextValues?.includes('aws:MultiFactorAuthPresent')) {
+            if (mfaRequired) {
                 // Get the MFA device serial number from the profile
                 if (!params.profile.settings?.mfa_serial) {
                     throw new AwsError(

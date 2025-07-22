@@ -11,7 +11,6 @@ import { IamProvider } from '../iam/iamProvider'
 import { IamFlowParams } from './utils'
 import * as iamUtils from '../iam/utils'
 import { STSClient } from '@aws-sdk/client-sts'
-import { SimulatePrincipalPolicyCommandOutput } from '@aws-sdk/client-iam'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -25,9 +24,9 @@ let stsAutoRefresher: StubbedInstance<StsAutoRefresher>
 let handlers: StubbedInstance<iamUtils.IamHandlers>
 let observability: StubbedInstance<Observability>
 let token: StubbedInstance<CancellationToken>
-let simulatePermissionsStub: SinonStub<
+let checkMfaRequiredStub: SinonStub<
     [credentials: IamCredentials, permissions: string[], region?: string | undefined],
-    Promise<SimulatePrincipalPolicyCommandOutput>
+    Promise<boolean>
 >
 
 describe('IamProvider', () => {
@@ -127,11 +126,8 @@ describe('IamProvider', () => {
 
         sut = new IamProvider()
 
-        simulatePermissionsStub = stub(iamUtils, 'simulatePermissions')
-        simulatePermissionsStub.resolves({
-            $metadata: {},
-            EvaluationResults: [],
-        })
+        checkMfaRequiredStub = stub(iamUtils, 'checkMfaRequired')
+        checkMfaRequiredStub.resolves(false)
 
         stub(STSClient.prototype, 'send').resolves({
             Credentials: {
@@ -188,17 +184,7 @@ describe('IamProvider', () => {
         })
 
         it('Can generate credentials with MFA.', async () => {
-            simulatePermissionsStub.resolves({
-                $metadata: {},
-                EvaluationResults: [
-                    {
-                        EvalActionName: 'name',
-                        EvalResourceName: 'resource',
-                        EvalDecision: 'implicitDeny',
-                        MissingContextValues: ['aws:MultiFactorAuthPresent'],
-                    },
-                ],
-            })
+            checkMfaRequiredStub.resolves(true)
             const profile: Profile = {
                 kinds: [ProfileKind.IamSourceProfileProfile],
                 name: 'my-mfa-profile',

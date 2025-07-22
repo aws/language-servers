@@ -4,11 +4,12 @@ import { awsBuilderIdReservedName, SsoCache, SsoClientRegistration } from '../ss
 import { IdentityService } from './identityService'
 import { ProfileData, ProfileStore } from './profiles/profileService'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
-import { createStubInstance, restore, spy, SinonSpy, stub } from 'sinon'
+import { createStubInstance, restore, spy, SinonSpy, stub, SinonStub } from 'sinon'
 import {
     AuthorizationFlowKind,
     CancellationToken,
     IamCredential,
+    IamCredentials,
     ProfileKind,
     SsoTokenSourceKind,
 } from '@aws/language-server-runtimes/protocol'
@@ -33,6 +34,10 @@ let stsAutoRefresher: StubbedInstance<StsAutoRefresher>
 let iamProvider: StubbedInstance<IamProvider>
 let observability: StubbedInstance<Observability>
 let authFlowFn: SinonSpy
+let validatePermissionsStub: SinonStub<
+    [credentials: IamCredentials, permissions: string[], region?: string | undefined],
+    Promise<boolean>
+>
 
 describe('IdentityService', () => {
     beforeEach(() => {
@@ -140,10 +145,8 @@ describe('IdentityService', () => {
             }
         )
 
-        stub(iamUtils, 'simulatePermissions').resolves({
-            $metadata: {},
-            EvaluationResults: [],
-        })
+        validatePermissionsStub = stub(iamUtils, 'validatePermissions')
+        validatePermissionsStub.resolves(true)
     })
 
     afterEach(() => {
@@ -308,6 +311,15 @@ describe('IdentityService', () => {
 
             expect(actual.credential.credentials.accessKeyId).to.equal('access-key')
             expect(actual.credential.credentials.secretAccessKey).to.equal('secret-key')
+        })
+
+        it('Throws when permissions are insufficient', async () => {
+            validatePermissionsStub.resolves(false)
+            const error = await expect(
+                sut.getIamCredential({ profileName: 'my-iam-profile' }, CancellationToken.None)
+            ).rejectedWith(Error)
+
+            expect(error.message).to.equal('Credentials have insufficient permissions.')
         })
     })
 
