@@ -435,7 +435,7 @@ export class McpManager {
      */
     public getToolPerm(server: string, tool: string): McpPermissionType {
         // For built-in tools, check directly without prefix
-        if (server === 'builtIn') {
+        if (server === 'Built-in') {
             return this.agentConfig.allowedTools.includes(tool) ? McpPermissionType.alwaysAllow : McpPermissionType.ask
         }
 
@@ -821,7 +821,7 @@ export class McpManager {
 
             // Process each tool permission
             for (const [toolName, permission] of Object.entries(perm.toolPerms || {})) {
-                const toolId = `${serverPrefix}/${toolName}`
+                const toolId = (unsanitizedServerName !== 'Built-in' ? `${serverPrefix}/` : '') + `${toolName}`
 
                 if (permission === McpPermissionType.deny) {
                     // For deny: if server is enabled as a whole, we need to switch to individual tools
@@ -931,7 +931,7 @@ export class McpManager {
      */
     public requiresApproval(server: string, tool: string): boolean {
         // For built-in tools, check directly without prefix
-        const toolId = server === 'builtIn' ? tool : `@${server}/${tool}`
+        const toolId = server === 'Built-in' ? tool : `@${server}/${tool}`
         return !this.agentConfig.allowedTools.includes(toolId)
     }
 
