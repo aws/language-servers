@@ -294,6 +294,8 @@ export function getCodeWhispererLanguageIdFromPath(filePath: string): Codewhispe
         return 'javascript'
     }
 
+    if (isJavaProjectFileFromPath(filePath)) return 'java'
+
     for (const [extension, languageId] of Object.entries(languageByExtension)) {
         if (filePath.endsWith(extension)) {
             return getRuntimeLanguage(languageId)
@@ -301,4 +303,13 @@ export function getCodeWhispererLanguageIdFromPath(filePath: string): Codewhispe
     }
 
     return undefined
+}
+
+export function isJavaProjectFileFromPath(filePath: string): boolean {
+    return (
+        filePath.endsWith(`build.gradle`) ||
+        filePath.endsWith(`build.gradle.kts`) ||
+        filePath.endsWith(`pom.xml`) ||
+        filePath.endsWith(`build.xml`)
+    )
 }
