@@ -3,7 +3,7 @@ import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { awsBuilderIdReservedName, SsoCache, SsoClientRegistration } from '../sso'
 import { IdentityService } from './identityService'
 import { ProfileData, ProfileStore } from './profiles/profileService'
-import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { SsoTokenAutoRefresher } from '../sso/ssoTokenAutoRefresher'
 import { createStubInstance, restore, spy, SinonSpy, stub, SinonStub } from 'sinon'
 import {
     AuthorizationFlowKind,

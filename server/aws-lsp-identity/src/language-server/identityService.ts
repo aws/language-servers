@@ -21,7 +21,7 @@ import {
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
 import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion } from '../sso'
 import { SsoCache, SsoClientRegistration } from '../sso/cache'
-import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { SsoTokenAutoRefresher } from '../sso/ssoTokenAutoRefresher'
 import { StsCache } from '../sts/cache/stsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import {
@@ -51,7 +51,7 @@ export class IdentityService {
     constructor(
         private readonly profileStore: ProfileStore,
         private readonly ssoCache: SsoCache,
-        private readonly autoRefresher: SsoTokenAutoRefresher,
+        private readonly ssoAutoRefresher: SsoTokenAutoRefresher,
         private readonly stsCache: StsCache,
         private readonly stsAutoRefresher: StsAutoRefresher,
         private readonly iamProvider: IamProvider,
@@ -134,7 +134,7 @@ export class IdentityService {
             }
 
             // Auto refresh is best effort
-            await this.autoRefresher.watch(this.clientName, ssoSession).catch(reason => {
+            await this.ssoAutoRefresher.watch(this.clientName, ssoSession).catch(reason => {
                 this.observability.logging.log(`Unable to auto-refresh token. ${reason}`)
             })
 
@@ -227,7 +227,7 @@ export class IdentityService {
         try {
             throwOnInvalidSsoSessionName(params?.ssoTokenId)
 
-            this.autoRefresher.unwatch(params.ssoTokenId)
+            this.ssoAutoRefresher.unwatch(params.ssoTokenId)
 
             await this.ssoCache.removeSsoToken(params.ssoTokenId)
 
