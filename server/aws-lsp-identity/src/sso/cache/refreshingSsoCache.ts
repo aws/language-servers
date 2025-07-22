@@ -7,13 +7,11 @@ import {
     throwOnInvalidClientName,
     UpdateSsoTokenFromCreateToken,
     throwOnInvalidSsoSessionName,
+    SendSsoTokenChanged,
 } from '../utils'
-import { RaiseSsoTokenChanged } from '../../language-server/ssoTokenAutoRefresher'
 import { CreateTokenCommandOutput, InvalidGrantException } from '@aws-sdk/client-sso-oidc'
 import { AwsError, Observability } from '@aws/lsp-core'
-
-export const refreshWindowMillis: number = 5 * 60 * 1000
-export const retryCooldownWindowMillis: number = 30000
+import { refreshWindowMillis, retryCooldownWindowMillis } from '../../language-server/autoRefresher'
 
 interface SsoTokenDetail {
     lastRefreshMillis: number
@@ -24,7 +22,7 @@ export class RefreshingSsoCache implements SsoCache {
 
     constructor(
         private readonly next: SsoCache,
-        private readonly raiseSsoTokenChanged: RaiseSsoTokenChanged,
+        private readonly raiseSsoTokenChanged: SendSsoTokenChanged,
         private readonly observability: Observability
     ) {}
 

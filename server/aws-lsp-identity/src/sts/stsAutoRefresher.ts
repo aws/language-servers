@@ -1,46 +1,29 @@
 import { StsCache } from './cache/stsCache'
 import { Observability } from '@aws/lsp-core'
-import {
-    IamCredentials,
-    StsCredentialChangedKind,
-    StsCredentialChangedParams,
-} from '@aws/language-server-runtimes/protocol'
-
-// Modified to match SSO token refresh behavior
-const refreshWindowMillis = 5 * 60 * 1000 // 5 minutes (matching SSO)
-const retryCooldownWindowMillis = 30000 // 30 seconds (matching SSO)
-const bufferedRefreshWindowMillis = refreshWindowMillis * 0.95 // 4.75 minutes
-const bufferedRetryCooldownWindowMillis = retryCooldownWindowMillis * 1.05 // 31.5 seconds
-const maxRefreshJitterMillis = 10000 // 10 seconds (matching SSO)
-const maxRetryCooldownJitterMillis = 3000 // 3 seconds (matching SSO)
-
-export type RaiseStsChanged = (params: StsCredentialChangedParams) => void
+import { AutoRefresher } from '../language-server/autoRefresher'
+import { IamCredentials, StsCredentialChangedKind } from '@aws/language-server-runtimes/protocol'
+import { SendStsCredentialChanged } from '../iam/utils'
 
 interface StsCredentialDetail {
     lastRefreshMillis: number
 }
 
-export class StsAutoRefresher implements Disposable {
-    private readonly timeouts: Record<string, NodeJS.Timeout> = {}
+export class StsAutoRefresher extends AutoRefresher {
     private readonly stsCredentialDetails: Record<string, StsCredentialDetail> = {}
 
     constructor(
         private readonly stsCache: StsCache,
-        private readonly raiseStsCredentialChanged: RaiseStsChanged,
-        private readonly observability: Observability
-    ) {}
-
-    [Symbol.dispose](): void {
-        for (const stsSessionName of Object.keys(this.timeouts)) {
-            this.unwatch(stsSessionName)
-        }
+        private readonly raiseStsCredentialChanged: SendStsCredentialChanged,
+        observability: Observability
+    ) {
+        super(observability)
     }
 
-    async watch(name: string, refreshCallback: () => Promise<IamCredentials>): Promise<void> {
+    async watch(iamCredentialId: string, refreshCallback: () => Promise<IamCredentials>): Promise<void> {
         try {
-            this.unwatch(name)
+            this.unwatch(iamCredentialId)
 
-            const credential = await this.stsCache.getStsCredential(name).catch(_ => undefined)
+            const credential = await this.stsCache.getStsCredential(iamCredentialId).catch(_ => undefined)
 
             if (!credential?.expiration) {
                 this.observability.logging.log(
@@ -49,57 +32,39 @@ export class StsAutoRefresher implements Disposable {
                 return
             }
 
-            const nowMillis = Date.now()
-            const expirationMillis = new Date(credential.expiration).getTime()
-
-            // Get or create StsCredentialDetail (matching SSO pattern)
+            // Get or create StsCredentialDetail
             const stsCredentialDetail =
-                this.stsCredentialDetails[name] ?? (this.stsCredentialDetails[name] = { lastRefreshMillis: 0 })
+                this.stsCredentialDetails[iamCredentialId] ??
+                (this.stsCredentialDetails[iamCredentialId] = { lastRefreshMillis: 0 })
 
-            let delayMs: number
+            const delayMillis = this.getDelay(credential.expiration.toISOString())
+            if (delayMillis >= 0) {
+                this.observability.logging.info(`Auto-refreshing STS credentials in ${delayMillis} milliseconds.`)
+                this.timeouts[iamCredentialId] = setTimeout(async () => {
+                    try {
+                        // Update last refresh attempt time (matching SSO pattern)
+                        stsCredentialDetail.lastRefreshMillis = Date.now()
 
-            if (nowMillis < expirationMillis - refreshWindowMillis) {
-                // Before refresh window, schedule to run in refresh window with jitter
-                delayMs = expirationMillis - bufferedRefreshWindowMillis - nowMillis
-                delayMs += Math.random() * maxRefreshJitterMillis
-            } else if (expirationMillis - refreshWindowMillis < nowMillis && nowMillis < expirationMillis) {
-                // In refresh window - check if we're still in retry cooldown
-                const retryAfterMillis = stsCredentialDetail.lastRefreshMillis + retryCooldownWindowMillis
-                if (nowMillis < retryAfterMillis) {
-                    this.observability.logging.log('STS credentials in retry cooldown window. Scheduling next retry.')
-                    delayMs = retryAfterMillis - nowMillis
-                } else {
-                    // Ready to refresh - use buffered retry cooldown with jitter
-                    delayMs = bufferedRetryCooldownWindowMillis
-                    delayMs += Math.random() * maxRetryCooldownJitterMillis
-                }
-            } else {
-                // Expired
-                this.observability.logging.log('STS credentials have expired and will not be auto-refreshed.')
-                return
+                        // Passing refresh function into here is easier than refreshing from STS cache
+                        const newCredentials = await refreshCallback()
+                        this.observability.logging.log(`Generated new STS credentials`)
+                        await this.stsCache.setStsCredential(iamCredentialId, newCredentials)
+
+                        // Continue watching with the new credentials (allows multiple refreshes)
+                        this.watch(iamCredentialId, refreshCallback)
+
+                        this.raiseStsCredentialChanged({
+                            kind: StsCredentialChangedKind.Refreshed,
+                            stsCredentialId: iamCredentialId,
+                        })
+                    } catch (error) {
+                        this.observability.logging.log(`Failed to refresh STS credentials: ${error}`)
+
+                        // On error, continue watching to retry later (matching SSO pattern)
+                        this.watch(iamCredentialId, refreshCallback)
+                    }
+                }, delayMillis)
             }
-
-            this.observability.logging.info(`Auto-refreshing STS credentials in ${delayMs} milliseconds.`)
-            this.timeouts[name] = setTimeout(async () => {
-                try {
-                    // Update last refresh attempt time (matching SSO pattern)
-                    stsCredentialDetail.lastRefreshMillis = Date.now()
-
-                    const newCredentials = await refreshCallback()
-                    this.observability.logging.log(`Generated new STS credentials`)
-                    await this.stsCache.setStsCredential(name, newCredentials)
-
-                    // Continue watching with the new credentials (allows multiple refreshes)
-                    this.watch(name, refreshCallback)
-
-                    this.raiseStsCredentialChanged({ kind: StsCredentialChangedKind.Refreshed, stsCredentialId: name })
-                } catch (error) {
-                    this.observability.logging.log(`Failed to refresh STS credentials: ${error}`)
-
-                    // On error, continue watching to retry later (matching SSO pattern)
-                    this.watch(name, refreshCallback)
-                }
-            }, delayMs)
         } catch (e) {
             this.observability.logging.log(`Error setting up STS auto-refresh: ${e}`)
             throw e
