@@ -33,7 +33,6 @@ describe('CodeWhispererService', function () {
 
         mockCredentialsProvider = {
             getCredentials: sandbox.stub(),
-            getCredentialsType: sandbox.stub(),
             hasCredentials: sandbox.stub(),
             refresh: sandbox.stub(),
         } as any
@@ -230,7 +229,6 @@ describe('CodeWhispererService', function () {
                 secretAccessKey: 'mock-secret-key',
                 sessionToken: 'mock-session-token',
             })
-            mockCredentialsProvider.getCredentialsType.returns('iam')
 
             service = new CodeWhispererService(
                 mockCredentialsProvider as any,
@@ -330,7 +328,7 @@ describe('CodeWhispererService', function () {
             mockCredentialsProvider.getCredentials.returns({
                 token: 'mock-bearer-token',
             })
-            mockCredentialsProvider.getCredentialsType.returns('bearer')
+            mockCredentialsProvider.hasCredentials.withArgs('bearer').returns(true)
 
             service = new CodeWhispererService(
                 mockCredentialsProvider as any,

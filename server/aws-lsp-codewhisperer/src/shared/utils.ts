@@ -359,11 +359,11 @@ export function getRequestID(error: any): string | undefined {
 }
 
 export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvider) {
-    if (!credentialsProvider.hasCredentials() || credentialsProvider.getCredentialsType() !== 'bearer') {
+    if (!credentialsProvider.hasCredentials('bearer')) {
         throw new Error(MISSING_BEARER_TOKEN_ERROR)
     }
 
-    const credentials = credentialsProvider.getCredentials() as BearerCredentials
+    const credentials = credentialsProvider.getCredentials('bearer') as BearerCredentials
 
     if (!credentials.token) {
         throw new Error(MISSING_BEARER_TOKEN_ERROR)
@@ -373,11 +373,11 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
 }
 
 export function getIAMCredentialsFromProvider(credentialsProvider: CredentialsProvider) {
-    if (!credentialsProvider.hasCredentials() || credentialsProvider.getCredentialsType() !== 'iam') {
+    if (!credentialsProvider.hasCredentials('iam')) {
         throw new Error('Missing IAM creds')
     }
 
-    const credentials = credentialsProvider.getCredentials() as Credentials
+    const credentials = credentialsProvider.getCredentials('iam') as Credentials
     return {
         accessKeyId: credentials.accessKeyId,
         secretAccessKey: credentials.secretAccessKey,

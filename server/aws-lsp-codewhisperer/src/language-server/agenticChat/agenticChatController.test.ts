@@ -277,6 +277,11 @@ describe('AgenticChatController', () => {
         testFeatures.lsp.window.showDocument = sinon.stub()
         testFeatures.setClientParams(cachedInitializeParams)
         setTokenCredentials('builderId')
+        console.log(
+            'testb',
+            testFeatures.credentialsProvider.hasCredentials('iam'),
+            testFeatures.credentialsProvider.hasCredentials('bearer')
+        )
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
         removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
@@ -292,9 +297,8 @@ describe('AgenticChatController', () => {
         chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
-            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
                     startUrl: undefined,

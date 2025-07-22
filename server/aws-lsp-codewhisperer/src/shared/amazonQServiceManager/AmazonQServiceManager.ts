@@ -185,9 +185,7 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
     }
 
     private handleConnectionChange() {
-        const credentialsType = this.features.credentialsProvider.getCredentialsType()
-
-        if (credentialsType === 'iam') {
+        if (this.features.credentialsProvider.hasCredentials('iam')) {
             if (!this.cachedCodewhispererService) {
                 const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(
                     this.features.runtime,
@@ -556,7 +554,7 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
             this.getCustomUserAgent()
         )
 
-        if (this.features.credentialsProvider.getCredentialsType() !== 'iam') {
+        if (this.features.credentialsProvider.hasCredentials('bearer')) {
             streamingClient.profileArn = this.activeIdcProfile?.arn
         }
 

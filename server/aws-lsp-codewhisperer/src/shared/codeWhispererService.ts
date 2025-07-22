@@ -145,10 +145,8 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
     }
 
     private CreateCodeWhispererConfigurationOptions(): CodeWhispererConfigurationOptions {
-        const credentialsType = this.credentialsProvider.getCredentialsType()
-
-        if (credentialsType === 'iam') {
-            const credentials = this.credentialsProvider.getCredentials() as Credentials
+        if (this.credentialsProvider.hasCredentials('iam')) {
+            const credentials = this.credentialsProvider.getCredentials('iam') as Credentials
             const options: CodeWhispererSigv4ClientConfigurationOptions = {
                 region: this.codeWhispererRegion,
                 endpoint: this.codeWhispererEndpoint,
@@ -169,7 +167,7 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
                         this.trackRequest(req)
                         req.on('build', async ({ httpRequest }) => {
                             try {
-                                const creds = this.credentialsProvider.getCredentials() as BearerCredentials
+                                const creds = this.credentialsProvider.getCredentials('bearer') as BearerCredentials
                                 if (!creds?.token) {
                                     throw new Error('Authorization failed, bearer token is not set')
                                 }
@@ -216,9 +214,8 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
         sdkInitializator: SDKInitializator,
         logging: Logging
     ): CodeWhispererClient {
-        const credentialsType = credentialsProvider.getCredentialsType()
-
-        if (credentialsType === 'iam') {
+        console.log('testa', credentialsProvider.hasCredentials('iam'), credentialsProvider.hasCredentials('bearer'))
+        if (credentialsProvider.hasCredentials('iam')) {
             const client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
             const clientRequestListeners = client.setupRequestListeners
             client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
@@ -234,7 +231,11 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
     }
 
     getCredentialsType(): CredentialsType {
-        return this.credentialsProvider.getCredentialsType()
+        if (this.credentialsProvider.hasCredentials('iam')) {
+            return 'iam'
+        } else {
+            return 'bearer'
+        }
     }
 
     private withProfileArn<T extends object>(request: T): T {

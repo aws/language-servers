@@ -155,9 +155,8 @@ describe('ChatController', () => {
         chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
-            getCredentialsType: sinon.stub().returns('bearer'),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
                     startUrl: undefined,

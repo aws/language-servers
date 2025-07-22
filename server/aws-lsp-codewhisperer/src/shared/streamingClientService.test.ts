@@ -45,9 +45,8 @@ describe('Token', () => {
         clock = sinon.useFakeTimers({ now: new Date() })
         features = new TestFeatures()
 
-        features.credentialsProvider.hasCredentials.returns(true)
+        features.credentialsProvider.hasCredentials.withArgs('bearer').returns(true)
         features.credentialsProvider.getCredentials.returns(MOCKED_TOKEN_ONE)
-        features.credentialsProvider.getCredentialsType.returns('bearer')
 
         sendMessageStub = sinon
             .stub(CodeWhispererStreaming.prototype, 'sendMessage')
@@ -225,9 +224,8 @@ describe('IAM', () => {
         clock = sinon.useFakeTimers({ now: new Date() })
         features = new TestFeatures()
 
-        features.credentialsProvider.hasCredentials.returns(true)
+        features.credentialsProvider.hasCredentials.withArgs('iam').returns(true)
         features.credentialsProvider.getCredentials.returns(MOCKED_IAM_CREDENTIALS)
-        features.credentialsProvider.getCredentialsType.returns('iam')
 
         sendMessageStub = sinon
             .stub(QDeveloperStreaming.prototype, 'sendMessage')

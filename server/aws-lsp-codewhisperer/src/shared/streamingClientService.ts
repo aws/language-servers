@@ -81,8 +81,8 @@ export class StreamingClientService extends StreamingClientServiceBase {
             `Passing client for class CodeWhispererStreaming to sdkInitializator (v3) for additional setup (e.g. proxy)`
         )
 
-        if (credentialsProvider.getCredentialsType() === 'iam') {
-            const credentials = credentialsProvider.getCredentials() as Credentials
+        if (credentialsProvider.hasCredentials('iam')) {
+            const credentials = credentialsProvider.getCredentials('iam') as Credentials
             this.client = sdkInitializator(QDeveloperStreaming, {
                 region: region,
                 endpoint: endpoint,
@@ -98,7 +98,7 @@ export class StreamingClientService extends StreamingClientServiceBase {
         // Use bearer token if credentials type is 'bearer' or undefined
         else {
             const tokenProvider = async () => {
-                const creds = credentialsProvider.getCredentials() as BearerCredentials
+                const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
                 const token = creds.token
                 // without setting expiration, the tokenProvider will only be called once
                 return { token, expiration: new Date() }
@@ -125,7 +125,11 @@ export class StreamingClientService extends StreamingClientServiceBase {
     }
 
     getCredentialsType(): CredentialsType {
-        return this.credentialsProvider.getCredentialsType()
+        if (this.credentialsProvider.hasCredentials('iam')) {
+            return 'iam'
+        } else {
+            return 'bearer'
+        }
     }
 
     public async sendMessage(

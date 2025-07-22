@@ -48,16 +48,6 @@ class MockCredentialsProvider implements CredentialsProvider {
         }
     }
 
-    getCredentialsType(): CredentialsType | undefined {
-        if (this.mockCurrentCredentials === undefined) {
-            throw new Error(`Credentials undefined`)
-        } else if (isIamCredentials(this.mockCurrentCredentials)) {
-            return 'iam'
-        } else {
-            return 'bearer'
-        }
-    }
-
     onCredentialsDeleted(handler: (type: CredentialsType) => void) {}
 
     getConnectionMetadata(): ConnectionMetadata | undefined {

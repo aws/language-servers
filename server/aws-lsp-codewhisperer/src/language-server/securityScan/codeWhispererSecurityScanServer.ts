@@ -56,7 +56,7 @@ export const SecurityScanServerToken =
                 credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
             }
             try {
-                if (!credentialsProvider.hasCredentials() || credentialsProvider.getCredentialsType() !== 'bearer') {
+                if (!credentialsProvider.hasCredentials('bearer')) {
                     throw new Error('Credentials provider does not have bearer token credentials')
                 }
 

@@ -134,7 +134,6 @@ describe('Token', () => {
     const clearCredentials = () => {
         features.credentialsProvider.hasCredentials.returns(false)
         features.credentialsProvider.getCredentials.returns(undefined)
-        features.credentialsProvider.getCredentialsType.returns(undefined)
         features.credentialsProvider.getConnectionType.returns('none')
     }
 
