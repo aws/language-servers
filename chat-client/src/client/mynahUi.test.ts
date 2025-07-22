@@ -705,6 +705,17 @@ describe('MynahUI', () => {
         })
     })
 
+    describe('onSearchShortcut', () => {
+        it('should call onListConversations with showOnlyCurrentWorkspace true when search shortcut is triggered', () => {
+            const listConversationsSpy = sinon.spy(messager, 'onListConversations')
+
+            // @ts-ignore
+            mynahUi.props.onSearchShortcut()
+
+            sinon.assert.calledOnceWithExactly(listConversationsSpy, undefined, true)
+        })
+    })
+
     describe('stringOverrides', () => {
         it('should apply string overrides to config texts', () => {
             const stringOverrides = {

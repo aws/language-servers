@@ -47,6 +47,7 @@ describe('withAdapter', () => {
             onFormLinkClick: sinon.stub(),
             onFormModifierEnterPress: sinon.stub(),
             onTabBarButtonClick: sinon.stub(),
+            onSearchShortcut: sinon.stub(),
             onReady: sinon.stub(),
             onResetStore: sinon.stub(),
             onFocusStateChanged: sinon.stub(),
@@ -90,6 +91,7 @@ describe('withAdapter', () => {
             onFormLinkClick: sinon.stub(),
             onFormModifierEnterPress: sinon.stub(),
             onTabBarButtonClick: sinon.stub(),
+            onSearchShortcut: sinon.stub(),
             onReady: sinon.stub(),
             onResetStore: sinon.stub(),
             onFocusStateChanged: sinon.stub(),
@@ -593,6 +595,17 @@ describe('withAdapter', () => {
                 defaultEventHandlers.onTabBarButtonClick as sinon.SinonStub,
                 'tab-1',
                 'button-1'
+            )
+        })
+
+        it('should call route onSearchButton only to default handler', () => {
+            mynahUiPropsWithAdapter.onSearchShortcut?.('tab-1', 'eventId-1')
+
+            sinon.assert.notCalled(customEventHandlers.onSearchShortcut as sinon.SinonStub)
+            sinon.assert.calledOnceWithMatch(
+                defaultEventHandlers.onSearchShortcut as sinon.SinonStub,
+                'tab-1',
+                'eventId-1'
             )
         })
 
