@@ -117,7 +117,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
      * @param paths
      * @param workspaceRoot
      */
-    async updateDependencyMapBasedOnLSP(paths: string[], workspaceFolder?: WorkspaceFolder): Promise<void> {
+    updateDependencyMapBasedOnLSP(paths: string[], workspaceFolder: WorkspaceFolder): Dependency[] {
         const dependencyMap = new Map<string, Dependency>()
         paths.forEach((dependencyPath: string) => {
             // basename of the path should be the dependency name
@@ -125,10 +125,9 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             this.transformPathToDependency(dependencyName, dependencyPath, dependencyMap)
         })
 
-        if (workspaceFolder) {
-            await this.compareAndUpdateDependencyMap(workspaceFolder, dependencyMap, true)
-        }
+        return this.compareAndUpdateDependencyMap(workspaceFolder, dependencyMap)
     }
+
     async zipDependencyMap(folders: WorkspaceFolder[]): Promise<void> {
         // Process each workspace folder sequentially
         for (const [workspaceFolder, correspondingDependencyMap] of this.dependencyMap) {
@@ -143,7 +142,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
         }
     }
 
-    private async zipAndUploadDependenciesByChunk(
+    async zipAndUploadDependenciesByChunk(
         dependencyList: Dependency[],
         workspaceFolder: WorkspaceFolder
     ): Promise<void> {
@@ -251,11 +250,10 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
      */
     protected abstract generateDependencyMap(dependencyInfo: T, dependencyMap: Map<string, Dependency>): void
 
-    protected async compareAndUpdateDependencyMap(
+    protected compareAndUpdateDependencyMap(
         workspaceFolder: WorkspaceFolder,
-        updatedDependencyMap: Map<string, Dependency>,
-        zipChanges: boolean = false
-    ): Promise<void> {
+        updatedDependencyMap: Map<string, Dependency>
+    ): Dependency[] {
         const changes = {
             added: [] as Dependency[],
             updated: [] as Dependency[],
@@ -290,9 +288,7 @@ export abstract class LanguageDependencyHandler<T extends BaseDependencyInfo> {
             this.dependencyMap.get(workspaceFolder)?.set(name, newDep)
         })
 
-        if (zipChanges) {
-            await this.zipAndUploadDependenciesByChunk([...changes.added, ...changes.updated], workspaceFolder)
-        }
+        return [...changes.added, ...changes.updated]
     }
 
     private validateSingleDependencySize(workspaceFolder: WorkspaceFolder, dependency: Dependency): boolean {
