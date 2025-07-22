@@ -19,6 +19,8 @@ export const ExportTabBarButtonId = 'export'
 
 export const McpServerTabButtonId = 'mcp_init'
 
+export const ShowLogsTabBarButtonId = 'show_logs'
+
 export class TabFactory {
     private history: boolean = false
     private export: boolean = false
@@ -26,6 +28,7 @@ export class TabFactory {
     private mcp: boolean = false
     private modelSelectionEnabled: boolean = false
     private reroute: boolean = false
+    private showLogs: boolean = false
     initialTabId: string
 
     public static generateUniqueId() {
@@ -99,6 +102,10 @@ export class TabFactory {
 
     public enableExport() {
         this.export = true
+    }
+
+    public enableShowLogs() {
+        this.showLogs = true
     }
 
     public enableAgenticMode() {
@@ -188,6 +195,14 @@ export class TabFactory {
                 id: ExportTabBarButtonId,
                 icon: MynahIcons.EXTERNAL,
                 description: 'Export chat',
+            })
+        }
+
+        if (this.showLogs) {
+            tabBarButtons.push({
+                id: ShowLogsTabBarButtonId,
+                icon: MynahIcons.FILE,
+                description: 'Show logs',
             })
         }
 

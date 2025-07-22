@@ -82,8 +82,9 @@ export const QAgenticChatServer =
                         modelSelection: true,
                         history: true,
                         export: TabBarController.enableChatExport(params),
-                        reroute: rerouteEnabled,
-                        shortcut: shortcutEnabled
+                        shortcut: shortcutEnabled,
+                        showLogs: TabBarController.enableShowLogs(params),
+                        reroute: rerouteEnabled
                     },
                 },
             }
