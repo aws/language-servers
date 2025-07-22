@@ -197,7 +197,6 @@ export const handleChatPrompt = (
     }
 
     const commandsToReroute = ['/dev', '/test', '/doc', '/review']
-    // const commandsToReroute = ['/dev', '/test', '/doc']
 
     const isReroutedCommand =
         agenticMode && tabFactory?.isRerouteEnabled() && prompt.command && commandsToReroute.includes(prompt.command)
@@ -1429,6 +1428,10 @@ export const createMynahUi = (
         const genericCommandString = params.genericCommand as string
         if (genericCommandString.includes('Review')) {
             chatPrompt = { command: '/review' }
+            if (!tabFactory?.isCodeReviewInChatEnabled()) {
+                customChatClientAdapter?.handleQuickAction(chatPrompt, tabId, '')
+                return
+            }
         } else {
             body = [
                 genericCommandString,
