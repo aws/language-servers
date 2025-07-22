@@ -67,6 +67,10 @@ interface QInlineSuggestionsConfig {
     extraContext: string | undefined // aws.q.inlineSuggestions.extraContext
 }
 
+interface QInlineChatConfig {
+    extraContext: string | undefined // aws.q.inlineChat.extraContext
+}
+
 interface LocalIndexConfig {
     ignoreFilePatterns?: string[] // patterns must follow .gitignore convention
     maxFileSizeMB?: number
@@ -85,6 +89,7 @@ interface QConfigSection {
     customizationArn: string | undefined // aws.q.customization - selected customization
     optOutTelemetryPreference: 'OPTOUT' | 'OPTIN' // aws.q.optOutTelemetry - telemetry optout option
     inlineSuggestions: QInlineSuggestionsConfig
+    inlineChat: QInlineChatConfig
     projectContext: QProjectContextConfig
 }
 
@@ -129,6 +134,9 @@ export async function getAmazonQRelatedWorkspaceConfigs(
                 optOutTelemetryPreference: newQConfig['optOutTelemetry'] === true ? 'OPTOUT' : 'OPTIN',
                 inlineSuggestions: {
                     extraContext: textUtils.undefinedIfEmpty(newQConfig.inlineSuggestions?.extraContext),
+                },
+                inlineChat: {
+                    extraContext: textUtils.undefinedIfEmpty(newQConfig.inlineChat?.extraContext),
                 },
                 projectContext: {
                     enableLocalIndexing: newQConfig.projectContext?.enableLocalIndexing === true,
@@ -184,6 +192,9 @@ export const defaultAmazonQWorkspaceConfigFactory = (): AmazonQWorkspaceConfig =
         customizationArn: undefined,
         optOutTelemetryPreference: 'OPTIN',
         inlineSuggestions: {
+            extraContext: undefined,
+        },
+        inlineChat: {
             extraContext: undefined,
         },
         includeSuggestionsWithCodeReferences: false,

@@ -89,6 +89,7 @@ export class McpEventHandler {
      * Handles the list MCP servers event
      */
     async onListMcpServers(params: ListMcpServersParams) {
+        this.#currentEditingServerName = undefined
         const mcpManager = McpManager.instance
 
         // Check for errors in loading MCP config files
@@ -521,8 +522,13 @@ export class McpEventHandler {
         } else {
             if (checkExistingServerName) {
                 const existingServers = McpManager.instance.getAllServerConfigs()
+                const serverState = McpManager.instance.getServerState(values.name)
 
-                if (existingServers.has(values.name) && values.name !== originalServerName) {
+                if (
+                    existingServers.has(values.name) &&
+                    values.name !== originalServerName &&
+                    serverState?.status === McpServerStatus.ENABLED
+                ) {
                     errors.push(`Server name "${values.name}" already exists`)
                 }
             }
@@ -683,9 +689,9 @@ export class McpEventHandler {
         })
 
         if (serverStatusError) {
-            // Error case: remove config from config file only if it's a newly added server
+            await McpManager.instance.removeServerFromConfigFile(serverName)
+
             if (this.#newlyAddedServers.has(serverName)) {
-                await McpManager.instance.removeServerFromConfigFile(serverName)
                 this.#newlyAddedServers.delete(serverName)
             }
 

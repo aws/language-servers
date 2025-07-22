@@ -755,8 +755,9 @@ export async function migrateToAgentConfig(workspace: Workspace, logging: Logger
     // Migrate workspace configs
     for (let i = 0; i < wsUris.length; i++) {
         if (wsConfigPaths[i] && wsPersonaPaths[i] && wsAgentPaths[i]) {
-            // Check if the workspace config path exists before migrating
-            const wsConfigExists = await workspace.fs.exists(wsConfigPaths[i]).catch(() => false)
+            // Normalize and check if the workspace config path exists before migrating
+            const normalizedWsConfigPath = normalizePathFromUri(wsConfigPaths[i], logging)
+            const wsConfigExists = await workspace.fs.exists(normalizedWsConfigPath).catch(() => false)
             if (wsConfigExists) {
                 await migrateConfigToAgent(
                     workspace,
