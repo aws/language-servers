@@ -226,7 +226,8 @@ export class ChatTelemetryController {
         latency?: number,
         agenticCodingMode?: boolean,
         experimentName?: string,
-        userVariation?: string
+        userVariation?: string,
+        result?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.ToolUseSuggested,
@@ -237,7 +238,7 @@ export class ChatTelemetryController {
                 cwsprToolName: toolUse.name ?? '',
                 cwsprToolUseId: toolUse.toolUseId ?? '',
                 perfE2ELatency: latency,
-                result: 'Succeeded',
+                result: result,
                 languageServerVersion: languageServerVersion,
                 enabled: agenticCodingMode,
                 experimentName: experimentName,
