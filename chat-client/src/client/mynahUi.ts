@@ -37,6 +37,7 @@ import {
     RuleClickResult,
     SourceLinkClickParams,
     ListAvailableModelsResult,
+    ExecuteShellCommandParams,
 } from '@aws/language-server-runtimes-types'
 import {
     ChatItem,
@@ -94,6 +95,7 @@ export interface InboundChatApi {
     openTab(requestId: string, params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
+    executeShellCommandShortCut(params: ExecuteShellCommandParams): void
     listRules(params: ListRulesResult): void
     conversationClicked(params: ConversationClickResult): void
     ruleClicked(params: RuleClickResult): void
@@ -313,7 +315,8 @@ export const createMynahUi = (
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>,
     agenticMode?: boolean,
-    stringOverrides?: Partial<ConfigTexts>
+    stringOverrides?: Partial<ConfigTexts>,
+    os?: string
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -693,24 +696,7 @@ export const createMynahUi = (
             }
         },
         onStopChatResponse: tabId => {
-            messager.onStopChatResponse(tabId)
-
-            // Reset loading state
-            mynahUi.updateStore(tabId, {
-                loadingChat: false,
-                cancelButtonWhenLoading: true,
-                promptInputDisabledState: false,
-            })
-
-            // Add a small delay before adding the chat item
-            setTimeout(() => {
-                // Add cancellation message when stop button is clicked
-                mynahUi.addChatItem(tabId, {
-                    type: ChatItemType.DIRECTIVE,
-                    messageId: 'stopped' + Date.now(),
-                    body: 'You stopped your current work, please provide additional examples or ask another question.',
-                })
-            }, 500) // 500ms delay
+            handleUIStopChatResponse(messager, mynahUi, tabId)
         },
         onOpenFileDialogClick: (tabId, fileType, insertPosition) => {
             const imageContext = getImageContextCount(tabId)
@@ -821,6 +807,7 @@ export const createMynahUi = (
                 dragOverlayText: 'Add image to context',
                 // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
+                stopGeneratingTooltip: getStopGeneratingToolTipText(os, agenticMode),
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
                 ...stringOverrides,
             },
@@ -1463,6 +1450,55 @@ ${params.message}`,
         messager.onError(params)
     }
 
+    const executeShellCommandShortCut = (params: ExecuteShellCommandParams) => {
+        const activeElement = document.activeElement as HTMLElement
+
+        const tabId = mynahUi.getSelectedTabId()
+        if (!tabId) return
+
+        const chatItems = mynahUi.getTabData(tabId)?.getStore()?.chatItems || []
+        const buttonId = params.id
+
+        let messageId
+        for (const item of chatItems) {
+            if (buttonId === 'stop-shell-command' && item.buttons && item.buttons.some(b => b.id === buttonId)) {
+                messageId = item.messageId
+                break
+            }
+            if (item.header?.buttons && item.header.buttons.some(b => b.id === buttonId)) {
+                messageId = item.messageId
+                break
+            }
+        }
+
+        if (messageId) {
+            const payload: ButtonClickParams = {
+                tabId,
+                messageId,
+                buttonId,
+            }
+            messager.onButtonClick(payload)
+            if (buttonId === 'stop-shell-command') {
+                handleUIStopChatResponse(messager, mynahUi, tabId)
+            }
+        } else {
+            // handle global stop
+            const isLoading = mynahUi.getTabData(tabId)?.getStore()?.loadingChat
+            if (isLoading && buttonId === 'stop-shell-command') {
+                handleUIStopChatResponse(messager, mynahUi, tabId)
+            }
+        }
+        // this is a short-term solution to re-gain focus after executing a shortcut
+        // current behavior will emit exitFocus telemetry immediadately.
+        // use this to re-gain focus, so that user can use shortcut after shortcut
+        // without manually re-gain focus.
+        setTimeout(() => {
+            if (activeElement && activeElement.focus) {
+                activeElement.focus()
+            }
+        }, 100)
+    }
+
     const openTab = (requestId: string, params: OpenTabParams) => {
         if (params.tabId) {
             if (params.tabId !== mynahUi.getSelectedTabId()) {
@@ -1688,6 +1724,7 @@ ${params.message}`,
         openTab: openTab,
         sendContextCommands: sendContextCommands,
         sendPinnedContext: sendPinnedContext,
+        executeShellCommandShortCut: executeShellCommandShortCut,
         listConversations: listConversations,
         listRules: listRules,
         conversationClicked: conversationClicked,
@@ -1734,4 +1771,37 @@ export const uiComponentsTexts = {
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
     spinnerText: 'Working...',
+    macStopButtonShortcut: '&#8679; &#8984; &#9003;',
+    windowStopButtonShortcut: 'Ctrl + &#8679; + &#9003;',
+}
+
+const getStopGeneratingToolTipText = (os: string | undefined, agenticMode: boolean | undefined): string => {
+    if (agenticMode && os) {
+        return os === 'darwin'
+            ? `Stop:  ${uiComponentsTexts.macStopButtonShortcut}`
+            : `Stop:  ${uiComponentsTexts.windowStopButtonShortcut}`
+    }
+
+    return agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating'
+}
+
+const handleUIStopChatResponse = (messenger: Messager, mynahUi: MynahUI, tabId: string) => {
+    messenger.onStopChatResponse(tabId)
+
+    // Reset loading state
+    mynahUi.updateStore(tabId, {
+        loadingChat: false,
+        cancelButtonWhenLoading: true,
+        promptInputDisabledState: false,
+    })
+
+    // Add a small delay before adding the chat item
+    setTimeout(() => {
+        // Add cancellation message when stop button is clicked
+        mynahUi.addChatItem(tabId, {
+            type: ChatItemType.DIRECTIVE,
+            messageId: 'stopped' + Date.now(),
+            body: 'You stopped your current work, please provide additional examples or ask another question.',
+        })
+    }, 500) // 500ms delay
 }
