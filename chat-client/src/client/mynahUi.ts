@@ -196,11 +196,11 @@ export const handleChatPrompt = (
         messager.onStopChatResponse(tabId)
     }
 
+    const commandsToReroute = ['/dev', '/test', '/doc', '/review']
+    // const commandsToReroute = ['/dev', '/test', '/doc']
+
     const isReroutedCommand =
-        agenticMode &&
-        tabFactory?.isRerouteEnabled() &&
-        prompt.command &&
-        ['/dev', '/test', '/doc', '/review'].includes(prompt.command)
+        agenticMode && tabFactory?.isRerouteEnabled() && prompt.command && commandsToReroute.includes(prompt.command)
 
     if (prompt.command && !isReroutedCommand && prompt.command !== '/compact') {
         // Send /compact quick action as normal regular chat prompt
@@ -1424,15 +1424,21 @@ export const createMynahUi = (
             tabId = createTabId()
             if (!tabId) return
         }
-
-        const body = [
-            params.genericCommand,
-            ' the following part of my code:',
-            '\n~~~~\n',
-            params.selection,
-            '\n~~~~\n',
-        ].join('')
-        const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
+        let body = ''
+        let chatPrompt: ChatPrompt
+        const genericCommandString = params.genericCommand as string
+        if (genericCommandString.includes('Review')) {
+            chatPrompt = { command: '/review' }
+        } else {
+            body = [
+                genericCommandString,
+                ' the following part of my code:',
+                '\n~~~~\n',
+                genericCommandString,
+                '\n~~~~\n',
+            ].join('')
+            chatPrompt = { prompt: body, escapedPrompt: body }
+        }
 
         handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode, tabFactory)
     }

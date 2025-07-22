@@ -80,7 +80,8 @@ export const withAdapter = (
             if (prompt.command) {
                 const shouldHandleQuickAction = !tabFactory.isRerouteEnabled()
                     ? chatClientAdapter.isSupportedQuickAction(prompt.command)
-                    : ['/transform'].includes(prompt.command)
+                    : // : ['/review', '/transform'].includes(prompt.command)
+                      ['/transform'].includes(prompt.command)
 
                 if (shouldHandleQuickAction) {
                     chatClientAdapter.handleQuickAction(prompt, tabId, eventId)
