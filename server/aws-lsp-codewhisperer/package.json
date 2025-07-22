@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-codewhisperer",
-    "version": "0.0.67",
+    "version": "0.0.68",
     "description": "CodeWhisperer Language Server",
     "main": "out/index.js",
     "repository": {
@@ -35,7 +35,7 @@
         "@amzn/codewhisperer-streaming": "file:../../core/codewhisperer-streaming/amzn-codewhisperer-streaming-1.0.0.tgz",
         "@aws-sdk/util-arn-parser": "^3.723.0",
         "@aws-sdk/util-retry": "^3.374.0",
-        "@aws/chat-client-ui-types": "^0.1.40",
+        "@aws/chat-client-ui-types": "^0.1.56",
         "@aws/language-server-runtimes": "^0.2.112",
         "@aws/lsp-core": "^0.0.12",
         "@modelcontextprotocol/sdk": "^1.9.0",

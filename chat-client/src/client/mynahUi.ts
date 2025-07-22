@@ -56,7 +56,7 @@ import {
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { McpMynahUi } from './mcpMynahUi'
-import { ExportTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
+import { ExportTabBarButtonId, ShowLogsTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
@@ -655,6 +655,14 @@ export const createMynahUi = (
 
             if (buttonId === ChatHistory.TabBarButtonId) {
                 messager.onListConversations(undefined, true)
+                return
+            }
+
+            if (buttonId === ShowLogsTabBarButtonId) {
+                messager.onTabBarAction({
+                    tabId,
+                    action: 'show_logs',
+                })
                 return
             }
 

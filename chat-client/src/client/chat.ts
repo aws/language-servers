@@ -317,6 +317,10 @@ export const createChat = (
                     tabFactory.enableExport()
                 }
 
+                if (params?.showLogs) {
+                    tabFactory.enableShowLogs()
+                }
+
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
                 const highlightCommand = featureConfig.get('highlightCommand')
 
