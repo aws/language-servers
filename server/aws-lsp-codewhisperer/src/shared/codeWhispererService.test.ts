@@ -224,6 +224,7 @@ describe('CodeWhispererService', function () {
             createClientStub.returns(mockClient)
 
             // Mock bearer credentials
+            mockCredentialsProvider.hasCredentials.withArgs('iam').returns(true)
             mockCredentialsProvider.getCredentials.returns({
                 accessKeyId: 'mock-access-key',
                 secretAccessKey: 'mock-secret-key',
