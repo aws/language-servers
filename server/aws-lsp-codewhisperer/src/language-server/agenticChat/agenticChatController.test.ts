@@ -277,11 +277,6 @@ describe('AgenticChatController', () => {
         testFeatures.lsp.window.showDocument = sinon.stub()
         testFeatures.setClientParams(cachedInitializeParams)
         setTokenCredentials('builderId')
-        console.log(
-            'testb',
-            testFeatures.credentialsProvider.hasCredentials('iam'),
-            testFeatures.credentialsProvider.hasCredentials('bearer')
-        )
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
         removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')

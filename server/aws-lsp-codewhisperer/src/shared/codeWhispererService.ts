@@ -214,7 +214,6 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
         sdkInitializator: SDKInitializator,
         logging: Logging
     ): CodeWhispererClient {
-        console.log('testa', credentialsProvider.hasCredentials('iam'), credentialsProvider.hasCredentials('bearer'))
         if (credentialsProvider.hasCredentials('iam')) {
             const client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
             const clientRequestListeners = client.setupRequestListeners

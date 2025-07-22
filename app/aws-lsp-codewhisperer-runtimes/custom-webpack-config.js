@@ -4,9 +4,6 @@ const baseConfig = {
     mode: 'production',
     resolve: {
         extensions: ['.ts', '.tsx', '.js', '.node'],
-        fallback: {
-            path: require.resolve('path-browserify'),
-        },
     },
     module: {
         rules: [
