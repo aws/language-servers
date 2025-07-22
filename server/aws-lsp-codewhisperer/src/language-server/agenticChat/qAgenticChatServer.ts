@@ -26,6 +26,13 @@ export function enabledReroute(params: InitializeParams | undefined): boolean {
     return qCapabilities?.reroute || false
 }
 
+export function enabledCompaction(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.compaction || false
+}
+
 export function enableShortcut(params: InitializeParams | undefined): boolean {
     const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
         | QClientCapabilities
@@ -47,6 +54,10 @@ export const QAgenticChatServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             const rerouteEnabled = enabledReroute(params)
+            const quickActions = [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION]
+            if (enabledCompaction(params)) {
+                quickActions.push(COMPACT_QUICK_ACTION)
+            }
             const shortcutEnabled = enableShortcut(params)
 
             return {
@@ -62,7 +73,7 @@ export const QAgenticChatServer =
                         quickActions: {
                             quickActionsCommandGroups: [
                                 {
-                                    commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION, COMPACT_QUICK_ACTION],
+                                    commands: quickActions,
                                 },
                             ],
                         },

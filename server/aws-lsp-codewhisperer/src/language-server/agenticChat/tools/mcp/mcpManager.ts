@@ -306,8 +306,8 @@ export class McpManager {
                 )
             })
 
-            // 0 -> no timeout
-            if (cfg.initializationTimeout === 0) {
+            // 0 or undefined -> no timeout
+            if (cfg.initializationTimeout === 0 || cfg.initializationTimeout === undefined) {
                 await connectPromise
             } else {
                 const timeoutMs = cfg.initializationTimeout ?? DEFAULT_SERVER_INIT_TIMEOUT_MS
@@ -548,7 +548,10 @@ export class McpManager {
     public async addServer(serverName: string, cfg: MCPServerConfig, agentPath: string): Promise<void> {
         try {
             const sanitizedName = sanitizeName(serverName)
-            if (this.mcpServers.has(sanitizedName)) {
+            if (
+                this.mcpServers.has(sanitizedName) &&
+                this.getServerState(sanitizedName)?.status == McpServerStatus.ENABLED
+            ) {
                 throw new Error(`MCP: server '${sanitizedName}' already exists`)
             }
 
@@ -556,7 +559,11 @@ export class McpManager {
             const serverConfig: MCPServerConfig = {
                 command: cfg.command,
                 initializationTimeout: cfg.initializationTimeout,
-                timeout: cfg.timeout,
+            }
+
+            // Only add timeout to agent config if it's not 0
+            if (cfg.timeout !== 0) {
+                serverConfig.timeout = cfg.timeout
             }
             if (cfg.args && cfg.args.length > 0) {
                 serverConfig.args = cfg.args
@@ -569,13 +576,9 @@ export class McpManager {
             this.agentConfig.mcpServers[serverName] = serverConfig
 
             // We don't need to store configPath anymore as we're using agent config
-            const newCfg: MCPServerConfig = { ...cfg }
+            const newCfg: MCPServerConfig = { ...cfg, __configPath__: agentPath }
             this.mcpServers.set(sanitizedName, newCfg)
             this.serverNameMapping.set(sanitizedName, serverName)
-
-            // Enable server by default
-            // Add server tools to tools list after initialization
-            await this.initOneServer(sanitizedName, newCfg)
 
             // Check if the server already has permissions in the agent config
             const serverPrefix = `@${serverName}`
@@ -592,9 +595,8 @@ export class McpManager {
             // Save agent config once with all changes
             await saveAgentConfig(this.features.workspace, this.features.logging, this.agentConfig, agentPath)
 
-            const toolsWithPermissions = this.getAllToolsWithPermissions(sanitizedName)
-            this.setState(sanitizedName, McpServerStatus.ENABLED, toolsWithPermissions.length)
-            this.emitToolsChanged(serverName)
+            // Add server tools to tools list after initialization
+            await this.initOneServer(sanitizedName, newCfg)
         } catch (err) {
             this.features.logging.error(
                 `Failed to add MCP server '${serverName}': ${err instanceof Error ? err.message : String(err)}`
