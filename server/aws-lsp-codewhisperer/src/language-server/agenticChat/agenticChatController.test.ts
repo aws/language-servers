@@ -35,7 +35,11 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
-import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
+import {
+    createIterableResponse,
+    setCredentialsForAmazonQTokenServiceManagerFactory,
+    setIamCredentialsForAmazonQServiceManagerFactory,
+} from '../../shared/testUtils'
 import sinon from 'ts-sinon'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
@@ -179,7 +183,8 @@ describe('AgenticChatController', () => {
     let getMessagesStub: sinon.SinonStub
     let addMessageStub: sinon.SinonStub
 
-    const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
+    const setSsoCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
+    const setIamCredentials = setIamCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
         // Override the response timeout for tests to avoid long waits
@@ -272,7 +277,7 @@ describe('AgenticChatController', () => {
         }
         testFeatures.lsp.window.showDocument = sinon.stub()
         testFeatures.setClientParams(cachedInitializeParams)
-        setCredentials('builderId')
+        setSsoCredentials('builderId')
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
         removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
@@ -3143,6 +3148,9 @@ ${' '.repeat(8)}}
             })
             // Reset the singleton instance
             ChatSessionManagementService.reset()
+
+            // Store IAM credentials
+            setIamCredentials()
 
             // Create IAM service manager
             AmazonQIAMServiceManager.resetInstance()
