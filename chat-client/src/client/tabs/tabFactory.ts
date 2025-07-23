@@ -152,7 +152,7 @@ export class TabFactory {
                           icon: MynahIcons.INFO,
                           title: 'Q Developer agentic capabilities',
                           description:
-                              "You can now ask Q directly in the chat to generate code, documentation, and unit tests. You don't need to explicitly use /dev, /test,, /review or /doc",
+                              "You can now ask Q directly in the chat to generate code, documentation, and unit tests. You don't need to explicitly use /dev, /test, /review or /doc",
                       } as QuickActionCommandsHeader,
                   }
                 : {}),

@@ -26,6 +26,7 @@ export type PrepareAndUploadArtifactsResult = {
     uploadId: string
     isCodeDiffPresent: boolean
     artifactSize: number
+    programmingLanguages: Set<string>
 }
 
 export type StartCodeAnalysisResult = {

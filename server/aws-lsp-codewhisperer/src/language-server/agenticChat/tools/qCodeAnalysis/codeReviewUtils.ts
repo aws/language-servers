@@ -39,6 +39,16 @@ export class CodeReviewUtils {
     }
 
     /**
+     * Get language of a file based on extension
+     * @param fileName Name of the file
+     * @returns Language of file
+     */
+    public static getFileLanguage(fileName: string): string {
+        const extension = path.extname(fileName).toLowerCase()
+        return EXTENSION_TO_LANGUAGE[extension]
+    }
+
+    /**
      * Check if a directory should be skipped during zip creation
      * @param dirName Name of the directory to check
      * @returns True if the directory should be skipped, false otherwise
