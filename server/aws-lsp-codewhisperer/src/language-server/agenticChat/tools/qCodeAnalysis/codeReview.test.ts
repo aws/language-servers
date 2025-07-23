@@ -133,6 +133,7 @@ describe('CodeReview', () => {
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
             })
             sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
@@ -177,6 +178,7 @@ describe('CodeReview', () => {
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
             })
 
             const result = await codeReview.execute(validInput, context)
@@ -201,6 +203,7 @@ describe('CodeReview', () => {
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
             })
 
             const result = await codeReview.execute(validInput, context)
@@ -231,6 +234,7 @@ describe('CodeReview', () => {
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
             })
 
             // Stub setTimeout to avoid actual delays
