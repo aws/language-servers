@@ -92,6 +92,7 @@ export type IamHandlers = {
 export type IamFlowParams = {
     profile: Profile
     callStsOnInvalidIamCredential: boolean
+    recursionCount: number
     profileStore: ProfileStore
     stsCache: StsCache
     stsAutoRefresher: StsAutoRefresher

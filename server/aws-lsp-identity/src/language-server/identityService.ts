@@ -176,6 +176,7 @@ export class IdentityService {
             const flowOpts: IamFlowParams = {
                 profile: profile,
                 callStsOnInvalidIamCredential: options.callStsOnInvalidIamCredential,
+                recursionCount: 0,
                 profileStore: this.profileStore,
                 stsCache: this.stsCache,
                 stsAutoRefresher: this.stsAutoRefresher,
