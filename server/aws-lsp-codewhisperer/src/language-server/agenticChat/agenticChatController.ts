@@ -2638,16 +2638,12 @@ export class AgenticChatController implements ChatHandlers {
                           : undefined
 
                 header = {
-                    status: requiresAcceptance
-                        ? {
-                              icon: statusIcon,
-                              status: statusType,
-                              position: 'left',
-                              description: this.#getCommandCategoryDescription(
-                                  commandCategory ?? CommandCategory.ReadOnly
-                              ),
-                          }
-                        : {},
+                    status: {
+                        icon: statusIcon,
+                        status: statusType,
+                        position: 'left',
+                        description: this.#getCommandCategoryDescription(commandCategory ?? CommandCategory.ReadOnly),
+                    },
                     body: 'shell',
                     buttons,
                 }
