@@ -15,42 +15,36 @@ const mfaTimeout = 2 * 60 * 1000 // 2 minutes
 
 export class IamProvider {
     readonly defaultRegion = 'us-east-1'
-    private sourceProfileRecursionCount = 0
 
     async getCredential(params: IamFlowParams): Promise<IamCredential> {
-        try {
-            let id: IamCredentialId = ''
-            let credentials: IamCredentials
+        let id: IamCredentialId = ''
+        let credentials: IamCredentials
 
-            // Get the credentials directly from the profile
-            if (params.profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
-                credentials = {
-                    accessKeyId: params.profile.settings!.aws_access_key_id!,
-                    secretAccessKey: params.profile.settings!.aws_secret_access_key!,
-                    sessionToken: params.profile.settings!.aws_session_token!,
-                }
+        // Get the credentials directly from the profile
+        if (params.profile.kinds.includes(ProfileKind.IamCredentialsProfile)) {
+            credentials = {
+                accessKeyId: params.profile.settings!.aws_access_key_id!,
+                secretAccessKey: params.profile.settings!.aws_secret_access_key!,
+                sessionToken: params.profile.settings?.aws_session_token,
             }
-            // Assume the role matching the found ARN
-            else if (params.profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
-                const key = JSON.stringify({
-                    RoleArn: params.profile.settings?.role_arn,
-                    RoleSessionName: params.profile.settings?.role_session_name,
-                    SerialNumber: params.profile.settings?.mfa_serial,
-                })
-                id = createHash('sha1').update(key).digest('hex')
-                credentials = await this.getAssumedRoleCredential(id, params)
-            } else {
-                throw new AwsError(
-                    'Credentials could not be found for provided profile kind',
-                    AwsErrorCodes.E_INVALID_PROFILE
-                )
-            }
-
-            return { id: id, kinds: params.profile.kinds, credentials: credentials }
-        } catch (e) {
-            this.sourceProfileRecursionCount = 0
-            throw e
         }
+        // Assume the role matching the found ARN
+        else if (params.profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
+            const key = JSON.stringify({
+                RoleArn: params.profile.settings?.role_arn,
+                RoleSessionName: params.profile.settings?.role_session_name,
+                SerialNumber: params.profile.settings?.mfa_serial,
+            })
+            id = createHash('sha1').update(key).digest('hex')
+            credentials = await this.getAssumedRoleCredential(id, params)
+        } else {
+            throw new AwsError(
+                'Credentials could not be found for provided profile kind',
+                AwsErrorCodes.E_INVALID_PROFILE
+            )
+        }
+
+        return { id: id, kinds: params.profile.kinds, credentials: credentials }
     }
 
     private async getAssumedRoleCredential(id: IamCredentialId, params: IamFlowParams): Promise<IamCredentials> {
@@ -111,11 +105,13 @@ export class IamProvider {
                 throw new AwsError('Source profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
             }
             // Obtain parent profile credentials if IamRoleSourceProfile chain isn't too long
-            if (this.sourceProfileRecursionCount <= sourceProfileRecursionMax) {
-                this.sourceProfileRecursionCount += 1
-                const response = await this.getCredential({ ...params, profile: sourceProfile })
+            if (params.recursionCount <= sourceProfileRecursionMax) {
+                const response = await this.getCredential({
+                    ...params,
+                    profile: sourceProfile,
+                    recursionCount: params.recursionCount + 1,
+                })
                 parentCredentials = response.credentials
-                this.sourceProfileRecursionCount = 0
             } else {
                 throw new AwsError('Source profile chain exceeded max length.', AwsErrorCodes.E_INVALID_PROFILE)
             }

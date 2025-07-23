@@ -116,6 +116,7 @@ describe('IamProvider', () => {
         defaultParams = {
             profile: defaultProfile,
             callStsOnInvalidIamCredential: true,
+            recursionCount: 0,
             profileStore: profileStore,
             stsCache: stsCache,
             stsAutoRefresher: stsAutoRefresher,
