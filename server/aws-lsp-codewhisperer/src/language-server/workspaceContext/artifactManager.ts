@@ -631,7 +631,7 @@ export class ArtifactManager {
         files: FileMetadata[]
     ): Promise<FileMetadata[]> {
         const workspacePath = URI.parse(workspaceFolder.uri).path
-        const hasJavaFiles = files.some(file => file.language === 'java')
+        const hasJavaFiles = files.some(file => file.language === 'java' && file.relativePath.endsWith('java'))
 
         if (!hasJavaFiles) {
             return files
