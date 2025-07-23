@@ -14,17 +14,19 @@ import {
     ResponseError,
     LSPErrorCodes,
     WorkspaceFolder,
+    IdeDiagnostic,
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { autoTrigger, triggerType } from './auto-trigger/autoTrigger'
+import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     Suggestion,
+    SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodewhispererLanguage, getRuntimeLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { truncateOverlapWithRightContext } from './mergeRightUtils'
+import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
@@ -45,7 +47,10 @@ import {
     AmazonQServiceConnectionExpiredError,
     AmazonQServiceInitializationError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import {
+    AmazonQBaseServiceManager,
+    QServiceManagerFeatures,
+} from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { hasConnectionExpired } from '../../shared/utils'
@@ -54,6 +59,11 @@ import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManag
 import path = require('path')
 import { getRelativePath } from '../workspaceContext/util'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
+import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
+import { CursorTracker } from './tracker/cursorTracker'
+import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
+import { getAddedAndDeletedChars } from './diffUtils'
+const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const FILE_URI_CHARS_LIMIT = 1024
@@ -125,7 +135,10 @@ const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhisp
     telemetry.emitMetric({
         name: 'codewhisperer_serviceInvocation',
         result: 'Succeeded',
-        data,
+        data: {
+            ...data,
+            codewhispererImportRecommendationEnabled: session.includeImportsWithSuggestions,
+        },
     })
 }
 
@@ -192,7 +205,12 @@ const emitUserTriggerDecisionTelemetry = async (
     telemetry: Telemetry,
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
-    timeSinceLastUserModification?: number
+    timeSinceLastUserModification?: number,
+    addedCharsCountForEditSuggestion?: number,
+    deletedCharsCountForEditSuggestion?: number,
+    addedIdeDiagnostics?: IdeDiagnostic[],
+    removedIdeDiagnostics?: IdeDiagnostic[],
+    streakLength?: number
 ) => {
     // Prevent reporting user decision if it was already sent
     if (session.reportedUserDecision) {
@@ -204,7 +222,16 @@ const emitUserTriggerDecisionTelemetry = async (
         return
     }
 
-    await emitAggregatedUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification)
+    await emitAggregatedUserTriggerDecisionTelemetry(
+        telemetryService,
+        session,
+        timeSinceLastUserModification,
+        addedCharsCountForEditSuggestion,
+        deletedCharsCountForEditSuggestion,
+        addedIdeDiagnostics,
+        removedIdeDiagnostics,
+        streakLength
+    )
 
     session.reportedUserDecision = true
 }
@@ -212,9 +239,22 @@ const emitUserTriggerDecisionTelemetry = async (
 const emitAggregatedUserTriggerDecisionTelemetry = (
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
-    timeSinceLastUserModification?: number
+    timeSinceLastUserModification?: number,
+    addedCharsCountForEditSuggestion?: number,
+    deletedCharsCountForEditSuggestion?: number,
+    addedIdeDiagnostics?: IdeDiagnostic[],
+    removedIdeDiagnostics?: IdeDiagnostic[],
+    streakLength?: number
 ) => {
-    return telemetryService.emitUserTriggerDecision(session, timeSinceLastUserModification)
+    return telemetryService.emitUserTriggerDecision(
+        session,
+        timeSinceLastUserModification,
+        addedCharsCountForEditSuggestion,
+        deletedCharsCountForEditSuggestion,
+        addedIdeDiagnostics,
+        removedIdeDiagnostics,
+        streakLength
+    )
 }
 
 const mergeSuggestionsWithRightContext = (
@@ -291,22 +331,46 @@ export const CodewhispererServerFactory =
         let userWrittenCodeTracker: UserWrittenCodeTracker | undefined
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
+        // Trackers for monitoring edits and cursor position.
+        const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
+        const cursorTracker = CursorTracker.getInstance()
+        const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
+        let editsEnabled = false
+        let isOnInlineCompletionHandlerInProgress = false
+
         const onInlineCompletionHandler = async (
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            // On every new completion request close current inflight session.
-            const currentSession = sessionManager.getCurrentSession()
-            if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
-                currentSession.discardInflightSessionOnNewInvocation = true
+            // this handle should not run concurrently because
+            // 1. it would create a high volume of traffic, causing throttling
+            // 2. it is not designed to handle concurrent changes to these state variables.
+            // when one handler is at the API call stage, it has not yet update the session state
+            // but another request can start, causing the state to be incorrect.
+            if (isOnInlineCompletionHandlerInProgress) {
+                logging.log(`Skip concurrent inline completion`)
+                return EMPTY_RESULT
             }
+            isOnInlineCompletionHandlerInProgress = true
 
-            return workspace.getTextDocument(params.textDocument.uri).then(async textDocument => {
+            try {
+                // On every new completion request close current inflight session.
+                const currentSession = sessionManager.getCurrentSession()
+                if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
+                    // this REQUESTING state only happens when the session is initialized, which is rare
+                    currentSession.discardInflightSessionOnNewInvocation = true
+                }
+
+                if (cursorTracker) {
+                    cursorTracker.trackPosition(params.textDocument.uri, params.position)
+                }
+                const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
                 if (params.partialResultToken && currentSession) {
                     // subsequent paginated requests for current session
-                    return codeWhispererService
-                        .generateSuggestions({
+                    try {
+                        const suggestionResponse = await codeWhispererService.generateSuggestions({
                             ...currentSession.requestContext,
                             fileContext: {
                                 ...currentSession.requestContext.fileContext,
@@ -319,17 +383,15 @@ export const CodewhispererServerFactory =
                             },
                             nextToken: `${params.partialResultToken}`,
                         })
-                        .then(async suggestionResponse => {
-                            return await processSuggestionResponse(
-                                suggestionResponse,
-                                currentSession,
-                                false,
-                                params.context.selectedCompletionInfo?.range
-                            )
-                        })
-                        .catch(error => {
-                            return handleSuggestionsErrors(error, currentSession)
-                        })
+                        return await processSuggestionResponse(
+                            suggestionResponse,
+                            currentSession,
+                            false,
+                            params.context.selectedCompletionInfo?.range
+                        )
+                    } catch (error) {
+                        return handleSuggestionsErrors(error as Error, currentSession)
+                    }
                 } else {
                     // request for new session
                     if (!textDocument) {
@@ -356,38 +418,66 @@ export const CodewhispererServerFactory =
                         position: params.position,
                         workspaceFolder: workspace.getWorkspaceFolder(textDocument.uri),
                     })
+
                     const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
                     const workspaceId = workspaceState?.webSocketClient?.isConnected()
                         ? workspaceState.workspaceId
                         : undefined
-                    // TODO: Can we get this derived from a keyboard event in the future?
-                    // This picks the last non-whitespace character, if any, before the cursor
-                    const triggerCharacter = fileContext.leftFileContent.trim().at(-1) ?? ''
-                    const codewhispererAutoTriggerType = triggerType(fileContext)
-                    const previousDecision =
-                        sessionManager.getPreviousSession()?.getAggregatedUserTriggerDecision() ?? ''
+
+                    let triggerCharacters = ''
+                    let codewhispererAutoTriggerType = undefined
+                    // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
+                    if (
+                        params.documentChangeParams?.contentChanges &&
+                        params.documentChangeParams.contentChanges.length > 0 &&
+                        params.documentChangeParams.contentChanges[0].text !== undefined
+                    ) {
+                        triggerCharacters = params.documentChangeParams.contentChanges[0].text
+                        codewhispererAutoTriggerType = getAutoTriggerType(params.documentChangeParams.contentChanges)
+                    } else {
+                        // if the client does not emit document change for the trigger, use left most character.
+                        triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
+                        codewhispererAutoTriggerType = triggerType(fileContext)
+                    }
+
+                    const previousSession = sessionManager.getPreviousSession()
+                    const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
                         ideCategory = getIdeCategory(initializeParams)
                     }
-                    const autoTriggerResult = autoTrigger({
-                        fileContext, // The left/right file context and programming language
-                        lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                        char: triggerCharacter, // Add the character just inserted, if any, before the invication position
-                        ide: ideCategory ?? '',
-                        os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
-                        previousDecision, // The last decision by the user on the previous invocation
-                        triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
-                    })
+
+                    // See: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L132
+                    // In such cases, do not auto trigger.
+                    if (codewhispererAutoTriggerType === undefined) {
+                        return EMPTY_RESULT
+                    }
+
+                    const autoTriggerResult = autoTrigger(
+                        {
+                            fileContext, // The left/right file context and programming language
+                            lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
+                            char: triggerCharacters, // Add the character just inserted, if any, before the invication position
+                            ide: ideCategory ?? '',
+                            os: getNormalizeOsName(),
+                            previousDecision, // The last decision by the user on the previous invocation
+                            triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
+                        },
+                        logging
+                    )
 
                     if (
                         isAutomaticLspTriggerKind &&
                         codewhispererAutoTriggerType === 'Classifier' &&
-                        !autoTriggerResult.shouldTrigger
+                        !autoTriggerResult.shouldTrigger &&
+                        !(editsEnabled && codeWhispererService instanceof CodeWhispererServiceToken) // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
                     ) {
                         return EMPTY_RESULT
                     }
+
+                    // Get supplemental context from recent edits if available.
+                    let supplementalContextFromEdits = undefined
 
                     // supplementalContext available only via token authentication
                     const supplementalContextPromise =
@@ -410,25 +500,148 @@ export const CodewhispererServerFactory =
                     const supplementalContext = await supplementalContextPromise
                     // TODO: logging
                     if (codeWhispererService instanceof CodeWhispererServiceToken) {
-                        requestContext.supplementalContexts = supplementalContext?.supplementalContextItems
-                            ? supplementalContext.supplementalContextItems.map(v => ({
-                                  content: v.content,
-                                  filePath: v.filePath,
-                              }))
-                            : []
+                        const supplementalContextItems = supplementalContext?.supplementalContextItems || []
+                        requestContext.supplementalContexts = [
+                            ...supplementalContextItems.map(v => ({
+                                content: v.content,
+                                filePath: v.filePath,
+                            })),
+                        ]
+
+                        if (editsEnabled) {
+                            const predictionTypes: string[][] = []
+
+                            /**
+                             * Manual trigger - should always have 'Completions'
+                             * Auto trigger
+                             *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
+                             *  - Others - should always have 'Completions'
+                             */
+                            if (
+                                !isAutomaticLspTriggerKind ||
+                                (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
+                                (isAutomaticLspTriggerKind &&
+                                    codewhispererAutoTriggerType === 'Classifier' &&
+                                    autoTriggerResult.shouldTrigger)
+                            ) {
+                                predictionTypes.push(['COMPLETIONS'])
+                            }
+
+                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
+                                fileContext: fileContext,
+                                lineNum: params.position.line,
+                                char: triggerCharacters,
+                                previousDecision: previousDecision,
+                                cursorHistory: cursorTracker,
+                                recentEdits: recentEditTracker,
+                            })
+
+                            if (editPredictionAutoTriggerResult.shouldTrigger) {
+                                predictionTypes.push(['EDITS'])
+                            }
+
+                            if (predictionTypes.length === 0) {
+                                return EMPTY_RESULT
+                            }
+
+                            // Step 0: Determine if we have "Recent Edit context"
+                            if (recentEditTracker) {
+                                supplementalContextFromEdits =
+                                    await recentEditTracker.generateEditBasedContext(textDocument)
+                            }
+
+                            // Step 1: Recent Edits context
+                            const supplementalContextItemsForEdits =
+                                supplementalContextFromEdits?.supplementalContextItems || []
+
+                            requestContext.supplementalContexts.push(
+                                ...supplementalContextItemsForEdits.map(v => ({
+                                    content: v.content,
+                                    filePath: v.filePath,
+                                    type: 'PreviousEditorState',
+                                    metadata: {
+                                        previousEditorStateMetadata: {
+                                            timeOffset: 1000,
+                                        },
+                                    },
+                                }))
+                            )
+
+                            // Step 2: Prediction type COMPLETION, Edits or both
+                            requestContext.predictionTypes = predictionTypes.flat()
+
+                            // Step 3: Current Editor/Cursor state
+                            requestContext.editorState = {
+                                document: {
+                                    relativeFilePath: textDocument.uri,
+                                    programmingLanguage: {
+                                        languageName: requestContext.fileContext.programmingLanguage.languageName,
+                                    },
+                                    text: textDocument.getText(),
+                                },
+                                cursorState: {
+                                    position: {
+                                        line: params.position.line,
+                                        character: params.position.character,
+                                    },
+                                },
+                            }
+                        }
                     }
 
                     // Close ACTIVE session and record Discard trigger decision immediately
                     if (currentSession && currentSession.state === 'ACTIVE') {
+                        if (editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
+                            const mergedSuggestions = mergeEditSuggestionsWithFileContext(
+                                currentSession,
+                                textDocument,
+                                fileContext
+                            )
+
+                            if (mergedSuggestions.length > 0) {
+                                return {
+                                    items: mergedSuggestions,
+                                    sessionId: currentSession.id,
+                                }
+                            }
+                        }
                         // Emit user trigger decision at session close time for active session
                         sessionManager.discardSession(currentSession)
+                        const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                         await emitUserTriggerDecisionTelemetry(
                             telemetry,
                             telemetryService,
                             currentSession,
-                            timeSinceLastUserModification
+                            timeSinceLastUserModification,
+                            0,
+                            0,
+                            [],
+                            [],
+                            streakLength
                         )
                     }
+
+                    const supplementalMetadata = editsEnabled
+                        ? {
+                              // Merge metadata from edit-based context if available.
+                              contentsLength:
+                                  (supplementalContext?.contentsLength || 0) +
+                                  (supplementalContextFromEdits?.contentsLength || 0),
+                              latency: Math.max(
+                                  supplementalContext?.latency || 0,
+                                  supplementalContextFromEdits?.latency || 0
+                              ),
+                              isUtg: supplementalContext?.isUtg || false,
+                              isProcessTimeout: supplementalContext?.isProcessTimeout || false,
+                              strategy: supplementalContextFromEdits
+                                  ? 'recentEdits'
+                                  : supplementalContext?.strategy || 'Empty',
+                              supplementalContextItems: [
+                                  ...(supplementalContext?.supplementalContextItems || []),
+                                  ...(supplementalContextFromEdits?.supplementalContextItems || []),
+                              ],
+                          }
+                        : supplementalContext
                     const newSession = sessionManager.createSession({
                         document: textDocument,
                         startPosition: params.position,
@@ -436,11 +649,11 @@ export const CodewhispererServerFactory =
                         language: fileContext.programmingLanguage.languageName,
                         requestContext: requestContext,
                         autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
-                        triggerCharacter: triggerCharacter,
+                        triggerCharacter: triggerCharacters,
                         classifierResult: autoTriggerResult?.classifierResult,
                         classifierThreshold: autoTriggerResult?.classifierThreshold,
                         credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
-                        supplementalMetadata: supplementalContext,
+                        supplementalMetadata: supplementalMetadata,
                         customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
                     })
 
@@ -451,35 +664,37 @@ export const CodewhispererServerFactory =
                             extraContext + '\n' + requestContext.fileContext.leftFileContent
                     }
 
-                    return codeWhispererService
-                        .generateSuggestions({
-                            ...requestContext,
-                            fileContext: {
-                                ...requestContext.fileContext,
-                                leftFileContent: requestContext.fileContext.leftFileContent
-                                    .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                    .replaceAll('\r\n', '\n'),
-                                rightFileContent: requestContext.fileContext.rightFileContent
-                                    .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                    .replaceAll('\r\n', '\n'),
-                            },
-                            ...(workspaceId ? { workspaceId: workspaceId } : {}),
-                        })
-                        .then(async suggestionResponse => {
-                            return processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
-                        })
-                        .catch(err => {
-                            return handleSuggestionsErrors(err, newSession)
-                        })
+                    const generateCompletionReq = {
+                        ...requestContext,
+                        fileContext: {
+                            ...requestContext.fileContext,
+                            leftFileContent: requestContext.fileContext.leftFileContent
+                                .slice(-CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                            rightFileContent: requestContext.fileContext.rightFileContent
+                                .slice(0, CONTEXT_CHARACTERS_LIMIT)
+                                .replaceAll('\r\n', '\n'),
+                        },
+                        ...(workspaceId ? { workspaceId: workspaceId } : {}),
+                    }
+                    try {
+                        const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
+                        return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
+                    } catch (error) {
+                        return handleSuggestionsErrors(error as Error, newSession)
+                    }
                 }
-            })
+            } finally {
+                isOnInlineCompletionHandlerInProgress = false
+            }
         }
 
         const processSuggestionResponse = async (
             suggestionResponse: GenerateSuggestionsResponse,
             session: CodeWhispererSession,
             isNewSession: boolean,
-            selectionRange?: Range
+            selectionRange?: Range,
+            textDocument?: TextDocument
         ): Promise<InlineCompletionListWithReferences> => {
             codePercentageTracker.countInvocation(session.language)
 
@@ -493,6 +708,7 @@ export const CodewhispererServerFactory =
                 session.responseContext = suggestionResponse.responseContext
                 session.codewhispererSessionId = suggestionResponse.responseContext.codewhispererSessionId
                 session.timeToFirstRecommendation = new Date().getTime() - session.startTime
+                session.suggestionType = suggestionResponse.suggestionType
             } else {
                 session.suggestions = [...session.suggestions, ...suggestionResponse.suggestions]
             }
@@ -504,16 +720,25 @@ export const CodewhispererServerFactory =
             if (session.discardInflightSessionOnNewInvocation) {
                 session.discardInflightSessionOnNewInvocation = false
                 sessionManager.discardSession(session)
+                const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
                     session,
-                    timeSinceLastUserModification
+                    timeSinceLastUserModification,
+                    0,
+                    0,
+                    [],
+                    [],
+                    streakLength
                 )
             }
 
             // session was closed by user already made decisions consequent completion request before new paginated API response was received
-            if (session.state === 'CLOSED' || session.state === 'DISCARD') {
+            if (
+                session.suggestionType !== SuggestionType.EDIT && // TODO: this is a shorterm fix to allow Edits tabtabtab experience, however the real solution is to manage such sessions correctly
+                (session.state === 'CLOSED' || session.state === 'DISCARD')
+            ) {
                 return EMPTY_RESULT
             }
 
@@ -551,57 +776,93 @@ export const CodewhispererServerFactory =
                     return false
                 })
 
-            const { includeImportsWithSuggestions } = amazonQServiceManager.getConfiguration()
-            const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
-                session.requestContext.fileContext.rightFileContent,
-                filteredSuggestions,
-                includeImportsWithSuggestions,
-                selectionRange
-            ).filter(suggestion => {
-                // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
-                if (suggestion.insertText === '') {
-                    session.setSuggestionState(suggestion.itemId, 'Discard')
-                    return false
+            if (suggestionResponse.suggestionType === SuggestionType.COMPLETION) {
+                const { includeImportsWithSuggestions } = amazonQServiceManager.getConfiguration()
+                const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
+                    session.requestContext.fileContext.rightFileContent,
+                    filteredSuggestions,
+                    includeImportsWithSuggestions,
+                    selectionRange
+                ).filter(suggestion => {
+                    // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
+                    if (suggestion.insertText === '') {
+                        session.setSuggestionState(suggestion.itemId, 'Discard')
+                        return false
+                    }
+
+                    return true
+                })
+
+                suggestionsWithRightContext.forEach(suggestion => {
+                    const cachedSuggestion = session.suggestions.find(s => s.itemId === suggestion.itemId)
+                    if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
+                })
+
+                // TODO: need dedupe after right context merging but I don't see one
+                session.suggestionsAfterRightContextMerge.push(...suggestionsWithRightContext)
+
+                session.codewhispererSuggestionImportCount =
+                    session.codewhispererSuggestionImportCount +
+                    suggestionsWithRightContext.reduce((total, suggestion) => {
+                        return total + (suggestion.mostRelevantMissingImports?.length || 0)
+                    }, 0)
+
+                // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
+                // close session and return empty results
+                if (
+                    session.suggestionsAfterRightContextMerge.length === 0 &&
+                    !suggestionResponse.responseContext.nextToken
+                ) {
+                    sessionManager.closeSession(session)
+                    await emitUserTriggerDecisionTelemetry(
+                        telemetry,
+                        telemetryService,
+                        session,
+                        timeSinceLastUserModification
+                    )
+
+                    return EMPTY_RESULT
                 }
 
-                return true
-            })
+                return {
+                    items: suggestionsWithRightContext,
+                    sessionId: session.id,
+                    partialResultToken: suggestionResponse.responseContext.nextToken,
+                }
+            } else {
+                return {
+                    items: suggestionResponse.suggestions
+                        .map(suggestion => {
+                            // Check if this suggestion is similar to a previously rejected edit
+                            const isSimilarToRejected = rejectedEditTracker.isSimilarToRejected(
+                                suggestion.content,
+                                textDocument?.uri || ''
+                            )
 
-            suggestionsWithRightContext.forEach(suggestion => {
-                const cachedSuggestion = session.suggestions.find(s => s.itemId === suggestion.itemId)
-                if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
-            })
+                            if (isSimilarToRejected) {
+                                // Mark as rejected in the session
+                                session.setSuggestionState(suggestion.itemId, 'Reject')
+                                logging.debug(
+                                    `[EDIT_PREDICTION] Filtered out suggestion similar to previously rejected edit`
+                                )
+                                // Return empty item that will be filtered out
+                                return {
+                                    insertText: '',
+                                    isInlineEdit: true,
+                                    itemId: suggestion.itemId,
+                                }
+                            }
 
-            // TODO: need dedupe after right context merging but I don't see one
-            session.suggestionsAfterRightContextMerge.push(...suggestionsWithRightContext)
-
-            session.codewhispererSuggestionImportCount =
-                session.codewhispererSuggestionImportCount +
-                suggestionsWithRightContext.reduce((total, suggestion) => {
-                    return total + (suggestion.mostRelevantMissingImports?.length || 0)
-                }, 0)
-
-            // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
-            // close session and return empty results
-            if (
-                session.suggestionsAfterRightContextMerge.length === 0 &&
-                !suggestionResponse.responseContext.nextToken
-            ) {
-                sessionManager.closeSession(session)
-                await emitUserTriggerDecisionTelemetry(
-                    telemetry,
-                    telemetryService,
-                    session,
-                    timeSinceLastUserModification
-                )
-
-                return EMPTY_RESULT
-            }
-
-            return {
-                items: suggestionsWithRightContext,
-                sessionId: session.id,
-                partialResultToken: suggestionResponse.responseContext.nextToken,
+                            return {
+                                insertText: suggestion.content,
+                                isInlineEdit: true,
+                                itemId: suggestion.itemId,
+                            }
+                        })
+                        .filter(item => item.insertText !== ''),
+                    sessionId: session.id,
+                    partialResultToken: suggestionResponse.responseContext.nextToken,
+                }
             }
         }
 
@@ -634,8 +895,14 @@ export const CodewhispererServerFactory =
         }
 
         // Schedule tracker for UserModification Telemetry event
-        const enqueueCodeDiffEntry = (session: CodeWhispererSession, acceptedSuggestion: Suggestion) => {
+        const enqueueCodeDiffEntry = (
+            session: CodeWhispererSession,
+            acceptedSuggestion: Suggestion,
+            addedCharactersForEdit?: string
+        ) => {
             const endPosition = getEndPositionForAcceptedSuggestion(acceptedSuggestion.content, session.startPosition)
+            // use the addedCharactersForEdit if it is EDIT suggestion type
+            const originalString = addedCharactersForEdit ? addedCharactersForEdit : acceptedSuggestion.content
 
             codeDiffTracker.enqueue({
                 sessionId: session.codewhispererSessionId || '',
@@ -643,7 +910,7 @@ export const CodewhispererServerFactory =
                 fileUrl: session.document.uri,
                 languageId: session.language,
                 time: Date.now(),
-                originalString: acceptedSuggestion.content,
+                originalString: originalString,
                 startPosition: session.startPosition,
                 endPosition: endPosition,
                 customizationArn: session.customizationArn,
@@ -660,10 +927,12 @@ export const CodewhispererServerFactory =
                 firstCompletionDisplayLatency,
                 totalSessionDisplayTime,
                 typeaheadLength,
+                isInlineEdit,
+                addedDiagnostics,
+                removedDiagnostics,
             } = params
 
             const session = sessionManager.getSessionById(sessionId)
-
             if (!session) {
                 logging.log(`ERROR: Session ID ${sessionId} was not found`)
                 return
@@ -677,14 +946,63 @@ export const CodewhispererServerFactory =
             const acceptedItemId = Object.keys(params.completionSessionResult).find(
                 k => params.completionSessionResult[k].accepted
             )
+            const isAccepted = acceptedItemId ? true : false
             const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
-            if (acceptedSuggestion !== undefined && acceptedSuggestion.insertText) {
+            let addedCharactersForEditSuggestion = ''
+            let deletedCharactersForEditSuggestion = ''
+            if (acceptedSuggestion !== undefined) {
                 if (acceptedSuggestion) {
                     codePercentageTracker.countSuccess(session.language)
-                    codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
-                    codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
+                    if (isInlineEdit && acceptedSuggestion.content) {
+                        // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
+                        // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
+                        const addedAndDeletedChars = getAddedAndDeletedChars(acceptedSuggestion.content)
+                        if (addedAndDeletedChars) {
+                            addedCharactersForEditSuggestion = addedAndDeletedChars.addedCharacters
+                            deletedCharactersForEditSuggestion = addedAndDeletedChars.deletedCharacters
 
-                    enqueueCodeDiffEntry(session, acceptedSuggestion)
+                            codePercentageTracker.countAcceptedTokens(
+                                session.language,
+                                addedCharactersForEditSuggestion
+                            )
+                            codePercentageTracker.countTotalTokens(
+                                session.language,
+                                addedCharactersForEditSuggestion,
+                                true
+                            )
+                            enqueueCodeDiffEntry(session, acceptedSuggestion, addedCharactersForEditSuggestion)
+                        }
+                    } else if (acceptedSuggestion.insertText) {
+                        codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
+                        codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
+
+                        enqueueCodeDiffEntry(session, acceptedSuggestion)
+                    }
+                }
+            }
+
+            // Handle rejected edit predictions
+            if (isInlineEdit && !isAccepted) {
+                // Find all rejected suggestions in this session
+                const rejectedSuggestions = session.suggestions.filter(suggestion => {
+                    const result = completionSessionResult[suggestion.itemId]
+                    return result && result.seen && !result.accepted
+                })
+
+                // Record each rejected edit
+                for (const rejectedSuggestion of rejectedSuggestions) {
+                    if (rejectedSuggestion.content) {
+                        rejectedEditTracker.recordRejectedEdit({
+                            content: rejectedSuggestion.content,
+                            timestamp: Date.now(),
+                            documentUri: session.document.uri,
+                            position: session.startPosition,
+                        })
+
+                        logging.debug(
+                            `[EDIT_PREDICTION] Recorded rejected edit: ${rejectedSuggestion.content.substring(0, 20)}...`
+                        )
+                    }
                 }
             }
 
@@ -699,7 +1017,18 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            await emitUserTriggerDecisionTelemetry(telemetry, telemetryService, session, timeSinceLastUserModification)
+            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            await emitUserTriggerDecisionTelemetry(
+                telemetry,
+                telemetryService,
+                session,
+                timeSinceLastUserModification,
+                addedCharactersForEditSuggestion.length,
+                deletedCharactersForEditSuggestion.length,
+                addedDiagnostics,
+                removedDiagnostics,
+                streakLength
+            )
         }
 
         const updateConfiguration = (updatedConfig: AmazonQWorkspaceConfig) => {
@@ -716,9 +1045,9 @@ export const CodewhispererServerFactory =
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                            The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                            configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-                        */
+                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+            */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -734,6 +1063,11 @@ export const CodewhispererServerFactory =
                     'TelemetryService initialized before LSP connection was initialized.'
                 )
             )
+
+            logging.log(`Client initialization params: ${JSON.stringify(clientParams)}`)
+            editsEnabled =
+                clientParams?.initializationOptions?.aws?.awsClientCapabilities?.textDocument
+                    ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
             telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'INLINE'))
@@ -755,12 +1089,17 @@ export const CodewhispererServerFactory =
                             unmodifiedAcceptedCharacterCount: unmodifiedAcceptedCharacterCount,
                         },
                         {
-                            completionType: entry.completionType,
-                            triggerType: entry.triggerType,
+                            completionType: entry.completionType || 'LINE',
+                            triggerType: entry.triggerType || 'OnDemand',
                             credentialStartUrl: entry.credentialStartUrl,
                         }
                     )
                 }
+            )
+
+            const periodicLoggingEnabled = process.env.LOG_EDIT_TRACKING === 'true'
+            logging.log(
+                `[SERVER] Initialized telemetry-dependent components: CodePercentageTracker, CodeDiffTracker, periodicLogging=${periodicLoggingEnabled}`
             )
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
@@ -801,14 +1140,64 @@ export const CodewhispererServerFactory =
                 timeSinceLastUserModification = new Date().getTime() - lastUserModificationTime
             }
             lastUserModificationTime = new Date().getTime()
+
+            // Process document changes with RecentEditTracker.
+            if (editsEnabled && recentEditTracker) {
+                logging.log(
+                    `[SERVER] Processing document change with RecentEditTracker: ${p.textDocument.uri}, version: ${textDocument.version}`
+                )
+                logging.log(`[SERVER] Change details: ${p.contentChanges.length} changes`)
+
+                await recentEditTracker.handleDocumentChange({
+                    uri: p.textDocument.uri,
+                    languageId: textDocument.languageId,
+                    version: textDocument.version,
+                    text: textDocument.getText(),
+                })
+            }
+        })
+
+        lsp.onDidOpenTextDocument(p => {
+            logging.log(`Document opened: ${p.textDocument.uri}`)
+
+            // Track document opening with RecentEditTracker
+            if (recentEditTracker) {
+                logging.log(`[SERVER] Tracking document open with RecentEditTracker: ${p.textDocument.uri}`)
+                recentEditTracker.handleDocumentOpen({
+                    uri: p.textDocument.uri,
+                    languageId: p.textDocument.languageId,
+                    version: p.textDocument.version,
+                    text: p.textDocument.text,
+                })
+            }
+        })
+
+        lsp.onDidCloseTextDocument(p => {
+            logging.log(`Document closed: ${p.textDocument.uri}`)
+
+            // Track document closing with RecentEditTracker
+            if (recentEditTracker) {
+                logging.log(`[SERVER] Tracking document close with RecentEditTracker: ${p.textDocument.uri}`)
+                recentEditTracker.handleDocumentClose(p.textDocument.uri)
+            }
+
+            if (cursorTracker) {
+                cursorTracker.clearHistory(p.textDocument.uri)
+            }
         })
 
         logging.log('Amazon Q Inline Suggestion server has been initialised')
 
         return async () => {
-            codePercentageTracker?.dispose()
-            userWrittenCodeTracker?.dispose()
-            await codeDiffTracker?.shutdown()
+            // Dispose all trackers in reverse order of initialization
+            if (codePercentageTracker) codePercentageTracker.dispose()
+            if (userWrittenCodeTracker) userWrittenCodeTracker?.dispose()
+            if (codeDiffTracker) await codeDiffTracker.shutdown()
+            if (recentEditTracker) recentEditTracker.dispose()
+            if (cursorTracker) cursorTracker.dispose()
+            if (rejectedEditTracker) rejectedEditTracker.dispose()
+
+            logging.log('Amazon Q Inline Suggestion server has been shut down')
         }
     }
 

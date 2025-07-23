@@ -1,4 +1,4 @@
-import { StreamingClientServiceToken } from './streamingClientService'
+import { StreamingClientServiceToken, StreamingClientServiceIAM } from './streamingClientService'
 import sinon from 'ts-sinon'
 import { expect } from 'chai'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
@@ -6,14 +6,16 @@ import { BearerCredentials } from '@aws/language-server-runtimes/server-interfac
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from './constants'
 import {
     CodeWhispererStreaming,
+    Origin,
     SendMessageCommandInput,
     SendMessageCommandOutput,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
+import { QDeveloperStreaming } from '@amzn/amazon-q-developer-streaming-client'
 import { rejects } from 'assert'
 
 const TIME_TO_ADVANCE_MS = 100
 
-describe('StreamingClientService', () => {
+describe('StreamingClientServiceToken', () => {
     let streamingClientService: StreamingClientServiceToken
     let features: TestFeatures
     let clock: sinon.SinonFakeTimers
@@ -186,5 +188,139 @@ describe('StreamingClientService', () => {
             sinon.assert.calledTwice(abort)
             expect(streamingClientService['inflightRequests'].size).to.eq(0)
         })
+    })
+})
+
+describe('StreamingClientServiceIAM', () => {
+    let streamingClientServiceIAM: StreamingClientServiceIAM
+    let features: TestFeatures
+    let clock: sinon.SinonFakeTimers
+    let sendMessageStub: sinon.SinonStub
+    let abortStub: sinon.SinonStub
+
+    const MOCKED_IAM_CREDENTIALS = {
+        accessKeyId: 'mock-access-key',
+        secretAccessKey: 'mock-secret-key',
+        sessionToken: 'mock-session-token',
+    }
+
+    const MOCKED_SEND_MESSAGE_REQUEST: SendMessageCommandInput = {
+        conversationState: {
+            chatTriggerType: 'MANUAL',
+            currentMessage: {
+                userInputMessage: {
+                    content: 'some-content',
+                },
+            },
+        },
+    }
+
+    const MOCKED_SEND_MESSAGE_RESPONSE: SendMessageCommandOutput = {
+        $metadata: {},
+        sendMessageResponse: undefined,
+    }
+
+    beforeEach(() => {
+        clock = sinon.useFakeTimers({ now: new Date() })
+        features = new TestFeatures()
+
+        features.credentialsProvider.hasCredentials.withArgs('iam').returns(true)
+        features.credentialsProvider.getCredentials.withArgs('iam').returns(MOCKED_IAM_CREDENTIALS)
+
+        sendMessageStub = sinon
+            .stub(QDeveloperStreaming.prototype, 'sendMessage')
+            .callsFake(() => Promise.resolve(MOCKED_SEND_MESSAGE_RESPONSE))
+
+        streamingClientServiceIAM = new StreamingClientServiceIAM(
+            features.credentialsProvider,
+            features.sdkInitializator,
+            features.logging,
+            DEFAULT_AWS_Q_REGION,
+            DEFAULT_AWS_Q_ENDPOINT_URL
+        )
+
+        abortStub = sinon.stub(AbortController.prototype, 'abort')
+    })
+
+    afterEach(() => {
+        clock.restore()
+        sinon.restore()
+    })
+
+    it('initializes with IAM credentials', () => {
+        expect(streamingClientServiceIAM.client).to.not.be.undefined
+        expect(streamingClientServiceIAM.client.config.credentials).to.not.be.undefined
+    })
+
+    it('sends message with correct parameters', async () => {
+        const promise = streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
+
+        await clock.tickAsync(TIME_TO_ADVANCE_MS)
+        await promise
+
+        sinon.assert.calledOnce(sendMessageStub)
+        sinon.assert.match(sendMessageStub.firstCall.firstArg, MOCKED_SEND_MESSAGE_REQUEST)
+    })
+
+    it('aborts in flight requests', async () => {
+        streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
+        streamingClientServiceIAM.sendMessage(MOCKED_SEND_MESSAGE_REQUEST)
+
+        streamingClientServiceIAM.abortInflightRequests()
+
+        sinon.assert.calledTwice(abortStub)
+        expect(streamingClientServiceIAM['inflightRequests'].size).to.eq(0)
+    })
+
+    it('uses expireTime from credentials when available', async () => {
+        // Get the credential provider function from the client config
+        const credentialProvider = streamingClientServiceIAM.client.config.credentials
+        expect(credentialProvider).to.not.be.undefined
+
+        // Reset call count on the stub
+        features.credentialsProvider.getCredentials.resetHistory()
+
+        // Set up credentials with expireTime
+        const futureDate = new Date(Date.now() + 3600000) // 1 hour in the future
+        const CREDENTIALS_WITH_EXPIRY = {
+            ...MOCKED_IAM_CREDENTIALS,
+            expireTime: futureDate.toISOString(),
+        }
+        features.credentialsProvider.getCredentials.withArgs('iam').returns(CREDENTIALS_WITH_EXPIRY)
+
+        // Call the credential provider
+        const credentialsPromise = (credentialProvider as any)()
+        await clock.tickAsync(TIME_TO_ADVANCE_MS)
+        const credentials = await credentialsPromise
+
+        // Verify expiration is set to the expireTime from credentials
+        expect(credentials.expiration).to.be.instanceOf(Date)
+        expect(credentials.expiration.getTime()).to.equal(futureDate.getTime())
+    })
+
+    it('falls back to current date when expireTime is not available', async () => {
+        // Get the credential provider function from the client config
+        const credentialProvider = streamingClientServiceIAM.client.config.credentials
+        expect(credentialProvider).to.not.be.undefined
+
+        // Reset call count on the stub
+        features.credentialsProvider.getCredentials.resetHistory()
+
+        // Set up credentials without expireTime
+        features.credentialsProvider.getCredentials.withArgs('iam').returns(MOCKED_IAM_CREDENTIALS)
+
+        // Set a fixed time for testing
+        const fixedNow = new Date()
+        clock.tick(0) // Ensure clock is at the fixed time
+
+        // Call the credential provider
+        const credentialsPromise = (credentialProvider as any)()
+        await clock.tickAsync(TIME_TO_ADVANCE_MS)
+        const credentials = await credentialsPromise
+
+        // Verify expiration is set to current date when expireTime is missing
+        expect(credentials.expiration).to.be.instanceOf(Date)
+        // The expiration should be very close to the current time
+        expect(credentials.expiration.getTime()).to.be.closeTo(fixedNow.getTime(), 100)
     })
 })

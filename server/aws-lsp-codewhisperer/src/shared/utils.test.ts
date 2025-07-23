@@ -1,16 +1,31 @@
-import { CredentialsProvider, InitializeParams, Position } from '@aws/language-server-runtimes/server-interface'
+import {
+    ServiceQuotaExceededException,
+    ThrottlingException,
+    ThrottlingExceptionReason,
+} from '@amzn/codewhisperer-streaming'
+import { CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
+import { AWSError } from 'aws-sdk'
+import { expect } from 'chai'
 import * as sinon from 'sinon'
+import * as os from 'os'
+import * as path from 'path'
+import { BUILDER_ID_START_URL } from './constants'
 import {
     getBearerTokenFromProvider,
+    getEndPositionForAcceptedSuggestion,
     getSsoConnectionType,
     getUnmodifiedAcceptedTokens,
-    getEndPositionForAcceptedSuggestion,
-    safeGet,
+    isAwsThrottlingError,
+    isUsageLimitError,
+    isQuotaExceededError,
     isStringOrNull,
+    safeGet,
+    getFileExtensionName,
+    listFilesWithGitignore,
+    getOriginFromClientInfo,
 } from './utils'
-import { expect } from 'chai'
-import { BUILDER_ID_START_URL } from './constants'
+import { promises as fsPromises } from 'fs'
 
 describe('getBearerTokenFromProvider', () => {
     const mockToken = 'mockToken'
@@ -53,6 +68,28 @@ describe('getBearerTokenFromProvider', () => {
             Error,
             'credentialsProvider does not have bearer token credentials'
         )
+    })
+})
+
+describe('getOriginFromClientInfo', () => {
+    it('returns MD_IDE for SMUS client name', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMUS-IDE-1.0.0')
+        assert.strictEqual(result, 'MD_IDE')
+    })
+
+    it('returns IDE for non-SMUS client name', () => {
+        const result = getOriginFromClientInfo('VSCode-Extension')
+        assert.strictEqual(result, 'IDE')
+    })
+
+    it('returns IDE for undefined client name', () => {
+        const result = getOriginFromClientInfo(undefined)
+        assert.strictEqual(result, 'IDE')
+    })
+
+    it('returns IDE for empty string client name', () => {
+        const result = getOriginFromClientInfo('')
+        assert.strictEqual(result, 'IDE')
     })
 })
 
@@ -238,5 +275,336 @@ describe('isStringOrNull', () => {
         it(`should return: ${testCase.expected}, when passed: ${JSON.stringify(testCase.input)}`, () => {
             assert(isStringOrNull(testCase.input) === testCase.expected)
         })
+    })
+})
+
+describe('isAwsThrottlingError', function () {
+    it('false for non-error objects', function () {
+        assert.strictEqual(isAwsThrottlingError(undefined), false)
+        assert.strictEqual(isAwsThrottlingError(null), false)
+        assert.strictEqual(isAwsThrottlingError('error string'), false)
+        assert.strictEqual(isAwsThrottlingError({}), false)
+        assert.strictEqual(isAwsThrottlingError(42), false)
+    })
+
+    it('false for regular Error objects', function () {
+        const regularError = new Error('Some error')
+        assert.strictEqual(isAwsThrottlingError(regularError), false)
+    })
+
+    it('false for non-throttling AWS errors', function () {
+        const nonThrottlingError = {
+            name: 'AWSError',
+            message: 'Not a throttling error',
+            code: 'SomeOtherError',
+            time: new Date(),
+        } as AWSError
+
+        assert.strictEqual(isAwsThrottlingError(nonThrottlingError), false)
+    })
+
+    it('true for AWS throttling errors', function () {
+        const sdkV2Error = new Error()
+        ;(sdkV2Error as any).name = 'ThrottlingException'
+        ;(sdkV2Error as any).message = 'Rate exceeded'
+        ;(sdkV2Error as any).code = 'ThrottlingException'
+        ;(sdkV2Error as any).time = new Date()
+        assert.strictEqual(isAwsThrottlingError(sdkV2Error), true)
+
+        const sdkV3Error = new ThrottlingException({
+            message: 'Too many requests',
+            $metadata: {},
+        })
+        assert.strictEqual(isAwsThrottlingError(sdkV3Error), true)
+    })
+})
+
+describe('isMonthlyLimitError', function () {
+    it('false for non-throttling errors', function () {
+        const regularError = new Error('Some error')
+        assert.strictEqual(isUsageLimitError(regularError), false)
+
+        const e = new Error()
+        ;(e as any).name = 'AWSError'
+        ;(e as any).message = 'Not a throttling error'
+        ;(e as any).code = 'SomeOtherError'
+        ;(e as any).time = new Date()
+
+        assert.strictEqual(isUsageLimitError(e), false)
+    })
+
+    it('false for throttling errors without MONTHLY_REQUEST_COUNT reason', function () {
+        const throttlingError = new Error()
+        ;(throttlingError as any).name = 'ThrottlingException'
+        ;(throttlingError as any).message = 'Rate exceeded'
+        ;(throttlingError as any).code = 'ThrottlingException'
+        ;(throttlingError as any).time = new Date()
+        ;(throttlingError as any).reason = 'SOME_OTHER_REASON'
+
+        assert.strictEqual(isUsageLimitError(throttlingError), false)
+    })
+
+    it('true for throttling errors with MONTHLY_REQUEST_COUNT reason', function () {
+        const usageLimitError = new Error()
+        ;(usageLimitError as any).name = 'ThrottlingException'
+        ;(usageLimitError as any).message = 'Free tier limit reached'
+        ;(usageLimitError as any).code = 'ThrottlingException'
+        ;(usageLimitError as any).time = new Date()
+        ;(usageLimitError as any).reason = ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT
+
+        assert.strictEqual(isUsageLimitError(usageLimitError), true)
+    })
+})
+
+describe('isQuotaExceededError', function () {
+    it('false for non-AWS errors', function () {
+        const regularError = new Error('Some error')
+        assert.strictEqual(isQuotaExceededError(regularError), false)
+
+        assert.strictEqual(isQuotaExceededError(undefined), false)
+        assert.strictEqual(isQuotaExceededError(null), false)
+        assert.strictEqual(isQuotaExceededError('error string'), false)
+    })
+
+    it('true for free tier limit errors', function () {
+        const e = new ThrottlingException({
+            message: 'Free tier limit reached',
+            $metadata: {},
+        })
+
+        assert.strictEqual(isQuotaExceededError(e), true)
+    })
+
+    it('true for ServiceQuotaExceededException errors', function () {
+        const e = new ServiceQuotaExceededException({
+            message: 'Service quota exceeded',
+            $metadata: {},
+        })
+
+        assert.strictEqual(isQuotaExceededError(e), true)
+    })
+
+    it('true for specific messages', function () {
+        const reachedForThisMonth = new Error()
+        ;(reachedForThisMonth as any).name = 'ThrottlingException'
+        ;(reachedForThisMonth as any).message = 'You have reached the limit for this month'
+        ;(reachedForThisMonth as any).code = 'ThrottlingException'
+        ;(reachedForThisMonth as any).time = new Date()
+
+        const limitForIterationsError = new ThrottlingException({
+            message: 'You have reached the limit for number of iterations',
+            $metadata: {},
+        })
+
+        assert.strictEqual(isQuotaExceededError(reachedForThisMonth), true)
+        assert.strictEqual(isQuotaExceededError(limitForIterationsError), true)
+
+        // Invalid cases
+        reachedForThisMonth.message = 'some other messsage'
+        assert.strictEqual(isQuotaExceededError(reachedForThisMonth), false)
+        limitForIterationsError.message = 'foo bar'
+        assert.strictEqual(isQuotaExceededError(limitForIterationsError), false)
+    })
+})
+
+describe('getFileExtensionName', () => {
+    it('should return empty string for null or undefined input', () => {
+        assert.strictEqual(getFileExtensionName(null as unknown as string), '')
+        assert.strictEqual(getFileExtensionName(undefined as unknown as string), '')
+    })
+
+    it('should return empty string for empty input', () => {
+        assert.strictEqual(getFileExtensionName(''), '')
+    })
+
+    it('should return empty string when no dots are present', () => {
+        assert.strictEqual(getFileExtensionName('filename'), '')
+        assert.strictEqual(getFileExtensionName('path/to/file'), '')
+    })
+
+    it('should return empty string when file ends with a dot', () => {
+        assert.strictEqual(getFileExtensionName('file.'), '')
+        assert.strictEqual(getFileExtensionName('path/to/file.'), '')
+    })
+
+    it('should return empty string for hidden files without extensions', () => {
+        assert.strictEqual(getFileExtensionName('.gitignore'), '')
+        assert.strictEqual(getFileExtensionName('.env'), '')
+    })
+
+    it('should return extension in lowercase for regular files', () => {
+        assert.strictEqual(getFileExtensionName('file.txt'), 'txt')
+        assert.strictEqual(getFileExtensionName('file.TXT'), 'txt')
+        assert.strictEqual(getFileExtensionName('file.Txt'), 'txt')
+    })
+
+    it('should return the last extension for files with multiple dots', () => {
+        assert.strictEqual(getFileExtensionName('file.tar.gz'), 'gz')
+        assert.strictEqual(getFileExtensionName('archive.TAR.GZ'), 'gz')
+    })
+
+    it('should handle paths with directories correctly', () => {
+        assert.strictEqual(getFileExtensionName('/path/to/file.pdf'), 'pdf')
+        assert.strictEqual(getFileExtensionName('C:\\path\\to\\file.PDF'), 'pdf')
+        assert.strictEqual(getFileExtensionName('./relative/path/file.docx'), 'docx')
+    })
+
+    it('should return extension for hidden files with extensions', () => {
+        assert.strictEqual(getFileExtensionName('.config.json'), 'json')
+        assert.strictEqual(getFileExtensionName('.bashrc.bak'), 'bak')
+    })
+})
+
+describe('listFilesWithGitignore', () => {
+    let tempDir: string
+
+    // Helper function to create test files and directories
+    async function createTestFiles(structure: { [key: string]: string | null }) {
+        for (const [filePath, content] of Object.entries(structure)) {
+            const fullPath = path.join(tempDir, filePath)
+            const dir = path.dirname(fullPath)
+
+            await fsPromises.mkdir(dir, { recursive: true })
+
+            if (content !== null) {
+                await fsPromises.writeFile(fullPath, content || '')
+            }
+        }
+    }
+
+    beforeEach(async () => {
+        // Create a temporary directory for each test
+        tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'test-'))
+    })
+
+    afterEach(async () => {
+        // Clean up temporary directory after each test
+        await fsPromises.rm(tempDir, { recursive: true, force: true })
+    })
+
+    it('should return empty array for empty directory', async () => {
+        const files = await listFilesWithGitignore(tempDir)
+        assert.deepStrictEqual(files, [])
+    })
+
+    it('should return all files when no ignore files present', async () => {
+        await createTestFiles({
+            'file1.txt': 'content1',
+            'file2.js': 'content2',
+            'dir/file3.txt': 'content3',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [
+            path.join(tempDir, 'file1.txt'),
+            path.join(tempDir, 'file2.js'),
+            path.join(tempDir, 'dir/file3.txt'),
+        ].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should respect .gitignore patterns', async () => {
+        await createTestFiles({
+            '.gitignore': '*.txt\nnode_modules/',
+            'file1.txt': 'ignored',
+            'file2.js': 'not ignored',
+            'node_modules/package.json': 'ignored',
+            // TODO: change it back to src/file3.txt when gitignore respects child folders
+            'file3.txt': 'ignored',
+            'src/file4.js': 'not ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [
+            path.join(tempDir, '.gitignore'),
+            path.join(tempDir, 'file2.js'),
+            path.join(tempDir, 'src/file4.js'),
+        ].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should respect patterns in common gitignore', async () => {
+        await createTestFiles({
+            'file1.txt': 'not ignored',
+            'file2.js': 'not ignored',
+            'node_modules/package.json': 'ignored',
+            '.idea/file3.txt': 'ignored',
+            'src/file4.js': 'not ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [
+            path.join(tempDir, 'file1.txt'),
+            path.join(tempDir, 'file2.js'),
+            path.join(tempDir, 'src/file4.js'),
+        ].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should respect .npmignore patterns', async () => {
+        await createTestFiles({
+            '.npmignore': '*.test.js\ntests/',
+            'file1.js': 'not ignored',
+            'file1.test.js': 'ignored',
+            'tests/test.js': 'ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [path.join(tempDir, '.npmignore'), path.join(tempDir, 'file1.js')].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should respect custom .ignorefile patterns', async () => {
+        await createTestFiles({
+            '.ignorefile': '*.log\nlogs/',
+            'app.log': 'ignored',
+            'logs/error.log': 'ignored',
+            'src/app.js': 'not ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [path.join(tempDir, '.ignorefile'), path.join(tempDir, 'src/app.js')].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    it('should handle non-existent directory', async () => {
+        const nonExistentDir = path.join(tempDir, 'non-existent')
+        const files = await listFilesWithGitignore(nonExistentDir)
+        assert.deepStrictEqual(files, [])
+    })
+
+    it('should handle nested directories and multiple ignore files', async () => {
+        await createTestFiles({
+            '.gitignore': '*.log',
+            'src/.npmignore': 'test/',
+            'src/lib/.gitignore': '*.tmp',
+            'app.log': 'ignored',
+            'src/index.js': 'not ignored',
+            'src/test/test.js': 'ignored',
+            'src/lib/temp.tmp': 'ignored',
+            'src/lib/main.js': 'not ignored',
+        })
+
+        const files = await listFilesWithGitignore(tempDir)
+        const expectedFiles = [
+            path.join(tempDir, '.gitignore'),
+            path.join(tempDir, 'src/.npmignore'),
+            path.join(tempDir, 'src/lib/.gitignore'),
+            path.join(tempDir, 'src/index.js'),
+            path.join(tempDir, 'src/lib/main.js'),
+        ].sort()
+
+        assert.deepStrictEqual(files.sort(), expectedFiles)
+    })
+
+    // Add a hook that runs after all tests in this describe block
+    after(() => {
+        // Force process to exit after tests complete to prevent hanging
+        setTimeout(() => process.exit(0), 1000)
     })
 })

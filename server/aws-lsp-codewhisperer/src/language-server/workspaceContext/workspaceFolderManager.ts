@@ -37,13 +37,17 @@ export class WorkspaceFolderManager {
     private static instance: WorkspaceFolderManager | undefined
     private readonly workspaceIdentifier: string
     private workspaceState: WorkspaceState
-    private remoteWorkspaceIdPromise: Promise<string>
-    private remoteWorkspaceIdResolver!: (id: string) => void
+    // Promise that gates operations until workspace ID is ready or cancelled
+    private remoteWorkspaceIdPromise: Promise<boolean>
+    // Resolves the remoteWorkspaceIdPromise to signal whether operations should proceed
+    private remoteWorkspaceIdResolver!: (id: boolean) => void
+    // Tracks whether the existing remoteWorkspaceIdPromise has been resolved
+    private remoteWorkspaceIdPromiseResolved: boolean = false
     private workspaceFolders: WorkspaceFolder[]
     private credentialsProvider: CredentialsProvider
     private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 40 seconds
     private readonly INITIAL_CONNECTION_TIMEOUT = 2 * 60 * 1000 // 2 minutes
-    private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 5 minutes
+    private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 30 minutes
     private readonly MESSAGE_PUBLISH_INTERVAL: number = 100 // 100 milliseconds
     private continuousMonitorInterval: NodeJS.Timeout | undefined
     private optOutMonitorInterval: NodeJS.Timeout | undefined
@@ -95,42 +99,23 @@ export class WorkspaceFolderManager {
         this.workspaceIdentifier = workspaceIdentifier
 
         this.dependencyDiscoverer.dependencyHandlerRegistry.forEach(handler => {
-            handler.onDependencyChange(async (workspaceFolder, zips, addWSFolderPathInS3) => {
+            handler.onDependencyZipGenerated(async (workspaceFolder, zip, addWSFolderPathInS3) => {
                 try {
-                    this.logging.log(`Dependency change detected in ${workspaceFolder.uri}`)
-
-                    // Process the dependencies
-                    await this.handleDependencyChanges(zips, addWSFolderPathInS3)
-
-                    // Clean up only after successful processing
-                    await handler.cleanupZipFiles(zips)
+                    this.logging.log(`Uploading a dependency zip for: ${workspaceFolder.uri}`)
+                    await this.uploadDependencyZipAndQueueEvent(zip, addWSFolderPathInS3)
                 } catch (error) {
                     this.logging.warn(`Error handling dependency change: ${error}`)
                 }
             })
         })
 
-        this.remoteWorkspaceIdPromise = new Promise<string>(resolve => {
+        this.remoteWorkspaceIdPromise = new Promise<boolean>(resolve => {
             this.remoteWorkspaceIdResolver = resolve
         })
         this.workspaceState = {
             remoteWorkspaceState: 'CREATION_PENDING',
             messageQueue: [],
         }
-
-        this.messageQueueConsumerInterval = setInterval(() => {
-            if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
-                const message = this.workspaceState.messageQueue[0]
-                if (message) {
-                    try {
-                        this.workspaceState.webSocketClient.send(message)
-                        this.workspaceState.messageQueue.shift()
-                    } catch (error) {
-                        this.logging.error(`Error sending message: ${error}`)
-                    }
-                }
-            }
-        }, this.MESSAGE_PUBLISH_INTERVAL)
     }
 
     /**
@@ -155,18 +140,11 @@ export class WorkspaceFolderManager {
     }
 
     async processNewWorkspaceFolders(folders: WorkspaceFolder[]) {
-        // Check if user is opted in before trying to process any files
-        const { optOut } = await this.listWorkspaceMetadata()
-        if (optOut) {
-            this.logging.log('User is opted out, clearing resources and starting opt-out monitor')
-            this.isOptedOut = true
-            await this.clearAllWorkspaceResources()
-            await this.startOptOutMonitor()
+        // Wait for remote workspace id
+        const shouldProceed = await this.remoteWorkspaceIdPromise
+        if (!shouldProceed) {
             return
         }
-
-        // Wait for remote workspace id
-        await this.waitForRemoteWorkspaceId()
 
         // Sync workspace source codes
         await this.syncSourceCodesToS3(folders).catch(e => {
@@ -184,7 +162,6 @@ export class WorkspaceFolderManager {
         sourceCodeMetadata = await this.artifactManager.addWorkspaceFolders(folders)
 
         await this.uploadS3AndQueueEvents(sourceCodeMetadata)
-        this.artifactManager.cleanup(true, folders)
     }
 
     async uploadToS3(fileMetadata: FileMetadata, addWSFolderPathInS3: boolean = true): Promise<string | undefined> {
@@ -226,16 +203,20 @@ export class WorkspaceFolderManager {
             )
         } catch (e: any) {
             this.logging.warn(`Error uploading file to S3: ${e.message}`)
+            return
         }
         return s3Url
     }
 
-    async clearAllWorkspaceResources() {
+    clearAllWorkspaceResources() {
         this.stopContinuousMonitoring()
-        this.resetRemoteWorkspaceId()
+        this.stopOptOutMonitoring()
+        this.remoteWorkspaceIdResolver(false)
+        this.remoteWorkspaceIdPromiseResolved = true
+        this.stopMessageQueueConsumer()
         this.workspaceState.webSocketClient?.destroyClient()
-        this.artifactManager.cleanup()
         this.dependencyDiscoverer.dispose()
+        this.artifactManager.dispose()
     }
 
     /**
@@ -244,7 +225,10 @@ export class WorkspaceFolderManager {
      * @param workspaceFolder
      */
     async processWorkspaceFoldersDeletion(workspaceFolders: WorkspaceFolder[]) {
-        const workspaceId = await this.waitForRemoteWorkspaceId()
+        const shouldProceed = await this.remoteWorkspaceIdPromise
+        if (!shouldProceed) {
+            return
+        }
         for (const folder of workspaceFolders) {
             const languagesMap = this.artifactManager.getLanguagesForWorkspaceFolder(folder)
             const programmingLanguages = languagesMap ? Array.from(languagesMap.keys()) : []
@@ -263,7 +247,7 @@ export class WorkspaceFolderManager {
                             ],
                         },
                         workspaceChangeMetadata: {
-                            workspaceId: workspaceId,
+                            workspaceId: this.workspaceState.workspaceId,
                             programmingLanguage: language,
                         },
                     },
@@ -272,38 +256,31 @@ export class WorkspaceFolderManager {
             }
             this.dependencyDiscoverer.disposeWorkspaceFolder(folder)
         }
-        await this.artifactManager.removeWorkspaceFolders(workspaceFolders)
+        this.artifactManager.removeWorkspaceFolders(workspaceFolders)
     }
 
-    private async handleDependencyChanges(zips: FileMetadata[], addWSFolderPathInS3: boolean): Promise<void> {
-        this.logging.log(`Processing ${zips.length} dependency changes`)
-        for (const zip of zips) {
-            try {
-                const s3Url = await this.uploadToS3(zip, addWSFolderPathInS3)
-                if (!s3Url) {
-                    continue
-                }
-                this.notifyDependencyChange(zip, s3Url)
-            } catch (error) {
-                this.logging.warn(`Error processing dependency change ${zip.filePath}: ${error}`)
+    private async uploadDependencyZipAndQueueEvent(zip: FileMetadata, addWSFolderPathInS3: boolean): Promise<void> {
+        try {
+            const s3Url = await this.uploadToS3(zip, addWSFolderPathInS3)
+            if (!s3Url) {
+                return
             }
-        }
-    }
-
-    private notifyDependencyChange(fileMetadata: FileMetadata, s3Url: string) {
-        const message = JSON.stringify({
-            method: 'didChangeDependencyPaths',
-            params: {
-                event: { paths: [] },
-                workspaceChangeMetadata: {
-                    workspaceId: this.workspaceState.workspaceId,
-                    s3Path: cleanUrl(s3Url),
-                    programmingLanguage: fileMetadata.language,
+            const message = JSON.stringify({
+                method: 'didChangeDependencyPaths',
+                params: {
+                    event: { paths: [] },
+                    workspaceChangeMetadata: {
+                        workspaceId: this.workspaceState.workspaceId,
+                        s3Path: cleanUrl(s3Url),
+                        programmingLanguage: zip.language,
+                    },
                 },
-            },
-        })
-
-        this.workspaceState.messageQueue.push(message)
+            })
+            this.workspaceState.messageQueue.push(message)
+            this.logging.log(`Added didChangeDependencyPaths event to queue`)
+        } catch (error) {
+            this.logging.warn(`Error uploading and notifying dependency zip ${zip.filePath}: ${error}`)
+        }
     }
 
     private async establishConnection(existingMetadata: WorkspaceMetadata) {
@@ -337,21 +314,44 @@ export class WorkspaceFolderManager {
 
     async initializeWorkspaceStatusMonitor() {
         this.logging.log(`Initializing workspace status check for workspace [${this.workspaceIdentifier}]`)
+
+        // Reset workspace ID to force operations to wait for new remote workspace information
+        this.resetRemoteWorkspaceId()
+
+        this.artifactManager.resetFromDisposal()
+        this.dependencyDiscoverer.resetFromDisposal()
+
+        // Set up message queue consumer
+        if (this.messageQueueConsumerInterval === undefined) {
+            this.messageQueueConsumerInterval = setInterval(() => {
+                if (this.workspaceState.webSocketClient && this.workspaceState.webSocketClient.isConnected()) {
+                    const message = this.workspaceState.messageQueue[0]
+                    if (message) {
+                        try {
+                            this.workspaceState.webSocketClient.send(message)
+                            this.workspaceState.messageQueue.shift()
+                        } catch (error) {
+                            this.logging.error(`Error sending message: ${error}`)
+                        }
+                    }
+                }
+            }, this.MESSAGE_PUBLISH_INTERVAL)
+        }
+
         // Perform a one-time checkRemoteWorkspaceStatusAndReact first
         // Pass skipUploads as true since it would be handled by processNewWorkspaceFolders
         await this.checkRemoteWorkspaceStatusAndReact(true)
 
         // Set up continuous monitoring which periodically invokes checkRemoteWorkspaceStatusAndReact
-        if (!this.isOptedOut) {
+        if (!this.isOptedOut && this.continuousMonitorInterval === undefined) {
             this.logging.log(`Starting continuous monitor for workspace [${this.workspaceIdentifier}]`)
-            const intervalId = setInterval(async () => {
+            this.continuousMonitorInterval = setInterval(async () => {
                 try {
                     await this.checkRemoteWorkspaceStatusAndReact()
                 } catch (error) {
                     this.logging.error(`Error monitoring workspace status: ${error}`)
                 }
             }, this.CONTINUOUS_MONITOR_INTERVAL)
-            this.continuousMonitorInterval = intervalId
         }
     }
 
@@ -373,8 +373,8 @@ export class WorkspaceFolderManager {
                     if (optOut) {
                         this.logging.log(`User opted out during initial connection`)
                         this.isOptedOut = true
-                        await this.clearAllWorkspaceResources()
-                        await this.startOptOutMonitor()
+                        this.clearAllWorkspaceResources()
+                        this.startOptOutMonitor()
                         return resolve(false)
                     }
 
@@ -416,14 +416,24 @@ export class WorkspaceFolderManager {
     }
 
     private async checkRemoteWorkspaceStatusAndReact(skipUploads: boolean = false) {
+        if (this.workspaceFolders.length === 0) {
+            this.logging.log(`No workspace folders added, skipping workspace status check`)
+            return
+        }
+
         this.logging.log(`Checking remote workspace status for workspace [${this.workspaceIdentifier}]`)
-        const { metadata, optOut } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
+        const { metadata, optOut, error } = await this.listWorkspaceMetadata(this.workspaceIdentifier)
 
         if (optOut) {
             this.logging.log('User opted out, clearing all resources and starting opt-out monitor')
             this.isOptedOut = true
-            await this.clearAllWorkspaceResources()
-            await this.startOptOutMonitor()
+            this.clearAllWorkspaceResources()
+            this.startOptOutMonitor()
+            return
+        }
+
+        if (error) {
+            // Do not do anything if we received an exception but not caused by optOut
             return
         }
 
@@ -436,8 +446,7 @@ export class WorkspaceFolderManager {
 
         this.workspaceState.remoteWorkspaceState = metadata.workspaceStatus
         if (this.workspaceState.workspaceId === undefined) {
-            this.workspaceState.workspaceId = metadata.workspaceId
-            this.remoteWorkspaceIdResolver(this.workspaceState.workspaceId)
+            this.setRemoteWorkspaceId(metadata.workspaceId)
         }
 
         switch (metadata.workspaceStatus) {
@@ -464,37 +473,24 @@ export class WorkspaceFolderManager {
         }
     }
 
-    async waitForRemoteWorkspaceId(): Promise<string> {
-        // If workspaceId is already set, return it immediately
-        if (this.workspaceState.workspaceId) {
-            return this.workspaceState.workspaceId
-        }
-        // Otherwise, wait for the promise to resolve
-        let waitedWorkspaceId = undefined
-        while (!waitedWorkspaceId) {
-            waitedWorkspaceId = await this.remoteWorkspaceIdPromise
-        }
-        return waitedWorkspaceId
+    private setRemoteWorkspaceId(workspaceId: string) {
+        this.workspaceState.workspaceId = workspaceId
+        this.remoteWorkspaceIdResolver(true)
+        this.remoteWorkspaceIdPromiseResolved = true
     }
 
     private resetRemoteWorkspaceId() {
         this.workspaceState.workspaceId = undefined
 
-        // Store the old resolver
-        const oldResolver = this.remoteWorkspaceIdResolver
-
-        // Create new promise first
-        this.remoteWorkspaceIdPromise = new Promise<string>(resolve => {
-            this.remoteWorkspaceIdResolver = resolve
-        })
-
-        // Reset the old promise
-        if (oldResolver) {
-            oldResolver('')
+        if (this.remoteWorkspaceIdPromiseResolved) {
+            this.remoteWorkspaceIdPromise = new Promise<boolean>(resolve => {
+                this.remoteWorkspaceIdResolver = resolve
+            })
+            this.remoteWorkspaceIdPromiseResolved = false
         }
     }
 
-    private async startOptOutMonitor() {
+    private startOptOutMonitor() {
         if (this.optOutMonitorInterval === undefined) {
             const intervalId = setInterval(async () => {
                 try {
@@ -502,10 +498,17 @@ export class WorkspaceFolderManager {
 
                     if (!optOut) {
                         this.isOptedOut = false
-                        this.logging.log('User opted back in, stopping opt-out monitor and re-initializing workspace')
+                        this.logging.log(
+                            "User's administrator opted in, stopping opt-out monitor and initializing remote workspace"
+                        )
                         clearInterval(intervalId)
                         this.optOutMonitorInterval = undefined
-                        await this.initializeWorkspaceStatusMonitor()
+                        this.initializeWorkspaceStatusMonitor().catch(error => {
+                            this.logging.error(`Error while initializing workspace status monitoring: ${error}`)
+                        })
+                        this.processNewWorkspaceFolders(this.workspaceFolders).catch(error => {
+                            this.logging.error(`Error while processing workspace folders: ${error}`)
+                        })
                     }
                 } catch (error) {
                     this.logging.error(`Error in opt-out monitor: ${error}`)
@@ -565,10 +568,25 @@ export class WorkspaceFolderManager {
     }
 
     private stopContinuousMonitoring() {
-        this.logging.log(`Stopping monitoring for workspace [${this.workspaceIdentifier}]`)
         if (this.continuousMonitorInterval) {
+            this.logging.log(`Stopping monitoring for workspace [${this.workspaceIdentifier}]`)
             clearInterval(this.continuousMonitorInterval)
             this.continuousMonitorInterval = undefined
+        }
+    }
+
+    private stopOptOutMonitoring() {
+        if (this.optOutMonitorInterval) {
+            clearInterval(this.optOutMonitorInterval)
+            this.optOutMonitorInterval = undefined
+        }
+    }
+
+    private stopMessageQueueConsumer() {
+        if (this.messageQueueConsumerInterval) {
+            this.logging.log(`Stopping message queue consumer`)
+            clearInterval(this.messageQueueConsumerInterval)
+            this.messageQueueConsumerInterval = undefined
         }
     }
 
@@ -582,8 +600,7 @@ export class WorkspaceFolderManager {
 
         this.workspaceState.remoteWorkspaceState = workspaceDetails.workspace.workspaceStatus
         if (this.workspaceState.workspaceId === undefined) {
-            this.workspaceState.workspaceId = workspaceDetails.workspace.workspaceId
-            this.remoteWorkspaceIdResolver(this.workspaceState.workspaceId)
+            this.setRemoteWorkspaceId(workspaceDetails.workspace.workspaceId)
         }
 
         return createWorkspaceResult
@@ -604,7 +621,7 @@ export class WorkspaceFolderManager {
 
                 if (!s3Url) {
                     this.logging.warn(
-                        `Failed to get S3 URL for file in workspaceFolder: ${fileMetadata.workspaceFolder.name}`
+                        `Failed to upload to S3 for file in workspaceFolder: ${fileMetadata.workspaceFolder.name}`
                     )
                     continue
                 }
@@ -642,14 +659,19 @@ export class WorkspaceFolderManager {
         }
     }
 
-    // TODO, this function is unused at the moment
-    private async deleteWorkspace(workspaceId: string) {
+    public async deleteRemoteWorkspace() {
+        const workspaceId = this.workspaceState.workspaceId
+        this.resetRemoteWorkspaceId()
         try {
+            if (!workspaceId) {
+                this.logging.warn(`No remote workspaceId found, skipping workspace deletion`)
+                return
+            }
             if (isLoggedInUsingBearerToken(this.credentialsProvider)) {
                 await this.serviceManager.getCodewhispererService().deleteWorkspace({
                     workspaceId: workspaceId,
                 })
-                this.logging.log(`Workspace (${workspaceId}) deleted successfully`)
+                this.logging.log(`Remote workspace (${workspaceId}) deleted successfully`)
             } else {
                 this.logging.log(`Skipping workspace (${workspaceId}) deletion because user is not logged in`)
             }
@@ -667,24 +689,27 @@ export class WorkspaceFolderManager {
     private async listWorkspaceMetadata(workspaceRoot?: WorkspaceRoot): Promise<{
         metadata: WorkspaceMetadata | undefined | null
         optOut: boolean
+        error: any
     }> {
         let metadata: WorkspaceMetadata | undefined | null
         let optOut = false
+        let error: any
         try {
             const params = workspaceRoot ? { workspaceRoot } : {}
             const response = await this.serviceManager.getCodewhispererService().listWorkspaceMetadata(params)
             metadata = response && response.workspaces.length ? response.workspaces[0] : null
         } catch (e: any) {
+            error = e
             this.logging.warn(`Error while fetching workspace (${workspaceRoot}) metadata: ${e?.message}`)
             if (
                 e?.__type?.includes('AccessDeniedException') &&
                 e?.reason === 'UNAUTHORIZED_WORKSPACE_CONTEXT_FEATURE_ACCESS'
             ) {
-                this.logging.log(`Server side opt-out detected for workspace context`)
+                this.logging.log(`User's administrator opted out server-side workspace context`)
                 optOut = true
             }
         }
-        return { metadata, optOut }
+        return { metadata, optOut, error }
     }
 
     private async createWorkspace(workspaceRoot: WorkspaceRoot) {

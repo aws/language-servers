@@ -58,6 +58,7 @@ const sampleUserInputRequest: StartTransformRequest = {
     ],
     TransformNetStandardProjects: false,
     EnableRazorViewTransform: false,
+    EnableWebFormsTransform: false,
     command: '',
     PackageReferences: [],
 }

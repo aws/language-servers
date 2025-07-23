@@ -15,7 +15,7 @@ import {
     RelevancyVoteType,
     isClientTelemetryEvent,
 } from './clientTelemetry'
-import { ToolUse, UserIntent } from '@aws/codewhisperer-streaming-client'
+import { ToolUse, UserIntent } from '@amzn/codewhisperer-streaming'
 import { TriggerContext } from '../contexts/triggerContext'
 
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
@@ -23,7 +23,6 @@ import { AcceptedSuggestionEntry, CodeDiffTracker } from '../../inline-completio
 import { TelemetryService } from '../../../shared/telemetry/telemetryService'
 import { getEndPositionForAcceptedSuggestion, getTelemetryReasonDesc } from '../../../shared/utils'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
-import { AgenticChatEventStatus } from '../../../client/token/codewhispererbearertokenclient'
 
 export const CONVERSATION_ID_METRIC_KEY = 'cwsprChatConversationId'
 
@@ -170,6 +169,16 @@ export class ChatTelemetryController {
         }
     }
 
+    public emitActiveUser() {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.ActiveUser,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
+            },
+        })
+    }
+
     public emitAgencticLoop_InvokeLLM(
         requestId: string,
         conversationId: string,
@@ -178,8 +187,14 @@ export class ChatTelemetryController {
         toolUseId: string[] | undefined,
         result: string,
         languageServerVersion: string,
-        latency?: number[],
-        agenticCodingMode?: boolean
+        modelId: string | undefined,
+        latency?: number,
+        toolCallLatency?: number[],
+        cwsprChatTimeToFirstChunk?: number,
+        cwsprChatTimeBetweenChunks?: number[],
+        agenticCodingMode?: boolean,
+        experimentName?: string,
+        userVariation?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.AgencticLoop_InvokeLLM,
@@ -187,13 +202,19 @@ export class ChatTelemetryController {
                 [CONVERSATION_ID_METRIC_KEY]: conversationId,
                 cwsprChatConversationType: conversationType,
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
-                cwsprToolName: toolNames?.join(','),
-                cwsprToolUseId: toolUseId?.join(','),
+                cwsprToolName: toolNames?.join(',') ?? '',
+                cwsprToolUseId: toolUseId?.join(',') ?? '',
                 result,
                 languageServerVersion: languageServerVersion,
-                latency: latency?.join(','),
+                latency: latency,
+                toolCallLatency: toolCallLatency?.join(','),
+                cwsprChatTimeToFirstChunk: cwsprChatTimeToFirstChunk,
+                cwsprChatTimeBetweenChunks: cwsprChatTimeBetweenChunks?.join(','),
                 requestId,
                 enabled: agenticCodingMode,
+                modelId,
+                experimentName: experimentName,
+                userVariation: userVariation,
             },
         })
     }
@@ -203,7 +224,9 @@ export class ChatTelemetryController {
         conversationId: string,
         languageServerVersion: string,
         latency?: number,
-        agenticCodingMode?: boolean
+        agenticCodingMode?: boolean,
+        experimentName?: string,
+        userVariation?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.ToolUseSuggested,
@@ -217,6 +240,8 @@ export class ChatTelemetryController {
                 result: 'Succeeded',
                 languageServerVersion: languageServerVersion,
                 enabled: agenticCodingMode,
+                experimentName: experimentName,
+                userVariation: userVariation,
             },
         })
     }
@@ -225,7 +250,9 @@ export class ChatTelemetryController {
         interactionType: AgenticChatInteractionType,
         tabId: string,
         agenticCodingMode?: boolean,
-        conversationType?: string
+        conversationType?: string,
+        experimentName?: string,
+        userVariation?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.InteractWithAgenticChat,
@@ -236,6 +263,8 @@ export class ChatTelemetryController {
                 cwsprAgenticChatInteractionType: interactionType,
                 result: 'Succeeded',
                 enabled: agenticCodingMode,
+                experimentName: experimentName,
+                userVariation: userVariation,
             },
         })
     }
@@ -282,14 +311,69 @@ export class ChatTelemetryController {
                 cwsprChatPromptContextCount: metric.cwsprChatPromptContextCount,
                 cwsprChatFileContextLength: metric.cwsprChatFileContextLength,
                 cwsprChatRuleContextLength: metric.cwsprChatRuleContextLength,
+                cwsprChatTotalRuleContextCount: metric.cwsprChatTotalRuleContextCount,
                 cwsprChatPromptContextLength: metric.cwsprChatPromptContextLength,
                 cwsprChatCodeContextLength: metric.cwsprChatCodeContextLength,
                 cwsprChatCodeContextCount: metric.cwsprChatCodeContextCount,
                 cwsprChatFocusFileContextLength: metric.cwsprChatFocusFileContextLength,
+                cwsprChatPinnedCodeContextCount: metric.cwsprChatPinnedCodeContextCount,
+                cwsprChatPinnedFileContextCount: metric.cwsprChatPinnedFileContextCount,
+                cwsprChatPinnedFolderContextCount: metric.cwsprChatPinnedFolderContextCount,
+                cwsprChatPinnedPromptContextCount: metric.cwsprChatPinnedPromptContextCount,
                 languageServerVersion: metric.languageServerVersion,
                 requestIds: metric.requestIds,
+                experimentName: metric.experimentName,
+                userVariation: metric.userVariation,
             }
         )
+    }
+
+    public emitMCPConfigEvent(data?: {
+        numActiveServers?: number
+        numGlobalServers?: number
+        numProjectServers?: number
+        numToolsAlwaysAllowed?: number
+        numToolsDenied?: number
+        languageServerVersion?: string
+    }) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MCPConfig,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                languageServerVersion: data?.languageServerVersion,
+                numActiveServers: data?.numActiveServers,
+                numGlobalServers: data?.numGlobalServers,
+                numProjectServers: data?.numProjectServers,
+                numToolsAlwaysAllowed: data?.numToolsAlwaysAllowed,
+                numToolsDenied: data?.numToolsDenied,
+            },
+        })
+    }
+
+    public emitMCPServerInitializeEvent(data?: {
+        command?: string
+        enabled?: boolean
+        initializeTime?: number
+        numTools?: number
+        scope?: string
+        source?: string
+        transportType?: string
+        languageServerVersion?: string
+    }) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.MCPServerInit,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                command: data?.command,
+                enabled: data?.enabled,
+                initializeTime: data?.initializeTime,
+                languageServerVersion: data?.languageServerVersion,
+                numTools: data?.numTools,
+                scope: data?.scope,
+                source: data?.source,
+                transportType: data?.transportType,
+            },
+        })
     }
 
     public emitStartConversationMetric(tabId: string, metric: Partial<CombinedConversationEvent>) {
@@ -343,6 +427,8 @@ export class ChatTelemetryController {
                 enabled: agenticCodingMode,
                 [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
                 languageServerVersion: metric.languageServerVersion,
+                experimentName: metric.experimentName,
+                userVariation: metric.userVariation,
             },
         })
     }

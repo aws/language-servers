@@ -3,12 +3,20 @@ import * as path from 'path'
 import { sanitizeFilename } from '@aws/lsp-core/out/util/text'
 import { RelevantTextDocumentAddition } from './agenticChatTriggerContext'
 import { FileDetails, FileList } from '@aws/language-server-runtimes/server-interface'
+import { ContextCommandItem } from 'local-indexing'
 export interface ContextInfo {
+    pinnedContextCount: {
+        fileContextCount: number
+        folderContextCount: number
+        promptContextCount: number
+        codeContextCount: number
+    }
     contextCount: {
         fileContextCount: number
         folderContextCount: number
         promptContextCount: number
-        ruleContextCount: number
+        activeRuleContextCount: number
+        totalRuleContextCount: number
         codeContextCount: number
     }
     contextLength: {
@@ -19,20 +27,34 @@ export interface ContextInfo {
     }
 }
 
-export const initialContextInfo: ContextInfo = {
-    contextCount: {
-        fileContextCount: 0,
-        folderContextCount: 0,
-        promptContextCount: 0,
-        ruleContextCount: 0,
-        codeContextCount: 0,
-    },
-    contextLength: {
-        fileContextLength: 0,
-        ruleContextLength: 0,
-        promptContextLength: 0,
-        codeContextLength: 0,
-    },
+/**
+ * Creates a new ContextInfo object with all values initialized to 0.
+ * Use this function to get a fresh context info structure.
+ * @returns A new ContextInfo object with zero-initialized values
+ */
+export function getInitialContextInfo(): ContextInfo {
+    return {
+        pinnedContextCount: {
+            fileContextCount: 0,
+            folderContextCount: 0,
+            promptContextCount: 0,
+            codeContextCount: 0,
+        },
+        contextCount: {
+            fileContextCount: 0,
+            folderContextCount: 0,
+            promptContextCount: 0,
+            activeRuleContextCount: 0,
+            totalRuleContextCount: 0,
+            codeContextCount: 0,
+        },
+        contextLength: {
+            fileContextLength: 0,
+            ruleContextLength: 0,
+            promptContextLength: 0,
+            codeContextLength: 0,
+        },
+    }
 }
 
 export const promptFileExtension = '.md'
@@ -59,6 +81,24 @@ export const getNewPromptFilePath = (promptName: string): string => {
     const safePromptName = truncatedName ? sanitizeFilename(path.basename(truncatedName)) : 'default'
 
     const finalPath = path.join(userPromptsDirectory, `${safePromptName}${promptFileExtension}`)
+
+    return finalPath
+}
+
+/**
+ * Creates a secure file path for a new rule file.
+ *
+ * @param ruleName - The user-provided name for the prompt
+ * @returns A sanitized file path within the user prompts directory
+ */
+export const getNewRuleFilePath = (ruleName: string, workspaceRulesDirectory: string): string => {
+    const trimmedName = ruleName?.trim() || ''
+
+    const truncatedName = trimmedName.slice(0, 100)
+
+    const safePromptName = truncatedName ? sanitizeFilename(path.basename(truncatedName)) : 'default'
+
+    const finalPath = path.join(workspaceRulesDirectory, `${safePromptName}${promptFileExtension}`)
 
     return finalPath
 }
@@ -186,4 +226,34 @@ export function mergeFileLists(fileList1: FileList, fileList2: FileList): FileLi
         filePaths: mergedFilePaths,
         details: mergedDetails,
     }
+}
+
+/**
+ * Generates a description string for a code symbol with optional line numbers.
+ *
+ * @param item - The ContextCommandItem containing symbol and workspace information
+ * @param includeLineNumbers - Whether to include line number range in the description
+ * @returns A formatted string containing the symbol kind, path and optionally line numbers,
+ *          or empty string if no symbol exists
+ * @example
+ * // Without line numbers:
+ * // "Function, myProject/src/utils.ts"
+ *
+ * // With line numbers:
+ * // "Function, myProject/src/utils.ts, L10-L20"
+ */
+export function getCodeSymbolDescription(item: ContextCommandItem, includeLineNumbers?: boolean): string {
+    const wsFolderName = path.basename(item.workspaceFolder)
+
+    if (item.symbol) {
+        const symbolKind = item.symbol.kind
+        const symbolPath = path.join(wsFolderName, item.relativePath)
+        const symbolLineNumbers = `L${item.symbol.range.start.line + 1}-${item.symbol.range.end.line + 1}`
+        const parts = [symbolKind, symbolPath]
+        if (includeLineNumbers) {
+            parts.push(symbolLineNumbers)
+        }
+        return parts.join(', ')
+    }
+    return ''
 }

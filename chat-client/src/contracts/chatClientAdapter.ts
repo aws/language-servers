@@ -36,7 +36,13 @@ export interface ChatEventHandler
         | 'onResetStore'
         | 'onReady'
         | 'onPromptInputOptionChange'
+        | 'onPromptInputButtonClick'
         | 'onMessageDismiss'
+        | 'onOpenFileDialogClick'
+        | 'onFilesDropped'
+        | 'onPromptTopBarItemAdded'
+        | 'onPromptTopBarItemRemoved'
+        | 'onPromptTopBarButtonClick'
     > {}
 
 /**

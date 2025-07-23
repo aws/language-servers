@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.0.12](https://github.com/aws/language-servers/compare/lsp-core/v0.0.11...lsp-core/v0.0.12) (2025-07-17)
+
+
+### Bug Fixes
+
+* add proper encoding support for shell output ([#1903](https://github.com/aws/language-servers/issues/1903)) ([44a6d62](https://github.com/aws/language-servers/commit/44a6d629af7702662a02f384a6a542c0d72ccc39))
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
+## [0.0.11](https://github.com/aws/language-servers/compare/lsp-core/v0.0.10...lsp-core/v0.0.11) (2025-07-02)
+
+
+### Bug Fixes
+
+* **amazonq:** add handling for relative paths for isInWorkspace ([#1801](https://github.com/aws/language-servers/issues/1801)) ([3c273a7](https://github.com/aws/language-servers/commit/3c273a7aeac88a7afe40abaf490bc0950e517c01))
+
+## [0.0.10](https://github.com/aws/language-servers/compare/lsp-core/v0.0.9...lsp-core/v0.0.10) (2025-06-23)
+
+
+### Bug Fixes
+
+* **amazonq:** workspace files being tagged as out of workspace issue ([#1726](https://github.com/aws/language-servers/issues/1726)) ([4bd9aea](https://github.com/aws/language-servers/commit/4bd9aeab439d15dc425634b14470fd3c67986c4a))
+
 ## [0.0.9](https://github.com/aws/language-servers/compare/lsp-core/v0.0.8...lsp-core/v0.0.9) (2025-05-22)
 
 

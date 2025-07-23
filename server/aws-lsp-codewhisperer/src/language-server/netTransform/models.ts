@@ -22,7 +22,10 @@ export interface StartTransformRequest extends ExecuteCommandParams {
     ProjectMetadata: TransformProjectMetadata[]
     TransformNetStandardProjects: boolean
     EnableRazorViewTransform: boolean
+    EnableWebFormsTransform: boolean
     PackageReferences?: PackageReferenceMetadata[]
+    DmsArn?: string
+    DatabaseSettings?: DatabaseSettings
 }
 
 export interface StartTransformResponse {
@@ -102,6 +105,41 @@ export interface RequirementJson {
     Projects: Project[]
     TransformNetStandardProjects: boolean
     EnableRazorViewTransform: boolean
+    EnableWebFormsTransform: boolean
+}
+
+export interface TransformationPreferences {
+    Transformations: TransformationSettings
+    Metadata: TransformationMetadata
+}
+
+export interface TransformationSettings {
+    DatabaseModernization?: DatabaseModernizationTransformation
+}
+
+export interface DatabaseModernizationTransformation {
+    Enabled: boolean
+    DmsArn?: string
+    DatabaseSettings?: DatabaseSettings
+}
+
+export interface DatabaseSettings {
+    Tools?: Tool[]
+    Source?: DatabaseInfo
+    Target?: DatabaseInfo
+}
+
+export interface Tool {
+    Name?: string
+    Properties?: Object
+}
+
+export interface DatabaseInfo {
+    DatabaseName?: string
+    DatabaseVersion?: string
+}
+export interface TransformationMetadata {
+    GeneratedAt: string
 }
 
 export interface ExternalReference {
@@ -139,6 +177,7 @@ export interface References {
     isThirdPartyPackage: boolean
     netCompatibleRelativePath?: string
     netCompatibleVersion?: string
+    packageId?: string
 }
 
 export interface PackageReferenceMetadata {
@@ -149,4 +188,5 @@ export interface PackageReferenceMetadata {
     NetCompatibleAssemblyPath?: string
     NetCompatibleAssemblyRelativePath?: string
     NetCompatiblePackageFilePath?: string
+    CurrentVersionAssemblyPath?: string
 }

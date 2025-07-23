@@ -1,10 +1,10 @@
-import { EditorState, TextDocument as CwsprTextDocument } from '@aws/codewhisperer-streaming-client'
+import { EditorState, TextDocument as CwsprTextDocument } from '@amzn/codewhisperer-streaming'
 import { CursorState, WorkspaceFolder } from '@aws/language-server-runtimes/server-interface'
 import { Range, TextDocument } from 'vscode-languageserver-textdocument'
 import { getLanguageId } from '../../../shared/languageDetection'
 import { Features } from '../../types'
 import { getExtendedCodeBlockRange, getSelectionWithinExtendedRange } from './utils'
-import path = require('path')
+import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 import { URI } from 'vscode-uri'
 
 export type DocumentContext = CwsprTextDocument & {
@@ -12,6 +12,7 @@ export type DocumentContext = CwsprTextDocument & {
     hasCodeSnippet: boolean
     totalEditorCharacters: number
     workspaceFolder?: WorkspaceFolder | null
+    activeFilePath?: string
 }
 
 export interface DocumentContextExtractorConfig {
@@ -52,7 +53,12 @@ export class DocumentContextExtractor {
 
         const workspaceFolder = this.#workspace?.getWorkspaceFolder?.(document.uri)
 
-        const relativePath = this.getRelativePath(document)
+        let relativePath
+        if (workspaceFolder) {
+            relativePath = getRelativePathWithWorkspaceFolder(workspaceFolder, document.uri)
+        } else {
+            relativePath = getRelativePathWithUri(document.uri, workspaceFolder)
+        }
 
         const languageId = getLanguageId(document)
 
@@ -64,15 +70,7 @@ export class DocumentContextExtractor {
             hasCodeSnippet: Boolean(rangeWithinCodeBlock),
             totalEditorCharacters: document.getText().length,
             workspaceFolder,
+            activeFilePath: URI.parse(document.uri).fsPath,
         }
-    }
-
-    private getRelativePath(document: TextDocument): string {
-        const documentUri = URI.parse(document.uri)
-        const workspaceFolder = this.#workspace?.getWorkspaceFolder?.(document.uri)
-        const workspaceUri = workspaceFolder?.uri
-        const workspaceRoot = workspaceUri ? URI.parse(workspaceUri).fsPath : process.cwd()
-        const absolutePath = documentUri.fsPath
-        return path.relative(workspaceRoot, absolutePath)
     }
 }

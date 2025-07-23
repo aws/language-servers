@@ -3,10 +3,11 @@ import { FSWatcher, watch } from 'chokidar'
 import { ContextCommand, ContextCommandGroup } from '@aws/language-server-runtimes/protocol'
 import { Disposable } from 'vscode-languageclient/node'
 import { Chat, Logging, Lsp, Workspace } from '@aws/language-server-runtimes/server-interface'
-import { getUserPromptsDirectory, promptFileExtension } from './contextUtils'
+import { getCodeSymbolDescription, getUserPromptsDirectory, promptFileExtension } from './contextUtils'
 import { ContextCommandItem } from 'local-indexing'
 import { LocalProjectContextController } from '../../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
+import { activeFileCmd } from './additionalContextProvider'
 
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
@@ -90,6 +91,9 @@ export class ContextCommandsProvider implements Disposable {
     }
 
     async mapContextCommandItems(items: ContextCommandItem[]): Promise<ContextCommandGroup[]> {
+        let imageContextEnabled =
+            this.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.imageContextEnabled === true
         const folderCmds: ContextCommand[] = []
         const folderCmdGroup: ContextCommand = {
             command: 'Folders',
@@ -103,7 +107,7 @@ export class ContextCommandsProvider implements Disposable {
             icon: 'folder',
         }
 
-        const fileCmds: ContextCommand[] = []
+        const fileCmds: ContextCommand[] = [activeFileCmd]
         const fileCmdGroup: ContextCommand = {
             command: 'Files',
             children: [
@@ -141,11 +145,24 @@ export class ContextCommandsProvider implements Disposable {
             description: 'Add a saved prompt to context',
             icon: 'magic',
         }
+
+        const imageCmdGroup: ContextCommand = {
+            command: 'Image',
+            description: 'Add image to context',
+            icon: 'image',
+            placeholder: 'Select an image file',
+        }
         const workspaceCmd = {
             command: '@workspace',
-            description: 'Reference all code in workspace.',
+            id: '@workspace',
+            description: 'Reference all code in workspace',
         }
         const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
+
+        if (imageContextEnabled) {
+            commands.push(imageCmdGroup)
+        }
+
         const allCommands: ContextCommandGroup[] = [
             {
                 commands: commands,
@@ -176,7 +193,7 @@ export class ContextCommandsProvider implements Disposable {
                 codeCmds.push({
                     ...baseItem,
                     command: item.symbol.name,
-                    description: `${item.symbol.kind}, ${path.join(wsFolderName, item.relativePath)}, L${item.symbol.range.start.line + 1}-${item.symbol.range.end.line + 1}`,
+                    description: getCodeSymbolDescription(item, true),
                     label: 'code',
                     icon: 'code-block',
                 })

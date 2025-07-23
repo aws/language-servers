@@ -1,8 +1,11 @@
 import { ChatItem, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
 
+/**
+ * @deprecated use aws/chat/listAvailableModels server request instead
+ */
 export enum BedrockModel {
+    CLAUDE_SONNET_4_20250514_V1_0 = 'CLAUDE_SONNET_4_20250514_V1_0',
     CLAUDE_3_7_SONNET_20250219_V1_0 = 'CLAUDE_3_7_SONNET_20250219_V1_0',
-    CLAUDE_3_5_SONNET_20241022_V2_0 = 'CLAUDE_3_5_SONNET_20241022_V2_0',
 }
 
 type ModelDetails = {
@@ -10,8 +13,8 @@ type ModelDetails = {
 }
 
 const modelRecord: Record<BedrockModel, ModelDetails> = {
-    [BedrockModel.CLAUDE_3_5_SONNET_20241022_V2_0]: { label: 'Claude Sonnet 3.5' },
     [BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0]: { label: 'Claude Sonnet 3.7' },
+    [BedrockModel.CLAUDE_SONNET_4_20250514_V1_0]: { label: 'Claude Sonnet 4' },
 }
 
 const modelOptions = Object.entries(modelRecord).map(([value, { label }]) => ({
@@ -19,7 +22,7 @@ const modelOptions = Object.entries(modelRecord).map(([value, { label }]) => ({
     label,
 }))
 
-export const modelSelection: ChatItemFormItem = {
+const modelSelection: ChatItemFormItem = {
     type: 'select',
     id: 'model-selection',
     options: modelOptions,
@@ -29,9 +32,42 @@ export const modelSelection: ChatItemFormItem = {
     autoWidth: true,
 }
 
-export const getModelSelectionChatItem = (modelId: string): ChatItem => ({
+/**
+ * @deprecated use aws/chat/listAvailableModels server request instead
+ */
+export const modelSelectionForRegion: Record<string, ChatItemFormItem> = {
+    'us-east-1': modelSelection,
+    'eu-central-1': {
+        ...modelSelection,
+        options: modelOptions.filter(option => option.value !== BedrockModel.CLAUDE_SONNET_4_20250514_V1_0),
+    },
+}
+
+export const getModelSelectionChatItem = (modelName: string): ChatItem => ({
     type: ChatItemType.DIRECTIVE,
     contentHorizontalAlignment: 'center',
     fullWidth: true,
-    body: `Switched model to ${modelRecord[modelId as BedrockModel].label}`,
+    body: `Switched model to ${modelName}`,
 })
+
+export const modelUnavailableBanner: Partial<ChatItem> = {
+    messageId: 'model-unavailable-banner',
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: '### Model Unavailable',
+    },
+    body: `The model you've selected is experiencing high load. Please switch to another model and try again.`,
+    canBeDismissed: true,
+}
+
+export const modelThrottledBanner: Partial<ChatItem> = {
+    messageId: 'model-throttled-banner',
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: '### Model Unavailable',
+    },
+    body: `I am experiencing high traffic, please try again shortly.`,
+    canBeDismissed: true,
+}

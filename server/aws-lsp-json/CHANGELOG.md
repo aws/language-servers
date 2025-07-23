@@ -1,5 +1,59 @@
 # Changelog
 
+## [0.1.16](https://github.com/aws/language-servers/compare/lsp-json/v0.1.15...lsp-json/v0.1.16) (2025-07-17)
+
+
+### Bug Fixes
+
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.11 to ^0.0.12
+
+## [0.1.15](https://github.com/aws/language-servers/compare/lsp-json/v0.1.14...lsp-json/v0.1.15) (2025-07-02)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.10 to ^0.0.11
+
+## [0.1.14](https://github.com/aws/language-servers/compare/lsp-json/v0.1.13...lsp-json/v0.1.14) (2025-06-26)
+
+
+### Features
+
+* add client side ide diagnostics to telemetry event ([#1768](https://github.com/aws/language-servers/issues/1768)) ([d08fc6c](https://github.com/aws/language-servers/commit/d08fc6cccb9238cef9c2ba485e116c0516839537))
+
+## [0.1.13](https://github.com/aws/language-servers/compare/lsp-json/v0.1.12...lsp-json/v0.1.13) (2025-06-23)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.9 to ^0.0.10
+
+## [0.1.12](https://github.com/aws/language-servers/compare/lsp-json/v0.1.11...lsp-json/v0.1.12) (2025-06-16)
+
+
+### Features
+
+* **amazonq:** pinned context and rules ([#1663](https://github.com/aws/language-servers/issues/1663)) ([25e7a5a](https://github.com/aws/language-servers/commit/25e7a5ab8b6630525a4fd6acc0524f67f00af817))
+
+## [0.1.11](https://github.com/aws/language-servers/compare/lsp-json/v0.1.10...lsp-json/v0.1.11) (2025-06-10)
+
+
+### Features
+
+* add C8 test coverage support ([#1567](https://github.com/aws/language-servers/issues/1567)) ([eee5048](https://github.com/aws/language-servers/commit/eee5048c783ffc300073865d391372d5a583365c))
+* adding mcp servers feature to the language-server ([#1544](https://github.com/aws/language-servers/issues/1544)) ([f37bf5f](https://github.com/aws/language-servers/commit/f37bf5f91921d7611c124de6d54dd6ec653038c6))
+
 ## [0.1.10](https://github.com/aws/language-servers/compare/lsp-json/v0.1.9...lsp-json/v0.1.10) (2025-05-30)
 
 
@@ -100,7 +154,7 @@
 
 ### Bug Fixes
 
-* update @aws/language-server-runtimes to 0.2.48 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
+* update @aws/language-server-runtimes to 0.2.83 ([e1f620a](https://github.com/aws/language-servers/commit/e1f620ac2b59b4f61daff842a9f29ded1b8fa04e))
 
 ## [0.1.1](https://github.com/aws/language-servers/compare/lsp-json/v0.1.0...lsp-json/v0.1.1) (2025-03-18)
 

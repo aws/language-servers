@@ -240,6 +240,11 @@
                     "type": "string",
                     "description": "Extra context for Q Inline Suggestions"
                 },
+                "aws.q.inlineChat.extraContext": {
+                    "scope": "resource",
+                    "type": "string",
+                    "description": "Extra context for Q Inline Chat"
+                },
                 "aws.q.optOutTelemetry": {
                     "scope": "resource",
                     "type": "boolean",
@@ -346,8 +351,8 @@
     "devDependencies": {
         "@aws-sdk/credential-providers": "^3.731.1",
         "@aws-sdk/types": "^3.734.0",
-        "@aws/chat-client-ui-types": "^0.1.40",
-        "@aws/language-server-runtimes": "^0.2.90",
+        "@aws/chat-client-ui-types": "^0.1.56",
+        "@aws/language-server-runtimes": "^0.2.112",
         "@types/uuid": "^9.0.8",
         "@types/vscode": "^1.98.0",
         "jose": "^5.2.4",

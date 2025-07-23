@@ -72,26 +72,31 @@ describe('Chat', () => {
     })
 
     it('publishes ready event when initialized', () => {
-        assert.callCount(clientApi.postMessage, 4)
+        assert.callCount(clientApi.postMessage, 5)
 
-        assert.calledWithExactly(clientApi.postMessage.firstCall, {
+        assert.calledWithExactly(clientApi.postMessage.getCall(0), {
             command: TELEMETRY,
             params: { name: 'enterFocus' },
         })
-        assert.calledWithExactly(clientApi.postMessage.secondCall, { command: READY_NOTIFICATION_METHOD })
+        assert.calledWithExactly(clientApi.postMessage.getCall(1), { command: READY_NOTIFICATION_METHOD })
 
-        assert.calledWithExactly(clientApi.postMessage.thirdCall, {
+        assert.calledWithExactly(clientApi.postMessage.getCall(2), {
             command: TAB_ADD_NOTIFICATION_METHOD,
-            params: { tabId: initialTabId },
+            params: { tabId: initialTabId, restoredTab: undefined },
         })
 
-        assert.calledWithExactly(clientApi.postMessage.lastCall, {
+        assert.calledWithExactly(clientApi.postMessage.getCall(3), {
             command: TELEMETRY,
             params: {
                 triggerType: 'click',
                 name: TAB_ADD_TELEMETRY_EVENT,
                 tabId: initialTabId,
             },
+        })
+
+        assert.calledWithMatch(clientApi.postMessage.getCall(4), {
+            command: 'aws/chat/listAvailableModels',
+            params: { tabId: initialTabId },
         })
     })
 
@@ -336,6 +341,201 @@ describe('Chat', () => {
             // @ts-expect-error: accessing prototype method
             assert.notCalled(TabFactory.prototype.enableExport)
         }).timeout(20000)
+
+        it('enables MCP when params.mcpServers is true and config.agenticMode is true', function () {
+            // Create a separate sandbox for this test
+            const testSandbox = sinon.createSandbox()
+
+            // Save original window functions
+            const originalAddEventListener = window.addEventListener
+            const originalDispatchEvent = window.dispatchEvent
+
+            try {
+                // Create a clean stub for this test
+                const enableMcpStub = testSandbox.stub(TabFactory.prototype, 'enableMcp')
+                const localClientApi = { postMessage: testSandbox.stub() }
+
+                // Mock the event handling to isolate this test
+                let messageHandler: any
+                window.addEventListener = (type: string, handler: any) => {
+                    if (type === 'message') {
+                        messageHandler = handler
+                    }
+                    return undefined as any
+                }
+
+                // Create a new chat instance specifically for this test
+                const localMynahUi = createChat(localClientApi, { agenticMode: true })
+
+                // Create a new event
+                const chatOptionsRequest = createInboundEvent({
+                    command: CHAT_OPTIONS,
+                    params: {
+                        mcpServers: true,
+                        chatNotifications: [],
+                    },
+                })
+
+                // Manually call the handler with our event
+                if (messageHandler) {
+                    messageHandler(chatOptionsRequest)
+                }
+
+                // Verify enableMcp was called exactly once
+                assert.calledOnce(enableMcpStub)
+            } finally {
+                // Restore window functions
+                window.addEventListener = originalAddEventListener
+                window.dispatchEvent = originalDispatchEvent
+                testSandbox.restore()
+            }
+        })
+
+        it('does not enable MCP when params.mcpServers is true but config.agenticMode is false', function () {
+            // Create a separate sandbox for this test
+            const testSandbox = sinon.createSandbox()
+
+            // Save original window functions
+            const originalAddEventListener = window.addEventListener
+            const originalDispatchEvent = window.dispatchEvent
+
+            try {
+                // Create a clean stub for this test
+                const enableMcpStub = testSandbox.stub(TabFactory.prototype, 'enableMcp')
+                const localClientApi = { postMessage: testSandbox.stub() }
+
+                // Mock the event handling to isolate this test
+                let messageHandler: any
+                window.addEventListener = (type: string, handler: any) => {
+                    if (type === 'message') {
+                        messageHandler = handler
+                    }
+                    return undefined as any
+                }
+
+                // Create a new chat instance specifically for this test
+                const localMynahUi = createChat(localClientApi, { agenticMode: false })
+
+                // Create a new event
+                const chatOptionsRequest = createInboundEvent({
+                    command: CHAT_OPTIONS,
+                    params: {
+                        mcpServers: true,
+                        chatNotifications: [],
+                    },
+                })
+
+                // Manually call the handler with our event
+                if (messageHandler) {
+                    messageHandler(chatOptionsRequest)
+                }
+
+                // Verify enableMcp was not called
+                assert.notCalled(enableMcpStub)
+            } finally {
+                // Restore window functions
+                window.addEventListener = originalAddEventListener
+                window.dispatchEvent = originalDispatchEvent
+                testSandbox.restore()
+            }
+        })
+
+        it('does not enable MCP when params.mcpServers is false and config.agenticMode is true', function () {
+            // Create a separate sandbox for this test
+            const testSandbox = sinon.createSandbox()
+
+            // Save original window functions
+            const originalAddEventListener = window.addEventListener
+            const originalDispatchEvent = window.dispatchEvent
+
+            try {
+                // Create a clean stub for this test
+                const enableMcpStub = testSandbox.stub(TabFactory.prototype, 'enableMcp')
+                const localClientApi = { postMessage: testSandbox.stub() }
+
+                // Mock the event handling to isolate this test
+                let messageHandler: any
+                window.addEventListener = (type: string, handler: any) => {
+                    if (type === 'message') {
+                        messageHandler = handler
+                    }
+                    return undefined as any
+                }
+
+                // Create a new chat instance specifically for this test
+                const localMynahUi = createChat(localClientApi, { agenticMode: true })
+
+                // Create a new event
+                const chatOptionsRequest = createInboundEvent({
+                    command: CHAT_OPTIONS,
+                    params: {
+                        mcpServers: false,
+                        chatNotifications: [],
+                    },
+                })
+
+                // Manually call the handler with our event
+                if (messageHandler) {
+                    messageHandler(chatOptionsRequest)
+                }
+
+                // Verify enableMcp was not called
+                assert.notCalled(enableMcpStub)
+            } finally {
+                // Restore window functions
+                window.addEventListener = originalAddEventListener
+                window.dispatchEvent = originalDispatchEvent
+                testSandbox.restore()
+            }
+        })
+
+        it('does not enable MCP when params.mcpServers is undefined and config.agenticMode is true', function () {
+            // Create a separate sandbox for this test
+            const testSandbox = sinon.createSandbox()
+
+            // Save original window functions
+            const originalAddEventListener = window.addEventListener
+            const originalDispatchEvent = window.dispatchEvent
+
+            try {
+                // Create a clean stub for this test
+                const enableMcpStub = testSandbox.stub(TabFactory.prototype, 'enableMcp')
+                const localClientApi = { postMessage: testSandbox.stub() }
+
+                // Mock the event handling to isolate this test
+                let messageHandler: any
+                window.addEventListener = (type: string, handler: any) => {
+                    if (type === 'message') {
+                        messageHandler = handler
+                    }
+                    return undefined as any
+                }
+
+                // Create a new chat instance specifically for this test
+                const localMynahUi = createChat(localClientApi, { agenticMode: true })
+
+                // Create a new event
+                const chatOptionsRequest = createInboundEvent({
+                    command: CHAT_OPTIONS,
+                    params: {
+                        chatNotifications: [],
+                    },
+                })
+
+                // Manually call the handler with our event
+                if (messageHandler) {
+                    messageHandler(chatOptionsRequest)
+                }
+
+                // Verify enableMcp was not called
+                assert.notCalled(enableMcpStub)
+            } finally {
+                // Restore window functions
+                window.addEventListener = originalAddEventListener
+                window.dispatchEvent = originalDispatchEvent
+                testSandbox.restore()
+            }
+        })
     })
 
     describe('onGetSerializedChat', () => {

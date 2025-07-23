@@ -6,6 +6,7 @@
 import * as path from 'path'
 import {
     ChatMessage,
+    ContextCommand,
     ConversationItem,
     ConversationItemGroup,
     IconType,
@@ -19,8 +20,13 @@ import {
     ToolUse,
     UserInputMessage,
     AssistantResponseMessage,
-} from '@aws/codewhisperer-streaming-client'
+    ImageBlock,
+} from '@amzn/codewhisperer-streaming'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
+import { activeFileCmd } from '../../context/additionalContextProvider'
+import { PriorityQueue } from 'typescript-collections'
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import * as crypto from 'crypto'
 
 // Ported from https://github.com/aws/aws-toolkit-vscode/blob/master/packages/core/src/shared/db/chatDb/util.ts
 
@@ -52,15 +58,38 @@ export type Tab = {
     tabType: TabType
     title: string
     conversations: Conversation[]
+    tabContext?: TabContext
+}
+
+export const DEFAULT_PINNED_CONTEXT: ContextCommand[] = [activeFileCmd]
+
+/**
+ * Stores context scoped to a conversation, such as pinned context and rules.
+ */
+export type TabContext = {
+    pinnedContext?: ContextCommand[]
+    rules?: Rules
+}
+
+/**
+ * Stores active/inactive state of workspace rules.
+ */
+export type Rules = {
+    // Track folder states by folder name
+    folders: Record<string, boolean>
+    // Track individual rule states by rule ID
+    rules: Record<string, boolean>
 }
 
 export type Settings = {
     modelId: string | undefined
+    pairProgrammingMode?: boolean
 }
 
 export type Conversation = {
     conversationId: string
     clientType: string
+    updatedAt?: Date
     messages: Message[]
 }
 
@@ -74,7 +103,31 @@ export type Message = {
     origin?: Origin
     userInputMessageContext?: UserInputMessageContext
     toolUses?: ToolUse[]
+    timestamp?: Date
     shouldDisplayMessage?: boolean
+    images?: ImageBlock[]
+}
+
+/**
+ * Represents a tab with its database metadata, including collection reference, database name, and timestamp information
+ * for use in history trimming operations.
+ */
+export type TabWithDbMetadata = {
+    tab: Tab
+    collection: Collection<Tab> // The reference of chat DB collection
+    dbName: string // The chat DB name
+    oldestMessageDate: Date // The timestamp of the oldest message in the tab
+}
+
+/**
+ * Represents a chat DB reference, including the tab collection reference and the DB reference
+ * for use in history trimming operations.
+ */
+export type DbReference = { collection: Collection<Tab>; db: Loki }
+
+export type MessagesWithCharacterCount = {
+    messages: Message[]
+    count: number
 }
 
 /**
@@ -95,6 +148,7 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
                   userIntent: msg.userIntent,
                   origin: msg.origin || 'IDE',
                   userInputMessageContext: msg.userInputMessageContext || {},
+                  images: msg.images || [],
               },
           }
 }
@@ -234,7 +288,9 @@ export function updateOrCreateConversation(
 
     if (existingConversation) {
         return conversations.map(conv =>
-            conv.conversationId === conversationId ? { ...conv, messages: [...conv.messages, newMessage] } : conv
+            conv.conversationId === conversationId
+                ? { ...conv, updatedAt: new Date(), messages: [...conv.messages, newMessage] }
+                : conv
         )
     } else {
         return [
@@ -242,6 +298,7 @@ export function updateOrCreateConversation(
             {
                 conversationId,
                 clientType,
+                updatedAt: new Date(),
                 messages: [newMessage],
             },
         ]
@@ -304,6 +361,66 @@ export function groupTabsByDate(tabs: Tab[]): ConversationItemGroup[] {
         }))
 }
 
+/**
+ * Initialize a priority queue to store all workspace tab history, the tab contains the oldest message first.
+ * If the messages don't have a timestamp, oldest tab first.
+ */
+export function initializeHistoryPriorityQueue() {
+    // Create a comparator function for dates (oldest first)
+    // The PriorityQueue implementation uses maxHeap: greater value fist.
+    // So we need to return bTimestamp - aTimestamp if a is older than b.
+    function tabDateComparator(
+        a: { tab: Tab; oldestMessageDate: Date },
+        b: { tab: Tab; oldestMessageDate: Date }
+    ): number {
+        if (a.oldestMessageDate.getTime() === 0 && b.oldestMessageDate.getTime() === 0) {
+            // Legacy message data without timestamp, use the updatedAt timestamp of the tab to compare
+            const aUpdatedAt = a.tab.updatedAt
+            const bUpdatedAt = b.tab.updatedAt
+            // LokiJS automatically convert the indexed updatedAt into number for better performance, we have an index on Tab.updatedAt
+            if (typeof aUpdatedAt === 'number' && typeof bUpdatedAt === 'number') {
+                return bUpdatedAt - aUpdatedAt
+            }
+            // For robustness, adding Date type comparator as well
+            if (aUpdatedAt instanceof Date && bUpdatedAt instanceof Date) {
+                return bUpdatedAt.getTime() - aUpdatedAt.getTime()
+            }
+        }
+        return b.oldestMessageDate.getTime() - a.oldestMessageDate.getTime()
+    }
+
+    // Create a priority queue with tabs and the collection it belongs to, and sorted by oldest message date
+    return new PriorityQueue<TabWithDbMetadata>(tabDateComparator)
+}
+
+/**
+ * Gets the timestamp of the oldest message in a tab
+ * @param tabData The tab to check
+ * @returns The Date of the oldest message, or 0 if no messages under the tab or it's a legacy message that doesn't have a timestamp
+ */
+export function getOldestMessageTimestamp(tabData: Tab): Date {
+    if (!tabData.conversations) {
+        return new Date(0)
+    }
+
+    // The conversations and messages under the same tab should always be in chronological order
+    for (const conversation of tabData.conversations) {
+        // Skip empty conversations
+        if (!conversation.messages || conversation.messages.length === 0) {
+            continue
+        }
+        // Just need to check the first message which is the oldest one
+        if (conversation.messages[0].timestamp) {
+            return new Date(conversation.messages[0].timestamp)
+        } else {
+            return new Date(0)
+        }
+    }
+
+    // Legacy data doesn't have a timestamp, so just treating it as 0 since they are older than any data that has a timestamp
+    return new Date(0)
+}
+
 function getTabTypeIcon(tabType: TabType): IconType {
     switch (tabType) {
         case 'cwc':
@@ -321,4 +438,43 @@ function getTabTypeIcon(tabType: TabType): IconType {
         default:
             return 'chat'
     }
+}
+
+/**
+ * Calculates the size of a database file
+ * @param features Features object containing workspace filesystem access
+ * @param dbPath Path to the database file
+ * @returns Promise that resolves to the file size in bytes, or 0 if there's an error
+ */
+export async function calculateDatabaseSize(features: Features, dbPath: string): Promise<number> {
+    const result = await features.workspace.fs.getFileSize(dbPath)
+    return result.size
+}
+
+export function getChatDbNameFromWorkspaceId(workspaceId: string): string {
+    return `chat-history-${workspaceId}.json`
+}
+
+export function getMd5WorkspaceId(filePath: string): string {
+    return crypto.createHash('md5').update(filePath).digest('hex')
+}
+
+export function getSha256WorkspaceId(filePath: string): string {
+    return crypto.createHash('sha256').update(filePath).digest('hex')
+}
+
+/**
+ * Estimates the number of characters that an image binary would represent in a text context.
+ * The estimation is based on the image's byte size, converting bytes to megabytes, then estimating tokens (using 1100 tokens per MB),
+ * and finally converting tokens to characters (assuming 1 token ≈ 3 characters).
+ *
+ * @param image The ImageBlock object containing the image data (expects image.source.bytes to be a Buffer or Uint8Array).
+ * @returns The estimated number of characters that the image would represent.
+ */
+export function estimateCharacterCountFromImageBlock(image: ImageBlock): number {
+    let imagesBytesLen = image.source?.bytes?.byteLength ?? 0
+    // Convert bytes to MB and estimate tokens (using 1100 tokens per MB as middle ground)
+    const imageTokens = (imagesBytesLen / 1000000) * 1100
+    // Each token is 3 characters
+    return imageTokens * 3
 }

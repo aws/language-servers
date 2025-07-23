@@ -13,7 +13,7 @@
         "coverage:report": "c8 report --reporter=html --reporter=text"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.90",
+        "@aws/language-server-runtimes": "^0.2.112",
         "vscode-languageserver": "^9.0.1"
     },
     "devDependencies": {

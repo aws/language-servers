@@ -1,12 +1,35 @@
-import { BearerCredentials, CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
-import { AWSError } from 'aws-sdk'
+import {
+    AwsResponseError,
+    BearerCredentials,
+    CredentialsProvider,
+    Position,
+} from '@aws/language-server-runtimes/server-interface'
+import { AWSError, Credentials } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
 import { Suggestion } from './codeWhispererService'
 import { CodewhispererCompletionType } from './telemetry/types'
-import { BUILDER_ID_START_URL, crashMonitoringDirName, driveLetterRegex, MISSING_BEARER_TOKEN_ERROR } from './constants'
-import { CodeWhispererStreamingServiceException } from '@aws/codewhisperer-streaming-client'
+import {
+    BUILDER_ID_START_URL,
+    COMMON_GITIGNORE_PATTERNS,
+    crashMonitoringDirName,
+    driveLetterRegex,
+    MISSING_BEARER_TOKEN_ERROR,
+} from './constants'
+import {
+    CodeWhispererStreamingServiceException,
+    Origin,
+    ServiceQuotaExceededException,
+    ThrottlingException,
+    ThrottlingExceptionReason,
+} from '@amzn/codewhisperer-streaming'
+import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
+import { promises as fs } from 'fs'
+import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
+import ignore = require('ignore')
+import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
+import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
 export function isAwsError(error: unknown): error is AWSError {
@@ -14,7 +37,88 @@ export function isAwsError(error: unknown): error is AWSError {
         return false
     }
 
+    // TODO: do SDK v3 errors have `.code` ?
     return error instanceof Error && hasCode(error) && hasTime(error)
+}
+
+export function isAwsThrottlingError(e: unknown): e is ThrottlingException {
+    if (!e) {
+        return false
+    }
+
+    // Non-AWS HTTP throttling error:
+    // const statusCode = getHttpStatusCode(e)
+    // if (statusCode === 429 || e.message.includes('Too many requests')) {
+    //     return true
+    // }
+
+    if (e instanceof ThrottlingException || (isAwsError(e) && e.code === 'ThrottlingException')) {
+        return true
+    }
+
+    return false
+}
+
+/**
+ * Special case of throttling error: monthly limit reached. This is most common
+ * for "free tier" users, but is technically possible for "pro tier" also.
+ *
+ * See `client/token/bearer-token-service.json`.
+ */
+export function isUsageLimitError(e: unknown): e is ThrottlingException {
+    if (!e) {
+        return false
+    }
+
+    if (hasCode(e) && (e.code === 'AmazonQUsageLimitError' || e.code === 'E_AMAZON_Q_USAGE_LIMIT')) {
+        return true
+    }
+
+    if ((e as Error).name === 'AmazonQUsageLimitError') {
+        return true
+    }
+
+    if (!isAwsThrottlingError(e)) {
+        return false
+    }
+
+    if (e.reason == ThrottlingExceptionReason.MONTHLY_REQUEST_COUNT) {
+        return true
+    }
+
+    return false
+}
+
+export function isQuotaExceededError(e: unknown): e is AWSError {
+    if (!e) {
+        return false
+    }
+
+    // From client/token/bearer-token-service.json
+    if (isUsageLimitError(e)) {
+        return true
+    }
+
+    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
+    // "Backend service will throw ServiceQuota if code generation iteration limit is reached".
+    if (e instanceof ServiceQuotaExceededException || (isAwsError(e) && e.code == 'ServiceQuotaExceededException')) {
+        return true
+    }
+
+    // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
+    // "API Front-end will throw Throttling if conversation limit is reached.
+    // API Front-end monitors StartCodeGeneration for throttling"
+    if (
+        isAwsThrottlingError(e) &&
+        (e.message.includes('reached for this month') ||
+            e.message.includes('limit for this month') ||
+            e.message.includes('limit reached') ||
+            e.message.includes('limit for number of iterations'))
+    ) {
+        return true
+    }
+
+    return false
 }
 
 /**
@@ -84,6 +188,17 @@ export function getErrorMsg(err: Error | undefined, withCause: boolean = false):
     }
 
     return msg
+}
+
+/**
+ * Gets a useful, but not excessive, error message for logs and user messages.
+ */
+export function fmtError(e: any): string {
+    const code = getErrorId(e)
+    const requestId = getRequestID(e)
+    const msg = getErrorMsg(e as Error)
+
+    return `${code}: "${msg}", requestId: ${requestId}`
 }
 
 /**
@@ -205,6 +320,13 @@ export function getCompletionType(suggestion: Suggestion): CodewhispererCompleti
     return nonBlankLines > 1 ? 'Block' : 'Line'
 }
 
+export function enabledModelSelection(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.modelSelection || false
+}
+
 export function parseJson(jsonString: string) {
     try {
         return JSON.parse(jsonString)
@@ -213,6 +335,7 @@ export function parseJson(jsonString: string) {
     }
 }
 
+/** @deprecated Use `getErrorMsg()` instead. */
 export function getErrorMessage(error: any): string {
     if (error?.cause?.message) {
         return error?.cause?.message
@@ -225,6 +348,9 @@ export function getErrorMessage(error: any): string {
 export function getRequestID(error: any): string | undefined {
     if (hasCause(error) && error.cause.$metadata?.requestId) {
         return error.cause.$metadata.requestId
+    }
+    if (typeof error.requestId === 'string') {
+        return error.requestId
     }
     if (error instanceof CodeWhispererStreamingServiceException) {
         return error.$metadata.requestId
@@ -245,6 +371,17 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
     }
 
     return credentials.token
+}
+
+export function getOriginFromClientInfo(clientName: string | undefined): Origin {
+    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE')) {
+        return 'MD_IDE'
+    }
+    return 'IDE'
+}
+
+export function isUsingIAMAuth(): boolean {
+    return process.env.USE_IAM_AUTH === 'true'
 }
 
 export const flattenMetric = (obj: any, prefix = '') => {
@@ -321,6 +458,8 @@ export function isStringOrNull(object: any): object is string | null {
 // Port of implementation in AWS Toolkit for VSCode
 // https://github.com/aws/aws-toolkit-vscode/blob/c22efa03e73b241564c8051c35761eb8620edb83/packages/core/src/shared/errors.ts#L648
 export function getHttpStatusCode(err: unknown): number | undefined {
+    // RTS throws validation errors with a 400 status code to LSP, we convert them to 500 from the perspective of the user
+
     if (hasResponse(err) && err?.$response?.statusCode !== undefined) {
         return err?.$response?.statusCode
     }
@@ -352,4 +491,74 @@ export function hasConnectionExpired(error: any) {
         return authFollowType == 're-auth'
     }
     return false
+}
+
+/**
+  Lists files in a directory respecting gitignore and npmignore rules.
+  @param directory The absolute path of root directory.
+  @returns A promise that resolves to an array of absolute file paths.
+ */
+export async function listFilesWithGitignore(directory: string): Promise<string[]> {
+    let ignorePatterns: string[] = [...COMMON_GITIGNORE_PATTERNS]
+
+    // Process .gitignore
+    const gitignorePath = path.join(directory, '.gitignore')
+    try {
+        const gitignoreContent = await fs.readFile(gitignorePath, { encoding: 'utf8' })
+        ignorePatterns = ignorePatterns.concat(
+            gitignoreContent
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+        )
+    } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+            console.log('Preindexing walk: gitIgnore file could not be read', err)
+        }
+    }
+
+    // Process .npmignore
+    const npmignorePath = path.join(directory, '.npmignore')
+    try {
+        const npmignoreContent = await fs.readFile(npmignorePath, { encoding: 'utf8' })
+        ignorePatterns = ignorePatterns.concat(
+            npmignoreContent
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+        )
+    } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+            console.log('Preindexing walk: npmIgnore file could not be read', err)
+        }
+    }
+
+    const absolutePaths = await fg(['**/*'], {
+        cwd: directory,
+        dot: true,
+        ignore: ignorePatterns,
+        onlyFiles: false,
+        followSymbolicLinks: false,
+        absolute: true,
+    })
+    return absolutePaths.slice(0, 500_000)
+}
+
+export function getFileExtensionName(filepath: string): string {
+    // Handle null/undefined
+    if (!filepath) {
+        return ''
+    }
+
+    // Handle no dots or file ending with dot
+    if (!filepath.includes('.') || filepath.endsWith('.')) {
+        return ''
+    }
+
+    // Handle hidden files (optional, depending on your needs)
+    if (filepath.startsWith('.') && filepath.indexOf('.', 1) === -1) {
+        return ''
+    }
+
+    return filepath.substring(filepath.lastIndexOf('.') + 1).toLowerCase()
 }

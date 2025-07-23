@@ -7,9 +7,20 @@ import { CancellationError, processUtils, workspaceUtils } from '@aws/lsp-core'
 import { CancellationToken } from 'vscode-languageserver'
 import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/processUtils'
 // eslint-disable-next-line import/no-nodejs-modules
-import { isAbsolute, join } from 'path' // Safe to import on web since this is part of path-browserify
+import { isAbsolute, join, extname } from 'path' // Safe to import on web since this is part of path-browserify
 import { Features } from '../../types'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
+// eslint-disable-next-line import/no-nodejs-modules
+import { existsSync, statSync } from 'fs'
+
+// Warning message
+import {
+    BINARY_FILE_WARNING_MSG,
+    CREDENTIAL_FILE_WARNING_MSG,
+    DESTRUCTIVE_COMMAND_WARNING_MSG,
+    MUTATE_COMMAND_WARNING_MSG,
+    OUT_OF_WORKSPACE_WARNING_MSG,
+} from '../constants/constants'
 
 export enum CommandCategory {
     ReadOnly,
@@ -25,12 +36,10 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['cat', CommandCategory.ReadOnly],
     ['bat', CommandCategory.ReadOnly],
     ['pwd', CommandCategory.ReadOnly],
-    ['echo', CommandCategory.ReadOnly],
     ['file', CommandCategory.ReadOnly],
     ['less', CommandCategory.ReadOnly],
     ['more', CommandCategory.ReadOnly],
     ['tree', CommandCategory.ReadOnly],
-    ['find', CommandCategory.ReadOnly],
     ['top', CommandCategory.ReadOnly],
     ['htop', CommandCategory.ReadOnly],
     ['ps', CommandCategory.ReadOnly],
@@ -78,6 +87,9 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['exec', CommandCategory.Mutate],
     ['eval', CommandCategory.Mutate],
     ['xargs', CommandCategory.Mutate],
+    ['echo', CommandCategory.Mutate],
+    ['grep', CommandCategory.Mutate],
+    ['find', CommandCategory.Mutate],
 
     // Destructive commands
     ['rm', CommandCategory.Destructive],
@@ -105,9 +117,6 @@ export const commandCategories = new Map<string, CommandCategory>([
 ])
 export const maxToolResponseSize: number = 1024 * 1024 // 1MB
 export const lineCount: number = 1024
-export const destructiveCommandWarningMessage = 'WARNING: Potentially destructive command detected:\n\n'
-export const mutateCommandWarningMessage = 'Mutation command:\n\n'
-export const outOfWorkspaceWarningmessage = 'Execution out of workspace scope:\n\n'
 
 /**
  * Parameters for executing a command on the system shell.
@@ -226,7 +235,7 @@ export class ExecuteBash {
                             // Treat tilde paths as absolute paths (they will be expanded by the shell)
                             return {
                                 requiresAcceptance: true,
-                                warning: destructiveCommandWarningMessage,
+                                warning: DESTRUCTIVE_COMMAND_WARNING_MSG,
                                 commandCategory: CommandCategory.Destructive,
                             }
                         } else if (!isAbsolute(arg) && params.cwd) {
@@ -241,6 +250,34 @@ export class ExecuteBash {
                             continue
                         }
 
+                        // Check if this is a credential file that needs protection
+                        try {
+                            if (existsSync(fullPath) && statSync(fullPath).isFile()) {
+                                // Check for credential files
+                                if (this.isLikelyCredentialFile(fullPath)) {
+                                    this.logging.info(`Detected credential file in command: ${fullPath}`)
+                                    return {
+                                        requiresAcceptance: true,
+                                        warning: CREDENTIAL_FILE_WARNING_MSG,
+                                        commandCategory: CommandCategory.Mutate,
+                                    }
+                                }
+
+                                // Check for binary files
+                                if (this.isLikelyBinaryFile(fullPath)) {
+                                    this.logging.info(`Detected binary file in command: ${fullPath}`)
+                                    return {
+                                        requiresAcceptance: true,
+                                        warning: BINARY_FILE_WARNING_MSG,
+                                        commandCategory: CommandCategory.Mutate,
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            // Ignore errors for files that don't exist or can't be accessed
+                            this.logging.debug(`Error checking file ${fullPath}: ${(err as Error).message}`)
+                        }
+
                         const isInWorkspace = workspaceUtils.isInWorkspace(
                             getWorkspaceFolderPaths(this.workspace),
                             fullPath
@@ -248,7 +285,7 @@ export class ExecuteBash {
                         if (!isInWorkspace) {
                             return {
                                 requiresAcceptance: true,
-                                warning: outOfWorkspaceWarningmessage,
+                                warning: OUT_OF_WORKSPACE_WARNING_MSG,
                                 commandCategory: highestCommandCategory,
                             }
                         }
@@ -272,13 +309,13 @@ export class ExecuteBash {
                     case CommandCategory.Destructive:
                         return {
                             requiresAcceptance: true,
-                            warning: destructiveCommandWarningMessage,
+                            warning: DESTRUCTIVE_COMMAND_WARNING_MSG,
                             commandCategory: CommandCategory.Destructive,
                         }
                     case CommandCategory.Mutate:
                         return {
                             requiresAcceptance: true,
-                            warning: mutateCommandWarningMessage,
+                            warning: MUTATE_COMMAND_WARNING_MSG,
                             commandCategory: CommandCategory.Mutate,
                         }
                     case CommandCategory.ReadOnly:
@@ -300,7 +337,7 @@ export class ExecuteBash {
                     if (!workspaceFolders || workspaceFolders.length === 0) {
                         return {
                             requiresAcceptance: true,
-                            warning: outOfWorkspaceWarningmessage,
+                            warning: OUT_OF_WORKSPACE_WARNING_MSG,
                             commandCategory: highestCommandCategory,
                         }
                     }
@@ -317,7 +354,7 @@ export class ExecuteBash {
                     if (!isInWorkspace) {
                         return {
                             requiresAcceptance: true,
-                            warning: outOfWorkspaceWarningmessage,
+                            warning: OUT_OF_WORKSPACE_WARNING_MSG,
                             commandCategory: highestCommandCategory,
                         }
                     }
@@ -351,15 +388,82 @@ export class ExecuteBash {
         }
     }
 
+    // Static patterns for faster lookups - defined once, used many times
+    private static readonly CREDENTIAL_PATTERNS = new Set([
+        'credential',
+        'secret',
+        'token',
+        'password',
+        'key',
+        'cert',
+        'auth',
+        '.aws',
+        '.ssh',
+        '.pgp',
+        '.gpg',
+        '.pem',
+        '.crt',
+        '.key',
+        '.p12',
+        '.pfx',
+        'config.json',
+        'settings.json',
+        '.env',
+        '.npmrc',
+        '.yarnrc',
+    ])
+
+    private static readonly BINARY_EXTENSIONS_WINDOWS = new Set(['.exe', '.dll', '.bat', '.cmd'])
+
+    /**
+     * Efficiently checks if a file is likely to contain credentials based on name or extension
+     * @param filePath Path to check
+     * @returns true if the file likely contains credentials
+     */
+    private isLikelyCredentialFile(filePath: string): boolean {
+        const fileName = filePath.toLowerCase()
+
+        // Fast check using Set for O(1) lookups instead of array iteration
+        for (const pattern of ExecuteBash.CREDENTIAL_PATTERNS) {
+            if (fileName.includes(pattern)) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /**
+     * Efficiently checks if a file is a binary executable
+     * @param filePath Path to check
+     * @returns true if the file is likely a binary executable
+     */
+    private isLikelyBinaryFile(filePath: string): boolean {
+        if (IS_WINDOWS_PLATFORM) {
+            const ext = extname(filePath).toLowerCase()
+            return ExecuteBash.BINARY_EXTENSIONS_WINDOWS.has(ext)
+        }
+
+        try {
+            // Check if file exists and is executable
+            const stats = statSync(filePath)
+            return stats.isFile() && (stats.mode & 0o111) !== 0 // Check if any execute bit is set
+        } catch (error) {
+            this.logging.debug(`Failed to check if file is binary: ${filePath}, error: ${(error as Error).message}`)
+            return false
+        }
+    }
+
     // TODO: generalize cancellation logic for tools.
     public async invoke(
         params: ExecuteBashParams,
         cancellationToken?: CancellationToken,
         updates?: WritableStream
     ): Promise<InvokeOutput> {
+        // use absoluate file path
         const { shellName, shellFlag } = IS_WINDOWS_PLATFORM
-            ? { shellName: 'cmd.exe', shellFlag: '/c' }
-            : { shellName: 'bash', shellFlag: '-c' }
+            ? { shellName: 'C:\\Windows\\System32\\cmd.exe', shellFlag: '/c' }
+            : { shellName: '/bin/bash', shellFlag: '-c' }
         this.logging.info(`Invoking ${shellName} command: "${params.command}" in cwd: "${params.cwd}"`)
 
         return new Promise(async (resolve, reject) => {
@@ -423,6 +527,7 @@ export class ExecuteBash {
                 spawnOptions: {
                     cwd: params.cwd,
                     stdio: ['pipe', 'pipe', 'pipe'],
+                    windowsVerbatimArguments: IS_WINDOWS_PLATFORM, // if true, then arguments are passed exactly as provided. no quoting or escaping is done.
                 },
                 collect: false,
                 waitForStreams: true,
@@ -436,7 +541,7 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: true,
-                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
+                        content: chunk,
                         isFirst,
                     })
                     processQueue()
@@ -451,7 +556,7 @@ export class ExecuteBash {
                     outputQueue.push({
                         timestamp,
                         isStdout: false,
-                        content: IS_WINDOWS_PLATFORM ? ExecuteBash.decodeWinUtf(chunk) : chunk,
+                        content: chunk,
                         isFirst,
                     })
                     processQueue()
@@ -459,7 +564,7 @@ export class ExecuteBash {
             }
 
             const shellArgs = IS_WINDOWS_PLATFORM
-                ? ['/u', shellFlag, ...split(params.command)] // Windows: split for proper arg handling
+                ? ['/u', shellFlag, params.command] // Windows: no need to split arguments when using windowsVerbatimArguments: true
                 : [shellFlag, params.command]
 
             this.childProcess = new ChildProcess(this.logging, shellName, shellArgs, childProcessOptions)
@@ -536,27 +641,12 @@ export class ExecuteBash {
         })
     }
 
-    /**
-     * Re‑creates the raw bytes from the received string (Buffer.from(text, 'binary')).
-     * Detects UTF‑16 LE by checking whether every odd byte in the first 32 bytes is 0x00.
-     * Decodes with buf.toString('utf16le') when the pattern matches, otherwise falls back to UTF‑8.
-     */
-    private static decodeWinUtf(raw: string): string {
-        const buffer = Buffer.from(raw, 'binary')
-
-        let utf16 = true
-        for (let i = 1, n = Math.min(buffer.length, 32); i < n; i += 2) {
-            if (buffer[i] !== 0x00) {
-                utf16 = false
-                break
-            }
-        }
-        return utf16 ? buffer.toString('utf16le') : buffer.toString('utf8')
-    }
-
     private static handleChunk(chunk: string, buffer: string[], writer?: WritableStreamDefaultWriter<any>) {
         try {
-            void writer?.write(chunk)
+            // Trim trailing newlines from the chunk before writing
+            const trimmedChunk = chunk.replace(/\r?\n$/, '')
+            void writer?.write(trimmedChunk)
+
             const lines = chunk.split(/\r?\n/)
             for (const line of lines) {
                 buffer.push(line)
@@ -648,18 +738,68 @@ export class ExecuteBash {
     }
 
     public getSpec() {
+        if (IS_WINDOWS_PLATFORM) {
+            return this.getWindowsSpec()
+        } else {
+            return this.getMacOSSpec()
+        }
+    }
+
+    private getWindowsSpec() {
         return {
             name: 'executeBash',
             description:
-                'Execute the specified command on the system shell (bash on Unix/Linux/macOS, cmd.exe on Windows).\n\n' +
+                'Execute the specified command on Windows cmd.exe.\n\n' +
                 '## Overview\n' +
-                "This tool executes commands on the user's system shell and returns the output.\n\n" +
-                '## Operating System Specific Commands\n' +
-                "- IMPORTANT: You MUST use commands specific to the user's current operating system. This tool will NOT adapt or translate commands between operating systems.\n" +
-                "  - On Windows (cmd.exe): Use Windows-specific commands like 'dir', 'type', 'mkdir' (without -p flag).\n" +
-                "  - On Unix/Linux/macOS (bash): Use Unix commands like 'ls', 'cat', 'mkdir -p'.\n" +
+                'This tool executes commands on Windows cmd.exe and returns the output.\n\n' +
+                '## Windows Commands\n' +
+                "- ONLY use Windows-specific commands like 'dir', 'type', 'copy', 'move', 'del', 'mkdir'.\n" +
+                "- DO NOT use -p flag with mkdir. Use 'mkdir dir1 && mkdir dir2' for multiple directories.\n" +
+                "- For multiple directories, use multiple commands with && (e.g., 'mkdir main && mkdir main\\src && mkdir main\\test').\n\n" +
                 '## When to use\n' +
-                "- When you need to run system commands that aren't covered by specialized tools.\n" +
+                "- When you need to run Windows system commands that aren't covered by specialized tools.\n" +
+                '- When you need to interact with Windows applications or utilities.\n' +
+                '- When you need to perform Windows-specific operations.\n\n' +
+                '## When not to use\n' +
+                '- When specialized tools would be more appropriate for the task.\n' +
+                '- When you need to perform file operations (use dedicated file tools instead).\n' +
+                '- When you need to search through files (use dedicated search tools instead).\n\n' +
+                '## Notes\n' +
+                '- Output is limited to prevent overwhelming responses.\n',
+            inputSchema: {
+                type: 'object',
+                properties: {
+                    explanation: {
+                        type: 'string',
+                        description:
+                            'One sentence explanation as to why this tool is being used, and how it contributes to the goal.',
+                    },
+                    command: {
+                        type: 'string',
+                        description: 'Windows command to execute in cmd.exe. Use cmd.exe syntax and commands.',
+                    },
+                    cwd: {
+                        type: 'string',
+                        description:
+                            'Parameter to set the current working directory for the command execution. Use Windows path format with backslashes (e.g., C:\\Users\\username\\folder\\subfolder).',
+                    },
+                },
+                required: ['command', 'cwd'],
+            },
+        } as const
+    }
+
+    private getMacOSSpec() {
+        return {
+            name: 'executeBash',
+            description:
+                'Execute the specified command on the macOS/Unix shell (bash).\n\n' +
+                '## Overview\n' +
+                'This tool executes commands on macOS/Unix shell and returns the output.\n\n' +
+                '## macOS/Unix Commands\n' +
+                "- Use Unix commands like 'ls', 'cat', 'cp', 'mv', 'rm', 'mkdir -p', 'grep', 'find'.\n\n" +
+                '## When to use\n' +
+                "- When you need to run Unix/macOS system commands that aren't covered by specialized tools.\n" +
                 '- When you need to interact with installed applications or utilities.\n' +
                 '- When you need to perform operations that require shell capabilities.\n\n' +
                 '## When not to use\n' +
@@ -678,8 +818,7 @@ export class ExecuteBash {
                     },
                     command: {
                         type: 'string',
-                        description:
-                            'Command to execute on the system shell. On Windows, this will run in cmd.exe; on Unix-like systems, this will run in bash.',
+                        description: 'Unix/macOS command to execute in bash. Use Unix-specific syntax and commands.',
                     },
                     cwd: {
                         type: 'string',

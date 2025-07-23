@@ -1,19 +1,23 @@
 import { InitializeParams, Server, TextDocumentSyncKind } from '@aws/language-server-runtimes/server-interface'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { languageByExtension } from '../../shared/languageDetection'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { URI } from 'vscode-uri'
+import { isUsingIAMAuth } from '../../shared/utils'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 
 export const LocalProjectContextServer =
     (): Server =>
     ({ credentialsProvider, telemetry, logging, lsp, workspace }) => {
         let localProjectContextController: LocalProjectContextController
-        let amazonQServiceManager: AmazonQTokenServiceManager
+        let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
 
         let localProjectContextEnabled: boolean = false
+        let VSCWindowsOverride: boolean = false
 
         lsp.addInitializer((params: InitializeParams) => {
             const workspaceFolders = workspace.getAllWorkspaceFolders() || params.workspaceFolders
@@ -22,6 +26,11 @@ export const LocalProjectContextServer =
                 workspaceFolders,
                 logging
             )
+            // Context: Adding, deleting, renaming files within the VSC IDE on windows does not properly trigger reindexing. All other IDE/OS combinations work
+            // For all IDE/OS combination except VSC on Windows, using URI.parse() works
+            // For VSC on Windows, using URI.parse() chops off the windows drive letter, so need to use URI.file() to preserve it
+            // Temporary solution until further investigation is done on how the pathing works:
+            VSCWindowsOverride = params.clientInfo?.name === 'vscode' && process.platform === 'win32'
 
             const supportedFilePatterns = Object.keys(languageByExtension).map(ext => `**/*${ext}`)
 
@@ -60,7 +69,9 @@ export const LocalProjectContextServer =
 
         lsp.onInitialized(async () => {
             try {
-                amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+                amazonQServiceManager = isUsingIAMAuth()
+                    ? getOrThrowBaseIAMServiceManager()
+                    : getOrThrowBaseTokenServiceManager()
                 telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
 
                 await amazonQServiceManager.addDidChangeConfigurationListener(updateConfigurationHandler)
@@ -80,7 +91,9 @@ export const LocalProjectContextServer =
 
         lsp.workspace.onDidCreateFiles(async event => {
             try {
-                const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
+                const filePaths = VSCWindowsOverride
+                    ? event.files.map(file => URI.file(file.uri).fsPath)
+                    : event.files.map(file => URI.parse(file.uri).fsPath)
                 await localProjectContextController.updateIndexAndContextCommand(filePaths, true)
             } catch (error) {
                 logging.error(`Error handling create event: ${error}`)
@@ -89,7 +102,9 @@ export const LocalProjectContextServer =
 
         lsp.workspace.onDidDeleteFiles(async event => {
             try {
-                const filePaths = event.files.map(file => URI.parse(file.uri).fsPath)
+                const filePaths = VSCWindowsOverride
+                    ? event.files.map(file => URI.file(file.uri).fsPath)
+                    : event.files.map(file => URI.parse(file.uri).fsPath)
                 await localProjectContextController.updateIndexAndContextCommand(filePaths, false)
             } catch (error) {
                 logging.error(`Error handling delete event: ${error}`)
@@ -98,8 +113,12 @@ export const LocalProjectContextServer =
 
         lsp.workspace.onDidRenameFiles(async event => {
             try {
-                const oldPaths = event.files.map(file => URI.parse(file.oldUri).fsPath)
-                const newPaths = event.files.map(file => URI.parse(file.newUri).fsPath)
+                const oldPaths = VSCWindowsOverride
+                    ? event.files.map(file => URI.file(file.oldUri).fsPath)
+                    : event.files.map(file => URI.parse(file.newUri).fsPath)
+                const newPaths = VSCWindowsOverride
+                    ? event.files.map(file => URI.file(file.oldUri).fsPath)
+                    : event.files.map(file => URI.parse(file.newUri).fsPath)
 
                 await localProjectContextController.updateIndexAndContextCommand(oldPaths, false)
                 await localProjectContextController.updateIndexAndContextCommand(newPaths, true)
@@ -110,7 +129,9 @@ export const LocalProjectContextServer =
 
         lsp.onDidSaveTextDocument(async event => {
             try {
-                const filePaths = [URI.parse(event.textDocument.uri).fsPath]
+                const filePaths = VSCWindowsOverride
+                    ? [URI.file(event.textDocument.uri).fsPath]
+                    : [URI.parse(event.textDocument.uri).fsPath]
                 await localProjectContextController.updateIndex(filePaths, 'update')
             } catch (error) {
                 logging.error(`Error handling save event: ${error}`)

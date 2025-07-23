@@ -7,6 +7,7 @@ import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/proces
 import path = require('path')
 import { dirname } from 'path'
 import { pathToFileURL } from 'url'
+import { OUT_OF_WORKSPACE_WARNING_MSG } from '../constants/constants'
 
 export interface GrepSearchParams {
     path?: string
@@ -81,7 +82,8 @@ export class GrepSearch {
 
     public async requiresAcceptance(params: GrepSearchParams): Promise<CommandValidation> {
         const path = this.getSearchDirectory(params.path)
-        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.workspace), path) }
+        const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.workspace), path)
+        return { requiresAcceptance: !isInWorkspace, warning: !isInWorkspace ? OUT_OF_WORKSPACE_WARNING_MSG : '' }
     }
 
     public async invoke(params: GrepSearchParams, token?: CancellationToken): Promise<InvokeOutput> {
@@ -283,12 +285,12 @@ export class GrepSearch {
                     path: {
                         type: 'string',
                         description:
-                            'Absolute path to a directory to search in, e.g. `/repo` for Unix-like system including Unix/Linux/macOS or `d:\\repo` for Windows. If not provided, the current workspace folder will be used.',
+                            'Absolute path to a directory to search in, e.g. `/repo` for Unix-like system including Unix/Linux/macOS or `d:\\repo` for Windows. If not provided, the current workspace folder will be used. Prefer searching over the whole repo to get a more comprehensive result.',
                     },
                     query: {
                         type: 'string',
                         description:
-                            'The text pattern to search for in files. Can be a simple string or a regular expression pattern.',
+                            'The text pattern to search for in files. Can be a simple string or a regular expression pattern. Use the exact keyword from user prompts directly. If the keyword is in plural form, try to search for singular form for more matches.',
                     },
                     caseSensitive: {
                         type: 'boolean',

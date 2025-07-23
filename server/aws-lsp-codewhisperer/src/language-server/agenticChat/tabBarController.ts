@@ -21,6 +21,8 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { ChatHistoryActionType } from '../../shared/telemetry/types'
 import { CancellationError } from '@aws/lsp-core'
 
+const MaxRestoredHistoryMessages = 250
+
 /**
  * Controller for managing chat history and export functionality.
  *
@@ -39,11 +41,18 @@ export class TabBarController {
     #features: Features
     #chatHistoryDb: ChatDatabase
     #telemetryService: TelemetryService
+    #sendPinnedContext: (tabId: string) => void
 
-    constructor(features: Features, chatHistoryDb: ChatDatabase, telemetryService: TelemetryService) {
+    constructor(
+        features: Features,
+        chatHistoryDb: ChatDatabase,
+        telemetryService: TelemetryService,
+        sendPinnedContext: (tabId: string) => void
+    ) {
         this.#features = features
         this.#chatHistoryDb = chatHistoryDb
         this.#telemetryService = telemetryService
+        this.#sendPinnedContext = sendPinnedContext
     }
 
     /**
@@ -285,13 +294,18 @@ export class TabBarController {
      */
     async restoreTab(selectedTab?: Tab | null) {
         if (selectedTab) {
-            const messages = selectedTab.conversations.flatMap((conv: Conversation) =>
-                conv.messages.filter(msg => msg.shouldDisplayMessage != false).flatMap(msg => messageToChatMessage(msg))
-            )
+            const messages = selectedTab.conversations
+                .flatMap((conv: Conversation) =>
+                    conv.messages
+                        .filter(msg => msg.shouldDisplayMessage != false)
+                        .flatMap(msg => messageToChatMessage(msg))
+                )
+                .slice(-MaxRestoredHistoryMessages)
 
             const { tabId } = await this.#features.chat.openTab({ newTabOptions: { data: { messages } } })
             this.#chatHistoryDb.setHistoryIdMapping(tabId, selectedTab.historyId)
             this.#chatHistoryDb.updateTabOpenState(tabId, true)
+            this.#sendPinnedContext(tabId)
         }
     }
 
@@ -306,9 +320,7 @@ export class TabBarController {
         const openConversations = this.#chatHistoryDb.getOpenTabs()
         if (openConversations) {
             for (const conversation of openConversations) {
-                if (conversation.conversations && conversation.conversations.length > 0) {
-                    await this.restoreTab(conversation)
-                }
+                await this.restoreTab(conversation)
             }
             this.#telemetryService.emitLoadHistory({
                 amazonqTimeToLoadHistory: this.#chatHistoryDb.getLoadTime() ?? -1,
@@ -322,6 +334,15 @@ export class TabBarController {
 
     public static enableChatExport(params?: InitializeParams) {
         if (params?.initializationOptions?.aws?.awsClientCapabilities?.window?.showSaveFileDialog) {
+            // Export Chat UX flow relies on show Save File dialog protocol supported by client
+            return true
+        }
+
+        return false
+    }
+
+    public static enableShowLogs(params?: InitializeParams) {
+        if (params?.initializationOptions?.aws?.awsClientCapabilities?.window?.showLogs) {
             // Export Chat UX flow relies on show Save File dialog protocol supported by client
             return true
         }

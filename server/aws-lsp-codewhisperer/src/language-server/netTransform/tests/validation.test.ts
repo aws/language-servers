@@ -16,6 +16,7 @@ const sampleStartTransformRequest: StartTransformRequest = {
     ProjectMetadata: [],
     TransformNetStandardProjects: false,
     EnableRazorViewTransform: false,
+    EnableWebFormsTransform: false,
     command: '',
     PackageReferences: [],
 }

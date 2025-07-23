@@ -7,6 +7,7 @@ import { CommandValidation, InvokeOutput, OutputKind } from '../toolShared'
 import type { McpToolDefinition } from './mcpTypes'
 import type { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { McpManager } from './mcpManager'
+import { sanitizeName } from './mcpUtils'
 
 export class McpTool {
     constructor(
@@ -16,7 +17,7 @@ export class McpTool {
 
     public getSpec() {
         return {
-            name: this.def.toolName,
+            name: sanitizeName(this.def.toolName),
             description: this.def.description,
             inputSchema: this.def.inputSchema,
         } as const
@@ -33,8 +34,12 @@ export class McpTool {
         writer.releaseLock()
     }
 
-    public requiresAcceptance(_input: any): CommandValidation {
-        return { requiresAcceptance: false }
+    public requiresAcceptance(serverName: string, toolName: string): CommandValidation {
+        const required = McpManager.instance.requiresApproval(serverName, toolName)
+        return {
+            requiresAcceptance: required,
+            warning: `About to invoke MCP tool “${this.def.toolName}”. Do you want to proceed?`,
+        }
     }
 
     public async invoke(input: any): Promise<InvokeOutput> {

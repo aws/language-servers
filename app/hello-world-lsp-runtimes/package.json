@@ -15,7 +15,7 @@
     },
     "dependencies": {
         "@aws/hello-world-lsp": "^0.0.1",
-        "@aws/language-server-runtimes": "^0.2.90"
+        "@aws/language-server-runtimes": "^0.2.112"
     },
     "devDependencies": {
         "@types/chai": "^4.3.5",

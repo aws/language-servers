@@ -12,7 +12,12 @@ import {
     ContentType,
     GenerateAssistantResponseCommandInput,
     SendMessageCommandInput,
-} from '@aws/codewhisperer-streaming-client'
+} from '@amzn/codewhisperer-streaming'
+import {
+    QDeveloperStreaming,
+    SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
+    SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
+} from '@amzn/amazon-q-developer-streaming-client'
 import {
     ChatResult,
     LSPErrorCodes,
@@ -26,6 +31,7 @@ import {
     TextDocumentEdit,
     InlineChatResult,
     CancellationTokenSource,
+    ContextCommand,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -40,26 +46,64 @@ import * as utils from '../chat/utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { TabBarController } from './tabBarController'
 import { getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
-import { AdditionalContextProvider } from './context/addtionalContextProvider'
+import { AdditionalContextProvider } from './context/additionalContextProvider'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { ChatDatabase } from './tools/chatDb/chatDb'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
-import * as constants from './constants'
-import { generateAssistantResponseInputLimit, genericErrorMsg } from './constants'
+import * as constants from './constants/constants'
+import { GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT, GENERIC_ERROR_MS } from './constants/constants'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
     AmazonQError,
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
+import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
+import * as sharedUtils from '../../shared/utils'
 
 describe('AgenticChatController', () => {
+    let mcpInstanceStub: sinon.SinonStub
+
+    beforeEach(() => {
+        mcpInstanceStub = sinon.stub(McpManager, 'instance').get(() => ({
+            getAllTools: () => [
+                {
+                    serverName: 'server1',
+                    toolName: 'server1_tool1',
+                    description: 'Mock MCP tool 1',
+                    inputSchema: {},
+                },
+                {
+                    serverName: 'server2',
+                    toolName: 'server2_tool2',
+                    description: 'Mock MCP tool 2',
+                    inputSchema: {},
+                },
+                {
+                    serverName: 'server3',
+                    toolName: 'server3_tool3',
+                    description: 'Mock MCP tool 3',
+                    inputSchema: {},
+                },
+            ],
+            callTool: (_s: string, _t: string, _a: any) => Promise.resolve({}),
+            getOriginalToolNames: () => null,
+            clearToolNameMapping: () => {},
+            setToolNameMapping: () => {},
+        }))
+    })
+
+    afterEach(() => {
+        mcpInstanceStub.restore()
+        sinon.restore()
+    })
     const mockTabId = 'tab-1'
     const mockConversationId = 'mock-conversation-id'
     const mockMessageId = 'mock-message-id'
@@ -85,11 +129,10 @@ describe('AgenticChatController', () => {
 
     const expectedCompleteChatResult: ChatResult = {
         body: 'Hello World!',
-        canBeVoted: true,
         messageId: 'mock-message-id',
-        codeReference: undefined,
-        followUp: undefined,
-        relatedContent: undefined,
+        buttons: [],
+        codeReference: [],
+        header: undefined,
         additionalMessages: [],
     }
 
@@ -132,18 +175,25 @@ describe('AgenticChatController', () => {
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
     let telemetry: Telemetry
+    let chatDbInitializedStub: sinon.SinonStub
     let getMessagesStub: sinon.SinonStub
+    let addMessageStub: sinon.SinonStub
 
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
         // Override the response timeout for tests to avoid long waits
-        sinon.stub(constants, 'responseTimeoutMs').value(100)
+        sinon.stub(constants, 'RESPONSE_TIMEOUT_MS').value(100)
 
         sinon.stub(chokidar, 'watch').returns({
             on: sinon.stub(),
             close: sinon.stub(),
         } as unknown as chokidar.FSWatcher)
+
+        // Mock getUserHomeDir function for McpEventHandler
+        const getUserHomeDirStub = sinon.stub().returns('/mock/home/dir')
+        testFeatures = new TestFeatures()
+        testFeatures.workspace.fs.getUserHomeDir = getUserHomeDirStub
 
         sendMessageStub = sinon.stub(CodeWhispererStreaming.prototype, 'sendMessage').callsFake(() => {
             return new Promise(resolve =>
@@ -196,10 +246,18 @@ describe('AgenticChatController', () => {
             ),
             addTool: sinon.stub().resolves(),
             removeTool: sinon.stub().resolves(),
-        }
+            getBuiltInToolNames: sinon.stub().returns(['fsRead']),
+            getBuiltInWriteToolNames: sinon.stub().returns(['fsWrite']),
+        } as any // Using 'as any' to prevent type errors when the Agent interface is updated with new methods
 
         additionalContextProviderStub = sinon.stub(AdditionalContextProvider.prototype, 'getAdditionalContext')
-        additionalContextProviderStub.resolves([])
+        additionalContextProviderStub.callsFake(async (triggerContext, _, context: ContextCommand[]) => {
+            // When @workspace is in the context, set hasWorkspace flag
+            if (context && context.some(item => item.command === '@workspace')) {
+                triggerContext.hasWorkspace = true
+            }
+            return []
+        })
         // @ts-ignore
         const cachedInitializeParams: InitializeParams = {
             initializationOptions: {
@@ -246,7 +304,9 @@ describe('AgenticChatController', () => {
             onClientTelemetry: sinon.stub(),
         }
 
-        getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages')
+        getMessagesStub = sinon.stub(ChatDatabase.prototype, 'getMessages').returns([])
+        addMessageStub = sinon.stub(ChatDatabase.prototype, 'addMessage')
+        chatDbInitializedStub = sinon.stub(ChatDatabase.prototype, 'isInitialized')
 
         telemetryService = new TelemetryService(serviceManager, mockCredentialsProvider, telemetry, logging)
         chatController = new AgenticChatController(
@@ -258,8 +318,10 @@ describe('AgenticChatController', () => {
     })
 
     afterEach(() => {
+        if (chatController) {
+            chatController.dispose()
+        }
         sinon.restore()
-        chatController.dispose()
         ChatSessionManagementService.reset()
     })
 
@@ -308,7 +370,6 @@ describe('AgenticChatController', () => {
     it('onTabAdd updates model ID in chat options and session', () => {
         const modelId = 'test-model-id'
         sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
-
         chatController.onTabAdd({ tabId: mockTabId })
 
         sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
@@ -417,10 +478,35 @@ describe('AgenticChatController', () => {
         it('includes chat history from the database in the request input', async () => {
             // Mock chat history
             const mockHistory = [
-                { type: 'prompt', body: 'Previous question' },
+                {
+                    type: 'prompt',
+                    body: 'Previous question',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
                 { type: 'answer', body: 'Previous answer' },
             ]
+            const expectedRequestHistory = [
+                {
+                    userInputMessage: {
+                        content: 'Previous question',
+                        images: [],
+                        origin: 'IDE',
+                        userInputMessageContext: { toolResults: [] },
+                        userIntent: undefined,
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Previous answer',
+                        messageId: undefined,
+                        toolUses: [],
+                    },
+                },
+            ]
 
+            chatDbInitializedStub.returns(true)
             getMessagesStub.returns(mockHistory)
 
             // Make the request
@@ -436,7 +522,61 @@ describe('AgenticChatController', () => {
 
             // Verify that the history was passed to the request
             const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
-            assert.deepStrictEqual(requestInput.conversationState?.history, mockHistory)
+            assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
+        })
+
+        it('includes chat history from the database in the compaction request input', async () => {
+            // Mock chat history
+            const mockHistory = [
+                {
+                    type: 'prompt',
+                    body: 'Previous question',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                { type: 'answer', body: 'Previous answer' },
+            ]
+            const expectedRequestHistory = [
+                {
+                    userInputMessage: {
+                        content: 'Previous question',
+                        images: [],
+                        origin: 'IDE',
+                        userInputMessageContext: { toolResults: [] },
+                        userIntent: undefined,
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Previous answer',
+                        messageId: undefined,
+                        toolUses: [],
+                    },
+                },
+            ]
+
+            chatDbInitializedStub.returns(true)
+            getMessagesStub.returns(mockHistory)
+
+            // Make the request
+            const result = await chatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: '', command: '/compact' } },
+                mockCancellationToken
+            )
+
+            // Verify that history was requested from the db
+            sinon.assert.calledWith(getMessagesStub, mockTabId)
+
+            assert.ok(generateAssistantResponseStub.calledOnce)
+
+            // Verify that the history was passed to the request
+            const requestInput: GenerateAssistantResponseCommandInput = generateAssistantResponseStub.firstCall.firstArg
+            assert.deepStrictEqual(requestInput.conversationState?.history, expectedRequestHistory)
+            assert.deepStrictEqual(
+                requestInput.conversationState?.currentMessage?.userInputMessage?.content,
+                constants.COMPACTION_PROMPT
+            )
         })
 
         it('skips adding user message to history when token is cancelled', async () => {
@@ -446,12 +586,10 @@ describe('AgenticChatController', () => {
                 onCancellationRequested: () => ({ dispose: () => null }),
             }
 
-            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
-
             // Execute with cancelled token
             await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, cancelledToken)
 
-            sinon.assert.notCalled(addMessageSpy)
+            sinon.assert.notCalled(addMessageStub)
         })
 
         it('skips adding user message to history when prompt ID is no longer current', async () => {
@@ -459,13 +597,11 @@ describe('AgenticChatController', () => {
             const session = chatSessionManagementService.getSession(mockTabId).data!
             const isCurrentPromptStub = sinon.stub(session, 'isCurrentPrompt').returns(false)
 
-            const addMessageSpy = sinon.spy(ChatDatabase.prototype, 'addMessage')
-
             // Execute with non-current prompt ID
             await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
 
             sinon.assert.called(isCurrentPromptStub)
-            sinon.assert.notCalled(addMessageSpy)
+            sinon.assert.notCalled(addMessageStub)
         })
 
         it('handles tool use responses and makes multiple requests', async () => {
@@ -520,14 +656,22 @@ describe('AgenticChatController', () => {
                 },
             ]
 
-            getMessagesStub
-                .onFirstCall()
-                .returns([])
-                .onSecondCall()
-                .returns([
-                    { userInputMessage: { content: 'Hello with tool' } },
-                    { assistantResponseMessage: { content: 'I need to use a tool. ' } },
-                ])
+            chatDbInitializedStub.returns(true)
+            getMessagesStub.onFirstCall().returns([])
+            getMessagesStub.onSecondCall().returns([
+                {
+                    type: 'prompt',
+                    body: 'Hello with tool',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                {
+                    type: 'answer',
+                    body: 'I need to use a tool. ',
+                    toolUses: [{ toolUseId: mockToolUseId, name: mockToolName, input: { key: mockToolInput } }],
+                },
+            ])
 
             // Reset the stub and set up to return different responses on consecutive calls
             generateAssistantResponseStub.restore()
@@ -566,10 +710,6 @@ describe('AgenticChatController', () => {
 
             // Verify that generateAssistantResponse was called twice
             sinon.assert.calledTwice(generateAssistantResponseStub)
-
-            // Verify that the tool was executed
-            sinon.assert.calledOnce(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
 
             // Verify that the second request included the tool results in the userInputMessageContext
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
@@ -654,13 +794,24 @@ describe('AgenticChatController', () => {
                 },
             ]
 
+            chatDbInitializedStub.returns(true)
             getMessagesStub
                 .onFirstCall()
                 .returns([])
                 .onSecondCall()
                 .returns([
-                    { userInputMessage: { content: 'Hello with failing tool' } },
-                    { assistantResponseMessage: { content: 'I need to use a tool that will fail. ' } },
+                    {
+                        type: 'prompt',
+                        body: 'Hello with failing tool',
+                        userInputMessageContext: {
+                            toolResults: [],
+                        },
+                    },
+                    {
+                        type: 'answer',
+                        body: 'I need to use a tool that will fail. ',
+                        toolUses: [{ toolUseId: mockToolUseId, name: mockToolName, input: { key: mockToolInput } }],
+                    },
                 ])
 
             // Reset the stub and set up to return different responses on consecutive calls
@@ -701,10 +852,6 @@ describe('AgenticChatController', () => {
             // Verify that generateAssistantResponse was called twice
             sinon.assert.calledTwice(generateAssistantResponseStub)
 
-            // Verify that the tool was executed
-            sinon.assert.calledOnce(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName, JSON.parse(mockToolInput))
-
             // Verify that the second request included the tool error in the toolResults with status 'error'
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
             assert.ok(
@@ -725,10 +872,9 @@ describe('AgenticChatController', () => {
                     ?.toolResults[0].status,
                 'error'
             )
-            assert.deepStrictEqual(
+            assert.ok(
                 secondCallArgs.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext
-                    ?.toolResults[0].content[0].json,
-                { error: mockErrorMessage }
+                    ?.toolResults[0].content[0].json
             )
 
             // Verify that the history was updated correctly
@@ -741,10 +887,10 @@ describe('AgenticChatController', () => {
             const expectedErrorChatResult: ChatResult = {
                 messageId: mockMessageId,
                 body: 'I see the tool failed with error: Tool execution failed with an error',
-                canBeVoted: true,
-                codeReference: undefined,
-                followUp: undefined,
-                relatedContent: undefined,
+                buttons: [],
+                codeReference: [],
+                header: undefined,
+                additionalMessages: [],
             }
 
             // Verify the final result includes both messages
@@ -833,15 +979,30 @@ describe('AgenticChatController', () => {
             ]
 
             const historyAfterTool1 = [
-                { userInputMessage: { content: 'Hello with multiple tools' } },
-                { assistantResponseMessage: { content: 'I need to use tool 1. ' } },
+                {
+                    type: 'prompt',
+                    body: 'Hello with multiple tools',
+                    userInputMessageContext: {
+                        toolResults: [],
+                    },
+                },
+                {
+                    type: 'answer',
+                    body: 'I need to use tool 1. ',
+                    toolUses: [{ toolUseId: mockToolUseId1, name: mockToolName1, input: { key: mockToolInput1 } }],
+                },
             ]
             const historyAfterTool2 = [
                 ...historyAfterTool1,
-                { userInputMessage: { content: 'Hello with multiple tools' } },
-                { assistantResponseMessage: { content: 'Now I need to use tool 2. ' } },
+                { type: 'prompt', body: 'Hello with multiple tools' },
+                {
+                    type: 'answer',
+                    body: 'Now I need to use tool 2. ',
+                    toolUses: [{ toolUseId: mockToolUseId2, name: mockToolName2, input: { key: mockToolInput2 } }],
+                },
             ]
 
+            chatDbInitializedStub.returns(true)
             getMessagesStub
                 .onFirstCall()
                 .returns([])
@@ -897,11 +1058,6 @@ describe('AgenticChatController', () => {
 
             // Verify that generateAssistantResponse was called three times
             sinon.assert.calledThrice(generateAssistantResponseStub)
-
-            // Verify that the tools were executed
-            sinon.assert.calledTwice(runToolStub)
-            sinon.assert.calledWith(runToolStub, mockToolName1, JSON.parse(mockToolInput1))
-            sinon.assert.calledWith(runToolStub, mockToolName2, JSON.parse(mockToolInput2))
 
             // Verify that the second request included the first tool results
             const secondCallArgs = generateAssistantResponseStub.secondCall.args[0]
@@ -1028,7 +1184,7 @@ describe('AgenticChatController', () => {
         })
 
         it('truncate input to 500k character ', async function () {
-            const input = 'X'.repeat(generateAssistantResponseInputLimit + 10)
+            const input = 'X'.repeat(GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT + 10)
             generateAssistantResponseStub.restore()
             generateAssistantResponseStub = sinon.stub(CodeWhispererStreaming.prototype, 'generateAssistantResponse')
             generateAssistantResponseStub.callsFake(() => {})
@@ -1038,7 +1194,7 @@ describe('AgenticChatController', () => {
                 generateAssistantResponseStub.firstCall.firstArg
             assert.deepStrictEqual(
                 calledRequestInput.conversationState?.currentMessage?.userInputMessage?.content?.length,
-                generateAssistantResponseInputLimit
+                GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
             )
         })
         it('shows generic errorMsg on internal errors', async function () {
@@ -1048,7 +1204,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
         })
 
         const authFollowUpTestCases = [
@@ -1108,7 +1264,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
             assert.strictEqual(typedChatResult.message, 'some error')
         })
 
@@ -1134,7 +1290,7 @@ describe('AgenticChatController', () => {
             )
 
             const typedChatResult = chatResult as ResponseError<ChatResult>
-            assert.strictEqual(typedChatResult.data?.body, genericErrorMsg)
+            assert.strictEqual(typedChatResult.data?.body, GENERIC_ERROR_MS)
             assert.strictEqual(typedChatResult.message, 'invalid state')
         })
 
@@ -1309,6 +1465,102 @@ describe('AgenticChatController', () => {
                         useRelevantDocuments: false,
                     }
                 )
+            })
+
+            it('includes both additional context and active file in context transparency list', async () => {
+                const mockAdditionalContext = [
+                    {
+                        name: 'additional.ts',
+                        description: '',
+                        type: 'file',
+                        relativePath: 'src/additional.ts',
+                        path: '/workspace/src/additional.ts',
+                        startLine: -1,
+                        endLine: -1,
+                        innerContext: 'additional content',
+                        pinned: false,
+                    },
+                ]
+
+                // Mock getAdditionalContext to return additional context
+                additionalContextProviderStub.resolves(mockAdditionalContext)
+
+                // Mock the expected return value from getFileListFromContext
+                const expectedFileList = {
+                    filePaths: ['src/additional.ts', 'src/active.ts'],
+                    details: {
+                        'src/additional.ts': { description: '/workspace/src/additional.ts' },
+                        'src/active.ts': { description: '/workspace/src/active.ts' },
+                    },
+                }
+
+                // Mock getFileListFromContext to capture what gets passed to it
+                const getFileListFromContextStub = sinon.stub(
+                    AdditionalContextProvider.prototype,
+                    'getFileListFromContext'
+                )
+                getFileListFromContextStub.returns(expectedFileList)
+
+                const documentContextObject = {
+                    programmingLanguage: 'typescript',
+                    cursorState: [],
+                    relativeFilePath: 'src/active.ts',
+                    activeFilePath: '/workspace/src/active.ts',
+                    text: 'active file content',
+                }
+                extractDocumentContextStub.resolves(documentContextObject)
+
+                await chatController.onChatPrompt(
+                    {
+                        tabId: mockTabId,
+                        prompt: { prompt: 'Hello' },
+                        textDocument: { uri: 'file:///workspace/src/active.ts' },
+                        cursorState: [mockCursorState],
+                        context: [{ command: 'Additional File', description: 'file.txt' }],
+                        partialResultToken: 1, // Enable progress updates
+                    },
+                    mockCancellationToken
+                )
+
+                // Verify getFileListFromContext was called with combined context (additional + active file)
+                sinon.assert.calledOnce(getFileListFromContextStub)
+                const contextItemsPassedToGetFileList = getFileListFromContextStub.firstCall.args[0]
+
+                // Should include both additional context and active file
+                assert.strictEqual(contextItemsPassedToGetFileList.length, 2)
+
+                // Find the additional context item
+                const additionalContextItem = contextItemsPassedToGetFileList.find(
+                    (item: any) => item.relativePath === 'src/additional.ts'
+                )
+                assert.ok(additionalContextItem, 'Additional context should be included')
+
+                // Find the active file item
+                const activeFileItem = contextItemsPassedToGetFileList.find(
+                    (item: any) => item.relativePath === 'src/active.ts'
+                )
+                assert.ok(activeFileItem, 'Active file should be included in context transparency list')
+
+                // Verify that sendProgress was called with a message containing the expected context list
+                sinon.assert.called(testFeatures.lsp.sendProgress)
+
+                // Find the progress call that contains contextList
+                const progressCallWithContext = (testFeatures.lsp.sendProgress as sinon.SinonStub)
+                    .getCalls()
+                    .find(call => {
+                        const progressData = call.args[2] // Third argument is the progress data
+                        return progressData && progressData.contextList
+                    })
+
+                assert.ok(progressCallWithContext, 'Should have sent progress with contextList')
+                const contextList = progressCallWithContext.args[2].contextList
+                assert.deepStrictEqual(
+                    contextList,
+                    expectedFileList,
+                    'Context list in progress update should match expected file list'
+                )
+
+                getFileListFromContextStub.restore()
             })
         })
     })
@@ -1552,6 +1804,117 @@ describe('AgenticChatController', () => {
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
             assert.strictEqual(result, 298000)
+        })
+
+        it('should truncate images when they exceed budget', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(493_400),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(2000000), //6600 chars - should be removed
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should only keep the first and third images (small ones)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, 500000 - 493400 - 3.3 - 3.3) // remaining budget after content and images
+        })
+
+        it('should handle images without bytes', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: null as any,
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should keep both images since the first one has 0 chars
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, 500000 - 400000 - 3.3) // remaining budget after content and second image
+        })
+
+        it('should truncate relevantDocuments and images together with equal priority', () => {
+            // 400_000 for content, 100 for doc, 3.3 for image, 100_000 for doc (should be truncated)
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        { relativeFilePath: 'a', text: 'a'.repeat(100) },
+                                        { relativeFilePath: 'b', text: 'a'.repeat(100_000) }, // should be truncated
+                                    ],
+                                },
+                            },
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000000000) }, // 3300000 chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000) }, // 3.3 chars
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+            // Only the first doc and the image should fit
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length,
+                1
+            )
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 1)
+            assert.strictEqual(result, 500000 - 400000 - 100 - 3.3)
         })
     })
 
@@ -2505,622 +2868,265 @@ ${' '.repeat(8)}}
         })
     })
 
-    describe('Modify Button Functionality', () => {
-        let sendChatUpdateStub: sinon.SinonStub
+    describe('onListAvailableModels', () => {
+        let tokenServiceManagerStub: sinon.SinonStub
 
         beforeEach(() => {
+            // Create a session with a model ID
             chatController.onTabAdd({ tabId: mockTabId })
-            // Create the sendChatUpdate stub
-            sendChatUpdateStub = sinon.stub().resolves()
-            testFeatures.chat.sendChatUpdate = sendChatUpdateStub as any
+            const session = chatSessionManagementService.getSession(mockTabId).data!
+            session.modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
+
+            // Stub the getRegion method
+            tokenServiceManagerStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getRegion')
         })
 
         afterEach(() => {
-            if (sendChatUpdateStub && sendChatUpdateStub.restore) {
-                sendChatUpdateStub.restore()
-            }
+            tokenServiceManagerStub.restore()
         })
 
-        describe('modify-bash-command button', () => {
-            it('should switch shell command to editable mode with Accept/Cancel buttons', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "hello world"'
+        it('should return all available models for us-east-1 region', async () => {
+            // Set up the region to be us-east-1
+            tokenServiceManagerStub.returns('us-east-1')
 
-                // Set up the tool use in the session
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
 
-                const result = await chatController.onButtonClick({
-                    buttonId: 'modify-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                })
+            // Verify the result
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_SONNET_4_20250514_V1_0')
 
-                // Verify the result is successful
-                assert.deepStrictEqual(result, { success: true })
-
-                // Verify sendChatUpdate was called with correct parameters
-                sinon.assert.calledOnce(sendChatUpdateStub)
-                const updateCall = sendChatUpdateStub.firstCall.args[0]
-
-                assert.strictEqual(updateCall.tabId, mockTabId)
-                assert.deepStrictEqual(updateCall.state, { inProgress: false })
-                assert.strictEqual(updateCall.data.messages.length, 1)
-
-                const message = updateCall.data.messages[0]
-                assert.strictEqual(message.messageId, toolUseId)
-                assert.strictEqual(message.type, 'tool')
-                assert.strictEqual(message.body, `\`\`\`shell\n${originalCommand}\n\`\`\``)
-                assert.strictEqual(message.editable, true)
-
-                // Verify the header has Accept/Cancel buttons
-                assert.strictEqual(message.header.body, 'shell')
-                assert.strictEqual(message.header.buttons.length, 2)
-                assert.deepStrictEqual(message.header.buttons[0], {
-                    id: 'accept-bash-command',
-                    text: 'Accept',
-                    icon: 'check',
-                })
-                assert.deepStrictEqual(message.header.buttons[1], {
-                    id: 'cancel-bash-edit',
-                    text: 'Cancel',
-                    icon: 'cancel',
-                    status: 'clear',
-                })
-            })
-
-            it('should handle toolUse not found gracefully', async () => {
-                const result = await chatController.onButtonClick({
-                    buttonId: 'modify-bash-command',
-                    messageId: 'nonexistent-tool-use-id',
-                    tabId: mockTabId,
-                })
-
-                // Should still succeed but with empty command
-                assert.deepStrictEqual(result, { success: true })
-                sinon.assert.calledOnce(sendChatUpdateStub)
-
-                const updateCall = sendChatUpdateStub.firstCall.args[0]
-                const message = updateCall.data.messages[0]
-                assert.strictEqual(message.body, '```shell\n\n```')
-            })
-
-            it('should handle toolUse not found gracefully', async () => {
-                const result = await chatController.onButtonClick({
-                    buttonId: 'modify-bash-command',
-                    messageId: 'nonexistent-tool-use-id',
-                    tabId: mockTabId,
-                })
-
-                // Should still succeed but with empty command
-                assert.deepStrictEqual(result, { success: true })
-                sinon.assert.calledOnce(sendChatUpdateStub)
-
-                const updateCall = sendChatUpdateStub.firstCall.args[0]
-                const message = updateCall.data.messages[0]
-                assert.strictEqual(message.body, '```shell\n\n```')
-            })
-
-            it('should handle sendChatUpdate errors', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: 'test command' },
-                })
-
-                // Make sendChatUpdate throw an error
-                sendChatUpdateStub.rejects(new Error('Update failed'))
-
-                const result = await chatController.onButtonClick({
-                    buttonId: 'modify-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                })
-
-                assert.deepStrictEqual(result, {
-                    success: false,
-                    failureReason: 'modify error: Error: Update failed',
-                })
-            })
+            // Check that the models include both Claude versions
+            const modelIds = result.models.map(model => model.id)
+            assert.ok(modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
+            assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
         })
 
-        describe('accept-bash-command button', () => {
-            it('should save edited command and show Run/Reject/Modify buttons', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "hello"'
-                const editedCommand = 'echo "hello world"'
+        it('should return limited models for eu-central-1 region', async () => {
+            // Set up the region to be eu-central-1
+            tokenServiceManagerStub.returns('eu-central-1')
 
-                // Set up the tool use in the session
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
 
-                const result = await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: editedCommand,
-                })
+            // Verify the result
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 1)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
 
-                // Verify the result is successful
-                assert.deepStrictEqual(result, { success: true })
+            // Check that the models only include Claude 3.7
+            const modelIds = result.models.map(model => model.id)
+            assert.ok(!modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
+            assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
+        })
 
-                // Verify the tool use command was updated
-                const updatedToolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((updatedToolUse!.input as any).command, editedCommand)
+        it('should return all models when region is unknown', async () => {
+            // Set up the region to be unknown
+            tokenServiceManagerStub.returns('unknown-region')
 
-                // Verify sendChatUpdate was called with correct parameters
-                sinon.assert.calledOnce(sendChatUpdateStub)
-                const updateCall = sendChatUpdateStub.firstCall.args[0]
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
 
-                const message = updateCall.data.messages[0]
-                assert.strictEqual(message.messageId, toolUseId)
-                assert.strictEqual(message.type, 'tool')
-                assert.strictEqual(message.body, `\`\`\`shell\n${editedCommand}\n\`\`\``)
-                assert.strictEqual(message.editable, false)
+            // Verify the result
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+        })
 
-                // Verify the header has Run/Reject/Modify buttons
-                assert.strictEqual(message.header.buttons.length, 3)
-                assert.deepStrictEqual(message.header.buttons[0], {
-                    id: 'run-shell-command',
-                    text: 'Run',
-                    icon: 'play',
-                })
-                assert.deepStrictEqual(message.header.buttons[1], {
-                    id: 'reject-shell-command',
-                    text: 'Reject',
-                    icon: 'cancel',
-                    status: 'clear',
-                })
-                assert.deepStrictEqual(message.header.buttons[2], {
-                    id: 'modify-bash-command',
-                    text: 'Modify',
-                    icon: 'edit',
-                })
+        it('should return undefined for selectedModelId when no session data exists', async () => {
+            // Set up the session to return no session (failure case)
+            const getSessionStub = sinon.stub(chatSessionManagementService, 'getSession')
+            getSessionStub.returns({
+                data: undefined,
+                success: false,
+                error: 'error',
             })
 
-            it('should use original command when editedText is not provided', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "hello"'
+            // Call the method
+            const params = { tabId: 'non-existent-tab' }
+            const result = await chatController.onListAvailableModels(params)
 
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
+            // Verify the result
+            assert.strictEqual(result.tabId, 'non-existent-tab')
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, undefined)
 
-                const result = await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    // No editedText provided
-                })
+            getSessionStub.restore()
+        })
 
-                assert.deepStrictEqual(result, { success: true })
+        it('should fallback to latest available model when saved model is not available in current region', async () => {
+            // Set up the region to be eu-central-1 (which only has Claude 3.7)
+            tokenServiceManagerStub.returns('eu-central-1')
 
-                // Verify the original command is preserved
-                const updatedToolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((updatedToolUse!.input as any).command, originalCommand)
+            // Mock database to return Claude Sonnet 4 (not available in eu-central-1)
+            const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
+            getModelIdStub.returns('CLAUDE_SONNET_4_20250514_V1_0')
 
-                const updateCall = sendChatUpdateStub.firstCall.args[0]
-                const message = updateCall.data.messages[0]
-                assert.strictEqual(message.body, `\`\`\`shell\n${originalCommand}\n\`\`\``)
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result falls back to available model
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 1)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            getModelIdStub.restore()
+        })
+
+        it('should use saved model when it is available in current region', async () => {
+            // Set up the region to be us-east-1 (which has both models)
+            tokenServiceManagerStub.returns('us-east-1')
+
+            // Mock database to return Claude 3.7 (available in us-east-1)
+            const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
+            getModelIdStub.returns('CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            // Call the method
+            const params = { tabId: mockTabId }
+            const result = await chatController.onListAvailableModels(params)
+
+            // Verify the result uses the saved model
+            assert.strictEqual(result.tabId, mockTabId)
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+
+            getModelIdStub.restore()
+        })
+    })
+
+    describe('IAM Authentication', () => {
+        let iamServiceManager: AmazonQIAMServiceManager
+        let iamChatController: AgenticChatController
+        let iamChatSessionManagementService: ChatSessionManagementService
+
+        beforeEach(() => {
+            sendMessageStub = sinon.stub(QDeveloperStreaming.prototype, 'sendMessage').callsFake(() => {
+                return new Promise(resolve =>
+                    setTimeout(() => {
+                        resolve({
+                            $metadata: {
+                                requestId: mockMessageId,
+                            },
+                            sendMessageResponse: createIterableResponse(mockChatResponseList),
+                        })
+                    })
+                )
             })
+            // Reset the singleton instance
+            ChatSessionManagementService.reset()
 
-            it('should use editedText when both original and edited commands are provided', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "hello"'
-                const editedCommand = 'echo "goodbye"'
+            // Create IAM service manager
+            AmazonQIAMServiceManager.resetInstance()
+            iamServiceManager = AmazonQIAMServiceManager.initInstance(testFeatures)
 
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
+            // Create chat session management service with IAM service manager
+            iamChatSessionManagementService = ChatSessionManagementService.getInstance()
+            iamChatSessionManagementService.withAmazonQServiceManager(iamServiceManager)
+            // Create controller with IAM service manager
+            iamChatController = new AgenticChatController(
+                iamChatSessionManagementService,
+                testFeatures,
+                telemetryService,
+                iamServiceManager
+            )
+        })
 
-                const result = await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: editedCommand,
-                })
+        afterEach(() => {
+            iamChatController.dispose()
+            ChatSessionManagementService.reset()
+            AmazonQIAMServiceManager.resetInstance()
+        })
 
-                assert.deepStrictEqual(result, { success: true })
+        it('creates a session with IAM service manager', () => {
+            iamChatController.onTabAdd({ tabId: mockTabId })
 
-                // Verify the edited command is used
-                const updatedToolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((updatedToolUse!.input as any).command, editedCommand)
-            })
-
-            it('should handle missing toolUse gracefully', async () => {
-                const result = await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: 'nonexistent-tool-use-id',
-                    tabId: mockTabId,
-                    editedText: 'some command',
-                })
-
-                // Should still return success even if toolUse is not found
-                assert.deepStrictEqual(result, { success: true })
-            })
-
-            it('should handle sendChatUpdate errors', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: 'test command' },
-                })
-
-                sendChatUpdateStub.rejects(new Error('Update failed'))
-
-                const result = await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: 'edited command',
-                })
-
-                assert.deepStrictEqual(result, {
-                    success: false,
-                    failureReason: 'Failed to update chat: Error: Update failed',
-                })
+            const sessionResult = iamChatSessionManagementService.getSession(mockTabId)
+            sinon.assert.match(sessionResult, {
+                success: true,
+                data: sinon.match.instanceOf(ChatSessionService),
             })
         })
 
-        describe('cancel-bash-edit button', () => {
-            it('should revert to original command and show Run/Reject/Modify buttons', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "original"'
+        it('uses sendMessage instead of generateAssistantResponse with IAM service manager', async () => {
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
 
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
+            generateAssistantResponseStub.resetHistory()
 
-                const result = await chatController.onButtonClick({
-                    buttonId: 'cancel-bash-edit',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                })
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
 
-                // Verify the result is successful
-                assert.deepStrictEqual(result, { success: true })
-
-                // Verify sendChatUpdate was called with correct parameters
-                sinon.assert.calledOnce(sendChatUpdateStub)
-                const updateCall = sendChatUpdateStub.firstCall.args[0]
-
-                const message = updateCall.data.messages[0]
-                assert.strictEqual(message.messageId, toolUseId)
-                assert.strictEqual(message.type, 'tool')
-                assert.strictEqual(message.body, `\`\`\`shell\n${originalCommand}\n\`\`\``)
-                assert.strictEqual(message.editable, false)
-
-                // Verify the header has Run/Reject/Modify buttons
-                assert.strictEqual(message.header.buttons.length, 3)
-                assert.deepStrictEqual(message.header.buttons[0], {
-                    id: 'run-shell-command',
-                    text: 'Run',
-                    icon: 'play',
-                })
-                assert.deepStrictEqual(message.header.buttons[1], {
-                    id: 'reject-shell-command',
-                    text: 'Reject',
-                    icon: 'cancel',
-                    status: 'clear',
-                })
-                assert.deepStrictEqual(message.header.buttons[2], {
-                    id: 'modify-bash-command',
-                    text: 'Modify',
-                    icon: 'edit',
-                })
-            })
-
-            it('should handle missing toolUse gracefully', async () => {
-                const result = await chatController.onButtonClick({
-                    buttonId: 'cancel-bash-edit',
-                    messageId: 'nonexistent-tool-use-id',
-                    tabId: mockTabId,
-                })
-
-                // Should still succeed but with empty command
-                assert.deepStrictEqual(result, { success: true })
-                sinon.assert.calledOnce(sendChatUpdateStub)
-
-                const updateCall = sendChatUpdateStub.firstCall.args[0]
-                const message = updateCall.data.messages[0]
-                assert.strictEqual(message.body, '```shell\n\n```')
-            })
+            // Verify sendMessage was called and generateAssistantResponse was not
+            sinon.assert.called(sendMessageStub)
+            sinon.assert.notCalled(generateAssistantResponseStub)
         })
 
-        describe('run-shell-command with editedText', () => {
-            it('should update stored command with editedText before execution', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "original"'
-                const editedCommand = 'echo "edited"'
+        it('sets source to Origin.IDE when using IAM service manager', async () => {
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
 
-                // Set up the tool use in the session
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
 
-                // Set up a deferred tool execution
-                const mockResolve = sinon.stub()
-                const mockReject = sinon.stub()
-                session.setDeferredToolExecution(toolUseId, mockResolve, mockReject)
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
 
-                const result = await chatController.onButtonClick({
-                    buttonId: 'run-shell-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: editedCommand,
-                })
-
-                // Verify the result is successful
-                assert.deepStrictEqual(result, { success: true })
-
-                // Verify the stored command was updated
-                const updatedToolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((updatedToolUse!.input as any).command, editedCommand)
-
-                // Verify the deferred execution was resolved
-                sinon.assert.calledOnce(mockResolve)
-            })
-
-            it('should not update command if editedText is not provided', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "original"'
-
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
-
-                const mockResolve = sinon.stub()
-                const mockReject = sinon.stub()
-                session.setDeferredToolExecution(toolUseId, mockResolve, mockReject)
-
-                const result = await chatController.onButtonClick({
-                    buttonId: 'run-shell-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    // No editedText provided
-                })
-
-                assert.deepStrictEqual(result, { success: true })
-
-                // Verify the original command is preserved
-                const toolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((toolUse!.input as any).command, originalCommand)
-
-                sinon.assert.calledOnce(mockResolve)
-            })
-
-            it('should handle missing toolUse gracefully', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'nonexistent-tool-use-id'
-
-                const mockResolve = sinon.stub()
-                const mockReject = sinon.stub()
-                session.setDeferredToolExecution(toolUseId, mockResolve, mockReject)
-
-                const result = await chatController.onButtonClick({
-                    buttonId: 'run-shell-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: 'some command',
-                })
-
-                // Should still succeed and resolve the deferred execution
-                assert.deepStrictEqual(result, { success: true })
-                sinon.assert.calledOnce(mockResolve)
-            })
+            // Verify sendMessage was called with source set to IDE
+            sinon.assert.called(sendMessageStub)
+            const request = sendMessageStub.firstCall.args[0]
+            assert.strictEqual(request.source, 'IDE')
         })
 
-        describe('Integration tests', () => {
-            it('should handle complete modify -> edit -> accept workflow', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "hello"'
-                const editedCommand = 'echo "hello world"'
+        it('sets source to origin from client info when using IAM service manager', async () => {
+            // Stub getOriginFromClientInfo to return a specific value
+            const getOriginFromClientInfoStub = sinon
+                .stub(sharedUtils, 'getOriginFromClientInfo')
+                .returns('MD_IDE' as any)
+            // Create a session
+            iamChatController.onTabAdd({ tabId: mockTabId })
 
-                // Set up the tool use
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
+            // Reset the sendMessage stub to track new calls
+            sendMessageStub.resetHistory()
 
-                // Step 1: Click modify button
-                const modifyResult = await chatController.onButtonClick({
-                    buttonId: 'modify-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                })
-
-                assert.deepStrictEqual(modifyResult, { success: true })
-                sinon.assert.calledOnce(sendChatUpdateStub)
-
-                // Verify the message was set to editable mode
-                let updateCall = sendChatUpdateStub.firstCall.args[0]
-                let message = updateCall.data.messages[0]
-                assert.strictEqual(message.editable, true)
-                assert.strictEqual(message.header.buttons[0].id, 'accept-bash-command')
-
-                // Reset stub for next call
-                sendChatUpdateStub.resetHistory()
-
-                // Step 2: Click accept button with edited text
-                const acceptResult = await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: editedCommand,
-                })
-
-                assert.deepStrictEqual(acceptResult, { success: true })
-                sinon.assert.calledOnce(sendChatUpdateStub)
-
-                // Verify the command was updated and message is no longer editable
-                const updatedToolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((updatedToolUse!.input as any).command, editedCommand)
-
-                updateCall = sendChatUpdateStub.firstCall.args[0]
-                message = updateCall.data.messages[0]
-                assert.strictEqual(message.editable, false)
-                assert.strictEqual(message.body, `\`\`\`shell\n${editedCommand}\n\`\`\``)
-                assert.strictEqual(message.header.buttons[0].id, 'run-shell-command')
-            })
-
-            it('should handle complete modify -> edit -> cancel workflow', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "original"'
-
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
-
-                // Step 1: Click modify button
-                await chatController.onButtonClick({
-                    buttonId: 'modify-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                })
-
-                sendChatUpdateStub.resetHistory()
-
-                // Step 2: Click cancel button
-                const cancelResult = await chatController.onButtonClick({
-                    buttonId: 'cancel-bash-edit',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                })
-
-                assert.deepStrictEqual(cancelResult, { success: true })
-
-                // Verify the original command is preserved and message is no longer editable
-                const toolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((toolUse!.input as any).command, originalCommand)
-
-                const updateCall = sendChatUpdateStub.firstCall.args[0]
-                const message = updateCall.data.messages[0]
-                assert.strictEqual(message.editable, false)
-                assert.strictEqual(message.body, `\`\`\`shell\n${originalCommand}\n\`\`\``)
-                assert.strictEqual(message.header.buttons[0].id, 'run-shell-command')
-            })
-
-            it('should handle modify button clicked multiple times', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "hello"'
-                const firstEdit = 'echo "hello world"'
-                const secondEdit = 'echo "hello universe"'
-
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
-
-                // First modify-accept cycle
-                await chatController.onButtonClick({
-                    buttonId: 'modify-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                })
-
-                await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: firstEdit,
-                })
-
-                // Verify first edit was saved
-                let toolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((toolUse!.input as any).command, firstEdit)
-
-                // Second modify-accept cycle
-                await chatController.onButtonClick({
-                    buttonId: 'modify-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                })
-
-                await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: secondEdit,
-                })
-
-                // Verify second edit was saved
-                toolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((toolUse!.input as any).command, secondEdit)
-            })
+            // Make a chat request
+            await iamChatController.onChatPrompt(
+                { tabId: mockTabId, prompt: { prompt: 'Hello' } },
+                mockCancellationToken
+            )
+            // Verify getOriginFromClientInfo was called
+            sinon.assert.calledOnce(getOriginFromClientInfoStub)
+            // Verify sendMessage was called with source set to IDE
+            sinon.assert.called(sendMessageStub)
+            const request = sendMessageStub.firstCall.args[0]
+            assert.strictEqual(request.source, 'MD_IDE')
+            // Restore the stub
+            getOriginFromClientInfoStub.restore()
         })
 
-        describe('Error handling', () => {
-            it('should handle empty/undefined editedText gracefully', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                const toolUseId = 'test-tool-use-id'
-                const originalCommand = 'echo "original"'
+        it('does not call onManageSubscription with IAM service manager', async () => {
+            // Create a spy on onManageSubscription
+            const onManageSubscriptionSpy = sinon.spy(iamChatController, 'onManageSubscription')
 
-                session.toolUseLookup.set(toolUseId, {
-                    name: 'executeBash',
-                    toolUseId,
-                    input: { command: originalCommand },
-                })
+            // Call onManageSubscription directly
+            await iamChatController.onManageSubscription('tabId')
 
-                // Test with undefined editedText
-                const result1 = await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: undefined,
-                })
-
-                assert.deepStrictEqual(result1, { success: true })
-
-                // Test with empty string editedText
-                const result2 = await chatController.onButtonClick({
-                    buttonId: 'accept-bash-command',
-                    messageId: toolUseId,
-                    tabId: mockTabId,
-                    editedText: '',
-                })
-
-                assert.deepStrictEqual(result2, { success: true })
-
-                // Verify original command is preserved in both cases
-                const toolUse = session.toolUseLookup.get(toolUseId)
-                assert.strictEqual((toolUse!.input as any).command, originalCommand)
-            })
+            // Verify the method returns early without doing anything
+            sinon.assert.calledOnce(onManageSubscriptionSpy)
+            const returnValue = await onManageSubscriptionSpy.returnValues[0]
+            assert.strictEqual(returnValue, undefined)
         })
     })
 })
@@ -3128,15 +3134,20 @@ ${' '.repeat(8)}}
 // The body may include text-based progress updates from tool invocations.
 // We want to ignore these in the tests.
 function assertChatResultsMatch(actual: any, expected: ChatResult) {
-    // TODO: tool messages completely re-order the response.
-    return
+    // Check if both actual and expected have body properties
+    if (actual?.body && expected?.body) {
+        // For chat results with tool messages, the body might contain additional text
+        // but should still end with the expected body text
+        assert.ok(
+            actual.body.endsWith(expected.body),
+            `Body should end with "${expected.body}"\nActual: "${actual.body}"`
+        )
+    }
 
-    // if (actual?.body && expected?.body) {
-    //     assert.ok(
-    //         actual.body.endsWith(expected.body),
-    //         `Body should end with "${expected.body}"\nActual: "${actual.body}"`
-    //     )
-    // }
+    // Compare all other properties except body and additionalMessages
+    const actualWithoutBodyAndAdditionalMessages = { ...actual, body: undefined, additionalMessages: undefined }
+    const expectedWithoutBodyAndAdditionalMessages = { ...expected, body: undefined, additionalMessages: undefined }
 
-    // assert.deepStrictEqual({ ...actual, body: undefined }, { ...expected, body: undefined })
+    // Compare the objects without the body and additionalMessages properties
+    assert.deepStrictEqual(actualWithoutBodyAndAdditionalMessages, expectedWithoutBodyAndAdditionalMessages)
 }

@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-core",
-    "version": "0.0.9",
+    "version": "0.0.12",
     "description": "Core library, contains common code and utilities",
     "main": "out/index.js",
     "repository": {
@@ -22,12 +22,16 @@
         "compile": "tsc --build",
         "test": "npm run test-unit",
         "test-unit": "mocha --timeout 0 \"./out/**/*.test.js\"",
+        "test-unit:coverage": "npm run compile && c8 mocha --timeout 0 \"./out/**/*.test.js\"",
+        "test:coverage": "npm run test-unit:coverage",
+        "coverage:report": "c8 report --reporter=html --reporter=text",
         "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
+        "@aws/language-server-runtimes": "^0.2.112",
         "@gerhobbelt/gitignore-parser": "^0.2.0-9",
-        "jose": "^5.2.4",
         "cross-spawn": "7.0.6",
+        "jose": "^5.2.4",
         "request-light": "^0.8.0",
         "vscode-languageserver-textdocument": "^1.0.8",
         "vscode-languageserver-types": "^3.17.3",
@@ -35,10 +39,11 @@
     },
     "devDependencies": {
         "@types/chai": "^4.3.5",
-        "@types/cross-spawn": "^6.0.2",
         "@types/chai-as-promised": "^7.1.5",
+        "@types/cross-spawn": "^6.0.2",
         "@types/mocha": "^10.0.9",
         "@types/mock-fs": "^4.13.1",
+        "c8": "^10.1.2",
         "chai": "^4.3.7",
         "chai-as-promised": "^7.1.1",
         "mocha": "^11.0.1",

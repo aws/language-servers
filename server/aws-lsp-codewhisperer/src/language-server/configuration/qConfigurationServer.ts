@@ -35,9 +35,15 @@ interface QConfigurationSections {
 }
 
 // Feature flag interface for client capabilities
-interface QClientCapabilities {
+export interface QClientCapabilities {
     developerProfiles?: boolean
     customizationsWithMetadata?: boolean
+    mcp?: boolean
+    modelSelection?: boolean
+    reroute?: boolean
+    qCodeReviewInChat?: boolean
+    compaction?: boolean
+    shortcut?: boolean
 }
 
 type QConfigurationResponse =

@@ -1,4 +1,4 @@
-import { ChatTriggerType } from '@aws/codewhisperer-streaming-client'
+import { ChatTriggerType } from '@amzn/codewhisperer-streaming'
 import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
@@ -13,6 +13,13 @@ import {
     PromptInputOptionChangeParams,
     ButtonClickParams,
     ButtonClickResult,
+    ListMcpServersParams,
+    ListMcpServersResult,
+    McpServerClickParams,
+    McpServerClickResult,
+    RequestHandler,
+    OpenFileDialogParams,
+    OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -53,6 +60,7 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { SendMessageCommandInput, SendMessageCommandOutput } from '../../shared/streamingClientService'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { DEFAULT_IMAGE_VERIFICATION_OPTIONS } from '../../shared/imageVerification'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -64,11 +72,21 @@ type ChatHandlers = Omit<
     | 'onCreatePrompt'
     | 'onListConversations'
     | 'onConversationClick'
+    | 'onListMcpServers'
+    | 'onMcpServerClick'
     | 'getSerializedChat'
     | 'onTabBarAction'
     | 'chatOptionsUpdate'
-    | 'onListMcpServers'
-    | 'onMcpServerClick'
+    | 'onRuleClick'
+    | 'onListRules'
+    | 'sendPinnedContext'
+    | 'onActiveEditorChanged'
+    | 'onPinnedContextAdd'
+    | 'onPinnedContextRemove'
+    | 'onOpenFileDialog'
+    | 'onListAvailableModels'
+    | 'sendSubscriptionDetails'
+    | 'onSubscriptionUpgrade'
 >
 
 export class ChatController implements ChatHandlers {
@@ -582,5 +600,53 @@ export class ChatController implements ChatHandlers {
 
     #log(...messages: string[]) {
         this.#features.logging.log(messages.join(' '))
+    }
+
+    async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
+        if (params.fileType === 'image') {
+            try {
+                const supportedExtensions = DEFAULT_IMAGE_VERIFICATION_OPTIONS.supportedExtensions
+                const filters = { 'Image Files': supportedExtensions.map(ext => `*.${ext}`) }
+
+                const result = await this.#features.lsp.window.showOpenDialog({
+                    canSelectFiles: true,
+                    canSelectFolders: false,
+                    canSelectMany: false,
+                    filters,
+                })
+
+                if (result.uris && result.uris.length > 0) {
+                    return {
+                        tabId: params.tabId,
+                        filePaths: result.uris,
+                        fileType: params.fileType,
+                        insertPosition: params.insertPosition,
+                    }
+                } else {
+                    return {
+                        tabId: params.tabId,
+                        filePaths: [],
+                        fileType: params.fileType,
+                        insertPosition: params.insertPosition,
+                    }
+                }
+            } catch (error) {
+                this.#log('Error opening file dialog:', error instanceof Error ? error.message : String(error))
+                return {
+                    tabId: params.tabId,
+                    filePaths: [],
+                    errorMessage: 'Failed to open file dialog',
+                    fileType: params.fileType,
+                    insertPosition: params.insertPosition,
+                }
+            }
+        }
+        return {
+            tabId: params.tabId,
+            filePaths: [],
+            errorMessage: 'File type not supported',
+            fileType: params.fileType,
+            insertPosition: params.insertPosition,
+        }
     }
 }

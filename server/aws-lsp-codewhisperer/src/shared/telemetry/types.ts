@@ -202,10 +202,13 @@ export enum ChatTelemetryEventName {
     ToolUseSuggested = 'amazonq_toolUseSuggested',
     AgencticLoop_InvokeLLM = 'amazonq_invokeLLM',
     InteractWithAgenticChat = 'amazonq_interactWithAgenticChat',
+    MCPConfig = 'amazonq_mcpConfig',
+    MCPServerInit = 'amazonq_mcpServerInit',
     LoadHistory = 'amazonq_loadHistory',
     ChatHistoryAction = 'amazonq_performChatHistoryAction',
     ExportTab = 'amazonq_exportTab',
     UiClick = 'ui_click',
+    ActiveUser = 'amazonq_activeUser',
 }
 
 export interface ChatTelemetryEventMap {
@@ -222,10 +225,13 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.ToolUseSuggested]: ToolUseSuggestedEvent
     [ChatTelemetryEventName.AgencticLoop_InvokeLLM]: AgencticLoop_InvokeLLMEvent
     [ChatTelemetryEventName.InteractWithAgenticChat]: InteractWithAgenticChatEvent
+    [ChatTelemetryEventName.MCPConfig]: MCPConfigEvent
+    [ChatTelemetryEventName.MCPServerInit]: MCPServerInitializeEvent
     [ChatTelemetryEventName.LoadHistory]: LoadHistoryEvent
     [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
     [ChatTelemetryEventName.ExportTab]: ExportTabEvent
     [ChatTelemetryEventName.UiClick]: UiClickEvent
+    [ChatTelemetryEventName.ActiveUser]: ActiveUserEvent
 }
 
 export type AgencticLoop_InvokeLLMEvent = {
@@ -256,6 +262,11 @@ export type InteractWithAgenticChatEvent = {
     cwsprChatConversationType: ChatConversationType
     cwsprAgenticChatInteractionType: AgenticChatInteractionType
     enabled?: boolean
+}
+
+export type ActiveUserEvent = {
+    credentialStartUrl?: string
+    result: string
 }
 
 export type ModifyCodeEvent = {
@@ -291,6 +302,8 @@ export type AddMessageEvent = {
     enabled?: boolean
     languageServerVersion?: string
     requestIds?: string[]
+    experimentName?: string
+    userVariation?: string
 
     // context related metrics
     cwsprChatHasContextList?: boolean
@@ -299,11 +312,41 @@ export type AddMessageEvent = {
     cwsprChatFileContextLength?: number
     cwsprChatRuleContextCount?: number
     cwsprChatRuleContextLength?: number
+    cwsprChatTotalRuleContextCount?: number
     cwsprChatPromptContextCount?: number
     cwsprChatPromptContextLength?: number
     cwsprChatFocusFileContextLength?: number
     cwsprChatCodeContextCount?: number
     cwsprChatCodeContextLength?: number
+
+    //pinned context metrics
+    cwsprChatPinnedCodeContextCount?: number
+    cwsprChatPinnedFileContextCount?: number
+    cwsprChatPinnedFolderContextCount?: number
+    cwsprChatPinnedPromptContextCount?: number
+}
+
+// Agentic MCP Telemetry
+export type MCPConfigEvent = {
+    credentialStartUrl?: string
+    languageServerVersion?: string
+    numActiveServers?: number
+    numGlobalServers?: number
+    numProjectServers?: number
+    numToolsAlwaysAllowed?: number
+    numToolsDenied?: number
+}
+
+export type MCPServerInitializeEvent = {
+    command?: string
+    credentialStartUrl?: string
+    enabled?: boolean
+    initializeTime?: number
+    languageServerVersion?: string
+    numTools?: number
+    scope?: string
+    source?: string
+    transportType?: string
 }
 
 export type EnterFocusChatEvent = {

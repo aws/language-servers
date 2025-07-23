@@ -6,28 +6,48 @@ import * as Loki from 'lokijs'
 import {
     chatMessageToMessage,
     Conversation,
+    DEFAULT_PINNED_CONTEXT,
     FileSystemAdapter,
     groupTabsByDate,
     Message,
-    messageToStreamingMessage,
+    Rules,
     Settings,
     SettingsCollection,
     Tab,
     TabCollection,
+    TabContext,
     TabType,
+    calculateDatabaseSize,
     updateOrCreateConversation,
+    getChatDbNameFromWorkspaceId,
+    getSha256WorkspaceId,
+    getMd5WorkspaceId,
+    MessagesWithCharacterCount,
+    estimateCharacterCountFromImageBlock,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
-import { ChatMessage, ToolResultStatus } from '@aws/codewhisperer-streaming-client'
+import { ContextCommand, ConversationItemGroup } from '@aws/language-server-runtimes/protocol'
+import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import { ChatItemType } from '@aws/mynah-ui'
 import { getUserHomeDir } from '@aws/lsp-core/out/util/path'
+import { ChatHistoryMaintainer } from './chatHistoryMaintainer'
+import { existsSync, renameSync } from 'fs'
+
+export class ToolResultValidationError extends Error {
+    constructor(message?: string) {
+        super(message)
+        this.name = 'ToolResultValidationError'
+    }
+}
 
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
-// Maximum number of messages to keep in history
-const MaxConversationHistoryMessages = 250
+// Maximum number of characters to keep in request
+// (200K tokens - 8K output tokens - 2k system prompt) * 3 = 570K characters, intentionally overestimating with 3:1 ratio
+const MaxOverallCharacters = 570_000
+// Maximum number of history messages to include in each request to the LLM
+const maxConversationHistoryMessages = 250
 
 /**
  * A singleton database class that manages chat history persistence using LokiJS.
@@ -52,6 +72,7 @@ export class ChatDatabase {
     #initialized: boolean = false
     #loadTimeMs?: number
     #dbFileSize?: number
+    #historyMaintainer: ChatHistoryMaintainer
 
     constructor(features: Features) {
         this.#features = features
@@ -67,13 +88,12 @@ export class ChatDatabase {
 
         this.#features.logging.log(`Initializing database at ${dbPath}`)
 
-        this.#features.workspace.fs
-            .getFileSize(dbPath)
-            .then(({ size }) => {
+        calculateDatabaseSize(this.#features, dbPath)
+            .then(size => {
                 this.#dbFileSize = size
             })
             .catch(err => {
-                this.#features.logging.log(`Error getting db file size: ${err}`)
+                this.#features.logging.warn(`Error getting db file size: ${err}`)
             })
 
         const startTime = Date.now()
@@ -85,6 +105,13 @@ export class ChatDatabase {
             autoloadCallback: () => this.databaseInitialize(startTime),
             autosaveInterval: 1000,
             persistenceMethod: 'fs',
+        })
+
+        this.#historyMaintainer = new ChatHistoryMaintainer(features, this.#dbDirectory, dbName, this.#db)
+        // Async process: Trimming history asynchronously if the size exceeds the max
+        // This process will take several seconds
+        this.#historyMaintainer.trimHistoryToMaxSize().catch(err => {
+            this.#features.logging.error(`Error trimming history: ${err}`)
         })
     }
 
@@ -100,6 +127,13 @@ export class ChatDatabase {
         ChatDatabase.#instance = undefined
     }
 
+    /**
+     * Returns whether the database has been initialized.
+     */
+    isInitialized(): boolean {
+        return this.#initialized
+    }
+
     setHistoryIdMapping(tabId: string, historyId: string) {
         this.#features.logging.log(`Setting historyIdMapping: tabId=${tabId}, historyId=${historyId}`)
         this.#historyIdMapping.set(tabId, historyId)
@@ -108,7 +142,7 @@ export class ChatDatabase {
     /**
      * Generates an identifier for the open workspace folder(s).
      */
-    getWorkspaceIdentifier() {
+    private getFolderBasedWorkspaceIdentifier() {
         let workspaceFolderPaths = this.#features.workspace
             .getAllWorkspaceFolders()
             ?.map(({ uri }) => new URL(uri).pathname)
@@ -118,16 +152,60 @@ export class ChatDatabase {
             const pathsString = workspaceFolderPaths
                 .sort() // Sort to ensure consistent hash regardless of folder order
                 .join('|')
-            return crypto.createHash('md5').update(pathsString).digest('hex')
+            return getMd5WorkspaceId(pathsString)
         }
 
         // Case 2: Single folder workspace
         if (workspaceFolderPaths && workspaceFolderPaths[0]) {
-            return crypto.createHash('md5').update(workspaceFolderPaths[0]).digest('hex')
+            return getMd5WorkspaceId(workspaceFolderPaths[0])
         }
 
         // Case 3: No workspace open
         return 'no-workspace'
+    }
+
+    /**
+     * Generates an identifier for the open workspace.
+     */
+    getWorkspaceIdentifier() {
+        const workspaceFilePath =
+            this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.workspaceFilePath
+
+        if (workspaceFilePath) {
+            // Case 1: The latest plugins provide workspaceFilePath - should use workspace file-based SHA256 hash for workspace ID.
+            // This distinguishes from older plugins that used MD5 of workspaceFilePath.
+            const workspaceId = getSha256WorkspaceId(workspaceFilePath)
+            const dbFilePath = path.join(this.#dbDirectory, getChatDbNameFromWorkspaceId(workspaceId))
+
+            const dbFileExists = existsSync(dbFilePath)
+            if (!dbFileExists) {
+                // Migrate the history file from folder-based to workspace file-based.
+                this.migrateHistoryFile(dbFilePath)
+            }
+
+            this.#features.logging.debug(`workspaceFilePath is set: ${workspaceFilePath}, workspaceId: ${workspaceId}`)
+            return workspaceId
+        } else {
+            // Case 2: workspaceFilePath is not set, use folder-based workspaceId
+            return this.getFolderBasedWorkspaceIdentifier()
+        }
+    }
+
+    /**
+     * Migrate the workspace folder based history file to workspaceFile based history file
+     * @param newDbFilePath workspaceFile based history file path
+     */
+    private migrateHistoryFile(newDbFilePath: string) {
+        // Check if old folder-based history file exists and migrate it to the new workspace file-based location.
+        // If no old file exists, we'll simply use the new workspace ID for the history file.
+        const oldWorkspaceIdentifier = this.getFolderBasedWorkspaceIdentifier()
+        const oldDbFilePath = path.join(this.#dbDirectory, getChatDbNameFromWorkspaceId(oldWorkspaceIdentifier))
+        const oldDbFileExists = existsSync(oldDbFilePath)
+        if (oldDbFileExists) {
+            this.#features.logging.log(`Migrating history file from ${oldDbFilePath} to ${newDbFilePath}`)
+            renameSync(oldDbFilePath, newDbFilePath)
+        }
     }
 
     /**
@@ -153,9 +231,125 @@ export class ChatDatabase {
     }
 
     getOpenTabs() {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const collection = this.#db.getCollection<Tab>(TabCollection)
             return collection.find({ isOpen: true })
+        }
+    }
+
+    addTabWithContext(collection: Collection<Tab>, historyId: string, tabContext: TabContext) {
+        collection.insert({
+            tabType: 'cwc',
+            historyId,
+            title: 'Amazon Q Chat',
+            conversations: [],
+            isOpen: true,
+            updatedAt: new Date(),
+            tabContext,
+        })
+    }
+
+    getRules(tabId: string): Rules {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.#historyIdMapping.get(tabId)
+            if (historyId) {
+                const tab = collection.findOne({ historyId })
+                return tab?.tabContext?.rules || { folders: {}, rules: {} }
+            }
+        }
+        return { folders: {}, rules: {} }
+    }
+
+    getPinnedContext(tabId: string): ContextCommand[] {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            if (historyId) {
+                const tab = collection.findOne({ historyId })
+                return tab?.tabContext?.pinnedContext || DEFAULT_PINNED_CONTEXT
+            }
+        }
+        return []
+    }
+
+    setRules(tabId: string, rules: Rules) {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            const tab = collection.findOne({ historyId })
+
+            this.#features.logging.log(`Updating rules: rules=${JSON.stringify(rules)}`)
+
+            if (!tab) {
+                this.addTabWithContext(collection, historyId, { rules })
+            } else {
+                if (!tab.tabContext) {
+                    tab.tabContext = {}
+                }
+                tab.tabContext.rules = rules
+                collection.update(tab)
+            }
+        }
+    }
+
+    addPinnedContext(tabId: string, context: ContextCommand) {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            if (historyId) {
+                this.#features.logging.log(
+                    `Adding pinned context: historyId=${historyId}, context=${JSON.stringify(context)}`
+                )
+                const tab = collection.findOne({ historyId })
+                if (!tab) {
+                    this.addTabWithContext(collection, historyId, {
+                        pinnedContext: DEFAULT_PINNED_CONTEXT.concat([context]),
+                    })
+                } else {
+                    if (!tab.tabContext) {
+                        tab.tabContext = {}
+                    }
+                    if (!tab.tabContext.pinnedContext) {
+                        tab.tabContext.pinnedContext = DEFAULT_PINNED_CONTEXT
+                    }
+                    // Only add context item if its not already in this tab's pinned context
+                    if (!tab.tabContext.pinnedContext.find(c => c.id === context.id)) {
+                        // Active file pill should always be at the beginning of pinned context
+                        if (DEFAULT_PINNED_CONTEXT.find(item => context.id === item.id)) {
+                            tab.tabContext.pinnedContext.unshift(context)
+                        } else {
+                            tab.tabContext.pinnedContext.push(context)
+                        }
+                    }
+                    collection.update(tab)
+                }
+            }
+        }
+    }
+
+    removePinnedContext(tabId: string, context: ContextCommand) {
+        if (this.#initialized) {
+            const collection = this.#db.getCollection<Tab>(TabCollection)
+            const historyId = this.getOrCreateHistoryId(tabId)
+            if (historyId) {
+                this.#features.logging.log(
+                    `Removing pinned context: historyId=${historyId}, context=${JSON.stringify(context)}`
+                )
+                const tab = collection.findOne({ historyId })
+                if (!tab) {
+                    this.addTabWithContext(collection, historyId, { pinnedContext: [] })
+                } else {
+                    if (!tab.tabContext) {
+                        tab.tabContext = {}
+                    }
+                    if (!tab.tabContext.pinnedContext) {
+                        tab.tabContext.pinnedContext = []
+                    }
+                    tab.tabContext.pinnedContext = tab.tabContext.pinnedContext.filter(c => c.id !== context.id)
+                    collection.update(tab)
+                }
+            }
         }
     }
 
@@ -164,7 +358,7 @@ export class ChatDatabase {
     }
 
     getTab(historyId: string) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const collection = this.#db.getCollection<Tab>(TabCollection)
             return collection.findOne({ historyId })
         }
@@ -187,7 +381,7 @@ export class ChatDatabase {
      * Delete a conversation from history when /clear command is sent on an open tab
      */
     clearTab(tabId: string) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             const historyId = this.#historyIdMapping.get(tabId)
             if (historyId) {
@@ -201,7 +395,7 @@ export class ChatDatabase {
     }
 
     updateTabOpenState(tabId: string, isOpen: boolean) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             const historyId = this.#historyIdMapping.get(tabId)
             if (historyId) {
@@ -230,7 +424,7 @@ export class ChatDatabase {
         let searchResults: ConversationItemGroup[] = []
         const startTime = Date.now()
 
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             if (!filter) {
                 this.#features.logging.log(`Empty search filter, returning all history`)
                 return { results: this.getHistory(), searchTime: Date.now() - startTime }
@@ -263,7 +457,7 @@ export class ChatDatabase {
      * @param numMessages Optional number of most recent messages to return. If not provided, returns all messages.
      */
     getMessages(tabId: string, numMessages?: number) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             const historyId = this.#historyIdMapping.get(tabId)
             this.#features.logging.log(
@@ -271,9 +465,7 @@ export class ChatDatabase {
             )
             const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
             if (tabData) {
-                const allMessages = tabData.conversations.flatMap((conversation: Conversation) =>
-                    conversation.messages.map(msg => messageToStreamingMessage(msg))
-                )
+                const allMessages = tabData.conversations.flatMap((conversation: Conversation) => conversation.messages)
                 if (numMessages !== undefined) {
                     return allMessages.slice(-numMessages)
                 }
@@ -287,7 +479,7 @@ export class ChatDatabase {
      * Get all conversations for the current workspace, grouped by last updated time
      */
     getHistory(): ConversationItemGroup[] {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             const tabs = tabCollection.find()
             let groupedTabs = groupTabsByDate(tabs)
@@ -305,7 +497,7 @@ export class ChatDatabase {
      * Deletes a conversation from history
      */
     deleteHistory(historyId: string) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
             tabCollection.findAndRemove({ historyId })
             this.#features.logging.log(`Removed conversation from history with historyId=${historyId}`)
@@ -314,6 +506,24 @@ export class ChatDatabase {
                 this.#historyIdMapping.delete(tabId)
             }
         }
+    }
+
+    getOrCreateHistoryId(tabId: string) {
+        let historyId = this.#historyIdMapping.get(tabId)
+
+        if (!historyId) {
+            historyId = this.createHistoryId(tabId)
+        }
+
+        return historyId
+    }
+
+    createHistoryId(tabId: string) {
+        const historyId = crypto.randomUUID()
+        this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
+        this.setHistoryIdMapping(tabId, historyId)
+
+        return historyId
     }
 
     /**
@@ -326,7 +536,7 @@ export class ChatDatabase {
      * - Updates tab's last updated time
      */
     addMessage(tabId: string, tabType: TabType, conversationId: string, message: Message) {
-        if (this.#initialized) {
+        if (this.isInitialized()) {
             const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
             const tabCollection = this.#db.getCollection<Tab>(TabCollection)
 
@@ -334,19 +544,13 @@ export class ChatDatabase {
                 `Adding message to history: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
             )
 
-            let historyId = this.#historyIdMapping.get(tabId)
-
-            if (!historyId) {
-                historyId = crypto.randomUUID()
-                this.#features.logging.log(`Creating new historyId=${historyId} for tabId=${tabId}`)
-                this.setHistoryIdMapping(tabId, historyId)
-            }
+            let historyId = this.getOrCreateHistoryId(tabId)
 
             const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
             const tabTitle =
                 (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
                     ? message.body
-                    : tabData?.title) || 'Amazon Q Chat'
+                    : tabData?.title) || 'Amazon Q Chat Agent' // Show default message in place of IDE-to-LLM prompts for generating test/documentation/development content
             message = this.formatChatHistoryMessage(message)
             if (tabData) {
                 this.#features.logging.log(`Updating existing tab with historyId=${historyId}`)
@@ -367,8 +571,65 @@ export class ChatDatabase {
                     isOpen: true,
                     tabType: tabType,
                     title: tabTitle,
-                    conversations: [{ conversationId, clientType, messages: [message] }],
+                    conversations: [{ conversationId, clientType, updatedAt: new Date(), messages: [message] }],
                 })
+            }
+        }
+    }
+
+    /**
+     * Replace history with summary/dummyResponse pair within a specified tab.
+     *
+     * This method manages chat messages by creating a new history with compacted summary and dummy response pairs
+     */
+    replaceWithSummary(tabId: string, tabType: TabType, conversationId: string, message: Message) {
+        if (this.isInitialized()) {
+            const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
+            const tabCollection = this.#db.getCollection<Tab>(TabCollection)
+
+            this.#features.logging.log(
+                `Replace history with summary: tabId=${tabId}, tabType=${tabType}, conversationId=${conversationId}`
+            )
+
+            const oldHistoryId = this.getOrCreateHistoryId(tabId)
+            // create a new historyId to start fresh
+            const historyId = this.createHistoryId(tabId)
+
+            const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
+            const tabTitle =
+                (message.type === 'prompt' && message.shouldDisplayMessage !== false && message.body.trim().length > 0
+                    ? message.body
+                    : tabData?.title) || 'Amazon Q Chat'
+            message = this.formatChatHistoryMessage(message)
+            this.#features.logging.log(`Overriding tab with new historyId=${historyId}`)
+            tabCollection.insert({
+                historyId,
+                updatedAt: new Date(),
+                isOpen: true,
+                tabType: tabType,
+                title: tabTitle,
+                conversations: [
+                    {
+                        conversationId,
+                        clientType,
+                        updatedAt: new Date(),
+                        messages: [
+                            // summary
+                            message,
+                            // dummy response
+                            {
+                                body: 'Working...',
+                                type: 'answer',
+                                shouldDisplayMessage: false,
+                                timestamp: new Date(),
+                            },
+                        ],
+                    },
+                ],
+            })
+
+            if (oldHistoryId) {
+                tabCollection.findAndRemove({ historyId: oldHistoryId })
             }
         }
     }
@@ -384,7 +645,6 @@ export class ChatDatabase {
                 userInputMessageContext: {
                     // keep falcon context when inputMessage is not a toolResult message
                     editorState: hasToolResults ? undefined : message.userInputMessageContext?.editorState,
-                    additionalContext: hasToolResults ? undefined : message.userInputMessageContext?.additionalContext,
                     // Only keep toolResults in history
                     toolResults: message.userInputMessageContext?.toolResults,
                 },
@@ -394,99 +654,77 @@ export class ChatDatabase {
     }
 
     /**
-     * Fixes the history to maintain the following invariants:
+     * Prepare the history messages for service request and fix the persisted history in DB to maintain the following invariants:
      * 1. The history contains at most MaxConversationHistoryMessages messages. Oldest messages are dropped.
-     * 2. The first message is from the user. Oldest messages are dropped if needed.
-     * 3. The last message is from the assistant. The last message is dropped if it is from the user.
-     * 4. The history contains alternating sequene of userMessage followed by assistantMessages
-     * 5. The toolUse and toolResult relationship is valid
-     * 6. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
+     * 2. The first message is from the user and without any tool usage results, and the last message is from the assistant.
+     *    The history contains alternating sequene of userMessage followed by assistantMessages
+     * 3. The toolUse and toolResult relationship is valid
+     * 4. The history character length is <= MaxConversationHistoryCharacters - newUserMessageCharacterCount. Oldest messages are dropped.
      */
-    fixAndValidateHistory(
+    fixAndGetHistory(
         tabId: string,
         newUserMessage: ChatMessage,
-        conversationId: string,
-        remainingCharacterBudget: number
-    ): boolean {
-        if (!this.#initialized) {
-            return true
-        }
-        const historyId = this.#historyIdMapping.get(tabId)
-        this.#features.logging.info(`Fixing history: tabId=${tabId}, historyId=${historyId || 'undefined'}`)
-
-        if (!historyId) {
-            return true
+        pinnedContextMessages: ChatMessage[],
+        newUserInputCount?: number
+    ): MessagesWithCharacterCount {
+        let messagesWithCount: MessagesWithCharacterCount = { messages: [], count: 0 }
+        if (!this.isInitialized()) {
+            return messagesWithCount
         }
 
-        const tabCollection = this.#db.getCollection<Tab>(TabCollection)
-        const tabData = tabCollection.findOne({ historyId })
-        if (!tabData) {
-            return true
-        }
+        this.#features.logging.info(`Fixing history: tabId=${tabId}`)
 
-        let allMessages = tabData.conversations.flatMap((conversation: Conversation) => conversation.messages)
-        this.#features.logging.info(`Found ${allMessages.length} messages in conversation`)
+        // 1. Make sure the length of the history messages don't exceed MaxConversationHistoryMessages
+        let allMessages = this.getMessages(tabId, maxConversationHistoryMessages)
+        if (allMessages.length > 0) {
+            // 2. Fix history: Ensure messages in history is valid for server side checks
+            this.ensureValidMessageSequence(tabId, allMessages)
 
-        //  Make sure we don't exceed MaxConversationHistoryMessages
-        allMessages = this.trimHistoryToMaxLength(allMessages)
+            // 3. Fix new user prompt: Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
+            this.validateAndFixNewMessageToolResults(allMessages, newUserMessage)
 
-        //  Drop empty assistant partial if it’s the last message
-        this.handleEmptyAssistantMessage(allMessages)
+            if (!newUserInputCount) {
+                newUserInputCount = this.calculateNewMessageCharacterCount(newUserMessage, pinnedContextMessages)
+            }
 
-        //  Ensure messages in history a valid for server side checks
-        this.ensureValidMessageSequence(allMessages, newUserMessage)
-
-        // Ensure lastMessage in history toolUse and newMessage toolResult relationship is valid
-        const isValid = this.validateNewMessageToolResults(allMessages, newUserMessage)
-
-        //  Make sure max characters ≤ remaining Character Budget
-        allMessages = this.trimMessagesToMaxLength(allMessages, remainingCharacterBudget)
-
-        // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
-        if (
-            allMessages.length === 0 &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
-            newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
-        ) {
-            this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
-            newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
-            newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
-        }
-
-        const clientType = this.#features.lsp.getClientInitializeParams()?.clientInfo?.name || 'unknown'
-
-        tabData.conversations = [
-            {
-                conversationId: conversationId,
-                clientType: clientType,
-                messages: allMessages,
-            },
-        ]
-        tabData.updatedAt = new Date()
-        tabCollection.update(tabData)
-        this.#features.logging.info(`Updated tab data in collection`)
-        return isValid
-    }
-
-    private trimHistoryToMaxLength(messages: Message[]): Message[] {
-        while (messages.length > MaxConversationHistoryMessages) {
-            // Find the next valid user message to start from
-            const indexToTrim = this.findIndexToTrim(messages)
-            if (indexToTrim !== undefined && indexToTrim > 0) {
-                this.#features.logging.debug(
-                    `Removing the first ${indexToTrim} elements to maintain valid history length`
-                )
-                messages.splice(0, indexToTrim)
-            } else {
-                this.#features.logging.debug(
-                    'Could not find a valid point to trim, reset history to reduce history size'
-                )
-                return []
+            // 4. NOTE: Keep this trimming logic at the end of the preprocess.
+            // Make sure max characters ≤ remaining Character Budget, must be put at the end of preprocessing
+            messagesWithCount = this.trimMessagesToMaxLength(allMessages, newUserInputCount)
+            allMessages = messagesWithCount.messages
+            // Edge case: If the history is empty and the next message contains tool results, then we have to just abandon them.
+            if (
+                allMessages.length === 0 &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length &&
+                newUserMessage.userInputMessage?.userInputMessageContext?.toolResults?.length > 0
+            ) {
+                this.#features.logging.warn('History overflow: abandoning dangling toolResults.')
+                newUserMessage.userInputMessage.userInputMessageContext.toolResults = []
+                newUserMessage.userInputMessage.content = 'The conversation history has overflowed, clearing state'
             }
         }
-        return messages
+
+        // Prepend pinned context fake message pair to beginning of history
+        if (pinnedContextMessages.length === 2) {
+            messagesWithCount.messages = [
+                ...pinnedContextMessages.map(msg => chatMessageToMessage(msg)),
+                ...allMessages,
+            ]
+        }
+
+        return messagesWithCount
     }
 
+    /**
+     * Finds a suitable "break point" index in the message sequence.
+     *
+     * It ensures that the "break point" is at a clean conversation boundary where:
+     * 1. The message is from a user (type === 'prompt')
+     * 2. The message doesn't contain tool results that would break tool use/result pairs
+     * 3. The message has a non-empty body
+     *
+     * @param allMessages The array of conversation messages to search through
+     * @returns The index to trim from, or undefined if no suitable trimming point is found
+     */
     private findIndexToTrim(allMessages: Message[]): number | undefined {
         for (let i = 2; i < allMessages.length; i++) {
             const message = allMessages[i]
@@ -502,30 +740,11 @@ export class ChatDatabase {
         return !!ctx && (!ctx.toolResults || ctx.toolResults.length === 0) && message.body !== ''
     }
 
-    private handleEmptyAssistantMessage(messages: Message[]): void {
-        if (messages.length < 2) {
-            return
-        }
-
-        const lastMsg = messages[messages.length - 1]
-        if (
-            lastMsg.type === ('answer' as ChatItemType) &&
-            (!lastMsg.body || lastMsg.body.trim().length === 0) &&
-            (!lastMsg.toolUses || lastMsg.toolUses.length === 0)
-        ) {
-            this.#features.logging.debug(
-                'Last message is empty partial assistant. Removed last assistant message and user message'
-            )
-            messages.splice(-2)
-        }
-    }
-
-    private trimMessagesToMaxLength(messages: Message[], remainingCharacterBudget: number): Message[] {
-        let totalCharacters = this.calculateHistoryCharacterCount(messages)
-        this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
-        this.#features.logging.debug(`Current remaining character budget: ${remainingCharacterBudget}`)
-        const maxHistoryCharacterSize = Math.max(0, remainingCharacterBudget)
-        while (totalCharacters > maxHistoryCharacterSize && messages.length > 2) {
+    private trimMessagesToMaxLength(messages: Message[], newUserInputCount: number): MessagesWithCharacterCount {
+        let historyCharacterCount = this.calculateMessagesCharacterCount(messages)
+        const maxHistoryCharacterSize = Math.max(0, MaxOverallCharacters - newUserInputCount)
+        this.#features.logging.debug(`Current remaining character budget: ${maxHistoryCharacterSize}`)
+        while (historyCharacterCount > maxHistoryCharacterSize && messages.length > 2) {
             // Find the next valid user message to start from
             const indexToTrim = this.findIndexToTrim(messages)
             if (indexToTrim !== undefined && indexToTrim > 0) {
@@ -537,25 +756,61 @@ export class ChatDatabase {
                 this.#features.logging.debug(
                     'Could not find a valid point to trim, reset history to reduce character count'
                 )
-                return []
+                return { messages: [], count: 0 }
             }
-            totalCharacters = this.calculateHistoryCharacterCount(messages)
-            this.#features.logging.debug(`Current history characters: ${totalCharacters}`)
+            historyCharacterCount = this.calculateMessagesCharacterCount(messages)
         }
-        return messages
+        return {
+            messages,
+            count: historyCharacterCount,
+        }
     }
 
-    private calculateHistoryCharacterCount(allMessages: Message[]): number {
+    private calculateToolSpecCharacterCount(currentMessage: ChatMessage): number {
         let count = 0
+        if (currentMessage.userInputMessage?.userInputMessageContext?.tools) {
+            try {
+                for (const tool of currentMessage.userInputMessage?.userInputMessageContext?.tools) {
+                    count += JSON.stringify(tool).length
+                }
+            } catch (e) {
+                this.#features.logging.error(`Error counting tools: ${String(e)}`)
+            }
+        }
+        return count
+    }
+
+    calculateNewMessageCharacterCount(newUserMessage: ChatMessage, pinnedContextMessages: ChatMessage[]): number {
+        const currentUserInputCharacterCount = this.calculateMessagesCharacterCount([
+            chatMessageToMessage(newUserMessage),
+        ])
+        const pinnedContextCount = this.calculateMessagesCharacterCount([
+            ...pinnedContextMessages.map(msg => chatMessageToMessage(msg)),
+        ])
+        const currentInputToolSpecCount = this.calculateToolSpecCharacterCount(newUserMessage)
+        const totalCount = currentUserInputCharacterCount + currentInputToolSpecCount + pinnedContextCount
+        this.#features.logging.debug(
+            `Current user message characters input: ${currentUserInputCharacterCount} + toolSpec: ${currentInputToolSpecCount} + pinnedContext: ${pinnedContextCount} = total: ${totalCount}`
+        )
+        return totalCount
+    }
+
+    calculateMessagesCharacterCount(allMessages: Message[]): number {
+        let bodyCount = 0
+        let toolUsesCount = 0
+        let toolResultsCount = 0
+        let editorStateCount = 0
+        let imageCharCount = 0
+
         for (const message of allMessages) {
             // Count characters of all message text
-            count += message.body.length
+            bodyCount += message.body.length
 
             // Count characters in tool uses
             if (message.toolUses) {
                 try {
                     for (const toolUse of message.toolUses) {
-                        count += JSON.stringify(toolUse).length
+                        toolUsesCount += JSON.stringify(toolUse).length
                     }
                 } catch (e) {
                     this.#features.logging.error(`Error counting toolUses: ${String(e)}`)
@@ -565,7 +820,7 @@ export class ChatDatabase {
             if (message.userInputMessageContext?.toolResults) {
                 try {
                     for (const toolResul of message.userInputMessageContext.toolResults) {
-                        count += JSON.stringify(toolResul).length
+                        toolResultsCount += JSON.stringify(toolResul).length
                     }
                 } catch (e) {
                     this.#features.logging.error(`Error counting toolResults: ${String(e)}`)
@@ -573,81 +828,132 @@ export class ChatDatabase {
             }
             if (message.userInputMessageContext?.editorState) {
                 try {
-                    count += JSON.stringify(message.userInputMessageContext?.editorState).length
+                    editorStateCount += JSON.stringify(message.userInputMessageContext?.editorState).length
                 } catch (e) {
                     this.#features.logging.error(`Error counting editorState: ${String(e)}`)
                 }
             }
 
-            if (message.userInputMessageContext?.additionalContext) {
+            if (message.images) {
                 try {
-                    count += JSON.stringify(message.userInputMessageContext?.additionalContext).length
+                    for (const image of message.images) {
+                        let imageTokenInCharacter = estimateCharacterCountFromImageBlock(image)
+                        imageCharCount += imageTokenInCharacter
+                    }
                 } catch (e) {
-                    this.#features.logging.error(`Error counting additionalContext: ${String(e)}`)
+                    this.#features.logging.error(`Error counting images: ${String(e)}`)
                 }
             }
         }
-        return count
+
+        const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount + imageCharCount
+        this.#features.logging.debug(
+            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} + images: ${imageCharCount} = total: ${totalCount}`
+        )
+        return totalCount
     }
 
-    ensureValidMessageSequence(messages: Message[], newUserMessage: ChatMessage): void {
+    /**
+     * Gets the latest conversation ID for a given tab
+     * @param tabId The ID of the tab to get the latest conversation ID from
+     * @returns The latest conversation ID, or an empty string if none exists
+     */
+    private getLatestConversationId(tabId: string): string {
+        const tabCollection = this.#db.getCollection<Tab>(TabCollection)
+        const historyId = this.#historyIdMapping.get(tabId)
+        const tabData = historyId ? tabCollection.findOne({ historyId }) : undefined
+        const lastConversationLength = tabData?.conversations?.length || 0
+
+        if (lastConversationLength > 0) {
+            return tabData?.conversations[lastConversationLength - 1].conversationId || ''
+        }
+
+        return ''
+    }
+
+    /**
+     * Ensures that the message sequence follows the required pattern for a valid conversation.
+     *
+     * This method enforces two key rules:
+     * 1. The first message must be from the user (type === 'prompt')
+     * 2. The last message must be from the assistant (type === 'answer')
+     *
+     * If the first rule is violated, leading assistant messages are removed.
+     * If the second rule is violated, a dummy response is added to maintain the alternating user-assistant pattern.
+     *
+     * @param tabId - The current tabId.
+     * @param messages - The message history to validate and potentially modify, this will be attached to the service request.
+     */
+    ensureValidMessageSequence(tabId: string, messages: Message[]): void {
         if (messages.length === 0) {
             return
         }
 
-        //  Make sure the first stored message is from the user (type === 'prompt'), else drop
+        // Make sure the first message sent to LLM is from the user (type === 'prompt'), else drop
         while (messages.length > 0 && messages[0].type === ('answer' as ChatItemType)) {
             messages.shift()
             this.#features.logging.debug('Dropped first message since it is not from user')
         }
 
-        //  Make sure the last stored message is from the assistant (type === 'answer'), else drop
+        // Make sure the first user message doesn't have tool usage results.
+        while (
+            messages.length > 0 &&
+            messages[0].type === ('prompt' as ChatItemType) &&
+            !this.isValidUserMessageWithoutToolResults(messages[0])
+        ) {
+            // Remove first user-assistant pair - here we assume that the mid-sequence messages are always in the alternating user-assistant pattern
+            messages.splice(0, 2)
+            this.#features.logging.debug('Dropped the first message pair since the user message has tool usage results')
+        }
+
+        //  Make sure the last message is from the assistant (type === 'answer'), else add a dummy response
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
-            // When user aborts some in-progress tooluse event, we should still send the previous toolResult back
-            if (messages[messages.length - 1].userInputMessageContext?.toolResults) {
-                if (newUserMessage.userInputMessage?.userInputMessageContext) {
-                    newUserMessage.userInputMessage.userInputMessageContext.toolResults =
-                        messages[messages.length - 1].userInputMessageContext?.toolResults
-                }
+            // Add an assistant response to both request and DB to maintain a valid sequence
+            const dummyResponse: Message = {
+                body: 'Working...',
+                type: 'answer',
+                shouldDisplayMessage: false,
+                timestamp: new Date(),
             }
-            messages.pop()
-            this.#features.logging.debug('Dropped trailing user message')
-        }
-
-        if (messages.length === 0) {
-            return
-        }
-
-        //  Make sure there are alternating user and assistant messages
-        const currentMessageType = chatMessageToMessage(newUserMessage).type
-        const lastMessageType = messages[messages.length - 1].type
-
-        if (currentMessageType === lastMessageType) {
-            this.#features.logging.warn(
-                `Invalid alternation: last message is ${lastMessageType}, dropping it before inserting new ${currentMessageType}`
-            )
-            messages.splice(messages.length - 1, 1)
+            // Add to service request
+            messages.push(dummyResponse)
+            // Add to the last conversation in history DB
+            const lastConversationId = this.getLatestConversationId(tabId)
+            this.addMessage(tabId, 'cwc', lastConversationId, dummyResponse)
+            this.#features.logging.debug('Added a dummy response for the trailing user message')
         }
     }
 
-    validateNewMessageToolResults(messages: Message[], newUserMessage: ChatMessage): boolean {
+    /**
+     * This method modifies the new user message and ensuring that tool results in a new user message
+     * properly correspond to tool uses from the previous assistant message.
+     *
+     * This validation should be performed before sending requests and is critical for maintaining
+     * a coherent conversation flow when tools are involved, ensuring the AI model has accurate context
+     * about which tools were actually used and which were cancelled or failed.
+     *
+     * @param messages The conversation history messages
+     * @param newUserMessage The new user message being added to the conversation
+     * @throws ToolResultValidationError if the message is invalid and not able to be fixed
+     */
+    validateAndFixNewMessageToolResults(messages: Message[], newUserMessage: ChatMessage) {
         if (newUserMessage?.userInputMessage?.userInputMessageContext) {
             const newUserMessageContext = newUserMessage.userInputMessage.userInputMessageContext
             const toolResults = newUserMessageContext.toolResults || []
             if (messages.length === 0) {
                 if (toolResults && toolResults.length > 0) {
-                    this.#features.logging.warn('New message has tool results but last message has no tool uses')
-                    return false
+                    throw new ToolResultValidationError(
+                        'New message has tool results but last message has no tool uses'
+                    )
                 }
-                return true
+                return
             }
             const lastMsg = messages[messages.length - 1]
             const lastMsgToolUses = lastMsg?.toolUses || []
 
             // If last message has no tool uses but new message has tool results, this is invalid
             if (toolResults && toolResults.length > 0 && lastMsgToolUses.length === 0) {
-                this.#features.logging.warn('New message has tool results but last message has no tool uses')
-                return false
+                throw new ToolResultValidationError('New message has tool results but last message has no tool uses')
             }
 
             const toolUseIds = new Set(lastMsgToolUses.map(toolUse => toolUse.toolUseId))
@@ -676,10 +982,9 @@ export class ChatDatabase {
                 newUserMessageContext.toolResults.length === 0 &&
                 (!newUserMessage.userInputMessage.content || newUserMessage.userInputMessage.content?.trim() == '')
             ) {
-                return false
+                throw new ToolResultValidationError('Empty message with no tool results')
             }
         }
-        return true
     }
 
     getSettings(): Settings | undefined {
@@ -712,5 +1017,16 @@ export class ChatDatabase {
 
     setModelId(modelId: string | undefined): void {
         this.updateSettings({ modelId: modelId === '' ? undefined : modelId })
+    }
+
+    getPairProgrammingMode(): boolean | undefined {
+        const settings = this.getSettings()
+        return settings?.pairProgrammingMode
+    }
+
+    setPairProgrammingMode(pairProgrammingMode: boolean | undefined): void {
+        // Get existing settings to preserve other fields like modelId
+        const settings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({ ...settings, pairProgrammingMode })
     }
 }

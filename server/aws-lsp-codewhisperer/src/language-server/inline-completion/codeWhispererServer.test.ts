@@ -18,6 +18,7 @@ import {
     CodeWhispererServiceToken,
     ResponseContext,
     Suggestion,
+    SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 import {
@@ -26,6 +27,7 @@ import {
     EXPECTED_REFERENCE,
     EXPECTED_RESPONSE_CONTEXT,
     EXPECTED_RESULT,
+    EXPECTED_RESULT_EDITS,
     EXPECTED_RESULT_WITHOUT_IMPORTS,
     EXPECTED_RESULT_WITHOUT_REFERENCES,
     EXPECTED_RESULT_WITH_IMPORTS,
@@ -128,6 +130,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -415,6 +418,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -447,6 +451,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
             // Expected result is the deleted line + new line + 4 spaces
@@ -537,6 +542,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
             const EXPECTED_RESULT = {
@@ -571,6 +577,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
             const EXPECTED_RESULT = {
@@ -621,6 +628,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: { ...EXPECTED_RESPONSE_CONTEXT, nextToken: EXPECTED_NEXT_TOKEN },
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -870,6 +878,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -909,6 +918,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -933,6 +943,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION_LIST_WITH_IMPORTS,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1059,6 +1070,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1127,6 +1139,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1188,6 +1201,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1216,6 +1230,7 @@ describe('CodeWhisperer Server', () => {
                     Promise.resolve({
                         suggestions: EXPECTED_SUGGESTION_WITH_REFERENCES,
                         responseContext: EXPECTED_RESPONSE_CONTEXT,
+                        suggestionType: SuggestionType.COMPLETION,
                     })
                 )
                 features.lsp.workspace.getConfiguration.returns(
@@ -1262,6 +1277,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1514,6 +1530,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
             // Initialize the features, but don't start server yet
@@ -1590,6 +1607,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTIONS,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -1987,6 +2005,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -2046,8 +2065,8 @@ describe('CodeWhisperer Server', () => {
                 expectedSessionData
             )
         })
-
-        it('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+        // we decided to temporarily stop concurrent trigger and disable such logic
+        it.skip('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
             const getCompletionsResponses = await Promise.all([
                 features.doInlineCompletionWithReferences(
                     {
@@ -2109,7 +2128,47 @@ describe('CodeWhisperer Server', () => {
             )
         })
 
-        it('should record all sessions that were created in session log', async () => {
+        it('should block inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+            const getCompletionsResponses = await Promise.all([
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+            ])
+
+            // 3 requests were processed by server, but only first should return results
+            const EXPECTED_COMPLETION_RESPONSES = [
+                { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items, partialResultToken: undefined }, // First session wins
+                { sessionId: '', items: [] },
+                { sessionId: '', items: [] },
+            ]
+            // Only last request must return completion items
+            assert.deepEqual(getCompletionsResponses, EXPECTED_COMPLETION_RESPONSES)
+
+            assert.equal(sessionManagerSpy.createSession.callCount, 1)
+        })
+
+        it.skip('should record all sessions that were created in session log', async () => {
             // Start 3 session, 2 will be cancelled inflight
             await Promise.all([
                 features.doInlineCompletionWithReferences(
@@ -2168,6 +2227,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: [],
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -2237,6 +2297,7 @@ describe('CodeWhisperer Server', () => {
                 Promise.resolve({
                     suggestions: EXPECTED_SUGGESTION,
                     responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.COMPLETION,
                 })
             )
 
@@ -2255,6 +2316,107 @@ describe('CodeWhisperer Server', () => {
             assert(session)
             assert(session.state, 'CLOSED')
             sinon.assert.calledOnce(sessionManagerSpy.closeSession)
+        })
+    })
+
+    describe('Recommendation with editsEnabled', () => {
+        let features: TestFeatures
+        let server: Server
+        let service: StubbedInstance<CodeWhispererServiceBase>
+
+        beforeEach(async () => {
+            // Set up the server with a mock service, returning predefined recommendations
+            service = sinon.createStubInstance(CodeWhispererServiceToken) as StubbedInstance<CodeWhispererServiceToken>
+
+            service.generateSuggestions.returns(
+                Promise.resolve({
+                    suggestions: EXPECTED_SUGGESTION,
+                    responseContext: EXPECTED_RESPONSE_CONTEXT,
+                    suggestionType: SuggestionType.EDIT,
+                })
+            )
+
+            // Initialize the features, but don't start server yet
+            features = new TestFeatures()
+            //@ts-ignore
+            features.logging = console
+
+            const mockInitParams: InitializeParams = {
+                processId: 0,
+                rootUri: 'some-root-uri',
+                capabilities: {},
+                initializationOptions: {
+                    aws: {
+                        awsClientCapabilities: {
+                            textDocument: {
+                                inlineCompletionWithReferences: {
+                                    inlineEditSupport: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            }
+
+            features.lsp.getClientInitializeParams.returns(mockInitParams)
+
+            TestAmazonQServiceManager.resetInstance()
+            server = CodewhispererServerFactory(() => initBaseTestServiceManager(features, service))
+
+            // Return no specific configuration for CodeWhisperer
+            features.lsp.workspace.getConfiguration.returns(Promise.resolve({}))
+
+            // Start the server and open a document
+            await startServer(features, server)
+
+            features.openDocument(SOME_FILE)
+        })
+
+        afterEach(() => {
+            features.dispose()
+            TestAmazonQServiceManager.resetInstance()
+        })
+
+        it('should handle editsEnabled=true with COMPLETIONS prediction type', async () => {
+            const result = await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            // Check the completion result
+            assert.deepEqual(result, EXPECTED_RESULT_EDITS)
+
+            const expectedGenerateSuggestionsRequest = {
+                fileContext: {
+                    fileUri: SOME_FILE.uri,
+                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
+                    programmingLanguage: { languageName: 'csharp' },
+                    leftFileContent: '',
+                    rightFileContent: HELLO_WORLD_IN_CSHARP,
+                },
+                maxResults: 5,
+                supplementalContexts: [],
+                predictionTypes: ['COMPLETIONS'],
+                editorState: {
+                    document: {
+                        relativeFilePath: SOME_FILE.uri,
+                        programmingLanguage: { languageName: 'csharp' },
+                        text: HELLO_WORLD_IN_CSHARP,
+                    },
+                    cursorState: {
+                        position: {
+                            line: 0,
+                            character: 0,
+                        },
+                    },
+                },
+            }
+
+            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
     })
 })

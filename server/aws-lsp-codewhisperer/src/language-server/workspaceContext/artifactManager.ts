@@ -24,8 +24,7 @@ export const SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES: CodewhispererLanguage[] = [
     'typescript',
     'java',
 ]
-const ARTIFACT_FOLDER_NAME = 'workspaceContextArtifacts'
-const IGNORE_PATTERNS = [
+export const IGNORE_PATTERNS = [
     // Package management and git
     '**/node_modules/**',
     '**/.git/**',
@@ -70,16 +69,13 @@ export class ArtifactManager {
     private workspaceFolders: WorkspaceFolder[]
     // TODO, how to handle when two workspace folders have the same name but different URI
     private filesByWorkspaceFolderAndLanguage: Map<WorkspaceFolder, Map<CodewhispererLanguage, FileMetadata[]>>
-    private tempDirPath: string
+    private isDisposed: boolean = false
 
     constructor(workspace: Workspace, logging: Logging, workspaceFolders: WorkspaceFolder[]) {
         this.workspace = workspace
         this.logging = logging
         this.workspaceFolders = workspaceFolders
         this.filesByWorkspaceFolderAndLanguage = new Map<WorkspaceFolder, Map<CodewhispererLanguage, FileMetadata[]>>()
-
-        this.tempDirPath = path.join(this.workspace.fs.getTempDirPath(), ARTIFACT_FOLDER_NAME)
-        this.createFolderIfNotExist(this.tempDirPath)
     }
 
     updateWorkspaceFolders(workspaceFolders: WorkspaceFolder[]) {
@@ -129,7 +125,17 @@ export class ArtifactManager {
         return zipFileMetadata
     }
 
-    async removeWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): Promise<void> {
+    public resetFromDisposal(): void {
+        this.isDisposed = false
+    }
+
+    dispose(): void {
+        this.filesByWorkspaceFolderAndLanguage.clear()
+        this.workspaceFolders = []
+        this.isDisposed = true
+    }
+
+    removeWorkspaceFolders(workspaceFolders: WorkspaceFolder[]): void {
         workspaceFolders.forEach(workspaceToRemove => {
             // Find the matching workspace folder by URI
             let folderToDelete: WorkspaceFolder | undefined
@@ -148,8 +154,6 @@ export class ArtifactManager {
 
             this.filesByWorkspaceFolderAndLanguage.delete(folderToDelete)
             this.workspaceFolders = this.workspaceFolders.filter(folder => folder.uri !== workspaceToRemove.uri)
-            const workspaceDirPath = path.join(this.tempDirPath, workspaceToRemove.name)
-            fs.rmSync(workspaceDirPath, { recursive: true, force: true })
         })
     }
 
@@ -262,7 +266,7 @@ export class ArtifactManager {
         const programmingLanguages = new Set<CodewhispererLanguage>()
 
         // Add the file language if we can determine it, but don't return early
-        if (fileLanguage) {
+        if (fileLanguage && SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(fileLanguage)) {
             programmingLanguages.add(fileLanguage)
         }
 
@@ -311,47 +315,6 @@ export class ArtifactManager {
         return filesMetadata
     }
 
-    cleanup(preserveDependencies: boolean = false, workspaceFolders?: WorkspaceFolder[]) {
-        try {
-            if (workspaceFolders === undefined) {
-                workspaceFolders = this.workspaceFolders
-            }
-            workspaceFolders.forEach(workspaceToRemove => {
-                const workspaceDirPath = path.join(this.tempDirPath, workspaceToRemove.name)
-
-                if (preserveDependencies) {
-                    // Define the zip files to delete
-                    const zipPatternsToDelete = [
-                        'files.zip',
-                        ...SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.map(lang => `${lang}.zip`),
-                    ]
-
-                    // If directory exists, only delete specific zip files
-                    if (fs.existsSync(workspaceDirPath)) {
-                        const entries = fs.readdirSync(workspaceDirPath)
-                        entries.forEach(entry => {
-                            const entryPath = path.join(workspaceDirPath, entry)
-                            const stat = fs.statSync(entryPath)
-
-                            if (stat.isFile() && zipPatternsToDelete.includes(entry.toLowerCase())) {
-                                fs.rmSync(entryPath, { force: true })
-                                this.log(`Deleted zip file: ${workspaceDirPath}/${entry}`)
-                            }
-                        })
-                    }
-                } else {
-                    // Original cleanup behavior - delete everything
-                    if (fs.existsSync(workspaceDirPath)) {
-                        fs.rmSync(workspaceDirPath, { recursive: true, force: true })
-                        this.log(`Deleted workspace directory: ${workspaceDirPath}`)
-                    }
-                }
-            })
-        } catch (error) {
-            this.logging.warn(`Failed to cleanup workspace artifacts: ${error}`)
-        }
-    }
-
     getLanguagesForWorkspaceFolder(
         workspaceFolder: WorkspaceFolder
     ): Map<CodewhispererLanguage, FileMetadata[]> | undefined {
@@ -371,21 +334,15 @@ export class ArtifactManager {
         subDirectory: string = '',
         zipChunkIndex: number
     ): Promise<FileMetadata> {
-        const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
-        this.createFolderIfNotExist(zipDirectoryPath)
         const zipFileName = `${zipChunkIndex}_${Date.now()}.zip`
-        const zipPath = path.join(zipDirectoryPath, zipFileName)
         const zipBuffer = await this.createZipBuffer(files)
-        await fs.promises.writeFile(zipPath, zipBuffer)
-
-        const stats = fs.statSync(zipPath)
 
         return {
-            filePath: zipPath,
+            filePath: '', // Virtual file that only exists in memory
             relativePath: path.join(workspaceFolder.name, subDirectory, zipFileName),
             language,
-            contentLength: stats.size,
-            lastModified: stats.mtimeMs,
+            contentLength: zipBuffer.length,
+            lastModified: Date.now(),
             content: zipBuffer,
             workspaceFolder: workspaceFolder,
         }
@@ -463,11 +420,6 @@ export class ArtifactManager {
         files: FileMetadata[],
         subDirectory: string = ''
     ): Promise<FileMetadata | undefined> {
-        const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
-        this.createFolderIfNotExist(zipDirectoryPath)
-
-        const zipPath = path.join(zipDirectoryPath, `${language}.zip`)
-
         let skippedSize = 0
         let skippedFiles = 0
         const filesToInclude: FileMetadata[] = []
@@ -498,16 +450,13 @@ export class ArtifactManager {
         }
 
         const zipBuffer = await this.createZipBuffer(filesToInclude)
-        await fs.promises.writeFile(zipPath, zipBuffer)
-
-        const stats = fs.statSync(zipPath)
 
         return {
-            filePath: zipPath,
+            filePath: '', // Virtual file that only exists in memory
             relativePath: path.join(workspaceFolder.name, subDirectory, `files.zip`),
             language,
-            contentLength: stats.size,
-            lastModified: stats.mtimeMs,
+            contentLength: zipBuffer.length,
+            lastModified: Date.now(),
             content: zipBuffer,
             workspaceFolder: workspaceFolder,
         }
@@ -519,25 +468,18 @@ export class ArtifactManager {
         files: FileMetadata[],
         subDirectory: string = ''
     ): Promise<FileMetadata> {
-        const zipDirectoryPath = path.join(this.tempDirPath, workspaceFolder.name, subDirectory)
-        this.createFolderIfNotExist(zipDirectoryPath)
-
-        const zipPath = path.join(zipDirectoryPath, `files.zip`)
-
         const zip = new JSZip()
         for (const file of files) {
             zip.file(path.basename(file.relativePath), file.content)
         }
         const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
-        await fs.promises.writeFile(zipPath, zipBuffer)
-        const stats = fs.statSync(zipPath)
 
         return {
-            filePath: zipPath,
+            filePath: '', // Virtual file that only exists in memory
             relativePath: path.join(workspaceFolder.name, subDirectory, 'files.zip'),
             language,
-            contentLength: stats.size,
-            lastModified: stats.mtimeMs,
+            contentLength: zipBuffer.length,
+            lastModified: Date.now(),
             content: zipBuffer,
             workspaceFolder: workspaceFolder,
         }
@@ -612,6 +554,9 @@ export class ArtifactManager {
         }
 
         for (const workspaceFolder of workspaceFolders) {
+            if (this.isDisposed) {
+                break
+            }
             const workspacePath = URI.parse(workspaceFolder.uri).path
 
             try {
@@ -648,6 +593,9 @@ export class ArtifactManager {
         const zipFileMetadata: FileMetadata[] = []
         await this.updateWorkspaceFiles(workspaceFolder, filesByLanguage)
         for (const [language, files] of filesByLanguage.entries()) {
+            if (this.isDisposed) {
+                break
+            }
             // Generate java .classpath and .project files
             const processedFiles =
                 language === 'java' ? await this.processJavaProjectConfig(workspaceFolder, files) : files
@@ -668,12 +616,6 @@ export class ArtifactManager {
             }
         }
         return zipFileMetadata
-    }
-
-    private createFolderIfNotExist(dir: string) {
-        if (!fs.existsSync(dir)) {
-            fs.mkdirSync(dir, { recursive: true })
-        }
     }
 
     private log(...messages: string[]) {

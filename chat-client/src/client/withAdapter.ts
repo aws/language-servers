@@ -1,6 +1,7 @@
 import { MynahUI, MynahUIProps } from '@aws/mynah-ui'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { disclaimerAcknowledgeButtonId } from './texts/disclaimer'
+import { TabFactory } from './tabs/tabFactory'
 
 type HandlerMethodName = keyof ChatEventHandler
 type HandlerParameters<T extends HandlerMethodName> = Parameters<NonNullable<ChatEventHandler[T]>>
@@ -8,7 +9,8 @@ type HandlerParameters<T extends HandlerMethodName> = Parameters<NonNullable<Cha
 export const withAdapter = (
     defaultEventHandler: ChatEventHandler,
     mynahUIRef: { mynahUI: MynahUI | undefined },
-    chatClientAdapter: ChatClientAdapter
+    chatClientAdapter: ChatClientAdapter,
+    tabFactory: TabFactory
 ): MynahUIProps => {
     // Inject reference to MynahUI object into external event handler.
     // This allows custom controllers to maintain drive Chat UI with custom, feature-specific logic.
@@ -57,7 +59,11 @@ export const withAdapter = (
         onChatPromptProgressActionButtonClicked: addDefaultRouting('onChatPromptProgressActionButtonClicked'),
         onTabbedContentTabChange: addDefaultRouting('onTabbedContentTabChange'),
         onPromptInputOptionChange: addDefaultRouting('onPromptInputOptionChange'),
+        onPromptInputButtonClick: addDefaultRouting('onPromptInputButtonClick'),
         onMessageDismiss: addDefaultRouting('onMessageDismiss'),
+        onPromptTopBarItemAdded: addDefaultRouting('onPromptTopBarItemAdded'),
+        onPromptTopBarItemRemoved: addDefaultRouting('onPromptTopBarItemRemoved'),
+        onPromptTopBarButtonClick: addDefaultRouting('onPromptTopBarButtonClick'),
 
         /**
          * Handler with special routing logic
@@ -69,9 +75,17 @@ export const withAdapter = (
                 return
             }
 
-            if (prompt.command && chatClientAdapter.isSupportedQuickAction(prompt.command)) {
-                chatClientAdapter.handleQuickAction(prompt, tabId, eventId)
-                return
+            // Only /review and /transform commands for chatClientAdapter handling
+            // Let /dev, /test, /doc use default event handler routing(agentic chat)
+            if (prompt.command) {
+                const shouldHandleQuickAction = !tabFactory.isRerouteEnabled()
+                    ? chatClientAdapter.isSupportedQuickAction(prompt.command)
+                    : ['/review', '/transform'].includes(prompt.command)
+
+                if (shouldHandleQuickAction) {
+                    chatClientAdapter.handleQuickAction(prompt, tabId, eventId)
+                    return
+                }
             }
 
             defaultEventHandler.onChatPrompt?.(tabId, prompt, eventId)
@@ -118,6 +132,22 @@ export const withAdapter = (
             }
 
             return defaultEventHandler.onContextSelected?.(contextItem, tabId, eventId) ?? false
+        },
+
+        onOpenFileDialogClick(tabId, fileType, insertPosition) {
+            if (chatClientAdapter.isSupportedTab(tabId)) {
+                return customEventHandler.onOpenFileDialogClick?.(tabId, fileType, insertPosition) ?? false
+            }
+
+            return defaultEventHandler.onOpenFileDialogClick?.(tabId, fileType, insertPosition) ?? false
+        },
+
+        onFilesDropped(tabId, fileList, insertPosition) {
+            if (chatClientAdapter.isSupportedTab(tabId)) {
+                return customEventHandler.onFilesDropped?.(tabId, fileList, insertPosition) ?? false
+            }
+
+            return defaultEventHandler.onFilesDropped?.(tabId, fileList, insertPosition) ?? false
         },
 
         onFormLinkClick(link, mouseEvent, eventId) {

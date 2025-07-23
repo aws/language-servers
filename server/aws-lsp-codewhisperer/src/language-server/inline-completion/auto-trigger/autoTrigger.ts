@@ -1,5 +1,8 @@
+import * as os from 'os'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { FileContext } from '../../../shared/codeWhispererService'
 import typedCoefficients = require('./coefficients.json')
+import { TextDocumentContentChangeEvent } from 'vscode-languageserver-textdocument'
 
 type TypedCoefficients = typeof typedCoefficients
 type Coefficients = TypedCoefficients & {
@@ -60,6 +63,107 @@ export const triggerType = (fileContext: FileContext): CodewhispererAutomatedTri
     return 'Classifier'
 }
 
+// Enter key should always start with ONE '\n' or '\r\n' and potentially following spaces due to IDE reformat
+function isEnterKey(str: string): boolean {
+    if (str.length === 0) {
+        return false
+    }
+    return (
+        (str.startsWith('\r\n') && str.substring(2).trim() === '') ||
+        (str[0] === '\n' && str.substring(1).trim() === '')
+    )
+}
+
+function isSingleLine(str: string): boolean {
+    let newLineCounts = 0
+    for (const ch of str) {
+        if (ch === '\n') {
+            newLineCounts += 1
+        }
+    }
+
+    // since pressing Enter key possibly will generate string like '\n        ' due to indention
+    if (isEnterKey(str)) {
+        return true
+    }
+    if (newLineCounts >= 1) {
+        return false
+    }
+    return true
+}
+
+function isUserTypingSpecialChar(str: string): boolean {
+    return ['(', '()', '[', '[]', '{', '{}', ':'].includes(str)
+}
+
+function isTabKey(str: string): boolean {
+    const tabSize = 4 // TODO: Use IDE real tab size
+    if (str.length % tabSize === 0 && str.trim() === '') {
+        return true
+    }
+    return false
+}
+
+// Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L222
+// Enter, Special character guarantees a trigger
+// Regular keystroke input will be evaluated by classifier
+export const getAutoTriggerType = (
+    contentChanges: TextDocumentContentChangeEvent[]
+): CodewhispererAutomatedTriggerType | undefined => {
+    if (contentChanges.length !== 1) {
+        // Won't trigger cwspr on multi-line changes
+        // event.contentChanges.length will be 2 when user press Enter key multiple times
+        return undefined
+    }
+    const changedText = contentChanges[0].text
+    if (isSingleLine(changedText)) {
+        if (changedText.length === 0) {
+            return undefined
+        } else if (isEnterKey(changedText)) {
+            return 'Enter'
+        } else if (isTabKey(changedText)) {
+            return undefined
+        } else if (isUserTypingSpecialChar(changedText)) {
+            return 'SpecialCharacters'
+        } else if (changedText.length === 1) {
+            return 'Classifier'
+        } else if (new RegExp('^[ ]+$').test(changedText)) {
+            // single line && single place reformat should consist of space chars only
+            return undefined
+        }
+    }
+    return undefined
+}
+// reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L579
+export function getNormalizeOsName(): string {
+    const name = os.platform()
+    const version = os.version()
+    const lowercaseName = name.toLowerCase()
+    if (lowercaseName.includes('windows')) {
+        if (!version) {
+            return 'Windows'
+        } else if (version.includes('Windows NT 10') || version.startsWith('10')) {
+            return 'Windows 10'
+        } else if (version.includes('6.1')) {
+            return 'Windows 7'
+        } else if (version.includes('6.3')) {
+            return 'Windows 8.1'
+        } else {
+            return 'Windows'
+        }
+    } else if (
+        lowercaseName.includes('macos') ||
+        lowercaseName.includes('mac os') ||
+        lowercaseName.includes('darwin')
+    ) {
+        return 'Mac OS X'
+    } else if (lowercaseName.includes('linux')) {
+        return 'Linux'
+    } else {
+        return name
+    }
+}
+
 // Normalize values based on minn and maxx values in the coefficients.
 const normalize = (val: number, field: keyof typeof typedCoefficients.minn & keyof typeof typedCoefficients.maxx) =>
     (val - typedCoefficients.minn[field]) / (typedCoefficients.maxx[field] - typedCoefficients.minn[field])
@@ -83,21 +187,36 @@ type AutoTriggerParams = {
  * and previous recommendation decisions from the user to determine whether a new recommendation
  * should be shown. The auto-trigger is not stateful and does not keep track of past invocations.
  */
-export const autoTrigger = ({
-    fileContext,
-    char,
-    triggerType,
-    os,
-    previousDecision,
-    ide,
-    lineNum,
-}: AutoTriggerParams): {
+export const autoTrigger = (
+    { fileContext, char, triggerType, os, previousDecision, ide, lineNum }: AutoTriggerParams,
+    logging: Logging
+): {
     shouldTrigger: boolean
     classifierResult: number
     classifierThreshold: number
 } => {
     const leftContextLines = fileContext.leftFileContent.split(/\r?\n/)
     const leftContextAtCurrentLine = leftContextLines[leftContextLines.length - 1]
+    const rightContextLines = fileContext.rightFileContent.split(/\r?\n/)
+    const rightContextAtCurrentLine = rightContextLines[0]
+    // reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L102
+    // we do not want to trigger when there is immediate right context on the same line
+    // with "}" being an exception because of IDE auto-complete
+    // this was from product spec for VSC and JB
+    if (
+        rightContextAtCurrentLine.length &&
+        !rightContextAtCurrentLine.startsWith(' ') &&
+        rightContextAtCurrentLine.trim() !== '}' &&
+        rightContextAtCurrentLine.trim() !== ')' &&
+        ['VSCODE', 'JETBRAINS'].includes(ide)
+    ) {
+        logging.debug(`Skip auto trigger: immediate right context`)
+        return {
+            shouldTrigger: false,
+            classifierResult: 0,
+            classifierThreshold: TRIGGER_THRESHOLD,
+        }
+    }
     const tokens = leftContextAtCurrentLine.trim().split(' ')
     const lastToken = tokens[tokens.length - 1]
 
@@ -154,7 +273,6 @@ export const autoTrigger = ({
         previousDecisionCoefficient +
         languageCoefficient +
         leftContextLengthCoefficient
-
     const shouldTrigger = sigmoid(classifierResult) > TRIGGER_THRESHOLD
 
     return {
