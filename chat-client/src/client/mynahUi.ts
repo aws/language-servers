@@ -1619,11 +1619,36 @@ ${params.message}`,
         }
     }
 
+    const getNextResetDate = (subscriptionPeriodReset: Date): string => {
+        const date = new Date(subscriptionPeriodReset)
+        const resetDate = `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()} `
+        const resetTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')} GMT`
+        return resetDate + resetTime
+    }
+
+    const getOverageString = (params: SubscriptionDetailsParams): string => {
+        if (params.subscriptionTier === 'Q_DEVELOPER_STANDALONE_FREE') {
+            return '' // Don't show any overage message for Free tier
+        }
+
+        if (!params.isOverageEnabled) {
+            return 'Overages disabled by admin'
+        }
+
+        if (params.queryOverage > 0) {
+            return `$${params.queryOverage.toFixed(2)} incurred in overages`
+        } else if (params.isOverageEnabled && params.queryOverage === 0) {
+            return '$0.00 incurred in overages'
+        }
+
+        return ''
+    }
+
     const getAccountDetailsPageContent = (params: SubscriptionDetailsParams) => {
         const usageString = `${params.queryUsage}/${params.queryLimit} queries used`
-        const overageString = `$${params.queryOverage.toFixed(2)} incurred in overages`
-        const resetString =
-            params.daysRemaining === 1 ? 'Limits reset tomorrow' : `Limits reset in ${params.daysRemaining} days`
+        const overageString = getOverageString(params)
+
+        const resetString = `Limits reset on ${getNextResetDate(params.subscriptionPeriodReset)}`
         const subscriptionDisplay = getSubscriptionDisplayName(params.subscriptionTier)
 
         const chatContent: ChatItem = {
@@ -1633,9 +1658,7 @@ ${params.message}`,
 <div style="font-size: 15px; margin-bottom: 8px;">${subscriptionDisplay}</div>
 <h2 style="margin-bottom: 4px;">Usage</h2>
 <div style="font-size: 14px; line-height: 1.5;">
-    <div>${usageString}</div>
-    <div>${overageString}</div>
-    <div>${resetString}</div>
+    <div>${usageString}</div>${overageString ? `<div>${overageString}</div>` : ''}<div>${resetString}</div>
 </div>`,
         }
         return chatContent

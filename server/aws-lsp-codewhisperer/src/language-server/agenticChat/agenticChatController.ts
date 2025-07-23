@@ -3865,19 +3865,16 @@ export class AgenticChatController implements ChatHandlers {
                 resourceType: 'AGENTIC_REQUEST',
             })
 
-            // todo: remove temporary log
-            this.#log(JSON.stringify(response, null, 4))
-            // const overageEnabled = response.overageConfiguration?.overageStatus === 'ENABLED';
-            // const nextResetDate =  await this.getNextResetDate(response);
+            const overageEnabled = response.overageConfiguration?.overageStatus === 'ENABLED'
+            const nextResetDate = await this.getNextResetDate(response)
 
             await this.#features.chat.sendSubscriptionDetails({
                 subscriptionTier: response.subscriptionInfo?.type ?? 'Free Tier',
-                daysRemaining: response.daysUntilReset,
                 queryLimit: response.usageBreakdown?.usageLimit ?? 0,
                 queryUsage: response.usageBreakdown?.currentUsage ?? 0,
                 queryOverage: response.usageBreakdown?.overageCharges ?? 0,
-                // subscriptionPeriodReset: nextResetDate,
-                // isOverageEnabled: overageEnabled
+                subscriptionPeriodReset: nextResetDate,
+                isOverageEnabled: overageEnabled,
             })
         } catch (error) {
             this.#log(`Unable to get subscription details: ${error}`)
@@ -3886,11 +3883,18 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async getNextResetDate(response: GetUsageLimitsResponse): Promise<Date> {
-        const currentDate = new Date()
-        const nextResetDate = response.usageBreakdown?.nextDateReset
-            ? new Date(response.usageBreakdown.nextDateReset)
-            : new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-        return nextResetDate
+        if (response.usageBreakdown?.nextDateReset) {
+            return new Date(response.usageBreakdown.nextDateReset)
+        } else {
+            // Fallback to 1st of next month
+            const currentDate = new Date()
+            if (currentDate.getMonth() === 11) {
+                // If December, move to January of next year
+                return new Date(Date.UTC(currentDate.getFullYear() + 1, 0, 1))
+            } else {
+                return new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+            }
+        }
     }
 
     async handleIdcRequestLimitReached(tabId: string, err: any): Promise<ChatResult | ResponseError<ChatResult>> {
