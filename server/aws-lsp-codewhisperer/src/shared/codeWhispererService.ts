@@ -670,7 +670,3 @@ export class CodeWhispererService extends CodeWhispererServiceBase {
         return !!r
     }
 }
-
-// TODO: remove this when changing references
-export class CodeWhispererServiceToken extends CodeWhispererService {}
-export class CodeWhispererServiceIAM extends CodeWhispererService {}

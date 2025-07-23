@@ -1,6 +1,6 @@
 /* eslint-disable import/no-nodejs-modules */
 
-import { CodeWhispererServiceToken } from '../../../../shared/codeWhispererService'
+import { CodeWhispererService } from '../../../../shared/codeWhispererService'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { Q_CODE_REVIEW_TOOL_NAME, Q_CODE_REVIEW_TOOL_DESCRIPTION, FULL_REVIEW } from './qCodeReviewConstants'
 import { QCodeReviewUtils } from './qCodeReviewUtils'
@@ -56,7 +56,7 @@ export class QCodeReview {
     private readonly logging: Features['logging']
     private readonly telemetry: Features['telemetry']
     private readonly workspace: Features['workspace']
-    private codeWhispererClient?: CodeWhispererServiceToken
+    private codeWhispererClient?: CodeWhispererService
     private cancellationToken?: CancellationToken
     private writableStream?: WritableStream
 
@@ -148,7 +148,7 @@ export class QCodeReview {
 
         this.writableStream = context.writableStream as WritableStream
 
-        this.codeWhispererClient = context.codeWhispererClient as CodeWhispererServiceToken
+        this.codeWhispererClient = context.codeWhispererClient as CodeWhispererService
         if (!this.codeWhispererClient) {
             throw new Error(QCodeReview.ERROR_MESSAGES.MISSING_CLIENT)
         }

@@ -32,7 +32,7 @@ describe('getBearerTokenFromProvider', () => {
     const mockToken = 'mockToken'
     it('returns the bearer token from the provider', () => {
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
@@ -43,7 +43,7 @@ describe('getBearerTokenFromProvider', () => {
 
     it('throws an error if the credentials does not contain bearer credentials', () => {
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(false),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(false),
             getCredentials: sinon.stub().returns({ token: mockToken }),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
@@ -58,7 +58,7 @@ describe('getBearerTokenFromProvider', () => {
 
     it('throws an error if token is empty in bearer token', () => {
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: '' }),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
@@ -103,7 +103,7 @@ describe('getIAMCredentialsFromProvider', () => {
 
     it('returns the IAM credentials from the provider', () => {
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns(mockIAMCredentials),
             getConnectionMetadata: sinon.stub(),
             getConnectionType: sinon.stub(),
@@ -135,7 +135,7 @@ describe('getIAMCredentialsFromProvider', () => {
 describe('getSsoConnectionType', () => {
     const mockToken = 'mockToken'
     const mockCredsProvider: CredentialsProvider = {
-        hasCredentials: sinon.stub().returns(true),
+        hasCredentials: sinon.stub().withArgs('bearer').returns(true),
         getCredentials: sinon.stub().returns({ token: mockToken }),
         getConnectionMetadata: sinon.stub(),
         getConnectionType: sinon.stub(),
@@ -143,7 +143,7 @@ describe('getSsoConnectionType', () => {
     }
     it('should return ssoConnectionType as builderId', () => {
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
@@ -159,7 +159,7 @@ describe('getSsoConnectionType', () => {
 
     it('should return ssoConnectionType as identityCenter', () => {
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
@@ -180,7 +180,7 @@ describe('getSsoConnectionType', () => {
 
     it('should return ssoConnectionType as none when getConnectionMetadata.sso returns undefined', () => {
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
             getConnectionMetadata: sinon.stub().returns({
                 sso: undefined,
@@ -194,7 +194,7 @@ describe('getSsoConnectionType', () => {
 
     it('should return ssoConnectionType as none when getConnectionMetadata.sso.startUrl is empty string', () => {
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
@@ -210,7 +210,7 @@ describe('getSsoConnectionType', () => {
 
     it('should return ssoConnectionType as none when getConnectionMetadata.sso.startUrl returns undefined', () => {
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {

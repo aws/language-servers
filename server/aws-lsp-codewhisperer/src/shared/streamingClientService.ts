@@ -224,7 +224,3 @@ export class StreamingClientService extends StreamingClientServiceBase {
         return response
     }
 }
-
-// TODO: remove this when changing references
-export class StreamingClientServiceToken extends StreamingClientService {}
-export class StreamingClientServiceIAM extends StreamingClientService {}

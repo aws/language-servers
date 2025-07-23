@@ -5,11 +5,11 @@ import got from 'got'
 import * as Sinon from 'sinon'
 import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
 import { StartCodeAnalysisRequest } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { CodeWhispererService } from '../../shared/codeWhispererService'
 import { SecurityScanHandler } from './securityScanHandler'
 import { RawCodeScanIssue } from './types'
 import * as ScanConstants from './constants'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 
 const mockCodeScanFindings = JSON.stringify([
     {
@@ -50,14 +50,14 @@ const mocked$Response = {
 }
 
 describe('securityScanHandler', () => {
-    let client: StubbedInstance<CodeWhispererServiceToken>
+    let client: StubbedInstance<CodeWhispererService>
     let workspace: StubbedInstance<Workspace>
     let securityScanhandler: SecurityScanHandler
     const mockedLogging = stubInterface<Logging>()
     beforeEach(async () => {
         // Set up the server with a mock service
-        const serviceManager = stubInterface<AmazonQTokenServiceManager>()
-        client = stubInterface<CodeWhispererServiceToken>()
+        const serviceManager = stubInterface<AmazonQServiceManager>()
+        client = stubInterface<CodeWhispererService>()
         serviceManager.getCodewhispererService.returns(client)
         workspace = stubInterface<Workspace>()
         securityScanhandler = new SecurityScanHandler(serviceManager, workspace, mockedLogging)
