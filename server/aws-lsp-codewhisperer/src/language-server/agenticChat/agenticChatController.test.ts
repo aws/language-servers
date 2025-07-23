@@ -35,7 +35,11 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
-import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
+import {
+    createIterableResponse,
+    setCredentialsForAmazonQTokenServiceManagerFactory,
+    setIamCredentialsForAmazonQServiceManagerFactory,
+} from '../../shared/testUtils'
 import sinon from 'ts-sinon'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
@@ -180,6 +184,7 @@ describe('AgenticChatController', () => {
     let addMessageStub: sinon.SinonStub
 
     const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
+    const setIamCredentials = setIamCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
         // Override the response timeout for tests to avoid long waits
@@ -2904,6 +2909,10 @@ ${' '.repeat(8)}}
                     })
                 )
             })
+
+            // Store IAM credentials inside credentials provider
+            setIamCredentials()
+
             // Reset the singleton instance
             ChatSessionManagementService.reset()
 

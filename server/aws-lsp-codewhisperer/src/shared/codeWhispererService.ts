@@ -56,6 +56,12 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
+type CodeWhispererClient = CodeWhispererSigv4Client | CodeWhispererTokenClient
+type CodeWhispererConfigurationOptions =
+    | CodeWhispererSigv4ClientConfigurationOptions
+    | CodeWhispererTokenClientConfigurationOptions
+
+// Right now the only difference between the token client and the IAM client for codewhsiperer is the difference in function name
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion
@@ -63,7 +69,7 @@ export abstract class CodeWhispererServiceBase {
     public shareCodeWhispererContentWithAWS = false
     public customizationArn?: string
     public profileArn?: string
-    abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
+    abstract client: CodeWhispererClient
 
     inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
 
@@ -115,67 +121,11 @@ export abstract class CodeWhispererServiceBase {
     }
 }
 
-export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
-    client: CodeWhispererSigv4Client
-    constructor(
-        credentialsProvider: CredentialsProvider,
-        workspace: Workspace,
-        logging: Logging,
-        codeWhispererRegion: string,
-        codeWhispererEndpoint: string,
-        sdkInitializator: SDKInitializator
-    ) {
-        super(codeWhispererRegion, codeWhispererEndpoint)
-        const options: CodeWhispererSigv4ClientConfigurationOptions = {
-            region: this.codeWhispererRegion,
-            endpoint: this.codeWhispererEndpoint,
-            credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials('iam') as Credentials,
-            ]),
-        }
-        this.client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
-        // Avoid overwriting any existing client listeners
-        const clientRequestListeners = this.client.setupRequestListeners
-        this.client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
-            if (clientRequestListeners) {
-                clientRequestListeners.call(this.client, request)
-            }
-            request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
-        }
-    }
-
-    getCredentialsType(): CredentialsType {
-        return 'iam'
-    }
-
-    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
-        // add cancellation check
-        // add error check
-        if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
-        const response = await this.client.generateRecommendations(request).promise()
-        const responseContext = {
-            requestId: response?.$response?.requestId,
-            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
-            nextToken: response.nextToken,
-        }
-
-        for (const recommendation of response?.recommendations ?? []) {
-            Object.assign(recommendation, { itemId: this.generateItemId() })
-        }
-
-        return {
-            suggestions: response.recommendations as Suggestion[],
-            suggestionType: SuggestionType.COMPLETION,
-            responseContext,
-        }
-    }
-}
-
 /**
- * Hint: to get an instance of this: `AmazonQTokenServiceManager.getInstance().getCodewhispererService()`
+ * Hint: to get an instance of this: `AmazonQServiceManager.getInstance().getCodewhispererService()`
  */
-export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
-    client: CodeWhispererTokenClient
+export class CodeWhispererService extends CodeWhispererServiceBase {
+    client: CodeWhispererClient
     /** Debounce createSubscriptionToken by storing the current, pending promise (if any). */
     #createSubscriptionTokenPromise?: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse>
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
@@ -190,58 +140,101 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         sdkInitializator: SDKInitializator
     ) {
         super(codeWhispererRegion, codeWhispererEndpoint)
+        const options = this.CreateCodeWhispererConfigurationOptions()
+        this.client = this.createAppropriateClient(credentialsProvider, options, sdkInitializator, logging)
+    }
 
-        const options: CodeWhispererTokenClientConfigurationOptions = {
-            region: this.codeWhispererRegion,
-            endpoint: this.codeWhispererEndpoint,
-            onRequestSetup: [
-                req => {
-                    logging.debug(`CodeWhispererServiceToken: req=${req.operation}`)
-                    this.trackRequest(req)
-                    req.on('build', async ({ httpRequest }) => {
-                        try {
-                            const creds = credentialsProvider.getCredentials('bearer') as BearerCredentials
-                            if (!creds?.token) {
-                                throw new Error('Authorization failed, bearer token is not set')
-                            }
-                            httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
-                            httpRequest.headers['x-amzn-codewhisperer-optout'] =
-                                `${!this.shareCodeWhispererContentWithAWS}`
-                        } catch (err) {
-                            this.completeRequest(req)
-                            throw err
-                        }
-                    })
-                    req.on('complete', response => {
-                        const requestStartTime = req.startTime?.getTime() || 0
-                        const requestEndTime = new Date().getTime()
-                        const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
-
-                        const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
-                        this.completeRequest(req)
-                    })
-                    req.on('error', async (error, response) => {
-                        const requestStartTime = req.startTime?.getTime() || 0
-                        const requestEndTime = new Date().getTime()
-                        const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
-
-                        const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
-                        this.completeRequest(req)
-                    })
-                    req.on('error', () => {
-                        this.completeRequest(req)
-                    })
-                    req.on('error', () => {
-                        this.completeRequest(req)
-                    })
+    private CreateCodeWhispererConfigurationOptions(): CodeWhispererConfigurationOptions {
+        if (this.credentialsProvider.hasCredentials('iam')) {
+            const credentials = this.credentialsProvider.getCredentials('iam') as Credentials
+            const options: CodeWhispererSigv4ClientConfigurationOptions = {
+                region: this.codeWhispererRegion,
+                endpoint: this.codeWhispererEndpoint,
+                credentials: {
+                    accessKeyId: credentials.accessKeyId,
+                    secretAccessKey: credentials.secretAccessKey,
+                    sessionToken: credentials.sessionToken,
                 },
-            ],
+            }
+            return options
+        } else {
+            const options: CodeWhispererTokenClientConfigurationOptions = {
+                region: this.codeWhispererRegion,
+                endpoint: this.codeWhispererEndpoint,
+                onRequestSetup: [
+                    req => {
+                        this.logging.debug(`CodeWhispererService: req=${req.operation}`)
+                        this.trackRequest(req)
+                        req.on('build', async ({ httpRequest }) => {
+                            try {
+                                const creds = this.credentialsProvider.getCredentials('bearer') as BearerCredentials
+                                if (!creds?.token) {
+                                    throw new Error('Authorization failed, bearer token is not set')
+                                }
+                                httpRequest.headers['Authorization'] = `Bearer ${creds.token}`
+                                httpRequest.headers['x-amzn-codewhisperer-optout'] =
+                                    `${!this.shareCodeWhispererContentWithAWS}`
+                            } catch (err) {
+                                this.completeRequest(req)
+                                throw err
+                            }
+                        })
+                        req.on('complete', response => {
+                            const requestStartTime = req.startTime?.getTime() || 0
+                            const requestEndTime = new Date().getTime()
+                            const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
+
+                            const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
+                            this.completeRequest(req)
+                        })
+                        req.on('error', async (error, response) => {
+                            const requestStartTime = req.startTime?.getTime() || 0
+                            const requestEndTime = new Date().getTime()
+                            const latency = requestStartTime > 0 ? requestEndTime - requestStartTime : 0
+
+                            const requestBody = req.httpRequest.body ? JSON.parse(String(req.httpRequest.body)) : {}
+                            this.completeRequest(req)
+                        })
+                        req.on('error', () => {
+                            this.completeRequest(req)
+                        })
+                        req.on('error', () => {
+                            this.completeRequest(req)
+                        })
+                    },
+                ],
+            }
+            return options
         }
-        this.client = createCodeWhispererTokenClient(options, sdkInitializator, logging)
+    }
+
+    private createAppropriateClient(
+        credentialsProvider: CredentialsProvider,
+        options: CodeWhispererTokenClientConfigurationOptions,
+        sdkInitializator: SDKInitializator,
+        logging: Logging
+    ): CodeWhispererClient {
+        if (credentialsProvider.hasCredentials('iam')) {
+            const client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
+            const clientRequestListeners = client.setupRequestListeners
+            client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
+                if (clientRequestListeners) {
+                    clientRequestListeners.call(this.client, request)
+                }
+                request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
+            }
+            return client
+        } else {
+            return createCodeWhispererTokenClient(options, sdkInitializator, logging)
+        }
     }
 
     getCredentialsType(): CredentialsType {
-        return 'bearer'
+        if (this.credentialsProvider.hasCredentials('iam')) {
+            return 'iam'
+        } else {
+            return 'bearer'
+        }
     }
 
     private withProfileArn<T extends object>(request: T): T {
@@ -254,26 +247,49 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
-        const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
-        this.logging.info(
-            `GenerateCompletion response: 
-    "requestId": ${response.$response.requestId},
-    "responseCompletionCount": ${response.completions?.length ?? 0},
-    "responsePredictionCount": ${response.predictions?.length ?? 0},
-    "suggestionType": ${request.predictionTypes?.toString() ?? ''},
-    "filename": ${request.fileContext.filename},
-    "language": ${request.fileContext.programmingLanguage.languageName},
-    "supplementalContextLength": ${request.supplementalContexts?.length ?? 0},
-    "request.nextToken": ${request.nextToken},
-    "response.nextToken": ${response.nextToken}`
-        )
 
-        const responseContext = {
-            requestId: response?.$response?.requestId,
-            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
-            nextToken: response.nextToken,
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            const response = await tokenClient.generateCompletions(this.withProfileArn(request)).promise()
+            this.logging.info(
+                `GenerateCompletion response: 
+        "requestId": ${response.$response.requestId},
+        "responseCompletionCount": ${response.completions?.length ?? 0},
+        "responsePredictionCount": ${response.predictions?.length ?? 0},
+        "suggestionType": ${request.predictionTypes?.toString() ?? ''},
+        "filename": ${request.fileContext.filename},
+        "language": ${request.fileContext.programmingLanguage.languageName},
+        "supplementalContextLength": ${request.supplementalContexts?.length ?? 0},
+        "request.nextToken": ${request.nextToken},
+        "response.nextToken": ${response.nextToken}`
+            )
+
+            const responseContext = {
+                requestId: response?.$response?.requestId,
+                codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
+                nextToken: response.nextToken,
+            }
+            return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+        } else if (this.getCredentialsType() === 'iam') {
+            const sigv4Client = this.client as CodeWhispererSigv4Client
+            const response = await sigv4Client.generateRecommendations(request).promise()
+            const responseContext = {
+                requestId: response?.$response?.requestId,
+                codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
+                nextToken: response.nextToken,
+            }
+            // TODO: figure out why mapCodeWhispererApiResponseToSuggestion does not work with GenerateRecommendationsResponse
+            for (const recommendation of response?.recommendations ?? []) {
+                Object.assign(recommendation, { itemId: this.generateItemId() })
+            }
+
+            return {
+                suggestions: response.recommendations as Suggestion[],
+                responseContext,
+            }
+        } else {
+            throw new Error('invalid credentialsType for generateSuggestions')
         }
-        return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
@@ -309,8 +325,14 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerCreateUploadUrl(
         request: CodeWhispererTokenClient.CreateUploadUrlRequest
     ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {
-        return this.client.createUploadUrl(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.createUploadUrl(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for codeModernizerCreateUploadUrl')
+        }
     }
+
     /**
      * @description Use this function to start the transformation job.
      * @param request
@@ -320,7 +342,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerStartCodeTransformation(
         request: CodeWhispererTokenClient.StartTransformationRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.StartTransformationResponse, AWSError>> {
-        return await this.client.startTransformation(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return await tokenClient.startTransformation(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for codeModernizerStartCodeTransformation')
+        }
     }
 
     /**
@@ -331,7 +358,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerStopCodeTransformation(
         request: CodeWhispererTokenClient.StopTransformationRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.StopTransformationResponse, AWSError>> {
-        return await this.client.stopTransformation(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return await tokenClient.stopTransformation(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for codeModernizerStopCodeTransformation')
+        }
     }
 
     /**
@@ -342,7 +374,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerGetCodeTransformation(
         request: CodeWhispererTokenClient.GetTransformationRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationResponse, AWSError>> {
-        return await this.client.getTransformation(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return await tokenClient.getTransformation(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for codeModernizerGetCodeTransformation')
+        }
     }
 
     /**
@@ -353,7 +390,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     public async codeModernizerGetCodeTransformationPlan(
         request: CodeWhispererTokenClient.GetTransformationPlanRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationPlanResponse, AWSError>> {
-        return this.client.getTransformationPlan(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.getTransformationPlan(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for codeModernizerGetCodeTransformationPlan')
+        }
     }
 
     /**
@@ -362,7 +404,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async createUploadUrl(
         request: CodeWhispererTokenClient.CreateUploadUrlRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.CreateUploadUrlResponse, AWSError>> {
-        return this.client.createUploadUrl(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.createUploadUrl(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for createUploadUrl')
+        }
     }
 
     /**
@@ -371,7 +418,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async startCodeAnalysis(
         request: CodeWhispererTokenClient.StartCodeAnalysisRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.StartCodeAnalysisResponse, AWSError>> {
-        return this.client.startCodeAnalysis(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.startCodeAnalysis(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for startCodeAnalysis')
+        }
     }
 
     /**
@@ -380,7 +432,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async getCodeAnalysis(
         request: CodeWhispererTokenClient.GetCodeAnalysisRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.GetCodeAnalysisResponse, AWSError>> {
-        return this.client.getCodeAnalysis(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.getCodeAnalysis(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for getCodeAnalysis')
+        }
     }
 
     /**
@@ -389,56 +446,96 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async listCodeAnalysisFindings(
         request: CodeWhispererTokenClient.ListCodeAnalysisFindingsRequest
     ): Promise<PromiseResult<CodeWhispererTokenClient.ListCodeAnalysisFindingsResponse, AWSError>> {
-        return this.client.listCodeAnalysisFindings(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.listCodeAnalysisFindings(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for listCodeAnalysisFindings')
+        }
     }
 
     /**
      * @description Get list of available customizations
      */
     async listAvailableCustomizations(request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest) {
-        return this.client.listAvailableCustomizations(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.listAvailableCustomizations(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for listAvailableCustomizations')
+        }
     }
 
     /**
      * @description Get list of available profiles
      */
     async listAvailableProfiles(request: CodeWhispererTokenClient.ListAvailableProfilesRequest) {
-        return this.client.listAvailableProfiles(request).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.listAvailableProfiles(request).promise()
+        } else {
+            throw new Error('unsupported credentialsType for listAvailableProfiles')
+        }
     }
 
     /**
      * @description send telemetry event to code whisperer data warehouse
      */
     async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
-        return this.client.sendTelemetryEvent(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.sendTelemetryEvent(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for sendTelemetryEvent')
+        }
     }
 
     /**
      * @description create a remote workspace
      */
     async createWorkspace(request: CodeWhispererTokenClient.CreateWorkspaceRequest) {
-        return this.client.createWorkspace(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.createWorkspace(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for createWorkspace')
+        }
     }
 
     /**
      * @description get list of workspace metadata
      */
     async listWorkspaceMetadata(request: CodeWhispererTokenClient.ListWorkspaceMetadataRequest) {
-        return this.client.listWorkspaceMetadata(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.listWorkspaceMetadata(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for listWorkspaceMetadata')
+        }
     }
 
     /**
      * @description delete the remote workspace
      */
     async deleteWorkspace(request: CodeWhispererTokenClient.DeleteWorkspaceRequest) {
-        return this.client.deleteWorkspace(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.deleteWorkspace(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for deleteWorkspace')
+        }
     }
 
     /*
      * @description get the list of feature evaluations
      */
     async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
-        return this.client.listFeatureEvaluations(this.withProfileArn(request)).promise()
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            return tokenClient.listFeatureEvaluations(this.withProfileArn(request)).promise()
+        } else {
+            throw new Error('unsupported credentialsType for listFeatureEvaluations')
+        }
     }
 
     /**
@@ -452,24 +549,29 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             return this.#createSubscriptionTokenPromise
         }
 
-        this.#createSubscriptionTokenPromise = (async () => {
-            try {
-                const r = await this.client.createSubscriptionToken(this.withProfileArn(request)).promise()
-                if (!r.encodedVerificationUrl) {
-                    this.logging.error(`setpaidtier
-    request: ${JSON.stringify(request)}
-    response: ${JSON.stringify(r as any)}
-    requestId: ${(r as any).$response?.requestId}
-    httpStatusCode: ${(r as any).$response?.httpResponse?.statusCode}
-    headers: ${JSON.stringify((r as any).$response?.httpResponse?.headers)}`)
+        if (this.getCredentialsType() === 'bearer') {
+            const tokenClient = this.client as CodeWhispererTokenClient
+            this.#createSubscriptionTokenPromise = (async () => {
+                try {
+                    const r = await tokenClient.createSubscriptionToken(this.withProfileArn(request)).promise()
+                    if (!r.encodedVerificationUrl) {
+                        this.logging.error(`setpaidtier
+        request: ${JSON.stringify(request)}
+        response: ${JSON.stringify(r as any)}
+        requestId: ${(r as any).$response?.requestId}
+        httpStatusCode: ${(r as any).$response?.httpResponse?.statusCode}
+        headers: ${JSON.stringify((r as any).$response?.httpResponse?.headers)}`)
+                    }
+                    return r
+                } finally {
+                    this.#createSubscriptionTokenPromise = undefined
                 }
-                return r
-            } finally {
-                this.#createSubscriptionTokenPromise = undefined
-            }
-        })()
+            })()
 
-        return this.#createSubscriptionTokenPromise
+            return this.#createSubscriptionTokenPromise
+        } else {
+            throw new Error('unsupported credentialsType for listFeatureEvaluations')
+        }
     }
 
     /**
@@ -494,6 +596,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         //    - User has an active subscription *with auto-renewal enabled*.
         //
         // Also, it is currently not possible to subscribe or re-subscribe via console, only IDE/CLI.
+        if (this.getCredentialsType() === 'iam') {
+            throw new Error('unsupported credentialsType for getSubscriptionStatus')
+        }
+
         try {
             const r = await this.createSubscriptionToken({
                 statusOnly: !!statusOnly,
@@ -564,3 +670,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return !!r
     }
 }
+
+// TODO: remove this when changing references
+export class CodeWhispererServiceToken extends CodeWhispererService {}
+export class CodeWhispererServiceIAM extends CodeWhispererService {}

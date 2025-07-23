@@ -238,6 +238,8 @@ type ChatHandlers = Omit<
     | 'onPinnedContextRemove'
     | 'onOpenFileDialog'
     | 'onListAvailableModels'
+    | 'sendSubscriptionDetails'
+    | 'onSubscriptionUpgrade'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -2274,7 +2276,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }] : [],
+                    buttons: isAccept ? [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }] : [],
                 },
             }
         }
@@ -2523,9 +2525,9 @@ export class AgenticChatController implements ChatHandlers {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 buttons = requiresAcceptance
                     ? [
-                          { id: BUTTON_RUN_SHELL_COMMAND, text: 'Run', icon: 'play' },
+                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
                           {
-                              id: BUTTON_REJECT_SHELL_COMMAND,
+                              id: 'reject-shell-command',
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
@@ -2782,7 +2784,7 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === FS_READ
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === FILE_SEARCH
+                    : toolUse.name === 'fileSearch'
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }

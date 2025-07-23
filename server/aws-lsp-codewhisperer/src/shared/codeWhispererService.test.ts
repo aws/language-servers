@@ -15,11 +15,11 @@ import * as sinon from 'sinon'
 import * as assert from 'assert'
 import {
     CodeWhispererServiceBase,
-    CodeWhispererServiceToken,
-    CodeWhispererServiceIAM,
+    CodeWhispererService,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
 } from './codeWhispererService'
+import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
 
 describe('CodeWhispererService', function () {
     let sandbox: sinon.SinonSandbox
@@ -59,7 +59,7 @@ describe('CodeWhispererService', function () {
         sandbox.restore()
     })
 
-    describe('CodeWhispererServiceBase', function () {
+    describe('Base', function () {
         let service: CodeWhispererServiceBase
 
         beforeEach(function () {
@@ -68,7 +68,7 @@ describe('CodeWhispererService', function () {
                 client: any = {}
 
                 getCredentialsType(): CredentialsType {
-                    return 'iam'
+                    return 'bearer'
                 }
 
                 // Add public getters for protected properties
@@ -193,8 +193,8 @@ describe('CodeWhispererService', function () {
         })
     })
 
-    describe('CodeWhispererServiceIAM', function () {
-        let service: CodeWhispererServiceIAM
+    describe('IAM', function () {
+        let service: CodeWhispererService
 
         beforeEach(function () {
             // Mock the createCodeWhispererSigv4Client function to avoid real client creation
@@ -223,7 +223,15 @@ describe('CodeWhispererService', function () {
             )
             createClientStub.returns(mockClient)
 
-            service = new CodeWhispererServiceIAM(
+            // Mock bearer credentials
+            mockCredentialsProvider.hasCredentials.withArgs('iam').returns(true)
+            mockCredentialsProvider.getCredentials.returns({
+                accessKeyId: 'mock-access-key',
+                secretAccessKey: 'mock-secret-key',
+                sessionToken: 'mock-session-token',
+            })
+
+            service = new CodeWhispererService(
                 mockCredentialsProvider as any,
                 {} as any, // workspace parameter
                 mockLogging as any,
@@ -274,14 +282,16 @@ describe('CodeWhispererService', function () {
                 await service.generateSuggestions(mockRequest)
 
                 // Verify that the client was called with the customizationArn
-                const clientCall = (service.client.generateRecommendations as sinon.SinonStub).getCall(0)
+                const clientCall = (
+                    (service.client as CodeWhispererSigv4Client).generateRecommendations as sinon.SinonStub
+                ).getCall(0)
                 assert.strictEqual(clientCall.args[0].customizationArn, 'test-arn')
             })
         })
     })
 
-    describe('CodeWhispererServiceToken', function () {
-        let service: CodeWhispererServiceToken
+    describe('Token', function () {
+        let service: CodeWhispererService
         let mockClient: any
 
         beforeEach(function () {
@@ -319,8 +329,9 @@ describe('CodeWhispererService', function () {
             mockCredentialsProvider.getCredentials.returns({
                 token: 'mock-bearer-token',
             })
+            mockCredentialsProvider.hasCredentials.withArgs('bearer').returns(true)
 
-            service = new CodeWhispererServiceToken(
+            service = new CodeWhispererService(
                 mockCredentialsProvider as any,
                 mockWorkspace as any,
                 mockLogging as any,

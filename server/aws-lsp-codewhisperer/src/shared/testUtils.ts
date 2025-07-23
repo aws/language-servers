@@ -319,13 +319,29 @@ export function shuffleList<T>(list: T[]): T[] {
     return shuffledList
 }
 
-export const setCredentialsForAmazonQTokenServiceManagerFactory = (getFeatures: () => TestFeatures) => {
+export const setTokenCredentialsForAmazonQServiceManagerFactory = (getFeatures: () => TestFeatures) => {
     return (connectionType: SsoConnectionType) => {
         const features = getFeatures()
-        features.credentialsProvider.hasCredentials.returns(true)
+        features.credentialsProvider.hasCredentials.withArgs('bearer').returns(true)
         features.credentialsProvider.getConnectionType.returns(connectionType)
         features.credentialsProvider.getCredentials.returns({
             token: 'test-token',
+        })
+    }
+}
+
+// TODO: remove this when changing references
+export const setCredentialsForAmazonQTokenServiceManagerFactory = setTokenCredentialsForAmazonQServiceManagerFactory
+
+export const setIamCredentialsForAmazonQServiceManagerFactory = (getFeatures: () => TestFeatures) => {
+    return () => {
+        const features = getFeatures()
+        features.credentialsProvider.hasCredentials.withArgs('iam').returns(true)
+        features.credentialsProvider.getConnectionType.returns('none')
+        features.credentialsProvider.getCredentials.returns({
+            accessKeyId: 'test-access-key',
+            secretAccessKey: 'test-secret-key',
+            sessionToken: 'test-session-token',
         })
     }
 }
