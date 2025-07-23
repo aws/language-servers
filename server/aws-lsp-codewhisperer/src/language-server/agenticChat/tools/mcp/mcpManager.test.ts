@@ -26,7 +26,6 @@ const fakeWorkspace = {
         mkdir: (_: string, __: any) => Promise.resolve(),
     },
     getUserHomeDir: () => '',
-    getAllWorkspaceFolders: () => [{ uri: '/fake/workspace' }],
 }
 const features = { logging: fakeLogging, workspace: fakeWorkspace, lsp: {} } as any
 
@@ -235,26 +234,10 @@ describe('addServer()', () => {
 describe('removeServer()', () => {
     let loadStub: sinon.SinonStub
     let saveAgentConfigStub: sinon.SinonStub
-    let existsStub: sinon.SinonStub
-    let readFileStub: sinon.SinonStub
-    let writeFileStub: sinon.SinonStub
-    let mkdirStub: sinon.SinonStub
-    let getWorkspaceMcpConfigPathsStub: sinon.SinonStub
-    let getGlobalMcpConfigPathStub: sinon.SinonStub
 
     beforeEach(() => {
         loadStub = stubAgentConfig()
         saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
-        existsStub = sinon.stub(fakeWorkspace.fs, 'exists').resolves(true)
-        readFileStub = sinon
-            .stub(fakeWorkspace.fs, 'readFile')
-            .resolves(Buffer.from(JSON.stringify({ mcpServers: { x: {} } })))
-        writeFileStub = sinon.stub(fakeWorkspace.fs, 'writeFile').resolves()
-        mkdirStub = sinon.stub(fakeWorkspace.fs, 'mkdir').resolves()
-        getWorkspaceMcpConfigPathsStub = sinon
-            .stub(mcpUtils, 'getWorkspaceMcpConfigPaths')
-            .returns(['ws1/config.json', 'ws2/config.json'])
-        getGlobalMcpConfigPathStub = sinon.stub(mcpUtils, 'getGlobalMcpConfigPath').returns('global/config.json')
     })
 
     afterEach(async () => {
@@ -291,106 +274,6 @@ describe('removeServer()', () => {
         await mgr.removeServer('x')
         expect(saveAgentConfigStub.calledOnce).to.be.true
         expect((mgr as any).clients.has('x')).to.be.false
-    })
-
-    it('removes server from all config files', async () => {
-        const mgr = await McpManager.init([], features)
-        const dummy = new Client({ name: 'c', version: 'v' })
-        ;(mgr as any).clients.set('x', dummy)
-        ;(mgr as any).mcpServers.set('x', {
-            command: '',
-            args: [],
-            env: {},
-            timeout: 0,
-            __configPath__: 'c.json',
-        } as MCPServerConfig)
-        ;(mgr as any).serverNameMapping.set('x', 'x')
-        ;(mgr as any).agentConfig = {
-            name: 'test-agent',
-            version: '1.0.0',
-            description: 'Test agent',
-            mcpServers: { x: {} },
-            tools: ['@x'],
-            allowedTools: [],
-            toolsSettings: {},
-            includedFiles: [],
-            resources: [],
-        }
-
-        await mgr.removeServer('x')
-
-        // Verify that writeFile was called for each config path (2 workspace + 1 global)
-        expect(writeFileStub.callCount).to.equal(3)
-
-        // Verify the content of the writes (should have removed the server)
-        writeFileStub.getCalls().forEach(call => {
-            const content = JSON.parse(call.args[1])
-            expect(content.mcpServers).to.not.have.property('x')
-        })
-    })
-})
-
-describe('mutateConfigFile()', () => {
-    let existsStub: sinon.SinonStub
-    let readFileStub: sinon.SinonStub
-    let writeFileStub: sinon.SinonStub
-    let mkdirStub: sinon.SinonStub
-    let mgr: McpManager
-
-    beforeEach(async () => {
-        sinon.restore()
-        stubAgentConfig()
-        existsStub = sinon.stub(fakeWorkspace.fs, 'exists').resolves(true)
-        readFileStub = sinon
-            .stub(fakeWorkspace.fs, 'readFile')
-            .resolves(Buffer.from(JSON.stringify({ mcpServers: { test: {} } })))
-        writeFileStub = sinon.stub(fakeWorkspace.fs, 'writeFile').resolves()
-        mkdirStub = sinon.stub(fakeWorkspace.fs, 'mkdir').resolves()
-        mgr = await McpManager.init([], features)
-    })
-
-    afterEach(async () => {
-        sinon.restore()
-        try {
-            await McpManager.instance.close()
-        } catch {}
-    })
-
-    it('reads, mutates, and writes config file', async () => {
-        // Access the private method using type assertion
-        const mutateConfigFile = (mgr as any).mutateConfigFile.bind(mgr)
-
-        await mutateConfigFile('test/path.json', (json: any) => {
-            json.mcpServers.newServer = { command: 'test' }
-            delete json.mcpServers.test
-        })
-
-        expect(readFileStub.calledOnce).to.be.true
-        expect(writeFileStub.calledOnce).to.be.true
-
-        // Verify the content was modified correctly
-        const writtenContent = JSON.parse(writeFileStub.firstCall.args[1])
-        expect(writtenContent.mcpServers).to.have.property('newServer')
-        expect(writtenContent.mcpServers).to.not.have.property('test')
-    })
-
-    it('creates new config file if it does not exist', async () => {
-        existsStub.resolves(false)
-        readFileStub.rejects({ code: 'ENOENT' })
-
-        // Access the private method using type assertion
-        const mutateConfigFile = (mgr as any).mutateConfigFile.bind(mgr)
-
-        await mutateConfigFile('test/path.json', (json: any) => {
-            json.mcpServers.newServer = { command: 'test' }
-        })
-
-        expect(mkdirStub.calledOnce).to.be.true
-        expect(writeFileStub.calledOnce).to.be.true
-
-        // Verify the content was created correctly
-        const writtenContent = JSON.parse(writeFileStub.firstCall.args[1])
-        expect(writtenContent.mcpServers).to.have.property('newServer')
     })
 })
 
