@@ -1437,7 +1437,7 @@ export const createMynahUi = (
                 genericCommandString,
                 ' the following part of my code:',
                 '\n~~~~\n',
-                genericCommandString,
+                params.selection,
                 '\n~~~~\n',
             ].join('')
             chatPrompt = { prompt: body, escapedPrompt: body }
