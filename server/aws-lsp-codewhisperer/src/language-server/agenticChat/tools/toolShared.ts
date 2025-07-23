@@ -3,7 +3,6 @@ import { workspaceUtils } from '@aws/lsp-core'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 import * as path from 'path'
 import { CommandCategory } from './executeBash'
-import { OUT_OF_WORKSPACE_WARNING_MSG } from '../constants/constants'
 
 interface Output<Kind, Content> {
     kind: Kind
@@ -128,13 +127,10 @@ export async function requiresPathAcceptance(
             if (logging) {
                 logging.debug('No workspace folders found when checking file acceptance')
             }
-            return { requiresAcceptance: true, warning: OUT_OF_WORKSPACE_WARNING_MSG }
+            return { requiresAcceptance: true }
         }
         const isInWorkspace = workspaceUtils.isInWorkspace(workspaceFolders, path)
-        return {
-            requiresAcceptance: !isInWorkspace,
-            warning: !isInWorkspace ? OUT_OF_WORKSPACE_WARNING_MSG : undefined,
-        }
+        return { requiresAcceptance: !isInWorkspace }
     } catch (error) {
         if (logging) {
             logging.error(`Error checking file acceptance: ${error}`)
