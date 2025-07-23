@@ -2276,7 +2276,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [{ id: 'stop-shell-command', text: 'Stop', icon: 'stop' }] : [],
+                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }] : [],
                 },
             }
         }
@@ -2525,9 +2525,9 @@ export class AgenticChatController implements ChatHandlers {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
                 buttons = requiresAcceptance
                     ? [
-                          { id: 'run-shell-command', text: 'Run', icon: 'play' },
+                          { id: BUTTON_RUN_SHELL_COMMAND, text: 'Run', icon: 'play' },
                           {
-                              id: 'reject-shell-command',
+                              id: BUTTON_REJECT_SHELL_COMMAND,
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
@@ -2784,7 +2784,7 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === FS_READ
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === 'fileSearch'
+                    : toolUse.name === FILE_SEARCH
                       ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
                       : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
         }

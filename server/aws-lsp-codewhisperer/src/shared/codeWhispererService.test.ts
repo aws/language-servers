@@ -68,7 +68,7 @@ describe('CodeWhispererService', function () {
                 client: any = {}
 
                 getCredentialsType(): CredentialsType {
-                    return 'bearer'
+                    return 'iam'
                 }
 
                 // Add public getters for protected properties
