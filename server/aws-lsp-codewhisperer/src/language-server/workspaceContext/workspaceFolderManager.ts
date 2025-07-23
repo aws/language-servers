@@ -19,7 +19,6 @@ import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { URI } from 'vscode-uri'
 import path = require('path')
-import { isAwsError } from '../../shared/utils'
 
 interface WorkspaceState {
     remoteWorkspaceState: WorkspaceStatus
@@ -48,14 +47,12 @@ export class WorkspaceFolderManager {
     private credentialsProvider: CredentialsProvider
     private readonly INITIAL_CHECK_INTERVAL = 40 * 1000 // 40 seconds
     private readonly INITIAL_CONNECTION_TIMEOUT = 2 * 60 * 1000 // 2 minutes
-    private readonly CONTINUOUS_MONITOR_INTERVAL = 30 * 60 * 1000 // 30 minutes
+    private readonly CONTINUOUS_MONITOR_INTERVAL = 5 * 60 * 1000 // 30 minutes
     private readonly MESSAGE_PUBLISH_INTERVAL: number = 100 // 100 milliseconds
     private continuousMonitorInterval: NodeJS.Timeout | undefined
     private optOutMonitorInterval: NodeJS.Timeout | undefined
     private messageQueueConsumerInterval: NodeJS.Timeout | undefined
     private isOptedOut: boolean = false
-    // Tracks if the user has reached their maximum allowed remote workspaces quota
-    private isServiceQuotaExceeded: boolean = false
 
     static createInstance(
         serviceManager: AmazonQTokenServiceManager,
@@ -136,15 +133,6 @@ export class WorkspaceFolderManager {
 
     getOptOutStatus(): boolean {
         return this.isOptedOut
-    }
-
-    getServiceQuotaExceededStatus(): boolean {
-        return this.isServiceQuotaExceeded
-    }
-
-    resetAdminOptOutAndServiceQuotaStatus(): void {
-        this.isOptedOut = false
-        this.isServiceQuotaExceeded = false
     }
 
     getWorkspaceState(): WorkspaceState {
@@ -355,7 +343,7 @@ export class WorkspaceFolderManager {
         await this.checkRemoteWorkspaceStatusAndReact(true)
 
         // Set up continuous monitoring which periodically invokes checkRemoteWorkspaceStatusAndReact
-        if (!this.isOptedOut && !this.isServiceQuotaExceeded && this.continuousMonitorInterval === undefined) {
+        if (!this.isOptedOut && this.continuousMonitorInterval === undefined) {
             this.logging.log(`Starting continuous monitor for workspace [${this.workspaceIdentifier}]`)
             this.continuousMonitorInterval = setInterval(async () => {
                 try {
@@ -604,13 +592,6 @@ export class WorkspaceFolderManager {
 
     private async createNewWorkspace() {
         const createWorkspaceResult = await this.createWorkspace(this.workspaceIdentifier)
-
-        this.isServiceQuotaExceeded = createWorkspaceResult.isServiceQuotaExceeded
-        if (this.isServiceQuotaExceeded) {
-            // Stop continuous monitor and all actions
-            this.clearAllWorkspaceResources()
-        }
-
         const workspaceDetails = createWorkspaceResult.response
         if (!workspaceDetails) {
             this.logging.warn(`Failed to create remote workspace for [${this.workspaceIdentifier}]`)
@@ -731,31 +712,23 @@ export class WorkspaceFolderManager {
         return { metadata, optOut, error }
     }
 
-    private async createWorkspace(workspaceRoot: WorkspaceRoot): Promise<{
-        response: CreateWorkspaceResponse | undefined | null
-        isServiceQuotaExceeded: boolean
-        error: any
-    }> {
+    private async createWorkspace(workspaceRoot: WorkspaceRoot) {
         let response: CreateWorkspaceResponse | undefined | null
-        let isServiceQuotaExceeded = false
-        let error: any
         try {
             response = await this.serviceManager.getCodewhispererService().createWorkspace({
                 workspaceRoot: workspaceRoot,
             })
+            return { response, error: null }
         } catch (e: any) {
             this.logging.warn(
                 `Error while creating workspace (${workspaceRoot}): ${e.message}. Error is ${e.retryable ? '' : 'not'} retryable}`
             )
-            if (isAwsError(e) && e.code === 'ServiceQuotaExceededException') {
-                isServiceQuotaExceeded = true
-            }
-            error = {
+            const error = {
                 message: e.message,
                 retryable: e.retryable ?? false,
                 originalError: e,
             }
+            return { response: null, error }
         }
-        return { response, isServiceQuotaExceeded, error }
     }
 }
