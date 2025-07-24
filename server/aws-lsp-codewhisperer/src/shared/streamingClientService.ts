@@ -49,6 +49,16 @@ export abstract class StreamingClientServiceBase {
         abortController?: AbortController
     ): Promise<SendMessageCommandOutput>
 
+    abstract generateAssistantResponse(
+        request: GenerateAssistantResponseCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<GenerateAssistantResponseCommandOutputCodeWhispererStreaming>
+
+    abstract exportResultArchive(
+        request: ExportResultArchiveCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<ExportResultArchiveCommandOutputCodeWhispererStreaming>
+
     public abortInflightRequests() {
         this.inflightRequests.forEach(abortController => {
             abortController.abort()
@@ -208,5 +218,18 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
         this.inflightRequests.delete(controller)
 
         return response
+    }
+
+    public async generateAssistantResponse(
+        request: GenerateAssistantResponseCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<GenerateAssistantResponseCommandOutputCodeWhispererStreaming> {
+        throw new Error('Method not implemented.')
+    }
+    public async exportResultArchive(
+        request: ExportResultArchiveCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<ExportResultArchiveCommandOutputCodeWhispererStreaming> {
+        throw new Error('Method not implemented.')
     }
 }
