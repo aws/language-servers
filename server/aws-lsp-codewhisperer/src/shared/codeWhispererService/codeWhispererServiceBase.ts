@@ -64,10 +64,6 @@ export abstract class CodeWhispererServiceBase {
         this.inflightRequests.delete(request)
     }
 
-    abstract getCredentialsType(): CredentialsType
-
-    abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
-
     constructor(codeWhispererRegion: string, codeWhispererEndpoint: string) {
         this.codeWhispererRegion = codeWhispererRegion
         this.codeWhispererEndpoint = codeWhispererEndpoint
@@ -95,4 +91,55 @@ export abstract class CodeWhispererServiceBase {
         // No-op: base class doesn't support subscription polling
         return false
     }
+
+    abstract getCredentialsType(): CredentialsType
+    abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
+    abstract codeModernizerCreateUploadUrl(
+        request: CodeWhispererTokenClient.CreateUploadUrlRequest
+    ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse>
+    abstract codeModernizerStartCodeTransformation(
+        request: CodeWhispererTokenClient.StartTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.StartTransformationResponse, AWSError>>
+    abstract codeModernizerStopCodeTransformation(
+        request: CodeWhispererTokenClient.StopTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.StopTransformationResponse, AWSError>>
+    abstract codeModernizerGetCodeTransformation(
+        request: CodeWhispererTokenClient.GetTransformationRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationResponse, AWSError>>
+    abstract codeModernizerGetCodeTransformationPlan(
+        request: CodeWhispererTokenClient.GetTransformationPlanRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationPlanResponse, AWSError>>
+    abstract createUploadUrl(
+        request: CodeWhispererTokenClient.CreateUploadUrlRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.CreateUploadUrlResponse, AWSError>>
+    abstract startCodeAnalysis(
+        request: CodeWhispererTokenClient.StartCodeAnalysisRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.StartCodeAnalysisResponse, AWSError>>
+    abstract getCodeAnalysis(
+        request: CodeWhispererTokenClient.GetCodeAnalysisRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.GetCodeAnalysisResponse, AWSError>>
+    abstract listCodeAnalysisFindings(
+        request: CodeWhispererTokenClient.ListCodeAnalysisFindingsRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.ListCodeAnalysisFindingsResponse, AWSError>>
+    abstract listAvailableCustomizations(
+        request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.ListAvailableCustomizationsResponse, AWSError>>
+    abstract listAvailableProfiles(
+        request: CodeWhispererTokenClient.ListAvailableProfilesRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.ListAvailableProfilesRequest, AWSError>>
+    abstract sendTelemetryEvent(
+        request: CodeWhispererTokenClient.SendTelemetryEventRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.SendTelemetryEventResponse, AWSError>>
+    abstract createWorkspace(
+        request: CodeWhispererTokenClient.CreateWorkspaceRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.CreateWorkspaceResponse, AWSError>>
+    abstract listWorkspaceMetadata(
+        request: CodeWhispererTokenClient.ListWorkspaceMetadataRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.ListWorkspaceMetadataResponse, AWSError>>
+    abstract deleteWorkspace(
+        request: CodeWhispererTokenClient.DeleteWorkspaceRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.DeleteWorkspaceResponse, AWSError>>
+    abstract listFeatureEvaluations(
+        request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest
+    ): Promise<PromiseResult<CodeWhispererTokenClient.ListFeatureEvaluationsResponse, AWSError>>
 }
