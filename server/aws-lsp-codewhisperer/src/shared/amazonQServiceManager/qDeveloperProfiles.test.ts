@@ -110,6 +110,49 @@ describe('ListAllAvailableProfiles Handler', () => {
         })
     })
 
+    describe('Enhanced Logging for Debugging', () => {
+        it('should log complete error object when profile fetching fails', async () => {
+            const testError = new Error('Test error') as any
+            testError.code = 'TestErrorCode'
+            testError.statusCode = 500
+
+            codeWhispererService.listAvailableProfiles.rejects(testError)
+
+            try {
+                await handler({
+                    connectionType: 'identityCenter',
+                    logging,
+                    endpoints: SOME_AWS_Q_ENDPOINT,
+                    token: tokenSource.token,
+                })
+                assert.fail('Expected method to throw')
+            } catch (error) {
+                // Verify that debug logging was called for complete error object
+                sinon.assert.called(logging.debug)
+                const debugCalls = logging.debug.getCalls()
+                const hasCompleteErrorLogging = debugCalls.some(call => call.args[0].includes('Complete error object'))
+                assert.ok(hasCompleteErrorLogging, 'Should log complete error object in debug logs')
+            }
+        })
+
+        it('should log endpoint information during profile fetching', async () => {
+            await handler({
+                connectionType: 'identityCenter',
+                logging,
+                endpoints: SOME_AWS_Q_ENDPOINT,
+                token: tokenSource.token,
+            })
+
+            // Verify that endpoint information is logged
+            sinon.assert.called(logging.debug)
+            const debugCalls = logging.debug.getCalls()
+            const hasEndpointLogging = debugCalls.some(
+                call => call.args[0].includes('endpoint') && call.args[0].includes(DEFAULT_AWS_Q_ENDPOINT_URL)
+            )
+            assert.ok(hasEndpointLogging, 'Should log endpoint information')
+        })
+    })
+
     describe('Pagination', () => {
         const MAX_EXPECTED_PAGES = 10
         const SOME_NEXT_TOKEN = 'some-random-next-token'

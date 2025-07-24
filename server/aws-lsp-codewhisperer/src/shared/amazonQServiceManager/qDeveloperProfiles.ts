@@ -46,7 +46,7 @@ export const getListAllAvailableProfilesHandler =
         const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
 
         // Log all endpoints we're going to try
-        logging.debug(
+        logging.log(
             `Attempting to fetch profiles from ${qEndpoints.size} endpoints: ${JSON.stringify(Array.from(qEndpoints.entries()))}`
         )
 
@@ -56,7 +56,7 @@ export const getListAllAvailableProfilesHandler =
 
         const result = await Promise.allSettled(
             Array.from(qEndpoints.entries(), ([region, endpoint]) => {
-                logging.debug(`Creating service client for region: ${region}, endpoint: ${endpoint}`)
+                logging.log(`Creating service client for region: ${region}, endpoint: ${endpoint}`)
                 const codeWhispererService = service(region, endpoint)
                 return fetchProfilesFromRegion(codeWhispererService, region, endpoint, logging, token)
             })
@@ -67,19 +67,21 @@ export const getListAllAvailableProfilesHandler =
         }
 
         // Log detailed results from each region
-        result.forEach((settledResult, index) => {
-            const [region, endpoint] = Array.from(qEndpoints.entries())[index]
-            if (settledResult.status === 'fulfilled') {
-                const profiles = settledResult.value
-                logging.debug(
-                    `Successfully fetched ${profiles.length} profiles from region: ${region}, endpoint: ${endpoint}`
-                )
-            } else {
-                logging.error(
-                    `Failed to fetch profiles from region: ${region}, endpoint: ${endpoint}, error: ${settledResult.reason?.name || 'unknown'}, message: ${settledResult.reason?.message || 'No message'}`
-                )
-            }
-        })
+        try {
+            result.forEach((settledResult, index) => {
+                const [region, endpoint] = Array.from(qEndpoints.entries())[index]
+                if (settledResult.status === 'fulfilled') {
+                    const profiles = settledResult.value
+                    logging.log(
+                        `Successfully fetched ${profiles.length} profiles from region: ${region}, endpoint: ${endpoint}`
+                    )
+                } else {
+                    logging.error(
+                        `Failed to fetch profiles from region: ${region}, endpoint: ${endpoint}, error: ${settledResult.reason?.name || 'unknown'}, message: ${settledResult.reason?.message || 'No message'}`
+                    )
+                }
+            })
+        } catch (loggingError) {}
 
         const fulfilledResults = result.filter(settledResult => settledResult.status === 'fulfilled')
         const hasThrottlingError = result.some(
@@ -99,11 +101,13 @@ export const getListAllAvailableProfilesHandler =
         fulfilledResults.forEach(fulfilledResult => allProfiles.push(...fulfilledResult.value))
 
         // Log summary of all profiles fetched
-        logging.debug(`Total profiles fetched: ${allProfiles.length}`)
-        if (allProfiles.length > 0) {
-            logging.debug(`Profile names: ${allProfiles.map(p => p.name).join(', ')}`)
-            logging.debug(`Profile regions: ${allProfiles.map(p => p.identityDetails?.region).join(', ')}`)
-        }
+        try {
+            logging.log(`Total profiles fetched: ${allProfiles.length}`)
+            if (allProfiles.length > 0) {
+                logging.log(`Profile names: ${allProfiles.map(p => p.name).join(', ')}`)
+                logging.log(`Profile regions: ${allProfiles.map(p => p.identityDetails?.region).join(', ')}`)
+            }
+        } catch (loggingError) {}
 
         // Check for partial throttling
         if (hasThrottlingError && allProfiles.length == 0) {
@@ -126,7 +130,7 @@ async function fetchProfilesFromRegion(
     let numberOfPages = 0
 
     try {
-        logging.debug(`Starting profile fetch from region: ${region}, endpoint: ${endpoint}`)
+        logging.log(`Starting profile fetch from region: ${region}, endpoint: ${endpoint}`)
 
         do {
             logging.debug(
@@ -156,9 +160,9 @@ async function fetchProfilesFromRegion(
                 },
             }))
 
-            logging.debug(`Fetched ${profiles.length} profiles from ${region} (page: ${numberOfPages + 1})`)
+            logging.log(`Fetched ${profiles.length} profiles from ${region} (page: ${numberOfPages + 1})`)
             if (profiles.length > 0) {
-                logging.debug(`Profile names from ${region}: ${profiles.map(p => p.name).join(', ')}`)
+                logging.log(`Profile names from ${region}: ${profiles.map(p => p.name).join(', ')}`)
             }
 
             allRegionalProfiles.push(...profiles)
@@ -173,23 +177,12 @@ async function fetchProfilesFromRegion(
             numberOfPages++
         } while (nextToken !== undefined && numberOfPages < MAX_Q_DEVELOPER_PROFILE_PAGES)
 
-        logging.debug(`Completed fetching profiles from ${region}, total profiles: ${allRegionalProfiles.length}`)
+        logging.log(`Completed fetching profiles from ${region}, total profiles: ${allRegionalProfiles.length}`)
         return allRegionalProfiles
     } catch (error) {
-        // Enhanced error logging with more details
+        // Enhanced error logging with complete error object
         logging.error(`Error fetching profiles from region: ${region}, endpoint: ${endpoint}`)
-        logging.error(`Error type: ${error?.constructor?.name || 'Unknown'}`)
-        logging.error(`Error name: ${(error as any)?.name || 'Unknown'}`)
-        logging.error(`Error message: ${(error as Error)?.message || 'No message'}`)
-        logging.error(`Error code: ${(error as any)?.code || 'No code'}`)
-
-        if ((error as any)?.statusCode) {
-            logging.error(`HTTP status code: ${(error as any).statusCode}`)
-        }
-
-        if ((error as any)?.$metadata) {
-            logging.error(`Request metadata: ${JSON.stringify((error as any).$metadata)}`)
-        }
+        logging.log(`Complete error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
 
         throw error
     }
