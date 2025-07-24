@@ -1022,3 +1022,8 @@ export function createNamespacedToolName(
         duplicateNum++
     }
 }
+
+export function sanitizeContent(input: string): string {
+    // Remove any Unicode Tag characters (U+E0000–U+E007F)
+    return input.replace(/[\u{E0000}-\u{E007F}]/gu, '')
+}

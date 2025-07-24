@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.0.69](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.68...lsp-codewhisperer/v0.0.69) (2025-07-23)
+
+
+### Features
+
+* enable webforms to blazor transformation via validation bypass ([#1929](https://github.com/aws/language-servers/issues/1929)) ([528f820](https://github.com/aws/language-servers/commit/528f8206b101e8f0c785b7fc0aceb87d6ef3de7b))
+
+
+### Bug Fixes
+
+* **amazonq:** revert commit f17b631d9e06371a11ef8e9cb1413762fb51a143 ([#1965](https://github.com/aws/language-servers/issues/1965)) ([8c2cab6](https://github.com/aws/language-servers/commit/8c2cab6995922c96030b5bbdf3cbbdef7eadd7c2))
+* **amazonq:** stop continuous monitor when WCS sees ServiceQuotaExceeded ([#1957](https://github.com/aws/language-servers/issues/1957)) ([81e19b9](https://github.com/aws/language-servers/commit/81e19b97017edddf486ac92fa6a8dc5fb184e008))
+* fix for mcp delete to remove it from mcp config file ([#1956](https://github.com/aws/language-servers/issues/1956)) ([ad71312](https://github.com/aws/language-servers/commit/ad713122fcb9da90c17301f1312de13ba1d28d01))
+
+
+### Reverts
+
+* revert for all commits for emergency deployment ([#1966](https://github.com/aws/language-servers/issues/1966)) ([519f75d](https://github.com/aws/language-servers/commit/519f75d22466b72702793b4f1d1ed846c02bbd14))
+
 ## [0.0.68](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.67...lsp-codewhisperer/v0.0.68) (2025-07-22)
 
 

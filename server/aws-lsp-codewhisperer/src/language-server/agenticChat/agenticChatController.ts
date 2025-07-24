@@ -24,7 +24,7 @@ import {
     GREP_SEARCH,
     FILE_SEARCH,
     EXECUTE_BASH,
-    Q_CODE_REVIEW,
+    CODE_REVIEW,
     BUTTON_RUN_SHELL_COMMAND,
     BUTTON_REJECT_SHELL_COMMAND,
     BUTTON_REJECT_MCP_TOOL,
@@ -200,8 +200,8 @@ import {
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
-import { QCodeReview } from './tools/qCodeAnalysis/qCodeReview'
-import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/qCodeReviewConstants'
+import { CodeReview } from './tools/qCodeAnalysis/codeReview'
+import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/codeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -1780,7 +1780,7 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
-                    case QCodeReview.toolName:
+                    case CodeReview.toolName:
                         // no need to write tool message for code review
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
@@ -1855,7 +1855,7 @@ export class AgenticChatController implements ChatHandlers {
                     })
                 }
 
-                if (toolUse.name === QCodeReview.toolName) {
+                if (toolUse.name === CodeReview.toolName) {
                     try {
                         let initialInput = JSON.parse(JSON.stringify(toolUse.input))
                         let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
@@ -1867,7 +1867,7 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         toolUse.input = initialInput
                     } catch (e) {
-                        this.#features.logging.warn(`could not parse QCodeReview tool input: ${e}`)
+                        this.#features.logging.warn(`could not parse CodeReview tool input: ${e}`)
                     }
                 }
 
@@ -1946,19 +1946,19 @@ export class AgenticChatController implements ChatHandlers {
                         )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
-                    case QCodeReview.toolName:
+                    case CodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
                         // Push result in message so that it is picked by IDE plugin to show in issues panel
-                        const qCodeReviewResult = result as InvokeOutput
+                        const codeReviewResult = result as InvokeOutput
                         if (
-                            qCodeReviewResult?.output?.kind === 'json' &&
-                            qCodeReviewResult.output.success &&
-                            (qCodeReviewResult.output.content as any)?.findingsByFile
+                            codeReviewResult?.output?.kind === 'json' &&
+                            codeReviewResult.output.success &&
+                            (codeReviewResult.output.content as any)?.findingsByFile
                         ) {
                             await chatResultStream.writeResultBlock({
                                 type: 'tool',
                                 messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
-                                body: (qCodeReviewResult.output.content as any).findingsByFile,
+                                body: (codeReviewResult.output.content as any).findingsByFile,
                             })
                         }
                         break
@@ -2271,7 +2271,7 @@ export class AgenticChatController implements ChatHandlers {
         toolUse: ToolUse,
         commandCategory?: CommandCategory
     ): WritableStream | undefined {
-        if (toolUse.name === QCodeReview.toolName) {
+        if (toolUse.name === CodeReview.toolName) {
             return this.#getToolOverWritableStream(chatResultStream, toolUse)
         }
         if (toolUse.name !== EXECUTE_BASH) {

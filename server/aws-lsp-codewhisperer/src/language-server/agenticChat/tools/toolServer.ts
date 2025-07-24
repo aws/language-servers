@@ -9,7 +9,8 @@ import { LspApplyWorkspaceEdit } from './lspApplyWorkspaceEdit'
 import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
-import { QCodeReview } from './qCodeAnalysis/qCodeReview'
+import { GrepSearch } from './grepSearch'
+import { CodeReview } from './qCodeAnalysis/codeReview'
 import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
@@ -20,7 +21,7 @@ import {
     migrateToAgentConfig,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
-import { QCodeReviewUtils } from './qCodeAnalysis/qCodeReviewUtils'
+import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
@@ -94,7 +95,7 @@ export const QCodeAnalysisServer: Server = ({
     workspace,
 }) => {
     logging.info('QCodeAnalysisServer')
-    const qCodeReviewTool = new QCodeReview({
+    const codeReviewTool = new CodeReview({
         credentialsProvider,
         logging,
         telemetry,
@@ -102,7 +103,7 @@ export const QCodeAnalysisServer: Server = ({
     })
 
     lsp.onInitialized(async () => {
-        if (!QCodeReviewUtils.isAgenticReviewEnabled(lsp.getClientInitializeParams())) {
+        if (!CodeReviewUtils.isAgenticReviewEnabled(lsp.getClientInitializeParams())) {
             logging.warn('Agentic Review is currently not supported')
             return
         }
@@ -126,12 +127,12 @@ export const QCodeAnalysisServer: Server = ({
 
         agent.addTool(
             {
-                name: QCodeReview.toolName,
-                description: QCodeReview.toolDescription,
-                inputSchema: QCodeReview.inputSchema,
+                name: CodeReview.toolName,
+                description: CodeReview.toolDescription,
+                inputSchema: CodeReview.inputSchema,
             },
             async (input: any, token?: CancellationToken, updates?: WritableStream) => {
-                return await qCodeReviewTool.execute(input, {
+                return await codeReviewTool.execute(input, {
                     codeWhispererClient: codeWhispererClient,
                     cancellationToken: token,
                     writableStream: updates,

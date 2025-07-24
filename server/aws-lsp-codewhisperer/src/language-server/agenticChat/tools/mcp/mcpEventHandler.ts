@@ -242,7 +242,7 @@ export class McpEventHandler {
      */
 
     async onMcpServerClick(params: McpServerClickParams) {
-        this.#features.logging.log(`[VSCode Server] onMcpServerClick event with params: ${JSON.stringify(params)}`)
+        this.#features.logging.log(`onMcpServerClick event with params: ${JSON.stringify(params)}`)
 
         // Use a map of handlers for different action types
         const handlers: Record<string, () => Promise<any>> = {
@@ -1124,7 +1124,6 @@ export class McpEventHandler {
             this.#pendingPermissionConfig = undefined
 
             this.#features.logging.info(`Applied permission changes for server: ${serverName}`)
-            this.#isProgrammaticChange = false
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to save MCP permissions: ${error}`)

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.28](https://github.com/aws/language-servers/compare/chat-client/v0.1.27...chat-client/v0.1.28) (2025-07-23)
+
+
+### Bug Fixes
+
+* **amazonq:** revert commit f17b631d9e06371a11ef8e9cb1413762fb51a143 ([#1965](https://github.com/aws/language-servers/issues/1965)) ([8c2cab6](https://github.com/aws/language-servers/commit/8c2cab6995922c96030b5bbdf3cbbdef7eadd7c2))
+
 ## [0.1.27](https://github.com/aws/language-servers/compare/chat-client/v0.1.26...chat-client/v0.1.27) (2025-07-22)
 
 
