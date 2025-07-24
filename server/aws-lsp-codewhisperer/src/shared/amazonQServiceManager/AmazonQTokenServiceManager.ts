@@ -503,10 +503,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.endpoint = endpointOverride
         }
 
-        this.cachedCodewhispererService = this.serviceFactory(region, endpoint)
+        this.cachedCodewhispererService = this.serviceFactory(region, this.endpoint)
         this.log(`CodeWhispererToken service for connection type ${connectionType} was initialized, region=${region}`)
 
-        this.cachedStreamingClient = this.streamingClientFactory(region, endpoint)
+        this.cachedStreamingClient = this.streamingClientFactory(region, this.endpoint)
         this.log(`StreamingClient service for connection type ${connectionType} was initialized, region=${region}`)
 
         this.logServiceState('CodewhispererService and StreamingClient Initialization finished')
