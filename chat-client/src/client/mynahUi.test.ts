@@ -706,7 +706,7 @@ describe('MynahUI', () => {
     })
 
     describe('onSearchShortcut', () => {
-        it('should call onListConversations with showOnlyCurrentWorkspace true when search shortcut is triggered', () => {
+        it('should call onListConversations when search shortcut is triggered', () => {
             const listConversationsSpy = sinon.spy(messager, 'onListConversations')
 
             // @ts-ignore
