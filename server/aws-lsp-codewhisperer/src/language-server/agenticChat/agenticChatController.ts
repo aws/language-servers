@@ -1673,6 +1673,10 @@ export class AgenticChatController implements ChatHandlers {
                         })
                     }
                 }
+
+                // for later use
+                let finalCommandCategory: CommandCategory | undefined
+
                 switch (toolUse.name) {
                     case FS_READ:
                     case LIST_DIRECTORY:
@@ -1707,6 +1711,8 @@ export class AgenticChatController implements ChatHandlers {
                             toolUse.input as any,
                             approvedPaths
                         )
+
+                        finalCommandCategory = commandCategory
 
                         const isExecuteBash = toolUse.name === EXECUTE_BASH
 
@@ -1871,7 +1877,7 @@ export class AgenticChatController implements ChatHandlers {
                     session.addApprovedPath(inputPath)
                 }
 
-                const ws = this.#getWritableStream(chatResultStream, toolUse)
+                const ws = this.#getWritableStream(chatResultStream, toolUse, finalCommandCategory)
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
 
                 let toolResultContent: ToolResultContentBlock
@@ -2260,7 +2266,11 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
+    #getWritableStream(
+        chatResultStream: AgenticChatResultStream,
+        toolUse: ToolUse,
+        commandCategory?: CommandCategory
+    ): WritableStream | undefined {
         if (toolUse.name === QCodeReview.toolName) {
             return this.#getToolOverWritableStream(chatResultStream, toolUse)
         }
@@ -2279,7 +2289,14 @@ export class AgenticChatController implements ChatHandlers {
 
         const completedHeader: ChatMessage['header'] = {
             body: 'shell',
-            status: { status: 'success', icon: 'ok', text: 'Completed' },
+            status: {
+                status: 'success',
+                icon: 'ok',
+                text: 'Completed',
+                ...(toolUse.name === EXECUTE_BASH
+                    ? { description: this.#getCommandCategoryDescription(commandCategory ?? CommandCategory.ReadOnly) }
+                    : {}),
+            },
             buttons: [],
         }
 
