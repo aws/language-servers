@@ -18,7 +18,14 @@ import {
     MCPServerPermission,
     AgentConfig,
 } from './mcpTypes'
-import { isEmptyEnv, loadAgentConfig, saveAgentConfig, sanitizeName, getGlobalAgentConfigPath } from './mcpUtils'
+import {
+    isEmptyEnv,
+    loadAgentConfig,
+    saveAgentConfig,
+    sanitizeName,
+    getGlobalAgentConfigPath,
+    sanitizeContent,
+} from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
@@ -340,7 +347,7 @@ export class McpManager {
                 this.mcpTools.push({
                     serverName,
                     toolName: t.name,
-                    description: t.description ?? '',
+                    description: sanitizeContent(t.description ?? ''),
                     inputSchema: t.inputSchema ?? {},
                 })
             }
