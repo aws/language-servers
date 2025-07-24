@@ -4623,7 +4623,7 @@
         "ServiceQuotaExceededExceptionReason": {
             "type": "string",
             "documentation": "<p>Reason for ServiceQuotaExceededException</p>",
-            "enum": ["CONVERSATION_LIMIT_EXCEEDED"]
+            "enum": ["CONVERSATION_LIMIT_EXCEEDED", "MONTHLY_REQUEST_COUNT"]
         },
         "ShellHistory": {
             "type": "list",
@@ -6216,7 +6216,7 @@
                     "documentation": "<p>Usage limit based on subscription tier</p>"
                 },
                 "overageCharges": {
-                    "shape": "BigDecimal",
+                    "shape": "Double",
                     "documentation": "<p>Total overage charges</p>"
                 },
                 "nextDateReset": {

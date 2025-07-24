@@ -3886,14 +3886,12 @@ export class AgenticChatController implements ChatHandlers {
         if (response.usageBreakdown?.nextDateReset) {
             return new Date(response.usageBreakdown.nextDateReset)
         } else {
-            // Fallback to 1st of next month
-            const currentDate = new Date()
-            if (currentDate.getMonth() === 11) {
-                // If December, move to January of next year
-                return new Date(Date.UTC(currentDate.getFullYear() + 1, 0, 1))
-            } else {
-                return new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
-            }
+            // Fallback to 1st of next month in UTC
+            const nextReset = new Date()
+            nextReset.setUTCMonth(nextReset.getUTCMonth() + 1)
+            nextReset.setUTCDate(1)
+            nextReset.setUTCHours(0, 0, 0, 0)
+            return nextReset
         }
     }
 

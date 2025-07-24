@@ -379,7 +379,6 @@ declare namespace CodeWhispererBearerTokenClient {
   export type AttributesMap = {[key: string]: StringList};
   export type AttributesMapKeyString = string;
   export type Base64EncodedPaginationToken = string;
-  export type BigDecimal = number;
   export type Boolean = boolean;
   export interface ByUserAnalytics {
     s3Uri?: S3Uri;
@@ -2007,7 +2006,7 @@ declare namespace CodeWhispererBearerTokenClient {
     /**
      * Total overage charges
      */
-    overageCharges: BigDecimal;
+    overageCharges: Double;
     /**
      * The next reset date in UTC timezone.
      */

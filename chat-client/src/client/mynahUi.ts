@@ -1620,7 +1620,23 @@ ${params.message}`,
     }
 
     const getNextResetDate = (subscriptionPeriodReset: Date): string => {
-        const date = new Date(subscriptionPeriodReset)
+        let date
+        if (subscriptionPeriodReset) {
+            const parsedDate = new Date(subscriptionPeriodReset)
+            if (!isNaN(parsedDate.getTime())) {
+                date = parsedDate
+            }
+        }
+
+        if (!date) {
+            // Fallback to 1st of next month in UTC
+            const nextReset = new Date()
+            nextReset.setUTCMonth(nextReset.getUTCMonth() + 1)
+            nextReset.setUTCDate(1)
+            nextReset.setUTCHours(0, 0, 0, 0)
+            date = nextReset
+        }
+
         const resetDate = `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()} `
         const resetTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')} GMT`
         return resetDate + resetTime
