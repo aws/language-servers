@@ -25,6 +25,7 @@ import {
     getGlobalAgentConfigPath,
     getWorkspaceMcpConfigPaths,
     getGlobalMcpConfigPath,
+    sanitizeContent
 } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
@@ -347,7 +348,7 @@ export class McpManager {
                 this.mcpTools.push({
                     serverName,
                     toolName: t.name,
-                    description: t.description ?? '',
+                    description: sanitizeContent(t.description ?? ''),
                     inputSchema: t.inputSchema ?? {},
                 })
             }
