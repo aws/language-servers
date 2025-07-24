@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FileContext } from '../../../shared/codeWhispererService'
+import { FileContext } from '../../../shared/codeWhispererService/codeWhispererServiceBase'
 import { Position } from '@aws/language-server-runtimes/server-interface'
 import { CursorTracker } from '../tracker/cursorTracker'
 import { RecentEditTracker } from '../tracker/codeEditTracker'

@@ -15,11 +15,11 @@ import * as sinon from 'sinon'
 import * as assert from 'assert'
 import {
     CodeWhispererServiceBase,
-    CodeWhispererServiceToken,
-    CodeWhispererServiceIAM,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
-} from './codeWhispererService'
+} from './codeWhispererService/codeWhispererServiceBase'
+import { CodeWhispererServiceToken } from './codeWhispererService/codeWhispererServiceToken'
+import { CodeWhispererServiceIAM } from './codeWhispererService/codeWhispererServiceIAM'
 
 describe('CodeWhispererService', function () {
     let sandbox: sinon.SinonSandbox

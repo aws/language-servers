@@ -19,12 +19,12 @@ import {
 import { AWSError } from 'aws-sdk'
 import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
-    CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     Suggestion,
     SuggestionType,
-} from '../../shared/codeWhispererService'
+} from '../../shared/codeWhispererService/codeWhispererServiceBase'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService/codeWhispererServiceToken'
 import { CodewhispererLanguage, getRuntimeLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
 import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
@@ -1045,9 +1045,9 @@ export const CodewhispererServerFactory =
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
             /*
-                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-            */
+                        The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+                        configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
+                    */
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)

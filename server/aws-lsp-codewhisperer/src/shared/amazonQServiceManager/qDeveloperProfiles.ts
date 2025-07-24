@@ -7,7 +7,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { isBool, isObject, SsoConnectionType } from '../utils'
 import { AWS_Q_ENDPOINTS } from '../../shared/constants'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../codeWhispererService/codeWhispererServiceToken'
 import { AmazonQServiceProfileThrottlingError } from './errors'
 
 export interface AmazonQDeveloperProfile {

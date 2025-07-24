@@ -6,7 +6,11 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { v4 as uuidv4 } from 'uuid'
 import { CodewhispererAutomatedTriggerType, CodewhispererTriggerType } from '../auto-trigger/autoTrigger'
-import { GenerateSuggestionsRequest, ResponseContext, Suggestion } from '../../../shared/codeWhispererService'
+import {
+    GenerateSuggestionsRequest,
+    ResponseContext,
+    Suggestion,
+} from '../../../shared/codeWhispererService/codeWhispererServiceBase'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
