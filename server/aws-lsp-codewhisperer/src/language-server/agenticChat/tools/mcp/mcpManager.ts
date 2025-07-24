@@ -14,11 +14,19 @@ import {
     McpServerRuntimeState,
     McpServerStatus,
     McpPermissionType,
-    PersonaModel,
     MCPServerPermission,
     AgentConfig,
 } from './mcpTypes'
-import { isEmptyEnv, loadAgentConfig, saveAgentConfig, sanitizeName, getGlobalAgentConfigPath } from './mcpUtils'
+import {
+    isEmptyEnv,
+    loadAgentConfig,
+    saveAgentConfig,
+    sanitizeName,
+    getGlobalAgentConfigPath,
+    getWorkspaceMcpConfigPaths,
+    getGlobalMcpConfigPath,
+    sanitizeContent,
+} from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
@@ -340,7 +348,7 @@ export class McpManager {
                 this.mcpTools.push({
                     serverName,
                     toolName: t.name,
-                    description: t.description ?? '',
+                    description: sanitizeContent(t.description ?? ''),
                     inputSchema: t.inputSchema ?? {},
                 })
             }
@@ -435,7 +443,7 @@ export class McpManager {
      */
     public getToolPerm(server: string, tool: string): McpPermissionType {
         // For built-in tools, check directly without prefix
-        if (server === 'builtIn') {
+        if (server === 'Built-in') {
             return this.agentConfig.allowedTools.includes(tool) ? McpPermissionType.alwaysAllow : McpPermissionType.ask
         }
 
@@ -658,6 +666,30 @@ export class McpManager {
 
             // Save agent config
             await saveAgentConfig(this.features.workspace, this.features.logging, this.agentConfig, cfg.__configPath__)
+
+            // Get all config paths and delete the server from each one
+            const wsUris = this.features.workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
+            const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
+            const globalConfigPath = getGlobalMcpConfigPath(this.features.workspace.fs.getUserHomeDir())
+            const allConfigPaths = [...wsConfigPaths, globalConfigPath]
+
+            // Delete the server from all config files
+            for (const configPath of allConfigPaths) {
+                try {
+                    await this.mutateConfigFile(configPath, json => {
+                        if (json.mcpServers && json.mcpServers[unsanitizedName]) {
+                            delete json.mcpServers[unsanitizedName]
+                            this.features.logging.info(
+                                `Deleted server '${unsanitizedName}' from config file: ${configPath}`
+                            )
+                        }
+                    })
+                } catch (err) {
+                    this.features.logging.warn(
+                        `Failed to delete server '${unsanitizedName}' from config file ${configPath}: ${err}`
+                    )
+                }
+            }
         }
 
         this.mcpServers.delete(serverName)
@@ -821,7 +853,7 @@ export class McpManager {
 
             // Process each tool permission
             for (const [toolName, permission] of Object.entries(perm.toolPerms || {})) {
-                const toolId = `${serverPrefix}/${toolName}`
+                const toolId = (unsanitizedServerName !== 'Built-in' ? `${serverPrefix}/` : '') + `${toolName}`
 
                 if (permission === McpPermissionType.deny) {
                     // For deny: if server is enabled as a whole, we need to switch to individual tools
@@ -931,7 +963,7 @@ export class McpManager {
      */
     public requiresApproval(server: string, tool: string): boolean {
         // For built-in tools, check directly without prefix
-        const toolId = server === 'builtIn' ? tool : `@${server}/${tool}`
+        const toolId = server === 'Built-in' ? tool : `@${server}/${tool}`
         return !this.agentConfig.allowedTools.includes(toolId)
     }
 
@@ -1045,6 +1077,46 @@ export class McpManager {
         } catch (err) {
             this.features.logging.error(`Error removing server '${serverName}' from agent config file: ${err}`)
         }
+    }
+
+    /**
+     * Read, mutate, and write the MCP JSON config at the given path.
+     * @private
+     */
+    private async mutateConfigFile(configPath: string, mutator: (json: any) => void): Promise<void> {
+        return McpManager.configMutex
+            .runExclusive(async () => {
+                let json: any = { mcpServers: {} }
+                try {
+                    const raw = await this.features.workspace.fs.readFile(configPath)
+                    this.features.logging.info(`Updating MCP config file: ${configPath}`)
+                    const existing = JSON.parse(raw.toString())
+                    json = { mcpServers: {}, ...existing }
+                } catch (err: any) {
+                    // ignore fire not exist error
+                    if (err?.code !== 'ENOENT') throw err
+                }
+                mutator(json)
+
+                let fsPath: string
+                try {
+                    const uri = URI.parse(configPath)
+                    fsPath = uri.scheme === 'file' ? uri.fsPath : configPath
+                } catch {
+                    fsPath = configPath
+                }
+                fsPath = path.normalize(fsPath)
+
+                const dir = path.dirname(fsPath)
+                await this.features.workspace.fs.mkdir(dir, { recursive: true })
+
+                await this.features.workspace.fs.writeFile(fsPath, JSON.stringify(json, null, 2))
+                this.features.logging.debug(`MCP config file write complete: ${configPath}`)
+            })
+            .catch((e: any) => {
+                this.features.logging.error(`MCP: failed to update config at ${configPath}: ${e.message}`)
+                throw e
+            })
     }
 
     public getOriginalToolNames(namespacedName: string): { serverName: string; toolName: string } | undefined {

@@ -148,18 +148,6 @@ export async function fetchProjectContext(
         filePath: fsPath,
         target,
     }
-    let enableWorkspaceContext = true
-
-    if (amazonQServiceManager) {
-        const config = amazonQServiceManager.getConfiguration()
-        if (config.projectContext?.enableLocalIndexing === false) {
-            enableWorkspaceContext = false
-        }
-    }
-    if (!enableWorkspaceContext) {
-        return []
-    }
-
     try {
         controller = await LocalProjectContextController.getInstance()
     } catch (e) {

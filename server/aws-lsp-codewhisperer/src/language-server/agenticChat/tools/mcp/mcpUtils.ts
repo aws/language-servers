@@ -10,6 +10,7 @@ import path = require('path')
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
 import crypto = require('crypto')
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { EXECUTE_BASH } from '../../constants/toolConstants'
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
@@ -644,7 +645,7 @@ export function convertPersonaToAgent(
 
     // Add default allowed tools
     const writeToolNames = new Set(featureAgent.getBuiltInWriteToolNames())
-    const defaultAllowedTools = featureAgent.getBuiltInToolNames().filter(toolName => !writeToolNames.has(toolName))
+    const defaultAllowedTools = featureAgent.getBuiltInToolNames().filter(toolName => toolName !== EXECUTE_BASH)
     for (const toolName of defaultAllowedTools) {
         if (!agent.allowedTools.includes(toolName)) {
             agent.allowedTools.push(toolName)
@@ -1008,4 +1009,9 @@ export function createNamespacedToolName(
 
         duplicateNum++
     }
+}
+
+export function sanitizeContent(input: string): string {
+    // Remove any Unicode Tag characters (U+E0000–U+E007F)
+    return input.replace(/[\u{E0000}-\u{E007F}]/gu, '')
 }
