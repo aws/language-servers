@@ -25,7 +25,7 @@ import {
     getGlobalAgentConfigPath,
     getWorkspaceMcpConfigPaths,
     getGlobalMcpConfigPath,
-    sanitizeContent
+    sanitizeContent,
 } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
