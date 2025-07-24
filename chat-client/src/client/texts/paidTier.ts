@@ -2,6 +2,7 @@ import { ChatItem, ChatItemButton, ChatItemType, TextBasedFormItem } from '@aws/
 
 export const plansAndPricingTitle = 'Plans &amp; Pricing'
 export const paidTierLearnMoreUrl = 'https://aws.amazon.com/q/pricing/'
+export const subscriptionsLearnMoreUrl = 'https://docs.aws.amazon.com/console/amazonq/subscriptions'
 export const qProName = 'Q Developer Pro'
 
 export const upgradeQButton: ChatItemButton = {
@@ -181,4 +182,15 @@ Provide your AWS account number to enable your ${qProName} subscription. Upon co
     ],
     buttons: [continueUpgradeQButton],
     snapToTop: true,
+}
+
+export const IdCRequestLimtReachedSticky: Partial<ChatItem> = {
+    messageId: 'Idc-request-limit-reached-banner',
+    body: `To increase your limit, contact your administrator to enable overages or upgrade your subscription tier. Learn more about [subscriptions &gt;](${subscriptionsLearnMoreUrl})`,
+    header: {
+        icon: 'warning',
+        iconStatus: 'warning',
+        body: '### Monthly request limit reached',
+    },
+    canBeDismissed: false,
 }

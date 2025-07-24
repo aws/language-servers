@@ -84,6 +84,7 @@ import {
     upgradePendingSticky,
     plansAndPricingTitle,
     freeTierLimitDirective,
+    IdCRequestLimtReachedSticky,
 } from './texts/paidTier'
 import { isSupportedImageExtension, MAX_IMAGE_CONTEXT, verifyClientImages } from './imageVerification'
 
@@ -1233,9 +1234,31 @@ export const createMynahUi = (
         return true
     }
 
+    const onIdcRequestLimitReached = (tabId: string, params: any | undefined) => {
+        const limitReached = (params as any).limitReached
+        const resetDate = (params as any).resetDate
+
+        if (!limitReached) {
+            return false
+        }
+        mynahUi.updateStore(tabId, {
+            promptInputStickyCard: IdCRequestLimtReachedSticky,
+        })
+        mynahUi.addChatItem(tabId, {
+            type: ChatItemType.PROMPT,
+            followUp: {
+                text: `Amazon Q can't answer your question because you've reached your monthly request limit. Limit resets on ${resetDate}`,
+            },
+        })
+        return true
+    }
+
     const updateChat = (params: ChatUpdateParams) => {
         // HACK: Special field sent by `agenticChatController.ts:setPaidTierMode()`.
-        if (onPaidTierModeChange(params.tabId, (params as any).paidTierMode as string)) {
+        if (
+            onPaidTierModeChange(params.tabId, (params as any).paidTierMode as string) ||
+            onIdcRequestLimitReached(params.tabId, params)
+        ) {
             return
         }
 
@@ -1639,6 +1662,80 @@ ${params.message}`,
         return createTabId()
     }
 
+    const getSubscriptionDisplayName = (subscriptionTier: string): string => {
+        switch (subscriptionTier) {
+            case 'Q_DEVELOPER_STANDALONE_FREE':
+                return 'Free Tier'
+            case 'Q_DEVELOPER_STANDALONE_PRO_PLUS':
+                return 'Pro+ Tier'
+            case 'Q_DEVELOPER_STANDALONE':
+                return 'Pro Tier'
+            default:
+                return subscriptionTier // fallback to original value if unknown
+        }
+    }
+
+    const getNextResetDate = (subscriptionPeriodReset: Date): string => {
+        let date
+        if (subscriptionPeriodReset) {
+            const parsedDate = new Date(subscriptionPeriodReset)
+            if (!isNaN(parsedDate.getTime())) {
+                date = parsedDate
+            }
+        }
+
+        if (!date) {
+            // Fallback to 1st of next month in UTC
+            const nextReset = new Date()
+            nextReset.setUTCMonth(nextReset.getUTCMonth() + 1)
+            nextReset.setUTCDate(1)
+            nextReset.setUTCHours(0, 0, 0, 0)
+            date = nextReset
+        }
+
+        const resetDate = `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()} `
+        const resetTime = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}:${String(date.getSeconds()).padStart(2, '0')} GMT`
+        return resetDate + resetTime
+    }
+
+    const getOverageString = (params: SubscriptionDetailsParams): string => {
+        if (params.subscriptionTier === 'Q_DEVELOPER_STANDALONE_FREE') {
+            return '' // Don't show any overage message for Free tier
+        }
+
+        if (!params.isOverageEnabled) {
+            return 'Overages disabled by admin'
+        }
+
+        if (params.queryOverage > 0) {
+            return `$${params.queryOverage.toFixed(2)} incurred in overages`
+        } else if (params.isOverageEnabled && params.queryOverage === 0) {
+            return '$0.00 incurred in overages'
+        }
+
+        return ''
+    }
+
+    const getAccountDetailsPageContent = (params: SubscriptionDetailsParams) => {
+        const usageString = `${params.queryUsage}/${params.queryLimit} queries used`
+        const overageString = getOverageString(params)
+
+        const resetString = `Limits reset on ${getNextResetDate(params.subscriptionPeriodReset)}`
+        const subscriptionDisplay = getSubscriptionDisplayName(params.subscriptionTier)
+
+        const chatContent: ChatItem = {
+            type: ChatItemType.ANSWER,
+            customRenderer: `<h1>Account details</h1>
+<h2 style="margin-bottom: 4px;">Subscription</h2>
+<div style="font-size: 15px; margin-bottom: 8px;">${subscriptionDisplay}</div>
+<h2 style="margin-bottom: 4px;">Usage</h2>
+<div style="font-size: 14px; line-height: 1.5;">
+    <div>${usageString}</div>${overageString ? `<div>${overageString}</div>` : ''}<div>${resetString}</div>
+</div>`,
+        }
+        return chatContent
+    }
+
     const showSubscriptionDetails = (params: SubscriptionDetailsParams) => {
         const tabId = getOrCreateSubscriptionDetailsTabId()
         if (tabId === undefined) {
@@ -1657,9 +1754,11 @@ ${params.message}`,
 
         mynahUi.updateStore(tabId, {
             tabTitle: 'Account Details',
-            chatItems: [
-                // todo: show account details here
-            ],
+            tabBackground: false,
+            compactMode: false,
+            promptInputVisible: false,
+
+            chatItems: [getAccountDetailsPageContent(params)],
             tabMetadata: metadata,
         })
 

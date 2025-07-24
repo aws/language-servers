@@ -379,7 +379,6 @@ declare namespace CodeWhispererBearerTokenClient {
   export type AttributesMap = {[key: string]: StringList};
   export type AttributesMapKeyString = string;
   export type Base64EncodedPaginationToken = string;
-  export type BigDecimal = number;
   export type Boolean = boolean;
   export interface ByUserAnalytics {
     s3Uri?: S3Uri;
@@ -1014,6 +1013,14 @@ declare namespace CodeWhispererBearerTokenClient {
      * Usage breakdown by SKU type
      */
     usageBreakdown?: UsageBreakdown;
+    /**
+     * Subscription Info
+     */
+    subscriptionInfo?: SubscriptionInfo;
+    /**
+     * Overage Configuration
+     */
+    overageConfiguration?: OverageConfiguration;
   }
   export interface GitState {
     /**
@@ -1270,6 +1277,10 @@ declare namespace CodeWhispererBearerTokenClient {
   }
   export type OptOutPreference = "OPTIN"|"OPTOUT"|string;
   export type Origin = "CHATBOT"|"CONSOLE"|"DOCUMENTATION"|"MARKETING"|"MOBILE"|"SERVICE_INTERNAL"|"UNIFIED_SEARCH"|"UNKNOWN"|"MD"|"IDE"|"SAGE_MAKER"|"CLI"|"AI_EDITOR"|"OPENSEARCH_DASHBOARD"|"GITLAB"|string;
+  export interface OverageConfiguration {
+    overageStatus: OverageStatus;
+  }
+  export type OverageStatus = "ENABLED"|"DISABLED"|string;
   export interface PackageInfo {
     executionCommand?: SensitiveString;
     buildCommand?: SensitiveString;
@@ -1584,7 +1595,14 @@ declare namespace CodeWhispererBearerTokenClient {
   export type String = string;
   export type StringList = StringListMemberString[];
   export type StringListMemberString = string;
+  export interface SubscriptionInfo {
+    /**
+     * Granted subscription type
+     */
+    type: SubscriptionType;
+  }
   export type SubscriptionStatus = "INACTIVE"|"ACTIVE"|string;
+  export type SubscriptionType = "Q_DEVELOPER_STANDALONE"|"Q_DEVELOPER_STANDALONE_FREE"|"Q_DEVELOPER_STANDALONE_PRO_PLUS"|string;
   export interface SuggestedFix {
     codeDiff?: SuggestedFixCodeDiffString;
     description?: SuggestedFixDescriptionString;
@@ -1988,7 +2006,11 @@ declare namespace CodeWhispererBearerTokenClient {
     /**
      * Total overage charges
      */
-    overageCharges: BigDecimal;
+    overageCharges: Double;
+    /**
+     * The next reset date in UTC timezone.
+     */
+    nextDateReset?: Timestamp;
   }
   export interface UsageLimitList {
     type: UsageLimitType;
