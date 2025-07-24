@@ -98,6 +98,13 @@ export function isQuotaExceededError(e: unknown): e is AWSError {
         return true
     }
 
+    if (
+        (e as any)?.cause?.name === 'ServiceQuotaExceededException' &&
+        (e as any)?.cause?.reason === 'MONTHLY_REQUEST_COUNT'
+    ) {
+        return true
+    }
+
     // https://github.com/aws/aws-toolkit-vscode/blob/db673c9b74b36591bb5642b3da7d4bc7ae2afaf4/packages/core/src/amazonqFeatureDev/client/featureDev.ts#L199
     // "Backend service will throw ServiceQuota if code generation iteration limit is reached".
     if (e instanceof ServiceQuotaExceededException || (isAwsError(e) && e.code == 'ServiceQuotaExceededException')) {

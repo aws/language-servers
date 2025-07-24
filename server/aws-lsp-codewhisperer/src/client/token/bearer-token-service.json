@@ -3264,6 +3264,14 @@
                 "usageBreakdown": {
                     "shape": "UsageBreakdown",
                     "documentation": "<p>Usage breakdown by SKU type</p>"
+                },
+                "subscriptionInfo": {
+                    "shape": "SubscriptionInfo",
+                    "documentation": "<p>Subscription Info</p>"
+                },
+                "overageConfiguration": {
+                    "shape": "OverageConfiguration",
+                    "documentation": "<p>Overage Configuration</p>"
                 }
             }
         },
@@ -4033,6 +4041,19 @@
                 "GITLAB"
             ]
         },
+        "OverageConfiguration": {
+            "type": "structure",
+            "required": ["overageStatus"],
+            "members": {
+                "overageStatus": {
+                    "shape": "OverageStatus"
+                }
+            }
+        },
+        "OverageStatus": {
+            "type": "string",
+            "enum": ["ENABLED", "DISABLED"]
+        },
         "PackageInfo": {
             "type": "structure",
             "members": {
@@ -4602,7 +4623,7 @@
         "ServiceQuotaExceededExceptionReason": {
             "type": "string",
             "documentation": "<p>Reason for ServiceQuotaExceededException</p>",
-            "enum": ["CONVERSATION_LIMIT_EXCEEDED"]
+            "enum": ["CONVERSATION_LIMIT_EXCEEDED", "MONTHLY_REQUEST_COUNT"]
         },
         "ShellHistory": {
             "type": "list",
@@ -4982,9 +5003,23 @@
             "min": 1,
             "sensitive": true
         },
+        "SubscriptionInfo": {
+            "type": "structure",
+            "required": ["type"],
+            "members": {
+                "type": {
+                    "shape": "SubscriptionType",
+                    "documentation": "<p>Granted subscription type</p>"
+                }
+            }
+        },
         "SubscriptionStatus": {
             "type": "string",
             "enum": ["INACTIVE", "ACTIVE"]
+        },
+        "SubscriptionType": {
+            "type": "string",
+            "enum": ["Q_DEVELOPER_STANDALONE", "Q_DEVELOPER_STANDALONE_FREE", "Q_DEVELOPER_STANDALONE_PRO_PLUS"]
         },
         "SuggestedFix": {
             "type": "structure",
@@ -6181,8 +6216,12 @@
                     "documentation": "<p>Usage limit based on subscription tier</p>"
                 },
                 "overageCharges": {
-                    "shape": "BigDecimal",
+                    "shape": "Double",
                     "documentation": "<p>Total overage charges</p>"
+                },
+                "nextDateReset": {
+                    "shape": "Timestamp",
+                    "documentation": "<p>The next reset date in UTC timezone.</p>"
                 }
             }
         },
