@@ -10,7 +10,7 @@ import {
     Logging,
     SDKInitializator,
 } from '@aws/language-server-runtimes/server-interface'
-import { ConfigurationOptions } from 'aws-sdk'
+import { AWSError, ConfigurationOptions } from 'aws-sdk'
 import * as sinon from 'sinon'
 import * as assert from 'assert'
 import {
@@ -20,6 +20,38 @@ import {
 } from './codeWhispererService/codeWhispererServiceBase'
 import { CodeWhispererServiceToken } from './codeWhispererService/codeWhispererServiceToken'
 import { CodeWhispererServiceIAM } from './codeWhispererService/codeWhispererServiceIAM'
+import { PromiseResult } from 'aws-sdk/lib/request'
+import {
+    CreateUploadUrlRequest,
+    CreateUploadUrlResponse,
+    StartTransformationRequest,
+    StartTransformationResponse,
+    StopTransformationRequest,
+    StopTransformationResponse,
+    GetTransformationRequest,
+    GetTransformationResponse,
+    GetTransformationPlanRequest,
+    GetTransformationPlanResponse,
+    StartCodeAnalysisRequest,
+    StartCodeAnalysisResponse,
+    GetCodeAnalysisRequest,
+    GetCodeAnalysisResponse,
+    ListCodeAnalysisFindingsRequest,
+    ListCodeAnalysisFindingsResponse,
+    ListAvailableCustomizationsRequest,
+    ListAvailableCustomizationsResponse,
+    ListAvailableProfilesRequest,
+    SendTelemetryEventRequest,
+    SendTelemetryEventResponse,
+    CreateWorkspaceRequest,
+    CreateWorkspaceResponse,
+    ListWorkspaceMetadataRequest,
+    ListWorkspaceMetadataResponse,
+    DeleteWorkspaceRequest,
+    DeleteWorkspaceResponse,
+    ListFeatureEvaluationsRequest,
+    ListFeatureEvaluationsResponse,
+} from '../client/token/codewhispererbearertokenclient'
 
 describe('CodeWhispererService', function () {
     let sandbox: sinon.SinonSandbox
@@ -95,6 +127,102 @@ describe('CodeWhispererService', function () {
                 }
 
                 clearCachedSuggestions(): void {}
+
+                override codeModernizerCreateUploadUrl(
+                    request: CreateUploadUrlRequest
+                ): Promise<CreateUploadUrlResponse> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override codeModernizerStartCodeTransformation(
+                    request: StartTransformationRequest
+                ): Promise<PromiseResult<StartTransformationResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override codeModernizerStopCodeTransformation(
+                    request: StopTransformationRequest
+                ): Promise<PromiseResult<StopTransformationResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override codeModernizerGetCodeTransformation(
+                    request: GetTransformationRequest
+                ): Promise<PromiseResult<GetTransformationResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override codeModernizerGetCodeTransformationPlan(
+                    request: GetTransformationPlanRequest
+                ): Promise<PromiseResult<GetTransformationPlanResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override createUploadUrl(
+                    request: CreateUploadUrlRequest
+                ): Promise<PromiseResult<CreateUploadUrlResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override startCodeAnalysis(
+                    request: StartCodeAnalysisRequest
+                ): Promise<PromiseResult<StartCodeAnalysisResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override getCodeAnalysis(
+                    request: GetCodeAnalysisRequest
+                ): Promise<PromiseResult<GetCodeAnalysisResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override listCodeAnalysisFindings(
+                    request: ListCodeAnalysisFindingsRequest
+                ): Promise<PromiseResult<ListCodeAnalysisFindingsResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override listAvailableCustomizations(
+                    request: ListAvailableCustomizationsRequest
+                ): Promise<PromiseResult<ListAvailableCustomizationsResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override listAvailableProfiles(
+                    request: ListAvailableProfilesRequest
+                ): Promise<PromiseResult<ListAvailableProfilesRequest, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override sendTelemetryEvent(
+                    request: SendTelemetryEventRequest
+                ): Promise<PromiseResult<SendTelemetryEventResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override createWorkspace(
+                    request: CreateWorkspaceRequest
+                ): Promise<PromiseResult<CreateWorkspaceResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override listWorkspaceMetadata(
+                    request: ListWorkspaceMetadataRequest
+                ): Promise<PromiseResult<ListWorkspaceMetadataResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override deleteWorkspace(
+                    request: DeleteWorkspaceRequest
+                ): Promise<PromiseResult<DeleteWorkspaceResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
+
+                override listFeatureEvaluations(
+                    request: ListFeatureEvaluationsRequest
+                ): Promise<PromiseResult<ListFeatureEvaluationsResponse, AWSError>> {
+                    throw new Error('Method not implemented.')
+                }
             }
 
             service = new TestCodeWhispererService('us-east-1', 'https://codewhisperer.us-east-1.amazonaws.com')
