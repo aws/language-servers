@@ -1,6 +1,6 @@
 /* eslint-disable import/no-nodejs-modules */
 
-import { CodeWhispererServiceToken } from '../../../../shared/codeWhispererService'
+import { CodeWhispererServiceToken } from '../../../../shared/codeWhispererService/codeWhispererServiceToken'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import {
     CODE_REVIEW_TOOL_NAME,

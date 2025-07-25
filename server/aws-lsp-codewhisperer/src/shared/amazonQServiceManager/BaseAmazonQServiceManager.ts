@@ -9,7 +9,7 @@ import {
     UpdateConfigurationParams,
     Workspace,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererServiceBase } from '../codeWhispererService'
+import { CodeWhispererServiceBase } from '../codeWhispererService/codeWhispererServiceBase'
 import {
     AmazonQConfigurationCache,
     AmazonQWorkspaceConfig,
