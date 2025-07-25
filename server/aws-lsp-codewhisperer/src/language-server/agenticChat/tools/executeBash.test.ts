@@ -157,6 +157,18 @@ describe('ExecuteBash Tool', () => {
             assert.equal((execBash as any).isLikelyCredentialFile('/path/to/script.js'), false)
             assert.equal((execBash as any).isLikelyCredentialFile('/path/to/data.csv'), false)
         })
+
+        it('should equire acceptance for network commands like ping', async () => {
+            const execBash = new ExecuteBash(features)
+            const validation = await execBash.requiresAcceptance({ command: 'ping example.com' })
+            assert.equal(validation.requiresAcceptance, true, 'Ping should not require acceptance')
+        })
+
+        it('should require acceptance for network commands like dig', async () => {
+            const execBash = new ExecuteBash(features)
+            const validation = await execBash.requiresAcceptance({ command: 'dig any domain.com' })
+            assert.equal(validation.requiresAcceptance, true, 'ifconfig should not require acceptance')
+        })
     })
 
     describe('isLikelyBinaryFile', () => {
