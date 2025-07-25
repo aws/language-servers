@@ -205,6 +205,7 @@ export enum ChatTelemetryEventName {
     MCPConfig = 'amazonq_mcpConfig',
     MCPServerInit = 'amazonq_mcpServerInit',
     LoadHistory = 'amazonq_loadHistory',
+    CompactHistory = 'amazonq_compactHistory',
     ChatHistoryAction = 'amazonq_performChatHistoryAction',
     ExportTab = 'amazonq_exportTab',
     UiClick = 'ui_click',
@@ -228,6 +229,7 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.MCPConfig]: MCPConfigEvent
     [ChatTelemetryEventName.MCPServerInit]: MCPServerInitializeEvent
     [ChatTelemetryEventName.LoadHistory]: LoadHistoryEvent
+    [ChatTelemetryEventName.CompactHistory]: CompactHistoryEvent
     [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
     [ChatTelemetryEventName.ExportTab]: ExportTabEvent
     [ChatTelemetryEventName.UiClick]: UiClickEvent
@@ -379,6 +381,12 @@ export type LoadHistoryEvent = {
     languageServerVersion?: string
 }
 
+export type CompactHistoryEvent = {
+    type: CompactHistoryActionType
+    characters: number
+    languageServerVersion?: string
+}
+
 export type ChatHistoryActionEvent = {
     action: ChatHistoryActionType
     result: Result
@@ -411,6 +419,11 @@ export enum ChatHistoryActionType {
     Export = 'export',
     Open = 'open',
     Delete = 'delete',
+}
+
+export enum CompactHistoryActionType {
+    Manual = 'manual',
+    Nudge = 'nudge',
 }
 
 export type ChatConversationType = 'Chat' | 'Assign' | 'Transform' | 'AgenticChat' | 'AgenticChatWithToolUse'

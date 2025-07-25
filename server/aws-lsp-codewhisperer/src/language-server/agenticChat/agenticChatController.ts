@@ -106,6 +106,7 @@ import {
     ChatInteractionType,
     ChatTelemetryEventName,
     CombinedConversationEvent,
+    CompactHistoryActionType,
 } from '../../shared/telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from '../chat/chatEventParser'
@@ -825,6 +826,9 @@ export class AgenticChatController implements ChatHandlers {
                 // Generate a unique ID for this prompt
                 const promptId = crypto.randomUUID()
                 session.setCurrentPromptId(promptId)
+                session.setConversationType('AgenticChatWithCompaction')
+                const conversationType = session.getConversationType() as ChatConversationType
+                metric.setDimension('cwsprChatConversationType', conversationType)
 
                 // Start the compaction call
                 finalResult = await this.#runCompaction(
@@ -834,6 +838,7 @@ export class AgenticChatController implements ChatHandlers {
                     chatResultStream,
                     params.tabId,
                     promptId,
+                    CompactHistoryActionType.Manual,
                     session.conversationId,
                     token,
                     triggerContext.documentReference
@@ -985,6 +990,7 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream,
         tabId: string,
         promptId: string,
+        type: CompactHistoryActionType,
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList
@@ -1057,6 +1063,12 @@ export class AgenticChatController implements ChatHandlers {
             })
         }
         await resultStreamWriter.close()
+
+        this.#telemetryController.emitCompactHistory(
+            type,
+            characterCount,
+            this.#features.runtime.serverInfo.version ?? ''
+        )
 
         // Add loading message before making the request
         const loadingMessageId = `loading-${uuid()}`
@@ -1434,6 +1446,7 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream,
                 tabId,
                 promptId,
+                CompactHistoryActionType.Nudge,
                 session.conversationId,
                 token,
                 documentReference
