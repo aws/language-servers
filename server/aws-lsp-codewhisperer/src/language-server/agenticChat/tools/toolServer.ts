@@ -11,7 +11,7 @@ import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
 import { CodeReview } from './qCodeAnalysis/codeReview'
-import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
+import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService/codeWhispererServiceToken'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
     getGlobalAgentConfigPath,

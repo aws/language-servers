@@ -1,5 +1,5 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { CodeWhispererServiceBase } from '../codeWhispererService'
+import { CodeWhispererServiceBase } from '../codeWhispererService/codeWhispererServiceBase'
 import { BaseAmazonQServiceManager, QServiceManagerFeatures } from './BaseAmazonQServiceManager'
 import { StreamingClientServiceBase } from '../streamingClientService'
 import {
