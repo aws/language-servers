@@ -826,9 +826,6 @@ export class AgenticChatController implements ChatHandlers {
                 // Generate a unique ID for this prompt
                 const promptId = crypto.randomUUID()
                 session.setCurrentPromptId(promptId)
-                session.setConversationType('AgenticChatWithCompaction')
-                const conversationType = session.getConversationType() as ChatConversationType
-                metric.setDimension('cwsprChatConversationType', conversationType)
 
                 // Start the compaction call
                 finalResult = await this.#runCompaction(
@@ -1064,6 +1061,9 @@ export class AgenticChatController implements ChatHandlers {
         }
         await resultStreamWriter.close()
 
+        session.setConversationType('AgenticChatWithCompaction')
+        const conversationType = session.getConversationType() as ChatConversationType
+        metric.setDimension('cwsprChatConversationType', conversationType)
         this.#telemetryController.emitCompactHistory(
             type,
             characterCount,
@@ -1077,19 +1077,14 @@ export class AgenticChatController implements ChatHandlers {
         this.#debug(`Compacting history with ${characterCount} characters`)
         this.#llmRequestStartTime = Date.now()
         // Phase 3: Request Execution
-        // Note: these logs are very noisy, but contain information redacted on the backend.
-        this.#debug(
-            `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
-        )
+        this.#debug(`Compaction Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
         const response = await session.getChatResponse(currentRequestInput)
         if (response.$metadata.requestId) {
             metric.mergeWith({
                 requestIds: [response.$metadata.requestId],
             })
         }
-        this.#features.logging.info(
-            `generateAssistantResponse/SendMessage ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
-        )
+        this.#features.logging.info(`Compaction ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`)
         await chatResultStream.removeResultBlock(loadingMessageId)
 
         // Phase 4: Response Processing
