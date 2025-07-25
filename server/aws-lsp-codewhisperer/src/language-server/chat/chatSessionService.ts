@@ -220,10 +220,16 @@ export class ChatSessionService {
                 }
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
-                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
-                    (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
-                    error.message ===
-                        'Encountered unexpectedly high load when processing the request, please try again.'
+                    (request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
+                        (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
+                        error.message ===
+                            'Encountered unexpectedly high load when processing the request, please try again.') ||
+                    (error.cause &&
+                        typeof error.cause === 'object' &&
+                        '$metadata' in error.cause &&
+                        (error.cause as any).$metadata?.httpStatusCode === 429 &&
+                        'reason' in error.cause &&
+                        error.cause.reason === 'INSUFFICIENT_MODEL_CAPACITY')
                 ) {
                     error.message = this.isModelSelectionEnabled()
                         ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
@@ -272,12 +278,20 @@ export class ChatSessionService {
                 }
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
-                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
-                    (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
-                    error.message ===
-                        'Encountered unexpectedly high load when processing the request, please try again.'
+                    (request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
+                        (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
+                        error.message ===
+                            'Encountered unexpectedly high load when processing the request, please try again.') ||
+                    (error.cause &&
+                        typeof error.cause === 'object' &&
+                        '$metadata' in error.cause &&
+                        (error.cause as any).$metadata?.httpStatusCode === 429 &&
+                        'reason' in error.cause &&
+                        error.cause.reason === 'INSUFFICIENT_MODEL_CAPACITY')
                 ) {
-                    error.message = `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                    error.message = this.isModelSelectionEnabled()
+                        ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                        : `I am experiencing high traffic, please try again shortly.`
                 }
                 throw error
             }
