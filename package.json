@@ -35,7 +35,7 @@
         "package": "npm run compile && npm run package --workspaces --if-present"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.112",
+        "@aws/language-server-runtimes": "^0.2.115",
         "@smithy/types": "4.2.0",
         "clean": "^4.0.2",
         "typescript": "^5.8.2"

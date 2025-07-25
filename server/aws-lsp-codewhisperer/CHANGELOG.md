@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.0.69](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.68...lsp-codewhisperer/v0.0.69) (2025-07-23)
+
+
+### Features
+
+* enable webforms to blazor transformation via validation bypass ([#1929](https://github.com/aws/language-servers/issues/1929)) ([528f820](https://github.com/aws/language-servers/commit/528f8206b101e8f0c785b7fc0aceb87d6ef3de7b))
+
+
+### Bug Fixes
+
+* **amazonq:** revert commit f17b631d9e06371a11ef8e9cb1413762fb51a143 ([#1965](https://github.com/aws/language-servers/issues/1965)) ([8c2cab6](https://github.com/aws/language-servers/commit/8c2cab6995922c96030b5bbdf3cbbdef7eadd7c2))
+* **amazonq:** stop continuous monitor when WCS sees ServiceQuotaExceeded ([#1957](https://github.com/aws/language-servers/issues/1957)) ([81e19b9](https://github.com/aws/language-servers/commit/81e19b97017edddf486ac92fa6a8dc5fb184e008))
+* fix for mcp delete to remove it from mcp config file ([#1956](https://github.com/aws/language-servers/issues/1956)) ([ad71312](https://github.com/aws/language-servers/commit/ad713122fcb9da90c17301f1312de13ba1d28d01))
+
+
+### Reverts
+
+* revert for all commits for emergency deployment ([#1966](https://github.com/aws/language-servers/issues/1966)) ([519f75d](https://github.com/aws/language-servers/commit/519f75d22466b72702793b4f1d1ed846c02bbd14))
+
+## [0.0.68](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.67...lsp-codewhisperer/v0.0.68) (2025-07-22)
+
+
+### Features
+
+* **amazonq:** enable show logs feature ([#1947](https://github.com/aws/language-servers/issues/1947)) ([86ea83d](https://github.com/aws/language-servers/commit/86ea83dd53b447f6decccf16559b76f4989ea712))
+
+## [0.0.67](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.66...lsp-codewhisperer/v0.0.67) (2025-07-22)
+
+
+### Features
+
+* adding extra context as a workspace config for inline chat ([#1942](https://github.com/aws/language-servers/issues/1942)) ([1b402bb](https://github.com/aws/language-servers/commit/1b402bb8b083c5505a4e13ecf7e097a43388d10b))
+* **chat-client:** add auto-approve (trust mode) for built-in tools ([#1949](https://github.com/aws/language-servers/issues/1949)) ([f17b631](https://github.com/aws/language-servers/commit/f17b631d9e06371a11ef8e9cb1413762fb51a143))
+* **chat-client:** add shortcut for stop/reject/run commands ([#1932](https://github.com/aws/language-servers/issues/1932)) ([087f338](https://github.com/aws/language-servers/commit/087f3387ba736e92d014274e195f7ef76e377f1e))
+
+
+### Bug Fixes
+
+* **amazonq:** add image context to chat history ([#1859](https://github.com/aws/language-servers/issues/1859)) ([788920b](https://github.com/aws/language-servers/commit/788920bdd2de0448fd335734b62ac80aba9cff82))
+* **amazonq:** avoid workspace context server missing historical dependency events ([#1946](https://github.com/aws/language-servers/issues/1946)) ([3362956](https://github.com/aws/language-servers/commit/3362956ded75d77296fa98abb172bd87d66e5d5e))
+* **amazonq:** continueous edits trigger returns earlier as first session is already closed ([#1907](https://github.com/aws/language-servers/issues/1907)) ([a2dc5a8](https://github.com/aws/language-servers/commit/a2dc5a87e488e523c12270b98749c1f835b55e87))
+* **amazonq:** fix for mcp server unnecessary refresh from file watchers ([#1933](https://github.com/aws/language-servers/issues/1933)) ([208909b](https://github.com/aws/language-servers/commit/208909b55ecda40ff8d412b2b3be890eccee70bc))
+* **amazonq:** make JSTSDependencyHandler process scoped packages correctly ([#1910](https://github.com/aws/language-servers/issues/1910)) ([3034494](https://github.com/aws/language-servers/commit/303449454254987047649c49b7a377d45ad284b6))
+* **amazonq:** update mcp and persona config to agent config ([#1897](https://github.com/aws/language-servers/issues/1897)) ([530977f](https://github.com/aws/language-servers/commit/530977f8c73c7946a0205f02014248d71b4b1fe0))
+* bug for credential refresh in StreamingClientServiceIAM ([#1944](https://github.com/aws/language-servers/issues/1944)) ([a69ec0c](https://github.com/aws/language-servers/commit/a69ec0c63423187c96bdd2b03d14da8a723c192e))
+* fix blocking regex calls being made before indexing ([#1916](https://github.com/aws/language-servers/issues/1916)) ([3c0592f](https://github.com/aws/language-servers/commit/3c0592fec53922b0493f51b7e88313971cb54e93))
+* fix to remove config from agent file for failed initialization ([#1948](https://github.com/aws/language-servers/issues/1948)) ([45645c2](https://github.com/aws/language-servers/commit/45645c2cd7c241c54ddfebced6f377f38e077957))
+* Make the classifier of auto trigger output the same score as the IDE auto trigger classifier ([#1930](https://github.com/aws/language-servers/issues/1930)) ([be3231f](https://github.com/aws/language-servers/commit/be3231f27d545daf137df149e5f9fd23042c82a9))
+* put compaction feature behind a feature flag ([#1945](https://github.com/aws/language-servers/issues/1945)) ([51f4161](https://github.com/aws/language-servers/commit/51f4161571679408d6b11b61d70d8027097a6ef6))
+* remove hardcoded EDITS predictionTypes for trigger on acceptance ([#1937](https://github.com/aws/language-servers/issues/1937)) ([8ef7986](https://github.com/aws/language-servers/commit/8ef7986424dc4ced8e7414c1378dfca872150fb4))
+* replace cancel with stop ([#1935](https://github.com/aws/language-servers/issues/1935)) ([2f51923](https://github.com/aws/language-servers/commit/2f51923f9d3497469c70162235482b569e2d796e))
+* update ChatHandlers before adding new types dependency ([#1925](https://github.com/aws/language-servers/issues/1925)) ([e94e581](https://github.com/aws/language-servers/commit/e94e581a00fb99d862527ee7b91bf37ef47f4013))
+
 ## [0.0.66](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.65...lsp-codewhisperer/v0.0.66) (2025-07-17)
 
 

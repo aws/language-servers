@@ -37,6 +37,7 @@ import {
     RuleClickResult,
     SourceLinkClickParams,
     ListAvailableModelsResult,
+    ExecuteShellCommandParams,
 } from '@aws/language-server-runtimes-types'
 import {
     ChatItem,
@@ -55,7 +56,7 @@ import {
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
 import { McpMynahUi } from './mcpMynahUi'
-import { ExportTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
+import { ExportTabBarButtonId, ShowLogsTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
 import { withAdapter } from './withAdapter'
@@ -94,6 +95,7 @@ export interface InboundChatApi {
     openTab(requestId: string, params: OpenTabParams): void
     sendContextCommands(params: ContextCommandParams): void
     listConversations(params: ListConversationsResult): void
+    executeShellCommandShortCut(params: ExecuteShellCommandParams): void
     listRules(params: ListRulesResult): void
     conversationClicked(params: ConversationClickResult): void
     ruleClicked(params: RuleClickResult): void
@@ -194,11 +196,10 @@ export const handleChatPrompt = (
         messager.onStopChatResponse(tabId)
     }
 
+    const commandsToReroute = ['/dev', '/test', '/doc', '/review']
+
     const isReroutedCommand =
-        agenticMode &&
-        tabFactory?.isRerouteEnabled() &&
-        prompt.command &&
-        ['/dev', '/test', '/doc'].includes(prompt.command)
+        agenticMode && tabFactory?.isRerouteEnabled() && prompt.command && commandsToReroute.includes(prompt.command)
 
     if (prompt.command && !isReroutedCommand && prompt.command !== '/compact') {
         // Send /compact quick action as normal regular chat prompt
@@ -225,7 +226,7 @@ export const handleChatPrompt = (
     } else {
         // Go agentic chat workflow when:
         // 1. Regular prompts without commands
-        // 2. Rerouted commands (/dev, /test, /doc) when feature flag: reroute is enabled
+        // 2. Rerouted commands (/dev, /test, /doc, /review) when feature flag: reroute is enabled
 
         // Special handling for /doc command - always send fixed prompt for fixed response
         if (isReroutedCommand && prompt.command === '/doc') {
@@ -250,6 +251,9 @@ export const handleChatPrompt = (
                     break
                 case '/doc':
                     defaultPrompt = DEFAULT_DOC_PROMPT
+                    break
+                case '/review':
+                    defaultPrompt = DEFAULT_REVIEW_PROMPT
                     break
             }
 
@@ -313,7 +317,8 @@ export const createMynahUi = (
     customChatClientAdapter?: ChatClientAdapter,
     featureConfig?: Map<string, any>,
     agenticMode?: boolean,
-    stringOverrides?: Partial<ConfigTexts>
+    stringOverrides?: Partial<ConfigTexts>,
+    os?: string
 ): [MynahUI, InboundChatApi] => {
     let disclaimerCardActive = !disclaimerAcknowledged
     let programmingModeCardActive = !pairProgrammingCardAcknowledged
@@ -652,6 +657,14 @@ export const createMynahUi = (
                 return
             }
 
+            if (buttonId === ShowLogsTabBarButtonId) {
+                messager.onTabBarAction({
+                    tabId,
+                    action: 'show_logs',
+                })
+                return
+            }
+
             if (buttonId === ExportTabBarButtonId) {
                 messager.onTabBarAction({
                     tabId,
@@ -690,24 +703,7 @@ export const createMynahUi = (
             }
         },
         onStopChatResponse: tabId => {
-            messager.onStopChatResponse(tabId)
-
-            // Reset loading state
-            mynahUi.updateStore(tabId, {
-                loadingChat: false,
-                cancelButtonWhenLoading: true,
-                promptInputDisabledState: false,
-            })
-
-            // Add a small delay before adding the chat item
-            setTimeout(() => {
-                // Add cancellation message when stop button is clicked
-                mynahUi.addChatItem(tabId, {
-                    type: ChatItemType.DIRECTIVE,
-                    messageId: 'canceled' + Date.now(),
-                    body: 'You canceled your current work, please provide additional examples or ask another question.',
-                })
-            }, 500) // 500ms delay
+            handleUIStopChatResponse(messager, mynahUi, tabId)
         },
         onOpenFileDialogClick: (tabId, fileType, insertPosition) => {
             const imageContext = getImageContextCount(tabId)
@@ -818,6 +814,7 @@ export const createMynahUi = (
                 dragOverlayText: 'Add image to context',
                 // Fallback to original texts in non-agentic chat mode
                 stopGenerating: agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating',
+                stopGeneratingTooltip: getStopGeneratingToolTipText(os, agenticMode),
                 spinnerText: agenticMode ? uiComponentsTexts.spinnerText : 'Generating your answer...',
                 ...stringOverrides,
             },
@@ -1426,15 +1423,25 @@ export const createMynahUi = (
             tabId = createTabId()
             if (!tabId) return
         }
-
-        const body = [
-            params.genericCommand,
-            ' the following part of my code:',
-            '\n~~~~\n',
-            params.selection,
-            '\n~~~~\n',
-        ].join('')
-        const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
+        let body = ''
+        let chatPrompt: ChatPrompt
+        const genericCommandString = params.genericCommand as string
+        if (genericCommandString.includes('Review')) {
+            chatPrompt = { command: '/review' }
+            if (!tabFactory?.isCodeReviewInChatEnabled()) {
+                customChatClientAdapter?.handleQuickAction(chatPrompt, tabId, '')
+                return
+            }
+        } else {
+            body = [
+                genericCommandString,
+                ' the following part of my code:',
+                '\n~~~~\n',
+                params.selection,
+                '\n~~~~\n',
+            ].join('')
+            chatPrompt = { prompt: body, escapedPrompt: body }
+        }
 
         handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode, tabFactory)
     }
@@ -1457,6 +1464,55 @@ ${params.message}`,
 
         mynahUi.addChatItem(params.tabId, answer)
         messager.onError(params)
+    }
+
+    const executeShellCommandShortCut = (params: ExecuteShellCommandParams) => {
+        const activeElement = document.activeElement as HTMLElement
+
+        const tabId = mynahUi.getSelectedTabId()
+        if (!tabId) return
+
+        const chatItems = mynahUi.getTabData(tabId)?.getStore()?.chatItems || []
+        const buttonId = params.id
+
+        let messageId
+        for (const item of chatItems) {
+            if (buttonId === 'stop-shell-command' && item.buttons && item.buttons.some(b => b.id === buttonId)) {
+                messageId = item.messageId
+                break
+            }
+            if (item.header?.buttons && item.header.buttons.some(b => b.id === buttonId)) {
+                messageId = item.messageId
+                break
+            }
+        }
+
+        if (messageId) {
+            const payload: ButtonClickParams = {
+                tabId,
+                messageId,
+                buttonId,
+            }
+            messager.onButtonClick(payload)
+            if (buttonId === 'stop-shell-command') {
+                handleUIStopChatResponse(messager, mynahUi, tabId)
+            }
+        } else {
+            // handle global stop
+            const isLoading = mynahUi.getTabData(tabId)?.getStore()?.loadingChat
+            if (isLoading && buttonId === 'stop-shell-command') {
+                handleUIStopChatResponse(messager, mynahUi, tabId)
+            }
+        }
+        // this is a short-term solution to re-gain focus after executing a shortcut
+        // current behavior will emit exitFocus telemetry immediadately.
+        // use this to re-gain focus, so that user can use shortcut after shortcut
+        // without manually re-gain focus.
+        setTimeout(() => {
+            if (activeElement && activeElement.focus) {
+                activeElement.focus()
+            }
+        }, 100)
     }
 
     const openTab = (requestId: string, params: OpenTabParams) => {
@@ -1684,6 +1740,7 @@ ${params.message}`,
         openTab: openTab,
         sendContextCommands: sendContextCommands,
         sendPinnedContext: sendPinnedContext,
+        executeShellCommandShortCut: executeShellCommandShortCut,
         listConversations: listConversations,
         listRules: listRules,
         conversationClicked: conversationClicked,
@@ -1709,6 +1766,8 @@ const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then 
 
 const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
 
+const DEFAULT_REVIEW_PROMPT = `You are Amazon Q. Start with a warm greeting, then use code review tool to perform code analysis of the open file. If there is no open file, ask what the user would like to review.`
+
 export const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
     copy: 'Copy',
@@ -1730,4 +1789,37 @@ export const uiComponentsTexts = {
     noMoreTabsTooltip: 'You can only open ten conversation tabs at a time.',
     codeSuggestionWithReferenceTitle: 'Some suggestions contain code with references.',
     spinnerText: 'Working...',
+    macStopButtonShortcut: '&#8679; &#8984; &#9003;',
+    windowStopButtonShortcut: 'Ctrl + &#8679; + &#9003;',
+}
+
+const getStopGeneratingToolTipText = (os: string | undefined, agenticMode: boolean | undefined): string => {
+    if (agenticMode && os) {
+        return os === 'darwin'
+            ? `Stop:  ${uiComponentsTexts.macStopButtonShortcut}`
+            : `Stop:  ${uiComponentsTexts.windowStopButtonShortcut}`
+    }
+
+    return agenticMode ? uiComponentsTexts.stopGenerating : 'Stop generating'
+}
+
+const handleUIStopChatResponse = (messenger: Messager, mynahUi: MynahUI, tabId: string) => {
+    messenger.onStopChatResponse(tabId)
+
+    // Reset loading state
+    mynahUi.updateStore(tabId, {
+        loadingChat: false,
+        cancelButtonWhenLoading: true,
+        promptInputDisabledState: false,
+    })
+
+    // Add a small delay before adding the chat item
+    setTimeout(() => {
+        // Add cancellation message when stop button is clicked
+        mynahUi.addChatItem(tabId, {
+            type: ChatItemType.DIRECTIVE,
+            messageId: 'stopped' + Date.now(),
+            body: 'You stopped your current work, please provide additional examples or ask another question.',
+        })
+    }, 500) // 500ms delay
 }

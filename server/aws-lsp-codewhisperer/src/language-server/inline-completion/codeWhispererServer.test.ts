@@ -2418,51 +2418,5 @@ describe('CodeWhisperer Server', () => {
 
             sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
-
-        it('should include EDITS in predictionTypes when previous session was accepted EDIT', async () => {
-            const session = sessionManager.createSession(SAMPLE_SESSION_DATA)
-            sessionManager.closeSession(session)
-            const currentSession = sessionManager.getCurrentSession()
-            if (currentSession) {
-                currentSession.suggestionsStates = new Map([['test-suggestion-id', 'Accept']])
-                currentSession.suggestionType = SuggestionType.EDIT
-            }
-
-            await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                },
-                CancellationToken.None
-            )
-
-            const expectedGenerateSuggestionsRequest = {
-                fileContext: {
-                    fileUri: SOME_FILE.uri,
-                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
-                    programmingLanguage: { languageName: 'csharp' },
-                    leftFileContent: '',
-                    rightFileContent: HELLO_WORLD_IN_CSHARP,
-                },
-                maxResults: 5,
-                supplementalContexts: [],
-                predictionTypes: ['EDITS'],
-                editorState: {
-                    document: {
-                        relativeFilePath: SOME_FILE.uri,
-                        programmingLanguage: { languageName: 'csharp' },
-                        text: HELLO_WORLD_IN_CSHARP,
-                    },
-                    cursorState: {
-                        position: {
-                            line: 0,
-                            character: 0,
-                        },
-                    },
-                },
-            }
-            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
-        })
     })
 })

@@ -275,4 +275,56 @@ describe('IAM', () => {
         sinon.assert.calledTwice(abortStub)
         expect(streamingClientService['inflightRequests'].size).to.eq(0)
     })
+
+    it('uses expireTime from credentials when available', async () => {
+        // Get the credential provider function from the client config
+        const credentialProvider = streamingClientServiceIAM.client.config.credentials
+        expect(credentialProvider).to.not.be.undefined
+
+        // Reset call count on the stub
+        features.credentialsProvider.getCredentials.resetHistory()
+
+        // Set up credentials with expireTime
+        const futureDate = new Date(Date.now() + 3600000) // 1 hour in the future
+        const CREDENTIALS_WITH_EXPIRY = {
+            ...MOCKED_IAM_CREDENTIALS,
+            expireTime: futureDate.toISOString(),
+        }
+        features.credentialsProvider.getCredentials.withArgs('iam').returns(CREDENTIALS_WITH_EXPIRY)
+
+        // Call the credential provider
+        const credentialsPromise = (credentialProvider as any)()
+        await clock.tickAsync(TIME_TO_ADVANCE_MS)
+        const credentials = await credentialsPromise
+
+        // Verify expiration is set to the expireTime from credentials
+        expect(credentials.expiration).to.be.instanceOf(Date)
+        expect(credentials.expiration.getTime()).to.equal(futureDate.getTime())
+    })
+
+    it('falls back to current date when expireTime is not available', async () => {
+        // Get the credential provider function from the client config
+        const credentialProvider = streamingClientServiceIAM.client.config.credentials
+        expect(credentialProvider).to.not.be.undefined
+
+        // Reset call count on the stub
+        features.credentialsProvider.getCredentials.resetHistory()
+
+        // Set up credentials without expireTime
+        features.credentialsProvider.getCredentials.withArgs('iam').returns(MOCKED_IAM_CREDENTIALS)
+
+        // Set a fixed time for testing
+        const fixedNow = new Date()
+        clock.tick(0) // Ensure clock is at the fixed time
+
+        // Call the credential provider
+        const credentialsPromise = (credentialProvider as any)()
+        await clock.tickAsync(TIME_TO_ADVANCE_MS)
+        const credentials = await credentialsPromise
+
+        // Verify expiration is set to current date when expireTime is missing
+        expect(credentials.expiration).to.be.instanceOf(Date)
+        // The expiration should be very close to the current time
+        expect(credentials.expiration.getTime()).to.be.closeTo(fixedNow.getTime(), 100)
+    })
 })

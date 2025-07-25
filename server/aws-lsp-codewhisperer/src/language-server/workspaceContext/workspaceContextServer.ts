@@ -21,7 +21,7 @@ import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { safeGet } from '../../shared/utils'
 import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { FileUploadJobManager, FileUploadJobType } from './fileUploadJobManager'
-import { DependencyEventBundler } from './dependency/dependencyEventBundler'
+import { DependencyEvent, DependencyEventBundler } from './dependency/dependencyEventBundler'
 import ignore = require('ignore')
 import { BUILDER_ID_START_URL, INTERNAL_USER_START_URL } from '../../shared/constants'
 
@@ -244,7 +244,7 @@ export const WorkspaceContextServer = (): Server => features => {
                 workspaceIdentifier
             )
             fileUploadJobManager = new FileUploadJobManager(logging, workspaceFolderManager)
-            dependencyEventBundler = new DependencyEventBundler(logging, dependencyDiscoverer)
+            dependencyEventBundler = new DependencyEventBundler(logging, dependencyDiscoverer, workspaceFolderManager)
             await updateConfiguration()
 
             lsp.workspace.onDidChangeWorkspaceFolders(async params => {
@@ -511,17 +511,22 @@ export const WorkspaceContextServer = (): Server => features => {
 
     lsp.extensions.onDidChangeDependencyPaths(async params => {
         try {
+            const dependencyEvent: DependencyEvent = {
+                language: params.runtimeLanguage,
+                paths: params.paths,
+                workspaceFolderUri: params.moduleName,
+            }
+            DependencyEventBundler.recordDependencyEvent(dependencyEvent)
+
             if (!isUserEligibleForWorkspaceContext()) {
                 return
             }
-            logging.log(`Received onDidChangeDependencyPaths event for ${params.moduleName}`)
 
-            const workspaceFolder = workspaceFolderManager.getWorkspaceFolder(params.moduleName)
-            dependencyEventBundler.eventQueue.push({
-                language: params.runtimeLanguage,
-                paths: params.paths,
-                workspaceFolder: workspaceFolder,
-            })
+            // Only send events separately when dependency discovery has finished ingesting previous recorded events
+            if (dependencyDiscoverer.isDependencyEventsIngested(params.moduleName)) {
+                dependencyEventBundler.sendDependencyEvent(dependencyEvent)
+                logging.log(`Processed onDidChangeDependencyPaths event for ${params.moduleName}`)
+            }
         } catch (error) {
             logging.error(`Error handling didChangeDependencyPaths event: ${error}`)
         }

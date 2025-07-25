@@ -8,13 +8,20 @@ import * as sinon from 'sinon'
 import { McpEventHandler } from './mcpEventHandler'
 import { McpManager } from './mcpManager'
 import * as mcpUtils from './mcpUtils'
+import { getGlobalAgentConfigPath } from './mcpUtils'
 import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
 
 describe('McpEventHandler error handling', () => {
+    // Mock getGlobalAgentConfigPath to return a test path
+    beforeEach(() => {
+        sinon.stub(mcpUtils, 'getGlobalAgentConfigPath').returns('/fake/home/.aws/amazonq/agents/default.json')
+        saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+    })
     let eventHandler: McpEventHandler
     let features: any
     let telemetryService: TelemetryService
     let loadStub: sinon.SinonStub
+    let saveAgentConfigStub: sinon.SinonStub
 
     beforeEach(() => {
         sinon.restore()
@@ -69,10 +76,7 @@ describe('McpEventHandler error handling', () => {
         // Create the event handler
         eventHandler = new McpEventHandler(features, telemetryService)
 
-        // Stub loadPersonaPermissions
-        sinon
-            .stub(mcpUtils, 'loadPersonaPermissions')
-            .resolves(new Map([['*', { enabled: true, toolPerms: {}, __configPath__: '/tmp/p.yaml' }]]))
+        // Default loadAgentConfig stub will be set in each test as needed
     })
 
     afterEach(async () => {
@@ -89,15 +93,26 @@ describe('McpEventHandler error handling', () => {
             ['serverA', 'Missing command error'],
         ])
 
-        // Stub loadMcpServerConfigs to return errors
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
+        // Stub loadAgentConfig to return errors
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
             servers: new Map(),
             serverNameMapping: new Map(),
             errors: mockErrors,
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: {},
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
         })
 
         // Initialize McpManager with errors
-        await McpManager.init([], [], features)
+        await McpManager.init([], features)
 
         // Stub getConfigLoadErrors to return formatted errors
         sinon
@@ -129,15 +144,31 @@ describe('McpEventHandler error handling', () => {
             ],
         ])
 
-        // Stub loadMcpServerConfigs to return a server with validation errors
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
+        // Make sure previous stubs are restored
+        sinon.restore()
+        sinon.stub(mcpUtils, 'getGlobalAgentConfigPath').returns('/fake/home/.aws/amazonq/agents/default.json')
+        saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+
+        // Stub loadAgentConfig to return a server with validation errors
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
             servers: serverConfig,
             serverNameMapping: new Map(),
             errors: new Map([['errorServer', 'Missing command error']]),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { errorServer: { command: '' } },
+                tools: ['@errorServer'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
         })
 
         // Initialize McpManager with the problematic server
-        await McpManager.init([], [], features)
+        await McpManager.init([], features)
 
         // Stub getAllServerConfigs to return our test server
         sinon.stub(McpManager.instance, 'getAllServerConfigs').returns(serverConfig)
@@ -171,15 +202,31 @@ describe('McpEventHandler error handling', () => {
     })
 
     it('handles server click events for fixing failed servers', async () => {
-        // Stub loadMcpServerConfigs
-        loadStub = sinon.stub(mcpUtils, 'loadMcpServerConfigs').resolves({
+        // Make sure previous stubs are restored
+        sinon.restore()
+        sinon.stub(mcpUtils, 'getGlobalAgentConfigPath').returns('/fake/home/.aws/amazonq/agents/default.json')
+        saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+
+        // Stub loadAgentConfig
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
             servers: new Map(),
             serverNameMapping: new Map(),
             errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: {},
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
         })
 
         // Initialize McpManager
-        await McpManager.init([], [], features)
+        await McpManager.init([], features)
 
         // Call onMcpServerClick with mcp-fix-server action
         const result = await eventHandler.onMcpServerClick({

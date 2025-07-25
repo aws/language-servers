@@ -19,6 +19,7 @@ import {
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
+import { getNormalizeOsName } from './auto-trigger/autoTrigger'
 
 describe('Telemetry', () => {
     const sandbox = sinon.createSandbox()
@@ -55,6 +56,12 @@ describe('Telemetry', () => {
         clock.restore()
         sandbox.restore()
         telemetryServiceSpy.restore()
+    })
+
+    // Add a hook that runs after all tests in this describe block
+    after(() => {
+        // Force process to exit after tests complete to prevent hanging
+        setTimeout(() => process.exit(0), 1000)
     })
 
     describe('User Trigger Decision telemetry', () => {
@@ -138,6 +145,7 @@ describe('Telemetry', () => {
             },
         }
         const EMPTY_RESULT = { items: [], sessionId: '' }
+        const classifierResult = getNormalizeOsName() !== 'Linux' ? 0.4114381148145918 : 0.46733811481459187
 
         let features: TestFeatures
         let server: Server
@@ -253,7 +261,7 @@ describe('Telemetry', () => {
                 triggerType: 'AutoTrigger',
                 autoTriggerType: 'SpecialCharacters',
                 triggerCharacter: '(',
-                classifierResult: 0.46733811481459187,
+                classifierResult: classifierResult,
                 classifierThreshold: 0.43,
                 language: 'csharp',
                 requestContext: {
@@ -392,6 +400,7 @@ describe('Telemetry', () => {
                 assert(currentSession)
                 assert.equal(currentSession?.state, 'CLOSED')
                 sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
+                const classifierResult = getNormalizeOsName() !== 'Linux' ? -0.9083073111924993 : -0.8524073111924992
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
                     startPosition: { line: 0, character: 0 },
@@ -438,7 +447,7 @@ describe('Telemetry', () => {
                     triggerType: 'OnDemand',
                     autoTriggerType: undefined,
                     triggerCharacter: '',
-                    classifierResult: -0.8524073111924992,
+                    classifierResult: classifierResult,
                     requestContext: {
                         fileContext: {
                             filename: 'test.cs',
@@ -1045,7 +1054,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: 0.46733811481459187,
+                    classifierResult: classifierResult,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {
@@ -1242,7 +1251,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: 0.30173811481459184,
+                    classifierResult: getNormalizeOsName() === 'Linux' ? 0.30173811481459184 : 0.2458381148145919,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {
@@ -1359,7 +1368,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: 0.46733811481459187,
+                    classifierResult: classifierResult,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {

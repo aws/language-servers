@@ -24,7 +24,7 @@ import {
     GREP_SEARCH,
     FILE_SEARCH,
     EXECUTE_BASH,
-    Q_CODE_REVIEW,
+    CODE_REVIEW,
     BUTTON_RUN_SHELL_COMMAND,
     BUTTON_REJECT_SHELL_COMMAND,
     BUTTON_REJECT_MCP_TOOL,
@@ -196,8 +196,8 @@ import {
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
-import { QCodeReview } from './tools/qCodeAnalysis/qCodeReview'
-import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/qCodeReviewConstants'
+import { CodeReview } from './tools/qCodeAnalysis/codeReview'
+import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/codeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -209,7 +209,11 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
-import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
+import {
+    estimateCharacterCountFromImageBlock,
+    Message as DbMessage,
+    messageToStreamingMessage,
+} from './tools/chatDb/util'
 import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
@@ -217,6 +221,7 @@ import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererService } from '../../shared/codeWhispererService'
+import { enabledCompaction } from './qAgenticChatServer'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -812,12 +817,6 @@ export class AgenticChatController implements ChatHandlers {
                 params.context,
                 params.tabId
             )
-            // Add image context to triggerContext.documentReference for transparency
-            await this.#additionalContextProvider.appendCustomContextToTriggerContext(
-                triggerContext,
-                params.context,
-                params.tabId
-            )
 
             let finalResult
             if (params.prompt.command === QuickAction.Compact) {
@@ -865,7 +864,7 @@ export class AgenticChatController implements ChatHandlers {
                     session.conversationId,
                     token,
                     triggerContext.documentReference,
-                    additionalContext.filter(item => item.pinned)
+                    additionalContext
                 )
             }
 
@@ -926,7 +925,7 @@ export class AgenticChatController implements ChatHandlers {
         triggerContext: TriggerContext,
         additionalContext: AdditionalContentEntryAddition[],
         chatResultStream: AgenticChatResultStream,
-        customContext: ImageBlock[]
+        images: ImageBlock[]
     ): Promise<ChatCommandInput> {
         this.#debug('Preparing request input')
         // Get profileArn from the service manager if available
@@ -942,7 +941,7 @@ export class AgenticChatController implements ChatHandlers {
             additionalContext,
             session.modelId,
             this.#origin,
-            customContext
+            images
         )
         return requestInput
     }
@@ -968,7 +967,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     #shouldCompact(currentRequestCount: number): boolean {
         // 80% of 570K limit
-        if (currentRequestCount > 456_000) {
+        if (enabledCompaction(this.#features.lsp.getClientInitializeParams()) && currentRequestCount > 456_000) {
             this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
             return true
         } else {
@@ -1140,13 +1139,15 @@ export class AgenticChatController implements ChatHandlers {
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList,
-        pinnedContext?: AdditionalContentEntryAddition[]
+        additionalContext?: AdditionalContentEntryAddition[]
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
         let shouldDisplayMessage = true
         let currentRequestCount = 0
+        const pinnedContext = additionalContext?.filter(item => item.pinned)
+
         metric.recordStart()
         this.logSystemInformation()
         while (true) {
@@ -1163,7 +1164,7 @@ export class AgenticChatController implements ChatHandlers {
                 throw new CancellationError('user')
             }
 
-            this.truncateRequest(currentRequestInput, pinnedContext)
+            this.truncateRequest(currentRequestInput, additionalContext)
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
             if (!currentMessage || !conversationId) {
@@ -1247,6 +1248,7 @@ export class AgenticChatController implements ChatHandlers {
                             shouldDisplayMessage &&
                             !currentMessage.userInputMessage?.content?.startsWith('You are Amazon Q'),
                         timestamp: new Date(),
+                        images: currentMessage.userInputMessage?.images,
                     })
                 }
             }
@@ -1472,7 +1474,7 @@ export class AgenticChatController implements ChatHandlers {
      * Returns the remaining character budget for chat history.
      * @param request
      */
-    truncateRequest(request: ChatCommandInput, pinnedContext?: AdditionalContentEntryAddition[]): number {
+    truncateRequest(request: ChatCommandInput, additionalContext?: AdditionalContentEntryAddition[]): number {
         // TODO: Confirm if this limit applies to SendMessage and rename this constant
         let remainingCharacterBudget = GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
@@ -1493,22 +1495,69 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
 
-        // 2. try to fit @context into budget
-        let truncatedRelevantDocuments = []
+        // 2. try to fit @context and images into budget together
+        const docs =
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
+                ?.relevantDocuments ?? []
+        const images = request.conversationState.currentMessage.userInputMessage.images ?? []
+
+        // Combine docs and images, preserving the order from additionalContext
+        let combined
+        if (additionalContext && additionalContext.length > 0) {
+            let docIdx = 0
+            let imageIdx = 0
+            combined = additionalContext
+                .map(entry => {
+                    if (entry.type === 'image') {
+                        return { type: 'image', value: images[imageIdx++] }
+                    } else {
+                        return { type: 'doc', value: docs[docIdx++] }
+                    }
+                })
+                .filter(item => item.value !== undefined)
+        } else {
+            combined = [
+                ...docs.map(d => ({ type: 'doc', value: d })),
+                ...images.map(i => ({ type: 'image', value: i })),
+            ]
+        }
+
+        const truncatedDocs: typeof docs = []
+        const truncatedImages: typeof images = []
+        for (const item of combined) {
+            let itemLength = 0
+            if (item.type === 'doc') {
+                itemLength = (item.value as any)?.text?.length || 0
+                if (remainingCharacterBudget >= itemLength) {
+                    truncatedDocs.push(item.value as (typeof docs)[number])
+                    remainingCharacterBudget -= itemLength
+                }
+            } else if (item.type === 'image') {
+                // Type guard: only call on ImageBlock
+                if (item.value && typeof item.value === 'object' && 'format' in item.value && 'source' in item.value) {
+                    itemLength = estimateCharacterCountFromImageBlock(item.value)
+                    if (remainingCharacterBudget >= itemLength) {
+                        truncatedImages.push(item.value as (typeof images)[number])
+                        remainingCharacterBudget -= itemLength
+                    }
+                }
+            }
+        }
+
+        // Assign truncated lists back to request
         if (
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
                 ?.relevantDocuments
         ) {
-            for (const relevantDoc of request.conversationState.currentMessage.userInputMessage.userInputMessageContext
-                ?.editorState?.relevantDocuments) {
-                const docLength = relevantDoc?.text?.length || 0
-                if (remainingCharacterBudget > docLength) {
-                    truncatedRelevantDocuments.push(relevantDoc)
-                    remainingCharacterBudget = remainingCharacterBudget - docLength
-                }
-            }
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.relevantDocuments =
-                truncatedRelevantDocuments
+                truncatedDocs
+        }
+
+        if (
+            request.conversationState.currentMessage.userInputMessage.images !== undefined &&
+            request.conversationState.currentMessage.userInputMessage.images.length > 0
+        ) {
+            request.conversationState.currentMessage.userInputMessage.images = truncatedImages
         }
 
         // 3. try to fit current file context
@@ -1526,6 +1575,8 @@ export class AgenticChatController implements ChatHandlers {
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
                 truncatedCurrentDocument
         }
+
+        const pinnedContext = additionalContext?.filter(item => item.pinned)
 
         // 4. try to fit pinned context into budget
         if (pinnedContext && pinnedContext.length > 0) {
@@ -1698,7 +1749,7 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
-                    case QCodeReview.toolName:
+                    case CodeReview.toolName:
                         // no need to write tool message for code review
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
@@ -1773,7 +1824,7 @@ export class AgenticChatController implements ChatHandlers {
                     })
                 }
 
-                if (toolUse.name === QCodeReview.toolName) {
+                if (toolUse.name === CodeReview.toolName) {
                     try {
                         let initialInput = JSON.parse(JSON.stringify(toolUse.input))
                         let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
@@ -1785,7 +1836,7 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         toolUse.input = initialInput
                     } catch (e) {
-                        this.#features.logging.warn(`could not parse QCodeReview tool input: ${e}`)
+                        this.#features.logging.warn(`could not parse CodeReview tool input: ${e}`)
                     }
                 }
 
@@ -1864,19 +1915,19 @@ export class AgenticChatController implements ChatHandlers {
                         )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
-                    case QCodeReview.toolName:
+                    case CodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
                         // Push result in message so that it is picked by IDE plugin to show in issues panel
-                        const qCodeReviewResult = result as InvokeOutput
+                        const codeReviewResult = result as InvokeOutput
                         if (
-                            qCodeReviewResult?.output?.kind === 'json' &&
-                            qCodeReviewResult.output.success &&
-                            (qCodeReviewResult.output.content as any)?.findingsByFile
+                            codeReviewResult?.output?.kind === 'json' &&
+                            codeReviewResult.output.success &&
+                            (codeReviewResult.output.content as any)?.findingsByFile
                         ) {
                             await chatResultStream.writeResultBlock({
                                 type: 'tool',
                                 messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
-                                body: (qCodeReviewResult.output.content as any).findingsByFile,
+                                body: (codeReviewResult.output.content as any).findingsByFile,
                             })
                         }
                         break
@@ -2185,7 +2236,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
-        if (toolUse.name === QCodeReview.toolName) {
+        if (toolUse.name === CodeReview.toolName) {
             return this.#getToolOverWritableStream(chatResultStream, toolUse)
         }
         if (toolUse.name !== EXECUTE_BASH) {
@@ -2198,7 +2249,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
-            buttons: [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }],
+            buttons: [this.#renderStopShellCommandButton()],
         }
 
         const completedHeader: ChatMessage['header'] = {
@@ -2275,7 +2326,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Cancel', icon: 'stop' }] : [],
+                    buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
                 },
             }
         }
@@ -2451,8 +2502,8 @@ export class AgenticChatController implements ChatHandlers {
     #renderStopShellCommandButton() {
         const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
         return {
-            id: 'stop-shell-command',
-            text: 'Cancel',
+            id: BUTTON_STOP_SHELL_COMMAND,
+            text: 'Stop',
             icon: 'stop',
             ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
         }
@@ -2522,14 +2573,28 @@ export class AgenticChatController implements ChatHandlers {
         switch (toolName) {
             case EXECUTE_BASH: {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
+                // get feature flag
+                const shortcut =
+                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                        ?.shortcut
+
+                const runKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
+                const rejectKey = this.#getKeyBinding('aws.amazonq.rejectCmdExecution')
+
                 buttons = requiresAcceptance
                     ? [
-                          { id: BUTTON_RUN_SHELL_COMMAND, text: 'Run', icon: 'play' },
+                          {
+                              id: BUTTON_RUN_SHELL_COMMAND,
+                              text: 'Run',
+                              icon: 'play',
+                              ...(runKey ? { description: `Run:  ${runKey}` } : {}),
+                          },
                           {
                               id: BUTTON_REJECT_SHELL_COMMAND,
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
+                              ...(rejectKey ? { description: `Reject:  ${rejectKey}` } : {}),
                           },
                       ]
                     : []
@@ -2899,6 +2964,9 @@ export class AgenticChatController implements ChatHandlers {
                 cursorState: undefined,
                 useRelevantDocuments: false,
             }
+
+        // Clear images to avoid passing them again in follow-up toolUse/toolResult loops, as it is may confuse the model
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.images = []
 
         for (const toolResult of toolResults) {
             this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)

@@ -12,13 +12,7 @@ import {
     SendMessageCommandInput as SendMessageCommandInputQDeveloperStreaming,
     SendMessageCommandOutput as SendMessageCommandOutputQDeveloperStreaming,
 } from '@amzn/amazon-q-developer-streaming-client'
-import {
-    CredentialsProvider,
-    SDKInitializator,
-    Logging,
-    CredentialsType,
-    BearerCredentials,
-} from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, SDKInitializator, Logging } from '@aws/language-server-runtimes/server-interface'
 import { getBearerTokenFromProvider, isUsageLimitError } from './utils'
 import { ConfiguredRetryStrategy } from '@aws-sdk/util-retry'
 import { CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -26,6 +20,7 @@ import { CLIENT_TIMEOUT_MS } from '../language-server/agenticChat/constants/cons
 import { AmazonQUsageLimitError } from './amazonQServiceManager/errors'
 import { TokenIdentityProvider } from '@smithy/types'
 import { NodeHttpHandler } from '@smithy/node-http-handler'
+import { AwsCredentialIdentity, AwsCredentialIdentityProvider } from '@aws-sdk/types'
 
 export type SendMessageCommandInput =
     | SendMessageCommandInputCodeWhispererStreaming
