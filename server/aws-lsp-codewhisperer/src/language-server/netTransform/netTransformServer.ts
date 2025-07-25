@@ -43,7 +43,7 @@ const CancelTransformCommand = 'aws/qNetTransform/cancelTransform'
 const DownloadArtifactsCommand = 'aws/qNetTransform/downloadArtifacts'
 const CancelPollingCommand = 'aws/qNetTransform/cancelPolling'
 import { SDKInitializator } from '@aws/language-server-runtimes/server-interface'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 
 /**
  *
@@ -53,7 +53,7 @@ import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/A
 export const QNetTransformServerToken =
     (): Server =>
     ({ workspace, logging, lsp, telemetry, runtime }) => {
-        let amazonQServiceManager: AmazonQTokenServiceManager
+        let amazonQServiceManager: AmazonQServiceManager
         let transformHandler: TransformHandler
 
         const runTransformCommand = async (params: ExecuteCommandParams, _token: CancellationToken) => {
@@ -200,7 +200,7 @@ export const QNetTransformServerToken =
         }
 
         const onInitializedHandler = () => {
-            amazonQServiceManager = AmazonQTokenServiceManager.getInstance()
+            amazonQServiceManager = AmazonQServiceManager.getInstance()
 
             transformHandler = new TransformHandler(amazonQServiceManager, workspace, logging, runtime)
         }

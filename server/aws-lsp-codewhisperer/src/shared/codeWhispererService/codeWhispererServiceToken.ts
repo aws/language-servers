@@ -53,7 +53,7 @@ import {
 } from './codeWhispererServiceBase'
 
 /**
- * Hint: to get an instance of this: `AmazonQTokenServiceManager.getInstance().getCodewhispererService()`
+ * Hint: to get an instance of this: `AmazonQServiceManager.getInstance().getCodewhispererService()`
  */
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient

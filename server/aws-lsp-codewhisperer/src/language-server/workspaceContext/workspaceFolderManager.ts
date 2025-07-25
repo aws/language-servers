@@ -16,7 +16,7 @@ import {
     uploadArtifactToS3,
 } from './util'
 import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { URI } from 'vscode-uri'
 import path = require('path')
 import { isAwsError } from '../../shared/utils'
@@ -31,7 +31,7 @@ interface WorkspaceState {
 type WorkspaceRoot = string
 
 export class WorkspaceFolderManager {
-    private serviceManager: AmazonQTokenServiceManager
+    private serviceManager: AmazonQServiceManager
     private logging: Logging
     private artifactManager: ArtifactManager
     private dependencyDiscoverer: DependencyDiscoverer
@@ -58,7 +58,7 @@ export class WorkspaceFolderManager {
     private isServiceQuotaExceeded: boolean = false
 
     static createInstance(
-        serviceManager: AmazonQTokenServiceManager,
+        serviceManager: AmazonQServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
         dependencyDiscoverer: DependencyDiscoverer,
@@ -85,7 +85,7 @@ export class WorkspaceFolderManager {
     }
 
     private constructor(
-        serviceManager: AmazonQTokenServiceManager,
+        serviceManager: AmazonQServiceManager,
         logging: Logging,
         artifactManager: ArtifactManager,
         dependencyDiscoverer: DependencyDiscoverer,
