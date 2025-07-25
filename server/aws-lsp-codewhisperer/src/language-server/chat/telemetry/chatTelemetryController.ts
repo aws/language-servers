@@ -6,6 +6,7 @@ import {
     ChatTelemetryEventMap,
     ChatTelemetryEventName,
     CombinedConversationEvent,
+    CompactHistoryActionType,
     InteractWithMessageEvent,
 } from '../../../shared/telemetry/types'
 import { Features, KeysMatching } from '../../types'
@@ -221,6 +222,17 @@ export class ChatTelemetryController {
         })
     }
 
+    public emitCompactHistory(type: CompactHistoryActionType, characters: number, languageServerVersion: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.CompactHistory,
+            data: {
+                type,
+                characters,
+                languageServerVersion: languageServerVersion,
+            },
+        })
+    }
+
     public emitToolUseSuggested(
         toolUse: ToolUse,
         conversationId: string,
@@ -228,7 +240,8 @@ export class ChatTelemetryController {
         latency?: number,
         agenticCodingMode?: boolean,
         experimentName?: string,
-        userVariation?: string
+        userVariation?: string,
+        result?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.ToolUseSuggested,
@@ -239,7 +252,7 @@ export class ChatTelemetryController {
                 cwsprToolName: toolUse.name ?? '',
                 cwsprToolUseId: toolUse.toolUseId ?? '',
                 perfE2ELatency: latency,
-                result: 'Succeeded',
+                result: result,
                 languageServerVersion: languageServerVersion,
                 enabled: agenticCodingMode,
                 experimentName: experimentName,
