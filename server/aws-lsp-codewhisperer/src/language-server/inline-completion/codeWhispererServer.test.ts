@@ -15,11 +15,11 @@ import sinon, { StubbedInstance } from 'ts-sinon'
 import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
-    CodeWhispererServiceToken,
     ResponseContext,
     Suggestion,
     SuggestionType,
-} from '../../shared/codeWhispererService'
+} from '../../shared/codeWhispererService/codeWhispererServiceBase'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService/codeWhispererServiceToken'
 import { CodeWhispererSession, SessionData, SessionManager } from './session/sessionManager'
 import {
     EMPTY_RESULT,

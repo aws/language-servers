@@ -1,5 +1,5 @@
 import { TextDocument } from 'vscode-languageserver-textdocument'
-import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService'
+import { CodeWhispererServiceBase, ResponseContext, Suggestion } from './codeWhispererService/codeWhispererServiceBase'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import { SsoConnectionType } from './utils'
 import { stubInterface } from 'ts-sinon'

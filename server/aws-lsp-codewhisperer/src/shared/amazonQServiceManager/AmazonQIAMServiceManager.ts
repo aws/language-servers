@@ -1,4 +1,4 @@
-import { CodeWhispererServiceIAM } from '../codeWhispererService'
+import { CodeWhispererServiceIAM } from '../codeWhispererService/codeWhispererServiceIAM'
 import {
     AmazonQBaseServiceManager,
     BaseAmazonQServiceManager,

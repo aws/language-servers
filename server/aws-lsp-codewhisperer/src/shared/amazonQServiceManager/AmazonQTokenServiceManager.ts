@@ -8,7 +8,7 @@ import {
     InitializeParams,
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../codeWhispererService/codeWhispererServiceToken'
 import {
     AmazonQError,
     AmazonQServiceAlreadyInitializedError,

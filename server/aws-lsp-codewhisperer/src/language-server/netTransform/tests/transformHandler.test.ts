@@ -14,7 +14,7 @@ import * as fs from 'fs'
 import got from 'got'
 import { StubbedInstance, default as simon, stubInterface } from 'ts-sinon'
 import { StreamingClient, createStreamingClient } from '../../../client/streamingClient/codewhispererStreamingClient'
-import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
+import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService/codeWhispererServiceToken'
 import {
     CancelTransformRequest,
     CancellationJobStatus,

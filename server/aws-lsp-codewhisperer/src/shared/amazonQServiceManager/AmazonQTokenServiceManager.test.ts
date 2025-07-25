@@ -2,7 +2,8 @@ import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { AmazonQTokenServiceManager } from './AmazonQTokenServiceManager'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { CodeWhispererServiceToken, GenerateSuggestionsRequest } from '../codeWhispererService'
+import { GenerateSuggestionsRequest } from '../codeWhispererService/codeWhispererServiceBase'
+import { CodeWhispererServiceToken } from '../codeWhispererService/codeWhispererServiceToken'
 import {
     AmazonQServiceInitializationError,
     AmazonQServicePendingProfileError,

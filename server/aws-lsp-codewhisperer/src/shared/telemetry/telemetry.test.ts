@@ -9,7 +9,12 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { TextDocument } from 'vscode-languageserver-textdocument'
 import { CodewhispererServerFactory } from '../../language-server/inline-completion/codeWhispererServer'
-import { CodeWhispererServiceBase, ResponseContext, Suggestion, SuggestionType } from '../codeWhispererService'
+import {
+    CodeWhispererServiceBase,
+    ResponseContext,
+    Suggestion,
+    SuggestionType,
+} from '../codeWhispererService/codeWhispererServiceBase'
 import { TelemetryService } from './telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../amazonQServiceManager/testUtils'
 
