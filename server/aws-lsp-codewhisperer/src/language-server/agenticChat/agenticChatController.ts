@@ -1986,7 +1986,8 @@ export class AgenticChatController implements ChatHandlers {
                         latency,
                         session.pairProgrammingMode,
                         this.#abTestingAllocation?.experimentName,
-                        this.#abTestingAllocation?.userVariation
+                        this.#abTestingAllocation?.userVariation,
+                        'Succeeded'
                     )
                 }
             } catch (err) {
@@ -2023,6 +2024,18 @@ export class AgenticChatController implements ChatHandlers {
                     if (toolUse.name === EXECUTE_BASH || toolUse.name) {
                         throw err
                     }
+                } else {
+                    // only emit if this is an actual tool error (not a user rejecting/canceling tool)
+                    this.#telemetryController.emitToolUseSuggested(
+                        toolUse,
+                        session.conversationId ?? '',
+                        this.#features.runtime.serverInfo.version ?? '',
+                        undefined,
+                        session.pairProgrammingMode,
+                        this.#abTestingAllocation?.experimentName,
+                        this.#abTestingAllocation?.userVariation,
+                        'Failed'
+                    )
                 }
 
                 // display fs write failure status in the UX of that file card
