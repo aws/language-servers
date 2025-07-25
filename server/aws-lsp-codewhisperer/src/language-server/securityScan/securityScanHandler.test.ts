@@ -9,7 +9,7 @@ import { CodeWhispererServiceToken } from '../../shared/codeWhispererService/cod
 import { SecurityScanHandler } from './securityScanHandler'
 import { RawCodeScanIssue } from './types'
 import * as ScanConstants from './constants'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 
 const mockCodeScanFindings = JSON.stringify([
     {
@@ -56,7 +56,7 @@ describe('securityScanHandler', () => {
     const mockedLogging = stubInterface<Logging>()
     beforeEach(async () => {
         // Set up the server with a mock service
-        const serviceManager = stubInterface<AmazonQTokenServiceManager>()
+        const serviceManager = stubInterface<AmazonQServiceManager>()
         client = stubInterface<CodeWhispererServiceToken>()
         serviceManager.getCodewhispererService.returns(client)
         workspace = stubInterface<Workspace>()

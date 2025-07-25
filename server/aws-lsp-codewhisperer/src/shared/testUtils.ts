@@ -330,9 +330,6 @@ export const setTokenCredentialsForAmazonQServiceManagerFactory = (getFeatures: 
     }
 }
 
-// TODO: remove this when changing references
-export const setCredentialsForAmazonQTokenServiceManagerFactory = setTokenCredentialsForAmazonQServiceManagerFactory
-
 export const setIamCredentialsForAmazonQServiceManagerFactory = (getFeatures: () => TestFeatures) => {
     return () => {
         const features = getFeatures()

@@ -37,7 +37,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import {
     createIterableResponse,
-    setCredentialsForAmazonQTokenServiceManagerFactory,
+    setTokenCredentialsForAmazonQServiceManagerFactory,
     setIamCredentialsForAmazonQServiceManagerFactory,
 } from '../../shared/testUtils'
 import sinon from 'ts-sinon'
@@ -49,8 +49,7 @@ import { DocumentContextExtractor } from '../chat/contexts/documentContext'
 import * as utils from '../chat/utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { TabBarController } from './tabBarController'
 import { getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { AdditionalContextProvider } from './context/additionalContextProvider'
@@ -174,7 +173,7 @@ describe('AgenticChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let serviceManager: AmazonQTokenServiceManager
+    let serviceManager: AmazonQServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
@@ -183,7 +182,7 @@ describe('AgenticChatController', () => {
     let getMessagesStub: sinon.SinonStub
     let addMessageStub: sinon.SinonStub
 
-    const setSsoCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
+    const setSsoCredentials = setTokenCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
     const setIamCredentials = setIamCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
@@ -286,14 +285,14 @@ describe('AgenticChatController', () => {
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
         sinon.stub(ContextCommandsProvider.prototype, 'maybeUpdateCodeSymbols').resolves()
 
-        AmazonQTokenServiceManager.resetInstance()
+        AmazonQServiceManager.resetInstance()
 
-        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
+        serviceManager = AmazonQServiceManager.initInstance(testFeatures)
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
@@ -2883,7 +2882,7 @@ ${' '.repeat(8)}}
             session.modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
 
             // Stub the getRegion method
-            tokenServiceManagerStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getRegion')
+            tokenServiceManagerStub = sinon.stub(AmazonQServiceManager.prototype, 'getRegion')
         })
 
         afterEach(() => {
@@ -3005,7 +3004,7 @@ ${' '.repeat(8)}}
     })
 
     describe('IAM Authentication', () => {
-        let iamServiceManager: AmazonQIAMServiceManager
+        let iamServiceManager: AmazonQServiceManager
         let iamChatController: AgenticChatController
         let iamChatSessionManagementService: ChatSessionManagementService
 
@@ -3029,8 +3028,8 @@ ${' '.repeat(8)}}
             setIamCredentials()
 
             // Create IAM service manager
-            AmazonQIAMServiceManager.resetInstance()
-            iamServiceManager = AmazonQIAMServiceManager.initInstance(testFeatures)
+            AmazonQServiceManager.resetInstance()
+            iamServiceManager = AmazonQServiceManager.initInstance(testFeatures)
 
             // Create chat session management service with IAM service manager
             iamChatSessionManagementService = ChatSessionManagementService.getInstance()
@@ -3047,7 +3046,7 @@ ${' '.repeat(8)}}
         afterEach(() => {
             iamChatController.dispose()
             ChatSessionManagementService.reset()
-            AmazonQIAMServiceManager.resetInstance()
+            AmazonQServiceManager.resetInstance()
         })
 
         it('creates a session with IAM service manager', () => {
