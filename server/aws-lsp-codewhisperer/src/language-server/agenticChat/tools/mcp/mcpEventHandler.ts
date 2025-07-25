@@ -1118,6 +1118,33 @@ export class McpEventHandler {
                     transportType: 'stdio',
                     languageServerVersion: this.#features.runtime.serverInfo.version,
                 })
+            } else {
+                // it's mean built-in tool, but do another extra check to confirm
+                if (serverName === 'Built-in') {
+                    let toolName: string[] = []
+                    let perm: string[] = []
+
+                    for (const [key, val] of Object.entries(permission.toolPerms)) {
+                        toolName.push(key)
+                        perm.push(val)
+                    }
+
+                    this.#telemetryController?.emitMCPServerInitializeEvent({
+                        source: 'updatePermission',
+                        command: 'Built-in',
+                        enabled: true,
+                        numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+                        scope:
+                            permission.__configPath__ ===
+                            getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
+                                ? 'global'
+                                : 'workspace',
+                        transportType: 'stdio',
+                        languageServerVersion: this.#features.runtime.serverInfo.version,
+                        toolName: toolName,
+                        permission: perm,
+                    })
+                }
             }
 
             // Clear the pending permission config after applying

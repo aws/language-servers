@@ -361,6 +361,8 @@ export class ChatTelemetryController {
         source?: string
         transportType?: string
         languageServerVersion?: string
+        toolName?: string[]
+        permission?: string[]
     }) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.MCPServerInit,
@@ -374,6 +376,8 @@ export class ChatTelemetryController {
                 scope: data?.scope,
                 source: data?.source,
                 transportType: data?.transportType,
+                toolName: data?.toolName?.join(',') ?? '',
+                permission: data?.permission?.join(',') ?? '',
             },
         })
     }
