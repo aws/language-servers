@@ -4,7 +4,7 @@ import { awsBuilderIdReservedName, SsoCache, SsoClientRegistration } from '../ss
 import { IdentityService } from './identityService'
 import { ProfileData, ProfileStore } from './profiles/profileService'
 import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
-import { createStubInstance, restore, spy, SinonSpy } from 'sinon'
+import { createStubInstance, restore, spy, SinonSpy, stub } from 'sinon'
 import {
     AuthorizationFlowKind,
     CancellationToken,
@@ -14,6 +14,9 @@ import {
 import { SSOToken } from '@smithy/shared-ini-file-loader'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { Observability } from '@aws/lsp-core'
+import { STSClient } from '@aws-sdk/client-sts'
+import { IAMClient } from '@aws-sdk/client-iam'
+import { IamProvider } from '../iam/iamProvider'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -23,6 +26,7 @@ let sut: IdentityService
 let profileStore: StubbedInstance<ProfileStore>
 let ssoCache: StubbedInstance<SsoCache>
 let autoRefresher: StubbedInstance<SsoTokenAutoRefresher>
+let iamProvider: StubbedInstance<IamProvider>
 let observability: StubbedInstance<Observability>
 let authFlowFn: SinonSpy
 
@@ -33,9 +37,50 @@ describe('IdentityService', () => {
                 profiles: [
                     {
                         kinds: [ProfileKind.SsoTokenProfile],
-                        name: 'my-profile',
+                        name: 'my-sso-profile',
                         settings: {
                             sso_session: 'my-sso-session',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamCredentialsProfile],
+                        name: 'my-iam-profile',
+                        settings: {
+                            aws_access_key_id: 'my-access-key',
+                            aws_secret_access_key: 'my-secret-key',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamCredentialsProfile],
+                        name: 'my-sts-profile',
+                        settings: {
+                            aws_access_key_id: 'my-access-key',
+                            aws_secret_access_key: 'my-secret-key',
+                            aws_session_token: 'my-session-token',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamSourceProfileProfile],
+                        name: 'my-role-profile',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'my-iam-profile',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamSourceProfileProfile],
+                        name: 'my-mfa-profile',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'my-iam-profile',
+                            mfa_serial: 'my-device-arn',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamCredentialProcessProfile],
+                        name: 'my-process-profile',
+                        settings: {
+                            credential_process: 'my-process',
                         },
                     },
                 ],
@@ -70,6 +115,14 @@ describe('IdentityService', () => {
             unwatch: undefined,
         }) as StubbedInstance<SsoTokenAutoRefresher>
 
+        iamProvider = stubInterface<IamProvider>({
+            getCredential: Promise.resolve({
+                accessKeyId: 'my-access-key',
+                secretAccessKey: 'my-secret-key',
+                sessionToken: 'my-session-token',
+            }),
+        })
+
         authFlowFn = spy(() =>
             Promise.resolve({
                 accessToken: 'my-access-token',
@@ -85,10 +138,12 @@ describe('IdentityService', () => {
             profileStore,
             ssoCache,
             autoRefresher,
+            iamProvider,
             {
                 showUrl: _ => {},
                 showMessageRequest: _ => Promise.resolve({ title: 'client-response' }),
                 showProgress: _ => Promise.resolve(),
+                sendGetMfaCode: () => Promise.resolve({ code: 'mfa-code' }),
             },
             'My Client',
             observability,
@@ -97,6 +152,24 @@ describe('IdentityService', () => {
                 [AuthorizationFlowKind.DeviceCode]: authFlowFn,
             }
         )
+
+        stub(STSClient.prototype, 'send').resolves({
+            Credentials: {
+                AccessKeyId: 'role-access-key',
+                SecretAccessKey: 'role-secret-key',
+                SessionToken: 'role-session-token',
+                Expiration: new Date('2024-09-25T18:09:20.455Z'),
+            },
+            AssumedRoleUser: {
+                Arn: 'role-arn',
+                AssumedRoleId: 'role-id',
+            },
+            Arn: 'role-arn',
+        })
+
+        stub(IAMClient.prototype, 'send').resolves({
+            EvaluationResults: [],
+        })
     })
 
     afterEach(() => {
@@ -122,7 +195,7 @@ describe('IdentityService', () => {
             const actual = await sut.getSsoToken(
                 {
                     clientName: 'my-client',
-                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-profile' },
+                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-sso-profile' },
                 },
                 CancellationToken.None
             )
@@ -136,7 +209,7 @@ describe('IdentityService', () => {
             await sut.getSsoToken(
                 {
                     clientName: 'my-client',
-                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-profile' },
+                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-sso-profile' },
                     options: {
                         authorizationFlow: 'DeviceCode',
                     },
@@ -148,7 +221,7 @@ describe('IdentityService', () => {
             await sut.getSsoToken(
                 {
                     clientName: 'my-client',
-                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-profile' },
+                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-sso-profile' },
                     options: {
                         authorizationFlow: 'Pkce',
                     },
@@ -185,7 +258,7 @@ describe('IdentityService', () => {
             const actual = await sut.getSsoToken(
                 {
                     clientName: 'my-client',
-                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-profile' },
+                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-sso-profile' },
                 },
                 CancellationToken.None
             )
@@ -203,7 +276,7 @@ describe('IdentityService', () => {
             const actual = await sut.getSsoToken(
                 {
                     clientName: 'my-client',
-                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-profile' },
+                    source: { kind: SsoTokenSourceKind.IamIdentityCenter, profileName: 'my-sso-profile' },
                 },
                 CancellationToken.None
             )
@@ -252,6 +325,16 @@ describe('IdentityService', () => {
             ).rejectedWith(err)
 
             expect(autoRefresher.watch.calledOnce).to.be.false
+        })
+    })
+
+    describe('getIamCredential', () => {
+        it('Can login with access key, secret key, and session token.', async () => {
+            const actual = await sut.getIamCredential({ profileName: 'my-sts-profile' }, CancellationToken.None)
+
+            expect(actual.credential.credentials.accessKeyId).to.equal('my-access-key')
+            expect(actual.credential.credentials.secretAccessKey).to.equal('my-secret-key')
+            expect(actual.credential.credentials.sessionToken).to.equal('my-session-token')
         })
     })
 
