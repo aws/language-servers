@@ -222,7 +222,7 @@ import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService/codeWhispererServiceToken'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
