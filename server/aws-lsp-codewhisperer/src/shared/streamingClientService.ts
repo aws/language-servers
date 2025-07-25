@@ -34,6 +34,7 @@ export type ChatCommandOutput = SendMessageCommandOutput | GenerateAssistantResp
 export abstract class StreamingClientServiceBase {
     protected readonly region
     protected readonly endpoint
+    public profileArn?: string
 
     inflightRequests: Set<AbortController> = new Set()
 
@@ -69,7 +70,6 @@ export abstract class StreamingClientServiceBase {
 
 export class StreamingClientServiceToken extends StreamingClientServiceBase {
     client: CodeWhispererStreaming
-    public profileArn?: string
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
