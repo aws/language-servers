@@ -45,9 +45,9 @@ export const getListAllAvailableProfilesHandler =
         let allProfiles: AmazonQDeveloperProfile[] = []
         const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
 
-        // Log all endpoints we're going to try
+        // Log all regions we're going to try
         logging.log(
-            `Attempting to fetch profiles from ${qEndpoints.size} endpoints: ${JSON.stringify(Array.from(qEndpoints.entries()))}`
+            `Attempting to fetch profiles from ${qEndpoints.size} regions: ${Array.from(qEndpoints.keys()).join(', ')}`
         )
 
         if (token.isCancellationRequested) {
@@ -56,7 +56,7 @@ export const getListAllAvailableProfilesHandler =
 
         const result = await Promise.allSettled(
             Array.from(qEndpoints.entries(), ([region, endpoint]) => {
-                logging.log(`Creating service client for region: ${region}, endpoint: ${endpoint}`)
+                logging.log(`Creating service client for region: ${region}`)
                 const codeWhispererService = service(region, endpoint)
                 return fetchProfilesFromRegion(codeWhispererService, region, endpoint, logging, token)
             })
@@ -72,12 +72,10 @@ export const getListAllAvailableProfilesHandler =
                 const [region, endpoint] = Array.from(qEndpoints.entries())[index]
                 if (settledResult.status === 'fulfilled') {
                     const profiles = settledResult.value
-                    logging.log(
-                        `Successfully fetched ${profiles.length} profiles from region: ${region}, endpoint: ${endpoint}`
-                    )
+                    logging.log(`Successfully fetched ${profiles.length} profiles from region: ${region}`)
                 } else {
                     logging.error(
-                        `Failed to fetch profiles from region: ${region}, endpoint: ${endpoint}, error: ${settledResult.reason?.name || 'unknown'}, message: ${settledResult.reason?.message || 'No message'}`
+                        `Failed to fetch profiles from region: ${region}, error: ${settledResult.reason?.name || 'unknown'}, message: ${settledResult.reason?.message || 'No message'}`
                     )
                 }
             })
@@ -130,12 +128,10 @@ async function fetchProfilesFromRegion(
     let numberOfPages = 0
 
     try {
-        logging.log(`Starting profile fetch from region: ${region}, endpoint: ${endpoint}`)
+        logging.log(`Starting profile fetch from region: ${region}`)
 
         do {
-            logging.debug(
-                `Fetching profiles from region: ${region}, endpoint: ${endpoint} (page: ${numberOfPages + 1})`
-            )
+            logging.debug(`Fetching profiles from region: ${region} (page: ${numberOfPages + 1})`)
 
             if (token.isCancellationRequested) {
                 logging.debug(`Cancellation requested during profile fetch from region: ${region}`)
@@ -181,7 +177,7 @@ async function fetchProfilesFromRegion(
         return allRegionalProfiles
     } catch (error) {
         // Enhanced error logging with complete error object
-        logging.error(`Error fetching profiles from region: ${region}, endpoint: ${endpoint}`)
+        logging.error(`Error fetching profiles from region: ${region}`)
         logging.log(`Complete error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
 
         throw error
