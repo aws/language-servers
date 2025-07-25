@@ -3252,7 +3252,6 @@
         },
         "GetUsageLimitsResponse": {
             "type": "structure",
-            "required": ["limits", "daysUntilReset"],
             "members": {
                 "limits": {
                     "shape": "UsageLimits"
@@ -3265,6 +3264,10 @@
                     "shape": "UsageBreakdown",
                     "documentation": "<p>Usage breakdown by SKU type</p>"
                 },
+                "usageBreakdownList": {
+                    "shape": "UsageBreakdownList",
+                    "documentation": "<p>List of usage by resource type</p>"
+                },
                 "subscriptionInfo": {
                     "shape": "SubscriptionInfo",
                     "documentation": "<p>Subscription Info</p>"
@@ -3272,6 +3275,10 @@
                 "overageConfiguration": {
                     "shape": "OverageConfiguration",
                     "documentation": "<p>Overage Configuration</p>"
+                },
+                "userInfo": {
+                    "shape": "UserInfo",
+                    "documentation": "<p>User Information</p>"
                 }
             }
         },
@@ -4481,7 +4488,7 @@
         },
         "ResourceType": {
             "type": "string",
-            "enum": ["AGENTIC_REQUEST"]
+            "enum": ["AGENTIC_REQUEST", "VIBE", "SPEC"]
         },
         "ResumeTransformationRequest": {
             "type": "structure",
@@ -5019,7 +5026,12 @@
         },
         "SubscriptionType": {
             "type": "string",
-            "enum": ["Q_DEVELOPER_STANDALONE", "Q_DEVELOPER_STANDALONE_FREE", "Q_DEVELOPER_STANDALONE_PRO_PLUS"]
+            "enum": [
+                "Q_DEVELOPER_STANDALONE_FREE",
+                "Q_DEVELOPER_STANDALONE_PRO_PLUS",
+                "Q_DEVELOPER_STANDALONE",
+                "Q_DEVELOPER_STANDALONE_POWER"
+            ]
         },
         "SuggestedFix": {
             "type": "structure",
@@ -5646,7 +5658,7 @@
         "ThrottlingExceptionReason": {
             "type": "string",
             "documentation": "<p>Reason for ThrottlingException</p>",
-            "enum": ["MONTHLY_REQUEST_COUNT", "INSUFFICIENT_MODEL_CAPACITY"]
+            "enum": ["DAILY_REQUEST_COUNT", "MONTHLY_REQUEST_COUNT", "INSUFFICIENT_MODEL_CAPACITY"]
         },
         "Timestamp": {
             "type": "timestamp"
@@ -6203,6 +6215,10 @@
             "type": "structure",
             "required": ["currentUsage", "currentOverages", "usageLimit", "overageCharges"],
             "members": {
+                "resourceType": {
+                    "shape": "ResourceType",
+                    "documentation": "<p>The resource or dimension being billed, e.g. VIBE or SPEC</p>"
+                },
                 "currentUsage": {
                     "shape": "Integer",
                     "documentation": "<p>Current usage count for the billing period</p>"
@@ -6215,15 +6231,36 @@
                     "shape": "Integer",
                     "documentation": "<p>Usage limit based on subscription tier</p>"
                 },
+                "unit": {
+                    "shape": "UsageBreakdownUnitString",
+                    "documentation": "<p>Unit of measurement for the resource, e.g. INVOCATIONS</p>"
+                },
                 "overageCharges": {
                     "shape": "Double",
                     "documentation": "<p>Total overage charges</p>"
+                },
+                "overageRate": {
+                    "shape": "Double",
+                    "documentation": "<p>Overage rate for the resource per 1 unit</p>"
                 },
                 "nextDateReset": {
                     "shape": "Timestamp",
                     "documentation": "<p>The next reset date in UTC timezone.</p>"
                 }
             }
+        },
+        "UsageBreakdownList": {
+            "type": "list",
+            "member": {
+                "shape": "UsageBreakdown"
+            },
+            "max": 10,
+            "min": 0
+        },
+        "UsageBreakdownUnitString": {
+            "type": "string",
+            "max": 256,
+            "min": 1
         },
         "UsageLimitList": {
             "type": "structure",
@@ -6285,6 +6322,18 @@
             "max": 128,
             "min": 1,
             "pattern": "[-a-zA-Z0-9._]*"
+        },
+        "UserInfo": {
+            "type": "structure",
+            "required": ["userId", "email"],
+            "members": {
+                "userId": {
+                    "shape": "String"
+                },
+                "email": {
+                    "shape": "SensitiveString"
+                }
+            }
         },
         "UserInputMessage": {
             "type": "structure",
