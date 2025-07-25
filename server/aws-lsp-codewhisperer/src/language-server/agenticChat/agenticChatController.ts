@@ -1367,6 +1367,18 @@ export class AgenticChatController implements ChatHandlers {
                 metric.setDimension('requestIds', metric.metric.requestIds)
                 const toolNames = this.#toolUseLatencies.map(item => item.toolName)
                 const toolUseIds = this.#toolUseLatencies.map(item => item.toolUseId)
+
+                const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
+                const permission: string[] = []
+
+                for (const toolName of toolNames) {
+                    if (builtInToolNames.has(toolName)) {
+                        permission.push(McpManager.instance.getToolPerm('Built-in', toolName))
+                    } else {
+                        // TODO: determine mcp-server of the current tool to get permission
+                    }
+                }
+
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
@@ -1382,7 +1394,8 @@ export class AgenticChatController implements ChatHandlers {
                     this.#timeBetweenChunks,
                     session.pairProgrammingMode,
                     this.#abTestingAllocation?.experimentName,
-                    this.#abTestingAllocation?.userVariation
+                    this.#abTestingAllocation?.userVariation,
+                    permission
                 )
             } else {
                 // Send an error card to UI?
