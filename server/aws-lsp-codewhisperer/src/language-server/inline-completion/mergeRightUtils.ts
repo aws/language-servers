@@ -1,7 +1,7 @@
 import { InlineCompletionItemWithReferences, TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { CodeWhispererSession } from './session/sessionManager'
 import { applyUnifiedDiff, generateUnifiedDiffWithTimestamps } from './diffUtils'
-import { FileContext } from '../../shared/codeWhispererService'
+import { FileContext } from '../../shared/codeWhispererService/codeWhispererServiceBase'
 
 /**
  * Returns the longest overlap between the Suffix of firstString and Prefix of second string

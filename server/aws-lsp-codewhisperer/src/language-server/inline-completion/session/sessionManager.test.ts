@@ -1,6 +1,6 @@
 import * as assert from 'assert'
 import sinon from 'ts-sinon'
-import { Suggestion } from '../../../shared/codeWhispererService'
+import { Suggestion } from '../../../shared/codeWhispererService/codeWhispererServiceBase'
 import { CodeWhispererSession, SessionData, SessionManager } from './sessionManager'
 import { TextDocument } from '@aws/language-server-runtimes/server-interface'
 import { HELLO_WORLD_IN_CSHARP } from '../../../shared/testUtils'

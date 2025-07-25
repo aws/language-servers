@@ -15,7 +15,7 @@ import {
     ResponseContext,
     Suggestion,
     SuggestionType,
-} from '../../shared/codeWhispererService'
+} from '../../shared/codeWhispererService/codeWhispererServiceBase'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'

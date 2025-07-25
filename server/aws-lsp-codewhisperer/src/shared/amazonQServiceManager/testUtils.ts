@@ -1,5 +1,5 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { CodeWhispererServiceBase } from '../codeWhispererService'
+import { CodeWhispererServiceBase } from '../codeWhispererService/codeWhispererServiceBase'
 import { BaseAmazonQServiceManager, QServiceManagerFeatures } from './BaseAmazonQServiceManager'
 import { StreamingClientServiceBase } from '../streamingClientService'
 import {
@@ -125,7 +125,7 @@ export const initBaseTestServiceManager = <C extends CodeWhispererServiceBase, S
  *
  * ```ts
  * describe('some test name', () => {
- *     generateSingletonInitializationTests(AmazonQTokenServiceManager)
+ *     generateSingletonInitializationTests(AmazonQServiceManager)
  * })
  * ```
  */

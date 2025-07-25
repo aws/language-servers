@@ -1,6 +1,6 @@
 import * as os from 'os'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
-import { FileContext } from '../../../shared/codeWhispererService'
+import { FileContext } from '../../../shared/codeWhispererService/codeWhispererServiceBase'
 import typedCoefficients = require('./coefficients.json')
 import { TextDocumentContentChangeEvent } from 'vscode-languageserver-textdocument'
 

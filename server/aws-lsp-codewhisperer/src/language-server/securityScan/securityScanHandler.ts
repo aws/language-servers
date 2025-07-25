@@ -19,15 +19,15 @@ import {
 } from '../../client/token/codewhispererbearertokenclient'
 import { sleep } from './dependencyGraph/commonUtil'
 import { AggregatedCodeScanIssue, RawCodeScanIssue } from './types'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 
 export class SecurityScanHandler {
-    private serviceManager: AmazonQTokenServiceManager
+    private serviceManager: AmazonQServiceManager
     private workspace: Workspace
     private logging: Logging
     public tokenSource: CancellationTokenSource
 
-    constructor(serviceManager: AmazonQTokenServiceManager, workspace: Workspace, logging: Logging) {
+    constructor(serviceManager: AmazonQServiceManager, workspace: Workspace, logging: Logging) {
         this.serviceManager = serviceManager
         this.workspace = workspace
         this.logging = logging

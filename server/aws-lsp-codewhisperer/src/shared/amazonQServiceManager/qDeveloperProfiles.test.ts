@@ -1,6 +1,6 @@
 import * as assert from 'assert'
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../codeWhispererService/codeWhispererServiceToken'
 import { SsoConnectionType } from '../utils'
 import {
     AWSInitializationOptions,

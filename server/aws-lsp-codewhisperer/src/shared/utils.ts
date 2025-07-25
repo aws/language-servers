@@ -6,7 +6,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, Credentials } from 'aws-sdk'
 import { distance } from 'fastest-levenshtein'
-import { Suggestion } from './codeWhispererService'
+import { Suggestion } from './codeWhispererService/codeWhispererServiceBase'
 import { CodewhispererCompletionType } from './telemetry/types'
 import {
     BUILDER_ID_START_URL,
