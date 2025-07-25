@@ -33,13 +33,6 @@ export function enabledCodeReviewInChat(params: InitializeParams | undefined): b
     return qCapabilities?.codeReviewInChat || false
 }
 
-export function enabledCompaction(params: InitializeParams | undefined): boolean {
-    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
-        | QClientCapabilities
-        | undefined
-    return qCapabilities?.compaction || false
-}
-
 export function enableShortcut(params: InitializeParams | undefined): boolean {
     const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
         | QClientCapabilities
@@ -62,10 +55,7 @@ export const QAgenticChatServer =
         lsp.addInitializer((params: InitializeParams) => {
             const rerouteEnabled = enabledReroute(params)
             const codeReviewInChatEnabled = enabledCodeReviewInChat(params)
-            const quickActions = [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION]
-            if (enabledCompaction(params)) {
-                quickActions.push(COMPACT_QUICK_ACTION)
-            }
+            const quickActions = [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION, COMPACT_QUICK_ACTION]
             const shortcutEnabled = enableShortcut(params)
 
             return {

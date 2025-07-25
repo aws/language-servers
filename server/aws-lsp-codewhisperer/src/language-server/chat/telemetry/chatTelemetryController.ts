@@ -6,6 +6,7 @@ import {
     ChatTelemetryEventMap,
     ChatTelemetryEventName,
     CombinedConversationEvent,
+    CompactHistoryActionType,
     InteractWithMessageEvent,
 } from '../../../shared/telemetry/types'
 import { Features, KeysMatching } from '../../types'
@@ -215,6 +216,17 @@ export class ChatTelemetryController {
                 modelId,
                 experimentName: experimentName,
                 userVariation: userVariation,
+            },
+        })
+    }
+
+    public emitCompactHistory(type: CompactHistoryActionType, characters: number, languageServerVersion: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.CompactHistory,
+            data: {
+                type,
+                characters,
+                languageServerVersion: languageServerVersion,
             },
         })
     }

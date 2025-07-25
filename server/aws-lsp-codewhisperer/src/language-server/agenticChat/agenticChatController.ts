@@ -106,6 +106,7 @@ import {
     ChatInteractionType,
     ChatTelemetryEventName,
     CombinedConversationEvent,
+    CompactHistoryActionType,
 } from '../../shared/telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from '../chat/chatEventParser'
@@ -135,7 +136,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
-import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
+import { ChatDatabase, MaxOverallCharacters, ToolResultValidationError } from './tools/chatDb/chatDb'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -225,7 +226,6 @@ import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { enabledCompaction } from './qAgenticChatServer'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -838,6 +838,7 @@ export class AgenticChatController implements ChatHandlers {
                     chatResultStream,
                     params.tabId,
                     promptId,
+                    CompactHistoryActionType.Manual,
                     session.conversationId,
                     token,
                     triggerContext.documentReference
@@ -971,7 +972,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     #shouldCompact(currentRequestCount: number): boolean {
         // 80% of 570K limit
-        if (enabledCompaction(this.#features.lsp.getClientInitializeParams()) && currentRequestCount > 456_000) {
+        if (currentRequestCount > 456_000) {
             this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
             return true
         } else {
@@ -989,6 +990,7 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream,
         tabId: string,
         promptId: string,
+        type: CompactHistoryActionType,
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList
@@ -1062,6 +1064,15 @@ export class AgenticChatController implements ChatHandlers {
         }
         await resultStreamWriter.close()
 
+        session.setConversationType('AgenticChatWithCompaction')
+        const conversationType = session.getConversationType() as ChatConversationType
+        metric.setDimension('cwsprChatConversationType', conversationType)
+        this.#telemetryController.emitCompactHistory(
+            type,
+            characterCount,
+            this.#features.runtime.serverInfo.version ?? ''
+        )
+
         // Add loading message before making the request
         const loadingMessageId = `loading-${uuid()}`
         await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
@@ -1069,19 +1080,14 @@ export class AgenticChatController implements ChatHandlers {
         this.#debug(`Compacting history with ${characterCount} characters`)
         this.#llmRequestStartTime = Date.now()
         // Phase 3: Request Execution
-        // Note: these logs are very noisy, but contain information redacted on the backend.
-        this.#debug(
-            `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
-        )
+        this.#debug(`Compaction Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
         const response = await session.getChatResponse(currentRequestInput)
         if (response.$metadata.requestId) {
             metric.mergeWith({
                 requestIds: [response.$metadata.requestId],
             })
         }
-        this.#features.logging.info(
-            `generateAssistantResponse/SendMessage ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
-        )
+        this.#features.logging.info(`Compaction ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`)
         await chatResultStream.removeResultBlock(loadingMessageId)
 
         // Phase 4: Response Processing
@@ -1425,7 +1431,7 @@ export class AgenticChatController implements ChatHandlers {
 
         if (this.#shouldCompact(currentRequestCount)) {
             const messageId = this.#getMessageIdForCompact(uuid())
-            const confirmationResult = this.#processCompactConfirmation(messageId)
+            const confirmationResult = this.#processCompactConfirmation(messageId, currentRequestCount)
             const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
             await this.waitForCompactApproval(messageId, chatResultStream, cachedButtonBlockId, session)
             // Get the compaction request input
@@ -1438,6 +1444,7 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream,
                 tabId,
                 promptId,
+                CompactHistoryActionType.Nudge,
                 session.conversationId,
                 token,
                 documentReference
@@ -2471,7 +2478,7 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #processCompactConfirmation(messageId: string): ChatResult {
+    #processCompactConfirmation(messageId: string, characterCount: number): ChatResult {
         const buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
         const header = {
             icon: 'warning',
@@ -2479,7 +2486,7 @@ export class AgenticChatController implements ChatHandlers {
             body: COMPACTION_HEADER_BODY,
             buttons,
         } as any
-        const body = COMPACTION_BODY
+        const body = COMPACTION_BODY(Math.round((characterCount / MaxOverallCharacters) * 100))
         return {
             type: 'tool',
             messageId,
@@ -3688,7 +3695,7 @@ export class AgenticChatController implements ChatHandlers {
                         {
                             messageId,
                             type: 'tool',
-                            body: COMPACTION_BODY,
+                            body: 'Compaction is skipped.',
                             header: {
                                 body: COMPACTION_HEADER_BODY,
                                 status: { icon: 'block', text: 'Ignored' },
