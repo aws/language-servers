@@ -91,6 +91,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.state = state
     }
 
+    endpointOverride(): string | undefined {
+        return this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities
+            ?.textDocument?.inlineCompletionWithReferences?.endpointOverride
+    }
+
     public static initInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
@@ -218,6 +223,10 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             return
         }
 
+        const endpointOverride =
+            this.features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities
+                ?.textDocument?.inlineCompletionWithReferences?.endpointOverride
+
         // Connection type changed to 'builderId'
 
         if (newConnectionType === 'builderId') {
@@ -228,7 +237,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             // region set by client -> runtime region -> default region
             const clientParams = this.features.lsp.getClientInitializeParams()
 
-            this.createCodewhispererServiceInstances('builderId', clientParams?.initializationOptions?.aws?.region)
+            this.createCodewhispererServiceInstances(
+                'builderId',
+                clientParams?.initializationOptions?.aws?.region,
+                endpointOverride
+            )
             this.state = 'INITIALIZED'
             this.log('Initialized Amazon Q service with builderId connection')
 
@@ -250,7 +263,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 return
             }
 
-            this.createCodewhispererServiceInstances('identityCenter')
+            this.createCodewhispererServiceInstances('identityCenter', undefined, endpointOverride)
             this.state = 'INITIALIZED'
             this.log('Initialized Amazon Q service with identityCenter connection')
 
@@ -352,7 +365,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         if (!this.activeIdcProfile) {
             this.activeIdcProfile = newProfile
-            this.createCodewhispererServiceInstances('identityCenter', newProfile.identityDetails.region)
+            this.createCodewhispererServiceInstances(
+                'identityCenter',
+                newProfile.identityDetails.region,
+                this.endpointOverride()
+            )
             this.state = 'INITIALIZED'
             this.log(
                 `Initialized identityCenter connection to region ${newProfile.identityDetails.region} for profile ${newProfile.arn}`
@@ -404,7 +421,11 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
         this.activeIdcProfile = newProfile
 
-        this.createCodewhispererServiceInstances('identityCenter', newProfile.identityDetails.region)
+        this.createCodewhispererServiceInstances(
+            'identityCenter',
+            newProfile.identityDetails.region,
+            this.endpointOverride()
+        )
         this.state = 'INITIALIZED'
 
         return
@@ -462,7 +483,8 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     private createCodewhispererServiceInstances(
         connectionType: 'builderId' | 'identityCenter',
-        clientOrProfileRegion?: string
+        clientOrProfileRegion: string | undefined,
+        endpointOverride: string | undefined
     ) {
         this.logServiceState('Initializing CodewhispererService')
 
@@ -477,10 +499,14 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.region = region
         this.endpoint = endpoint
 
-        this.cachedCodewhispererService = this.serviceFactory(region, endpoint)
+        if (endpointOverride) {
+            this.endpoint = endpointOverride
+        }
+
+        this.cachedCodewhispererService = this.serviceFactory(region, this.endpoint)
         this.log(`CodeWhispererToken service for connection type ${connectionType} was initialized, region=${region}`)
 
-        this.cachedStreamingClient = this.streamingClientFactory(region, endpoint)
+        this.cachedStreamingClient = this.streamingClientFactory(region, this.endpoint)
         this.log(`StreamingClient service for connection type ${connectionType} was initialized, region=${region}`)
 
         this.logServiceState('CodewhispererService and StreamingClient Initialization finished')
