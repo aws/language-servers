@@ -14,6 +14,8 @@ import { StsCache } from '../sts/cache/stsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { ProfileStore } from '../language-server/profiles/profileService'
 
+const defaultRegion = 'us-east-1'
+
 export async function validatePermissions(
     credentials: IamCredentials,
     permissions: string[],
@@ -52,17 +54,17 @@ export function throwOnInvalidCredentialId(iamCredentialId?: string): asserts ia
 async function simulatePermissions(
     credentials: IamCredentials,
     permissions: string[],
-    region: string = 'us-east-1'
+    region?: string
 ): Promise<SimulatePrincipalPolicyCommandOutput> {
     // Convert the credentials into an identity
-    const stsClient = new STSClient({ region: region, credentials: credentials })
+    const stsClient = new STSClient({ region: region || defaultRegion, credentials: credentials })
     const identity = await stsClient.send(new GetCallerIdentityCommand({}))
     if (!identity.Arn) {
         throw new AwsError('Caller identity ARN not found.', AwsErrorCodes.E_CALLER_IDENTITY_NOT_FOUND)
     }
 
     // Simulate permissions on the identity
-    const iamClient = new IAMClient({ region: region, credentials: credentials })
+    const iamClient = new IAMClient({ region: region || defaultRegion, credentials: credentials })
     return await iamClient.send(
         new SimulatePrincipalPolicyCommand({
             PolicySourceArn: convertToIamArn(identity.Arn),

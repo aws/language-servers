@@ -141,14 +141,6 @@ export class IamProvider {
                 params.profile.settings?.region
             )
             if (mfaRequired) {
-                // Get the MFA device serial number from the profile
-                if (!params.profile.settings?.mfa_serial) {
-                    throw new AwsError(
-                        'MFA serial required when assuming role with MultiFactorAuthPresent permission condition',
-                        AwsErrorCodes.E_MFA_REQUIRED
-                    )
-                }
-                assumeRoleInput.SerialNumber = params.profile.settings?.mfa_serial
                 // Request an MFA code from the language client
                 let timeoutId: NodeJS.Timeout | undefined
                 const timeout = new Promise<never>(
@@ -160,18 +152,27 @@ export class IamProvider {
                 )
                 const response = await Promise.race([
                     params.handlers.sendGetMfaCode({
-                        mfaSerial: params.profile.settings?.mfa_serial,
                         profileName: params.profile.name,
+                        mfaSerial: params.profile.settings?.mfa_serial,
                     }),
                     timeout,
                 ])
                 clearTimeout(timeoutId)
+
                 if (!response.code) {
                     throw new AwsError(
                         'MFA code required when assuming role with MultiFactorAuthPresent permission condition',
                         AwsErrorCodes.E_MFA_REQUIRED
                     )
                 }
+                if (!response.mfaSerial) {
+                    throw new AwsError(
+                        'MFA serial required when assuming role with MultiFactorAuthPresent permission condition',
+                        AwsErrorCodes.E_MFA_REQUIRED
+                    )
+                }
+
+                assumeRoleInput.SerialNumber = response.mfaSerial
                 assumeRoleInput.TokenCode = response.code
             }
 

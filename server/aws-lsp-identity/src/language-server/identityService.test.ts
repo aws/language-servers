@@ -135,7 +135,7 @@ describe('IdentityService', () => {
                 showUrl: _ => {},
                 showMessageRequest: _ => Promise.resolve({ title: 'client-response' }),
                 showProgress: _ => Promise.resolve(),
-                sendGetMfaCode: () => Promise.resolve({ code: 'mfa-code' }),
+                sendGetMfaCode: () => Promise.resolve({ code: 'mfa-code', mfaSerial: 'mfa-serial' }),
             },
             'My Client',
             observability,
