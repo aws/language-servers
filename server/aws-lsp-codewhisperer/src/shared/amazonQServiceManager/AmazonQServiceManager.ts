@@ -32,8 +32,13 @@ import { AmazonQDeveloperProfile, signalsAWSQDeveloperProfilesEnabled } from './
 import { isStringOrNull } from '../utils'
 import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
-import { StreamingClientServiceToken, StreamingClientServiceIAM } from '../streamingClientService'
+import {
+    StreamingClientServiceToken,
+    StreamingClientServiceIAM,
+    StreamingClientServiceBase,
+} from '../streamingClientService'
 import { parse } from '@aws-sdk/util-arn-parser'
+import { CodeWhispererServiceBase } from '../codeWhispererService/codeWhispererServiceBase'
 
 /**
  * AmazonQServiceManager manages state and provides centralized access to
@@ -60,7 +65,10 @@ import { parse } from '@aws-sdk/util-arn-parser'
  * the LSP hand shake.
  *
  */
-export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhispererService, StreamingClientService> {
+export class AmazonQServiceManager extends BaseAmazonQServiceManager<
+    CodeWhispererServiceBase,
+    StreamingClientServiceBase
+> {
     private static instance: AmazonQServiceManager | null = null
     private enableDeveloperProfileSupport?: boolean
     private activeIdcProfile?: AmazonQDeveloperProfile
@@ -182,33 +190,6 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
                 this.profileChangeTokenSource.dispose()
                 this.profileChangeTokenSource = undefined
             }
-        }
-    }
-
-    private handleConnectionChange() {
-        if (this.features.credentialsProvider.hasCredentials('iam')) {
-            if (!this.cachedCodewhispererService) {
-                const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(
-                    this.features.runtime,
-                    this.features.logging
-                )
-                this.region = amazonQRegionAndEndpoint.region
-                this.endpoint = amazonQRegionAndEndpoint.endpoint
-                this.cachedCodewhispererService = new CodeWhispererService(
-                    this.features.credentialsProvider,
-                    this.features.workspace,
-                    this.features.logging,
-                    this.region,
-                    this.endpoint,
-                    this.features.sdkInitializator
-                )
-                this.updateCachedServiceConfig()
-            }
-            this.state = 'INITIALIZED'
-            return
-        } else {
-            this.handleSsoConnectionChange()
-            return
         }
     }
 
@@ -435,13 +416,34 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
         return
     }
 
-    public getCodewhispererService(): CodeWhispererService {
+    public getCodewhispererService(): CodeWhispererServiceBase {
         // Prevent initiating requests while profile change is in progress.
         if (this.state === 'PENDING_Q_PROFILE_UPDATE') {
             throw new AmazonQServicePendingProfileUpdateError()
         }
 
-        this.handleConnectionChange()
+        if (this.features.credentialsProvider.hasCredentials('iam')) {
+            if (!this.cachedCodewhispererService) {
+                const amazonQRegionAndEndpoint = getAmazonQRegionAndEndpoint(
+                    this.features.runtime,
+                    this.features.logging
+                )
+                this.region = amazonQRegionAndEndpoint.region
+                this.endpoint = amazonQRegionAndEndpoint.endpoint
+                this.cachedCodewhispererService = new CodeWhispererServiceIAM(
+                    this.features.credentialsProvider,
+                    this.features.workspace,
+                    this.features.logging,
+                    this.region,
+                    this.endpoint,
+                    this.features.sdkInitializator
+                )
+                this.updateCachedServiceConfig()
+            }
+            this.state = 'INITIALIZED'
+        } else {
+            this.handleSsoConnectionChange()
+        }
 
         if (this.state === 'INITIALIZED' && this.cachedCodewhispererService) {
             return this.cachedCodewhispererService
@@ -458,7 +460,7 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
         throw new AmazonQServiceNotInitializedError()
     }
 
-    public getStreamingClient() {
+    public getStreamingClient(): StreamingClientServiceBase {
         this.log('Getting instance of CodeWhispererStreaming client')
 
         // Trigger checks in token service
@@ -517,8 +519,8 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
         return getUserAgent(initializeParams as InitializeParams, this.features.runtime.serverInfo)
     }
 
-    private serviceFactory(region: string, endpoint: string): CodeWhispererService {
-        const service = new CodeWhispererService(
+    private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
+        const service = new CodeWhispererServiceToken(
             this.features.credentialsProvider,
             this.features.workspace,
             this.features.logging,
@@ -545,17 +547,25 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
         return service
     }
 
-    private streamingClientFactory(region: string, endpoint: string): StreamingClientService {
-        const streamingClient = new StreamingClientService(
-            this.features.credentialsProvider,
-            this.features.sdkInitializator,
-            this.features.logging,
-            region,
-            endpoint,
-            this.getCustomUserAgent()
-        )
-
-        if (this.features.credentialsProvider.hasCredentials('bearer')) {
+    private streamingClientFactory(region: string, endpoint: string): StreamingClientServiceBase {
+        let streamingClient: StreamingClientServiceBase
+        if (this.features.credentialsProvider.hasCredentials('iam')) {
+            streamingClient = new StreamingClientServiceIAM(
+                this.features.credentialsProvider,
+                this.features.sdkInitializator,
+                this.features.logging,
+                region,
+                endpoint
+            )
+        } else {
+            streamingClient = new StreamingClientServiceToken(
+                this.features.credentialsProvider,
+                this.features.sdkInitializator,
+                this.features.logging,
+                region,
+                endpoint,
+                this.getCustomUserAgent()
+            )
             streamingClient.profileArn = this.activeIdcProfile?.arn
         }
 
@@ -598,7 +608,7 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<CodeWhisper
         return this.activeIdcProfile?.arn
     }
 
-    public setServiceFactory(factory: (region: string, endpoint: string) => CodeWhispererService) {
+    public setServiceFactory(factory: (region: string, endpoint: string) => CodeWhispererServiceToken) {
         this.serviceFactory = factory.bind(this)
     }
 
