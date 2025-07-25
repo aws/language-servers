@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/aws/language-servers/compare/chat-client/v0.1.28...chat-client/v0.1.29) (2025-07-25)
+
+
+### Features
+
+* **amazonq:** redirect /review, rename CodeReview tool, emit metrics, modify prompts ([#1964](https://github.com/aws/language-servers/issues/1964)) ([ad8e2db](https://github.com/aws/language-servers/commit/ad8e2db77e34f369fef9af71cdda2d3522f555c6))
+
 ## [0.1.28](https://github.com/aws/language-servers/compare/chat-client/v0.1.27...chat-client/v0.1.28) (2025-07-23)
 
 
