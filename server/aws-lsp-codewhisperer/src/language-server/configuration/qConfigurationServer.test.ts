@@ -7,7 +7,7 @@ import {
     ServerConfigurationProvider,
 } from './qConfigurationServer'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService/codeWhispererServiceToken'
 import {
     CancellationToken,
     CancellationTokenSource,
