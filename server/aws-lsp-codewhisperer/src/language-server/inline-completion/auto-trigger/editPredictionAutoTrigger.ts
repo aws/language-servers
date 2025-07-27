@@ -17,7 +17,7 @@ export interface EditPredictionAutoTriggerParams {
     fileContext: FileContext
     lineNum: number
     char: string
-    previousDecision: string
+    // previousDecision: string
     cursorHistory: CursorTracker
     recentEdits: RecentEditTracker
 }
@@ -33,7 +33,7 @@ export const editPredictionAutoTrigger = ({
     fileContext,
     lineNum,
     char,
-    previousDecision,
+    // previousDecision,
     cursorHistory,
     recentEdits,
 }: EditPredictionAutoTriggerParams): {

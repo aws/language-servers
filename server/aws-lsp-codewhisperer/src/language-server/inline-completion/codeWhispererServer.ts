@@ -56,7 +56,8 @@ import {
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
 } from './telemetry'
-const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
+import { ClassifierAutoTrigger, QAutoTrigger, shouldTriggerInline } from './trigger'
+import { editPredictionAutoTrigger } from './auto-trigger/editPredictionAutoTrigger'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 export const FILE_URI_CHARS_LIMIT = 1024
@@ -156,6 +157,9 @@ interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
 export const CodewhispererServerFactory =
     (serviceManager: () => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
+        const clientMetadata = lsp.getClientInitializeParams()
+        const ideCategory: string | undefined = clientMetadata ? getIdeCategory(clientMetadata) : ''
+
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
@@ -193,8 +197,8 @@ export const CodewhispererServerFactory =
             // when one handler is at the API call stage, it has not yet update the session state
             // but another request can start, causing the state to be incorrect.
             if (isOnInlineCompletionHandlerInProgress) {
-                logging.log(`Skip concurrent inline completion`)
-                return EMPTY_RESULT
+                logging.log(`Detect there is inflight inline completion request`)
+                // return EMPTY_RESULT
             }
             isOnInlineCompletionHandlerInProgress = true
 
@@ -269,53 +273,16 @@ export const CodewhispererServerFactory =
                         ? workspaceState.workspaceId
                         : undefined
 
-                    let triggerCharacters = ''
-                    let codewhispererAutoTriggerType = undefined
-                    // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
-                    if (
-                        params.documentChangeParams?.contentChanges &&
-                        params.documentChangeParams.contentChanges.length > 0 &&
-                        params.documentChangeParams.contentChanges[0].text !== undefined
-                    ) {
-                        triggerCharacters = params.documentChangeParams.contentChanges[0].text
-                        codewhispererAutoTriggerType = getAutoTriggerType(params.documentChangeParams.contentChanges)
-                    } else {
-                        // if the client does not emit document change for the trigger, use left most character.
-                        triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
-                        codewhispererAutoTriggerType = triggerType(fileContext)
-                    }
-
-                    const previousSession = sessionManager.getPreviousSession()
-                    const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
-                    let ideCategory: string | undefined = ''
-                    const initializeParams = lsp.getClientInitializeParams()
-                    if (initializeParams !== undefined) {
-                        ideCategory = getIdeCategory(initializeParams)
-                    }
-
-                    // See: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L132
-                    // In such cases, do not auto trigger.
-                    if (codewhispererAutoTriggerType === undefined) {
-                        return EMPTY_RESULT
-                    }
-
-                    const autoTriggerResult = autoTrigger(
-                        {
-                            fileContext, // The left/right file context and programming language
-                            lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                            char: triggerCharacters, // Add the character just inserted, if any, before the invication position
-                            ide: ideCategory ?? '',
-                            os: getNormalizeOsName(),
-                            previousDecision, // The last decision by the user on the previous invocation
-                            triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
-                        },
+                    const qInlineTrigger = shouldTriggerInline(
+                        fileContext,
+                        params,
+                        sessionManager,
+                        ideCategory,
                         logging
                     )
 
                     if (
-                        isAutomaticLspTriggerKind &&
-                        codewhispererAutoTriggerType === 'Classifier' &&
-                        !autoTriggerResult.shouldTrigger &&
+                        !qInlineTrigger &&
                         !(editsEnabled && codeWhispererService instanceof CodeWhispererServiceToken) // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
                     ) {
                         return EMPTY_RESULT
@@ -362,21 +329,14 @@ export const CodewhispererServerFactory =
                              *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
                              *  - Others - should always have 'Completions'
                              */
-                            if (
-                                !isAutomaticLspTriggerKind ||
-                                (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
-                                (isAutomaticLspTriggerKind &&
-                                    codewhispererAutoTriggerType === 'Classifier' &&
-                                    autoTriggerResult.shouldTrigger)
-                            ) {
+                            if (qInlineTrigger) {
                                 predictionTypes.push(['COMPLETIONS'])
                             }
 
                             const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
                                 fileContext: fileContext,
                                 lineNum: params.position.line,
-                                char: triggerCharacters,
-                                previousDecision: previousDecision,
+                                char: qInlineTrigger?.triggerCharacters ?? '',
                                 cursorHistory: cursorTracker,
                                 recentEdits: recentEditTracker,
                             })
@@ -387,6 +347,12 @@ export const CodewhispererServerFactory =
 
                             if (predictionTypes.length === 0) {
                                 return EMPTY_RESULT
+                            }
+
+                            if (predictionTypes.length === 2) {
+                                const indexToRemove = Math.floor(Math.random() * 2)
+                                predictionTypes.splice(indexToRemove, 1)
+                                logging.warn(`2 prediction types detected, reduce to 1 ${predictionTypes}`)
                             }
 
                             // Step 0: Determine if we have "Recent Edit context"
@@ -493,10 +459,17 @@ export const CodewhispererServerFactory =
                         triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
                         language: fileContext.programmingLanguage.languageName,
                         requestContext: requestContext,
-                        autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
-                        triggerCharacter: triggerCharacters,
-                        classifierResult: autoTriggerResult?.classifierResult,
-                        classifierThreshold: autoTriggerResult?.classifierThreshold,
+                        autoTriggerType:
+                            qInlineTrigger instanceof QAutoTrigger ? qInlineTrigger.triggerType : undefined,
+                        triggerCharacter: qInlineTrigger?.triggerCharacters,
+                        classifierResult:
+                            qInlineTrigger instanceof ClassifierAutoTrigger
+                                ? qInlineTrigger.classifierScore
+                                : undefined,
+                        classifierThreshold:
+                            qInlineTrigger instanceof ClassifierAutoTrigger
+                                ? qInlineTrigger.classifierThreshold
+                                : undefined,
                         credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
                         supplementalMetadata: supplementalMetadata,
                         customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),

@@ -251,12 +251,39 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
+        const isCompletionRequest =
+            request.predictionTypes === undefined ||
+            (request.predictionTypes.length > 0 && request.predictionTypes[0] === SuggestionType.COMPLETION)
+
+        if (isCompletionRequest && this.inflightRequests.size !== 0) {
+            this.logging.warn(`client throttled generate completion request`)
+            throw new Error('client throttled')
+        }
+
+        if (isCompletionRequest) {
+            return this.gc(request)
+        }
+
+        const task = cancellableDebounce(
+            () => {
+                this.logging.info(`inflight request count: ${this.inflightRequests.size} before making new request`)
+                return this.gc(request)
+            },
+            500,
+            true
+        )
+
+        return task.promise()
+    }
+
+    private async gc(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         this.logging.info(
             `GenerateCompletion response: 
+    "version": "debounced gc",
     "endpoint": ${this.codeWhispererEndpoint},
     "requestId": ${response.$response.requestId},
     "responseCompletionCount": ${response.completions?.length ?? 0},
@@ -563,5 +590,73 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         })
 
         return !!r
+    }
+}
+
+function cancellableDebounce<Input extends any[], Output>(
+    cb: (...args: Input) => Output | Promise<Output>,
+    delay: number = 0,
+    useLastCall: boolean = false
+): { promise: (...args: Input) => Promise<Output>; cancel: () => void } {
+    let timeoutId: NodeJS.Timeout | undefined
+    let currentPromise: Promise<Output> | undefined
+    let latestArgs: Input | undefined
+    let promiseResolve: ((value: Output | PromiseLike<Output>) => void) | undefined
+    let promiseReject: ((reason?: any) => void) | undefined
+
+    const cancel = (): void => {
+        if (timeoutId) {
+            clearTimeout(timeoutId)
+            timeoutId = undefined
+            currentPromise = undefined
+            if (promiseReject) {
+                promiseReject(new Error('Debounced operation cancelled'))
+                promiseReject = undefined
+                promiseResolve = undefined
+            }
+        }
+    }
+
+    return {
+        promise: (...args: Input): Promise<Output> => {
+            latestArgs = args
+
+            // Cancel existing timeout
+            if (timeoutId) {
+                clearTimeout(timeoutId)
+            }
+
+            // If there's no existing promise, create a new one
+            if (!currentPromise) {
+                currentPromise = new Promise<Output>((resolve, reject) => {
+                    promiseResolve = resolve
+                    promiseReject = reject
+                })
+            }
+
+            // Set new timeout
+            timeoutId = setTimeout(async () => {
+                try {
+                    const argsToUse = useLastCall ? latestArgs! : args
+                    const result = await cb(...argsToUse)
+                    if (promiseResolve) {
+                        promiseResolve(result)
+                    }
+                } catch (err) {
+                    if (promiseReject) {
+                        promiseReject(err)
+                    }
+                } finally {
+                    // Clean up
+                    timeoutId = undefined
+                    currentPromise = undefined
+                    promiseResolve = undefined
+                    promiseReject = undefined
+                }
+            }, delay)
+
+            return currentPromise
+        },
+        cancel,
     }
 }
