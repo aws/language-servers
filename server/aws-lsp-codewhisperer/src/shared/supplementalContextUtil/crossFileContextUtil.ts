@@ -99,7 +99,7 @@ export async function codemapContext(
 
     const projectContextPromise = waitUntil(
         async function () {
-            return await fetchProjectContext(document, position, 'codemap', amazonQServiceManager)
+            return await fetchProjectContext(document, position, 'codemap')
         },
         { timeout: supplementalContextTimeoutInMs, interval: 5, truthy: false }
     )
@@ -137,8 +137,7 @@ export async function codemapContext(
 export async function fetchProjectContext(
     document: TextDocument,
     position: Position,
-    target: 'default' | 'codemap' | 'bm25',
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    target: 'default' | 'codemap' | 'bm25'
 ): Promise<CodeWhispererSupplementalContextItem[]> {
     const inputChunk: Chunk = getInputChunk(document, position, crossFileContextConfig.numberOfLinesEachChunk)
     const fsPath = URI.parse(document.uri).fsPath

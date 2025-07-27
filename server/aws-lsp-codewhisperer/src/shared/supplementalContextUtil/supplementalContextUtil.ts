@@ -28,8 +28,7 @@ export async function fetchSupplementalContext(
     position: Position,
     workspace: Workspace,
     logging: Logging,
-    cancellationToken: CancellationToken,
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    cancellationToken: CancellationToken
 ): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = performance.now()
 
@@ -72,8 +71,7 @@ export async function fetchSupplementalContext(
                 document,
                 position,
                 workspace,
-                cancellationToken,
-                amazonQServiceManager
+                cancellationToken
             )
         }
 

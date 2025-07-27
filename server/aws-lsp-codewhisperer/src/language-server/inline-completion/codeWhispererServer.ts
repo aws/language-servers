@@ -6,15 +6,12 @@ import {
     InlineCompletionTriggerKind,
     InlineCompletionWithReferencesParams,
     LogInlineCompletionSessionResultsParams,
-    Position,
     Range,
     Server,
     TextDocument,
     ResponseError,
     LSPErrorCodes,
-    WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
-import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
@@ -44,7 +41,6 @@ import { hasConnectionExpired } from '../../shared/utils'
 import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import path = require('path')
-import { getRelativePath } from '../workspaceContext/util'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
@@ -60,48 +56,8 @@ import { ClassifierAutoTrigger, QAutoTrigger, shouldTriggerInline } from './trig
 import { editPredictionAutoTrigger } from './auto-trigger/editPredictionAutoTrigger'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
-export const FILE_URI_CHARS_LIMIT = 1024
-export const FILENAME_CHARS_LIMIT = 1024
+
 export const CONTEXT_CHARACTERS_LIMIT = 10240
-
-// Both clients (token, sigv4) define their own types, this return value needs to match both of them.
-const getFileContext = (params: {
-    textDocument: TextDocument
-    position: Position
-    inferredLanguageId: CodewhispererLanguage
-    workspaceFolder: WorkspaceFolder | null | undefined
-}): {
-    fileUri: string
-    filename: string
-    programmingLanguage: {
-        languageName: CodewhispererLanguage
-    }
-    leftFileContent: string
-    rightFileContent: string
-} => {
-    const left = params.textDocument.getText({
-        start: { line: 0, character: 0 },
-        end: params.position,
-    })
-    const right = params.textDocument.getText({
-        start: params.position,
-        end: params.textDocument.positionAt(params.textDocument.getText().length),
-    })
-
-    const relativeFilePath = params.workspaceFolder
-        ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
-        : path.basename(params.textDocument.uri)
-
-    return {
-        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
-        filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
-        programmingLanguage: {
-            languageName: getRuntimeLanguage(params.inferredLanguageId),
-        },
-        leftFileContent: left,
-        rightFileContent: right,
-    }
-}
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -261,7 +217,7 @@ export const CodewhispererServerFactory =
                         params.context.triggerKind == InlineCompletionTriggerKind.Automatic
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
-                    const fileContext = getFileContext({
+                    const fileContext = codeWhispererService.getFileContext({
                         textDocument,
                         inferredLanguageId,
                         position: params.position,
@@ -288,38 +244,12 @@ export const CodewhispererServerFactory =
                         return EMPTY_RESULT
                     }
 
-                    // Get supplemental context from recent edits if available.
-                    let supplementalContextFromEdits = undefined
-
-                    // supplementalContext available only via token authentication
-                    const supplementalContextPromise =
-                        codeWhispererService instanceof CodeWhispererServiceToken
-                            ? fetchSupplementalContext(
-                                  textDocument,
-                                  params.position,
-                                  workspace,
-                                  logging,
-                                  token,
-                                  amazonQServiceManager
-                              )
-                            : Promise.resolve(undefined)
-
                     let requestContext: GenerateSuggestionsRequest = {
                         fileContext,
                         maxResults,
                     }
 
-                    const supplementalContext = await supplementalContextPromise
-                    // TODO: logging
                     if (codeWhispererService instanceof CodeWhispererServiceToken) {
-                        const supplementalContextItems = supplementalContext?.supplementalContextItems || []
-                        requestContext.supplementalContexts = [
-                            ...supplementalContextItems.map(v => ({
-                                content: v.content,
-                                filePath: v.filePath,
-                            })),
-                        ]
-
                         if (editsEnabled) {
                             const predictionTypes: string[][] = []
 
@@ -355,29 +285,6 @@ export const CodewhispererServerFactory =
                                 logging.warn(`2 prediction types detected, reduce to 1 ${predictionTypes}`)
                             }
 
-                            // Step 0: Determine if we have "Recent Edit context"
-                            if (recentEditTracker) {
-                                supplementalContextFromEdits =
-                                    await recentEditTracker.generateEditBasedContext(textDocument)
-                            }
-
-                            // Step 1: Recent Edits context
-                            const supplementalContextItemsForEdits =
-                                supplementalContextFromEdits?.supplementalContextItems || []
-
-                            requestContext.supplementalContexts.push(
-                                ...supplementalContextItemsForEdits.map(v => ({
-                                    content: v.content,
-                                    filePath: v.filePath,
-                                    type: 'PreviousEditorState',
-                                    metadata: {
-                                        previousEditorStateMetadata: {
-                                            timeOffset: 1000,
-                                        },
-                                    },
-                                }))
-                            )
-
                             // Step 2: Prediction type COMPLETION, Edits or both
                             requestContext.predictionTypes = predictionTypes.flat()
 
@@ -398,6 +305,21 @@ export const CodewhispererServerFactory =
                                 },
                             }
                         }
+                    }
+
+                    const supplementalContext = await codeWhispererService.constructSupplementalContext(
+                        textDocument,
+                        params.position,
+                        workspace,
+                        recentEditTracker,
+                        logging,
+                        token,
+                        {
+                            editsEnable: editsEnabled,
+                        }
+                    )
+                    if (supplementalContext) {
+                        requestContext.supplementalContexts = supplementalContext.items
                     }
 
                     // Close ACTIVE session and record Discard trigger decision immediately
@@ -432,27 +354,6 @@ export const CodewhispererServerFactory =
                         )
                     }
 
-                    const supplementalMetadata = editsEnabled
-                        ? {
-                              // Merge metadata from edit-based context if available.
-                              contentsLength:
-                                  (supplementalContext?.contentsLength || 0) +
-                                  (supplementalContextFromEdits?.contentsLength || 0),
-                              latency: Math.max(
-                                  supplementalContext?.latency || 0,
-                                  supplementalContextFromEdits?.latency || 0
-                              ),
-                              isUtg: supplementalContext?.isUtg || false,
-                              isProcessTimeout: supplementalContext?.isProcessTimeout || false,
-                              strategy: supplementalContextFromEdits
-                                  ? 'recentEdits'
-                                  : supplementalContext?.strategy || 'Empty',
-                              supplementalContextItems: [
-                                  ...(supplementalContext?.supplementalContextItems || []),
-                                  ...(supplementalContextFromEdits?.supplementalContextItems || []),
-                              ],
-                          }
-                        : supplementalContext
                     const newSession = sessionManager.createSession({
                         document: textDocument,
                         startPosition: params.position,
@@ -471,7 +372,7 @@ export const CodewhispererServerFactory =
                                 ? qInlineTrigger.classifierThreshold
                                 : undefined,
                         credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
-                        supplementalMetadata: supplementalMetadata,
+                        supplementalMetadata: supplementalContext?.supContextData,
                         customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
                     })
 

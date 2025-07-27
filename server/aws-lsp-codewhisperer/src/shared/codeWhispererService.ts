@@ -7,6 +7,9 @@ import {
     SDKInitializator,
     CancellationToken,
     CancellationTokenSource,
+    TextDocument,
+    Position,
+    WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -26,6 +29,12 @@ import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4cli
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { getErrorId } from './utils'
 import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
+import { CodeWhispererSupplementalContext } from './models/model'
+import { fetchSupplementalContext } from './supplementalContextUtil/supplementalContextUtil'
+import { RecentEditTracker } from '../language-server/inline-completion/tracker/codeEditTracker'
+import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
+import { getRelativePath } from '../language-server/workspaceContext/util'
+import path = require('path')
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -56,6 +65,9 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
+export const FILE_URI_CHARS_LIMIT = 1024
+export const FILENAME_CHARS_LIMIT = 1024
+
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion
@@ -82,7 +94,61 @@ export abstract class CodeWhispererServiceBase {
         this.inflightRequests.delete(request)
     }
 
+    getFileContext(params: {
+        textDocument: TextDocument
+        position: Position
+        inferredLanguageId: CodewhispererLanguage
+        workspaceFolder: WorkspaceFolder | null | undefined
+    }): {
+        fileUri: string
+        filename: string
+        programmingLanguage: {
+            languageName: CodewhispererLanguage
+        }
+        leftFileContent: string
+        rightFileContent: string
+    } {
+        const left = params.textDocument.getText({
+            start: { line: 0, character: 0 },
+            end: params.position,
+        })
+        const right = params.textDocument.getText({
+            start: params.position,
+            end: params.textDocument.positionAt(params.textDocument.getText().length),
+        })
+
+        const relativeFilePath = params.workspaceFolder
+            ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
+            : path.basename(params.textDocument.uri)
+
+        return {
+            fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
+            filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
+            programmingLanguage: {
+                languageName: getRuntimeLanguage(params.inferredLanguageId),
+            },
+            leftFileContent: left,
+            rightFileContent: right,
+        }
+    }
+
     abstract getCredentialsType(): CredentialsType
+
+    abstract constructSupplementalContext(
+        document: TextDocument,
+        position: Position,
+        workspace: Workspace,
+        recentEditTracker: RecentEditTracker,
+        logging: Logging,
+        cancellationToken: CancellationToken,
+        config: any
+    ): Promise<
+        | {
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
+        | undefined
+    >
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
@@ -146,6 +212,24 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
     getCredentialsType(): CredentialsType {
         return 'iam'
+    }
+
+    async constructSupplementalContext(
+        document: TextDocument,
+        position: Position,
+        workspace: Workspace,
+        recentEditTracker: RecentEditTracker,
+        logging: Logging,
+        cancellationToken: CancellationToken,
+        config: any
+    ): Promise<
+        | {
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
+        | undefined
+    > {
+        return undefined
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
@@ -248,6 +332,72 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         if (!this.profileArn) return request
 
         return { ...request, profileArn: this.profileArn }
+    }
+
+    async constructSupplementalContext(
+        document: TextDocument,
+        position: Position,
+        workspace: Workspace,
+        recentEditTracker: RecentEditTracker,
+        logging: Logging,
+        cancellationToken: CancellationToken,
+        config: any
+    ): Promise<
+        | {
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
+        | undefined
+    > {
+        const items: CodeWhispererTokenClient.SupplementalContext[] = []
+
+        const projectContext = await fetchSupplementalContext(document, position, workspace, logging, cancellationToken)
+        if (projectContext) {
+            items.push(
+                ...projectContext.supplementalContextItems.map(v => ({
+                    content: v.content,
+                    filePath: v.filePath,
+                }))
+            )
+        }
+
+        const editsEnable = config.editsEnabled === true
+        const recentEditsContext = editsEnable ? await recentEditTracker.generateEditBasedContext(document) : undefined
+        if (recentEditsContext) {
+            items.push(
+                ...recentEditsContext.supplementalContextItems.map(item => ({
+                    content: item.content,
+                    filePath: item.filePath,
+                    type: 'PreviousEditorState',
+                    metadata: {
+                        previousEditorStateMetadata: {
+                            timeOffset: 1000,
+                        },
+                    },
+                }))
+            )
+        }
+
+        const merged: CodeWhispererSupplementalContext | undefined = recentEditsContext
+            ? {
+                  contentsLength: (projectContext?.contentsLength || 0) + (recentEditsContext?.contentsLength || 0),
+                  latency: Math.max(projectContext?.latency || 0, recentEditsContext?.latency || 0),
+                  isUtg: projectContext?.isUtg || false,
+                  isProcessTimeout: projectContext?.isProcessTimeout || false,
+                  strategy: recentEditsContext ? 'recentEdits' : projectContext?.strategy || 'Empty',
+                  supplementalContextItems: [
+                      ...(projectContext?.supplementalContextItems || []),
+                      ...(recentEditsContext?.supplementalContextItems || []),
+                  ],
+              }
+            : projectContext
+
+        return merged
+            ? {
+                  supContextData: merged,
+                  items: items,
+              }
+            : undefined
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
