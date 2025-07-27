@@ -250,18 +250,19 @@ export const CodewhispererServerFactory =
                         return EMPTY_RESULT
                     }
 
-                    let requestContext: GenerateSuggestionsRequest = {
-                        fileContext,
-                        maxResults,
+                    const generateCompletionReq: GenerateSuggestionsRequest = {
+                        fileContext: fileContext,
+                        maxResults: maxResults,
+                        predictionTypes: predictionTypes,
+                        workspaceId: workspaceId,
                     }
-                    requestContext.predictionTypes = predictionTypes
 
                     if (qEditsTrigger) {
-                        requestContext.editorState = {
+                        generateCompletionReq.editorState = {
                             document: {
                                 relativeFilePath: textDocument.uri,
                                 programmingLanguage: {
-                                    languageName: requestContext.fileContext.programmingLanguage.languageName,
+                                    languageName: generateCompletionReq.fileContext.programmingLanguage.languageName,
                                 },
                                 text: textDocument.getText(),
                             },
@@ -293,7 +294,7 @@ export const CodewhispererServerFactory =
                         }
                     )
                     if (supplementalContext) {
-                        requestContext.supplementalContexts = supplementalContext.items
+                        generateCompletionReq.supplementalContexts = supplementalContext.items
                     }
 
                     // Close ACTIVE session and record Discard trigger decision immediately
@@ -333,7 +334,7 @@ export const CodewhispererServerFactory =
                         startPosition: params.position,
                         triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
                         language: fileContext.programmingLanguage.languageName,
-                        requestContext: requestContext,
+                        requestContext: generateCompletionReq,
                         autoTriggerType:
                             qInlineTrigger instanceof QAutoTrigger ? qInlineTrigger.triggerType : undefined,
                         triggerCharacter: qInlineTrigger?.triggerCharacters,
@@ -350,26 +351,14 @@ export const CodewhispererServerFactory =
                         customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
                     })
 
+                    // TODO: What's this???
                     // Add extra context to request context
                     const { extraContext } = amazonQServiceManager.getConfiguration().inlineSuggestions
                     if (extraContext) {
-                        requestContext.fileContext.leftFileContent =
-                            extraContext + '\n' + requestContext.fileContext.leftFileContent
+                        generateCompletionReq.fileContext.leftFileContent =
+                            extraContext + '\n' + generateCompletionReq.fileContext.leftFileContent
                     }
 
-                    const generateCompletionReq = {
-                        ...requestContext,
-                        fileContext: {
-                            ...requestContext.fileContext,
-                            leftFileContent: requestContext.fileContext.leftFileContent
-                                .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                .replaceAll('\r\n', '\n'),
-                            rightFileContent: requestContext.fileContext.rightFileContent
-                                .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                .replaceAll('\r\n', '\n'),
-                        },
-                        ...(workspaceId ? { workspaceId: workspaceId } : {}),
-                    }
                     try {
                         const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
                         return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)

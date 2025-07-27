@@ -67,6 +67,7 @@ export interface GenerateSuggestionsResponse {
 
 export const FILE_URI_CHARS_LIMIT = 1024
 export const FILENAME_CHARS_LIMIT = 1024
+export const CONTEXT_CHARACTERS_LIMIT = 10240
 
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
@@ -112,10 +113,13 @@ export abstract class CodeWhispererServiceBase {
             start: { line: 0, character: 0 },
             end: params.position,
         })
+        const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
         const right = params.textDocument.getText({
             start: params.position,
             end: params.textDocument.positionAt(params.textDocument.getText().length),
         })
+        const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
 
         const relativeFilePath = params.workspaceFolder
             ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
@@ -127,8 +131,8 @@ export abstract class CodeWhispererServiceBase {
             programmingLanguage: {
                 languageName: getRuntimeLanguage(params.inferredLanguageId),
             },
-            leftFileContent: left,
-            rightFileContent: right,
+            leftFileContent: trimmedLeft,
+            rightFileContent: trimmedRight,
         }
     }
 
