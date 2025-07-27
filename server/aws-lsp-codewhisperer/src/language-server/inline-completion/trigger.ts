@@ -10,10 +10,17 @@ import { InlineCompletionTriggerKind } from 'vscode-languageserver-protocol'
 import { SessionManager } from './session/sessionManager'
 import { InlineCompletionWithReferencesParams } from '@aws/language-server-runtimes/protocol'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { editPredictionAutoTrigger } from './auto-trigger/editPredictionAutoTrigger'
+import { CursorTracker } from './tracker/cursorTracker'
+import { RecentEditTracker } from './tracker/codeEditTracker'
+import { CodeWhispererServiceBase, CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { PredictionTypes } from '../../client/token/codewhispererbearertokenclient'
 
 interface QInlineTrigger {
     triggerCharacters: string
 }
+
+export class NepTrigger {}
 
 export class ManualTrigger implements QInlineTrigger {
     constructor(readonly triggerCharacters: string) {}
@@ -45,7 +52,112 @@ export class ClassifierAutoTrigger extends QAutoTrigger {
     }
 }
 
-export function shouldTriggerInline(
+/**
+ * Manual trigger - should always have 'Completions'
+ * Auto trigger
+ *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
+ *  - Others - should always have 'Completions'
+ */
+export function shouldTriggerSuggestion(
+    service: CodeWhispererServiceBase,
+    fileContext: {
+        fileUri: string
+        filename: string
+        programmingLanguage: {
+            languageName: CodewhispererLanguage
+        }
+        leftFileContent: string
+        rightFileContent: string
+    },
+    inlineParams: InlineCompletionWithReferencesParams,
+    sessionManager: SessionManager,
+    cursorTracker: CursorTracker,
+    recentEditsTracker: RecentEditTracker,
+    ideCategory: string,
+    logging: Logging,
+    config: any
+): {
+    predictionTypes: PredictionTypes
+    completions: QInlineTrigger | undefined
+    edits: NepTrigger | undefined
+} {
+    const predictionTypes: PredictionTypes = []
+    const inlineTrigger = shouldTriggerCompletions(fileContext, inlineParams, sessionManager, ideCategory, logging)
+    const editsEnabled: boolean = config.editsEnabled === true
+    const editsTrigger = shouldTriggerEdits(
+        service,
+        fileContext,
+        inlineParams,
+        cursorTracker,
+        recentEditsTracker,
+        editsEnabled
+    )
+
+    if (inlineTrigger) {
+        predictionTypes.push('COMPLETIONS')
+    }
+    if (editsTrigger) {
+        predictionTypes.push('EDITS')
+    }
+
+    return {
+        predictionTypes: predictionTypes,
+        completions: inlineTrigger,
+        edits: editsTrigger,
+    }
+}
+
+export function shouldTriggerEdits(
+    service: CodeWhispererServiceBase,
+    fileContext: {
+        fileUri: string
+        filename: string
+        programmingLanguage: {
+            languageName: CodewhispererLanguage
+        }
+        leftFileContent: string
+        rightFileContent: string
+    },
+    inlineParams: InlineCompletionWithReferencesParams,
+    cursorTracker: CursorTracker,
+    recentEditsTracker: RecentEditTracker,
+    editsEnabled: boolean
+): NepTrigger | undefined {
+    if (!editsEnabled) {
+        return undefined
+    }
+    // edits type suggestion is only implemented in bearer token based IDE for now, we dont want to expose such suggestions to other platforms
+    if (!(service instanceof CodeWhispererServiceToken)) {
+        return undefined
+    }
+
+    const documentChangeParams = inlineParams.documentChangeParams
+    const hasDocChangedParams =
+        documentChangeParams?.contentChanges &&
+        documentChangeParams.contentChanges.length > 0 &&
+        documentChangeParams.contentChanges[0].text !== undefined
+
+    // if the client does not emit document change for the trigger, use left most character.
+    const triggerCharacters = hasDocChangedParams
+        ? documentChangeParams.contentChanges[0].text
+        : (fileContext.leftFileContent.trim().at(-1) ?? '')
+
+    const res = editPredictionAutoTrigger({
+        fileContext: fileContext,
+        lineNum: inlineParams.position.line,
+        char: triggerCharacters,
+        cursorHistory: cursorTracker,
+        recentEdits: recentEditsTracker,
+    })
+
+    if (res.shouldTrigger) {
+        return new NepTrigger()
+    } else {
+        return undefined
+    }
+}
+
+export function shouldTriggerCompletions(
     fileContext: {
         fileUri: string
         filename: string

@@ -25,7 +25,6 @@ import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage, safeGet } from '../../shared/utils'
 import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
-import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
@@ -52,8 +51,9 @@ import {
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
 } from './telemetry'
-import { ClassifierAutoTrigger, QAutoTrigger, shouldTriggerInline } from './trigger'
+import { ClassifierAutoTrigger, QAutoTrigger, shouldTriggerSuggestion } from './trigger'
 import { editPredictionAutoTrigger } from './auto-trigger/editPredictionAutoTrigger'
+import { PredictionTypes } from '../../client/token/codewhispererbearertokenclient'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
@@ -116,8 +116,10 @@ export const CodewhispererServerFactory =
         const clientMetadata = lsp.getClientInitializeParams()
         const ideCategory: string | undefined = clientMetadata ? getIdeCategory(clientMetadata) : ''
 
-        let lastUserModificationTime: number
-        let timeSinceLastUserModification: number = 0
+        // Trackers for monitoring edits and cursor position.
+        const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
+        const cursorTracker = CursorTracker.getInstance()
+        const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
 
         const sessionManager = SessionManager.getInstance()
 
@@ -136,10 +138,9 @@ export const CodewhispererServerFactory =
         let userWrittenCodeTracker: UserWrittenCodeTracker | undefined
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
-        // Trackers for monitoring edits and cursor position.
-        const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
-        const cursorTracker = CursorTracker.getInstance()
-        const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
+        let lastUserModificationTime: number
+        let timeSinceLastUserModification: number = 0
+
         let editsEnabled = false
         let isOnInlineCompletionHandlerInProgress = false
 
@@ -229,18 +230,23 @@ export const CodewhispererServerFactory =
                         ? workspaceState.workspaceId
                         : undefined
 
-                    const qInlineTrigger = shouldTriggerInline(
+                    const qSuggestionTrigger = shouldTriggerSuggestion(
+                        codeWhispererService,
                         fileContext,
                         params,
                         sessionManager,
+                        cursorTracker,
+                        recentEditTracker,
                         ideCategory,
-                        logging
+                        logging,
+                        { editsEnabled: editsEnabled }
                     )
 
-                    if (
-                        !qInlineTrigger &&
-                        !(editsEnabled && codeWhispererService instanceof CodeWhispererServiceToken) // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
-                    ) {
+                    const qInlineTrigger = qSuggestionTrigger.completions
+                    const qEditsTrigger = qSuggestionTrigger.edits
+                    const predictionTypes = qSuggestionTrigger.predictionTypes
+
+                    if (predictionTypes.length === 0) {
                         return EMPTY_RESULT
                     }
 
@@ -248,63 +254,31 @@ export const CodewhispererServerFactory =
                         fileContext,
                         maxResults,
                     }
+                    requestContext.predictionTypes = predictionTypes
 
-                    if (codeWhispererService instanceof CodeWhispererServiceToken) {
-                        if (editsEnabled) {
-                            const predictionTypes: string[][] = []
-
-                            /**
-                             * Manual trigger - should always have 'Completions'
-                             * Auto trigger
-                             *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
-                             *  - Others - should always have 'Completions'
-                             */
-                            if (qInlineTrigger) {
-                                predictionTypes.push(['COMPLETIONS'])
-                            }
-
-                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
-                                fileContext: fileContext,
-                                lineNum: params.position.line,
-                                char: qInlineTrigger?.triggerCharacters ?? '',
-                                cursorHistory: cursorTracker,
-                                recentEdits: recentEditTracker,
-                            })
-
-                            if (editPredictionAutoTriggerResult.shouldTrigger) {
-                                predictionTypes.push(['EDITS'])
-                            }
-
-                            if (predictionTypes.length === 0) {
-                                return EMPTY_RESULT
-                            }
-
-                            if (predictionTypes.length === 2) {
-                                const indexToRemove = Math.floor(Math.random() * 2)
-                                predictionTypes.splice(indexToRemove, 1)
-                                logging.warn(`2 prediction types detected, reduce to 1 ${predictionTypes}`)
-                            }
-
-                            // Step 2: Prediction type COMPLETION, Edits or both
-                            requestContext.predictionTypes = predictionTypes.flat()
-
-                            // Step 3: Current Editor/Cursor state
-                            requestContext.editorState = {
-                                document: {
-                                    relativeFilePath: textDocument.uri,
-                                    programmingLanguage: {
-                                        languageName: requestContext.fileContext.programmingLanguage.languageName,
-                                    },
-                                    text: textDocument.getText(),
+                    if (qEditsTrigger) {
+                        requestContext.editorState = {
+                            document: {
+                                relativeFilePath: textDocument.uri,
+                                programmingLanguage: {
+                                    languageName: requestContext.fileContext.programmingLanguage.languageName,
                                 },
-                                cursorState: {
-                                    position: {
-                                        line: params.position.line,
-                                        character: params.position.character,
-                                    },
+                                text: textDocument.getText(),
+                            },
+                            cursorState: {
+                                position: {
+                                    line: params.position.line,
+                                    character: params.position.character,
                                 },
-                            }
+                            },
                         }
+                    }
+
+                    // TODO: how do we deal with 2
+                    if (predictionTypes.length === 2) {
+                        const indexToRemove = Math.floor(Math.random() * 2)
+                        predictionTypes.splice(indexToRemove, 1)
+                        logging.warn(`2 prediction types detected, reduce to 1 ${predictionTypes}`)
                     }
 
                     const supplementalContext = await codeWhispererService.constructSupplementalContext(
