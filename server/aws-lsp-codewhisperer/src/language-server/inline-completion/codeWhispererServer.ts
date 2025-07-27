@@ -13,13 +13,12 @@ import {
     LSPErrorCodes,
 } from '@aws/language-server-runtimes/server-interface'
 import {
-    CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     Suggestion,
     SuggestionType,
 } from '../../shared/codeWhispererService'
-import { CodewhispererLanguage, getRuntimeLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
+import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
 import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
@@ -52,8 +51,6 @@ import {
     emitUserTriggerDecisionTelemetry,
 } from './telemetry'
 import { ClassifierAutoTrigger, QAutoTrigger, shouldTriggerSuggestion } from './trigger'
-import { editPredictionAutoTrigger } from './auto-trigger/editPredictionAutoTrigger'
-import { PredictionTypes } from '../../client/token/codewhispererbearertokenclient'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
@@ -171,6 +168,10 @@ export const CodewhispererServerFactory =
                     cursorTracker.trackPosition(params.textDocument.uri, params.position)
                 }
                 const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+                if (!textDocument) {
+                    logging.warn(`textDocument [${params.textDocument.uri}] not found`)
+                    return EMPTY_RESULT
+                }
 
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
                 if (params.partialResultToken && currentSession) {
@@ -178,15 +179,6 @@ export const CodewhispererServerFactory =
                     try {
                         const suggestionResponse = await codeWhispererService.generateSuggestions({
                             ...currentSession.requestContext,
-                            fileContext: {
-                                ...currentSession.requestContext.fileContext,
-                                leftFileContent: currentSession.requestContext.fileContext.leftFileContent
-                                    .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                    .replaceAll('\r\n', '\n'),
-                                rightFileContent: currentSession.requestContext.fileContext.rightFileContent
-                                    .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                    .replaceAll('\r\n', '\n'),
-                            },
                             nextToken: `${params.partialResultToken}`,
                         })
                         return await processSuggestionResponse(
@@ -198,173 +190,164 @@ export const CodewhispererServerFactory =
                     } catch (error) {
                         return handleSuggestionsErrors(error as Error, currentSession)
                     }
-                } else {
-                    // request for new session
-                    if (!textDocument) {
-                        logging.log(`textDocument [${params.textDocument.uri}] not found`)
-                        return EMPTY_RESULT
-                    }
+                }
 
-                    const inferredLanguageId = getSupportedLanguageId(textDocument)
-                    if (!inferredLanguageId) {
-                        logging.log(
-                            `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
+                // request for new session
+                const inferredLanguageId = getSupportedLanguageId(textDocument)
+                if (!inferredLanguageId) {
+                    logging.log(
+                        `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
+                    )
+                    return EMPTY_RESULT
+                }
+
+                // Build request context
+                const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
+                const maxResults = isAutomaticLspTriggerKind ? 1 : 5
+                const selectionRange = params.context.selectedCompletionInfo?.range
+                const fileContext = codeWhispererService.getFileContext({
+                    textDocument,
+                    inferredLanguageId,
+                    position: params.position,
+                    workspaceFolder: workspace.getWorkspaceFolder(textDocument.uri),
+                })
+
+                const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
+                const workspaceId = workspaceState?.webSocketClient?.isConnected()
+                    ? workspaceState.workspaceId
+                    : undefined
+
+                const qSuggestionTrigger = shouldTriggerSuggestion(
+                    codeWhispererService,
+                    fileContext,
+                    params,
+                    sessionManager,
+                    cursorTracker,
+                    recentEditTracker,
+                    ideCategory,
+                    logging,
+                    { editsEnabled: editsEnabled }
+                )
+
+                const qInlineTrigger = qSuggestionTrigger.completions
+                const qEditsTrigger = qSuggestionTrigger.edits
+                const predictionTypes = qSuggestionTrigger.predictionTypes
+
+                if (predictionTypes.length === 0) {
+                    return EMPTY_RESULT
+                }
+
+                const generateCompletionReq: GenerateSuggestionsRequest = {
+                    fileContext: fileContext,
+                    maxResults: maxResults,
+                    predictionTypes: predictionTypes,
+                    workspaceId: workspaceId,
+                }
+
+                if (qEditsTrigger) {
+                    generateCompletionReq.editorState = {
+                        document: {
+                            relativeFilePath: textDocument.uri,
+                            programmingLanguage: {
+                                languageName: generateCompletionReq.fileContext.programmingLanguage.languageName,
+                            },
+                            text: textDocument.getText(),
+                        },
+                        cursorState: {
+                            position: {
+                                line: params.position.line,
+                                character: params.position.character,
+                            },
+                        },
+                    }
+                }
+
+                // TODO: how do we deal with 2
+                if (predictionTypes.length === 2) {
+                    const indexToRemove = Math.floor(Math.random() * 2)
+                    predictionTypes.splice(indexToRemove, 1)
+                    logging.warn(`2 prediction types detected, reduce to 1 ${predictionTypes}`)
+                }
+
+                const supplementalContext = await codeWhispererService.constructSupplementalContext(
+                    textDocument,
+                    params.position,
+                    workspace,
+                    recentEditTracker,
+                    logging,
+                    token,
+                    {
+                        editsEnable: editsEnabled,
+                    }
+                )
+                if (supplementalContext) {
+                    generateCompletionReq.supplementalContexts = supplementalContext.items
+                }
+
+                // Close ACTIVE session and record Discard trigger decision immediately
+                if (currentSession && currentSession.state === 'ACTIVE') {
+                    if (editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
+                        const mergedSuggestions = mergeEditSuggestionsWithFileContext(
+                            currentSession,
+                            textDocument,
+                            fileContext
                         )
-                        return EMPTY_RESULT
-                    }
 
-                    // Build request context
-                    const isAutomaticLspTriggerKind =
-                        params.context.triggerKind == InlineCompletionTriggerKind.Automatic
-                    const maxResults = isAutomaticLspTriggerKind ? 1 : 5
-                    const selectionRange = params.context.selectedCompletionInfo?.range
-                    const fileContext = codeWhispererService.getFileContext({
-                        textDocument,
-                        inferredLanguageId,
-                        position: params.position,
-                        workspaceFolder: workspace.getWorkspaceFolder(textDocument.uri),
-                    })
-
-                    const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
-                    const workspaceId = workspaceState?.webSocketClient?.isConnected()
-                        ? workspaceState.workspaceId
-                        : undefined
-
-                    const qSuggestionTrigger = shouldTriggerSuggestion(
-                        codeWhispererService,
-                        fileContext,
-                        params,
-                        sessionManager,
-                        cursorTracker,
-                        recentEditTracker,
-                        ideCategory,
-                        logging,
-                        { editsEnabled: editsEnabled }
-                    )
-
-                    const qInlineTrigger = qSuggestionTrigger.completions
-                    const qEditsTrigger = qSuggestionTrigger.edits
-                    const predictionTypes = qSuggestionTrigger.predictionTypes
-
-                    if (predictionTypes.length === 0) {
-                        return EMPTY_RESULT
-                    }
-
-                    const generateCompletionReq: GenerateSuggestionsRequest = {
-                        fileContext: fileContext,
-                        maxResults: maxResults,
-                        predictionTypes: predictionTypes,
-                        workspaceId: workspaceId,
-                    }
-
-                    if (qEditsTrigger) {
-                        generateCompletionReq.editorState = {
-                            document: {
-                                relativeFilePath: textDocument.uri,
-                                programmingLanguage: {
-                                    languageName: generateCompletionReq.fileContext.programmingLanguage.languageName,
-                                },
-                                text: textDocument.getText(),
-                            },
-                            cursorState: {
-                                position: {
-                                    line: params.position.line,
-                                    character: params.position.character,
-                                },
-                            },
-                        }
-                    }
-
-                    // TODO: how do we deal with 2
-                    if (predictionTypes.length === 2) {
-                        const indexToRemove = Math.floor(Math.random() * 2)
-                        predictionTypes.splice(indexToRemove, 1)
-                        logging.warn(`2 prediction types detected, reduce to 1 ${predictionTypes}`)
-                    }
-
-                    const supplementalContext = await codeWhispererService.constructSupplementalContext(
-                        textDocument,
-                        params.position,
-                        workspace,
-                        recentEditTracker,
-                        logging,
-                        token,
-                        {
-                            editsEnable: editsEnabled,
-                        }
-                    )
-                    if (supplementalContext) {
-                        generateCompletionReq.supplementalContexts = supplementalContext.items
-                    }
-
-                    // Close ACTIVE session and record Discard trigger decision immediately
-                    if (currentSession && currentSession.state === 'ACTIVE') {
-                        if (editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
-                            const mergedSuggestions = mergeEditSuggestionsWithFileContext(
-                                currentSession,
-                                textDocument,
-                                fileContext
-                            )
-
-                            if (mergedSuggestions.length > 0) {
-                                return {
-                                    items: mergedSuggestions,
-                                    sessionId: currentSession.id,
-                                }
+                        if (mergedSuggestions.length > 0) {
+                            return {
+                                items: mergedSuggestions,
+                                sessionId: currentSession.id,
                             }
                         }
-                        // Emit user trigger decision at session close time for active session
-                        sessionManager.discardSession(currentSession)
-                        const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
-                        await emitUserTriggerDecisionTelemetry(
-                            telemetry,
-                            telemetryService,
-                            currentSession,
-                            timeSinceLastUserModification,
-                            0,
-                            0,
-                            [],
-                            [],
-                            streakLength
-                        )
                     }
+                    // Emit user trigger decision at session close time for active session
+                    sessionManager.discardSession(currentSession)
+                    const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                    await emitUserTriggerDecisionTelemetry(
+                        telemetry,
+                        telemetryService,
+                        currentSession,
+                        timeSinceLastUserModification,
+                        0,
+                        0,
+                        [],
+                        [],
+                        streakLength
+                    )
+                }
 
-                    const newSession = sessionManager.createSession({
-                        document: textDocument,
-                        startPosition: params.position,
-                        triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
-                        language: fileContext.programmingLanguage.languageName,
-                        requestContext: generateCompletionReq,
-                        autoTriggerType:
-                            qInlineTrigger instanceof QAutoTrigger ? qInlineTrigger.triggerType : undefined,
-                        triggerCharacter: qInlineTrigger?.triggerCharacters,
-                        classifierResult:
-                            qInlineTrigger instanceof ClassifierAutoTrigger
-                                ? qInlineTrigger.classifierScore
-                                : undefined,
-                        classifierThreshold:
-                            qInlineTrigger instanceof ClassifierAutoTrigger
-                                ? qInlineTrigger.classifierThreshold
-                                : undefined,
-                        credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
-                        supplementalMetadata: supplementalContext?.supContextData,
-                        customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
-                    })
+                const newSession = sessionManager.createSession({
+                    document: textDocument,
+                    startPosition: params.position,
+                    triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
+                    language: fileContext.programmingLanguage.languageName,
+                    requestContext: generateCompletionReq,
+                    autoTriggerType: qInlineTrigger instanceof QAutoTrigger ? qInlineTrigger.triggerType : undefined,
+                    triggerCharacter: qInlineTrigger?.triggerCharacters,
+                    classifierResult:
+                        qInlineTrigger instanceof ClassifierAutoTrigger ? qInlineTrigger.classifierScore : undefined,
+                    classifierThreshold:
+                        qInlineTrigger instanceof ClassifierAutoTrigger
+                            ? qInlineTrigger.classifierThreshold
+                            : undefined,
+                    credentialStartUrl: credentialsProvider.getConnectionMetadata?.()?.sso?.startUrl ?? undefined,
+                    supplementalMetadata: supplementalContext?.supContextData,
+                    customizationArn: textUtils.undefinedIfEmpty(codeWhispererService.customizationArn),
+                })
 
-                    // TODO: What's this???
-                    // Add extra context to request context
-                    const { extraContext } = amazonQServiceManager.getConfiguration().inlineSuggestions
-                    if (extraContext) {
-                        generateCompletionReq.fileContext.leftFileContent =
-                            extraContext + '\n' + generateCompletionReq.fileContext.leftFileContent
-                    }
+                // TODO: What's this???
+                // Add extra context to request context
+                const { extraContext } = amazonQServiceManager.getConfiguration().inlineSuggestions
+                if (extraContext) {
+                    generateCompletionReq.fileContext.leftFileContent =
+                        extraContext + '\n' + generateCompletionReq.fileContext.leftFileContent
+                }
 
-                    try {
-                        const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
-                        return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
-                    } catch (error) {
-                        return handleSuggestionsErrors(error as Error, newSession)
-                    }
+                try {
+                    const suggestionResponse = await codeWhispererService.generateSuggestions(generateCompletionReq)
+                    return await processSuggestionResponse(suggestionResponse, newSession, true, selectionRange)
+                } catch (error) {
+                    return handleSuggestionsErrors(error as Error, newSession)
                 }
             } finally {
                 isOnInlineCompletionHandlerInProgress = false

@@ -90,6 +90,7 @@ export function shouldTriggerSuggestion(
         inlineParams,
         cursorTracker,
         recentEditsTracker,
+        sessionManager,
         editsEnabled
     )
 
@@ -121,6 +122,7 @@ export function shouldTriggerEdits(
     inlineParams: InlineCompletionWithReferencesParams,
     cursorTracker: CursorTracker,
     recentEditsTracker: RecentEditTracker,
+    sessionManager: SessionManager,
     editsEnabled: boolean
 ): NepTrigger | undefined {
     if (!editsEnabled) {
@@ -142,10 +144,12 @@ export function shouldTriggerEdits(
         ? documentChangeParams.contentChanges[0].text
         : (fileContext.leftFileContent.trim().at(-1) ?? '')
 
+    const previousDecision = sessionManager.getPreviousSession()?.getAggregatedUserTriggerDecision()
     const res = editPredictionAutoTrigger({
         fileContext: fileContext,
         lineNum: inlineParams.position.line,
         char: triggerCharacters,
+        previousDecision: previousDecision ?? '',
         cursorHistory: cursorTracker,
         recentEdits: recentEditsTracker,
     })

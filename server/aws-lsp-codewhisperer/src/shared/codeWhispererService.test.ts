@@ -9,6 +9,9 @@ import {
     Workspace,
     Logging,
     SDKInitializator,
+    TextDocument,
+    Position,
+    CancellationToken,
 } from '@aws/language-server-runtimes/server-interface'
 import { ConfigurationOptions } from 'aws-sdk'
 import * as sinon from 'sinon'
@@ -20,6 +23,9 @@ import {
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
 } from './codeWhispererService'
+import { RecentEditTracker } from '../language-server/inline-completion/tracker/codeEditTracker'
+import { CodeWhispererSupplementalContext } from './models/model'
+import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 
 describe('CodeWhispererService', function () {
     let sandbox: sinon.SinonSandbox
@@ -78,6 +84,24 @@ describe('CodeWhispererService', function () {
 
                 get testCodeWhispererEndpoint() {
                     return this.codeWhispererEndpoint
+                }
+
+                async constructSupplementalContext(
+                    document: TextDocument,
+                    position: Position,
+                    workspace: Workspace,
+                    recentEditTracker: RecentEditTracker,
+                    logging: Logging,
+                    cancellationToken: CancellationToken,
+                    config: any
+                ): Promise<
+                    | {
+                          supContextData: CodeWhispererSupplementalContext
+                          items: CodeWhispererTokenClient.SupplementalContextList
+                      }
+                    | undefined
+                > {
+                    return undefined
                 }
 
                 async generateCompletionsAndEdits(): Promise<GenerateSuggestionsResponse> {

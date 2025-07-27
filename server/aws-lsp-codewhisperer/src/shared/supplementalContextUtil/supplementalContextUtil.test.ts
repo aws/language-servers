@@ -64,14 +64,7 @@ describe('fetchSupplementalContext', function () {
             strategy: 'OpenTabs_BM25',
         }
 
-        const result = await fetchSupplementalContext(
-            document,
-            position,
-            workspace,
-            logging,
-            cancellationToken,
-            amazonQServiceManager
-        )
+        const result = await fetchSupplementalContext(document, position, workspace, logging, cancellationToken)
 
         assert.deepStrictEqual(result, expectedContext)
     })
@@ -79,14 +72,7 @@ describe('fetchSupplementalContext', function () {
     it('should return undefined for test files', async function () {
         isTestFileStub.returns(true)
 
-        const result = await fetchSupplementalContext(
-            document,
-            position,
-            workspace,
-            logging,
-            cancellationToken,
-            amazonQServiceManager
-        )
+        const result = await fetchSupplementalContext(document, position, workspace, logging, cancellationToken)
 
         assert.strictEqual(result, undefined)
     })
@@ -105,14 +91,7 @@ describe('fetchSupplementalContext', function () {
             supplementalContextItems: [],
         }
 
-        const result = await fetchSupplementalContext(
-            document,
-            position,
-            workspace,
-            logging,
-            cancellationToken,
-            amazonQServiceManager
-        )
+        const result = await fetchSupplementalContext(document, position, workspace, logging, cancellationToken)
 
         assert.deepStrictEqual(result, expectedContext)
     })
@@ -121,14 +100,7 @@ describe('fetchSupplementalContext', function () {
         isTestFileStub.returns(false)
         crossFileContextStub.throws(new Error('Some error'))
 
-        const result = await fetchSupplementalContext(
-            document,
-            position,
-            workspace,
-            logging,
-            cancellationToken,
-            amazonQServiceManager
-        )
+        const result = await fetchSupplementalContext(document, position, workspace, logging, cancellationToken)
 
         assert.strictEqual(result, undefined)
         sinon.assert.calledWithMatch(
@@ -154,14 +126,7 @@ describe('fetchSupplementalContext', function () {
             strategy: 'Empty',
         })
 
-        const result = await fetchSupplementalContext(
-            document,
-            position,
-            workspace,
-            logging,
-            cancellationToken,
-            amazonQServiceManager
-        )
+        const result = await fetchSupplementalContext(document, position, workspace, logging, cancellationToken)
 
         const expectedContext: CodeWhispererSupplementalContext = {
             isUtg: false,
