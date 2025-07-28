@@ -2143,6 +2143,10 @@
                 }
             }
         },
+        "Currency": {
+            "type": "string",
+            "enum": ["USD"]
+        },
         "CursorState": {
             "type": "structure",
             "members": {
@@ -2981,6 +2985,31 @@
             "min": 0,
             "sensitive": true
         },
+        "FreeTrialInfo": {
+            "type": "structure",
+            "members": {
+                "freeTrialStatus": {
+                    "shape": "FreeTrialStatus",
+                    "documentation": "<p>Status of the free trial for this customer</p>"
+                },
+                "freeTrialExpiry": {
+                    "shape": "Timestamp",
+                    "documentation": "<p>Unix timestamp of free trial expiry in seconds</p>"
+                },
+                "currentUsage": {
+                    "shape": "Integer",
+                    "documentation": "<p>Current free trial usage</p>"
+                },
+                "usageLimit": {
+                    "shape": "Integer",
+                    "documentation": "<p>Free trial usage limit</p>"
+                }
+            }
+        },
+        "FreeTrialStatus": {
+            "type": "string",
+            "enum": ["ACTIVE", "EXPIRED"]
+        },
         "FunctionalityName": {
             "type": "string",
             "enum": [
@@ -3279,6 +3308,10 @@
                 "userInfo": {
                     "shape": "UserInfo",
                     "documentation": "<p>User Information</p>"
+                },
+                "freeTrialInfo": {
+                    "shape": "FreeTrialInfo",
+                    "documentation": "<p>User's free trial info</p>"
                 }
             }
         },
@@ -5030,6 +5063,7 @@
                 "Q_DEVELOPER_STANDALONE_FREE",
                 "Q_DEVELOPER_STANDALONE_PRO_PLUS",
                 "Q_DEVELOPER_STANDALONE",
+                "Q_DEVELOPER_STANDALONE_PRO",
                 "Q_DEVELOPER_STANDALONE_POWER"
             ]
         },
@@ -6213,7 +6247,7 @@
         },
         "UsageBreakdown": {
             "type": "structure",
-            "required": ["currentUsage", "currentOverages", "usageLimit", "overageCharges"],
+            "required": ["currentUsage", "currentOverages", "usageLimit", "overageCharges", "currency"],
             "members": {
                 "resourceType": {
                     "shape": "ResourceType",
@@ -6239,6 +6273,10 @@
                     "shape": "Double",
                     "documentation": "<p>Total overage charges</p>"
                 },
+                "currency": {
+                    "shape": "Currency",
+                    "documentation": "<p>The currency used for overage charges</p>"
+                },
                 "overageRate": {
                     "shape": "Double",
                     "documentation": "<p>Overage rate for the resource per 1 unit</p>"
@@ -6246,6 +6284,14 @@
                 "nextDateReset": {
                     "shape": "Timestamp",
                     "documentation": "<p>The next reset date in UTC timezone.</p>"
+                },
+                "overageCap": {
+                    "shape": "Integer",
+                    "documentation": "<p>The maximum amount of usage allowed beyond the included quota in a billing period</p>"
+                },
+                "freeTrialInfo": {
+                    "shape": "FreeTrialInfo",
+                    "documentation": "<p>User's free trial info</p>"
                 }
             }
         },

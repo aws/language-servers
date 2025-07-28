@@ -634,6 +634,7 @@ declare namespace CodeWhispererBearerTokenClient {
   export interface CreateWorkspaceResponse {
     workspace: WorkspaceMetadata;
   }
+  export type Currency = "USD"|string;
   export interface CursorState {
     /**
      * Represents a cursor position in a Text Document
@@ -920,6 +921,25 @@ declare namespace CodeWhispererBearerTokenClient {
     userIntent?: UserIntent;
   }
   export type FollowupPromptContentString = string;
+  export interface FreeTrialInfo {
+    /**
+     * Status of the free trial for this customer
+     */
+    freeTrialStatus?: FreeTrialStatus;
+    /**
+     * Unix timestamp of free trial expiry in seconds
+     */
+    freeTrialExpiry?: Timestamp;
+    /**
+     * Current free trial usage
+     */
+    currentUsage?: Integer;
+    /**
+     * Free trial usage limit
+     */
+    usageLimit?: Integer;
+  }
+  export type FreeTrialStatus = "ACTIVE"|"EXPIRED"|string;
   export type FunctionalityName = "COMPLETIONS"|"ANALYSIS"|"CONVERSATIONS"|"TASK_ASSIST"|"TRANSFORMATIONS"|"CHAT_CUSTOMIZATION"|"TRANSFORMATIONS_WEBAPP"|"FEATURE_DEVELOPMENT"|string;
   export interface GenerateCompletionsRequest {
     fileContext: FileContext;
@@ -1029,6 +1049,10 @@ declare namespace CodeWhispererBearerTokenClient {
      * User Information
      */
     userInfo?: UserInfo;
+    /**
+     * User's free trial info
+     */
+    freeTrialInfo?: FreeTrialInfo;
   }
   export interface GitState {
     /**
@@ -1610,7 +1634,7 @@ declare namespace CodeWhispererBearerTokenClient {
     type: SubscriptionType;
   }
   export type SubscriptionStatus = "INACTIVE"|"ACTIVE"|string;
-  export type SubscriptionType = "Q_DEVELOPER_STANDALONE_FREE"|"Q_DEVELOPER_STANDALONE_PRO_PLUS"|"Q_DEVELOPER_STANDALONE"|"Q_DEVELOPER_STANDALONE_POWER"|string;
+  export type SubscriptionType = "Q_DEVELOPER_STANDALONE_FREE"|"Q_DEVELOPER_STANDALONE_PRO_PLUS"|"Q_DEVELOPER_STANDALONE"|"Q_DEVELOPER_STANDALONE_PRO"|"Q_DEVELOPER_STANDALONE_POWER"|string;
   export interface SuggestedFix {
     codeDiff?: SuggestedFixCodeDiffString;
     description?: SuggestedFixDescriptionString;
@@ -2024,6 +2048,10 @@ declare namespace CodeWhispererBearerTokenClient {
      */
     overageCharges: Double;
     /**
+     * The currency used for overage charges
+     */
+    currency: Currency;
+    /**
      * Overage rate for the resource per 1 unit
      */
     overageRate?: Double;
@@ -2031,6 +2059,14 @@ declare namespace CodeWhispererBearerTokenClient {
      * The next reset date in UTC timezone.
      */
     nextDateReset?: Timestamp;
+    /**
+     * The maximum amount of usage allowed beyond the included quota in a billing period
+     */
+    overageCap?: Integer;
+    /**
+     * User's free trial info
+     */
+    freeTrialInfo?: FreeTrialInfo;
   }
   export type UsageBreakdownList = UsageBreakdown[];
   export type UsageBreakdownUnitString = string;
