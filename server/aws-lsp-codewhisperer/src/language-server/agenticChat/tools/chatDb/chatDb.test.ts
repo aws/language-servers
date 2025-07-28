@@ -85,7 +85,7 @@ describe('ChatDatabase', () => {
             assert.strictEqual(messages.length, 2)
             assert.strictEqual(messages[0].body, summaryMessage.body)
             assert.strictEqual(messages[0].type, 'prompt')
-            assert.strictEqual(messages[1].body, 'Thinking...')
+            assert.strictEqual(messages[1].body, 'Working...')
             assert.strictEqual(messages[1].type, 'answer')
             assert.strictEqual(messages[1].shouldDisplayMessage, false)
         })

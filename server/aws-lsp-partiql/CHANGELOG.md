@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.15](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.14...lsp-partiql/v0.0.15) (2025-07-17)
+
+
+### Bug Fixes
+
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
 ## [0.0.14](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.13...lsp-partiql/v0.0.14) (2025-06-26)
 
 

@@ -107,6 +107,7 @@ import {
     OpenFileDialogParams,
     OPEN_FILE_DIALOG_METHOD,
     OpenFileDialogResult,
+    EXECUTE_SHELL_COMMAND_SHORTCUT_METHOD,
     SUBSCRIPTION_DETAILS_NOTIFICATION_METHOD,
     SubscriptionDetailsParams,
 } from '@aws/language-server-runtimes-types'
@@ -132,6 +133,7 @@ type ChatClientConfig = Pick<MynahUIDataModel, 'quickActionCommands'> & {
     agenticMode?: boolean
     modelSelectionEnabled?: boolean
     stringOverrides?: Partial<ConfigTexts>
+    os?: string
 }
 
 export const createChat = (
@@ -185,6 +187,9 @@ export const createChat = (
         }
 
         switch (message?.command) {
+            case EXECUTE_SHELL_COMMAND_SHORTCUT_METHOD:
+                mynahApi.executeShellCommandShortCut(message.params)
+                break
             case CHAT_REQUEST_METHOD:
                 mynahApi.addChatResponse(message.params, message.tabId, message.isPartialResult)
                 break
@@ -291,6 +296,10 @@ export const createChat = (
                     tabFactory.enableReroute()
                 }
 
+                if ((params as any)?.codeReviewInChat) {
+                    tabFactory.enableCodeReviewInChat()
+                }
+
                 if (params?.quickActions?.quickActionsCommandGroups) {
                     const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
                         ...group,
@@ -312,6 +321,10 @@ export const createChat = (
 
                 if (params?.export) {
                     tabFactory.enableExport()
+                }
+
+                if (params?.showLogs) {
+                    tabFactory.enableShowLogs()
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()
@@ -543,7 +556,8 @@ export const createChat = (
         chatClientAdapter,
         featureConfig,
         !!config?.agenticMode,
-        config?.stringOverrides
+        config?.stringOverrides,
+        config?.os
     )
 
     mynahApi = api

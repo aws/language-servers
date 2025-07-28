@@ -24,7 +24,8 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
-import * as ignoreWalk from 'ignore-walk'
+import { promises as fs } from 'fs'
+import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 import ignore = require('ignore')
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
@@ -379,19 +380,6 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
     return credentials.token
 }
 
-export function getIAMCredentialsFromProvider(credentialsProvider: CredentialsProvider) {
-    if (!credentialsProvider.hasCredentials('iam')) {
-        throw new Error('Missing IAM creds')
-    }
-
-    const credentials = credentialsProvider.getCredentials('iam') as Credentials
-    return {
-        accessKeyId: credentials.accessKeyId,
-        secretAccessKey: credentials.secretAccessKey,
-        sessionToken: credentials.sessionToken,
-    }
-}
-
 export function getOriginFromClientInfo(clientName: string | undefined): Origin {
     if (clientName?.startsWith('AmazonQ-For-SMUS-IDE')) {
         return 'MD_IDE'
@@ -513,36 +501,54 @@ export function hasConnectionExpired(error: any) {
 }
 
 /**
-  Lists files in a directory while respecting .gitignore.
+  Lists files in a directory respecting gitignore and npmignore rules.
   @param directory The absolute path of root directory.
-  @param limit The maximum number of files to return.
   @returns A promise that resolves to an array of absolute file paths.
  */
 export async function listFilesWithGitignore(directory: string): Promise<string[]> {
-    const commonIgnore = ignore().add(COMMON_GITIGNORE_PATTERNS)
+    let ignorePatterns: string[] = [...COMMON_GITIGNORE_PATTERNS]
 
+    // Process .gitignore
+    const gitignorePath = path.join(directory, '.gitignore')
     try {
-        let ignoreWalkFiles = await ignoreWalk({
-            path: directory,
-            // Use multiple ignore files
-            ignoreFiles: ['.gitignore', '.npmignore'],
-            // Additional options
-            follow: false, // follow symlinks
-            includeEmpty: false, // exclude empty directories
-        })
-        // hard limit of 500k files to avoid hitting memory limit
-        ignoreWalkFiles = ignoreWalkFiles.slice(0, 500_000)
-
-        // apply common gitignore in case some build system like Brazil
-        // generates a lot of temp files that is not in Gitignore.
-        ignoreWalkFiles = commonIgnore.filter(ignoreWalkFiles)
-
-        const absolutePaths = ignoreWalkFiles.map(file => path.join(directory, file))
-        return absolutePaths
-    } catch (error) {
-        console.error('Error gathering files:', error)
-        return []
+        const gitignoreContent = await fs.readFile(gitignorePath, { encoding: 'utf8' })
+        ignorePatterns = ignorePatterns.concat(
+            gitignoreContent
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+        )
+    } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+            console.log('Preindexing walk: gitIgnore file could not be read', err)
+        }
     }
+
+    // Process .npmignore
+    const npmignorePath = path.join(directory, '.npmignore')
+    try {
+        const npmignoreContent = await fs.readFile(npmignorePath, { encoding: 'utf8' })
+        ignorePatterns = ignorePatterns.concat(
+            npmignoreContent
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+        )
+    } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+            console.log('Preindexing walk: npmIgnore file could not be read', err)
+        }
+    }
+
+    const absolutePaths = await fg(['**/*'], {
+        cwd: directory,
+        dot: true,
+        ignore: ignorePatterns,
+        onlyFiles: false,
+        followSymbolicLinks: false,
+        absolute: true,
+    })
+    return absolutePaths.slice(0, 500_000)
 }
 
 export function getFileExtensionName(filepath: string): string {

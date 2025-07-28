@@ -15,8 +15,8 @@ export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
 export const DEFAULT_MODEL_ID = BedrockModel.CLAUDE_SONNET_4_20250514_V1_0
 
 // Compaction
-export const COMPACTION_BODY =
-    'The context window is almost full (80%). Amazon Q can compact your chat history to improve response quality.'
+export const COMPACTION_BODY = (threshold: number) =>
+    `The context window is almost full (${threshold}%) and exceeding it will clear your history. Amazon Q can compact your history instead.`
 export const COMPACTION_HEADER_BODY = 'Compact chat history?'
 export const COMPACTION_PROMPT = `
 [SYSTEM NOTE: This is an automated summarization request, not from the user]\n\n
@@ -88,3 +88,11 @@ export const DEFAULT_LINUX_STOP_SHORTCUT = 'Meta + &#8679; + &#9003;'
 export const DEFAULT_MACOS_REJECT_SHORTCUT = '&#8679; &#8984; R'
 export const DEFAULT_WINDOW_REJECT_SHORTCUT = 'Ctrl + &#8679; + R'
 export const DEFAULT_LINUX_REJECT_SHORTCUT = 'Meta + &#8679; + R'
+
+// Warning Message Constants
+export const DESTRUCTIVE_COMMAND_WARNING_MSG = 'WARNING: Potentially destructive command detected:\n\n'
+export const MUTATE_COMMAND_WARNING_MSG = 'Mutation command:\n\n'
+export const OUT_OF_WORKSPACE_WARNING_MSG = 'Execution out of workspace scope:\n\n'
+export const CREDENTIAL_FILE_WARNING_MSG =
+    'WARNING: Command involves credential files that require secure permissions:\n\n'
+export const BINARY_FILE_WARNING_MSG = 'WARNING: Command involves binary files that require secure permissions:\n\n'

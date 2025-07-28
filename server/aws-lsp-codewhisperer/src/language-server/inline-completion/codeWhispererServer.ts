@@ -9,15 +9,12 @@ import {
     Position,
     Range,
     Server,
-    Telemetry,
     TextDocument,
     ResponseError,
     LSPErrorCodes,
     WorkspaceFolder,
-    IdeDiagnostic,
 } from '@aws/language-server-runtimes/server-interface'
-import { AWSError } from 'aws-sdk'
-import { autoTrigger, getAutoTriggerType, triggerType } from './auto-trigger/autoTrigger'
+import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
@@ -29,14 +26,7 @@ import { CodewhispererLanguage, getRuntimeLanguage, getSupportedLanguageId } fro
 import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
-import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
-import {
-    getCompletionType,
-    getEndPositionForAcceptedSuggestion,
-    getErrorMessage,
-    isAwsError,
-    safeGet,
-} from '../../shared/utils'
+import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage, safeGet } from '../../shared/utils'
 import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
 import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
@@ -47,10 +37,7 @@ import {
     AmazonQServiceConnectionExpiredError,
     AmazonQServiceInitializationError,
 } from '../../shared/amazonQServiceManager/errors'
-import {
-    AmazonQBaseServiceManager,
-    QServiceManagerFeatures,
-} from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
+import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { hasConnectionExpired } from '../../shared/utils'
@@ -63,6 +50,12 @@ import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/cod
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 import { getAddedAndDeletedChars } from './diffUtils'
+import {
+    emitPerceivedLatencyTelemetry,
+    emitServiceInvocationFailure,
+    emitServiceInvocationTelemetry,
+    emitUserTriggerDecisionTelemetry,
+} from './telemetry'
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
@@ -107,154 +100,6 @@ const getFileContext = (params: {
         leftFileContent: left,
         rightFileContent: right,
     }
-}
-
-const emitServiceInvocationTelemetry = (telemetry: Telemetry, session: CodeWhispererSession, requestId: string) => {
-    const duration = new Date().getTime() - session.startTime
-    const data: CodeWhispererServiceInvocationEvent = {
-        codewhispererRequestId: requestId,
-        codewhispererSessionId: session.responseContext?.codewhispererSessionId,
-        codewhispererLastSuggestionIndex: session.suggestions.length - 1,
-        codewhispererCompletionType:
-            session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]) : undefined,
-        codewhispererTriggerType: session.triggerType,
-        codewhispererAutomatedTriggerType: session.autoTriggerType,
-        duration,
-        codewhispererLineNumber: session.startPosition.line,
-        codewhispererCursorOffset: session.startPosition.character,
-        codewhispererLanguage: session.language,
-        credentialStartUrl: session.credentialStartUrl,
-        codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
-        codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
-        codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
-        codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
-        codewhispererCustomizationArn: session.customizationArn,
-        result: 'Succeeded',
-        codewhispererImportRecommendationEnabled: session.includeImportsWithSuggestions,
-    }
-    telemetry.emitMetric({
-        name: 'codewhisperer_serviceInvocation',
-        result: 'Succeeded',
-        data: {
-            ...data,
-            codewhispererImportRecommendationEnabled: session.includeImportsWithSuggestions,
-        },
-    })
-}
-
-const emitServiceInvocationFailure = (telemetry: Telemetry, session: CodeWhispererSession, error: Error | AWSError) => {
-    const duration = new Date().getTime() - session.startTime
-    const codewhispererRequestId = isAwsError(error) ? error.requestId : undefined
-
-    const data: CodeWhispererServiceInvocationEvent = {
-        codewhispererRequestId: codewhispererRequestId,
-        codewhispererSessionId: undefined,
-        codewhispererLastSuggestionIndex: -1,
-        codewhispererTriggerType: session.triggerType,
-        codewhispererAutomatedTriggerType: session.autoTriggerType,
-        reason: `CodeWhisperer Invocation Exception: ${error.name || 'UnknownError'}`,
-        duration,
-        codewhispererLineNumber: session.startPosition.line,
-        codewhispererCursorOffset: session.startPosition.character,
-        codewhispererLanguage: session.language,
-        credentialStartUrl: session.credentialStartUrl,
-        codewhispererSupplementalContextTimeout: session.supplementalMetadata?.isProcessTimeout,
-        codewhispererSupplementalContextIsUtg: session.supplementalMetadata?.isUtg,
-        codewhispererSupplementalContextLatency: session.supplementalMetadata?.latency,
-        codewhispererSupplementalContextLength: session.supplementalMetadata?.contentsLength,
-        codewhispererCustomizationArn: session.customizationArn,
-        codewhispererImportRecommendationEnabled: session.includeImportsWithSuggestions,
-        result: 'Failed',
-        traceId: 'notSet',
-    }
-
-    telemetry.emitMetric({
-        name: 'codewhisperer_serviceInvocation',
-        result: 'Failed',
-        data,
-        errorData: {
-            reason: error.name || 'UnknownError',
-            errorCode: isAwsError(error) ? error.code : undefined,
-            httpStatusCode: isAwsError(error) ? error.statusCode : undefined,
-        },
-    })
-}
-
-const emitPerceivedLatencyTelemetry = (telemetry: Telemetry, session: CodeWhispererSession) => {
-    const data: CodeWhispererPerceivedLatencyEvent = {
-        codewhispererRequestId: session.responseContext?.requestId,
-        codewhispererSessionId: session.responseContext?.codewhispererSessionId,
-        codewhispererCompletionType:
-            session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]) : undefined,
-        codewhispererTriggerType: session.triggerType,
-        duration: session.firstCompletionDisplayLatency,
-        codewhispererLanguage: session.language,
-        credentialStartUrl: session.credentialStartUrl,
-        codewhispererCustomizationArn: session.customizationArn,
-        result: 'Succeeded',
-        passive: true,
-    }
-
-    telemetry.emitMetric({
-        name: 'codewhisperer_perceivedLatency',
-        data,
-    })
-}
-
-const emitUserTriggerDecisionTelemetry = async (
-    telemetry: Telemetry,
-    telemetryService: TelemetryService,
-    session: CodeWhispererSession,
-    timeSinceLastUserModification?: number,
-    addedCharsCountForEditSuggestion?: number,
-    deletedCharsCountForEditSuggestion?: number,
-    addedIdeDiagnostics?: IdeDiagnostic[],
-    removedIdeDiagnostics?: IdeDiagnostic[],
-    streakLength?: number
-) => {
-    // Prevent reporting user decision if it was already sent
-    if (session.reportedUserDecision) {
-        return
-    }
-
-    // Can not emit previous trigger decision if it's not available on the session
-    if (!session.getAggregatedUserTriggerDecision()) {
-        return
-    }
-
-    await emitAggregatedUserTriggerDecisionTelemetry(
-        telemetryService,
-        session,
-        timeSinceLastUserModification,
-        addedCharsCountForEditSuggestion,
-        deletedCharsCountForEditSuggestion,
-        addedIdeDiagnostics,
-        removedIdeDiagnostics,
-        streakLength
-    )
-
-    session.reportedUserDecision = true
-}
-
-const emitAggregatedUserTriggerDecisionTelemetry = (
-    telemetryService: TelemetryService,
-    session: CodeWhispererSession,
-    timeSinceLastUserModification?: number,
-    addedCharsCountForEditSuggestion?: number,
-    deletedCharsCountForEditSuggestion?: number,
-    addedIdeDiagnostics?: IdeDiagnostic[],
-    removedIdeDiagnostics?: IdeDiagnostic[],
-    streakLength?: number
-) => {
-    return telemetryService.emitUserTriggerDecision(
-        session,
-        timeSinceLastUserModification,
-        addedCharsCountForEditSuggestion,
-        deletedCharsCountForEditSuggestion,
-        addedIdeDiagnostics,
-        removedIdeDiagnostics,
-        streakLength
-    )
 }
 
 const mergeSuggestionsWithRightContext = (
@@ -313,8 +158,6 @@ export const CodewhispererServerFactory =
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
-        // Threshold to avoid getting the same suggestion type due to unexpected issue
-        const timeSinceCloseTimeEditStreakThreshold: number = 2000
 
         const sessionManager = SessionManager.getInstance()
 
@@ -444,8 +287,6 @@ export const CodewhispererServerFactory =
 
                     const previousSession = sessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
-                    const previousSuggestionType = previousSession?.suggestionType ?? ''
-                    const previousCloseTime = previousSession?.closeTime
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
@@ -464,7 +305,7 @@ export const CodewhispererServerFactory =
                             lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
                             char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                             ide: ideCategory ?? '',
-                            os: '', // TODO: We should get this in a platform-agnostic way (i.e., compatible with the browser)
+                            os: getNormalizeOsName(),
                             previousDecision, // The last decision by the user on the previous invocation
                             triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                         },
@@ -515,42 +356,33 @@ export const CodewhispererServerFactory =
                         if (editsEnabled) {
                             const predictionTypes: string[][] = []
 
+                            /**
+                             * Manual trigger - should always have 'Completions'
+                             * Auto trigger
+                             *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
+                             *  - Others - should always have 'Completions'
+                             */
                             if (
-                                previousDecision === 'Accept' &&
-                                previousSuggestionType === SuggestionType.EDIT &&
-                                previousCloseTime &&
-                                new Date().getTime() - previousCloseTime < timeSinceCloseTimeEditStreakThreshold
+                                !isAutomaticLspTriggerKind ||
+                                (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
+                                (isAutomaticLspTriggerKind &&
+                                    codewhispererAutoTriggerType === 'Classifier' &&
+                                    autoTriggerResult.shouldTrigger)
                             ) {
+                                predictionTypes.push(['COMPLETIONS'])
+                            }
+
+                            const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
+                                fileContext: fileContext,
+                                lineNum: params.position.line,
+                                char: triggerCharacters,
+                                previousDecision: previousDecision,
+                                cursorHistory: cursorTracker,
+                                recentEdits: recentEditTracker,
+                            })
+
+                            if (editPredictionAutoTriggerResult.shouldTrigger) {
                                 predictionTypes.push(['EDITS'])
-                            } else {
-                                /**
-                                 * Manual trigger - should always have 'Completions'
-                                 * Auto trigger
-                                 *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
-                                 *  - Others - should always have 'Completions'
-                                 */
-                                if (
-                                    !isAutomaticLspTriggerKind ||
-                                    (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
-                                    (isAutomaticLspTriggerKind &&
-                                        codewhispererAutoTriggerType === 'Classifier' &&
-                                        autoTriggerResult.shouldTrigger)
-                                ) {
-                                    predictionTypes.push(['COMPLETIONS'])
-                                }
-
-                                const editPredictionAutoTriggerResult = editPredictionAutoTrigger({
-                                    fileContext: fileContext,
-                                    lineNum: params.position.line,
-                                    char: triggerCharacters,
-                                    previousDecision: previousDecision,
-                                    cursorHistory: cursorTracker,
-                                    recentEdits: recentEditTracker,
-                                })
-
-                                if (editPredictionAutoTriggerResult.shouldTrigger) {
-                                    predictionTypes.push(['EDITS'])
-                                }
                             }
 
                             if (predictionTypes.length === 0) {
@@ -588,7 +420,7 @@ export const CodewhispererServerFactory =
                                 document: {
                                     relativeFilePath: textDocument.uri,
                                     programmingLanguage: {
-                                        languageName: textDocument.languageId,
+                                        languageName: requestContext.fileContext.programmingLanguage.languageName,
                                     },
                                     text: textDocument.getText(),
                                 },
@@ -748,7 +580,10 @@ export const CodewhispererServerFactory =
             }
 
             // session was closed by user already made decisions consequent completion request before new paginated API response was received
-            if (session.state === 'CLOSED' || session.state === 'DISCARD') {
+            if (
+                session.suggestionType !== SuggestionType.EDIT && // TODO: this is a shorterm fix to allow Edits tabtabtab experience, however the real solution is to manage such sessions correctly
+                (session.state === 'CLOSED' || session.state === 'DISCARD')
+            ) {
                 return EMPTY_RESULT
             }
 

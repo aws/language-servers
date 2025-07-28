@@ -31,6 +31,20 @@ export function enabledReroute(params: InitializeParams | undefined): boolean {
     return qCapabilities?.reroute || false
 }
 
+export function enabledCodeReviewInChat(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.codeReviewInChat || false
+}
+
+export function enableShortcut(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.shortcut || false
+}
+
 export const QAgenticChatServer =
     // prettier-ignore
     (): Server => features => {
@@ -45,6 +59,9 @@ export const QAgenticChatServer =
 
         lsp.addInitializer((params: InitializeParams) => {
             const rerouteEnabled = enabledReroute(params)
+            const codeReviewInChatEnabled = enabledCodeReviewInChat(params)
+            const quickActions = [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION, COMPACT_QUICK_ACTION]
+            const shortcutEnabled = enableShortcut(params)
             
             const subscriptionDetailsEnabled = isSubscriptionDetailsEnabled(params)
 
@@ -64,7 +81,7 @@ export const QAgenticChatServer =
                         quickActions: {
                             quickActionsCommandGroups: [
                                 {
-                                    commands: [HELP_QUICK_ACTION, CLEAR_QUICK_ACTION, COMPACT_QUICK_ACTION],
+                                    commands: quickActions,
                                 },
                             ],
                         },
@@ -73,7 +90,10 @@ export const QAgenticChatServer =
                         modelSelection: true,
                         history: true,
                         export: TabBarController.enableChatExport(params),
+                        shortcut: shortcutEnabled,
+                        showLogs: TabBarController.enableShowLogs(params),
                         reroute: rerouteEnabled,
+                        codeReviewInChat: codeReviewInChatEnabled,
                         subscriptionDetails: subscriptionDetailsEnabled,
                     },
                 },

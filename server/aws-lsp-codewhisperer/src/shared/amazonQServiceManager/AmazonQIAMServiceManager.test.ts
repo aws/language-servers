@@ -42,8 +42,9 @@ describe('AmazonQIAMServiceManager', () => {
         })
 
         it('should initialize the streaming client only once', () => {
-            // Mock getIAMCredentialsFromProvider to return dummy credentials
-            const getIAMCredentialsStub = sinon.stub(utils, 'getIAMCredentialsFromProvider').returns({
+            // Mock the credentials provider to return credentials when requested
+            features.credentialsProvider.hasCredentials.withArgs('iam').returns(true)
+            features.credentialsProvider.getCredentials.withArgs('iam').returns({
                 accessKeyId: 'dummy-access-key',
                 secretAccessKey: 'dummy-secret-key',
                 sessionToken: 'dummy-session-token',
@@ -51,9 +52,8 @@ describe('AmazonQIAMServiceManager', () => {
 
             const streamingClient = serviceManager.getStreamingClient()
 
+            // Verify that getting the client again returns the same instance
             deepStrictEqual(serviceManager.getStreamingClient(), streamingClient)
-
-            getIAMCredentialsStub.restore()
         })
     })
 })

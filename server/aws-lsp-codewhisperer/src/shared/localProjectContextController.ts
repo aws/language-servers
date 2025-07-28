@@ -272,10 +272,7 @@ export class LocalProjectContextController {
     public async queryInlineProjectContext(
         request: QueryInlineProjectContextRequestV2
     ): Promise<InlineProjectContext[]> {
-        if (!this.isIndexingEnabled()) {
-            return []
-        }
-
+        // inline project context is available for all users regardless of local indexing enabled or disabled
         try {
             const resp = await this._vecLib?.queryInlineProjectContext(request.query, request.filePath, request.target)
             return resp ?? []
