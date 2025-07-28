@@ -134,23 +134,6 @@ describe('ListAllAvailableProfiles Handler', () => {
                 assert.ok(hasCompleteErrorLogging, 'Should log complete error object in debug logs')
             }
         })
-
-        it('should log endpoint information during profile fetching', async () => {
-            await handler({
-                connectionType: 'identityCenter',
-                logging,
-                endpoints: SOME_AWS_Q_ENDPOINT,
-                token: tokenSource.token,
-            })
-
-            // Verify that endpoint information is logged
-            sinon.assert.called(logging.debug)
-            const debugCalls = logging.debug.getCalls()
-            const hasEndpointLogging = debugCalls.some(
-                call => call.args[0].includes('endpoint') && call.args[0].includes(DEFAULT_AWS_Q_ENDPOINT_URL)
-            )
-            assert.ok(hasEndpointLogging, 'Should log endpoint information')
-        })
     })
 
     describe('Pagination', () => {

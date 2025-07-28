@@ -58,7 +58,7 @@ export const getListAllAvailableProfilesHandler =
             Array.from(qEndpoints.entries(), ([region, endpoint]) => {
                 logging.log(`Creating service client for region: ${region}`)
                 const codeWhispererService = service(region, endpoint)
-                return fetchProfilesFromRegion(codeWhispererService, region, endpoint, logging, token)
+                return fetchProfilesFromRegion(codeWhispererService, region, logging, token)
             })
         )
 
@@ -119,7 +119,6 @@ export const getListAllAvailableProfilesHandler =
 async function fetchProfilesFromRegion(
     service: CodeWhispererServiceToken,
     region: string,
-    endpoint: string,
     logging: Logging,
     token: CancellationToken
 ): Promise<AmazonQDeveloperProfile[]> {
