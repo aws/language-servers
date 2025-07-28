@@ -227,7 +227,7 @@ import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../sha
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
-import { GetUsageLimitsResponse, UserContext } from '../../client/token/codewhispererbearertokenclient'
+import { GetUsageLimitsResponse, UsageBreakdown, UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { isSubscriptionDetailsEnabled } from '../subscription/subscriptionUtils'
 
@@ -3978,19 +3978,17 @@ export class AgenticChatController implements ChatHandlers {
     async onShowSubscription(): Promise<void> {
         try {
             const serviceClient = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+            const usageLimitsresponse = await serviceClient.getUsageLimits({})
+            const agenticBreakdown = await this.getAgenticUsageBreakdown(usageLimitsresponse)
 
-            const response = await serviceClient.getUsageLimits({
-                resourceType: 'AGENTIC_REQUEST',
-            })
-
-            const overageEnabled = response.overageConfiguration?.overageStatus === 'ENABLED'
-            const nextResetDate = await this.getNextResetDate(response)
+            const overageEnabled = usageLimitsresponse.overageConfiguration?.overageStatus === 'ENABLED'
+            const nextResetDate = await this.getNextResetDate(agenticBreakdown)
 
             await this.#features.chat.sendSubscriptionDetails({
-                subscriptionTier: response.subscriptionInfo?.type ?? 'Free Tier',
-                queryLimit: response.usageBreakdown?.usageLimit ?? 0,
-                queryUsage: response.usageBreakdown?.currentUsage ?? 0,
-                queryOverage: response.usageBreakdown?.overageCharges ?? 0,
+                subscriptionTier: usageLimitsresponse.subscriptionInfo?.type ?? 'Free Tier',
+                queryLimit: agenticBreakdown.usageLimit ?? 0,
+                queryUsage: agenticBreakdown.currentUsage ?? 0,
+                queryOverage: agenticBreakdown.overageCharges ?? 0,
                 subscriptionPeriodReset: nextResetDate,
                 isOverageEnabled: overageEnabled,
             })
@@ -4000,9 +3998,9 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    async getNextResetDate(response: GetUsageLimitsResponse): Promise<Date> {
-        if (response.usageBreakdown?.nextDateReset) {
-            return new Date(response.usageBreakdown.nextDateReset)
+    async getNextResetDate(usageBreakdown: UsageBreakdown): Promise<Date> {
+        if (usageBreakdown?.nextDateReset) {
+            return new Date(usageBreakdown.nextDateReset)
         } else {
             // Fallback to 1st of next month in UTC
             const nextReset = new Date()
@@ -4013,19 +4011,28 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async getAgenticUsageBreakdown(usageLimitsresponse: GetUsageLimitsResponse) {
+        const agenticBreakdown = usageLimitsresponse.usageBreakdownList?.find(
+            breakdown => breakdown.resourceType === 'AGENTIC_REQUEST'
+        )
+
+        if (!agenticBreakdown) {
+            throw new Error('AGENTIC_REQUEST usage breakdown not found')
+        }
+        return agenticBreakdown
+    }
+
     async handleIdcRequestLimitReached(tabId: string, err: any): Promise<ChatResult | ResponseError<ChatResult>> {
         try {
             const serviceClient = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
-
-            const response = await serviceClient.getUsageLimits({
-                resourceType: 'AGENTIC_REQUEST',
-            })
+            const usageLimitsresponse = await serviceClient.getUsageLimits({})
+            const agenticBreakdown = await this.getAgenticUsageBreakdown(usageLimitsresponse)
 
             const chatParams: ChatUpdateParams = {
                 tabId: tabId ?? '',
             }
 
-            const nextResetDate = await this.getNextResetDate(response)
+            const nextResetDate = await this.getNextResetDate(agenticBreakdown)
             const formattedResetDate = `${(nextResetDate.getMonth() + 1).toString().padStart(2, '0')}/${nextResetDate.getDate().toString().padStart(2, '0')}`
 
             // Special flag recognized by `chat-client/src/client/mynahUi.ts`.

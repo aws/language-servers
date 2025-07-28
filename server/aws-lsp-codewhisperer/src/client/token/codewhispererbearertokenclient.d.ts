@@ -634,6 +634,7 @@ declare namespace CodeWhispererBearerTokenClient {
   export interface CreateWorkspaceResponse {
     workspace: WorkspaceMetadata;
   }
+  export type Currency = "USD"|string;
   export interface CursorState {
     /**
      * Represents a cursor position in a Text Document
@@ -920,6 +921,25 @@ declare namespace CodeWhispererBearerTokenClient {
     userIntent?: UserIntent;
   }
   export type FollowupPromptContentString = string;
+  export interface FreeTrialInfo {
+    /**
+     * Status of the free trial for this customer
+     */
+    freeTrialStatus?: FreeTrialStatus;
+    /**
+     * Unix timestamp of free trial expiry in seconds
+     */
+    freeTrialExpiry?: Timestamp;
+    /**
+     * Current free trial usage
+     */
+    currentUsage?: Integer;
+    /**
+     * Free trial usage limit
+     */
+    usageLimit?: Integer;
+  }
+  export type FreeTrialStatus = "ACTIVE"|"EXPIRED"|string;
   export type FunctionalityName = "COMPLETIONS"|"ANALYSIS"|"CONVERSATIONS"|"TASK_ASSIST"|"TRANSFORMATIONS"|"CHAT_CUSTOMIZATION"|"TRANSFORMATIONS_WEBAPP"|"FEATURE_DEVELOPMENT"|string;
   export interface GenerateCompletionsRequest {
     fileContext: FileContext;
@@ -1004,15 +1024,19 @@ declare namespace CodeWhispererBearerTokenClient {
     resourceType?: ResourceType;
   }
   export interface GetUsageLimitsResponse {
-    limits: UsageLimits;
+    limits?: UsageLimits;
     /**
      * Number of days remaining until the usage metrics reset
      */
-    daysUntilReset: Integer;
+    daysUntilReset?: Integer;
     /**
      * Usage breakdown by SKU type
      */
     usageBreakdown?: UsageBreakdown;
+    /**
+     * List of usage by resource type
+     */
+    usageBreakdownList?: UsageBreakdownList;
     /**
      * Subscription Info
      */
@@ -1021,6 +1045,14 @@ declare namespace CodeWhispererBearerTokenClient {
      * Overage Configuration
      */
     overageConfiguration?: OverageConfiguration;
+    /**
+     * User Information
+     */
+    userInfo?: UserInfo;
+    /**
+     * User's free trial info
+     */
+    freeTrialInfo?: FreeTrialInfo;
   }
   export interface GitState {
     /**
@@ -1424,7 +1456,7 @@ declare namespace CodeWhispererBearerTokenClient {
     effect: ResourcePolicyEffect;
   }
   export type ResourcePolicyEffect = "ALLOW"|"DENY"|string;
-  export type ResourceType = "AGENTIC_REQUEST"|string;
+  export type ResourceType = "AGENTIC_REQUEST"|"VIBE"|"SPEC"|string;
   export interface ResumeTransformationRequest {
     transformationJobId: TransformationJobId;
     userActionStatus?: TransformationUserActionStatus;
@@ -1602,7 +1634,7 @@ declare namespace CodeWhispererBearerTokenClient {
     type: SubscriptionType;
   }
   export type SubscriptionStatus = "INACTIVE"|"ACTIVE"|string;
-  export type SubscriptionType = "Q_DEVELOPER_STANDALONE"|"Q_DEVELOPER_STANDALONE_FREE"|"Q_DEVELOPER_STANDALONE_PRO_PLUS"|string;
+  export type SubscriptionType = "Q_DEVELOPER_STANDALONE_FREE"|"Q_DEVELOPER_STANDALONE_PRO_PLUS"|"Q_DEVELOPER_STANDALONE"|"Q_DEVELOPER_STANDALONE_PRO"|"Q_DEVELOPER_STANDALONE_POWER"|string;
   export interface SuggestedFix {
     codeDiff?: SuggestedFixCodeDiffString;
     description?: SuggestedFixDescriptionString;
@@ -1992,6 +2024,10 @@ declare namespace CodeWhispererBearerTokenClient {
   export type Url = string;
   export interface UsageBreakdown {
     /**
+     * The resource or dimension being billed, e.g. VIBE or SPEC
+     */
+    resourceType?: ResourceType;
+    /**
      * Current usage count for the billing period
      */
     currentUsage: Integer;
@@ -2004,14 +2040,36 @@ declare namespace CodeWhispererBearerTokenClient {
      */
     usageLimit: Integer;
     /**
+     * Unit of measurement for the resource, e.g. INVOCATIONS
+     */
+    unit?: UsageBreakdownUnitString;
+    /**
      * Total overage charges
      */
     overageCharges: Double;
     /**
+     * The currency used for overage charges
+     */
+    currency: Currency;
+    /**
+     * Overage rate for the resource per 1 unit
+     */
+    overageRate?: Double;
+    /**
      * The next reset date in UTC timezone.
      */
     nextDateReset?: Timestamp;
+    /**
+     * The maximum amount of usage allowed beyond the included quota in a billing period
+     */
+    overageCap?: Integer;
+    /**
+     * User's free trial info
+     */
+    freeTrialInfo?: FreeTrialInfo;
   }
+  export type UsageBreakdownList = UsageBreakdown[];
+  export type UsageBreakdownUnitString = string;
   export interface UsageLimitList {
     type: UsageLimitType;
     currentUsage: Long;
@@ -2029,6 +2087,10 @@ declare namespace CodeWhispererBearerTokenClient {
     ideVersion?: String;
   }
   export type UserContextProductString = string;
+  export interface UserInfo {
+    userId: String;
+    email: SensitiveString;
+  }
   export interface UserInputMessage {
     /**
      * The content of the chat message.
