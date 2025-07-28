@@ -35,6 +35,7 @@ import { RecentEditTracker } from '../language-server/inline-completion/tracker/
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 import { getRelativePath } from '../language-server/workspaceContext/util'
 import path = require('path')
+import { applyPatch } from 'diff'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -269,6 +270,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
+    private cache: Map<string, GenerateSuggestionsResponse> = new Map()
+
     constructor(
         private credentialsProvider: CredentialsProvider,
         workspace: Workspace,
@@ -404,10 +407,64 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             : undefined
     }
 
+    /**
+     *
+     */
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
-        const isCompletionRequest =
-            request.predictionTypes === undefined ||
-            (request.predictionTypes.length > 0 && request.predictionTypes[0] === SuggestionType.COMPLETION)
+        const predictionTypes = request.predictionTypes
+        if (!predictionTypes) {
+            if (this.inflightRequests.size !== 0) {
+                this.logging.warn(`client throttled generate completion request`)
+                throw new Error('client throttled')
+            }
+            return await this.gc(request)
+        }
+
+        if (predictionTypes.includes('EDITS') && this.cache.has(request.fileContext.filename)) {
+            const cachedResponse = this.cache.get(request.fileContext.filename)
+            // TODO: && suggestion can be applied
+            if (cachedResponse) {
+                return cachedResponse
+            }
+        }
+
+        /**
+         * If suggestion types contains both completion and edits
+         * 1. Make completion request if there is no in-flight completion request
+         * 2. Make edit request in a debounced fashion (merged with other edit requests) in parallel and save the edit suggestion to cache once client ide pull suggestion from here
+         */
+        if (
+            predictionTypes.length === 2 &&
+            predictionTypes.includes(SuggestionType.COMPLETION) &&
+            predictionTypes.includes(SuggestionType.EDIT)
+        ) {
+            const completionRequest = {
+                ...request,
+                predictionTypes: [SuggestionType.COMPLETION],
+            }
+            const editRequest = {
+                ...request,
+                predictionTypes: [SuggestionType.EDIT],
+            }
+
+            if (this.inflightRequests.size === 0) {
+                const completionResponse = await this.gc(completionRequest)
+                this.debouncedGc(editRequest)
+                    .then(res => {
+                        this.cache.set(editRequest.fileContext.filename, res)
+                    })
+                    .catch(e => {})
+                return completionResponse
+            } else {
+                this.debouncedGc(editRequest)
+                    .then(res => {
+                        this.cache.set(editRequest.fileContext.filename, res)
+                    })
+                    .catch(e => {})
+            }
+        }
+
+        const isCompletionRequest = predictionTypes.includes(SuggestionType.COMPLETION)
 
         if (isCompletionRequest && this.inflightRequests.size !== 0) {
             this.logging.warn(`client throttled generate completion request`)
@@ -415,12 +472,15 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         }
 
         if (isCompletionRequest) {
-            return this.gc(request)
+            return await this.gc(request)
         }
 
+        return await this.debouncedGc(request)
+    }
+
+    private debouncedGc(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         const task = cancellableDebounce(
             () => {
-                this.logging.info(`inflight request count: ${this.inflightRequests.size} before making new request`)
                 return this.gc(request)
             },
             500,
