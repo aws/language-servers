@@ -7,9 +7,10 @@ import { CredentialsType } from '@aws/language-server-runtimes/server-interface'
 import { AWSError, ConfigurationOptions } from 'aws-sdk'
 import * as sinon from 'sinon'
 import * as assert from 'assert'
-import { CodeWhispererServiceBase, GenerateSuggestionsResponse } from './codeWhispererServiceBase'
 import { PromiseResult } from 'aws-sdk/lib/request'
 import {
+    CodeWhispererServiceBase,
+    GenerateSuggestionsResponse,
     CreateUploadUrlRequest,
     CreateUploadUrlResponse,
     StartTransformationRequest,
@@ -39,7 +40,9 @@ import {
     DeleteWorkspaceResponse,
     ListFeatureEvaluationsRequest,
     ListFeatureEvaluationsResponse,
-} from '../../client/token/codewhispererbearertokenclient'
+    CreateSubscriptionTokenRequest,
+    CreateSubscriptionTokenResponse,
+} from './codeWhispererServiceBase'
 
 describe('CodeWhispererServiceBase', function () {
     // Create the environment
@@ -158,6 +161,11 @@ describe('CodeWhispererServiceBase', function () {
             override listFeatureEvaluations(
                 request: ListFeatureEvaluationsRequest
             ): Promise<PromiseResult<ListFeatureEvaluationsResponse, AWSError>> {
+                throw new Error('Method not implemented.')
+            }
+            override createSubscriptionToken(
+                request: CreateSubscriptionTokenRequest
+            ): Promise<PromiseResult<CreateSubscriptionTokenResponse, AWSError>> {
                 throw new Error('Method not implemented.')
             }
         }

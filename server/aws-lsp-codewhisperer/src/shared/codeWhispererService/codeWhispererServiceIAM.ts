@@ -15,8 +15,40 @@ import CodeWhispererSigv4Client = require('../../client/sigv4/codewhisperersigv4
 import CodeWhispererTokenClient = require('../../client/token/codewhispererbearertokenclient')
 import {
     CodeWhispererServiceBase,
+    CreateSubscriptionTokenRequest,
+    CreateSubscriptionTokenResponse,
+    CreateUploadUrlRequest,
+    CreateUploadUrlResponse,
+    CreateWorkspaceRequest,
+    CreateWorkspaceResponse,
+    DeleteWorkspaceRequest,
+    DeleteWorkspaceResponse,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
+    GetCodeAnalysisRequest,
+    GetCodeAnalysisResponse,
+    GetTransformationPlanRequest,
+    GetTransformationPlanResponse,
+    GetTransformationRequest,
+    GetTransformationResponse,
+    ListAvailableCustomizationsRequest,
+    ListAvailableCustomizationsResponse,
+    ListAvailableProfilesRequest,
+    ListAvailableProfilesResponse,
+    ListCodeAnalysisFindingsRequest,
+    ListCodeAnalysisFindingsResponse,
+    ListFeatureEvaluationsRequest,
+    ListFeatureEvaluationsResponse,
+    ListWorkspaceMetadataRequest,
+    ListWorkspaceMetadataResponse,
+    SendTelemetryEventRequest,
+    SendTelemetryEventResponse,
+    StartCodeAnalysisRequest,
+    StartCodeAnalysisResponse,
+    StartTransformationRequest,
+    StartTransformationResponse,
+    StopTransformationRequest,
+    StopTransformationResponse,
     Suggestion,
     SuggestionType,
 } from './codeWhispererServiceBase'
@@ -77,84 +109,93 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         }
     }
 
-    public async codeModernizerCreateUploadUrl(
-        request: CodeWhispererTokenClient.CreateUploadUrlRequest
-    ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {
+    async codeModernizerCreateUploadUrl(request: CreateUploadUrlRequest): Promise<CreateUploadUrlResponse> {
         throw new Error('Method not implemented.')
     }
-    public async codeModernizerStartCodeTransformation(
-        request: CodeWhispererTokenClient.StartTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StartTransformationResponse, AWSError>> {
+
+    async codeModernizerStartCodeTransformation(
+        request: StartTransformationRequest
+    ): Promise<PromiseResult<StartTransformationResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async codeModernizerStopCodeTransformation(
-        request: CodeWhispererTokenClient.StopTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StopTransformationResponse, AWSError>> {
+
+    async codeModernizerStopCodeTransformation(
+        request: StopTransformationRequest
+    ): Promise<PromiseResult<StopTransformationResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async codeModernizerGetCodeTransformation(
-        request: CodeWhispererTokenClient.GetTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationResponse, AWSError>> {
+
+    async codeModernizerGetCodeTransformation(
+        request: GetTransformationRequest
+    ): Promise<PromiseResult<GetTransformationResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async codeModernizerGetCodeTransformationPlan(
-        request: CodeWhispererTokenClient.GetTransformationPlanRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationPlanResponse, AWSError>> {
+
+    async codeModernizerGetCodeTransformationPlan(
+        request: GetTransformationPlanRequest
+    ): Promise<PromiseResult<GetTransformationPlanResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async createUploadUrl(
-        request: CodeWhispererTokenClient.CreateUploadUrlRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.CreateUploadUrlResponse, AWSError>> {
+
+    async createUploadUrl(request: CreateUploadUrlRequest): Promise<PromiseResult<CreateUploadUrlResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async startCodeAnalysis(
-        request: CodeWhispererTokenClient.StartCodeAnalysisRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StartCodeAnalysisResponse, AWSError>> {
+
+    async startCodeAnalysis(
+        request: StartCodeAnalysisRequest
+    ): Promise<PromiseResult<StartCodeAnalysisResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async getCodeAnalysis(
-        request: CodeWhispererTokenClient.GetCodeAnalysisRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetCodeAnalysisResponse, AWSError>> {
+
+    async getCodeAnalysis(request: GetCodeAnalysisRequest): Promise<PromiseResult<GetCodeAnalysisResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async listCodeAnalysisFindings(
-        request: CodeWhispererTokenClient.ListCodeAnalysisFindingsRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.ListCodeAnalysisFindingsResponse, AWSError>> {
+
+    async listCodeAnalysisFindings(
+        request: ListCodeAnalysisFindingsRequest
+    ): Promise<PromiseResult<ListCodeAnalysisFindingsResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async listAvailableCustomizations(
-        request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.ListAvailableCustomizationsResponse, AWSError>> {
+
+    async listAvailableCustomizations(
+        request: ListAvailableCustomizationsRequest
+    ): Promise<PromiseResult<ListAvailableCustomizationsResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async listAvailableProfiles(
-        request: CodeWhispererTokenClient.ListAvailableProfilesRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.ListAvailableProfilesRequest, AWSError>> {
+
+    async listAvailableProfiles(
+        request: ListAvailableProfilesRequest
+    ): Promise<PromiseResult<ListAvailableProfilesResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async sendTelemetryEvent(
-        request: CodeWhispererTokenClient.SendTelemetryEventRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.SendTelemetryEventResponse, AWSError>> {
+
+    async sendTelemetryEvent(
+        request: SendTelemetryEventRequest
+    ): Promise<PromiseResult<SendTelemetryEventResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async createWorkspace(
-        request: CodeWhispererTokenClient.CreateWorkspaceRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.CreateWorkspaceResponse, AWSError>> {
+
+    async createWorkspace(request: CreateWorkspaceRequest): Promise<PromiseResult<CreateWorkspaceResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async listWorkspaceMetadata(
-        request: CodeWhispererTokenClient.ListWorkspaceMetadataRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.ListWorkspaceMetadataResponse, AWSError>> {
+
+    async listWorkspaceMetadata(
+        request: ListWorkspaceMetadataRequest
+    ): Promise<PromiseResult<ListWorkspaceMetadataResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async deleteWorkspace(
-        request: CodeWhispererTokenClient.DeleteWorkspaceRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.DeleteWorkspaceResponse, AWSError>> {
+
+    async deleteWorkspace(request: DeleteWorkspaceRequest): Promise<PromiseResult<DeleteWorkspaceResponse, AWSError>> {
         throw new Error('Method not implemented.')
     }
-    public async listFeatureEvaluations(
-        request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.ListFeatureEvaluationsResponse, AWSError>> {
+
+    async listFeatureEvaluations(
+        request: ListFeatureEvaluationsRequest
+    ): Promise<PromiseResult<ListFeatureEvaluationsResponse, AWSError>> {
+        throw new Error('Method not implemented.')
+    }
+
+    async createSubscriptionToken(request: CreateSubscriptionTokenRequest): Promise<CreateSubscriptionTokenResponse> {
         throw new Error('Method not implemented.')
     }
 }
