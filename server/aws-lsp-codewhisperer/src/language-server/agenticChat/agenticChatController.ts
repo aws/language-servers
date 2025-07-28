@@ -24,7 +24,7 @@ import {
     GREP_SEARCH,
     FILE_SEARCH,
     EXECUTE_BASH,
-    Q_CODE_REVIEW,
+    CODE_REVIEW,
     BUTTON_RUN_SHELL_COMMAND,
     BUTTON_REJECT_SHELL_COMMAND,
     BUTTON_REJECT_MCP_TOOL,
@@ -108,6 +108,7 @@ import {
     ChatInteractionType,
     ChatTelemetryEventName,
     CombinedConversationEvent,
+    CompactHistoryActionType,
 } from '../../shared/telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from '../chat/chatEventParser'
@@ -138,7 +139,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
-import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
+import { ChatDatabase, MaxOverallCharacters, ToolResultValidationError } from './tools/chatDb/chatDb'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -188,6 +189,9 @@ import {
     DEFAULT_WINDOW_REJECT_SHORTCUT,
     DEFAULT_MACOS_STOP_SHORTCUT,
     DEFAULT_WINDOW_STOP_SHORTCUT,
+    OUT_OF_WORKSPACE_WARNING_MSG,
+    CREDENTIAL_FILE_WARNING_MSG,
+    BINARY_FILE_WARNING_MSG,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -200,8 +204,8 @@ import {
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
-import { QCodeReview } from './tools/qCodeAnalysis/qCodeReview'
-import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/qCodeReviewConstants'
+import { CodeReview } from './tools/qCodeAnalysis/codeReview'
+import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/codeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -213,7 +217,11 @@ import {
     PaidTierMode,
     qProName,
 } from '../paidTier/paidTier'
-import { Message as DbMessage, messageToStreamingMessage } from './tools/chatDb/util'
+import {
+    estimateCharacterCountFromImageBlock,
+    Message as DbMessage,
+    messageToStreamingMessage,
+} from './tools/chatDb/util'
 import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
@@ -243,6 +251,7 @@ type ChatHandlers = Omit<
     | 'onOpenFileDialog'
     | 'onListAvailableModels'
     | 'sendSubscriptionDetails'
+    | 'onSubscriptionUpgrade'
 >
 
 export class AgenticChatController implements ChatHandlers {
@@ -824,12 +833,6 @@ export class AgenticChatController implements ChatHandlers {
                 params.context,
                 params.tabId
             )
-            // Add image context to triggerContext.documentReference for transparency
-            await this.#additionalContextProvider.appendCustomContextToTriggerContext(
-                triggerContext,
-                params.context,
-                params.tabId
-            )
 
             let finalResult
             if (params.prompt.command === QuickAction.Compact) {
@@ -847,6 +850,7 @@ export class AgenticChatController implements ChatHandlers {
                     chatResultStream,
                     params.tabId,
                     promptId,
+                    CompactHistoryActionType.Manual,
                     session.conversationId,
                     token,
                     triggerContext.documentReference
@@ -877,7 +881,7 @@ export class AgenticChatController implements ChatHandlers {
                     session.conversationId,
                     token,
                     triggerContext.documentReference,
-                    additionalContext.filter(item => item.pinned)
+                    additionalContext
                 )
             }
 
@@ -893,7 +897,7 @@ export class AgenticChatController implements ChatHandlers {
             )
         } catch (err) {
             // HACK: the chat-client needs to have a partial event with the associated messageId sent before it can accept the final result.
-            // Without this, the `thinking` indicator never goes away.
+            // Without this, the `working` indicator never goes away.
             // Note: buttons being explicitly empty is required for this hack to work.
             const errorMessageId = `error-message-id-${uuid()}`
             await this.#sendProgressToClient(
@@ -938,7 +942,7 @@ export class AgenticChatController implements ChatHandlers {
         triggerContext: TriggerContext,
         additionalContext: AdditionalContentEntryAddition[],
         chatResultStream: AgenticChatResultStream,
-        customContext: ImageBlock[]
+        images: ImageBlock[]
     ): Promise<ChatCommandInput> {
         this.#debug('Preparing request input')
         // Get profileArn from the service manager if available
@@ -954,7 +958,7 @@ export class AgenticChatController implements ChatHandlers {
             additionalContext,
             session.modelId,
             this.#origin,
-            customContext
+            images
         )
         return requestInput
     }
@@ -998,6 +1002,7 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream,
         tabId: string,
         promptId: string,
+        type: CompactHistoryActionType,
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList
@@ -1071,6 +1076,15 @@ export class AgenticChatController implements ChatHandlers {
         }
         await resultStreamWriter.close()
 
+        session.setConversationType('AgenticChatWithCompaction')
+        const conversationType = session.getConversationType() as ChatConversationType
+        metric.setDimension('cwsprChatConversationType', conversationType)
+        this.#telemetryController.emitCompactHistory(
+            type,
+            characterCount,
+            this.#features.runtime.serverInfo.version ?? ''
+        )
+
         // Add loading message before making the request
         const loadingMessageId = `loading-${uuid()}`
         await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
@@ -1078,19 +1092,14 @@ export class AgenticChatController implements ChatHandlers {
         this.#debug(`Compacting history with ${characterCount} characters`)
         this.#llmRequestStartTime = Date.now()
         // Phase 3: Request Execution
-        // Note: these logs are very noisy, but contain information redacted on the backend.
-        this.#debug(
-            `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
-        )
+        this.#debug(`Compaction Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
         const response = await session.getChatResponse(currentRequestInput)
         if (response.$metadata.requestId) {
             metric.mergeWith({
                 requestIds: [response.$metadata.requestId],
             })
         }
-        this.#features.logging.info(
-            `generateAssistantResponse/SendMessage ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
-        )
+        this.#features.logging.info(`Compaction ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`)
         await chatResultStream.removeResultBlock(loadingMessageId)
 
         // Phase 4: Response Processing
@@ -1152,13 +1161,15 @@ export class AgenticChatController implements ChatHandlers {
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList,
-        pinnedContext?: AdditionalContentEntryAddition[]
+        additionalContext?: AdditionalContentEntryAddition[]
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         let currentRequestInput = { ...initialRequestInput }
         let finalResult: Result<AgenticChatResultWithMetadata, string> | null = null
         let iterationCount = 0
         let shouldDisplayMessage = true
         let currentRequestCount = 0
+        const pinnedContext = additionalContext?.filter(item => item.pinned)
+
         metric.recordStart()
         this.logSystemInformation()
         while (true) {
@@ -1175,7 +1186,7 @@ export class AgenticChatController implements ChatHandlers {
                 throw new CancellationError('user')
             }
 
-            this.truncateRequest(currentRequestInput, pinnedContext)
+            this.truncateRequest(currentRequestInput, additionalContext)
             const currentMessage = currentRequestInput.conversationState?.currentMessage
             const conversationId = conversationIdentifier ?? ''
             if (!currentMessage || !conversationId) {
@@ -1259,6 +1270,7 @@ export class AgenticChatController implements ChatHandlers {
                             shouldDisplayMessage &&
                             !currentMessage.userInputMessage?.content?.startsWith('You are Amazon Q'),
                         timestamp: new Date(),
+                        images: currentMessage.userInputMessage?.images,
                     })
                 }
             }
@@ -1431,7 +1443,7 @@ export class AgenticChatController implements ChatHandlers {
 
         if (this.#shouldCompact(currentRequestCount)) {
             const messageId = this.#getMessageIdForCompact(uuid())
-            const confirmationResult = this.#processCompactConfirmation(messageId)
+            const confirmationResult = this.#processCompactConfirmation(messageId, currentRequestCount)
             const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
             await this.waitForCompactApproval(messageId, chatResultStream, cachedButtonBlockId, session)
             // Get the compaction request input
@@ -1444,6 +1456,7 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream,
                 tabId,
                 promptId,
+                CompactHistoryActionType.Nudge,
                 session.conversationId,
                 token,
                 documentReference
@@ -1484,7 +1497,7 @@ export class AgenticChatController implements ChatHandlers {
      * Returns the remaining character budget for chat history.
      * @param request
      */
-    truncateRequest(request: ChatCommandInput, pinnedContext?: AdditionalContentEntryAddition[]): number {
+    truncateRequest(request: ChatCommandInput, additionalContext?: AdditionalContentEntryAddition[]): number {
         // TODO: Confirm if this limit applies to SendMessage and rename this constant
         let remainingCharacterBudget = GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT
         if (!request?.conversationState?.currentMessage?.userInputMessage) {
@@ -1505,22 +1518,69 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
 
-        // 2. try to fit @context into budget
-        let truncatedRelevantDocuments = []
+        // 2. try to fit @context and images into budget together
+        const docs =
+            request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
+                ?.relevantDocuments ?? []
+        const images = request.conversationState.currentMessage.userInputMessage.images ?? []
+
+        // Combine docs and images, preserving the order from additionalContext
+        let combined
+        if (additionalContext && additionalContext.length > 0) {
+            let docIdx = 0
+            let imageIdx = 0
+            combined = additionalContext
+                .map(entry => {
+                    if (entry.type === 'image') {
+                        return { type: 'image', value: images[imageIdx++] }
+                    } else {
+                        return { type: 'doc', value: docs[docIdx++] }
+                    }
+                })
+                .filter(item => item.value !== undefined)
+        } else {
+            combined = [
+                ...docs.map(d => ({ type: 'doc', value: d })),
+                ...images.map(i => ({ type: 'image', value: i })),
+            ]
+        }
+
+        const truncatedDocs: typeof docs = []
+        const truncatedImages: typeof images = []
+        for (const item of combined) {
+            let itemLength = 0
+            if (item.type === 'doc') {
+                itemLength = (item.value as any)?.text?.length || 0
+                if (remainingCharacterBudget >= itemLength) {
+                    truncatedDocs.push(item.value as (typeof docs)[number])
+                    remainingCharacterBudget -= itemLength
+                }
+            } else if (item.type === 'image') {
+                // Type guard: only call on ImageBlock
+                if (item.value && typeof item.value === 'object' && 'format' in item.value && 'source' in item.value) {
+                    itemLength = estimateCharacterCountFromImageBlock(item.value)
+                    if (remainingCharacterBudget >= itemLength) {
+                        truncatedImages.push(item.value as (typeof images)[number])
+                        remainingCharacterBudget -= itemLength
+                    }
+                }
+            }
+        }
+
+        // Assign truncated lists back to request
         if (
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext?.editorState
                 ?.relevantDocuments
         ) {
-            for (const relevantDoc of request.conversationState.currentMessage.userInputMessage.userInputMessageContext
-                ?.editorState?.relevantDocuments) {
-                const docLength = relevantDoc?.text?.length || 0
-                if (remainingCharacterBudget > docLength) {
-                    truncatedRelevantDocuments.push(relevantDoc)
-                    remainingCharacterBudget = remainingCharacterBudget - docLength
-                }
-            }
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.relevantDocuments =
-                truncatedRelevantDocuments
+                truncatedDocs
+        }
+
+        if (
+            request.conversationState.currentMessage.userInputMessage.images !== undefined &&
+            request.conversationState.currentMessage.userInputMessage.images.length > 0
+        ) {
+            request.conversationState.currentMessage.userInputMessage.images = truncatedImages
         }
 
         // 3. try to fit current file context
@@ -1538,6 +1598,8 @@ export class AgenticChatController implements ChatHandlers {
             request.conversationState.currentMessage.userInputMessage.userInputMessageContext.editorState.document =
                 truncatedCurrentDocument
         }
+
+        const pinnedContext = additionalContext?.filter(item => item.pinned)
 
         // 4. try to fit pinned context into budget
         if (pinnedContext && pinnedContext.length > 0) {
@@ -1652,9 +1714,9 @@ export class AgenticChatController implements ChatHandlers {
                         const tool = new Tool(this.#features)
 
                         // For MCP tools, get the permission from McpManager
-                        // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
+                        const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
                         // If permission is 'alwaysAllow', we don't need to ask for acceptance
-                        // const builtInPermission = permission !== 'alwaysAllow'
+                        const builtInPermission = permission !== 'alwaysAllow'
 
                         // Get the approved paths from the session
                         const approvedPaths = session.approvedPaths
@@ -1665,19 +1727,40 @@ export class AgenticChatController implements ChatHandlers {
                             approvedPaths
                         )
 
-                        // Honor built-in permission if available, otherwise use tool's requiresAcceptance
-                        // const requiresAcceptance = builtInPermission || toolRequiresAcceptance
+                        const isExecuteBash = toolUse.name === EXECUTE_BASH
 
-                        if (requiresAcceptance || toolUse.name === EXECUTE_BASH) {
+                        // check if tool execution's path is out of workspace
+                        const isOutOfWorkSpace = warning === OUT_OF_WORKSPACE_WARNING_MSG
+                        // check if tool involved secured files
+                        const isSecuredFilesInvoled =
+                            warning === BINARY_FILE_WARNING_MSG || warning === CREDENTIAL_FILE_WARNING_MSG
+
+                        // Honor built-in permission if available, otherwise use tool's requiresAcceptance
+                        let toolRequiresAcceptance =
+                            (builtInPermission || isOutOfWorkSpace || isSecuredFilesInvoled) ?? requiresAcceptance
+
+                        // if the command is read-only and in-workspace --> flip back to no approval needed
+                        if (
+                            isExecuteBash &&
+                            commandCategory === CommandCategory.ReadOnly &&
+                            !isOutOfWorkSpace &&
+                            !requiresAcceptance
+                        ) {
+                            toolRequiresAcceptance = false
+                        }
+
+                        if (toolRequiresAcceptance || isExecuteBash) {
                             // for executeBash, we till send the confirmation message without action buttons
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
-                                requiresAcceptance,
+                                toolRequiresAcceptance,
                                 warning,
-                                commandCategory
+                                commandCategory,
+                                toolUse.name,
+                                builtInPermission
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-                            const isExecuteBash = toolUse.name === EXECUTE_BASH
+
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -1688,7 +1771,7 @@ export class AgenticChatController implements ChatHandlers {
                                     this.#abTestingAllocation?.userVariation
                                 )
                             }
-                            if (requiresAcceptance) {
+                            if (toolRequiresAcceptance) {
                                 await this.waitForToolApproval(
                                     toolUse,
                                     chatResultStream,
@@ -1710,7 +1793,7 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
-                    case QCodeReview.toolName:
+                    case CodeReview.toolName:
                         // no need to write tool message for code review
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
@@ -1785,7 +1868,7 @@ export class AgenticChatController implements ChatHandlers {
                     })
                 }
 
-                if (toolUse.name === QCodeReview.toolName) {
+                if (toolUse.name === CodeReview.toolName) {
                     try {
                         let initialInput = JSON.parse(JSON.stringify(toolUse.input))
                         let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
@@ -1797,7 +1880,7 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         toolUse.input = initialInput
                     } catch (e) {
-                        this.#features.logging.warn(`could not parse QCodeReview tool input: ${e}`)
+                        this.#features.logging.warn(`could not parse CodeReview tool input: ${e}`)
                     }
                 }
 
@@ -1876,19 +1959,19 @@ export class AgenticChatController implements ChatHandlers {
                         )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
-                    case QCodeReview.toolName:
+                    case CodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
                         // Push result in message so that it is picked by IDE plugin to show in issues panel
-                        const qCodeReviewResult = result as InvokeOutput
+                        const codeReviewResult = result as InvokeOutput
                         if (
-                            qCodeReviewResult?.output?.kind === 'json' &&
-                            qCodeReviewResult.output.success &&
-                            (qCodeReviewResult.output.content as any)?.findingsByFile
+                            codeReviewResult?.output?.kind === 'json' &&
+                            codeReviewResult.output.success &&
+                            (codeReviewResult.output.content as any)?.findingsByFile
                         ) {
                             await chatResultStream.writeResultBlock({
                                 type: 'tool',
                                 messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
-                                body: (qCodeReviewResult.output.content as any).findingsByFile,
+                                body: (codeReviewResult.output.content as any).findingsByFile,
                             })
                         }
                         break
@@ -1922,7 +2005,8 @@ export class AgenticChatController implements ChatHandlers {
                         latency,
                         session.pairProgrammingMode,
                         this.#abTestingAllocation?.experimentName,
-                        this.#abTestingAllocation?.userVariation
+                        this.#abTestingAllocation?.userVariation,
+                        'Succeeded'
                     )
                 }
             } catch (err) {
@@ -1959,6 +2043,18 @@ export class AgenticChatController implements ChatHandlers {
                     if (toolUse.name === EXECUTE_BASH || toolUse.name) {
                         throw err
                     }
+                } else {
+                    // only emit if this is an actual tool error (not a user rejecting/canceling tool)
+                    this.#telemetryController.emitToolUseSuggested(
+                        toolUse,
+                        session.conversationId ?? '',
+                        this.#features.runtime.serverInfo.version ?? '',
+                        undefined,
+                        session.pairProgrammingMode,
+                        this.#abTestingAllocation?.experimentName,
+                        this.#abTestingAllocation?.userVariation,
+                        'Failed'
+                    )
                 }
 
                 // display fs write failure status in the UX of that file card
@@ -2197,7 +2293,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
-        if (toolUse.name === QCodeReview.toolName) {
+        if (toolUse.name === CodeReview.toolName) {
             return this.#getToolOverWritableStream(chatResultStream, toolUse)
         }
         if (toolUse.name !== EXECUTE_BASH) {
@@ -2210,7 +2306,7 @@ export class AgenticChatController implements ChatHandlers {
 
         const initialHeader: ChatMessage['header'] = {
             body: 'shell',
-            buttons: [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Stop', icon: 'stop' }],
+            buttons: [this.#renderStopShellCommandButton()],
         }
 
         const completedHeader: ChatMessage['header'] = {
@@ -2287,7 +2383,7 @@ export class AgenticChatController implements ChatHandlers {
                                   text: 'Rejected',
                               },
                           }),
-                    buttons: isAccept ? [{ id: BUTTON_STOP_SHELL_COMMAND, text: 'Stop', icon: 'stop' }] : [],
+                    buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
                 },
             }
         }
@@ -2394,7 +2490,7 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #processCompactConfirmation(messageId: string): ChatResult {
+    #processCompactConfirmation(messageId: string, characterCount: number): ChatResult {
         const buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
         const header = {
             icon: 'warning',
@@ -2402,7 +2498,7 @@ export class AgenticChatController implements ChatHandlers {
             body: COMPACTION_HEADER_BODY,
             buttons,
         } as any
-        const body = COMPACTION_BODY
+        const body = COMPACTION_BODY(Math.round((characterCount / MaxOverallCharacters) * 100))
         return {
             type: 'tool',
             messageId,
@@ -2463,7 +2559,7 @@ export class AgenticChatController implements ChatHandlers {
     #renderStopShellCommandButton() {
         const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
         return {
-            id: 'stop-shell-command',
+            id: BUTTON_STOP_SHELL_COMMAND,
             text: 'Stop',
             icon: 'stop',
             ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
@@ -2534,14 +2630,28 @@ export class AgenticChatController implements ChatHandlers {
         switch (toolName) {
             case EXECUTE_BASH: {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
+                // get feature flag
+                const shortcut =
+                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                        ?.shortcut
+
+                const runKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
+                const rejectKey = this.#getKeyBinding('aws.amazonq.rejectCmdExecution')
+
                 buttons = requiresAcceptance
                     ? [
-                          { id: BUTTON_RUN_SHELL_COMMAND, text: 'Run', icon: 'play' },
+                          {
+                              id: BUTTON_RUN_SHELL_COMMAND,
+                              text: 'Run',
+                              icon: 'play',
+                              ...(runKey ? { description: `Run:  ${runKey}` } : {}),
+                          },
                           {
                               id: BUTTON_REJECT_SHELL_COMMAND,
                               status: 'dimmed-clear' as Status,
                               text: 'Reject',
                               icon: 'cancel',
+                              ...(rejectKey ? { description: `Reject:  ${rejectKey}` } : {}),
                           },
                       ]
                     : []
@@ -2645,7 +2755,7 @@ export class AgenticChatController implements ChatHandlers {
                     body = builtInPermission
                         ? `I need permission to read files.\n${formattedPaths.join('\n')}`
                         : `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
-                } else {
+                } else if (toolName === 'listDirectory') {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
 
                     // Validate the path using our synchronous utility
@@ -2655,6 +2765,11 @@ export class AgenticChatController implements ChatHandlers {
                     body = builtInPermission
                         ? `I need permission to list directories.\n\`${readFilePath}\``
                         : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
+                } else {
+                    const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
+                    body = builtInPermission
+                        ? `I need permission to search files.\n\`${readFilePath}\``
+                        : `I need permission to search files outside the workspace.\n\`${readFilePath}\``
                 }
                 break
             }
@@ -2911,6 +3026,9 @@ export class AgenticChatController implements ChatHandlers {
                 cursorState: undefined,
                 useRelevantDocuments: false,
             }
+
+        // Clear images to avoid passing them again in follow-up toolUse/toolResult loops, as it is may confuse the model
+        updatedRequestInput.conversationState!.currentMessage!.userInputMessage!.images = []
 
         for (const toolResult of toolResults) {
             this.#debug(`ToolResult: ${JSON.stringify(toolResult)}`)
@@ -3593,7 +3711,7 @@ export class AgenticChatController implements ChatHandlers {
                         {
                             messageId,
                             type: 'tool',
-                            body: COMPACTION_BODY,
+                            body: 'Compaction is skipped.',
                             header: {
                                 body: COMPACTION_HEADER_BODY,
                                 status: { icon: 'block', text: 'Ignored' },
@@ -4106,7 +4224,7 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
         if (isEmptyResponse) {
-            // If the response is empty, we need to send an empty answer message to remove the Thinking... indicator
+            // If the response is empty, we need to send an empty answer message to remove the Working... indicator
             await streamWriter.write({ type: 'answer', body: '', messageId: uuid() })
         }
 

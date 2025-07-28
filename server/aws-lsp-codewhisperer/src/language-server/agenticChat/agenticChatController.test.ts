@@ -491,6 +491,7 @@ describe('AgenticChatController', () => {
                 {
                     userInputMessage: {
                         content: 'Previous question',
+                        images: [],
                         origin: 'IDE',
                         userInputMessageContext: { toolResults: [] },
                         userIntent: undefined,
@@ -540,6 +541,7 @@ describe('AgenticChatController', () => {
                 {
                     userInputMessage: {
                         content: 'Previous question',
+                        images: [],
                         origin: 'IDE',
                         userInputMessageContext: { toolResults: [] },
                         userIntent: undefined,
@@ -1802,6 +1804,241 @@ describe('AgenticChatController', () => {
             )
             assert.strictEqual(request.conversationState?.history?.length || 0, 3)
             assert.strictEqual(result, 298000)
+        })
+
+        it('should truncate images when they exceed budget', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(493_400),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(2000000), //6600 chars - should be removed
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should only keep the first and third images (small ones)
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, 500000 - 493400 - 3.3 - 3.3) // remaining budget after content and images
+        })
+
+        it('should handle images without bytes', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: null as any,
+                                    },
+                                },
+                                {
+                                    format: 'png',
+                                    source: {
+                                        bytes: new Uint8Array(1000), // 3.3 chars
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+
+            // Should keep both images since the first one has 0 chars
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(result, 500000 - 400000 - 3.3) // remaining budget after content and second image
+        })
+
+        it('should truncate relevantDocuments and images together with equal priority', () => {
+            // 400_000 for content, 100 for doc, 3.3 for image, 100_000 for doc (should be truncated)
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        { relativeFilePath: 'a', text: 'a'.repeat(100) },
+                                        { relativeFilePath: 'b', text: 'a'.repeat(100_000) }, // should be truncated
+                                    ],
+                                },
+                            },
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000000000) }, // 3300000 chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(1000) }, // 3.3 chars
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+            const result = chatController.truncateRequest(request)
+            // Only the first doc and the image should fit
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length,
+                1
+            )
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 1)
+            assert.strictEqual(result, 500000 - 400000 - 100 - 3.3)
+        })
+
+        it('should respect additionalContext order for mixed file and image truncation', () => {
+            const request: GenerateAssistantResponseCommandInput = {
+                conversationState: {
+                    currentMessage: {
+                        userInputMessage: {
+                            content: 'a'.repeat(400_000),
+                            userInputMessageContext: {
+                                editorState: {
+                                    relevantDocuments: [
+                                        { relativeFilePath: 'file1.ts', text: 'a'.repeat(30_000) },
+                                        { relativeFilePath: 'file2.ts', text: 'b'.repeat(40_000) },
+                                        { relativeFilePath: 'file3.ts', text: 'c'.repeat(50_000) },
+                                    ],
+                                },
+                            },
+                            images: [
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(10_000_000) }, // 33k chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(20_000_000) }, // 66k chars
+                                },
+                                {
+                                    format: 'png',
+                                    source: { bytes: new Uint8Array(5_000_000) }, // 16.5k chars
+                                },
+                            ],
+                        },
+                    },
+                    chatTriggerType: undefined,
+                },
+            }
+
+            const additionalContext = [
+                {
+                    type: 'image',
+                    name: 'image1.png',
+                    description: 'First image',
+                    relativePath: 'images/image1.png',
+                    path: '/workspace/images/image1.png',
+                    startLine: -1,
+                    endLine: -1,
+                }, // maps to images[0]: 33k chars (should be kept)
+                {
+                    type: 'file',
+                    name: 'file1.ts',
+                    description: 'First file',
+                    relativePath: 'src/file1.ts',
+                    path: '/workspace/src/file1.ts',
+                    startLine: 1,
+                    endLine: 100,
+                }, // maps to docs[0]: 30k chars (should be kept)
+                {
+                    type: 'image',
+                    name: 'image2.png',
+                    description: 'Second image',
+                    relativePath: 'images/image2.png',
+                    path: '/workspace/images/image2.png',
+                    startLine: -1,
+                    endLine: -1,
+                }, // maps to images[1]: 66k chars (should be truncated)
+                {
+                    type: 'file',
+                    name: 'file2.ts',
+                    description: 'Second file',
+                    relativePath: 'src/file2.ts',
+                    path: '/workspace/src/file2.ts',
+                    startLine: 1,
+                    endLine: 200,
+                }, // maps to docs[1]: 40k chars (should be truncated)
+                {
+                    type: 'file',
+                    name: 'file3.ts',
+                    description: 'Third file',
+                    relativePath: 'src/file3.ts',
+                    path: '/workspace/src/file3.ts',
+                    startLine: 1,
+                    endLine: 300,
+                }, // maps to docs[2]: 50k chars (should be truncated)
+                {
+                    type: 'image',
+                    name: 'image3.png',
+                    description: 'Third image',
+                    relativePath: 'images/image3.png',
+                    path: '/workspace/images/image3.png',
+                    startLine: -1,
+                    endLine: -1,
+                }, // maps to images[2]: 16.5k chars (should be kept)
+            ]
+
+            const result = chatController.truncateRequest(request, additionalContext)
+
+            // With 100k budget remaining after user message:
+            // 1. images[0] (33k) fits -> 67k remaining
+            // 2. docs[0] (30k) fits -> 37k remaining
+            // 3. images[1] (66k) doesn't fit -> skipped
+            // 4. docs[1] (40k) doesn't fit -> skipped
+            // 5. docs[2] (50k) doesn't fit -> skipped
+            // 6. images[2] (16.5k) fits in 37k remaining -> 20.5k remaining
+
+            // Should keep first image, first doc, and third image based on additionalContext order
+            assert.strictEqual(request.conversationState?.currentMessage?.userInputMessage?.images?.length, 2)
+            assert.strictEqual(
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.length,
+                1
+            )
+
+            const keptImages = request.conversationState?.currentMessage?.userInputMessage?.images
+            const keptDoc =
+                request.conversationState?.currentMessage?.userInputMessage?.userInputMessageContext?.editorState
+                    ?.relevantDocuments?.[0]
+
+            assert.strictEqual(keptImages?.[0]?.source?.bytes?.length, 10_000_000) // images[0]
+            assert.strictEqual(keptImages?.[1]?.source?.bytes?.length, 5_000_000) // images[2]
+            assert.strictEqual(keptDoc?.relativeFilePath, 'file1.ts') // docs[0]
+            assert.strictEqual(keptDoc?.text, 'a'.repeat(30_000))
+
+            // Remaining budget should be 20.5k (100k - 33k - 30k - 16.5k)
+            assert.strictEqual(result, 500000 - 400000 - 33000 - 30000 - 16500)
         })
     })
 

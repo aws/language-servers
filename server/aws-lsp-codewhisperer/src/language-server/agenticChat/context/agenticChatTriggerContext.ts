@@ -213,6 +213,11 @@ export class AgenticChatTriggerContext {
         // Add @context in prompt to relevantDocuments
         if (additionalContent) {
             for (const item of additionalContent.filter(item => !item.pinned)) {
+                // image context does not come from workspace, skip
+                if (item.type === 'image') {
+                    continue
+                }
+
                 // Determine programming language from file extension or type
                 let programmingLanguage: ProgrammingLanguage | undefined = undefined
 
@@ -337,7 +342,7 @@ export class AgenticChatTriggerContext {
             const content = await this.#workspace.fs.readFile(URI.parse(uri).fsPath)
             return TextDocument.create(uri, '', 0, content)
         } catch (err) {
-            this.#logging.error(`Unable to load from ${path}: ${err}`)
+            this.#logging.error(`Unable to load from ${uri}: ${err}`)
             return
         }
     }

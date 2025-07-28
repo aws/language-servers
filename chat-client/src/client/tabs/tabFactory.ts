@@ -19,6 +19,8 @@ export const ExportTabBarButtonId = 'export'
 
 export const McpServerTabButtonId = 'mcp_init'
 
+export const ShowLogsTabBarButtonId = 'show_logs'
+
 export class TabFactory {
     private history: boolean = false
     private export: boolean = false
@@ -26,6 +28,8 @@ export class TabFactory {
     private mcp: boolean = false
     private modelSelectionEnabled: boolean = false
     private reroute: boolean = false
+    private codeReviewInChat: boolean = false
+    private showLogs: boolean = false
     initialTabId: string
 
     public static generateUniqueId() {
@@ -101,6 +105,10 @@ export class TabFactory {
         this.export = true
     }
 
+    public enableShowLogs() {
+        this.showLogs = true
+    }
+
     public enableAgenticMode() {
         this.agenticMode = true
     }
@@ -117,8 +125,16 @@ export class TabFactory {
         this.reroute = true
     }
 
+    public enableCodeReviewInChat() {
+        this.codeReviewInChat = true
+    }
+
     public isRerouteEnabled(): boolean {
         return this.reroute
+    }
+
+    public isCodeReviewInChatEnabled(): boolean {
+        return this.codeReviewInChat
     }
 
     public getDefaultTabData(): DefaultTabData {
@@ -136,7 +152,7 @@ export class TabFactory {
                           icon: MynahIcons.INFO,
                           title: 'Q Developer agentic capabilities',
                           description:
-                              "You can now ask Q directly in the chat to generate code, documentation, and unit tests. You don't need to explicitly use /dev, /test, or /doc",
+                              "You can now ask Q directly in the chat to generate code, documentation, and unit tests. You don't need to explicitly use /dev, /test, /review or /doc",
                       } as QuickActionCommandsHeader,
                   }
                 : {}),
@@ -171,7 +187,7 @@ export class TabFactory {
             tabBarButtons.push({
                 id: McpServerTabButtonId,
                 icon: MynahIcons.TOOLS,
-                description: 'Configure MCP servers',
+                description: 'Configure MCP servers and Built-in tools',
             })
         }
 
@@ -188,6 +204,14 @@ export class TabFactory {
                 id: ExportTabBarButtonId,
                 icon: MynahIcons.EXTERNAL,
                 description: 'Export chat',
+            })
+        }
+
+        if (this.showLogs) {
+            tabBarButtons.push({
+                id: ShowLogsTabBarButtonId,
+                icon: MynahIcons.FILE,
+                description: 'Show logs',
             })
         }
 

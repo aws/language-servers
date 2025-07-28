@@ -23,6 +23,7 @@ import {
     getSha256WorkspaceId,
     getMd5WorkspaceId,
     MessagesWithCharacterCount,
+    estimateCharacterCountFromImageBlock,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -44,7 +45,7 @@ export class ToolResultValidationError extends Error {
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
 // Maximum number of characters to keep in request
 // (200K tokens - 8K output tokens - 2k system prompt) * 3 = 570K characters, intentionally overestimating with 3:1 ratio
-const MaxOverallCharacters = 570_000
+export const MaxOverallCharacters = 570_000
 // Maximum number of history messages to include in each request to the LLM
 const maxConversationHistoryMessages = 250
 
@@ -617,7 +618,7 @@ export class ChatDatabase {
                             message,
                             // dummy response
                             {
-                                body: 'Thinking...',
+                                body: 'Working...',
                                 type: 'answer',
                                 shouldDisplayMessage: false,
                                 timestamp: new Date(),
@@ -799,6 +800,7 @@ export class ChatDatabase {
         let toolUsesCount = 0
         let toolResultsCount = 0
         let editorStateCount = 0
+        let imageCharCount = 0
 
         for (const message of allMessages) {
             // Count characters of all message text
@@ -831,11 +833,22 @@ export class ChatDatabase {
                     this.#features.logging.error(`Error counting editorState: ${String(e)}`)
                 }
             }
+
+            if (message.images) {
+                try {
+                    for (const image of message.images) {
+                        let imageTokenInCharacter = estimateCharacterCountFromImageBlock(image)
+                        imageCharCount += imageTokenInCharacter
+                    }
+                } catch (e) {
+                    this.#features.logging.error(`Error counting images: ${String(e)}`)
+                }
+            }
         }
 
-        const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount
+        const totalCount = bodyCount + toolUsesCount + toolResultsCount + editorStateCount + imageCharCount
         this.#features.logging.debug(
-            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} = total: ${totalCount}`
+            `Messages characters: body: ${bodyCount} + toolUses: ${toolUsesCount} + toolResults: ${toolResultsCount} + editorState: ${editorStateCount} + images: ${imageCharCount} = total: ${totalCount}`
         )
         return totalCount
     }
@@ -897,7 +910,7 @@ export class ChatDatabase {
         if (messages.length > 0 && messages[messages.length - 1].type === ('prompt' as ChatItemType)) {
             // Add an assistant response to both request and DB to maintain a valid sequence
             const dummyResponse: Message = {
-                body: 'Thinking...',
+                body: 'Working...',
                 type: 'answer',
                 shouldDisplayMessage: false,
                 timestamp: new Date(),

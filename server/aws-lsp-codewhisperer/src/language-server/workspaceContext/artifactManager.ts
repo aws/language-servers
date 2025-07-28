@@ -6,7 +6,11 @@ import JSZip = require('jszip')
 import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
 import { resolveSymlink, isDirectory, isEmptyDirectory } from './util'
 import glob = require('fast-glob')
-import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
+import {
+    CodewhispererLanguage,
+    getCodeWhispererLanguageIdFromPath,
+    isJavaProjectFileFromPath,
+} from '../../shared/languageDetection'
 
 export interface FileMetadata {
     filePath: string
@@ -627,31 +631,55 @@ export class ArtifactManager {
         files: FileMetadata[]
     ): Promise<FileMetadata[]> {
         const workspacePath = URI.parse(workspaceFolder.uri).path
-        const hasJavaFiles = files.some(file => file.language === 'java')
+        const hasJavaFiles = files.some(file => file.language === 'java' && file.relativePath.endsWith('java'))
 
         if (!hasJavaFiles) {
             return files
         }
 
+        // Extract project roots from file paths for scenarios that workspace were not opened up from project roots
+        const projectRoots = this.extractJavaProjectRoots(files)
         const additionalFiles: FileMetadata[] = []
 
-        // Generate Eclipse configuration files
-        const javaManager = new JavaProjectAnalyzer(workspacePath)
-        const structure = await javaManager.analyze()
-        const generator = new EclipseConfigGenerator(workspaceFolder, this.logging)
+        // Process each project root separately
+        for (const projectRoot of projectRoots) {
+            const isRootProject = projectRoot === '.'
+            const projectPath = path.join(workspacePath, projectRoot)
 
-        // Generate and add .classpath file
-        const classpathFiles = await generator.generateDotClasspath(structure)
-        for (const classpathFile of classpathFiles) {
-            additionalFiles.push(classpathFile)
-        }
+            // Create project-specific "workspace folder" for analyzing
+            const projectWorkspaceFolder: WorkspaceFolder = {
+                ...workspaceFolder,
+                uri: URI.file(projectPath).toString(),
+            }
 
-        // Generate and add .project file
-        const projectFiles = await generator.generateDotProject(path.basename(workspacePath), structure)
-        for (const projectFile of projectFiles) {
-            additionalFiles.push(projectFile)
+            const javaManager = new JavaProjectAnalyzer(projectPath)
+            const structure = await javaManager.analyze()
+            const generator = new EclipseConfigGenerator(projectWorkspaceFolder, this.logging)
+
+            const classpathFiles = await generator.generateDotClasspath(structure)
+            const projectConfigFiles = await generator.generateDotProject(
+                isRootProject ? workspaceFolder.name : projectRoot,
+                structure
+            )
+
+            // Update relativePath to include project directory for zip upload
+            const updatedFiles = [...classpathFiles, ...projectConfigFiles].map(file => ({
+                ...file,
+                relativePath: isRootProject ? file.relativePath : path.join(projectRoot, file.relativePath),
+            }))
+
+            additionalFiles.push(...updatedFiles)
         }
 
         return [...files, ...additionalFiles]
+    }
+
+    private extractJavaProjectRoots(files: FileMetadata[]): string[] {
+        const projectRoots = new Set<string>()
+        files
+            .filter(file => isJavaProjectFileFromPath(file.relativePath))
+            .map(file => path.dirname(file.relativePath))
+            .forEach(projectRoot => projectRoots.add(projectRoot))
+        return Array.from(projectRoots)
     }
 }
