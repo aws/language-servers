@@ -1751,6 +1751,10 @@ ${params.message}`,
         metadata['isSubscriptionDetails'] = true
 
         mynahUi.updateStore(tabId, {
+            chatItems: tabFactory.getChatItems(false, false),
+        })
+
+        mynahUi.updateStore(tabId, {
             tabTitle: 'Account Details',
             tabBackground: false,
             compactMode: false,
