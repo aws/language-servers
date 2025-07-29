@@ -44,6 +44,7 @@ export interface QClientCapabilities {
     codeReviewInChat?: boolean
     compaction?: boolean
     shortcut?: boolean
+    mcpAdmin?: boolean
 }
 
 type QConfigurationResponse =

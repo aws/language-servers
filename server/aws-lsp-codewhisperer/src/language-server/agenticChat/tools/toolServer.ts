@@ -19,10 +19,12 @@ import {
     createNamespacedToolName,
     enabledMCP,
     migrateToAgentConfig,
+    enabledMcpAdmin,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
+import { ProfileStatusMonitor } from './mcp/profileStatusMonitor'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -172,10 +174,33 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     return () => {}
 }
 
-export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging, lsp, agent, telemetry, runtime }) => {
+export const McpToolsServer: Server = ({
+    credentialsProvider,
+    workspace,
+    logging,
+    lsp,
+    agent,
+    telemetry,
+    runtime,
+    sdkInitializator,
+}) => {
     const registered: Record<string, string[]> = {}
-
     const allNamespacedTools = new Set<string>()
+    let profileStatusMonitor: ProfileStatusMonitor | undefined
+
+    function removeAllMcpTools(): void {
+        logging.info('Removing all MCP tools due to admin configuration')
+        for (const [server, toolNames] of Object.entries(registered)) {
+            for (const name of toolNames) {
+                agent.removeTool(name)
+                allNamespacedTools.delete(name)
+                logging.info(`MCP: removed tool ${name}`)
+            }
+            registered[server] = []
+        }
+        // Close MCP manager
+        void McpManager.instance.close()
+    }
 
     function registerServerTools(server: string, defs: McpToolDefinition[]) {
         // 1) remove old tools
@@ -237,6 +262,11 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
                 return
             }
 
+            if (!enabledMcpAdmin(lsp.getClientInitializeParams())) {
+                logging.warn('MCP Servers are turned off at admin level')
+                return
+            }
+
             const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
             // Get agent paths
             const wsAgentPaths = getWorkspaceAgentConfigPaths(wsUris)
@@ -272,12 +302,25 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
                 registerServerTools(server, defs)
             })
+
+            // Start profile status monitor to monitor MCP admin configuration
+            if (sdkInitializator) {
+                profileStatusMonitor = new ProfileStatusMonitor(
+                    credentialsProvider,
+                    workspace,
+                    logging,
+                    sdkInitializator,
+                    removeAllMcpTools
+                )
+                profileStatusMonitor.start()
+            }
         } catch (e) {
             console.warn('Caught error during MCP tool initialization; initialization may be incomplete:', e)
         }
     })
 
     return async () => {
+        profileStatusMonitor?.stop()
         await McpManager.instance.close()
     }
 }

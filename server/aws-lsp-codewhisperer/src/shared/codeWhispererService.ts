@@ -385,6 +385,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     /**
+     * @description Get profile details
+     */
+    async getProfile(request: { profileArn: string }) {
+        return this.client.getProfile(request).promise()
+    }
+
+    /**
      * @description Once scan completed successfully, send a request to get list of all the findings for the given scan.
      */
     async listCodeAnalysisFindings(

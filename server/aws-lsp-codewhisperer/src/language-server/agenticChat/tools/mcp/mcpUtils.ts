@@ -570,6 +570,13 @@ export function enabledMCP(params: InitializeParams | undefined): boolean {
     return qCapabilities?.mcp || false
 }
 
+export function enabledMcpAdmin(params: InitializeParams | undefined): boolean {
+    const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+        | QClientCapabilities
+        | undefined
+    return qCapabilities?.mcpAdmin || true
+}
+
 /**
  * Convert from persona format to agent format
  */
