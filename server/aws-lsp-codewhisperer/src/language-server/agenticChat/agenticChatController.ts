@@ -67,6 +67,8 @@ import {
     ListAvailableModelsResult,
     OpenFileDialogParams,
     OpenFileDialogResult,
+    SUBSCRIPTION_SHOW_COMMAND_METHOD,
+    SubscriptionUpgradeParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -124,6 +126,7 @@ import {
     isUsageLimitError,
     isNullish,
     getOriginFromClientInfo,
+    isQuotaExceededError,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -224,8 +227,9 @@ import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../sha
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
-import { UserContext } from '../../client/token/codewhispererbearertokenclient'
+import { GetUsageLimitsResponse, UsageBreakdown, UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { isSubscriptionDetailsEnabled } from '../subscription/subscriptionUtils'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -373,6 +377,14 @@ export class AgenticChatController implements ChatHandlers {
             case 'aws/chat/manageSubscription': {
                 const awsAccountId = params.arguments?.[0]
                 return this.onManageSubscription('', awsAccountId)
+            }
+            case SUBSCRIPTION_SHOW_COMMAND_METHOD: {
+                if (!isSubscriptionDetailsEnabled(this.#features.lsp.getClientInitializeParams())) {
+                    return
+                }
+
+                await this.onShowSubscription()
+                return
             }
             default:
                 // Unknown command.
@@ -3134,9 +3146,13 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.cwsprChatConversationId = conversationId
         await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed')
 
-        if (isUsageLimitError(err)) {
+        if (isUsageLimitError(err) || isQuotaExceededError(err)) {
             if (this.#paidTierMode !== 'paidtier') {
                 this.setPaidTierMode(tabId, 'freetier-limit')
+            }
+            const isBuilderId = getSsoConnectionType(this.#features.credentialsProvider) === 'builderId'
+            if (!isBuilderId) {
+                return this.handleIdcRequestLimitReached(tabId, err)
             }
             return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
                 type: 'answer',
@@ -3959,6 +3975,87 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async onShowSubscription(): Promise<void> {
+        try {
+            const serviceClient = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+            const usageLimitsresponse = await serviceClient.getUsageLimits({})
+            const agenticBreakdown = await this.getAgenticUsageBreakdown(usageLimitsresponse)
+
+            const overageEnabled = usageLimitsresponse.overageConfiguration?.overageStatus === 'ENABLED'
+            const nextResetDate = await this.getNextResetDate(agenticBreakdown)
+
+            await this.#features.chat.sendSubscriptionDetails({
+                subscriptionTier: usageLimitsresponse.subscriptionInfo?.type ?? 'Free Tier',
+                queryLimit: agenticBreakdown.usageLimit ?? 0,
+                queryUsage: agenticBreakdown.currentUsage ?? 0,
+                queryOverage: agenticBreakdown.overageCharges ?? 0,
+                subscriptionPeriodReset: nextResetDate,
+                isOverageEnabled: overageEnabled,
+            })
+        } catch (error) {
+            this.#log(`Unable to get subscription details: ${error}`)
+            return
+        }
+    }
+
+    async getNextResetDate(usageBreakdown: UsageBreakdown): Promise<Date> {
+        if (usageBreakdown?.nextDateReset) {
+            return new Date(usageBreakdown.nextDateReset)
+        } else {
+            // Fallback to 1st of next month in UTC
+            const nextReset = new Date()
+            nextReset.setUTCMonth(nextReset.getUTCMonth() + 1)
+            nextReset.setUTCDate(1)
+            nextReset.setUTCHours(0, 0, 0, 0)
+            return nextReset
+        }
+    }
+
+    async getAgenticUsageBreakdown(usageLimitsresponse: GetUsageLimitsResponse) {
+        const agenticBreakdown = usageLimitsresponse.usageBreakdownList?.find(
+            breakdown => breakdown.resourceType === 'AGENTIC_REQUEST'
+        )
+
+        if (!agenticBreakdown) {
+            throw new Error('AGENTIC_REQUEST usage breakdown not found')
+        }
+        return agenticBreakdown
+    }
+
+    async handleIdcRequestLimitReached(tabId: string, err: any): Promise<ChatResult | ResponseError<ChatResult>> {
+        try {
+            const serviceClient = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+            const usageLimitsresponse = await serviceClient.getUsageLimits({})
+            const agenticBreakdown = await this.getAgenticUsageBreakdown(usageLimitsresponse)
+
+            const chatParams: ChatUpdateParams = {
+                tabId: tabId ?? '',
+            }
+
+            const nextResetDate = await this.getNextResetDate(agenticBreakdown)
+            const formattedResetDate = `${(nextResetDate.getMonth() + 1).toString().padStart(2, '0')}/${nextResetDate.getDate().toString().padStart(2, '0')}`
+
+            // Special flag recognized by `chat-client/src/client/mynahUi.ts`.
+            ;(chatParams as any).limitReached = true
+            ;(chatParams as any).resetDate = formattedResetDate
+
+            this.#features.chat.sendChatUpdate(chatParams)
+            return {
+                body: '',
+                additionalMessages: [],
+                messageId: 'idc-request-limit-reached',
+            }
+        } catch (error) {
+            this.#log(`handleIdcRequestLimitReached: Unable to get subscription details: ${error}`)
+            const requestID = getRequestID(err) ?? ''
+            return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message, {
+                type: 'answer',
+                body: `AmazonQUsageLimitError: Monthly request limit reached. ${requestID ? `\n\nRequest ID: ${requestID}` : ''}`,
+                messageId: 'idc-request-limit-reached',
+            })
+        }
+    }
+
     async #processAgenticChatResponseWithTimeout(
         response: ChatCommandOutput,
         metric: Metric<AddMessageEvent>,
@@ -4251,6 +4348,12 @@ export class AgenticChatController implements ChatHandlers {
 
         this.#chatHistoryDb.setModelId(session.modelId)
         this.#chatHistoryDb.setPairProgrammingMode(session.pairProgrammingMode)
+    }
+
+    onSubscriptionUpgrade(param: SubscriptionUpgradeParams) {
+        this.#log('onSubscriptionUpgrade')
+
+        // TODO : future development here
     }
 
     updateConfiguration = (newConfig: AmazonQWorkspaceConfig) => {

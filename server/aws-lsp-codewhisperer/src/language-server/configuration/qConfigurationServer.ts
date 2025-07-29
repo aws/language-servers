@@ -34,7 +34,7 @@ interface QConfigurationSections {
     developerProfiles?: AmazonQDeveloperProfile[]
 }
 
-// Feature flag interface for client capabilities
+// Feature flag interface for client capabilities.
 export interface QClientCapabilities {
     developerProfiles?: boolean
     customizationsWithMetadata?: boolean
@@ -44,6 +44,7 @@ export interface QClientCapabilities {
     codeReviewInChat?: boolean
     compaction?: boolean
     shortcut?: boolean
+    subscriptionDetails?: boolean
 }
 
 type QConfigurationResponse =

@@ -108,7 +108,10 @@ import {
     OPEN_FILE_DIALOG_METHOD,
     OpenFileDialogResult,
     EXECUTE_SHELL_COMMAND_SHORTCUT_METHOD,
+    SUBSCRIPTION_DETAILS_NOTIFICATION_METHOD,
+    SubscriptionDetailsParams,
 } from '@aws/language-server-runtimes-types'
+
 import { ConfigTexts, MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { Messager, OutboundChatApi } from './messager'
@@ -358,6 +361,10 @@ export const createChat = (
                             : [],
                     })
                 }
+                break
+            }
+            case SUBSCRIPTION_DETAILS_NOTIFICATION_METHOD: {
+                mynahApi.showSubscriptionDetails(message.params as SubscriptionDetailsParams)
                 break
             }
             default:
