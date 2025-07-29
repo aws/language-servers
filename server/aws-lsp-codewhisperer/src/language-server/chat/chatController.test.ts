@@ -639,6 +639,15 @@ describe('ChatController', () => {
             assert.deepStrictEqual(chatResult, new ResponseError(LSPErrorCodes.RequestFailed, 'invalid state'))
         })
 
+        it('emits telemetry on successful inline chat response', async () => {
+            await chatController.onInlineChatPrompt({ prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledWith(
+                testFeatures.telemetry.emitMetric,
+                sinon.match.has('name', 'codewhisperer_inlineChatServiceInvocation')
+            )
+        })
+
         describe('#extractDocumentContext', () => {
             const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
             let extractDocumentContextStub: sinon.SinonStub

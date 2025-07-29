@@ -9,15 +9,8 @@ import {
     TextEdit,
     chatRequestType,
     InlineChatResultParams,
-    NotificationHandler,
-    PromptInputOptionChangeParams,
     ButtonClickParams,
     ButtonClickResult,
-    ListMcpServersParams,
-    ListMcpServersResult,
-    McpServerClickParams,
-    McpServerClickResult,
-    RequestHandler,
     OpenFileDialogParams,
     OpenFileDialogResult,
 } from '@aws/language-server-runtimes/protocol'
@@ -97,6 +90,16 @@ export class ChatController implements ChatHandlers {
     #customizationArn?: string
     #telemetryService: TelemetryService
     #serviceManager: AmazonQBaseServiceManager
+
+    #inlineChatRequestStartTime: number = 0
+    #inlineChatResponseLatency: number = 0
+    #inlineChatRequestId?: string
+    #inlineChatLanguage?: string
+    #inlineChatTriggerType: string = 'OnDemand'
+    #inlineChatCredentialStartUrl?: string
+    #inlineChatCustomizationArn?: string
+    #inlineChatResponseLength: number = 0
+    #inlineChatRequestLength: number = 0
 
     constructor(
         chatSessionManagementService: ChatSessionManagementService,
@@ -265,10 +268,22 @@ export class ChatController implements ChatHandlers {
                 this.#customizationArn
             )
 
+            this.#inlineChatRequestStartTime = Date.now()
+            this.#inlineChatRequestId = undefined
+            this.#inlineChatLanguage = triggerContext.programmingLanguage?.languageName
+            this.#inlineChatTriggerType = ChatTriggerType.MANUAL
+            this.#inlineChatCustomizationArn = this.#customizationArn
+            this.#inlineChatRequestLength = params.prompt?.prompt?.length ?? 0
+
             const client = this.#serviceManager.getStreamingClient()
             response = await client.sendMessage(requestInput)
+
+            this.#inlineChatRequestId = response.$metadata.requestId
+
             this.#log('Response for inline chat', JSON.stringify(response.$metadata), JSON.stringify(response))
         } catch (err) {
+            this.#log(`Inline Chat Service Invocation Failed: ${err instanceof Error ? err.message : 'unknown'}`)
+
             if (err instanceof AmazonQServicePendingSigninError || err instanceof AmazonQServicePendingProfileError) {
                 this.#log(`Q Inline Chat SSO Connection error: ${getErrorMessage(err)}`)
                 return new ResponseError<ChatResult>(LSPErrorCodes.RequestFailed, err.message)
@@ -286,6 +301,22 @@ export class ChatController implements ChatHandlers {
                 metric,
                 params.partialResultToken
             )
+            this.#inlineChatResponseLatency = Date.now() - this.#inlineChatRequestStartTime
+            this.#inlineChatResponseLength = result.data?.chatResult.body?.length ?? 0
+            this.#features.telemetry.emitMetric({
+                name: 'codewhisperer_inlineChatServiceInvocation',
+                data: {
+                    codewhispererRequestId: this.#inlineChatRequestId,
+                    codewhispererTriggerType: this.#inlineChatTriggerType,
+                    duration: this.#inlineChatResponseLatency,
+                    codewhispererLanguage: this.#inlineChatLanguage,
+                    credentialStartUrl: this.#inlineChatCredentialStartUrl,
+                    codewhispererCustomizationArn: this.#inlineChatCustomizationArn,
+                    result: 'Succeeded',
+                    requestLength: this.#inlineChatRequestLength,
+                    responseLength: this.#inlineChatResponseLength,
+                },
+            })
 
             return result.success
                 ? {
