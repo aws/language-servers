@@ -535,7 +535,7 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
 
     const absolutePaths: string[] = []
     let fileCount = 0
-    const MAX_FILES = 500_000
+    const MAX_FILES = 100_000
 
     const stream = fg.stream(['**/*'], {
         cwd: directory,
