@@ -40,6 +40,7 @@ import {
     ExecuteShellCommandParams,
     SubscriptionDetailsParams,
 } from '@aws/language-server-runtimes-types'
+
 import {
     ChatItem,
     ChatItemType,
@@ -1749,6 +1750,10 @@ ${params.message}`,
         // we can look for it again later
         const metadata = tabStore.tabMetadata ?? {}
         metadata['isSubscriptionDetails'] = true
+
+        mynahUi.updateStore(tabId, {
+            chatItems: tabFactory.getChatItems(false, false),
+        })
 
         mynahUi.updateStore(tabId, {
             tabTitle: 'Account Details',

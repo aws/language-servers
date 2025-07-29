@@ -111,6 +111,7 @@ import {
     SUBSCRIPTION_DETAILS_NOTIFICATION_METHOD,
     SubscriptionDetailsParams,
 } from '@aws/language-server-runtimes-types'
+
 import { ConfigTexts, MynahUIDataModel, MynahUITabStoreModel } from '@aws/mynah-ui'
 import { ServerMessage, TELEMETRY, TelemetryParams } from '../contracts/serverContracts'
 import { Messager, OutboundChatApi } from './messager'
