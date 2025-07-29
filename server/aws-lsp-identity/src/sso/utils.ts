@@ -111,17 +111,18 @@ export function UpdateSsoTokenFromCreateToken(
 export type ShowUrl = (url: URL) => void
 export type ShowMessageRequest = (params: ShowMessageRequestParams) => Promise<MessageActionItem | null>
 export type ShowProgress = Lsp['sendProgress']
+export type SsoHandlers = {
+    showUrl: ShowUrl
+    showMessageRequest: ShowMessageRequest
+    showProgress: ShowProgress
+    // Add `showMsg: ShowMessage` if needed.
+}
 
 export type SsoFlowParams = {
     clientName: string
     clientRegistration: SsoClientRegistration
     ssoSession: SsoSession
-    handlers: {
-        showUrl: ShowUrl
-        showMessageRequest: ShowMessageRequest
-        showProgress: ShowProgress
-        // Add `showMsg: ShowMessage` if needed.
-    }
+    handlers: SsoHandlers
     token: CancellationToken
     observability: Observability
 }

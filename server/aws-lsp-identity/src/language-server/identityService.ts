@@ -3,7 +3,10 @@ import {
     AwsBuilderIdSsoTokenSource,
     AwsErrorCodes,
     CancellationToken,
+    GetIamCredentialParams,
+    GetIamCredentialResult,
     getSsoTokenOptionsDefaults,
+    getIamCredentialOptionsDefaults,
     GetSsoTokenParams,
     GetSsoTokenResult,
     IamIdentityCenterSsoTokenSource,
@@ -13,6 +16,7 @@ import {
     SsoSession,
     SsoTokenSourceKind,
 } from '@aws/language-server-runtimes/server-interface'
+
 import { normalizeSettingList, ProfileStore } from './profiles/profileService'
 import { authorizationCodePkceFlow, awsBuilderIdReservedName, awsBuilderIdSsoRegion } from '../sso'
 import { SsoCache, SsoClientRegistration } from '../sso/cache'
@@ -22,14 +26,18 @@ import {
     throwOnInvalidSsoSession,
     throwOnInvalidSsoSessionName,
     SsoFlowParams,
+    SsoHandlers,
 } from '../sso/utils'
+import { IamHandlers, simulatePermissions } from '../iam/utils'
 import { AwsError, Observability } from '@aws/lsp-core'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
+import { IamProvider } from '../iam/iamProvider'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
 type AuthFlows = Record<AuthorizationFlowKind, (params: SsoFlowParams) => Promise<SSOToken>>
+type Handlers = SsoHandlers & IamHandlers
 
 const flows: AuthFlows = {
     [AuthorizationFlowKind.DeviceCode]: deviceCodeFlow,
@@ -41,7 +49,8 @@ export class IdentityService {
         private readonly profileStore: ProfileStore,
         private readonly ssoCache: SsoCache,
         private readonly autoRefresher: SsoTokenAutoRefresher,
-        private readonly handlers: SsoFlowParams['handlers'],
+        private readonly iamProvider: IamProvider,
+        private readonly handlers: Handlers,
         private readonly clientName: string,
         private readonly observability: Observability,
         private readonly authFlows: AuthFlows = flows
@@ -94,7 +103,7 @@ export class IdentityService {
                     clientName: this.clientName,
                     clientRegistration,
                     ssoSession,
-                    handlers: this.handlers,
+                    handlers: this.handlers as Pick<Handlers, keyof SsoHandlers>,
                     token,
                     observability: this.observability,
                 }
@@ -132,6 +141,51 @@ export class IdentityService {
         } catch (e) {
             emitMetric('Failed', e, ssoSession, clientRegistration)
 
+            throw e
+        }
+    }
+
+    async getIamCredential(params: GetIamCredentialParams, token: CancellationToken): Promise<GetIamCredentialResult> {
+        const emitMetric = this.emitMetric.bind(
+            this,
+            'flareIdentity_getIamCredential',
+            this.getIamCredential.name,
+            Date.now()
+        )
+
+        try {
+            const options = { ...getIamCredentialOptionsDefaults, ...params.options }
+
+            token.onCancellationRequested(_ => {
+                emitMetric('Cancelled', null)
+            })
+
+            // Get the profile with provided name
+            const profileData = await this.profileStore.load()
+            const profile = profileData.profiles.find(p => p.name === params.profileName)
+            if (!profile) {
+                this.observability.logging.log('Profile not found.')
+                throw new AwsError('Profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
+            }
+
+            const credentials = await this.iamProvider.getCredential(profile, options.callStsOnInvalidIamCredential)
+
+            // Validate permissions
+            if (options.permissionSet.length > 0) {
+                const response = await simulatePermissions(credentials, options.permissionSet, profile.settings?.region)
+                if (!response?.EvaluationResults?.every(result => result.EvalDecision === 'allowed')) {
+                    throw new AwsError(`Credentials have insufficient permissions.`, AwsErrorCodes.E_INVALID_PROFILE)
+                }
+            }
+
+            emitMetric('Succeeded')
+
+            return {
+                credential: { id: params.profileName, kinds: profile.kinds, credentials: credentials },
+                updateCredentialsParams: { data: credentials, encrypted: false },
+            }
+        } catch (e) {
+            emitMetric('Failed', e)
             throw e
         }
     }

@@ -10,6 +10,8 @@ import {
     InitializeParams,
     PartialInitializeResult,
     ShowMessageRequestParams,
+    GetIamCredentialParams,
+    GetMfaCodeParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
@@ -18,6 +20,8 @@ import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
+import { SendGetMfaCode } from '../iam/utils'
+import { IamProvider } from '../iam/iamProvider'
 
 export class IdentityServer extends ServerBase {
     constructor(features: Features) {
@@ -38,6 +42,8 @@ export class IdentityServer extends ServerBase {
         const showMessageRequest: ShowMessageRequest = (params: ShowMessageRequestParams) =>
             this.features.lsp.window.showMessageRequest(params)
         const showProgress: ShowProgress = this.features.lsp.sendProgress
+        const sendGetMfaCode: SendGetMfaCode = (params: GetMfaCodeParams) =>
+            this.features.identityManagement.sendGetMfaCode(params)
 
         // Initialize dependencies
         const profileStore = new SharedConfigProfileStore(this.observability)
@@ -50,11 +56,14 @@ export class IdentityServer extends ServerBase {
 
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
 
+        const iamProvider = new IamProvider(this.observability, profileStore)
+
         const identityService = new IdentityService(
             profileStore,
             ssoCache,
             autoRefresher,
-            { showUrl, showMessageRequest, showProgress },
+            iamProvider,
+            { showUrl, showMessageRequest, showProgress, sendGetMfaCode },
             this.getClientName(params),
             this.observability
         )
@@ -66,6 +75,14 @@ export class IdentityServer extends ServerBase {
             async (params: GetSsoTokenParams, token: CancellationToken) =>
                 await identityService.getSsoToken(params, token).catch(reason => {
                     this.observability.logging.log(`GetSsoToken failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
+        this.features.identityManagement.onGetIamCredential(
+            async (params: GetIamCredentialParams, token: CancellationToken) =>
+                await identityService.getIamCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`GetIamCredential failed. ${reason}`)
                     throw awsResponseErrorWrap(reason)
                 })
         )
