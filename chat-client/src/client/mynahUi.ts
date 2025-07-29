@@ -974,12 +974,10 @@ export const createMynahUi = (
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
                     ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
-                    dropdownList: am.dropdown
+                    quickSettings: am.dropdown
                         ? {
-                              title: am.dropdown.title,
                               messageId: am.dropdown.messageId,
                               tabId: am.dropdown.tabId,
-                              titleIcon: toMynahIcon(am.dropdown.icon),
                               description: am.dropdown.description,
                               descriptionLink: {
                                   text: 'Auto-approve settings',

@@ -269,7 +269,7 @@ export class McpEventHandler {
     }
 
     async generateEmptyBuiltInToolPermission() {
-        const personaPath = await this.#getPersonaPath()
+        const personaPath = await this.#getAgentPath()
         const perm: MCPServerPermission = {
             enabled: true,
             toolPerms: {},

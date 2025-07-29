@@ -2425,21 +2425,9 @@ export class AgenticChatController implements ChatHandlers {
                     buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
                 },
                 dropdown: {
-                    title:
-                        commandCategory === CommandCategory.Destructive
-                            ? 'Destructive commands'
-                            : commandCategory === CommandCategory.Mutate
-                              ? 'Mutating commands'
-                              : 'Read-only commands',
                     description: 'Configure for this session only. To edit globally, go to',
                     messageId: toolUse.toolUseId!,
                     tabId: tabId!,
-                    icon:
-                        commandCategory === CommandCategory.Destructive
-                            ? 'warning'
-                            : commandCategory === CommandCategory.Mutate
-                              ? 'info'
-                              : 'eye',
                     option: [
                         { id: 'ask', label: 'Ask to run', value: toolName, selected: permission === 'ask' },
                         {
@@ -2693,11 +2681,9 @@ export class AgenticChatController implements ChatHandlers {
         let body: string | undefined
         let dropdown:
             | {
-                  title: string
                   description: string
                   messageId: string
                   tabId: string
-                  icon: string
                   option: {
                       id: string
                       label: string
@@ -2768,19 +2754,7 @@ export class AgenticChatController implements ChatHandlers {
                     (dropdown = {
                         messageId: this.#getMessageIdForToolUse(toolType, toolUse),
                         tabId: tabId!,
-                        title:
-                            commandCategory === CommandCategory.Destructive
-                                ? 'Destructive commands'
-                                : commandCategory === CommandCategory.Mutate
-                                  ? 'Mutating commands'
-                                  : 'Read-only commands',
                         description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
-                        icon:
-                            commandCategory === CommandCategory.Destructive
-                                ? 'warning'
-                                : commandCategory === CommandCategory.Mutate
-                                  ? 'info'
-                                  : 'eye',
                         option: [
                             { id: 'ask', label: 'Ask to run', value: toolName, selected: permissions === 'ask' },
                             {
