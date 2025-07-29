@@ -648,6 +648,22 @@ describe('ChatController', () => {
             )
         })
 
+        it('emits failure telemetry when inline chat service invocation fails', async () => {
+            sendMessageStub.callsFake(() => {
+                throw new Error('Service Error')
+            })
+
+            await chatController.onInlineChatPrompt({ prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledWith(
+                testFeatures.telemetry.emitMetric,
+                sinon.match({
+                    name: 'codewhisperer_inlineChatServiceInvocation',
+                    result: 'Failed',
+                })
+            )
+        })
+
         describe('#extractDocumentContext', () => {
             const typescriptDocument = TextDocument.create('file:///test.ts', 'typescript', 1, 'test')
             let extractDocumentContextStub: sinon.SinonStub
