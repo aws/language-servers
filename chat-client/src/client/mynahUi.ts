@@ -40,6 +40,7 @@ import {
     ExecuteShellCommandParams,
     SubscriptionDetailsParams,
 } from '@aws/language-server-runtimes-types'
+
 import {
     ChatItem,
     ChatItemType,
