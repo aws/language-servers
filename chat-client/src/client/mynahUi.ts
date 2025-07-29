@@ -1473,20 +1473,34 @@ ${params.message}`,
         if (!tabId) return
 
         const chatItems = mynahUi.getTabData(tabId)?.getStore()?.chatItems || []
-        const buttonId = params.id
+        let buttonId = params.id
 
         let messageId
         for (const item of chatItems) {
-            if (buttonId === 'stop-shell-command' && item.buttons && item.buttons.some(b => b.id === buttonId)) {
-                messageId = item.messageId
-                break
-            }
-            if (item.header?.buttons && item.header.buttons.some(b => b.id === buttonId)) {
-                messageId = item.messageId
-                break
-            }
-        }
+            // Define the 3 button locations to search
+            const buttonLocations = [item.buttons, item.header?.buttons, item.summary?.content?.header?.buttons]
 
+            // Search through each location for the button
+            for (const buttons of buttonLocations) {
+                const foundButton = buttons?.find(
+                    b => b.id === buttonId || b.id === 'allow-tools' || b.id === 'reject-mcp-tool'
+                )
+
+                if (foundButton) {
+                    messageId = item.messageId
+                    // hanlde mcp tools run/reject buttons and allow buttons
+                    if (buttonId !== foundButton.id) {
+                        if (buttonId === 'reject-shell-command') {
+                            buttonId = 'reject-mcp-tool'
+                        } else if (buttonId === 'run-shell-command') {
+                            buttonId = 'allow-tools'
+                        }
+                    }
+                }
+            }
+
+            if (messageId) break
+        }
         if (messageId) {
             const payload: ButtonClickParams = {
                 tabId,
