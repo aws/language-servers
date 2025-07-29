@@ -20,9 +20,34 @@ import { getErrorId } from '../utils'
 import { GenerateCompletionsResponse } from '../../client/token/codewhispererbearertokenclient'
 import {
     CodeWhispererServiceBase,
+    CreateSubscriptionTokenRequest,
+    CreateSubscriptionTokenResponse,
+    CreateUploadUrlRequest,
+    CreateUploadUrlResponse,
+    CreateWorkspaceRequest,
+    DeleteWorkspaceRequest,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
+    GetCodeAnalysisRequest,
+    GetCodeAnalysisResponse,
+    GetTransformationPlanRequest,
+    GetTransformationPlanResponse,
+    GetTransformationRequest,
+    GetTransformationResponse,
+    ListAvailableCustomizationsRequest,
+    ListAvailableProfilesRequest,
+    ListCodeAnalysisFindingsRequest,
+    ListCodeAnalysisFindingsResponse,
+    ListFeatureEvaluationsRequest,
+    ListWorkspaceMetadataRequest,
     ResponseContext,
+    SendTelemetryEventRequest,
+    StartCodeAnalysisRequest,
+    StartCodeAnalysisResponse,
+    StartTransformationRequest,
+    StartTransformationResponse,
+    StopTransformationRequest,
+    StopTransformationResponse,
     Suggestion,
     SuggestionType,
 } from './codeWhispererServiceBase'
@@ -33,7 +58,7 @@ import {
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
     /** Debounce createSubscriptionToken by storing the current, pending promise (if any). */
-    #createSubscriptionTokenPromise?: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse>
+    #createSubscriptionTokenPromise?: Promise<CreateSubscriptionTokenResponse>
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
@@ -163,9 +188,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         }
     }
 
-    public async codeModernizerCreateUploadUrl(
-        request: CodeWhispererTokenClient.CreateUploadUrlRequest
-    ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {
+    public async codeModernizerCreateUploadUrl(request: CreateUploadUrlRequest): Promise<CreateUploadUrlResponse> {
         return this.client.createUploadUrl(this.withProfileArn(request)).promise()
     }
     /**
@@ -175,8 +198,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      */
 
     public async codeModernizerStartCodeTransformation(
-        request: CodeWhispererTokenClient.StartTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StartTransformationResponse, AWSError>> {
+        request: StartTransformationRequest
+    ): Promise<PromiseResult<StartTransformationResponse, AWSError>> {
         return await this.client.startTransformation(this.withProfileArn(request)).promise()
     }
 
@@ -186,8 +209,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @returns transformationJobId - String id for the Job
      */
     public async codeModernizerStopCodeTransformation(
-        request: CodeWhispererTokenClient.StopTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StopTransformationResponse, AWSError>> {
+        request: StopTransformationRequest
+    ): Promise<PromiseResult<StopTransformationResponse, AWSError>> {
         return await this.client.stopTransformation(this.withProfileArn(request)).promise()
     }
 
@@ -197,8 +220,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * returns COMPLETED we know the transformation is done.
      */
     public async codeModernizerGetCodeTransformation(
-        request: CodeWhispererTokenClient.GetTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationResponse, AWSError>> {
+        request: GetTransformationRequest
+    ): Promise<PromiseResult<GetTransformationResponse, AWSError>> {
         return await this.client.getTransformation(this.withProfileArn(request)).promise()
     }
 
@@ -208,17 +231,15 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @params tranformationJobId - String id returned from StartCodeTransformationResponse
      */
     public async codeModernizerGetCodeTransformationPlan(
-        request: CodeWhispererTokenClient.GetTransformationPlanRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationPlanResponse, AWSError>> {
+        request: GetTransformationPlanRequest
+    ): Promise<PromiseResult<GetTransformationPlanResponse, AWSError>> {
         return this.client.getTransformationPlan(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description get a pre-signed url to upload source code into S3 bucket
      */
-    async createUploadUrl(
-        request: CodeWhispererTokenClient.CreateUploadUrlRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.CreateUploadUrlResponse, AWSError>> {
+    async createUploadUrl(request: CreateUploadUrlRequest): Promise<PromiseResult<CreateUploadUrlResponse, AWSError>> {
         return this.client.createUploadUrl(this.withProfileArn(request)).promise()
     }
 
@@ -226,17 +247,15 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @description Once source code uploaded to S3, send a request to run security scan on uploaded source code.
      */
     async startCodeAnalysis(
-        request: CodeWhispererTokenClient.StartCodeAnalysisRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StartCodeAnalysisResponse, AWSError>> {
+        request: StartCodeAnalysisRequest
+    ): Promise<PromiseResult<StartCodeAnalysisResponse, AWSError>> {
         return this.client.startCodeAnalysis(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description Send a request to get the code scan status detail.
      */
-    async getCodeAnalysis(
-        request: CodeWhispererTokenClient.GetCodeAnalysisRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetCodeAnalysisResponse, AWSError>> {
+    async getCodeAnalysis(request: GetCodeAnalysisRequest): Promise<PromiseResult<GetCodeAnalysisResponse, AWSError>> {
         return this.client.getCodeAnalysis(this.withProfileArn(request)).promise()
     }
 
@@ -244,57 +263,57 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @description Once scan completed successfully, send a request to get list of all the findings for the given scan.
      */
     async listCodeAnalysisFindings(
-        request: CodeWhispererTokenClient.ListCodeAnalysisFindingsRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.ListCodeAnalysisFindingsResponse, AWSError>> {
+        request: ListCodeAnalysisFindingsRequest
+    ): Promise<PromiseResult<ListCodeAnalysisFindingsResponse, AWSError>> {
         return this.client.listCodeAnalysisFindings(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description Get list of available customizations
      */
-    async listAvailableCustomizations(request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest) {
+    async listAvailableCustomizations(request: ListAvailableCustomizationsRequest) {
         return this.client.listAvailableCustomizations(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description Get list of available profiles
      */
-    async listAvailableProfiles(request: CodeWhispererTokenClient.ListAvailableProfilesRequest) {
+    async listAvailableProfiles(request: ListAvailableProfilesRequest) {
         return this.client.listAvailableProfiles(request).promise()
     }
 
     /**
      * @description send telemetry event to code whisperer data warehouse
      */
-    async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
+    async sendTelemetryEvent(request: SendTelemetryEventRequest) {
         return this.client.sendTelemetryEvent(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description create a remote workspace
      */
-    async createWorkspace(request: CodeWhispererTokenClient.CreateWorkspaceRequest) {
+    async createWorkspace(request: CreateWorkspaceRequest) {
         return this.client.createWorkspace(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description get list of workspace metadata
      */
-    async listWorkspaceMetadata(request: CodeWhispererTokenClient.ListWorkspaceMetadataRequest) {
+    async listWorkspaceMetadata(request: ListWorkspaceMetadataRequest) {
         return this.client.listWorkspaceMetadata(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description delete the remote workspace
      */
-    async deleteWorkspace(request: CodeWhispererTokenClient.DeleteWorkspaceRequest) {
+    async deleteWorkspace(request: DeleteWorkspaceRequest) {
         return this.client.deleteWorkspace(this.withProfileArn(request)).promise()
     }
 
     /*
      * @description get the list of feature evaluations
      */
-    async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
+    async listFeatureEvaluations(request: ListFeatureEvaluationsRequest) {
         return this.client.listFeatureEvaluations(this.withProfileArn(request)).promise()
     }
 
@@ -303,7 +322,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      *
      * cool api you have there 🥹
      */
-    async createSubscriptionToken(request: CodeWhispererTokenClient.CreateSubscriptionTokenRequest) {
+    async createSubscriptionToken(request: CreateSubscriptionTokenRequest) {
         // Debounce.
         if (this.#createSubscriptionTokenPromise) {
             return this.#createSubscriptionTokenPromise
