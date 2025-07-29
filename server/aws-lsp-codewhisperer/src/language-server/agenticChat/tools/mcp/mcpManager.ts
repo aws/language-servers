@@ -25,13 +25,13 @@ import {
     getGlobalAgentConfigPath,
     getWorkspaceMcpConfigPaths,
     getGlobalMcpConfigPath,
-    sanitizeContent,
 } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
 import path = require('path')
 import { URI } from 'vscode-uri'
+import { sanitizeInput } from '../../../../shared/utils'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -348,7 +348,7 @@ export class McpManager {
                 this.mcpTools.push({
                     serverName,
                     toolName: t.name,
-                    description: sanitizeContent(t.description ?? ''),
+                    description: sanitizeInput(t.description ?? ''),
                     inputSchema: t.inputSchema ?? {},
                 })
             }
