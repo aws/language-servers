@@ -18,7 +18,7 @@ export class ProfileStatusMonitor {
     private readonly CHECK_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
     private codeWhispererClient?: CodeWhispererServiceToken
     private cachedProfileArn?: string
-    private lastMcpState?: boolean
+    private static lastMcpState?: boolean
 
     constructor(
         private credentialsProvider: CredentialsProvider,
@@ -78,8 +78,8 @@ export class ProfileStatusMonitor {
             const isMcpEnabled = response?.profile?.optInFeatures?.mcpConfiguration?.toggle === 'ON'
 
             // Only act if state changed
-            if (this.lastMcpState !== isMcpEnabled) {
-                this.lastMcpState = isMcpEnabled
+            if (ProfileStatusMonitor.lastMcpState !== isMcpEnabled) {
+                ProfileStatusMonitor.lastMcpState = isMcpEnabled
                 if (!isMcpEnabled) {
                     this.logging.info('MCP configuration disabled - removing tools')
                     this.onMcpDisabled()
@@ -138,5 +138,8 @@ export class ProfileStatusMonitor {
             }
         }
         throw new Error('Retry failed')
+    }
+    static getMcpState(): boolean | undefined {
+        return ProfileStatusMonitor.lastMcpState
     }
 }
