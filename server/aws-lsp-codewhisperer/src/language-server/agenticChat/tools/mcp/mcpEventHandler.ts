@@ -30,6 +30,7 @@ import {
 } from './mcpTypes'
 import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
 import { URI } from 'vscode-uri'
+import { ProfileStatusMonitor } from './profileStatusMonitor'
 
 interface PermissionOption {
     label: string
@@ -228,13 +229,33 @@ export class McpEventHandler {
         const header = {
             title: 'MCP Servers and Built-in Tools',
             description: "Add MCP servers to extend Q's capabilities.",
-            // only  show error on list mcp server page if unable to read mcp.json file
-            status: configLoadErrors
-                ? { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
-                : undefined,
+            status: this.#getListMcpServersStatus(configLoadErrors),
         }
 
         return { header, list: groups }
+    }
+
+    /**
+     * Gets the status for the list MCP servers header
+     */
+    #getListMcpServersStatus(
+        configLoadErrors: string | undefined
+    ): { title: string; icon: string; status: Status } | undefined {
+        const mcpState = ProfileStatusMonitor.getMcpState()
+
+        if (mcpState === false) {
+            return {
+                title: 'MCP functionality has been disabled by your administrator',
+                icon: 'info',
+                status: 'info' as Status,
+            }
+        }
+
+        if (configLoadErrors) {
+            return { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
+        }
+
+        return undefined
     }
 
     /**

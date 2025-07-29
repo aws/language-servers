@@ -198,8 +198,8 @@ export const McpToolsServer: Server = ({
             }
             registered[server] = []
         }
-        // Close MCP manager
-        void McpManager.instance.close()
+        // Erase all servers from agents config
+        void McpManager.instance.removeAllServers()
     }
 
     function registerServerTools(server: string, defs: McpToolDefinition[]) {

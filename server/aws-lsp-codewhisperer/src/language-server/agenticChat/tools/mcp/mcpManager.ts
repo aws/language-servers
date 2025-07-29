@@ -615,6 +615,56 @@ export class McpManager {
     }
 
     /**
+     * Remove all servers: shutdown all clients, remove all tools, and clear all configurations.
+     */
+    public async removeAllServers(): Promise<void> {
+        this.features.logging.info('MCP: removing all servers')
+
+        // Close all clients
+        for (const [name, client] of this.clients.entries()) {
+            try {
+                await client.close()
+                this.features.logging.info(`MCP: closed client for ${name}`)
+            } catch (e: any) {
+                this.features.logging.error(`MCP: error closing client ${name}: ${e.message}`)
+            }
+        }
+
+        // Clear all state
+        this.clients.clear()
+        this.mcpTools = []
+        this.mcpServerStates.clear()
+        this.mcpServers.clear()
+        this.serverNameMapping.clear()
+        this.mcpServerPermissions.clear()
+
+        // Clear agent config
+        this.agentConfig.mcpServers = {}
+        this.agentConfig.tools = this.agentConfig.tools.filter(tool => !tool.startsWith('@'))
+        this.agentConfig.allowedTools = this.agentConfig.allowedTools.filter(tool => !tool.startsWith('@'))
+
+        // Update each agent config file individually to preserve built-in tool permissions
+        for (const agentPath of this.agentPaths) {
+            try {
+                const result = await loadAgentConfig(this.features.workspace, this.features.logging, [agentPath])
+                const individualConfig = result.agentConfig
+
+                // Clear only MCP-related entries from this specific config
+                individualConfig.mcpServers = {}
+                individualConfig.tools = individualConfig.tools.filter(tool => !tool.startsWith('@'))
+                individualConfig.allowedTools = individualConfig.allowedTools.filter(tool => !tool.startsWith('@'))
+
+                await saveAgentConfig(this.features.workspace, this.features.logging, individualConfig, agentPath)
+                this.features.logging.info(`Cleared MCP servers from agent config: ${agentPath}`)
+            } catch (err) {
+                this.features.logging.warn(`Failed to clear agent config at ${agentPath}: ${err}`)
+            }
+        }
+
+        this.features.logging.info('MCP: all servers removed')
+    }
+
+    /**
      * Remove a server: shutdown client, remove tools, and delete disk entry.
      */
     public async removeServer(serverName: string): Promise<void> {
