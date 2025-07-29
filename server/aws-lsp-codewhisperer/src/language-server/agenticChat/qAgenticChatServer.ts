@@ -64,8 +64,8 @@ export const QAgenticChatServer =
             const shortcutEnabled = enableShortcut(params)
             
             const subscriptionDetailsEnabled = isSubscriptionDetailsEnabled(params)
-
             const supportedExecutionCommands: string[] = ['aws/chat/manageSubscription']
+
             if (subscriptionDetailsEnabled) {
                 supportedExecutionCommands.push(SUBSCRIPTION_SHOW_COMMAND_METHOD)
             }
