@@ -1,10 +1,11 @@
 import { StsCache } from './stsCache'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { AwsErrorCodes, IamCredentials } from '@aws/language-server-runtimes/protocol'
+import { AwsErrorCodes, IamCredentials, Profile } from '@aws/language-server-runtimes/protocol'
 import path, { join } from 'path'
 import { mkdir, readFile, unlink, writeFile } from 'fs/promises'
 import { getHomeDir } from '@smithy/shared-ini-file-loader'
 import { throwOnInvalidCredentialId } from '../../iam/utils'
+import { createHash } from 'crypto'
 
 export class FileSystemStsCache implements StsCache {
     constructor(private readonly observability: Observability) {}
@@ -59,6 +60,15 @@ export class FileSystemStsCache implements StsCache {
         this.observability.logging.log('Cannot read STS cache.')
         throw AwsError.wrap(error as Error, AwsErrorCodes.E_CANNOT_READ_SSO_CACHE)
     }
+}
+
+export function convertProfileToId(profile: Profile) {
+    const key = JSON.stringify({
+        RoleArn: profile.settings?.role_arn,
+        RoleSessionName: profile.settings?.role_session_name,
+        SerialNumber: profile.settings?.mfa_serial,
+    })
+    return createHash('sha1').update(key).digest('hex')
 }
 
 // Based on:

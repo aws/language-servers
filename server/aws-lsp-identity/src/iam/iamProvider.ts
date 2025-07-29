@@ -1,14 +1,14 @@
 import {
     AwsErrorCodes,
+    GetMfaCodeResult,
     IamCredential,
-    IamCredentialId,
     IamCredentials,
     ProfileKind,
 } from '@aws/language-server-runtimes/server-interface'
 import { AwsError } from '@aws/lsp-core'
 import { AssumeRoleCommand, AssumeRoleCommandInput, STSClient } from '@aws-sdk/client-sts'
 import { checkMfaRequired, IamFlowParams } from './utils'
-import { createHash } from 'crypto'
+import { convertProfileToId } from '../sts/cache/fileSystemStsCache'
 
 const sourceProfileRecursionMax = 5
 const mfaTimeout = 2 * 60 * 1000 // 2 minutes
@@ -17,7 +17,6 @@ export class IamProvider {
     readonly defaultRegion = 'us-east-1'
 
     async getCredential(params: IamFlowParams): Promise<IamCredential> {
-        let id: IamCredentialId = ''
         let credentials: IamCredentials
 
         // Get the credentials directly from the profile
@@ -30,13 +29,7 @@ export class IamProvider {
         }
         // Assume the role matching the found ARN
         else if (params.profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
-            const key = JSON.stringify({
-                RoleArn: params.profile.settings?.role_arn,
-                RoleSessionName: params.profile.settings?.role_session_name,
-                SerialNumber: params.profile.settings?.mfa_serial,
-            })
-            id = createHash('sha1').update(key).digest('hex')
-            credentials = await this.getAssumedRoleCredential(id, params)
+            credentials = await this.getAssumedRoleCredential(params)
         } else {
             throw new AwsError(
                 'Credentials could not be found for provided profile kind',
@@ -44,36 +37,27 @@ export class IamProvider {
             )
         }
 
-        return { id: id, kinds: params.profile.kinds, credentials: credentials }
+        return { id: convertProfileToId(params.profile), kinds: params.profile.kinds, credentials: credentials }
     }
 
-    private async getAssumedRoleCredential(id: IamCredentialId, params: IamFlowParams): Promise<IamCredentials> {
+    private async getAssumedRoleCredential(params: IamFlowParams): Promise<IamCredentials> {
         if (!params.profile.settings) {
             throw new AwsError('Profile settings not found when assuming role.', AwsErrorCodes.E_INVALID_PROFILE)
         }
 
         // Try to get the STS credentials from cache
         let result: IamCredentials
-        const credential = await params.stsCache.getStsCredential(id).catch(_ => undefined)
+        const credential = await params.stsCache
+            .getStsCredential(convertProfileToId(params.profile))
+            .catch(_ => undefined)
 
         if (credential) {
-            result = {
-                accessKeyId: credential.accessKeyId,
-                secretAccessKey: credential.secretAccessKey,
-                sessionToken: credential.sessionToken,
-                expiration: credential.expiration,
-            }
+            result = credential
         } else if (params.callStsOnInvalidIamCredential) {
             // Generate STS credentials
-            const response = await this.generateStsCredential(params)
+            result = await this.generateStsCredential(params)
             // Cache STS credentials
-            await params.stsCache.setStsCredential(id, response)
-            result = {
-                accessKeyId: response.accessKeyId,
-                secretAccessKey: response.secretAccessKey,
-                sessionToken: response.sessionToken,
-                expiration: response.expiration,
-            }
+            await params.stsCache.setStsCredential(convertProfileToId(params.profile), result)
         } else {
             // If we could not get the cached STS credential and cannot generate a new credential, give up
             params.observability.logging.log(
@@ -85,7 +69,7 @@ export class IamProvider {
         // Set up auto-refresh if MFA is disabled
         if (!params.profile.settings.mfa_serial) {
             await params.stsAutoRefresher
-                .watch(id, () => this.generateStsCredential(params))
+                .watch(convertProfileToId(params.profile), () => this.generateStsCredential(params))
                 .catch(reason => {
                     params.observability.logging.log(`Unable to auto-refresh STS credentials. ${reason}`)
                 })
@@ -123,59 +107,40 @@ export class IamProvider {
 
     private async generateStsCredential(params: IamFlowParams): Promise<IamCredentials> {
         try {
+            // Set up AssumeRole input
             const parentCredentials = await this.getParentCredential(params)
             const stsClient = new STSClient({
                 region: params.profile.settings?.region || this.defaultRegion,
                 credentials: parentCredentials,
             })
-
-            // Add MFA fields to assume role request if MultiFactorAuthPresent is required
             const assumeRoleInput: AssumeRoleCommandInput = {
                 RoleArn: params.profile.settings?.role_arn,
                 RoleSessionName: params.profile.settings?.role_session_name || `session-${Date.now()}`,
                 DurationSeconds: 3600,
             }
+
+            // Add MFA fields to assume role request if MultiFactorAuthPresent is required
             const mfaRequired = await checkMfaRequired(
                 parentCredentials,
                 ['sts:AssumeRole'],
                 params.profile.settings?.region
             )
             if (mfaRequired) {
-                // Request an MFA code from the language client
-                let timeoutId: NodeJS.Timeout | undefined
-                const timeout = new Promise<never>(
-                    (_, reject) =>
-                        (timeoutId = setTimeout(
-                            () => reject(new AwsError('MFA code request timed out', AwsErrorCodes.E_MFA_REQUIRED)),
-                            mfaTimeout
-                        ))
-                )
-                const response = await Promise.race([
-                    params.handlers.sendGetMfaCode({
-                        profileName: params.profile.name,
-                        mfaSerial: params.profile.settings?.mfa_serial,
-                    }),
-                    timeout,
-                ])
-                clearTimeout(timeoutId)
-
-                if (!response.code) {
-                    throw new AwsError(
-                        'MFA code required when assuming role with MultiFactorAuthPresent permission condition',
-                        AwsErrorCodes.E_MFA_REQUIRED
-                    )
-                }
-                if (!response.mfaSerial) {
-                    throw new AwsError(
-                        'MFA serial required when assuming role with MultiFactorAuthPresent permission condition',
-                        AwsErrorCodes.E_MFA_REQUIRED
-                    )
-                }
-
+                const response = await this.requestMfa(params)
                 assumeRoleInput.SerialNumber = response.mfaSerial
                 assumeRoleInput.TokenCode = response.code
+
+                // Add the MFA serial number to the profile
+                const updatedProfile = {
+                    ...params.profile,
+                    settings: { ...params.profile.settings, mfa_serial: response.mfaSerial },
+                }
+                params.profileStore.save({ profiles: [updatedProfile], ssoSessions: [] })
+                // Update params.profile to ensure STS cache key is generated with updated MFA serial number
+                params.profile = updatedProfile
             }
 
+            // Call AssumeRole API
             const command = new AssumeRoleCommand(assumeRoleInput)
             const { Credentials } = await stsClient.send(command)
             if (!Credentials?.AccessKeyId || !Credentials.SecretAccessKey) {
@@ -194,5 +159,40 @@ export class IamProvider {
             params.observability.logging.log(`Error generating STS credentials.`)
             throw e
         }
+    }
+
+    // Request an MFA code from the language client
+    private async requestMfa(params: IamFlowParams): Promise<GetMfaCodeResult> {
+        let timeoutId: NodeJS.Timeout | undefined
+        const timeout = new Promise<never>(
+            (_, reject) =>
+                (timeoutId = setTimeout(
+                    () => reject(new AwsError('MFA code request timed out', AwsErrorCodes.E_MFA_REQUIRED)),
+                    mfaTimeout
+                ))
+        )
+        const response = await Promise.race([
+            params.handlers.sendGetMfaCode({
+                profileName: params.profile.name,
+                mfaSerial: params.profile.settings?.mfa_serial,
+            }),
+            timeout,
+        ])
+        clearTimeout(timeoutId)
+
+        if (!response.code) {
+            throw new AwsError(
+                'MFA code required when assuming role with MultiFactorAuthPresent permission condition',
+                AwsErrorCodes.E_MFA_REQUIRED
+            )
+        }
+        if (!response.mfaSerial) {
+            throw new AwsError(
+                'MFA serial required when assuming role with MultiFactorAuthPresent permission condition',
+                AwsErrorCodes.E_MFA_REQUIRED
+            )
+        }
+
+        return response
     }
 }
