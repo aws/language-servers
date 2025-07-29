@@ -533,15 +533,28 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
         }
     }
 
-    const absolutePaths = await fg(['**/*'], {
+    const absolutePaths: string[] = []
+    let fileCount = 0
+    const MAX_FILES = 500_000
+
+    const stream = fg.stream(['**/*'], {
         cwd: directory,
         dot: true,
         ignore: ignorePatterns,
-        onlyFiles: false,
+        onlyFiles: true,
         followSymbolicLinks: false,
         absolute: true,
     })
-    return absolutePaths.slice(0, 500_000)
+
+    for await (const entry of stream) {
+        if (fileCount >= MAX_FILES) {
+            break
+        }
+        absolutePaths.push(entry.toString())
+        fileCount++
+    }
+
+    return absolutePaths
 }
 
 export function getFileExtensionName(filepath: string): string {
