@@ -124,6 +124,7 @@ import {
     isUsageLimitError,
     isNullish,
     getOriginFromClientInfo,
+    sanitizeInput,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -713,7 +714,9 @@ export class AgenticChatController implements ChatHandlers {
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         // Phase 1: Initial Setup - This happens only once
-        const maybeDefaultResponse = getDefaultChatResponse(params.prompt.prompt)
+        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
+
+        const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
             return maybeDefaultResponse
         }
