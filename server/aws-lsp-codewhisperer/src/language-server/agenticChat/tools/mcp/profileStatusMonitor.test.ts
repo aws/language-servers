@@ -6,6 +6,7 @@
 import { expect } from 'chai'
 import * as sinon from 'sinon'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
+import * as AmazonQTokenServiceManagerModule from '../../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 describe('ProfileStatusMonitor', () => {
     let profileStatusMonitor: ProfileStatusMonitor
@@ -14,6 +15,7 @@ describe('ProfileStatusMonitor', () => {
     let mockLogging: any
     let mockSdkInitializator: any
     let mockOnMcpDisabled: sinon.SinonStub
+    let mockOnMcpEnabled: sinon.SinonStub
     let clock: sinon.SinonFakeTimers
 
     beforeEach(() => {
@@ -32,13 +34,15 @@ describe('ProfileStatusMonitor', () => {
 
         mockSdkInitializator = {}
         mockOnMcpDisabled = sinon.stub()
+        mockOnMcpEnabled = sinon.stub()
 
         profileStatusMonitor = new ProfileStatusMonitor(
             mockCredentialsProvider,
             mockWorkspace,
             mockLogging,
             mockSdkInitializator,
-            mockOnMcpDisabled
+            mockOnMcpDisabled,
+            mockOnMcpEnabled
         )
     })
 
@@ -74,14 +78,26 @@ describe('ProfileStatusMonitor', () => {
         })
     })
 
-    describe('checkMcpConfiguration', () => {
-        it('should return early if no bearer credentials', async () => {
-            mockCredentialsProvider.hasCredentials.returns(false)
-            profileStatusMonitor.start()
+    describe('checkInitialState', () => {
+        it('should return true when no profile ARN is available', async () => {
+            sinon.stub(AmazonQTokenServiceManagerModule.AmazonQTokenServiceManager, 'getInstance').returns({
+                getActiveProfileArn: () => undefined,
+            } as any)
 
-            await clock.tickAsync(0)
+            const result = await profileStatusMonitor.checkInitialState()
+            expect(result).to.be.true
+        })
 
-            expect(mockOnMcpDisabled.called).to.be.false
+        it('should return true and log debug message on error', async () => {
+            // Stub the private checkMcpConfiguration method to throw an error
+            sinon
+                .stub(profileStatusMonitor as any, 'checkMcpConfiguration')
+                .throws(new Error('Service manager not ready'))
+
+            const result = await profileStatusMonitor.checkInitialState()
+            expect(result).to.be.true
+            expect(mockLogging.debug.calledWith(sinon.match('Initial MCP state check failed, defaulting to enabled')))
+                .to.be.true
         })
     })
 
@@ -109,7 +125,8 @@ describe('ProfileStatusMonitor', () => {
                 mockWorkspace,
                 mockLogging,
                 mockSdkInitializator,
-                mockOnMcpDisabled
+                mockOnMcpDisabled,
+                mockOnMcpEnabled
             )
 
             const monitor2 = new ProfileStatusMonitor(
@@ -117,7 +134,8 @@ describe('ProfileStatusMonitor', () => {
                 mockWorkspace,
                 mockLogging,
                 mockSdkInitializator,
-                mockOnMcpDisabled
+                mockOnMcpDisabled,
+                mockOnMcpEnabled
             )
 
             // Set state through static property
@@ -140,7 +158,8 @@ describe('ProfileStatusMonitor', () => {
                 mockWorkspace,
                 mockLogging,
                 mockSdkInitializator,
-                mockOnMcpDisabled
+                mockOnMcpDisabled,
+                mockOnMcpEnabled
             )
 
             const monitor2 = new ProfileStatusMonitor(
@@ -148,7 +167,8 @@ describe('ProfileStatusMonitor', () => {
                 mockWorkspace,
                 mockLogging,
                 mockSdkInitializator,
-                mockOnMcpDisabled
+                mockOnMcpDisabled,
+                mockOnMcpEnabled
             )
 
             // Initially undefined
