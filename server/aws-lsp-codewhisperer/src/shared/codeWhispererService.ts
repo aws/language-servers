@@ -408,69 +408,18 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             : undefined
     }
 
-    /**
-     *
-     */
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         const predictionTypes = request.predictionTypes
         if (!predictionTypes) {
-            if (this.inflightRequests.size !== 0) {
-                this.logging.warn(`client throttled generate completion request`)
-                throw new Error('client throttled')
-            }
             return await this.gc(request)
         }
 
-        if (predictionTypes.includes('EDITS') && this.cache.has(request.fileContext.filename)) {
-            const cachedResponse = this.cache.get(request.fileContext.filename)
-            // TODO: && suggestion can be applied
-            if (cachedResponse) {
-                return cachedResponse
-            }
-        }
-
-        /**
-         * If suggestion types contains both completion and edits
-         * 1. Make completion request if there is no in-flight completion request
-         * 2. Make edit request in a debounced fashion (merged with other edit requests) in parallel and save the edit suggestion to cache once client ide pull suggestion from here
-         */
-        if (
-            predictionTypes.length === 2 &&
-            predictionTypes.includes(SuggestionType.COMPLETION) &&
-            predictionTypes.includes(SuggestionType.EDIT)
-        ) {
-            const completionRequest = {
-                ...request,
-                predictionTypes: [SuggestionType.COMPLETION],
-            }
-            const editRequest = {
-                ...request,
-                predictionTypes: [SuggestionType.EDIT],
-            }
-
-            if (this.inflightRequests.size === 0) {
-                const completionResponse = await this.gc(completionRequest)
-                this.debouncedGc(editRequest)
-                    .then(res => {
-                        this.cache.set(editRequest.fileContext.filename, res)
-                    })
-                    .catch(e => {})
-                return completionResponse
-            } else {
-                this.debouncedGc(editRequest)
-                    .then(res => {
-                        this.cache.set(editRequest.fileContext.filename, res)
-                    })
-                    .catch(e => {})
-            }
+        if (predictionTypes.length > 1) {
+            this.logging.error('detect prediction type has more than 1')
+            throw new Error('detect prediction type has more than 1')
         }
 
         const isCompletionRequest = predictionTypes.includes(SuggestionType.COMPLETION)
-
-        if (isCompletionRequest && this.inflightRequests.size !== 0) {
-            this.logging.warn(`client throttled generate completion request`)
-            throw new Error('client throttled')
-        }
 
         if (isCompletionRequest) {
             return await this.gc(request)
