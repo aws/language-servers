@@ -404,7 +404,12 @@ export class AgenticChatController implements ChatHandlers {
             }
             params.buttonId === BUTTON_REJECT_SHELL_COMMAND || params.buttonId === BUTTON_REJECT_MCP_TOOL
                 ? (() => {
-                      handler.reject(new ToolApprovalException('Command was rejected.', true))
+                      if (params.buttonId === BUTTON_REJECT_SHELL_COMMAND) {
+                          handler.reject(new ToolApprovalException('Command was rejected.', true))
+                      }
+                      if (params.buttonId === BUTTON_REJECT_MCP_TOOL) {
+                          handler.reject(new ToolApprovalException('MCP Tool was rejected.', true))
+                      }
                       this.#stoppedToolUses.add(messageId)
                   })()
                 : handler.resolve()
