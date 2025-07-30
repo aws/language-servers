@@ -17,32 +17,34 @@ export class FileSystemStsCache implements StsCache {
     }
 
     async getStsCredential(name: string): Promise<IamCredentials | undefined> {
-        return await getStsCredentialFromFile(name)
-            .then(credential => {
-                if (
-                    credential.accessKeyId &&
-                    credential.secretAccessKey &&
-                    credential.sessionToken &&
-                    credential.expiration
-                ) {
-                    // Ensure Expiration is a Date object
-                    if (typeof credential.expiration === 'string') {
-                        credential = { ...credential, expiration: new Date(credential.expiration) }
-                    }
-                    return credential
-                } else {
-                    return undefined
-                }
-            })
-            .catch(reason => this.ignoreDoesNotExistOrThrow(reason))
+        try {
+            let credential = await getStsCredentialFromFile(name)
+            if (!this.isValid(credential)) {
+                this.observability.logging.log(`Cannot get credential from ${name}: missing fields.`)
+                return undefined
+            }
+            // Ensure expiration is a Date object
+            if (typeof credential.expiration === 'string') {
+                credential = { ...credential, expiration: new Date(credential.expiration) }
+            }
+            if (this.isExpired(credential)) {
+                this.observability.logging.log(`Credential from ${name} is expired`)
+                return undefined
+            }
+            return credential
+        } catch (e) {
+            this.ignoreDoesNotExistOrThrow(e)
+        }
     }
 
     async setStsCredential(name: string, credential: IamCredentials): Promise<void> {
-        if (
-            !(credential.accessKeyId && credential.secretAccessKey && credential.sessionToken && credential.expiration)
-        ) {
+        if (!this.isValid(credential)) {
             this.observability.logging.log('Cannot set credential: missing fields.')
             return
+        }
+        if (this.isExpired(credential)) {
+            this.observability.logging.log(`Cannot set credential: expired`)
+            return undefined
         }
 
         await writeStsObjectToFile(name, credential).catch(reason => {
@@ -59,6 +61,22 @@ export class FileSystemStsCache implements StsCache {
 
         this.observability.logging.log('Cannot read STS cache.')
         throw AwsError.wrap(error as Error, AwsErrorCodes.E_CANNOT_READ_SSO_CACHE)
+    }
+
+    private isValid(credential: IamCredentials): boolean {
+        return (
+            credential.accessKeyId !== undefined &&
+            credential.secretAccessKey !== undefined &&
+            credential.sessionToken !== undefined &&
+            credential.expiration !== undefined
+        )
+    }
+
+    private isExpired(credential: IamCredentials): boolean {
+        if (credential.expiration === undefined) {
+            return false
+        }
+        return Date.now() >= credential.expiration.getTime()
     }
 }
 

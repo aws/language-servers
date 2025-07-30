@@ -83,10 +83,11 @@ export class IamProvider {
         if (params.profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
             // Get the source profile
             const profileData = await params.profileStore.load()
-            const sourceProfile = profileData.profiles.find(p => p.name === params.profile.settings!.source_profile!)
+            const sourceName = params.profile.settings!.source_profile!
+            const sourceProfile = profileData.profiles.find(p => p.name === sourceName)
             if (!sourceProfile) {
-                params.observability.logging.log('Source profile not found.')
-                throw new AwsError('Source profile not found.', AwsErrorCodes.E_PROFILE_NOT_FOUND)
+                params.observability.logging.log(`Source profile ${sourceName} not found.`)
+                throw new AwsError(`Source profile ${sourceName} not found.`, AwsErrorCodes.E_PROFILE_NOT_FOUND)
             }
             // Obtain parent profile credentials if IamRoleSourceProfile chain isn't too long
             if (params.recursionCount <= sourceProfileRecursionMax) {
@@ -163,22 +164,10 @@ export class IamProvider {
 
     // Request an MFA code from the language client
     private async requestMfa(params: IamFlowParams): Promise<GetMfaCodeResult> {
-        let timeoutId: NodeJS.Timeout | undefined
-        const timeout = new Promise<never>(
-            (_, reject) =>
-                (timeoutId = setTimeout(
-                    () => reject(new AwsError('MFA code request timed out', AwsErrorCodes.E_MFA_REQUIRED)),
-                    mfaTimeout
-                ))
-        )
-        const response = await Promise.race([
-            params.handlers.sendGetMfaCode({
-                profileName: params.profile.name,
-                mfaSerial: params.profile.settings?.mfa_serial,
-            }),
-            timeout,
-        ])
-        clearTimeout(timeoutId)
+        const response = await params.handlers.sendGetMfaCode({
+            profileName: params.profile.name,
+            mfaSerial: params.profile.settings?.mfa_serial,
+        })
 
         if (!response.code) {
             throw new AwsError(

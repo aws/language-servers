@@ -5,7 +5,7 @@ import { MetricEvent } from '@aws/language-server-runtimes/server-interface'
 import { normalizeSettingList } from '../language-server/profiles/profileService'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { AutoRefresher } from '../language-server/autoRefresher'
+import { AutoRefresher, invalidDelay } from '../language-server/autoRefresher'
 
 export class SsoTokenAutoRefresher extends AutoRefresher {
     constructor(
@@ -36,7 +36,7 @@ export class SsoTokenAutoRefresher extends AutoRefresher {
 
             // Refresh timeout if delay is valid
             const delayMillis = this.getDelay(ssoToken.expiresAt)
-            if (delayMillis >= 0) {
+            if (delayMillis !== invalidDelay) {
                 this.observability.logging.log(`Auto-refreshing SSO token in ${delayMillis} milliseconds.`)
                 this.timeouts[ssoSession.name] = setTimeout(this.watch.bind(this, clientName, ssoSession), delayMillis)
             }

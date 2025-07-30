@@ -1,5 +1,6 @@
 import { Observability } from '@aws/lsp-core'
 
+export const invalidDelay: number = -1
 export const refreshWindowMillis: number = 5 * 60 * 1000
 export const retryCooldownWindowMillis: number = 30000
 const bufferedRefreshWindowMillis = refreshWindowMillis * 0.95
@@ -36,7 +37,7 @@ export abstract class AutoRefresher implements Disposable {
         } else {
             // Otherwise, expired
             this.observability.logging.log('SSO token has expired and will not be auto-refreshed.')
-            return -1
+            return invalidDelay
         }
 
         this.observability.logging.log(`Auto-refreshing SSO token in ${delayMillis} milliseconds.`)

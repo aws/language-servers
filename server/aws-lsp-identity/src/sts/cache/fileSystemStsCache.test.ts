@@ -22,7 +22,7 @@ const credential: IamCredentials = {
     accessKeyId: 'someaccesskeyid',
     secretAccessKey: 'somesecretaccesskey',
     sessionToken: 'somesessiontoken',
-    expiration: new Date('2024-09-25T18:09:20.455Z'),
+    expiration: new Date(Date.now() + 60 * 60 * 1000),
 }
 
 function setupTest(args?: { id?: string; credential?: IamCredentials }): void {
@@ -83,7 +83,7 @@ describe('FileSystemStsCache', () => {
         await expectFileExists(filename).to.not.be.rejectedWith()
     })
 
-    it('removeStsCredential throws on invalid profile name', async () => {
+    it('removeStsCredential throws on invalid id', async () => {
         await expect(sut.removeStsCredential(' ')).to.be.rejectedWith()
     })
 
@@ -108,7 +108,23 @@ describe('FileSystemStsCache', () => {
     })
 
     it('getStsCredential returns undefined on invalid credential', async () => {
-        setupTest({ id: 'invalid-profile', credential: {} as IamCredentials })
+        setupTest({ id: 'invalid-id', credential: {} as IamCredentials })
+
+        const actual = await sut.getStsCredential(id)
+
+        expect(actual).to.be.undefined
+    })
+
+    it('getStsCredential returns undefined on expired credential', async () => {
+        setupTest({
+            id: 'invalid-id',
+            credential: {
+                accessKeyId: 'newaccesskeyid',
+                secretAccessKey: 'newsecretaccesskey',
+                sessionToken: 'newsessiontoken',
+                expiration: new Date(Date.now() - 60 * 60 * 1000),
+            } as IamCredentials,
+        })
 
         const actual = await sut.getStsCredential(id)
 
@@ -146,25 +162,36 @@ describe('FileSystemStsCache', () => {
     it('setStsCredential writes updated existing credential', async () => {
         setupTest()
 
-        await sut.setStsCredential(id, {
+        const newCredential = {
             accessKeyId: 'newaccesskeyid',
             secretAccessKey: 'newsecretaccesskey',
             sessionToken: 'newsessiontoken',
-            expiration: new Date('2024-10-14T12:00:00.000Z'),
-        })
-
+            expiration: new Date(Date.now() + 60 * 60 * 1000),
+        }
+        await sut.setStsCredential(id, newCredential)
         const actual = await sut.getStsCredential(id)
 
         expect(actual).to.not.be.null.and.not.undefined
-        expect(actual?.accessKeyId).to.equal('newaccesskeyid')
-        expect(actual?.secretAccessKey).to.equal('newsecretaccesskey')
-        expect(actual?.sessionToken).to.equal('newsessiontoken')
-        expect(actual?.expiration?.toISOString()).to.equal('2024-10-14T12:00:00.000Z')
+        expect(actual?.accessKeyId).to.equal(newCredential.accessKeyId)
+        expect(actual?.secretAccessKey).to.equal(newCredential.secretAccessKey)
+        expect(actual?.sessionToken).to.equal(newCredential.sessionToken)
+        expect(actual?.expiration?.toISOString()).to.equal(newCredential.expiration.toISOString())
     })
 
     it('setStsCredential returns without error on invalid credential', async () => {
         setupTest()
 
         await sut.setStsCredential(id, {} as IamCredentials) // no throw
+    })
+
+    it('setStsCredential returns without error on expired credential', async () => {
+        setupTest()
+
+        await sut.setStsCredential(id, {
+            accessKeyId: 'newaccesskeyid',
+            secretAccessKey: 'newsecretaccesskey',
+            sessionToken: 'newsessiontoken',
+            expiration: new Date(Date.now() - 60 * 60 * 1000),
+        } as IamCredentials) // no throw
     })
 })

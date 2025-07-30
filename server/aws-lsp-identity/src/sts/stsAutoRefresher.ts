@@ -1,6 +1,6 @@
 import { StsCache } from './cache/stsCache'
 import { Observability } from '@aws/lsp-core'
-import { AutoRefresher } from '../language-server/autoRefresher'
+import { AutoRefresher, invalidDelay } from '../language-server/autoRefresher'
 import { IamCredentials, StsCredentialChangedKind } from '@aws/language-server-runtimes/protocol'
 import { SendStsCredentialChanged } from '../iam/utils'
 
@@ -38,7 +38,7 @@ export class StsAutoRefresher extends AutoRefresher {
                 (this.stsCredentialDetails[iamCredentialId] = { lastRefreshMillis: 0 })
 
             const delayMillis = this.getDelay(credential.expiration.toISOString())
-            if (delayMillis >= 0) {
+            if (delayMillis !== invalidDelay) {
                 this.observability.logging.info(`Auto-refreshing STS credentials in ${delayMillis} milliseconds.`)
                 this.timeouts[iamCredentialId] = setTimeout(async () => {
                     try {

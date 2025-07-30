@@ -4,7 +4,7 @@ import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { restore, spy } from 'sinon'
 import { AwsErrorCodes, IamCredentials, Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { AwsError, Observability } from '@aws/lsp-core'
-import { RefreshingStsCache } from './cache/refreshingStsCache'
+import { FileSystemStsCache } from './cache/fileSystemStsCache'
 
 // eslint-disable-next-line
 use(require('chai-as-promised'))
@@ -32,8 +32,8 @@ function refreshStsCredential(): Promise<IamCredentials> {
     } satisfies IamCredentials)
 }
 
-function stubStsCache(credential?: IamCredentials): RefreshingStsCache {
-    return stubInterface<RefreshingStsCache>({
+function stubStsCache(credential?: IamCredentials): FileSystemStsCache {
+    return stubInterface<FileSystemStsCache>({
         getStsCredential: credential
             ? Promise.resolve(credential)
             : Promise.reject(new AwsError('Test: No STS credential', AwsErrorCodes.E_INVALID_STS_CREDENTIAL)),
