@@ -1,6 +1,5 @@
 import { WorkspaceFolderManager } from './workspaceFolderManager'
 import sinon, { stubInterface, StubbedInstance } from 'ts-sinon'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
 import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { WorkspaceFolder } from 'vscode-languageserver-protocol'
@@ -8,9 +7,10 @@ import { ArtifactManager } from './artifactManager'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService/codeWhispererServiceToken'
 import { CreateWorkspaceResponse } from '../../client/token/codewhispererbearertokenclient'
 import { AWSError } from 'aws-sdk'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 
 describe('WorkspaceFolderManager', () => {
-    let mockServiceManager: StubbedInstance<AmazonQTokenServiceManager>
+    let mockServiceManager: StubbedInstance<AmazonQServiceManager>
     let mockLogging: StubbedInstance<Logging>
     let mockCredentialsProvider: StubbedInstance<CredentialsProvider>
     let mockDependencyDiscoverer: StubbedInstance<DependencyDiscoverer>
@@ -19,7 +19,7 @@ describe('WorkspaceFolderManager', () => {
     let workspaceFolderManager: WorkspaceFolderManager
 
     beforeEach(() => {
-        mockServiceManager = stubInterface<AmazonQTokenServiceManager>()
+        mockServiceManager = stubInterface<AmazonQServiceManager>()
         mockLogging = stubInterface<Logging>()
         mockCredentialsProvider = stubInterface<CredentialsProvider>()
         mockDependencyDiscoverer = stubInterface<DependencyDiscoverer>()

@@ -1,11 +1,10 @@
 import { standalone } from '@aws/language-server-runtimes/runtimes'
 import {
-    AmazonQServiceServerIAM,
-    AmazonQServiceServerToken,
+    AmazonQServiceServer,
     CodeWhispererSecurityScanServerTokenProxy,
-    CodeWhispererServerTokenProxy,
-    QAgenticChatServerProxy,
+    CodeWhispererServerProxy,
     QConfigurationServerTokenProxy,
+    QAgenticChatServerProxy,
     QLocalProjectContextServerProxy,
     QNetTransformServerTokenProxy,
     WorkspaceContextServerTokenProxy,
@@ -27,7 +26,7 @@ const VERSION = `${MAJOR}.${MINOR}.${PATCH}`
 const props = {
     version: VERSION,
     servers: [
-        CodeWhispererServerTokenProxy,
+        CodeWhispererServerProxy,
         CodeWhispererSecurityScanServerTokenProxy,
         QConfigurationServerTokenProxy,
         QNetTransformServerTokenProxy,
@@ -40,8 +39,7 @@ const props = {
         WorkspaceContextServerTokenProxy,
         McpToolsServer,
         // LspToolsServer,
-        AmazonQServiceServerIAM,
-        AmazonQServiceServerToken,
+        AmazonQServiceServer,
     ],
     name: 'AWS CodeWhisperer',
 } as RuntimeProps

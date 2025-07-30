@@ -132,8 +132,7 @@ import {
     AmazonQServicePendingProfileError,
     AmazonQServicePendingSigninError,
 } from '../../shared/amazonQServiceManager/errors'
-import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
 import { ChatDatabase, MaxOverallCharacters, ToolResultValidationError } from './tools/chatDb/chatDb'
@@ -222,7 +221,7 @@ import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService/codeWhispererServiceToken'
+import { CodeWhispererServiceBase } from '../../shared/codeWhispererService/codeWhispererServiceBase'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -254,7 +253,7 @@ export class AgenticChatController implements ChatHandlers {
     #triggerContext: AgenticChatTriggerContext
     #customizationArn?: string
     #telemetryService: TelemetryService
-    #serviceManager?: AmazonQBaseServiceManager
+    #serviceManager?: AmazonQServiceManager
     #tabBarController: TabBarController
     #chatHistoryDb: ChatDatabase
     #additionalContextProvider: AdditionalContextProvider
@@ -332,7 +331,7 @@ export class AgenticChatController implements ChatHandlers {
         chatSessionManagementService: ChatSessionManagementService,
         features: Features,
         telemetryService: TelemetryService,
-        serviceManager?: AmazonQBaseServiceManager
+        serviceManager?: AmazonQServiceManager
     ) {
         this.#features = features
         this.#chatSessionManagementService = chatSessionManagementService
@@ -674,7 +673,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
+        const region = AmazonQServiceManager.getInstance().getRegion()
         const models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
@@ -3470,7 +3469,7 @@ export class AgenticChatController implements ChatHandlers {
         // In that case, we use the default modelId.
         let modelId = this.#chatHistoryDb.getModelId() ?? DEFAULT_MODEL_ID
 
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
+        const region = AmazonQServiceManager.getInstance().getRegion()
         if (region === 'eu-central-1') {
             // Only 3.7 Sonnet is available in eu-central-1 for now
             modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
@@ -4386,9 +4385,9 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         this.#abTestingFetchingTimeout = setInterval(() => {
-            let codeWhispererServiceToken: CodeWhispererServiceToken
+            let codeWhispererService: CodeWhispererServiceBase
             try {
-                codeWhispererServiceToken = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+                codeWhispererService = AmazonQServiceManager.getInstance().getCodewhispererService()
             } catch (error) {
                 // getCodewhispererService only returns the cwspr client if the service manager was initialized
                 // i.e. profile was selected otherwise it throws an error
@@ -4400,7 +4399,7 @@ export class AgenticChatController implements ChatHandlers {
             clearInterval(this.#abTestingFetchingTimeout)
             this.#abTestingFetchingTimeout = undefined
 
-            codeWhispererServiceToken
+            codeWhispererService
                 .listFeatureEvaluations({ userContext })
                 .then(result => {
                     const feature = result.featureEvaluations?.find(
