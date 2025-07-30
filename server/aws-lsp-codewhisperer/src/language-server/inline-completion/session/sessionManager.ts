@@ -32,6 +32,7 @@ export interface SessionData {
     credentialStartUrl?: string
     customizationArn?: string
     supplementalMetadata?: CodeWhispererSupplementalContext
+    includeImportsWithSuggestions?: boolean
 }
 
 export class CodeWhispererSession {
@@ -72,7 +73,10 @@ export class CodeWhispererSession {
     previousTriggerDecisionTime?: number
     reportedUserDecision: boolean = false
     customizationArn?: string
-    includeImportsWithSuggestions?: boolean
+    private _includeImportsWithSuggestions?: boolean
+    get includeImportsWithSuggestions() {
+        return this._includeImportsWithSuggestions
+    }
     codewhispererSuggestionImportCount: number = 0
     suggestionType?: string
 
@@ -92,6 +96,7 @@ export class CodeWhispererSession {
         this.supplementalMetadata = data.supplementalMetadata
         this.state = 'REQUESTING'
         this.startTime = new Date().getTime()
+        this._includeImportsWithSuggestions = data.includeImportsWithSuggestions
     }
 
     // This function makes it possible to stub uuidv4 calls in tests
@@ -243,7 +248,9 @@ export class CodeWhispererSession {
 }
 
 export class SessionManager {
-    private static _instance?: SessionManager
+    private static _completionInstance?: SessionManager
+    private static _editsInstance?: SessionManager
+
     private currentSession?: CodeWhispererSession
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
@@ -255,17 +262,18 @@ export class SessionManager {
     /**
      * Singleton SessionManager class
      */
-    public static getInstance(): SessionManager {
-        if (!SessionManager._instance) {
-            SessionManager._instance = new SessionManager()
+    public static getInstance(type: 'COMPLETIONS' | 'EDITS' = 'COMPLETIONS'): SessionManager {
+        if (type === 'EDITS') {
+            return (SessionManager._editsInstance ??= new SessionManager())
         }
 
-        return SessionManager._instance
+        return (SessionManager._completionInstance ??= new SessionManager())
     }
 
     // For unit tests
     public static reset() {
-        SessionManager._instance = undefined
+        SessionManager._completionInstance = undefined
+        SessionManager._editsInstance = undefined
     }
 
     public createSession(data: SessionData): CodeWhispererSession {

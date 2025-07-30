@@ -7,6 +7,9 @@ import {
     SDKInitializator,
     CancellationToken,
     CancellationTokenSource,
+    TextDocument,
+    Position,
+    WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -26,6 +29,13 @@ import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4cli
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { getErrorId } from './utils'
 import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
+import { CodeWhispererSupplementalContext } from './models/model'
+import { fetchSupplementalContext } from './supplementalContextUtil/supplementalContextUtil'
+import { RecentEditTracker } from '../language-server/inline-completion/tracker/codeEditTracker'
+import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
+import { getRelativePath } from '../language-server/workspaceContext/util'
+import path = require('path')
+import { applyPatch } from 'diff'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -56,6 +66,10 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
+export const FILE_URI_CHARS_LIMIT = 1024
+export const FILENAME_CHARS_LIMIT = 1024
+export const CONTEXT_CHARACTERS_LIMIT = 10240
+
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
     protected readonly codeWhispererRegion
@@ -82,7 +96,64 @@ export abstract class CodeWhispererServiceBase {
         this.inflightRequests.delete(request)
     }
 
+    getFileContext(params: {
+        textDocument: TextDocument
+        position: Position
+        inferredLanguageId: CodewhispererLanguage
+        workspaceFolder: WorkspaceFolder | null | undefined
+    }): {
+        fileUri: string
+        filename: string
+        programmingLanguage: {
+            languageName: CodewhispererLanguage
+        }
+        leftFileContent: string
+        rightFileContent: string
+    } {
+        const left = params.textDocument.getText({
+            start: { line: 0, character: 0 },
+            end: params.position,
+        })
+        const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+        const right = params.textDocument.getText({
+            start: params.position,
+            end: params.textDocument.positionAt(params.textDocument.getText().length),
+        })
+        const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+        const relativeFilePath = params.workspaceFolder
+            ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
+            : path.basename(params.textDocument.uri)
+
+        return {
+            fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
+            filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
+            programmingLanguage: {
+                languageName: getRuntimeLanguage(params.inferredLanguageId),
+            },
+            leftFileContent: trimmedLeft,
+            rightFileContent: trimmedRight,
+        }
+    }
+
     abstract getCredentialsType(): CredentialsType
+
+    abstract constructSupplementalContext(
+        document: TextDocument,
+        position: Position,
+        workspace: Workspace,
+        recentEditTracker: RecentEditTracker,
+        logging: Logging,
+        cancellationToken: CancellationToken,
+        config: { includeRecentEdits: boolean }
+    ): Promise<
+        | {
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
+        | undefined
+    >
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
 
@@ -148,6 +219,24 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         return 'iam'
     }
 
+    async constructSupplementalContext(
+        document: TextDocument,
+        position: Position,
+        workspace: Workspace,
+        recentEditTracker: RecentEditTracker,
+        logging: Logging,
+        cancellationToken: CancellationToken,
+        config: { includeRecentEdits: boolean }
+    ): Promise<
+        | {
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
+        | undefined
+    > {
+        return undefined
+    }
+
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
@@ -180,6 +269,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     #createSubscriptionTokenPromise?: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse>
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
+
+    private cache: Map<string, GenerateSuggestionsResponse> = new Map()
 
     constructor(
         private credentialsProvider: CredentialsProvider,
@@ -250,13 +341,113 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return { ...request, profileArn: this.profileArn }
     }
 
+    async constructSupplementalContext(
+        document: TextDocument,
+        position: Position,
+        workspace: Workspace,
+        recentEditTracker: RecentEditTracker,
+        logging: Logging,
+        cancellationToken: CancellationToken,
+        config: { includeRecentEdits: boolean }
+    ): Promise<
+        | {
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
+        | undefined
+    > {
+        const items: CodeWhispererTokenClient.SupplementalContext[] = []
+
+        const projectContext = await fetchSupplementalContext(document, position, workspace, logging, cancellationToken)
+        if (projectContext) {
+            items.push(
+                ...projectContext.supplementalContextItems.map(v => ({
+                    content: v.content,
+                    filePath: v.filePath,
+                }))
+            )
+        }
+
+        const recentEditsContext = config.includeRecentEdits
+            ? await recentEditTracker.generateEditBasedContext(document)
+            : undefined
+        if (recentEditsContext) {
+            items.push(
+                ...recentEditsContext.supplementalContextItems.map(item => ({
+                    content: item.content,
+                    filePath: item.filePath,
+                    type: 'PreviousEditorState',
+                    metadata: {
+                        previousEditorStateMetadata: {
+                            timeOffset: 1000,
+                        },
+                    },
+                }))
+            )
+        }
+
+        const merged: CodeWhispererSupplementalContext | undefined = recentEditsContext
+            ? {
+                  contentsLength: (projectContext?.contentsLength || 0) + (recentEditsContext?.contentsLength || 0),
+                  latency: Math.max(projectContext?.latency || 0, recentEditsContext?.latency || 0),
+                  isUtg: projectContext?.isUtg || false,
+                  isProcessTimeout: projectContext?.isProcessTimeout || false,
+                  strategy: recentEditsContext ? 'recentEdits' : projectContext?.strategy || 'Empty',
+                  supplementalContextItems: [
+                      ...(projectContext?.supplementalContextItems || []),
+                      ...(recentEditsContext?.supplementalContextItems || []),
+                  ],
+              }
+            : projectContext
+
+        return merged
+            ? {
+                  supContextData: merged,
+                  items: items,
+              }
+            : undefined
+    }
+
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
+        const predictionTypes = request.predictionTypes
+        if (!predictionTypes) {
+            return await this.gc(request)
+        }
+
+        if (predictionTypes.length > 1) {
+            this.logging.error('detect prediction type has more than 1')
+            throw new Error('detect prediction type has more than 1')
+        }
+
+        const isCompletionRequest = predictionTypes.includes(SuggestionType.COMPLETION)
+
+        if (isCompletionRequest) {
+            return await this.gc(request)
+        }
+
+        return await this.debouncedGc(request)
+    }
+
+    private debouncedGc(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
+        const task = cancellableDebounce(
+            () => {
+                return this.gc(request)
+            },
+            500,
+            true
+        )
+
+        return task.promise()
+    }
+
+    private async gc(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         this.logging.info(
             `GenerateCompletion response: 
+    "version": "debounced gc",
     "endpoint": ${this.codeWhispererEndpoint},
     "requestId": ${response.$response.requestId},
     "responseCompletionCount": ${response.completions?.length ?? 0},
@@ -563,5 +754,73 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         })
 
         return !!r
+    }
+}
+
+function cancellableDebounce<Input extends any[], Output>(
+    cb: (...args: Input) => Output | Promise<Output>,
+    delay: number = 0,
+    useLastCall: boolean = false
+): { promise: (...args: Input) => Promise<Output>; cancel: () => void } {
+    let timeoutId: NodeJS.Timeout | undefined
+    let currentPromise: Promise<Output> | undefined
+    let latestArgs: Input | undefined
+    let promiseResolve: ((value: Output | PromiseLike<Output>) => void) | undefined
+    let promiseReject: ((reason?: any) => void) | undefined
+
+    const cancel = (): void => {
+        if (timeoutId) {
+            clearTimeout(timeoutId)
+            timeoutId = undefined
+            currentPromise = undefined
+            if (promiseReject) {
+                promiseReject(new Error('Debounced operation cancelled'))
+                promiseReject = undefined
+                promiseResolve = undefined
+            }
+        }
+    }
+
+    return {
+        promise: (...args: Input): Promise<Output> => {
+            latestArgs = args
+
+            // Cancel existing timeout
+            if (timeoutId) {
+                clearTimeout(timeoutId)
+            }
+
+            // If there's no existing promise, create a new one
+            if (!currentPromise) {
+                currentPromise = new Promise<Output>((resolve, reject) => {
+                    promiseResolve = resolve
+                    promiseReject = reject
+                })
+            }
+
+            // Set new timeout
+            timeoutId = setTimeout(async () => {
+                try {
+                    const argsToUse = useLastCall ? latestArgs! : args
+                    const result = await cb(...argsToUse)
+                    if (promiseResolve) {
+                        promiseResolve(result)
+                    }
+                } catch (err) {
+                    if (promiseReject) {
+                        promiseReject(err)
+                    }
+                } finally {
+                    // Clean up
+                    timeoutId = undefined
+                    currentPromise = undefined
+                    promiseResolve = undefined
+                    promiseReject = undefined
+                }
+            }, delay)
+
+            return currentPromise
+        },
+        cancel,
     }
 }
