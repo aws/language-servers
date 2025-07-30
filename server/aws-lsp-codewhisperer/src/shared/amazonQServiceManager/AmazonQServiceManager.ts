@@ -451,14 +451,7 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<
                 )
                 this.region = amazonQRegionAndEndpoint.region
                 this.endpoint = amazonQRegionAndEndpoint.endpoint
-                this.cachedCodewhispererService = new CodeWhispererServiceIAM(
-                    this.features.credentialsProvider,
-                    this.features.workspace,
-                    this.features.logging,
-                    this.region,
-                    this.endpoint,
-                    this.features.sdkInitializator
-                )
+                this.cachedCodewhispererService = this.serviceFactory(this.region, this.endpoint)
                 this.updateCachedServiceConfig()
             }
             this.state = 'INITIALIZED'
@@ -485,9 +478,9 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<
         this.log('Getting instance of CodeWhispererStreaming client')
 
         // Trigger checks in token service
-        const tokenService = this.getCodewhispererService()
+        const service = this.getCodewhispererService()
 
-        if (!tokenService || !this.region || !this.endpoint) {
+        if (!service || !this.region || !this.endpoint) {
             throw new AmazonQServiceNotInitializedError()
         }
 
@@ -545,30 +538,42 @@ export class AmazonQServiceManager extends BaseAmazonQServiceManager<
         return getUserAgent(initializeParams as InitializeParams, this.features.runtime.serverInfo)
     }
 
-    private serviceFactory(region: string, endpoint: string): CodeWhispererServiceToken {
-        const service = new CodeWhispererServiceToken(
-            this.features.credentialsProvider,
-            this.features.workspace,
-            this.features.logging,
-            region,
-            endpoint,
-            this.features.sdkInitializator
-        )
+    private serviceFactory(region: string, endpoint: string): CodeWhispererServiceBase {
+        let service: CodeWhispererServiceBase
+        if (this.features.credentialsProvider.hasCredentials('iam')) {
+            service = new CodeWhispererServiceIAM(
+                this.features.credentialsProvider,
+                this.features.workspace,
+                this.features.logging,
+                region,
+                endpoint,
+                this.features.sdkInitializator
+            )
+        } else {
+            service = new CodeWhispererServiceToken(
+                this.features.credentialsProvider,
+                this.features.workspace,
+                this.features.logging,
+                region,
+                endpoint,
+                this.features.sdkInitializator
+            )
 
-        const customUserAgent = this.getCustomUserAgent()
-        service.updateClientConfig({
-            customUserAgent: customUserAgent,
-        })
-        service.customizationArn = this.configurationCache.getProperty('customizationArn')
-        service.profileArn = this.activeIdcProfile?.arn
-        service.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
-            'shareCodeWhispererContentWithAWS'
-        )
+            const customUserAgent = this.getCustomUserAgent()
+            service.updateClientConfig({
+                customUserAgent: customUserAgent,
+            })
+            service.customizationArn = this.configurationCache.getProperty('customizationArn')
+            service.profileArn = this.activeIdcProfile?.arn
+            service.shareCodeWhispererContentWithAWS = this.configurationCache.getProperty(
+                'shareCodeWhispererContentWithAWS'
+            )
 
-        this.log('Configured CodeWhispererService instance settings:')
-        this.log(
-            `customUserAgent=${customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
-        )
+            this.log('Configured CodeWhispererService instance settings:')
+            this.log(
+                `customUserAgent=${customUserAgent}, customizationArn=${service.customizationArn}, shareCodeWhispererContentWithAWS=${service.shareCodeWhispererContentWithAWS}`
+            )
+        }
 
         return service
     }
