@@ -25,6 +25,7 @@ import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
 import { ProfileStatusMonitor } from './mcp/profileStatusMonitor'
+import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -198,8 +199,7 @@ export const McpToolsServer: Server = ({
             }
             registered[server] = []
         }
-        // Erase all servers from agents config
-        void McpManager.instance.removeAllServers()
+        void McpManager.instance.close(true) //keep the instance but close all servers.
     }
 
     function registerServerTools(server: string, defs: McpToolDefinition[]) {
@@ -255,25 +255,13 @@ export const McpToolsServer: Server = ({
         }
     }
 
-    lsp.onInitialized(async () => {
+    async function initializeMcp() {
         try {
-            if (!enabledMCP(lsp.getClientInitializeParams())) {
-                logging.warn('MCP is currently not supported')
-                return
-            }
-
-            if (!enabledMcpAdmin(lsp.getClientInitializeParams())) {
-                logging.warn('MCP Servers are turned off at admin level')
-                return
-            }
-
             const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
-            // Get agent paths
             const wsAgentPaths = getWorkspaceAgentConfigPaths(wsUris)
             const globalAgentPath = getGlobalAgentConfigPath(workspace.fs.getUserHomeDir())
             const allAgentPaths = [...wsAgentPaths, globalAgentPath]
 
-            // Migrate config and persona files to agent config
             await migrateToAgentConfig(workspace, logging, agent)
 
             const mgr = await McpManager.init(allAgentPaths, {
@@ -285,13 +273,9 @@ export const McpToolsServer: Server = ({
                 runtime,
             })
 
-            // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
             McpManager.instance.clearToolNameMapping()
 
             const byServer: Record<string, McpToolDefinition[]> = {}
-
-            logging.info(`enabled Tools: ${mgr.getEnabledTools().entries()}`)
-            // only register enabled tools
             for (const d of mgr.getEnabledTools()) {
                 ;(byServer[d.serverName] ||= []).push(d)
             }
@@ -302,20 +286,63 @@ export const McpToolsServer: Server = ({
             mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
                 registerServerTools(server, defs)
             })
-
-            // Start profile status monitor to monitor MCP admin configuration
-            if (sdkInitializator) {
-                profileStatusMonitor = new ProfileStatusMonitor(
-                    credentialsProvider,
-                    workspace,
-                    logging,
-                    sdkInitializator,
-                    removeAllMcpTools
-                )
-                profileStatusMonitor.start()
-            }
         } catch (e) {
-            console.warn('Caught error during MCP tool initialization; initialization may be incomplete:', e)
+            logging.error(`Failed to initialize MCP:', ${e}`)
+        }
+    }
+
+    lsp.onInitialized(async () => {
+        if (!enabledMCP(lsp.getClientInitializeParams())) {
+            logging.warn('MCP is currently not supported')
+            return
+        }
+
+        if (sdkInitializator) {
+            profileStatusMonitor = new ProfileStatusMonitor(
+                credentialsProvider,
+                workspace,
+                logging,
+                sdkInitializator,
+                removeAllMcpTools,
+                () => {
+                    logging.info('MCP enabled by profile status monitor')
+                    void initializeMcp()
+                }
+            )
+
+            // Wait for profile ARN to be available before checking MCP state
+            const checkAndInitialize = async (connectionType?: string) => {
+                const shouldInitialize = await profileStatusMonitor!.checkInitialState()
+                if (shouldInitialize) {
+                    logging.info('MCP enabled, initializing immediately')
+                    void initializeMcp()
+                }
+                if (connectionType === 'identityCenter') {
+                    profileStatusMonitor!.start()
+                }
+            }
+
+            // Check if service manager is ready
+            try {
+                const serviceManager = AmazonQTokenServiceManager.getInstance()
+                if (serviceManager.getState() === 'INITIALIZED') {
+                    void checkAndInitialize(serviceManager.getConnectionType())
+                } else {
+                    // Poll for service manager to be ready
+                    const pollForReady = () => {
+                        if (serviceManager.getState() === 'INITIALIZED') {
+                            void checkAndInitialize(serviceManager.getConnectionType())
+                        } else {
+                            setTimeout(pollForReady, 100)
+                        }
+                    }
+                    setTimeout(pollForReady, 100)
+                }
+            } catch (error) {
+                // Service manager not initialized yet, default to enabled
+                logging.info('Service manager not ready, defaulting MCP to enabled')
+                void initializeMcp()
+            }
         }
     })
 

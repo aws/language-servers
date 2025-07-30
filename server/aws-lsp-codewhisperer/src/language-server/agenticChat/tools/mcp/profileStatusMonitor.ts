@@ -25,18 +25,26 @@ export class ProfileStatusMonitor {
         private workspace: Workspace,
         private logging: Logging,
         private sdkInitializator: SDKInitializator,
-        private onMcpDisabled: () => void
+        private onMcpDisabled: () => void,
+        private onMcpEnabled?: () => void
     ) {}
+
+    async checkInitialState(): Promise<boolean> {
+        try {
+            const isMcpEnabled = await this.checkMcpConfiguration()
+            return isMcpEnabled !== false // Return true if enabled or API failed
+        } catch (error) {
+            this.logging.debug(`Initial MCP state check failed, defaulting to enabled: ${error}`)
+            ProfileStatusMonitor.lastMcpState = true
+            return true
+        }
+    }
 
     start(): void {
         if (this.intervalId) {
-            return // Already started
+            return
         }
 
-        // Check immediately on start
-        void this.checkMcpConfiguration()
-
-        // Set up periodic check every 24 hours
         this.intervalId = setInterval(() => {
             void this.checkMcpConfiguration()
         }, this.CHECK_INTERVAL)
@@ -52,15 +60,15 @@ export class ProfileStatusMonitor {
         }
     }
 
-    private async checkMcpConfiguration(): Promise<void> {
+    private async checkMcpConfiguration(): Promise<boolean | undefined> {
         try {
             const profileArn = this.getProfileArn()
             if (!profileArn) {
                 this.logging.debug('No profile ARN available for MCP configuration check')
-                return
+                ProfileStatusMonitor.lastMcpState = true // Default to enabled if no profile
+                return true
             }
 
-            // Create client lazily and only once
             if (!this.codeWhispererClient) {
                 this.codeWhispererClient = new CodeWhispererServiceToken(
                     this.credentialsProvider,
@@ -74,19 +82,24 @@ export class ProfileStatusMonitor {
             }
 
             const response = await this.retryWithBackoff(() => this.codeWhispererClient!.getProfile({ profileArn }))
-
             const isMcpEnabled = response?.profile?.optInFeatures?.mcpConfiguration?.toggle === 'ON'
 
-            // Only act if state changed
             if (ProfileStatusMonitor.lastMcpState !== isMcpEnabled) {
                 ProfileStatusMonitor.lastMcpState = isMcpEnabled
                 if (!isMcpEnabled) {
                     this.logging.info('MCP configuration disabled - removing tools')
                     this.onMcpDisabled()
+                } else if (isMcpEnabled && this.onMcpEnabled) {
+                    this.logging.info('MCP configuration enabled - initializing tools')
+                    this.onMcpEnabled()
                 }
             }
+
+            return isMcpEnabled
         } catch (error) {
-            this.logging.debug(`MCP configuration check failed: ${error}`)
+            this.logging.debug(`MCP configuration check failed, defaulting to enabled: ${error}`)
+            ProfileStatusMonitor.lastMcpState = true
+            return true
         }
     }
 
