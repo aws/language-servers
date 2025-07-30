@@ -1,78 +1,33 @@
-import {
-    CancellationToken,
-    InitializeParams,
-    InlineCompletionItemWithReferences,
-    InlineCompletionListWithReferences,
-    InlineCompletionTriggerKind,
-    InlineCompletionWithReferencesParams,
-    LogInlineCompletionSessionResultsParams,
-    Range,
-    Server,
-    TextDocument,
-    ResponseError,
-    LSPErrorCodes,
-} from '@aws/language-server-runtimes/server-interface'
-import {
-    GenerateSuggestionsRequest,
-    GenerateSuggestionsResponse,
-    Suggestion,
-    SuggestionType,
-} from '../../shared/codeWhispererService'
-import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
-import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
-import { CodeWhispererSession, SessionManager } from './session/sessionManager'
+import { InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
+import { getSupportedLanguageId } from '../../shared/languageDetection'
+import { SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
-import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage, safeGet } from '../../shared/utils'
+import { safeGet } from '../../shared/utils'
 import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
-import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
-import {
-    AmazonQError,
-    AmazonQServiceConnectionExpiredError,
-    AmazonQServiceInitializationError,
-} from '../../shared/amazonQServiceManager/errors'
+import { AcceptedInlineSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
+import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
-import { hasConnectionExpired } from '../../shared/utils'
 import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
-import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import path = require('path')
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
-import { getAddedAndDeletedChars } from './diffUtils'
-import {
-    emitPerceivedLatencyTelemetry,
-    emitServiceInvocationFailure,
-    emitServiceInvocationTelemetry,
-    emitUserTriggerDecisionTelemetry,
-} from './telemetry'
-import { ClassifierAutoTrigger, QAutoTrigger, shouldTriggerCompletions, shouldTriggerSuggestion } from './trigger'
 import { EditCompletionHandler } from './editCompletionHandler'
 import { InlineCompletionHandler } from './inlineCompletionHandler'
+import { DocumentChangedListener } from './documentChangedListener'
+import { LogInlineCompletionSessionResultsHandler } from './logInlineCompletionSessionResultsHandler'
 
 export const CONTEXT_CHARACTERS_LIMIT = 10240
-
-interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
-    sessionId: string
-    requestId: string
-    languageId: CodewhispererLanguage
-    customizationArn?: string
-    completionType: string
-    triggerType: string
-    credentialStartUrl?: string | undefined
-}
 
 export const CodewhispererServerFactory =
     (serviceManager: () => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         const clientMetadata = lsp.getClientInitializeParams()
         const ideCategory: string | undefined = clientMetadata ? getIdeCategory(clientMetadata) : ''
-        const editCompletionHandler = new EditCompletionHandler()
-        const inlineCompletionHandler = new InlineCompletionHandler()
 
         // Trackers for monitoring edits and cursor position.
         const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
@@ -96,149 +51,13 @@ export const CodewhispererServerFactory =
         let userWrittenCodeTracker: UserWrittenCodeTracker | undefined
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
-        let lastUserModificationTime: number
-        // TODO:
-        let timeSinceLastUserModification: number = 0
-
         let editsEnabled = false
         let isOnInlineCompletionHandlerInProgress = false
 
-        // Schedule tracker for UserModification Telemetry event
-        const enqueueCodeDiffEntry = (
-            session: CodeWhispererSession,
-            acceptedSuggestion: Suggestion,
-            addedCharactersForEdit?: string
-        ) => {
-            const endPosition = getEndPositionForAcceptedSuggestion(acceptedSuggestion.content, session.startPosition)
-            // use the addedCharactersForEdit if it is EDIT suggestion type
-            const originalString = addedCharactersForEdit ? addedCharactersForEdit : acceptedSuggestion.content
-
-            codeDiffTracker.enqueue({
-                sessionId: session.codewhispererSessionId || '',
-                requestId: session.responseContext?.requestId || '',
-                fileUrl: session.document.uri,
-                languageId: session.language,
-                time: Date.now(),
-                originalString: originalString,
-                startPosition: session.startPosition,
-                endPosition: endPosition,
-                customizationArn: session.customizationArn,
-                completionType: getCompletionType(acceptedSuggestion),
-                triggerType: session.triggerType,
-                credentialStartUrl: session.credentialStartUrl,
-            })
-        }
-
-        const onLogInlineCompletionSessionResultsHandler = async (params: LogInlineCompletionSessionResultsParams) => {
-            const {
-                sessionId,
-                completionSessionResult,
-                firstCompletionDisplayLatency,
-                totalSessionDisplayTime,
-                typeaheadLength,
-                isInlineEdit,
-                addedDiagnostics,
-                removedDiagnostics,
-            } = params
-
-            const session = sessionManager.getSessionById(sessionId)
-            if (!session) {
-                logging.log(`ERROR: Session ID ${sessionId} was not found`)
-                return
-            }
-
-            if (session.state !== 'ACTIVE') {
-                logging.log(`ERROR: Trying to record trigger decision for not-active session ${sessionId}`)
-                return
-            }
-
-            const acceptedItemId = Object.keys(params.completionSessionResult).find(
-                k => params.completionSessionResult[k].accepted
-            )
-            const isAccepted = acceptedItemId ? true : false
-            const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
-            let addedCharactersForEditSuggestion = ''
-            let deletedCharactersForEditSuggestion = ''
-            if (acceptedSuggestion !== undefined) {
-                if (acceptedSuggestion) {
-                    codePercentageTracker.countSuccess(session.language)
-                    if (isInlineEdit && acceptedSuggestion.content) {
-                        // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
-                        // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
-                        const addedAndDeletedChars = getAddedAndDeletedChars(acceptedSuggestion.content)
-                        if (addedAndDeletedChars) {
-                            addedCharactersForEditSuggestion = addedAndDeletedChars.addedCharacters
-                            deletedCharactersForEditSuggestion = addedAndDeletedChars.deletedCharacters
-
-                            codePercentageTracker.countAcceptedTokens(
-                                session.language,
-                                addedCharactersForEditSuggestion
-                            )
-                            codePercentageTracker.countTotalTokens(
-                                session.language,
-                                addedCharactersForEditSuggestion,
-                                true
-                            )
-                            enqueueCodeDiffEntry(session, acceptedSuggestion, addedCharactersForEditSuggestion)
-                        }
-                    } else if (acceptedSuggestion.insertText) {
-                        codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
-                        codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
-
-                        enqueueCodeDiffEntry(session, acceptedSuggestion)
-                    }
-                }
-            }
-
-            // Handle rejected edit predictions
-            if (isInlineEdit && !isAccepted) {
-                // Find all rejected suggestions in this session
-                const rejectedSuggestions = session.suggestions.filter(suggestion => {
-                    const result = completionSessionResult[suggestion.itemId]
-                    return result && result.seen && !result.accepted
-                })
-
-                // Record each rejected edit
-                for (const rejectedSuggestion of rejectedSuggestions) {
-                    if (rejectedSuggestion.content) {
-                        rejectedEditTracker.recordRejectedEdit({
-                            content: rejectedSuggestion.content,
-                            timestamp: Date.now(),
-                            documentUri: session.document.uri,
-                            position: session.startPosition,
-                        })
-
-                        logging.debug(
-                            `[EDIT_PREDICTION] Recorded rejected edit: ${rejectedSuggestion.content.substring(0, 20)}...`
-                        )
-                    }
-                }
-            }
-
-            session.setClientResultData(
-                completionSessionResult,
-                firstCompletionDisplayLatency,
-                totalSessionDisplayTime,
-                typeaheadLength
-            )
-
-            if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
-
-            // Always emit user trigger decision at session close
-            sessionManager.closeSession(session)
-            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
-            await emitUserTriggerDecisionTelemetry(
-                telemetry,
-                telemetryService,
-                session,
-                timeSinceLastUserModification,
-                addedCharactersForEditSuggestion.length,
-                deletedCharactersForEditSuggestion.length,
-                addedDiagnostics,
-                removedDiagnostics,
-                streakLength
-            )
-        }
+        const editCompletionHandler = new EditCompletionHandler()
+        const inlineCompletionHandler = new InlineCompletionHandler()
+        const documentChangedListener = new DocumentChangedListener()
+        const logInlineCompletionSessionResultsHandler = new LogInlineCompletionSessionResultsHandler()
 
         const updateConfiguration = (updatedConfig: AmazonQWorkspaceConfig) => {
             logging.debug('Updating configuration of inline complete server.')
@@ -318,7 +137,11 @@ export const CodewhispererServerFactory =
         lsp.extensions.onInlineCompletionWithReferences(
             inlineCompletionHandler.onInlineCompletion.bind(inlineCompletionHandler)
         )
-        lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResultsHandler)
+        lsp.extensions.onLogInlineCompletionSessionResults(
+            logInlineCompletionSessionResultsHandler.onLogInlineCompletionSessionResultsHandler.bind(
+                logInlineCompletionSessionResultsHandler
+            )
+        )
         lsp.onInitialized(onInitializedHandler)
 
         lsp.onDidChangeTextDocument(async p => {
@@ -347,11 +170,7 @@ export const CodewhispererServerFactory =
                 }
             })
 
-            // Record last user modification time for any document
-            if (lastUserModificationTime) {
-                timeSinceLastUserModification = new Date().getTime() - lastUserModificationTime
-            }
-            lastUserModificationTime = new Date().getTime()
+            documentChangedListener.onDocumentChanged(p)
 
             // Process document changes with RecentEditTracker.
             if (editsEnabled && recentEditTracker) {

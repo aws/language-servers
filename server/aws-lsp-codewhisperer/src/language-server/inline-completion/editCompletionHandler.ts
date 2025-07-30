@@ -34,14 +34,13 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
+import { DocumentChangedListener } from './documentChangedListener'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
 export class EditCompletionHandler {
     readonly codeWhispererService: CodeWhispererServiceBase
 
-    // TODO: update this on document change
-    private timeSinceLastUserModification = 0
     // TODO: read from client config
     private editsEnabled = false
 
@@ -53,6 +52,7 @@ export class EditCompletionHandler {
         readonly cursorTracker: CursorTracker,
         readonly recentEditsTracker: RecentEditTracker,
         readonly rejectedEditTracker: RejectedEditTracker,
+        readonly documentChangedListener: DocumentChangedListener,
         readonly telemetry: Telemetry,
         readonly telemetryService: TelemetryService,
         readonly credentialsProvider: CredentialsProvider
@@ -198,7 +198,7 @@ export class EditCompletionHandler {
                 this.telemetry,
                 this.telemetryService,
                 currentSession,
-                this.timeSinceLastUserModification,
+                this.documentChangedListener.timeSinceLastUserModification,
                 0,
                 0,
                 [],
@@ -269,7 +269,7 @@ export class EditCompletionHandler {
                 this.telemetry,
                 this.telemetryService,
                 session,
-                this.timeSinceLastUserModification,
+                this.documentChangedListener.timeSinceLastUserModification,
                 0,
                 0,
                 [],

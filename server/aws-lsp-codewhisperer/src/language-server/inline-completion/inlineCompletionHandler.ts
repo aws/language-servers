@@ -14,32 +14,30 @@ import { RecentEditTracker } from './tracker/codeEditTracker'
 import { CredentialsProvider, Logging, Telemetry, Workspace } from '@aws/language-server-runtimes/server-interface'
 import {
     CodeWhispererServiceBase,
-    CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     Suggestion,
-    SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CursorTracker } from './tracker/cursorTracker'
 import { getSupportedLanguageId } from '../../shared/languageDetection'
 import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
-import { ClassifierAutoTrigger, QAutoTrigger, shouldTriggerCompletions, shouldTriggerEdits } from './trigger'
+import { ClassifierAutoTrigger, QAutoTrigger, shouldTriggerCompletions } from './trigger'
 import {
     emitServiceInvocationFailure,
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
 } from './telemetry'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
+import { truncateOverlapWithRightContext } from './mergeRightUtils'
 import { textUtils } from '@aws/lsp-core'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { CodePercentageTracker } from './codePercentage'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { getIdeCategory } from '../../shared/telemetryUtils'
 import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
+import { DocumentChangedListener } from './documentChangedListener'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
@@ -47,7 +45,6 @@ export class InlineCompletionHandler {
     readonly codeWhispererService: CodeWhispererServiceBase
     readonly ideCategory: string
 
-    private timeSinceLastUserModification = 0
     private isOnInlineCompletionHandlerInProgress = false
     constructor(
         readonly logging: Logging,
@@ -59,6 +56,7 @@ export class InlineCompletionHandler {
         readonly recentEditsTracker: RecentEditTracker,
         readonly codePercentageTracker: CodePercentageTracker,
         readonly userWrittenCodeTracker: UserWrittenCodeTracker | undefined,
+        readonly documentChangedListener: DocumentChangedListener,
         readonly telemetry: Telemetry,
         readonly telemetryService: TelemetryService,
         readonly credentialsProvider: CredentialsProvider
@@ -193,7 +191,7 @@ export class InlineCompletionHandler {
                 this.telemetry,
                 this.telemetryService,
                 currentSession,
-                this.timeSinceLastUserModification,
+                this.documentChangedListener.timeSinceLastUserModification,
                 0,
                 0,
                 [],
@@ -268,7 +266,7 @@ export class InlineCompletionHandler {
                 this.telemetry,
                 this.telemetryService,
                 session,
-                this.timeSinceLastUserModification,
+                this.documentChangedListener.timeSinceLastUserModification,
                 0,
                 0,
                 [],
@@ -354,7 +352,7 @@ export class InlineCompletionHandler {
                 this.telemetry,
                 this.telemetryService,
                 session,
-                this.timeSinceLastUserModification
+                this.documentChangedListener.timeSinceLastUserModification
             )
 
             return EMPTY_RESULT
