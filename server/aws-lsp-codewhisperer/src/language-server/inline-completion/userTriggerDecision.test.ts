@@ -447,7 +447,7 @@ describe('Telemetry', () => {
                     triggerType: 'OnDemand',
                     autoTriggerType: undefined,
                     triggerCharacter: '',
-                    classifierResult: classifierResult,
+                    classifierResult: undefined,
                     requestContext: {
                         fileContext: {
                             filename: 'test.cs',
