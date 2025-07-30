@@ -32,6 +32,7 @@ export interface SessionData {
     credentialStartUrl?: string
     customizationArn?: string
     supplementalMetadata?: CodeWhispererSupplementalContext
+    includeImportsWithSuggestions?: boolean
 }
 
 export class CodeWhispererSession {
@@ -72,7 +73,10 @@ export class CodeWhispererSession {
     previousTriggerDecisionTime?: number
     reportedUserDecision: boolean = false
     customizationArn?: string
-    includeImportsWithSuggestions?: boolean
+    private _includeImportsWithSuggestions?: boolean
+    get includeImportsWithSuggestions() {
+        return this._includeImportsWithSuggestions
+    }
     codewhispererSuggestionImportCount: number = 0
     suggestionType?: string
 
@@ -92,6 +96,7 @@ export class CodeWhispererSession {
         this.supplementalMetadata = data.supplementalMetadata
         this.state = 'REQUESTING'
         this.startTime = new Date().getTime()
+        this._includeImportsWithSuggestions = data.includeImportsWithSuggestions
     }
 
     // This function makes it possible to stub uuidv4 calls in tests

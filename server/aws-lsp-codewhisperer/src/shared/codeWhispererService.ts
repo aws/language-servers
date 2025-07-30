@@ -146,7 +146,7 @@ export abstract class CodeWhispererServiceBase {
         recentEditTracker: RecentEditTracker,
         logging: Logging,
         cancellationToken: CancellationToken,
-        config: any
+        config: { includeRecentEdits: boolean }
     ): Promise<
         | {
               supContextData: CodeWhispererSupplementalContext
@@ -226,7 +226,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         recentEditTracker: RecentEditTracker,
         logging: Logging,
         cancellationToken: CancellationToken,
-        config: any
+        config: { includeRecentEdits: boolean }
     ): Promise<
         | {
               supContextData: CodeWhispererSupplementalContext
@@ -348,7 +348,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         recentEditTracker: RecentEditTracker,
         logging: Logging,
         cancellationToken: CancellationToken,
-        config: any
+        config: { includeRecentEdits: boolean }
     ): Promise<
         | {
               supContextData: CodeWhispererSupplementalContext
@@ -368,8 +368,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             )
         }
 
-        const editsEnable = config.editsEnabled === true
-        const recentEditsContext = editsEnable ? await recentEditTracker.generateEditBasedContext(document) : undefined
+        const recentEditsContext = config.includeRecentEdits
+            ? await recentEditTracker.generateEditBasedContext(document)
+            : undefined
         if (recentEditsContext) {
             items.push(
                 ...recentEditsContext.supplementalContextItems.map(item => ({
