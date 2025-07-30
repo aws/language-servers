@@ -400,7 +400,6 @@ describe('Telemetry', () => {
                 assert(currentSession)
                 assert.equal(currentSession?.state, 'CLOSED')
                 sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
-                const classifierResult = getNormalizeOsName() !== 'Linux' ? -0.9083073111924993 : -0.8524073111924992
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision({
                     startPosition: { line: 0, character: 0 },
@@ -448,6 +447,7 @@ describe('Telemetry', () => {
                     autoTriggerType: undefined,
                     triggerCharacter: '',
                     classifierResult: undefined,
+                    classifierThreshold: undefined,
                     requestContext: {
                         fileContext: {
                             filename: 'test.cs',
