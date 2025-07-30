@@ -1,5 +1,6 @@
 import {
     CancellationToken,
+    InitializeParams,
     InlineCompletionListWithReferences,
     InlineCompletionTriggerKind,
     InlineCompletionWithReferencesParams,
@@ -41,11 +42,11 @@ const EMPTY_RESULT = { sessionId: '', items: [] }
 export class EditCompletionHandler {
     readonly codeWhispererService: CodeWhispererServiceBase
 
-    // TODO: read from client config
-    private editsEnabled = false
+    private readonly editsEnabled: boolean
 
     constructor(
         readonly logging: Logging,
+        readonly clientMetadata: InitializeParams,
         readonly workspace: Workspace,
         readonly qServiceManager: AmazonQBaseServiceManager,
         readonly sessionManager: SessionManager,
@@ -58,6 +59,9 @@ export class EditCompletionHandler {
         readonly credentialsProvider: CredentialsProvider
     ) {
         this.codeWhispererService = qServiceManager.getCodewhispererService()
+        this.editsEnabled =
+            this.clientMetadata.initializationOptions?.aws?.awsClientCapabilities?.textDocument
+                ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
     }
 
     async onEditCompletion(
