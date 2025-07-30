@@ -175,6 +175,7 @@ export const CodewhispererServerFactory =
                 logging,
                 clientMetadata!!,
                 sessionManager,
+                editsSessionManager,
                 codePercentageTracker,
                 codeDiffTracker,
                 rejectedEditTracker,

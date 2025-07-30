@@ -15,7 +15,8 @@ export class LogInlineCompletionSessionResultsHandler {
     constructor(
         readonly logging: Logging,
         readonly clientMetadata: InitializeParams,
-        readonly sessionManager: SessionManager,
+        readonly completionSessionManager: SessionManager,
+        readonly editsSessionManager: SessionManager,
         readonly codePercentageTracker: CodePercentageTracker,
         readonly codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>,
         readonly rejectedEditTracker: RejectedEditTracker,
@@ -43,7 +44,9 @@ export class LogInlineCompletionSessionResultsHandler {
             removedDiagnostics,
         } = params
 
-        const session = this.sessionManager.getSessionById(sessionId)
+        const sessionManager = isInlineEdit ? this.editsSessionManager : this.completionSessionManager
+
+        const session = sessionManager.getSessionById(sessionId)
         if (!session) {
             this.logging.log(`ERROR: Session ID ${sessionId} was not found`)
             return
@@ -127,8 +130,8 @@ export class LogInlineCompletionSessionResultsHandler {
         if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(this.telemetry, session)
 
         // Always emit user trigger decision at session close
-        this.sessionManager.closeSession(session)
-        const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(isAccepted) : 0
+        sessionManager.closeSession(session)
+        const streakLength = this.editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
         await emitUserTriggerDecisionTelemetry(
             this.telemetry,
             this.telemetryService,
