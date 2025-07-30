@@ -219,6 +219,7 @@ describe('addServer()', () => {
 
     it('persists config and initializes', async () => {
         const mgr = await McpManager.init([], features)
+
         const newCfg: MCPServerConfig = {
             command: 'c2',
             args: ['a'],
@@ -226,9 +227,43 @@ describe('addServer()', () => {
             timeout: 0,
             __configPath__: 'path.json',
         }
+
         await mgr.addServer('newS', newCfg, 'path.json')
+
         expect(saveAgentConfigStub.calledOnce).to.be.true
-        expect(initOneStub.calledWith('newS', newCfg)).to.be.true
+        expect(initOneStub.calledOnceWith('newS', sinon.match(newCfg))).to.be.true
+    })
+
+    it('persists and initializes an HTTP server', async () => {
+        loadStub.resolves({
+            servers: new Map(),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: {},
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+        const mgr = await McpManager.init([], features)
+
+        const httpCfg: MCPServerConfig = {
+            url: 'https://api.example.com/mcp',
+            headers: { Authorization: 'Bearer 123' },
+            timeout: 0,
+            __configPath__: 'http.json',
+        }
+
+        await mgr.addServer('httpSrv', httpCfg, 'http.json')
+
+        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(initOneStub.calledOnceWith('httpSrv', sinon.match(httpCfg))).to.be.true
     })
 })
 
@@ -411,7 +446,7 @@ describe('updateServer()', () => {
         } catch {}
     })
 
-    it('re-initializes when changing timeout', async () => {
+    it('re‑initializes when changing timeout', async () => {
         const oldCfg: MCPServerConfig = {
             command: 'cmd',
             args: [],
@@ -419,6 +454,7 @@ describe('updateServer()', () => {
             timeout: 1,
             __configPath__: 'u.json',
         }
+
         loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
             servers: new Map([['u1', oldCfg]]),
             serverNameMapping: new Map([['u1', 'u1']]),
@@ -435,6 +471,7 @@ describe('updateServer()', () => {
                 resources: [],
             },
         })
+
         await McpManager.init([], features)
         const mgr = McpManager.instance
         const fakeClient = new Client({ name: 'c', version: 'v' })
@@ -444,10 +481,49 @@ describe('updateServer()', () => {
         initOneStub.resetHistory()
         saveAgentConfigStub.resetHistory()
 
-        await mgr.updateServer('u1', { timeout: 999 }, 'fakepath')
+        await mgr.updateServer('u1', { timeout: 999 }, 'u.json')
+
         expect(saveAgentConfigStub.calledOnce).to.be.true
         expect(closeStub.calledOnce).to.be.true
-        expect(initOneStub.calledOnce).to.be.true
+        expect(initOneStub.calledOnceWith('u1', sinon.match.has('timeout', 999))).to.be.true
+    })
+
+    it('switches from stdio to http by clearing command and setting url', async () => {
+        const oldCfg: MCPServerConfig = {
+            command: 'cmd',
+            args: [],
+            env: {},
+            timeout: 0,
+            __configPath__: 'z.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', oldCfg]]),
+            serverNameMapping: new Map([['srv', 'srv']]),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: oldCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        await McpManager.init([], features)
+        const mgr = McpManager.instance
+
+        initOneStub.resetHistory()
+        saveAgentConfigStub.resetHistory()
+
+        await mgr.updateServer('srv', { command: undefined, url: 'https://new.host/mcp' }, 'z.json')
+
+        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(initOneStub.calledOnceWith('srv', sinon.match({ url: 'https://new.host/mcp' }))).to.be.true
     })
 })
 
