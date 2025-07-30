@@ -1,4 +1,11 @@
-import { InitializeParams, Server } from '@aws/language-server-runtimes/server-interface'
+import {
+    CancellationToken,
+    InitializeParams,
+    InlineCompletionListWithReferences,
+    InlineCompletionWithReferencesParams,
+    LogInlineCompletionSessionResultsParams,
+    Server,
+} from '@aws/language-server-runtimes/server-interface'
 import { getSupportedLanguageId } from '../../shared/languageDetection'
 import { SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
@@ -27,14 +34,15 @@ export const CodewhispererServerFactory =
     (serviceManager: () => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
         const clientMetadata = lsp.getClientInitializeParams()
-        const ideCategory: string | undefined = clientMetadata ? getIdeCategory(clientMetadata) : ''
 
         // Trackers for monitoring edits and cursor position.
         const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
         const cursorTracker = CursorTracker.getInstance()
         const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
+        const documentChangedListener = new DocumentChangedListener()
 
-        const sessionManager = SessionManager.getInstance()
+        const sessionManager = SessionManager.getInstance('COMPLETIONS')
+        const editsSessionManager = SessionManager.getInstance('EDITS')
 
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
         let amazonQServiceManager: AmazonQBaseServiceManager
@@ -52,12 +60,11 @@ export const CodewhispererServerFactory =
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
         let editsEnabled = false
-        let isOnInlineCompletionHandlerInProgress = false
 
-        const editCompletionHandler = new EditCompletionHandler()
-        const inlineCompletionHandler = new InlineCompletionHandler()
-        const documentChangedListener = new DocumentChangedListener()
-        const logInlineCompletionSessionResultsHandler = new LogInlineCompletionSessionResultsHandler()
+        // API handlers
+        let editCompletionHandler: EditCompletionHandler
+        let inlineCompletionHandler: InlineCompletionHandler
+        let logInlineCompletionSessionResultsHandler: LogInlineCompletionSessionResultsHandler
 
         const updateConfiguration = (updatedConfig: AmazonQWorkspaceConfig) => {
             logging.debug('Updating configuration of inline complete server.')
@@ -131,17 +138,73 @@ export const CodewhispererServerFactory =
             )
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
+
+            // Initialize api handler
+            editCompletionHandler = new EditCompletionHandler(
+                logging,
+                clientMetadata!!,
+                workspace,
+                amazonQServiceManager,
+                editsSessionManager,
+                cursorTracker,
+                recentEditTracker,
+                rejectedEditTracker,
+                documentChangedListener,
+                telemetry,
+                telemetryService,
+                credentialsProvider
+            )
+
+            inlineCompletionHandler = new InlineCompletionHandler(
+                logging,
+                clientMetadata!!,
+                workspace,
+                amazonQServiceManager,
+                sessionManager,
+                cursorTracker,
+                recentEditTracker,
+                codePercentageTracker,
+                userWrittenCodeTracker,
+                documentChangedListener,
+                telemetry,
+                telemetryService,
+                credentialsProvider
+            )
+
+            logInlineCompletionSessionResultsHandler = new LogInlineCompletionSessionResultsHandler(
+                logging,
+                clientMetadata!!,
+                sessionManager,
+                codePercentageTracker,
+                codeDiffTracker,
+                rejectedEditTracker,
+                documentChangedListener,
+                telemetry,
+                telemetryService
+            )
         }
 
-        lsp.extensions.onEditCompletion(editCompletionHandler.onEditCompletion.bind(editCompletionHandler))
-        lsp.extensions.onInlineCompletionWithReferences(
-            inlineCompletionHandler.onInlineCompletion.bind(inlineCompletionHandler)
-        )
-        lsp.extensions.onLogInlineCompletionSessionResults(
-            logInlineCompletionSessionResultsHandler.onLogInlineCompletionSessionResultsHandler.bind(
-                logInlineCompletionSessionResultsHandler
-            )
-        )
+        const onInlineCompletion = async (
+            params: InlineCompletionWithReferencesParams,
+            token: CancellationToken
+        ): Promise<InlineCompletionListWithReferences> => {
+            return inlineCompletionHandler.onInlineCompletion(params, token)
+        }
+
+        const onEditCompletion = async (
+            params: InlineCompletionWithReferencesParams,
+            token: CancellationToken
+        ): Promise<InlineCompletionListWithReferences> => {
+            return editCompletionHandler.onEditCompletion(params, token)
+        }
+
+        const onLogInlineCompletionSessionResults = async (params: LogInlineCompletionSessionResultsParams) => {
+            return logInlineCompletionSessionResultsHandler.onLogInlineCompletionSessionResultsHandler(params)
+        }
+
+        lsp.extensions.onEditCompletion(onEditCompletion)
+        lsp.extensions.onInlineCompletionWithReferences(onInlineCompletion)
+        lsp.extensions.onLogInlineCompletionSessionResults(onLogInlineCompletionSessionResults)
         lsp.onInitialized(onInitializedHandler)
 
         lsp.onDidChangeTextDocument(async p => {
