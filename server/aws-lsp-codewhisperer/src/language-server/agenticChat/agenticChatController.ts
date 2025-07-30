@@ -1417,6 +1417,18 @@ export class AgenticChatController implements ChatHandlers {
                 metric.setDimension('requestIds', metric.metric.requestIds)
                 const toolNames = this.#toolUseLatencies.map(item => item.toolName)
                 const toolUseIds = this.#toolUseLatencies.map(item => item.toolUseId)
+
+                const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
+                const permission: string[] = []
+
+                for (const toolName of toolNames) {
+                    if (builtInToolNames.has(toolName)) {
+                        permission.push(McpManager.instance.getToolPerm('Built-in', toolName))
+                    } else {
+                        // TODO: determine mcp-server of the current tool to get permission
+                    }
+                }
+
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
                     conversationId,
@@ -1432,7 +1444,8 @@ export class AgenticChatController implements ChatHandlers {
                     this.#timeBetweenChunks,
                     session.pairProgrammingMode,
                     this.#abTestingAllocation?.experimentName,
-                    this.#abTestingAllocation?.userVariation
+                    this.#abTestingAllocation?.userVariation,
+                    permission
                 )
             } else {
                 // Send an error card to UI?
@@ -1726,6 +1739,10 @@ export class AgenticChatController implements ChatHandlers {
                         })
                     }
                 }
+
+                // for later use
+                let finalCommandCategory: CommandCategory | undefined
+
                 switch (toolUse.name) {
                     case FS_READ:
                     case LIST_DIRECTORY:
@@ -1760,6 +1777,8 @@ export class AgenticChatController implements ChatHandlers {
                             toolUse.input as any,
                             approvedPaths
                         )
+
+                        finalCommandCategory = commandCategory
 
                         const isExecuteBash = toolUse.name === EXECUTE_BASH
 
@@ -1926,7 +1945,7 @@ export class AgenticChatController implements ChatHandlers {
                     session.addApprovedPath(inputPath)
                 }
 
-                const ws = this.#getWritableStream(chatResultStream, toolUse)
+                const ws = this.#getWritableStream(chatResultStream, toolUse, finalCommandCategory)
                 const result = await this.#features.agent.runTool(toolUse.name, toolUse.input, token, ws)
 
                 let toolResultContent: ToolResultContentBlock
@@ -2328,7 +2347,11 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
+    #getWritableStream(
+        chatResultStream: AgenticChatResultStream,
+        toolUse: ToolUse,
+        commandCategory?: CommandCategory
+    ): WritableStream | undefined {
         if (toolUse.name === CodeReview.toolName) {
             return this.#getToolOverWritableStream(chatResultStream, toolUse)
         }
@@ -2347,7 +2370,14 @@ export class AgenticChatController implements ChatHandlers {
 
         const completedHeader: ChatMessage['header'] = {
             body: 'shell',
-            status: { status: 'success', icon: 'ok', text: 'Completed' },
+            status: {
+                status: 'success',
+                icon: 'ok',
+                text: 'Completed',
+                ...(toolUse.name === EXECUTE_BASH
+                    ? { description: this.#getCommandCategoryDescription(commandCategory ?? CommandCategory.ReadOnly) }
+                    : {}),
+            },
             buttons: [],
         }
 
@@ -2737,16 +2767,12 @@ export class AgenticChatController implements ChatHandlers {
                           : undefined
 
                 header = {
-                    status: requiresAcceptance
-                        ? {
-                              icon: statusIcon,
-                              status: statusType,
-                              position: 'left',
-                              description: this.#getCommandCategoryDescription(
-                                  commandCategory ?? CommandCategory.ReadOnly
-                              ),
-                          }
-                        : {},
+                    status: {
+                        icon: statusIcon,
+                        status: statusType,
+                        position: 'left',
+                        description: this.#getCommandCategoryDescription(commandCategory ?? CommandCategory.ReadOnly),
+                    },
                     body: 'shell',
                     buttons,
                 }
