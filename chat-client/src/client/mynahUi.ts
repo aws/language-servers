@@ -976,6 +976,7 @@ export const createMynahUi = (
                     ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
                     quickSettings: am.dropdown
                         ? {
+                              type: 'select',
                               messageId: am.dropdown.messageId,
                               tabId: am.dropdown.tabId,
                               description: am.dropdown.description,
