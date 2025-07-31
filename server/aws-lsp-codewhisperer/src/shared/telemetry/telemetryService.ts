@@ -1,4 +1,4 @@
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken, SuggestionType } from '../codeWhispererService'
 import {
     CredentialsProvider,
     CredentialsType,
@@ -247,6 +247,7 @@ export class TelemetryService {
             acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
         const perceivedLatencyMilliseconds =
             session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
+        const isInlineEdit = session.suggestionType === SuggestionType.EDIT
 
         const event: UserTriggerDecisionEvent = {
             sessionId: session.codewhispererSessionId || '',
@@ -267,8 +268,9 @@ export class TelemetryService {
             generatedLine: generatedLines,
             numberOfRecommendations: session.suggestions.length,
             perceivedLatencyMilliseconds: perceivedLatencyMilliseconds,
-            addedCharacterCount: addedCharacterCount,
-            deletedCharacterCount: deletedCharacterCount,
+            acceptedCharacterCount: isInlineEdit ? addedCharacterCount : acceptedCharacterCount,
+            addedCharacterCount: isInlineEdit ? addedCharacterCount : acceptedCharacterCount,
+            deletedCharacterCount: isInlineEdit ? deletedCharacterCount : 0,
             addedIdeDiagnostics: addedIdeDiagnostics,
             removedIdeDiagnostics: removedIdeDiagnostics,
             streakLength: streakLength ?? 0,
@@ -528,6 +530,8 @@ export class TelemetryService {
             cwsprChatPinnedPromptContextCount?: number
             languageServerVersion?: string
             requestIds?: string[]
+            experimentName?: string
+            userVariation?: string
         }>
     ) {
         const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
@@ -579,6 +583,8 @@ export class TelemetryService {
                     enabled: params.agenticCodingMode,
                     languageServerVersion: additionalParams.languageServerVersion,
                     requestIds: truncatedRequestIds,
+                    experimentName: additionalParams.experimentName,
+                    userVariation: additionalParams.userVariation,
                 },
             })
         }

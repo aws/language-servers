@@ -294,6 +294,8 @@ export function getCodeWhispererLanguageIdFromPath(filePath: string): Codewhispe
         return 'javascript'
     }
 
+    if (isJavaProjectFileFromPath(filePath)) return 'java'
+
     for (const [extension, languageId] of Object.entries(languageByExtension)) {
         if (filePath.endsWith(extension)) {
             return getRuntimeLanguage(languageId)
@@ -301,4 +303,26 @@ export function getCodeWhispererLanguageIdFromPath(filePath: string): Codewhispe
     }
 
     return undefined
+}
+
+/**
+ * For project context we're treating these file name as java project file to be uploaded to container & using it's location to identify java roots
+ * Kotlin may also have these file but for project context we're only considering it for java until we have language support for kotlin
+ * @param filePath
+ * @returns boolean indicate the java file override
+ *
+ * @example
+ * // Returns 'true' for a build.gradle file
+ * isJavaProjectFileFromPath('src/build.gradle')
+ *
+ * @remarks
+ * - This function is extension-based only
+ */
+export function isJavaProjectFileFromPath(filePath: string): boolean {
+    return (
+        filePath.endsWith(`build.gradle`) ||
+        filePath.endsWith(`build.gradle.kts`) ||
+        filePath.endsWith(`pom.xml`) ||
+        filePath.endsWith(`build.xml`)
+    )
 }

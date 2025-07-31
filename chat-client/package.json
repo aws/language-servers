@@ -1,6 +1,6 @@
 {
     "name": "@aws/chat-client",
-    "version": "0.1.23",
+    "version": "0.1.29",
     "description": "AWS Chat Client",
     "main": "out/index.js",
     "repository": {
@@ -16,19 +16,24 @@
     "scripts": {
         "compile": "tsc --build && npm run package",
         "test:unit": "ts-mocha -b \"./src/**/*.test.ts\"",
+        "test:unit:coverage": "c8 ts-mocha -b \"./src/**/*.test.ts\"",
         "test": "npm run test:unit",
+        "test:coverage": "npm run test:unit:coverage",
+        "coverage:report": "c8 report --reporter=html --reporter=text",
         "fix:prettier": "prettier . --write",
         "package": "webpack"
     },
     "dependencies": {
-        "@aws/chat-client-ui-types": "^0.1.47",
-        "@aws/language-server-runtimes-types": "^0.1.43",
-        "@aws/mynah-ui": "^4.35.8"
+        "@aws/chat-client-ui-types": "^0.1.56",
+        "@aws/language-server-runtimes": "^0.2.114",
+        "@aws/language-server-runtimes-types": "^0.1.50",
+        "@aws/mynah-ui": "^4.36.2"
     },
     "devDependencies": {
         "@types/jsdom": "^21.1.6",
         "@types/mocha": "^10.0.9",
         "assert": "^2.0.0",
+        "c8": "^10.1.2",
         "jsdom": "^24.0.0",
         "sinon": "^19.0.2",
         "ts-mocha": "^11.1.0",

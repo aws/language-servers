@@ -18,10 +18,13 @@ import {
     messageToChatMessage,
     messageToStreamingMessage,
     updateOrCreateConversation,
+    estimateCharacterCountFromImageBlock,
 } from './util'
 import { ChatMessage } from '@aws/language-server-runtimes/protocol'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { ChatMessage as StreamingMessage } from '@amzn/codewhisperer-streaming'
+import { describe, it } from 'mocha'
+import { ImageBlock } from '@amzn/codewhisperer-streaming'
 
 describe('ChatDb Utilities', () => {
     describe('messageToStreamingMessage', () => {
@@ -36,6 +39,7 @@ describe('ChatDb Utilities', () => {
             assert.deepStrictEqual(result, {
                 userInputMessage: {
                     content: 'Hello',
+                    images: [],
                     userInputMessageContext: {},
                     userIntent: undefined,
                     origin: 'IDE',
@@ -626,6 +630,62 @@ describe('ChatDb Utilities', () => {
 
             // Queue should be empty now
             assert.strictEqual(queue.isEmpty(), true)
+        })
+    })
+})
+
+describe('Image Block Utilities', () => {
+    describe('estimateCharacterCountFromImageBlock', () => {
+        it('should estimate character count for image with bytes', () => {
+            const imageBlock: ImageBlock = {
+                format: 'png',
+                source: {
+                    bytes: new Uint8Array(1000000), // 1MB
+                },
+            }
+
+            const result = estimateCharacterCountFromImageBlock(imageBlock)
+            // (1,000,000 / 1,000,000) * 1100 * 3 = 3300 characters
+            assert.strictEqual(result, 3300)
+        })
+
+        it('should return 0 for image without bytes', () => {
+            const imageBlock: ImageBlock = {
+                format: 'png',
+                source: {
+                    bytes: null as any,
+                },
+            }
+
+            const result = estimateCharacterCountFromImageBlock(imageBlock)
+            assert.strictEqual(result, 0)
+        })
+
+        it('should return 0 for image with null bytes', () => {
+            const imageBlock: ImageBlock = {
+                format: 'png',
+                source: {
+                    bytes: null as any,
+                },
+            }
+
+            const result = estimateCharacterCountFromImageBlock(imageBlock)
+            assert.strictEqual(result, 0)
+        })
+
+        it('should handle small image sizes', () => {
+            const imageBlock: ImageBlock = {
+                format: 'png',
+                source: {
+                    bytes: new Uint8Array(1000), // 1KB
+                },
+            }
+
+            const result = estimateCharacterCountFromImageBlock(imageBlock)
+            // 0.001MB * 1100 tokens/MB * 3 chars/token = 3.3 characters
+            const EPSILON = 1e-6
+            // avoid using strict equality for floating point numbers
+            assert(Math.abs(result - 3.3) < EPSILON)
         })
     })
 })
