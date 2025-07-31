@@ -7,20 +7,25 @@ import {
     AwsErrorCodes,
     GetSsoTokenParams,
     InvalidateSsoTokenParams,
+    InvalidateStsCredentialParams,
     InitializeParams,
     PartialInitializeResult,
     ShowMessageRequestParams,
     GetIamCredentialParams,
     GetMfaCodeParams,
+    StsCredentialChangedParams,
+    SsoTokenChangedParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
 import { FileSystemSsoCache, RefreshingSsoCache } from '../sso/cache'
-import { SsoTokenAutoRefresher } from './ssoTokenAutoRefresher'
+import { SsoTokenAutoRefresher } from '../sso/ssoTokenAutoRefresher'
+import { FileSystemStsCache } from '../sts/cache/fileSystemStsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { ShowUrl, ShowMessageRequest, ShowProgress } from '../sso/utils'
-import { SendGetMfaCode } from '../iam/utils'
+import { ShowUrl, ShowMessageRequest, ShowProgress, SendSsoTokenChanged } from '../sso/utils'
+import { SendGetMfaCode, SendStsCredentialChanged } from '../iam/utils'
 import { IamProvider } from '../iam/iamProvider'
 
 export class IdentityServer extends ServerBase {
@@ -45,23 +50,32 @@ export class IdentityServer extends ServerBase {
         const sendGetMfaCode: SendGetMfaCode = (params: GetMfaCodeParams) =>
             this.features.identityManagement.sendGetMfaCode(params)
 
+        // Callbacks for client->server JSON-RPC calls
+        const sendSsoTokenChanged: SendSsoTokenChanged = (params: SsoTokenChangedParams) =>
+            this.features.identityManagement.sendSsoTokenChanged(params)
+        const sendStsCredentialChanged: SendStsCredentialChanged = (params: StsCredentialChangedParams) =>
+            this.features.identityManagement.sendStsCredentialChanged(params)
+
         // Initialize dependencies
         const profileStore = new SharedConfigProfileStore(this.observability)
 
         const ssoCache = new RefreshingSsoCache(
             new FileSystemSsoCache(this.observability),
-            this.features.identityManagement.sendSsoTokenChanged,
+            sendSsoTokenChanged,
             this.observability
         )
 
         const autoRefresher = new SsoTokenAutoRefresher(ssoCache, this.observability)
-
-        const iamProvider = new IamProvider(this.observability, profileStore)
+        const stsCache = new FileSystemStsCache(this.observability)
+        const stsAutoRefresher = new StsAutoRefresher(stsCache, sendStsCredentialChanged, this.observability)
+        const iamProvider = new IamProvider()
 
         const identityService = new IdentityService(
             profileStore,
             ssoCache,
             autoRefresher,
+            stsCache,
+            stsAutoRefresher,
             iamProvider,
             { showUrl, showMessageRequest, showProgress, sendGetMfaCode },
             this.getClientName(params),
@@ -95,6 +109,14 @@ export class IdentityServer extends ServerBase {
                 })
         )
 
+        this.features.identityManagement.onInvalidateStsCredential(
+            async (params: InvalidateStsCredentialParams, token: CancellationToken) =>
+                await identityService.invalidateStsCredential(params, token).catch(reason => {
+                    this.observability.logging.log(`InvalidateIamCredentials failed. ${reason}`)
+                    throw awsResponseErrorWrap(reason)
+                })
+        )
+
         this.features.identityManagement.onListProfiles(
             async (params: ListProfilesParams, token: CancellationToken) =>
                 await profileService.listProfiles(params, token).catch(reason => {
@@ -112,6 +134,7 @@ export class IdentityServer extends ServerBase {
         )
 
         this.disposables.push(autoRefresher)
+        this.disposables.push(stsAutoRefresher)
 
         return {
             ...result,

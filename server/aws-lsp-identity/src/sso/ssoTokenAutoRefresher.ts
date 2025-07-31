@@ -1,30 +1,18 @@
-import { SsoSession, SsoTokenChangedParams } from '@aws/language-server-runtimes/protocol'
-import { RefreshingSsoCache, refreshWindowMillis, retryCooldownWindowMillis } from '../sso/cache/refreshingSsoCache'
-import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from '../sso/utils'
+import { SsoSession } from '@aws/language-server-runtimes/protocol'
+import { RefreshingSsoCache } from './cache/refreshingSsoCache'
+import { throwOnInvalidClientName, throwOnInvalidSsoSession, throwOnInvalidSsoSessionName } from './utils'
 import { MetricEvent } from '@aws/language-server-runtimes/server-interface'
-import { normalizeSettingList } from './profiles/profileService'
+import { normalizeSettingList } from '../language-server/profiles/profileService'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { AwsError, Observability } from '@aws/lsp-core'
+import { AutoRefresher, invalidDelay } from '../language-server/autoRefresher'
 
-const bufferedRefreshWindowMillis = refreshWindowMillis * 0.95
-const bufferedRetryCooldownWindowMillis = retryCooldownWindowMillis * 1.05
-const maxRefreshJitterMillis = 10000
-const maxRetryCooldownJitterMillis = 3000
-
-export type RaiseSsoTokenChanged = (params: SsoTokenChangedParams) => void
-
-export class SsoTokenAutoRefresher implements Disposable {
-    private readonly timeouts: Record<string, NodeJS.Timeout> = {}
-
+export class SsoTokenAutoRefresher extends AutoRefresher {
     constructor(
         private readonly ssoCache: RefreshingSsoCache,
-        private readonly observability: Observability
-    ) {}
-
-    [Symbol.dispose](): void {
-        for (const ssoSessionName of Object.keys(this.timeouts)) {
-            this.unwatch(ssoSessionName)
-        }
+        observability: Observability
+    ) {
+        super(observability)
     }
 
     async watch(clientName: string, ssoSession: SsoSession): Promise<void> {
@@ -46,29 +34,12 @@ export class SsoTokenAutoRefresher implements Disposable {
                 return
             }
 
-            const nowMillis = Date.now()
-            const accessTokenExpiresAtMillis = Date.parse(ssoToken.expiresAt)
-            let delayMillis: number
-
-            if (nowMillis < accessTokenExpiresAtMillis - refreshWindowMillis) {
-                // Before refresh window, schedule to run in refresh window with jitter
-                delayMillis = accessTokenExpiresAtMillis - bufferedRefreshWindowMillis - nowMillis
-                delayMillis += Math.random() * maxRefreshJitterMillis // Jitter to mitigate race conditions
-            } else if (
-                accessTokenExpiresAtMillis - refreshWindowMillis < nowMillis &&
-                nowMillis < accessTokenExpiresAtMillis
-            ) {
-                // In refresh window with time for a retry
-                delayMillis = bufferedRetryCooldownWindowMillis
-                delayMillis += Math.random() * maxRetryCooldownJitterMillis // Jitter to mitigate race conditions
-            } else {
-                // Otherwise, expired
-                this.observability.logging.log('SSO token has expired and will not be auto-refreshed.')
-                return
+            // Refresh timeout if delay is valid
+            const delayMillis = this.getDelay(ssoToken.expiresAt)
+            if (delayMillis !== invalidDelay) {
+                this.observability.logging.log(`Auto-refreshing SSO token in ${delayMillis} milliseconds.`)
+                this.timeouts[ssoSession.name] = setTimeout(this.watch.bind(this, clientName, ssoSession), delayMillis)
             }
-
-            this.observability.logging.log(`Auto-refreshing SSO token in ${delayMillis} milliseconds.`)
-            this.timeouts[ssoSession.name] = setTimeout(this.watch.bind(this, clientName, ssoSession), delayMillis)
         } catch (e) {
             emitMetric(e, ssoSession)
 
