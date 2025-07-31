@@ -202,6 +202,7 @@ export const CodewhispererServerFactory =
             })
 
             documentChangedListener.onDocumentChanged(p)
+            apiController?.editCompletionHandler?.documentChanged()
 
             // Process document changes with RecentEditTracker.
             if (editsEnabled && recentEditTracker) {

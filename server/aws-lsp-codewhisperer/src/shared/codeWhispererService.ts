@@ -425,24 +425,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             return await this.gc(request)
         }
 
-        return await this.debouncedGc(request)
-    }
-
-    private debouncedGc(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
-        const task = cancellableDebounce(
-            () => {
-                return this.gc(request)
-            },
-            500,
-            true
-        )
-
-        return task.promise()
+        return this.gc(request)
     }
 
     private async gc(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
+        this.logging.info(request.editorState?.document?.text ?? '')
         if (this.customizationArn) request.customizationArn = this.customizationArn
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         this.logging.info(
@@ -754,73 +743,5 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         })
 
         return !!r
-    }
-}
-
-function cancellableDebounce<Input extends any[], Output>(
-    cb: (...args: Input) => Output | Promise<Output>,
-    delay: number = 0,
-    useLastCall: boolean = false
-): { promise: (...args: Input) => Promise<Output>; cancel: () => void } {
-    let timeoutId: NodeJS.Timeout | undefined
-    let currentPromise: Promise<Output> | undefined
-    let latestArgs: Input | undefined
-    let promiseResolve: ((value: Output | PromiseLike<Output>) => void) | undefined
-    let promiseReject: ((reason?: any) => void) | undefined
-
-    const cancel = (): void => {
-        if (timeoutId) {
-            clearTimeout(timeoutId)
-            timeoutId = undefined
-            currentPromise = undefined
-            if (promiseReject) {
-                promiseReject(new Error('Debounced operation cancelled'))
-                promiseReject = undefined
-                promiseResolve = undefined
-            }
-        }
-    }
-
-    return {
-        promise: (...args: Input): Promise<Output> => {
-            latestArgs = args
-
-            // Cancel existing timeout
-            if (timeoutId) {
-                clearTimeout(timeoutId)
-            }
-
-            // If there's no existing promise, create a new one
-            if (!currentPromise) {
-                currentPromise = new Promise<Output>((resolve, reject) => {
-                    promiseResolve = resolve
-                    promiseReject = reject
-                })
-            }
-
-            // Set new timeout
-            timeoutId = setTimeout(async () => {
-                try {
-                    const argsToUse = useLastCall ? latestArgs! : args
-                    const result = await cb(...argsToUse)
-                    if (promiseResolve) {
-                        promiseResolve(result)
-                    }
-                } catch (err) {
-                    if (promiseReject) {
-                        promiseReject(err)
-                    }
-                } finally {
-                    // Clean up
-                    timeoutId = undefined
-                    currentPromise = undefined
-                    promiseResolve = undefined
-                    promiseReject = undefined
-                }
-            }, delay)
-
-            return currentPromise
-        },
-        cancel,
     }
 }

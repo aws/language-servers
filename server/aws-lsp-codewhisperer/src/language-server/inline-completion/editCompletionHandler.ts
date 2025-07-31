@@ -12,7 +12,6 @@ import {
 import { RecentEditTracker } from './tracker/codeEditTracker'
 import { CredentialsProvider, Logging, Telemetry, Workspace } from '@aws/language-server-runtimes/server-interface'
 import {
-    CodeWhispererServiceBase,
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
@@ -20,7 +19,7 @@ import {
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CursorTracker } from './tracker/cursorTracker'
-import { getSupportedLanguageId } from '../../shared/languageDetection'
+import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
 import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import { shouldTriggerEdits } from './trigger'
 import {
@@ -41,6 +40,7 @@ const EMPTY_RESULT = { sessionId: '', items: [] }
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
+    private debounceTimeout: NodeJS.Timeout | undefined
 
     constructor(
         readonly logging: Logging,
@@ -63,6 +63,18 @@ export class EditCompletionHandler {
 
     get codeWhispererService() {
         return this.qServiceManager.getCodewhispererService()
+    }
+
+    /**
+     * This is a workaround to refresh the debounce timer when user is typing quickly.
+     * Adding debounce at function call doesnt work because server won't process second request until first request is processed.
+     * Also as a followup, ideally it should be a message/event publish/subscribe pattern instead of manual invocation like this
+     */
+    documentChanged() {
+        if (this.debounceTimeout) {
+            this.logging.info('[NEP] refresh timeout')
+            this.debounceTimeout.refresh()
+        }
     }
 
     async onEditCompletion(
@@ -116,6 +128,21 @@ export class EditCompletionHandler {
             return EMPTY_RESULT
         }
 
+        return new Promise(async resolve => {
+            this.debounceTimeout = setTimeout(async () => {
+                const result = await this._invoke(params, token, textDocument, inferredLanguageId, currentSession)
+                resolve(result)
+            }, 250)
+        })
+    }
+
+    async _invoke(
+        params: InlineCompletionWithReferencesParams,
+        token: CancellationToken,
+        textDocument: TextDocument,
+        inferredLanguageId: CodewhispererLanguage,
+        currentSession: CodeWhispererSession | undefined
+    ): Promise<InlineCompletionListWithReferences> {
         // Build request context
         const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
         const maxResults = isAutomaticLspTriggerKind ? 1 : 5

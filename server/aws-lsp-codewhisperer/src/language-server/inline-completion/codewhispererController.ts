@@ -25,7 +25,7 @@ import { AcceptedInlineSuggestionEntry, CodeDiffTracker } from './codeDiffTracke
 
 export class CodeWhispererController {
     // API handlers
-    private editCompletionHandler: EditCompletionHandler | undefined
+    editCompletionHandler: EditCompletionHandler | undefined
     private inlineCompletionHandler: InlineCompletionHandler | undefined
     private logInlineCompletionSessionResultsHandler: LogInlineCompletionSessionResultsHandler | undefined
 
