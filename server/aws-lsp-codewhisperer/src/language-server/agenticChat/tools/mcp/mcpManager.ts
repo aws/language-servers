@@ -37,6 +37,7 @@ import { Mutex } from 'async-mutex'
 import path = require('path')
 import { URI } from 'vscode-uri'
 import { sanitizeInput } from '../../../../shared/utils'
+import { OAuthClient } from './mcpOauthClient'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -341,9 +342,27 @@ export class McpManager {
                 } else {
                     const base = new URL(cfg.url!)
                     try {
+                        // first determine if authroization is needed
+                        let headers: Record<string, string> = { ...(cfg.headers ?? {}) }
+                        const headStatus = await fetch(base, { method: 'HEAD', headers }).then(r => r.status)
+                        const needsOAuth = headStatus === 401
+
+                        if (needsOAuth) {
+                            OAuthClient.initialize(this.features.workspace, this.features.logging)
+                            const bearer = needsOAuth ? await OAuthClient.getValidAccessToken(base) : ''
+                            // add authorization header if we are able to obtain a bearer token
+                            if (bearer) {
+                                headers = {
+                                    ...headers,
+                                    Authorization: `Bearer ${bearer}`,
+                                }
+                            }
+                        }
+
                         try {
                             // try streamable http first
-                            transport = new StreamableHTTPClientTransport(base, this.buildHttpOpts(cfg.headers))
+                            transport = new StreamableHTTPClientTransport(base, this.buildHttpOpts(headers))
+
                             this.features.logging.info(`MCP: Connecting MCP server using StreamableHTTPClientTransport`)
                             await client.connect(transport)
                         } catch (err) {
@@ -351,7 +370,7 @@ export class McpManager {
                             this.features.logging.info(
                                 `MCP: streamable http connect failed for [${serverName}], fallback to SSEClientTransport: ${String(err)}`
                             )
-                            transport = new SSEClientTransport(new URL(cfg.url!), this.buildSseOpts(cfg.headers))
+                            transport = new SSEClientTransport(new URL(cfg.url!), this.buildSseOpts(headers))
                             await client.connect(transport)
                         }
                     } catch (err: any) {

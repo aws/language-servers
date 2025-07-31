@@ -85,7 +85,7 @@ export class LocalProjectContextController {
         try {
             await waitUntil(async () => this.instance, {
                 interval: 1000,
-                timeout: 60_000,
+                timeout: 60,
                 truthy: true,
             })
 
@@ -359,7 +359,7 @@ export class LocalProjectContextController {
                     }
                     return false
                 },
-                { interval: 1000, timeout: 60_000, truthy: true }
+                { interval: 1000, timeout: 60, truthy: true }
             )
             return true
         } catch (error) {
