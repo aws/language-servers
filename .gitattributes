@@ -1,1 +1,2 @@
+app/aws-lsp-codewhisperer-runtimes/_bundle-assets/**/*.zip filter=lfs diff=lfs merge=lfs -text
 binaries/*.zip filter=lfs diff=lfs merge=lfs -text
