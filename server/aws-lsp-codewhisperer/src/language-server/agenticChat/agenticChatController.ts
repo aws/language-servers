@@ -2454,11 +2454,12 @@ export class AgenticChatController implements ChatHandlers {
                           }),
                     buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
                 },
-                dropdown: {
+                quickSettings: {
+                    type: 'select',
                     description: 'Configure for this session only. To edit globally, go to',
                     messageId: toolUse.toolUseId!,
                     tabId: tabId!,
-                    option: [
+                    options: [
                         { id: 'ask', label: 'Ask to run', value: toolName, selected: permission === 'ask' },
                         {
                             id: 'alwaysAllow',
@@ -2709,12 +2710,13 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
         let body: string | undefined
-        let dropdown:
+        let quickSettings:
             | {
+                  type: 'select' | 'checkbox' | 'radio'
                   description: string
                   messageId: string
                   tabId: string
-                  option: {
+                  options: {
                       id: string
                       label: string
                       value: string
@@ -2777,11 +2779,12 @@ export class AgenticChatController implements ChatHandlers {
                     buttons,
                 }
                 ;((body = '```shell\n' + commandString),
-                    (dropdown = {
+                    (quickSettings = {
+                        type: 'select',
                         messageId: this.#getMessageIdForToolUse(toolType, toolUse),
                         tabId: tabId!,
                         description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
-                        option: [
+                        options: [
                             { id: 'ask', label: 'Ask to run', value: toolName, selected: permissions === 'ask' },
                             {
                                 id: 'alwaysAllow',
@@ -2904,7 +2907,7 @@ export class AgenticChatController implements ChatHandlers {
                 messageId: this.#getMessageIdForToolUse(toolType, toolUse),
                 header,
                 body: warning ? (toolName === EXECUTE_BASH ? '' : '\n\n') + body : body,
-                dropdown,
+                quickSettings,
             }
         } else {
             return {

@@ -974,17 +974,17 @@ export const createMynahUi = (
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
                     ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
-                    quickSettings: am.dropdown
+                    quickSettings: am.quickSettings
                         ? {
-                              type: 'select',
-                              messageId: am.dropdown.messageId,
-                              tabId: am.dropdown.tabId,
-                              description: am.dropdown.description,
+                              type: am.quickSettings.type,
+                              messageId: am.quickSettings.messageId,
+                              tabId: am.quickSettings.tabId,
+                              description: am.quickSettings.description,
                               descriptionLink: {
                                   text: 'Auto-approve settings',
                                   id: MCP_IDS.OPEN_SERVER,
                               },
-                              options: am.dropdown.option || [],
+                              options: am.quickSettings.options || [],
                           }
                         : undefined,
                 }
