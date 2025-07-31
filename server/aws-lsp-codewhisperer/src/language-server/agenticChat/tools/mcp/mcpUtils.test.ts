@@ -20,12 +20,12 @@ import {
     enabledMCP,
     normalizePathFromUri,
     saveAgentConfig,
-    sanitizeContent,
 } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { pathToFileURL } from 'url'
 import * as sinon from 'sinon'
 import { URI } from 'vscode-uri'
+import { sanitizeInput } from '../../../../shared/utils'
 
 describe('loadMcpServerConfigs', () => {
     let tmpDir: string
@@ -611,6 +611,6 @@ describe('sanitizeContent', () => {
     it('removes Unicode Tag characters (U+E0000–U+E007F)', () => {
         const input = 'foo\u{E0001}bar\u{E0060}baz'
         const expected = 'foobarbaz'
-        expect(sanitizeContent(input)).to.equal(expected)
+        expect(sanitizeInput(input)).to.equal(expected)
     })
 })

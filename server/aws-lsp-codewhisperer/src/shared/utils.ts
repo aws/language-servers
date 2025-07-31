@@ -533,15 +533,28 @@ export async function listFilesWithGitignore(directory: string): Promise<string[
         }
     }
 
-    const absolutePaths = await fg(['**/*'], {
+    const absolutePaths: string[] = []
+    let fileCount = 0
+    const MAX_FILES = 500_000
+
+    const stream = fg.stream(['**/*'], {
         cwd: directory,
         dot: true,
         ignore: ignorePatterns,
-        onlyFiles: false,
+        onlyFiles: true,
         followSymbolicLinks: false,
         absolute: true,
     })
-    return absolutePaths.slice(0, 500_000)
+
+    for await (const entry of stream) {
+        if (fileCount >= MAX_FILES) {
+            break
+        }
+        absolutePaths.push(entry.toString())
+        fileCount++
+    }
+
+    return absolutePaths
 }
 
 export function getFileExtensionName(filepath: string): string {
@@ -561,4 +574,22 @@ export function getFileExtensionName(filepath: string): string {
     }
 
     return filepath.substring(filepath.lastIndexOf('.') + 1).toLowerCase()
+}
+
+/**
+ * Sanitizes input by removing dangerous Unicode characters that could be used for ASCII smuggling
+ * @param input The input string to sanitize
+ * @returns The sanitized string with dangerous characters removed
+ */
+export function sanitizeInput(input: string): string {
+    if (!input) {
+        return input
+    }
+
+    // Remove Unicode tag characters (U+E0000-U+E007F) used in ASCII smuggling
+    // Remove other invisible/control characters that could hide content
+    return input.replace(
+        /[\u{E0000}-\u{E007F}\u{200B}-\u{200F}\u{2028}-\u{202F}\u{205F}-\u{206F}\u{FFF0}-\u{FFFF}]/gu,
+        ''
+    )
 }
