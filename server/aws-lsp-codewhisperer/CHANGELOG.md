@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.70](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.69...lsp-codewhisperer/v0.0.70) (2025-07-29)
+
+
+### Features
+
+* **amazonq:** add new model error handling code ([#1972](https://github.com/aws/language-servers/issues/1972)) ([905f0fc](https://github.com/aws/language-servers/commit/905f0fcbb274926d22bcf30600ad4bd419ac8ee4))
+* **amazonq:** enable compaction, minor UI changes ([#1979](https://github.com/aws/language-servers/issues/1979)) ([2b56ca8](https://github.com/aws/language-servers/commit/2b56ca87f442a06b554043fee86edd79f96c638d))
+* **amazonq:** enhance workspaceContext classpath generation ([#1955](https://github.com/aws/language-servers/issues/1955)) ([f7ed20b](https://github.com/aws/language-servers/commit/f7ed20bc4010996c508f6ea8ca87950e117e43c1))
+* **amazonq:** redirect /review, rename CodeReview tool, emit metrics, modify prompts ([#1964](https://github.com/aws/language-servers/issues/1964)) ([ad8e2db](https://github.com/aws/language-servers/commit/ad8e2db77e34f369fef9af71cdda2d3522f555c6))
+* **amazonq:** revert auto-approve ([#2002](https://github.com/aws/language-servers/issues/2002)) ([c8181f7](https://github.com/aws/language-servers/commit/c8181f7a1de224dfcc7a77cd0bfc905fa1018372))
+* enhance profile fetching logs to diagnose developerProfiles errors ([#1969](https://github.com/aws/language-servers/issues/1969)) ([eb688c2](https://github.com/aws/language-servers/commit/eb688c272df1251cd5c14ada7894bcaf625b6453))
+
+
+### Bug Fixes
+
+* **amazonq:** wrong path in the logs for the function ([#1978](https://github.com/aws/language-servers/issues/1978)) ([ed8b4f6](https://github.com/aws/language-servers/commit/ed8b4f6755accb624e7dc8c645ecd5cd9370a0f2))
+* emit metric for tool error ([#1954](https://github.com/aws/language-servers/issues/1954)) ([c3bbcea](https://github.com/aws/language-servers/commit/c3bbceabcea3d7aea2e414abc632c3a744b0e02b))
+* enable repomap for all users ([#1967](https://github.com/aws/language-servers/issues/1967)) ([6954085](https://github.com/aws/language-servers/commit/69540851e54b65729b2affbe3ae7d98629bdb5f4))
+* move network commands out of ro category ([#1985](https://github.com/aws/language-servers/issues/1985)) ([3cc9fd9](https://github.com/aws/language-servers/commit/3cc9fd91ae2f78ee28e224d5390ba78509de3615))
+* remove malicious characters from MCP tool description ([#1977](https://github.com/aws/language-servers/issues/1977)) ([64d4e3e](https://github.com/aws/language-servers/commit/64d4e3ebade706b01d256682cafe8d4ff8b85f41))
+
 ## [0.0.69](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.68...lsp-codewhisperer/v0.0.69) (2025-07-23)
 
 

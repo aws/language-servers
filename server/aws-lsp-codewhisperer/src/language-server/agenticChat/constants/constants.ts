@@ -15,8 +15,8 @@ export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
 export const DEFAULT_MODEL_ID = BedrockModel.CLAUDE_SONNET_4_20250514_V1_0
 
 // Compaction
-export const COMPACTION_BODY =
-    'The context window is almost full (80%). Amazon Q can compact your chat history to improve response quality.'
+export const COMPACTION_BODY = (threshold: number) =>
+    `The context window is almost full (${threshold}%) and exceeding it will clear your history. Amazon Q can compact your history instead.`
 export const COMPACTION_HEADER_BODY = 'Compact chat history?'
 export const COMPACTION_PROMPT = `
 [SYSTEM NOTE: This is an automated summarization request, not from the user]\n\n

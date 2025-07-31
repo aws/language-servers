@@ -48,6 +48,7 @@ export class McpEventHandler {
     #isProgrammaticChange: boolean = false
     #debounceTimer: NodeJS.Timeout | null = null
     #lastProgrammaticState: boolean = false
+    #serverNameBeforeUpdate: string | undefined
 
     constructor(features: Features, telemetryService: TelemetryService) {
         this.#features = features
@@ -237,12 +238,16 @@ export class McpEventHandler {
      */
 
     async onMcpServerClick(params: McpServerClickParams) {
-        this.#features.logging.log(`[VSCode Server] onMcpServerClick event with params: ${JSON.stringify(params)}`)
+        this.#features.logging.log(`onMcpServerClick event with params: ${JSON.stringify(params)}`)
 
         // Use a map of handlers for different action types
         const handlers: Record<string, () => Promise<any>> = {
-            'add-new-mcp': () => this.#handleAddNewMcp(params),
+            'add-new-mcp': () => {
+                this.#currentEditingServerName = undefined
+                return this.#handleAddNewMcp(params)
+            },
             'save-mcp': () => this.#handleSaveMcp(params),
+            'change-transport': () => this.#handleChangeTransport(params),
             'open-mcp-server': () => this.#handleOpenMcpServer(params),
             'edit-mcp': () => this.#handleEditMcpServer(params),
             'mcp-permission-change': () => this.#handleMcpPermissionChange(params),
@@ -281,28 +286,21 @@ export class McpEventHandler {
 
     async #handleAddNewMcp(params: McpServerClickParams, error?: string) {
         const existingValues = params.optionsValues || {}
-        let argsValue = [
-            {
-                persistent: true,
-                value: { arg_key: '' },
-            },
-        ]
+
+        // Arguments (stdio)
+        let argsValue = [{ persistent: true, value: { arg_key: '' } }]
         if (existingValues.args && Array.isArray(existingValues.args)) {
             argsValue = existingValues.args.map((arg, index) => ({
                 persistent: index === 0,
-                value: {
-                    arg_key: arg.arg_key || '',
-                },
+                value: { arg_key: arg.arg_key || '' },
             }))
         }
 
+        // Environment variables (stdio)
         let envVarsValue = [
             {
                 persistent: true,
-                value: {
-                    env_var_name: '',
-                    env_var_value: '',
-                },
+                value: { env_var_name: '', env_var_value: '' },
             },
         ]
         if (existingValues.env_variables && Array.isArray(existingValues.env_variables)) {
@@ -311,6 +309,18 @@ export class McpEventHandler {
                 value: {
                     env_var_name: env.env_var_name || '',
                     env_var_value: env.env_var_value || '',
+                },
+            }))
+        }
+
+        // Headers (http)
+        let headersValue: any[] = []
+        if (existingValues.headers && Array.isArray(existingValues.headers)) {
+            headersValue = existingValues.headers.map(hdr => ({
+                persistent: false, // allow every row to be deleted
+                value: {
+                    key: hdr.key || '',
+                    value: hdr.value || '',
                 },
             }))
         }
@@ -333,116 +343,121 @@ export class McpEventHandler {
         }
 
         const serverStatusError = this.#getServerStatusError(existingValues.name) || {}
+
+        // Determine which transport is selected (default to stdio)
+        const selectedTransport = existingValues.transport || 'stdio'
+
         return {
             id: params.id,
             header: {
                 title: 'Add MCP Server',
-                status: error
-                    ? {
-                          title: error,
-                          icon: 'cancel-circle',
-                          status: 'error' as Status,
-                      }
-                    : serverStatusError,
+                status: error ? { title: error, icon: 'cancel-circle', status: 'error' as Status } : serverStatusError,
                 actions: [],
             },
             list: [],
             filterActions: [
-                {
-                    id: 'cancel-mcp',
-                    text: 'Cancel',
-                },
-                {
-                    id: 'save-mcp',
-                    text: 'Save',
-                    status: error ? ('error' as Status) : 'primary',
-                },
+                { id: 'cancel-mcp', text: 'Cancel' },
+                { id: 'save-mcp', text: 'Save', status: error ? ('error' as Status) : 'primary' },
             ],
-            filterOptions: [
-                {
-                    type: 'radiogroup',
-                    id: 'scope',
-                    title: 'Scope',
-                    options: [
+            filterOptions: (() => {
+                const common = [
+                    {
+                        type: 'radiogroup',
+                        id: 'scope',
+                        title: 'Scope',
+                        options: [
+                            { label: 'Global - Used globally.', value: 'global' },
+                            { label: 'This workspace - Only used in this workspace.', value: 'workspace' },
+                        ],
+                        value: existingValues.scope || 'global',
+                    },
+                    {
+                        type: 'textinput',
+                        id: 'name',
+                        title: 'Name',
+                        value: existingValues.name || '',
+                        mandatory: true,
+                    },
+                    {
+                        type: 'select',
+                        id: 'transport',
+                        title: 'Transport',
+                        mandatory: true,
+                        options: [
+                            { label: 'stdio', value: 'stdio' },
+                            { label: 'http', value: 'http' },
+                        ],
+                        value: selectedTransport,
+                    },
+                ]
+
+                if (selectedTransport === 'http') {
+                    return [
+                        ...common,
                         {
-                            label: `Global - Used globally.`,
-                            value: 'global',
-                        },
-                        {
-                            label: `This workspace - Only used in this workspace.`,
-                            value: 'workspace',
-                        },
-                    ],
-                    value: existingValues.scope || 'global',
-                },
-                {
-                    type: 'textinput',
-                    id: 'name',
-                    title: 'Name',
-                    value: existingValues.name || '',
-                    mandatory: true,
-                },
-                {
-                    type: 'select',
-                    id: 'transport',
-                    title: 'Transport',
-                    mandatory: true,
-                    options: [
-                        {
-                            label: 'stdio',
-                            value: 'yes',
-                        },
-                    ],
-                },
-                {
-                    type: 'textinput',
-                    id: 'command',
-                    title: 'Command',
-                    value: existingValues.command || '',
-                    mandatory: true,
-                },
-                {
-                    type: 'list',
-                    id: 'args',
-                    title: 'Arguments - optional',
-                    mandatory: false,
-                    items: [
-                        {
-                            id: 'arg_key',
                             type: 'textinput',
-                        },
-                    ],
-                    value: argsValue,
-                },
-                {
-                    type: 'list',
-                    id: 'env_variables',
-                    title: 'Environment variables - optional',
-                    mandatory: false,
-                    items: [
-                        {
-                            id: 'env_var_name',
-                            title: 'Name',
-                            type: 'textinput',
+                            id: 'url',
+                            title: 'URL',
+                            value: existingValues.url || '',
+                            mandatory: true,
                         },
                         {
-                            id: 'env_var_value',
-                            title: 'Value',
-                            type: 'textinput',
+                            type: 'list',
+                            id: 'headers',
+                            title: 'Headers - optional',
+                            items: [
+                                { id: 'key', title: 'Key', type: 'textinput' },
+                                { id: 'value', title: 'Value', type: 'textinput' },
+                            ],
+                            ...(headersValue.length > 0 ? { value: headersValue } : {}),
                         },
-                    ],
-                    value: envVarsValue,
-                },
-                {
-                    type: 'numericinput',
-                    id: 'timeout',
-                    title: 'Timeout - use 0 to disable',
-                    value: existingValues.timeout || 60, // Default to 60 seconds in UI
-                    mandatory: false,
-                },
-            ],
+                        {
+                            type: 'numericinput',
+                            id: 'timeout',
+                            title: 'Timeout - use 0 to disable',
+                            value: existingValues.timeout || 60,
+                        },
+                    ]
+                } else {
+                    // stdio transport
+                    return [
+                        ...common,
+                        {
+                            type: 'textinput',
+                            id: 'command',
+                            title: 'Command',
+                            value: existingValues.command || '',
+                            mandatory: true,
+                        },
+                        {
+                            type: 'list',
+                            id: 'args',
+                            title: 'Arguments - optional',
+                            items: [{ id: 'arg_key', type: 'textinput' }],
+                            value: argsValue,
+                        },
+                        {
+                            type: 'list',
+                            id: 'env_variables',
+                            title: 'Environment variables - optional',
+                            items: [
+                                { id: 'env_var_name', title: 'Name', type: 'textinput' },
+                                { id: 'env_var_value', title: 'Value', type: 'textinput' },
+                            ],
+                            value: envVarsValue,
+                        },
+                        {
+                            type: 'numericinput',
+                            id: 'timeout',
+                            title: 'Timeout - use 0 to disable',
+                            value: existingValues.timeout || 60,
+                        },
+                    ]
+                }
+            })(),
         }
     }
+
     /**
      * Validates all MCP server configurations and returns combined error messages
      * @param serverConfigs Map of server configurations to validate
@@ -464,6 +479,8 @@ export class McpEventHandler {
                 timeout: config.timeout?.toString() || '',
                 env: config.env,
                 args: config.args,
+                url: config.url,
+                headers: config.headers,
             }
 
             const validation = this.#validateMcpServerForm(values, false)
@@ -529,8 +546,17 @@ export class McpEventHandler {
             }
         }
 
-        if (!values.command || values.command.trim() === '') {
-            errors.push('Command is required for stdio transport')
+        const transport = values.transport
+        const command = values.command?.trim() || ''
+        const url = values.url?.trim() || ''
+
+        // Basic validation for command/url presence and exclusivity
+        if (!command && !url) {
+            errors.push('Either command or url is required')
+        } else if (command && url) {
+            errors.push('Provide either command OR url, not both')
+        } else if (transport && ((transport === 'stdio' && !command) || (transport !== 'stdio' && !url))) {
+            errors.push(`${transport === 'stdio' ? 'Command' : 'URL'} is required for ${transport} transport`)
         }
 
         if (values.timeout && values.timeout.trim() !== '') {
@@ -563,6 +589,24 @@ export class McpEventHandler {
             }
         }
 
+        if (Array.isArray(values.headers)) {
+            const hdrs = values.headers as Array<{ key: string; value: string }>
+            const invalidHeaders = hdrs.find(h => {
+                const key = h.key?.trim() || ''
+                const value = h.value?.trim() || ''
+                return (key === '' && value !== '') || (key !== '' && value === '')
+            })
+
+            if (invalidHeaders) {
+                const hasKey = invalidHeaders.key?.trim()
+                errors.push(
+                    hasKey
+                        ? 'Header value cannot be empty when key is provided'
+                        : 'Header key cannot be empty when value is provided'
+                )
+            }
+        }
+
         return {
             isValid: errors.length === 0,
             errors,
@@ -577,10 +621,12 @@ export class McpEventHandler {
             return this.#getDefaultMcpResponse(params.id)
         }
 
+        const selectedTransport = params.optionsValues.transport
         const serverName = params.optionsValues.name
         const sanitizedServerName = sanitizeName(serverName)
         const originalServerName = this.#currentEditingServerName
         const isEditMode = !!(originalServerName && McpManager.instance.getAllServerConfigs().has(originalServerName))
+
         // Validate form values
         const validation = this.#validateMcpServerForm(
             params.optionsValues,
@@ -589,56 +635,79 @@ export class McpEventHandler {
         )
         if (!validation.isValid) {
             const error = validation.errors[0]
-            if (isEditMode) {
-                params.id = 'edit-mcp'
-                params.title = originalServerName!
-                return this.#handleEditMcpServer(params, error)
-            } else {
-                params.id = 'add-new-mcp'
-                return this.#handleAddNewMcp(params, error)
+            params.id = isEditMode ? 'edit-mcp' : 'add-new-mcp'
+            return isEditMode
+                ? this.#handleEditMcpServer({ ...params, title: originalServerName! }, error)
+                : this.#handleAddNewMcp(params, error)
+        }
+
+        // stdio‑specific parsing
+        let args: string[] = []
+        let env: Record<string, string> = {}
+        if (selectedTransport === 'stdio') {
+            try {
+                args = (Array.isArray(params.optionsValues.args) ? params.optionsValues.args : [])
+                    .map((item: any) =>
+                        item && typeof item === 'object' && 'arg_key' in item ? String(item.arg_key) : ''
+                    )
+                    .filter(Boolean)
+            } catch (e) {
+                this.#features.logging.warn(`MCP: Failed to process args: ${e}`)
+            }
+
+            try {
+                env = (
+                    Array.isArray(params.optionsValues.env_variables) ? params.optionsValues.env_variables : []
+                ).reduce((acc: Record<string, string>, item: any) => {
+                    if (item && 'env_var_name' in item && 'env_var_value' in item) {
+                        acc[String(item.env_var_name)] = String(item.env_var_value)
+                    }
+                    return acc
+                }, {})
+            } catch (e) {
+                this.#features.logging.warn(`MCP: Failed to process env variables: ${e}`)
             }
         }
 
-        // Process args to string[]
-        let args: string[] = []
-        const argsValue = params.optionsValues.args
-
-        // Handle the case where argsValue might be a direct array or another type
-        try {
-            // Try to safely access and process the value
-            const argsArray = Array.isArray(argsValue) ? argsValue : []
-            args = argsArray
-                .map((item: any) => {
-                    return typeof item === 'object' && item !== null && 'arg_key' in item ? String(item.arg_key) : ''
-                })
-                .filter(Boolean)
-        } catch (e) {
-            this.#features.logging.warn(`Failed to process args: ${e}`)
-        }
-
-        // Process env_variables to Record<string, string>
-        let env: Record<string, string> = {}
-        const envValue = params.optionsValues.env_variables
-
-        try {
-            const envArray = Array.isArray(envValue) ? envValue : []
-            env = envArray.reduce((acc: Record<string, string>, item: any) => {
-                if (item && typeof item === 'object' && 'env_var_name' in item && 'env_var_value' in item) {
-                    acc[String(item.env_var_name)] = String(item.env_var_value)
-                }
-                return acc
-            }, {})
-        } catch (e) {
-            this.#features.logging.warn(`Failed to process env variables: ${e}`)
+        // http‑specific parsing
+        let headers: Record<string, string> = {}
+        if (selectedTransport === 'http') {
+            try {
+                const raw = Array.isArray(params.optionsValues.headers) ? params.optionsValues.headers : []
+                headers = raw.reduce((acc: Record<string, string>, item: any) => {
+                    const k = item.key?.toString().trim() ?? ''
+                    const v = item.value?.toString().trim() ?? ''
+                    // both empty → skip
+                    if (k === '' && v === '') {
+                        return acc
+                    }
+                    // otherwise keep (validation layer handles partial-empty cases)
+                    acc[k] = item.value ?? ''
+                    return acc
+                }, {})
+            } catch (e) {
+                this.#features.logging.warn(`MCP: Failed to process headers: ${e}`)
+            }
         }
 
         // Config file requires timeout in milliseconds
         const timeoutInMs = (parseInt(params.optionsValues.timeout) ?? 60) * 1000
-        const config: MCPServerConfig = {
-            command: params.optionsValues.command,
-            args,
-            env,
-            timeout: timeoutInMs,
+
+        // build final config (no transport field persisted)
+        let config: MCPServerConfig
+        if (selectedTransport === 'http') {
+            config = {
+                url: params.optionsValues.url,
+                headers,
+                timeout: timeoutInMs,
+            }
+        } else {
+            config = {
+                command: params.optionsValues.command,
+                args,
+                env,
+                timeout: timeoutInMs,
+            }
         }
 
         // Get agent path based on scope
@@ -656,7 +725,8 @@ export class McpEventHandler {
 
         try {
             if (isEditMode && originalServerName) {
-                await McpManager.instance.removeServer(originalServerName)
+                const serverToRemove = this.#serverNameBeforeUpdate || originalServerName
+                await McpManager.instance.removeServer(serverToRemove)
                 await McpManager.instance.addServer(serverName, config, agentPath)
             } else {
                 // Create new server
@@ -672,14 +742,14 @@ export class McpEventHandler {
         // need to check server state now, as there is possibility of error during server initialization
         const serverStatusError = this.#getServerStatusError(serverName)
 
-        // Emit telemetry event regardless of success/failure
         this.#telemetryController?.emitMCPServerInitializeEvent({
             source: isEditMode ? 'updateServer' : 'addServer',
-            command: config.command,
+            command: selectedTransport === 'stdio' ? params.optionsValues.command : undefined,
+            url: selectedTransport === 'http' ? params.optionsValues.url : undefined,
             enabled: true,
             numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
             scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
-            transportType: 'stdio',
+            transportType: selectedTransport,
             languageServerVersion: this.#features.runtime.serverInfo.version,
         })
 
@@ -879,6 +949,7 @@ export class McpEventHandler {
         // Set programmatic change flag to true to prevent file watcher triggers
         this.#isProgrammaticChange = true
         await this.#handleSavePermissionChange({ id: 'save-mcp-permission' })
+
         const serverName = params.title
         if (!serverName) {
             this.#isProgrammaticChange = false
@@ -902,20 +973,32 @@ export class McpEventHandler {
             }
         }
 
+        // Respect a user flip first; otherwise fall back to what the stored configuration implies.
+        const transport = params.optionsValues?.transport ?? (config.url ? 'http' : 'stdio')
+
+        // Convert stored structures to UI‑friendly lists
+        const argsList = (config.args ?? []).map(a => ({ arg_key: a })) // for stdio
+        const envList = Object.entries(config.env ?? {}).map(([k, v]) => ({
+            env_var_name: k,
+            env_var_value: v,
+        })) // for stdio
+        const headersList = Object.entries(config.headers ?? {}).map(([k, v]) => ({
+            key: k,
+            value: v,
+        })) // for http
+
         // UI must display timeout to user in seconds
         const timeoutInSeconds =
             params.optionsValues?.timeout || Math.floor((config.timeout ?? 60000) / 1000).toString()
+
         const existingValues: Record<string, any> = {
             name: params.optionsValues?.name || serverName,
-            transport: 'stdio',
+            transport,
             command: params.optionsValues?.command || config.command,
-            args: params.optionsValues?.args || (config.args ?? []).map(a => ({ arg_key: a })),
-            env_variables:
-                params.optionsValues?.env_variables ||
-                Object.entries(config.env ?? {}).map(([k, v]) => ({
-                    env_var_name: k,
-                    env_var_value: v,
-                })),
+            args: params.optionsValues?.args || argsList,
+            env_variables: params.optionsValues?.env_variables || envList,
+            url: params.optionsValues?.url || config.url,
+            headers: params.optionsValues?.headers || headersList,
             timeout: timeoutInSeconds,
             scope: params.optionsValues?.scope,
         }
@@ -960,6 +1043,36 @@ export class McpEventHandler {
         })
 
         return filterOptions
+    }
+
+    async #handleChangeTransport(params: McpServerClickParams) {
+        const { optionsValues, title } = params
+        const editingServerName = this.#currentEditingServerName
+
+        // Clean up transport-specific fields
+        if (optionsValues) {
+            const transport = optionsValues.transport ?? 'stdio' // Maintain default to 'stdio'
+            const fieldsToDelete = transport === 'http' ? ['command', 'args', 'env_variables'] : ['url', 'headers']
+
+            fieldsToDelete.forEach(field => delete optionsValues[field])
+        }
+
+        // Handle server name change in edit mode
+        if (editingServerName && title && editingServerName !== title) {
+            const servers = McpManager.instance.getAllServerConfigs()
+            const existingConfig = servers.get(editingServerName)
+
+            if (existingConfig) {
+                const updatedServers = new Map(servers)
+                updatedServers.delete(editingServerName)
+                updatedServers.set(title, existingConfig)
+                await McpManager.instance.updateServerMap(updatedServers)
+            }
+            this.#serverNameBeforeUpdate = editingServerName
+        }
+
+        params.id = editingServerName ? 'edit-mcp' : 'add-new-mcp'
+        return editingServerName ? this.#handleEditMcpServer(params) : this.#handleAddNewMcp(params)
     }
 
     /**
@@ -1061,6 +1174,11 @@ export class McpEventHandler {
      * Applies the stored permission changes
      */
     async #handleSavePermissionChange(params: McpServerClickParams) {
+        if (!params.optionsValues) {
+            return this.#getDefaultMcpResponse(params.id)
+        }
+        const selectedTransport = params.optionsValues.transport
+
         if (!this.#pendingPermissionConfig) {
             this.#features.logging.warn('No pending permission changes to save')
             return { id: params.id }
@@ -1082,7 +1200,8 @@ export class McpEventHandler {
                 // Emit server initialize event after permission change
                 this.#telemetryController?.emitMCPServerInitializeEvent({
                     source: 'updatePermission',
-                    command: serverConfig.command,
+                    command: selectedTransport === 'stdio' ? params.optionsValues.command : undefined,
+                    url: selectedTransport === 'http' ? params.optionsValues.url : undefined,
                     enabled: true,
                     numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
                     scope:
@@ -1090,7 +1209,7 @@ export class McpEventHandler {
                         getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
                             ? 'global'
                             : 'workspace',
-                    transportType: 'stdio',
+                    transportType: selectedTransport,
                     languageServerVersion: this.#features.runtime.serverInfo.version,
                 })
             }
@@ -1099,7 +1218,6 @@ export class McpEventHandler {
             this.#pendingPermissionConfig = undefined
 
             this.#features.logging.info(`Applied permission changes for server: ${serverName}`)
-            this.#isProgrammaticChange = false
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to save MCP permissions: ${error}`)
@@ -1149,10 +1267,12 @@ export class McpEventHandler {
 
         // Emit server initialize events for all active servers
         for (const [serverName, config] of serverConfigs.entries()) {
+            const transportType = config.command ? 'stdio' : 'http'
             // const enabled = !mcpManager.isServerDisabled(serverName)
             this.#telemetryController?.emitMCPServerInitializeEvent({
                 source: 'reload',
-                command: config.command,
+                command: transportType === 'stdio' ? config.command : undefined,
+                url: transportType === 'http' ? config.url : undefined,
                 enabled: true,
                 numTools: mcpManager.getAllToolsWithPermissions(serverName).length,
                 scope: config.__configPath__ === globalAgentPath ? 'global' : 'workspace',
