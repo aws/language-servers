@@ -112,5 +112,18 @@ export type IamFlowParams = {
     handlers: IamHandlers
     providers: CredentialProviders
     token: CancellationToken
+    emitMetric: (
+        result: 'Succeeded' | 'Failed' | 'Cancelled',
+        error?: unknown,
+        credentialType?:
+            | 'staticProfile'
+            | 'staticSessionProfile'
+            | 'credentialProcessProfile'
+            | 'assumeRoleProfile'
+            | 'assumeMfaRoleProfile'
+            | 'ecsMetatdata'
+            | 'ec2Metadata'
+            | 'environment'
+    ) => void
     observability: Observability
 }

@@ -138,6 +138,7 @@ describe('IamProvider', () => {
                 fromInstanceMetadata: provider,
                 fromContainerMetadata: provider,
             },
+            emitMetric: () => {},
             token: token,
             observability: observability,
         }

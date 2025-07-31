@@ -65,7 +65,7 @@ export class IdentityService {
     ) {}
 
     async getSsoToken(params: GetSsoTokenParams, token: CancellationToken): Promise<GetSsoTokenResult> {
-        const emitMetric = this.emitMetric.bind(this, 'flareIdentity_getSsoToken', this.getSsoToken.name, Date.now())
+        const emitMetric = this.emitSsoMetric.bind(this, 'flareIdentity_getSsoToken', this.getSsoToken.name, Date.now())
 
         let clientRegistration: SsoClientRegistration | undefined
         let ssoSession: SsoSession | undefined
@@ -154,7 +154,7 @@ export class IdentityService {
     }
 
     async getIamCredential(params: GetIamCredentialParams, token: CancellationToken): Promise<GetIamCredentialResult> {
-        const emitMetric = this.emitMetric.bind(
+        const emitMetric = this.emitIamMetric.bind(
             this,
             'flareIdentity_getIamCredential',
             this.getIamCredential.name,
@@ -191,6 +191,7 @@ export class IdentityService {
                     fromEnv: fromEnv,
                 },
                 token: token,
+                emitMetric: emitMetric,
                 observability: this.observability,
             }
             const credential = await this.iamProvider.getCredential(flowOpts)
@@ -207,8 +208,6 @@ export class IdentityService {
                 }
             }
 
-            emitMetric('Succeeded')
-
             return {
                 credential: credential,
                 updateCredentialsParams: { data: credential.credentials, encrypted: false },
@@ -223,7 +222,7 @@ export class IdentityService {
         params: InvalidateSsoTokenParams,
         token: CancellationToken
     ): Promise<InvalidateSsoTokenResult> {
-        const emitMetric = this.emitMetric.bind(
+        const emitMetric = this.emitSsoMetric.bind(
             this,
             'flareIdentity_invalidateSsoToken',
             this.invalidateSsoToken.name,
@@ -255,7 +254,7 @@ export class IdentityService {
         params: InvalidateStsCredentialParams,
         token: CancellationToken
     ): Promise<InvalidateStsCredentialResult> {
-        const emitMetric = this.emitMetric.bind(
+        const emitMetric = this.emitIamMetric.bind(
             this,
             'flareIdentity_invalidateStsCredential',
             this.invalidateStsCredential.name,
@@ -282,7 +281,7 @@ export class IdentityService {
         }
     }
 
-    private emitMetric(
+    private emitSsoMetric(
         name: string,
         source: string,
         startMillis: number,
@@ -303,6 +302,37 @@ export class IdentityService {
                 ssoRegistrationClientId: clientRegistration?.clientId,
                 ssoRegistrationExpiresAt: clientRegistration?.expiresAt,
                 ssoRegistrationIssuedAt: clientRegistration?.issuedAt,
+            },
+        }
+
+        if (error) {
+            metric.errorData = {
+                errorCode: (error as AwsError)?.awsErrorCode,
+                httpStatusCode:
+                    (error as __ServiceException)?.$metadata?.httpStatusCode ||
+                    ((error as Error).cause as __ServiceException)?.$metadata?.httpStatusCode,
+                reason: error?.constructor?.name ?? 'unknown',
+            }
+        }
+
+        this.observability.telemetry.emitMetric(metric)
+    }
+
+    private emitIamMetric(
+        name: string,
+        source: string,
+        startMillis: number,
+        result: 'Succeeded' | 'Failed' | 'Cancelled',
+        error?: unknown,
+        credentialType?: string
+    ): void {
+        const metric: MetricEvent = {
+            name,
+            result,
+            data: {
+                duration: Date.now() - startMillis,
+                source,
+                credentialType,
             },
         }
 
