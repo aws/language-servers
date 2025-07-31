@@ -1,7 +1,7 @@
 import { expect, use } from 'chai'
 import { StubbedInstance, stubInterface } from 'ts-sinon'
 import { ProfileData, ProfileStore } from '../language-server/profiles/profileService'
-import { createStubInstance, restore, SinonStub, stub } from 'sinon'
+import { createStubInstance, restore, SinonSpy, SinonStub, spy, stub } from 'sinon'
 import { CancellationToken, Profile, ProfileKind } from '@aws/language-server-runtimes/protocol'
 import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { IamCredentials, Observability } from '@aws/lsp-core'
@@ -28,6 +28,7 @@ let checkMfaRequiredStub: SinonStub<
     [credentials: IamCredentials, permissions: string[], region?: string | undefined],
     Promise<boolean>
 >
+let provider: SinonSpy
 
 describe('IamProvider', () => {
     beforeEach(() => {
@@ -111,6 +112,16 @@ describe('IamProvider', () => {
             sendGetMfaCode: Promise.resolve({ code: 'mfa-code', mfaSerial: 'mfa-serial' }),
         })
 
+        provider = spy(() => () => {
+            return {
+                accessKeyId: 'provider-access-key',
+                secretAccessKey: 'provider-secret-key',
+                sessionToken: 'provider-session-token',
+                credentialScope: 'provider-credential-scope',
+                accountId: 'provider-account-id',
+            }
+        })
+
         token = stubInterface<CancellationToken>()
 
         defaultParams = {
@@ -121,6 +132,12 @@ describe('IamProvider', () => {
             stsCache: stsCache,
             stsAutoRefresher: stsAutoRefresher,
             handlers: handlers,
+            providers: {
+                fromProcess: provider,
+                fromEnv: provider,
+                fromInstanceMetadata: provider,
+                fromContainerMetadata: provider,
+            },
             token: token,
             observability: observability,
         }
@@ -292,6 +309,80 @@ describe('IamProvider', () => {
 
             expect(error.message).to.equal('Source profile chain exceeded max length.')
             expect(stsAutoRefresher.watch.calledOnce).to.be.false
+        })
+
+        it('Can login with credential process.', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamCredentialProcessProfile],
+                name: 'process-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    credential_process: 'my-process',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('provider-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('provider-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('provider-session-token')
+            expect(provider.calledOnce).to.be.true
+        })
+
+        it('Can assume role with environment variables', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamCredentialSourceProfile],
+                name: 'env-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    credential_source: 'Environment',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(provider.calledOnce).to.be.true
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+        })
+
+        it('Can assume role with EC2 metadata', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamCredentialSourceProfile],
+                name: 'env-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    credential_source: 'Ec2InstanceMetadata',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(provider.calledOnce).to.be.true
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+        })
+
+        it('Can assume role with ECS metadata', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamCredentialSourceProfile],
+                name: 'env-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    credential_source: 'EcsContainer',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(provider.calledOnce).to.be.true
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
         })
     })
 })
