@@ -184,6 +184,7 @@ export const McpToolsServer: Server = ({
     telemetry,
     runtime,
     sdkInitializator,
+    chat,
 }) => {
     const registered: Record<string, string[]> = {}
     const allNamespacedTools = new Set<string>()
@@ -200,6 +201,18 @@ export const McpToolsServer: Server = ({
             registered[server] = []
         }
         void McpManager.instance.close(true) //keep the instance but close all servers.
+
+        try {
+            chat?.sendChatUpdate({
+                tabId: 'mcpserver',
+                data: {
+                    placeholderText: 'mcp-server-update',
+                    messages: [],
+                },
+            })
+        } catch (error) {
+            logging.error(`Failed to send chatOptionsUpdate: ${error}`)
+        }
     }
 
     function registerServerTools(server: string, defs: McpToolDefinition[]) {
@@ -317,9 +330,7 @@ export const McpToolsServer: Server = ({
                     logging.info('MCP enabled, initializing immediately')
                     void initializeMcp()
                 }
-                if (connectionType === 'identityCenter') {
-                    profileStatusMonitor!.start()
-                }
+                profileStatusMonitor!.start()
             }
 
             // Check if service manager is ready
@@ -342,6 +353,7 @@ export const McpToolsServer: Server = ({
                 // Service manager not initialized yet, default to enabled
                 logging.info('Service manager not ready, defaulting MCP to enabled')
                 void initializeMcp()
+                profileStatusMonitor!.start()
             }
         }
     })

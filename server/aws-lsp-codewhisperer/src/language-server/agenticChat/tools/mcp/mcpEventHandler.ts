@@ -222,10 +222,11 @@ export class McpEventHandler {
         }
 
         // Return the result in the expected format
+        const mcpState = ProfileStatusMonitor.getMcpState()
         const header = {
             title: 'MCP Servers',
-            description: "Add MCP servers to extend Q's capabilities.",
-            status: this.#getListMcpServersStatus(configLoadErrors),
+            description: mcpState === false ? '' : "Add MCP servers to extend Q's capabilities.",
+            status: this.#getListMcpServersStatus(configLoadErrors, mcpState),
         }
 
         return { header, list: groups }
@@ -235,10 +236,9 @@ export class McpEventHandler {
      * Gets the status for the list MCP servers header
      */
     #getListMcpServersStatus(
-        configLoadErrors: string | undefined
+        configLoadErrors: string | undefined,
+        mcpState: boolean | undefined
     ): { title: string; icon: string; status: Status } | undefined {
-        const mcpState = ProfileStatusMonitor.getMcpState()
-
         if (mcpState === false) {
             return {
                 title: 'MCP functionality has been disabled by your administrator',

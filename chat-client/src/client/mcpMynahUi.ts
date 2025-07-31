@@ -272,20 +272,25 @@ export class McpMynahUi {
                       title: params.header.title,
                       description: params.header.description,
                       status: params.header.status,
-                      actions: [
-                          {
-                              id: MCP_IDS.ADD_NEW,
-                              icon: toMynahIcon('plus'),
-                              status: 'clear',
-                              description: 'Add new MCP',
-                          },
-                          {
-                              id: MCP_IDS.REFRESH_LIST,
-                              icon: toMynahIcon('refresh'),
-                              status: 'clear',
-                              description: 'Refresh MCP servers',
-                          },
-                      ],
+                      actions:
+                          params.header.description &&
+                          params.header.description !== '' &&
+                          params.header.status?.title !== 'MCP functionality has been disabled by your administrator'
+                              ? [
+                                    {
+                                        id: MCP_IDS.ADD_NEW,
+                                        icon: toMynahIcon('plus'),
+                                        status: 'clear',
+                                        description: 'Add new MCP',
+                                    },
+                                    {
+                                        id: MCP_IDS.REFRESH_LIST,
+                                        icon: toMynahIcon('refresh'),
+                                        status: 'clear',
+                                        description: 'Refresh MCP servers',
+                                    },
+                                ]
+                              : [],
                   }
                 : undefined,
             filterOptions: params.filterOptions?.map(filter => ({
