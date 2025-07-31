@@ -803,7 +803,7 @@ export const CodewhispererServerFactory =
             if (acceptedSuggestion !== undefined) {
                 if (acceptedSuggestion) {
                     codePercentageTracker.countSuccess(session.language)
-                    if (isInlineEdit && acceptedSuggestion.content) {
+                    if (session.suggestionType === SuggestionType.EDIT && acceptedSuggestion.content) {
                         // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
                         // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
                         const addedAndDeletedChars = getAddedAndDeletedChars(acceptedSuggestion.content)
