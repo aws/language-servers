@@ -39,7 +39,7 @@ export class QChatTriggerContext {
             'context' in params
                 ? params.context?.some(context => typeof context !== 'string' && context.command === '@workspace')
                 : false
-        const relevantDocuments = useRelevantDocuments ? await this.extractProjectContext(params.prompt.prompt) : []
+        let relevantDocuments = useRelevantDocuments ? await this.extractProjectContext(params.prompt.prompt) : []
 
         return {
             ...documentContext,
@@ -59,6 +59,17 @@ export class QChatTriggerContext {
     ): SendMessageCommandInput {
         const { prompt } = params
 
+        let documentText = triggerContext.text
+        if (this.amazonQServiceManager && documentText) {
+            const config = this.amazonQServiceManager.getConfiguration()
+            const extraContext = config.inlineChat?.extraContext
+
+            // Adding extra context to document text for inline chat
+            if (extraContext && extraContext.trim().length > 0) {
+                documentText = extraContext + '\n\n' + documentText
+            }
+        }
+
         const data: SendMessageCommandInput = {
             conversationState: {
                 chatTriggerType: chatTriggerType,
@@ -71,7 +82,7 @@ export class QChatTriggerContext {
                                       editorState: {
                                           cursorState: triggerContext.cursorState,
                                           document: {
-                                              text: triggerContext.text,
+                                              text: documentText,
                                               programmingLanguage: triggerContext.programmingLanguage,
                                               relativeFilePath: triggerContext.relativeFilePath,
                                           },

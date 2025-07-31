@@ -6,6 +6,7 @@ import {
     ChatTelemetryEventMap,
     ChatTelemetryEventName,
     CombinedConversationEvent,
+    CompactHistoryActionType,
     InteractWithMessageEvent,
 } from '../../../shared/telemetry/types'
 import { Features, KeysMatching } from '../../types'
@@ -169,6 +170,16 @@ export class ChatTelemetryController {
         }
     }
 
+    public emitActiveUser() {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.ActiveUser,
+            data: {
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
+            },
+        })
+    }
+
     public emitAgencticLoop_InvokeLLM(
         requestId: string,
         conversationId: string,
@@ -182,7 +193,9 @@ export class ChatTelemetryController {
         toolCallLatency?: number[],
         cwsprChatTimeToFirstChunk?: number,
         cwsprChatTimeBetweenChunks?: number[],
-        agenticCodingMode?: boolean
+        agenticCodingMode?: boolean,
+        experimentName?: string,
+        userVariation?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.AgencticLoop_InvokeLLM,
@@ -201,6 +214,19 @@ export class ChatTelemetryController {
                 requestId,
                 enabled: agenticCodingMode,
                 modelId,
+                experimentName: experimentName,
+                userVariation: userVariation,
+            },
+        })
+    }
+
+    public emitCompactHistory(type: CompactHistoryActionType, characters: number, languageServerVersion: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.CompactHistory,
+            data: {
+                type,
+                characters,
+                languageServerVersion: languageServerVersion,
             },
         })
     }
@@ -210,7 +236,10 @@ export class ChatTelemetryController {
         conversationId: string,
         languageServerVersion: string,
         latency?: number,
-        agenticCodingMode?: boolean
+        agenticCodingMode?: boolean,
+        experimentName?: string,
+        userVariation?: string,
+        result?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.ToolUseSuggested,
@@ -221,9 +250,11 @@ export class ChatTelemetryController {
                 cwsprToolName: toolUse.name ?? '',
                 cwsprToolUseId: toolUse.toolUseId ?? '',
                 perfE2ELatency: latency,
-                result: 'Succeeded',
+                result: result,
                 languageServerVersion: languageServerVersion,
                 enabled: agenticCodingMode,
+                experimentName: experimentName,
+                userVariation: userVariation,
             },
         })
     }
@@ -232,7 +263,9 @@ export class ChatTelemetryController {
         interactionType: AgenticChatInteractionType,
         tabId: string,
         agenticCodingMode?: boolean,
-        conversationType?: string
+        conversationType?: string,
+        experimentName?: string,
+        userVariation?: string
     ) {
         this.#telemetry.emitMetric({
             name: ChatTelemetryEventName.InteractWithAgenticChat,
@@ -243,6 +276,8 @@ export class ChatTelemetryController {
                 cwsprAgenticChatInteractionType: interactionType,
                 result: 'Succeeded',
                 enabled: agenticCodingMode,
+                experimentName: experimentName,
+                userVariation: userVariation,
             },
         })
     }
@@ -300,6 +335,8 @@ export class ChatTelemetryController {
                 cwsprChatPinnedPromptContextCount: metric.cwsprChatPinnedPromptContextCount,
                 languageServerVersion: metric.languageServerVersion,
                 requestIds: metric.requestIds,
+                experimentName: metric.experimentName,
+                userVariation: metric.userVariation,
             }
         )
     }
@@ -328,6 +365,7 @@ export class ChatTelemetryController {
 
     public emitMCPServerInitializeEvent(data?: {
         command?: string
+        url?: string
         enabled?: boolean
         initializeTime?: number
         numTools?: number
@@ -341,6 +379,7 @@ export class ChatTelemetryController {
             data: {
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 command: data?.command,
+                url: data?.url,
                 enabled: data?.enabled,
                 initializeTime: data?.initializeTime,
                 languageServerVersion: data?.languageServerVersion,
@@ -403,6 +442,8 @@ export class ChatTelemetryController {
                 enabled: agenticCodingMode,
                 [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId),
                 languageServerVersion: metric.languageServerVersion,
+                experimentName: metric.experimentName,
+                userVariation: metric.userVariation,
             },
         })
     }

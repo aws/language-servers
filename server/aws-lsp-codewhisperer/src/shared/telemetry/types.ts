@@ -205,9 +205,11 @@ export enum ChatTelemetryEventName {
     MCPConfig = 'amazonq_mcpConfig',
     MCPServerInit = 'amazonq_mcpServerInit',
     LoadHistory = 'amazonq_loadHistory',
+    CompactHistory = 'amazonq_compactHistory',
     ChatHistoryAction = 'amazonq_performChatHistoryAction',
     ExportTab = 'amazonq_exportTab',
     UiClick = 'ui_click',
+    ActiveUser = 'amazonq_activeUser',
 }
 
 export interface ChatTelemetryEventMap {
@@ -227,9 +229,11 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.MCPConfig]: MCPConfigEvent
     [ChatTelemetryEventName.MCPServerInit]: MCPServerInitializeEvent
     [ChatTelemetryEventName.LoadHistory]: LoadHistoryEvent
+    [ChatTelemetryEventName.CompactHistory]: CompactHistoryEvent
     [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
     [ChatTelemetryEventName.ExportTab]: ExportTabEvent
     [ChatTelemetryEventName.UiClick]: UiClickEvent
+    [ChatTelemetryEventName.ActiveUser]: ActiveUserEvent
 }
 
 export type AgencticLoop_InvokeLLMEvent = {
@@ -260,6 +264,11 @@ export type InteractWithAgenticChatEvent = {
     cwsprChatConversationType: ChatConversationType
     cwsprAgenticChatInteractionType: AgenticChatInteractionType
     enabled?: boolean
+}
+
+export type ActiveUserEvent = {
+    credentialStartUrl?: string
+    result: string
 }
 
 export type ModifyCodeEvent = {
@@ -295,6 +304,8 @@ export type AddMessageEvent = {
     enabled?: boolean
     languageServerVersion?: string
     requestIds?: string[]
+    experimentName?: string
+    userVariation?: string
 
     // context related metrics
     cwsprChatHasContextList?: boolean
@@ -370,6 +381,12 @@ export type LoadHistoryEvent = {
     languageServerVersion?: string
 }
 
+export type CompactHistoryEvent = {
+    type: CompactHistoryActionType
+    characters: number
+    languageServerVersion?: string
+}
+
 export type ChatHistoryActionEvent = {
     action: ChatHistoryActionType
     result: Result
@@ -402,6 +419,11 @@ export enum ChatHistoryActionType {
     Export = 'export',
     Open = 'open',
     Delete = 'delete',
+}
+
+export enum CompactHistoryActionType {
+    Manual = 'manual',
+    Nudge = 'nudge',
 }
 
 export type ChatConversationType = 'Chat' | 'Assign' | 'Transform' | 'AgenticChat' | 'AgenticChatWithToolUse'

@@ -54,7 +54,12 @@ export const editPredictionAutoTrigger = ({
     )
 
     // [condition 2] Non-empty content in one of the lines following the current line
-    const hasNonEmptySuffix = rightContextLines.length > 1 && rightContextLines[1].trim().length > 0
+    let hasNonEmptySuffix = false
+    const maxLinesToScanForContent = Math.min(rightContextLines.length, config.maxLinesToScanForContent + 1)
+    if (maxLinesToScanForContent > 0) {
+        const linesToScanForContent = rightContextLines.slice(1, maxLinesToScanForContent)
+        hasNonEmptySuffix = linesToScanForContent.some(line => line.trim().length > 0)
+    }
 
     const shouldTrigger = hasRecentEdit && hasNonEmptySuffix
 

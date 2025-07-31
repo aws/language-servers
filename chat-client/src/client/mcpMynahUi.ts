@@ -29,6 +29,7 @@ export const MCP_IDS = {
     EDIT: 'edit-mcp',
     SAVE: 'save-mcp',
     CANCEL: 'cancel-mcp',
+    CHANGE_TRANSPORT: 'change-transport',
 
     // Permission actions
     PERMISSION_CHANGE: 'mcp-permission-change',
@@ -166,11 +167,11 @@ export class McpMynahUi {
                     id: MCP_IDS.DETAILS_MENU,
                     icon: toMynahIcon('ellipsis'),
                     items: [
-                        {
-                            id: MCP_IDS.DISABLE_SERVER,
-                            text: `Disable MCP server`,
-                            data: { serverName },
-                        },
+                        // {
+                        //     id: MCP_IDS.DISABLE_SERVER,
+                        //     text: `Disable MCP server`,
+                        //     data: { serverName },
+                        // },
                         {
                             id: MCP_IDS.DELETE_SERVER,
                             confirmation: {
@@ -219,10 +220,10 @@ export class McpMynahUi {
                     ...(action.id === MCP_IDS.DETAILS_MENU
                         ? {
                               items: [
-                                  {
-                                      id: MCP_IDS.DISABLE_SERVER,
-                                      text: `Disable MCP server`,
-                                  },
+                                  //   {
+                                  //       id: MCP_IDS.DISABLE_SERVER,
+                                  //       text: `Disable MCP server`,
+                                  //   },
                                   {
                                       id: MCP_IDS.DELETE_SERVER,
                                       confirmation: {
@@ -448,11 +449,25 @@ export class McpMynahUi {
         const typedParams = params as McpServerParams
         if (params.id === MCP_IDS.ADD_NEW || params.id === MCP_IDS.EDIT || params.id === MCP_IDS.FIX_SERVER) {
             this.mynahUi.toggleSplashLoader(false)
+
+            const uiFilters = (typedParams.filterOptions ?? []) as McpFilterOption[]
+            const initial = uiFilters.find(f => f.id === 'transport')
+            let _lastTransport = initial?.value as unknown as string
+
             const detailedList = this.createAddMcpServerDetailedList(typedParams)
 
             const events = {
                 onBackClick: () => {
                     this.messager.onListMcpServers()
+                },
+                onFilterValueChange: (filterValues: Record<string, any>) => {
+                    const newTransport = filterValues?.transport
+                    if (!newTransport || newTransport === _lastTransport) {
+                        return
+                    }
+
+                    _lastTransport = newTransport
+                    this.messager.onMcpServerClick(MCP_IDS.CHANGE_TRANSPORT, filterValues.name, filterValues)
                 },
                 onFilterActionClick: (
                     actionParams: McpServerClickResult,
@@ -508,6 +523,7 @@ export class McpMynahUi {
                         },
                         onClose: () => {
                             this.messager.onMcpServerClick(MCP_IDS.SAVE_PERMISSION_CHANGE)
+                            this.isMcpServersListActive = false
                         },
                         onBackClick: () => {
                             this.messager.onMcpServerClick(MCP_IDS.SAVE_PERMISSION_CHANGE)
