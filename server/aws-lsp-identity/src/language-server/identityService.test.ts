@@ -34,6 +34,7 @@ let stsAutoRefresher: StubbedInstance<StsAutoRefresher>
 let iamProvider: StubbedInstance<IamProvider>
 let observability: StubbedInstance<Observability>
 let authFlowFn: SinonSpy
+let credentialProvider: SinonSpy
 let validatePermissionsStub: SinonStub<
     [credentials: IamCredentials, permissions: string[], region?: string | undefined],
     Promise<boolean>
@@ -119,6 +120,18 @@ describe('IdentityService', () => {
                 expiresAt: new Date(Date.now() + 10 * 1000).toISOString(),
             } satisfies SSOToken)
         )
+
+        credentialProvider = spy(() => {
+            return () => {
+                return {
+                    accessKeyId: 'provider-access-key',
+                    secretAccessKey: 'provider-secret-key',
+                    sessionToken: 'provider-session-token',
+                    credentialScope: 'provider-credential-scope',
+                    accountId: 'provider-account-id',
+                }
+            }
+        })
 
         observability = stubInterface<Observability>()
         observability.logging = stubInterface<Logging>()

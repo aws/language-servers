@@ -27,8 +27,15 @@ export class IamProvider {
             }
         }
         // Assume the role matching the found ARN
-        else if (params.profile.kinds.includes(ProfileKind.IamSourceProfileProfile)) {
+        else if (
+            params.profile.kinds.includes(ProfileKind.IamSourceProfileProfile) ||
+            params.profile.kinds.includes(ProfileKind.IamCredentialSourceProfile)
+        ) {
             credentials = await this.getAssumedRoleCredential(params)
+        }
+        // Get the credentials from the process output
+        else if (params.profile.kinds.includes(ProfileKind.IamCredentialProcessProfile)) {
+            credentials = await params.providers.fromProcess({ profile: params.profile.name })()
         } else {
             throw new AwsError(
                 'Credentials could not be found for provided profile kind',
@@ -98,6 +105,24 @@ export class IamProvider {
                 parentCredentials = response.credentials
             } else {
                 throw new AwsError('Source profile chain exceeded max length.', AwsErrorCodes.E_INVALID_PROFILE)
+            }
+        } else if (params.profile.kinds.includes(ProfileKind.IamCredentialSourceProfile)) {
+            switch (params.profile.settings?.credential_source) {
+                // TODO: test whether EC2 and ECS metadata credentials are retrieved as expected
+                case 'Ec2InstanceMetadata':
+                    parentCredentials = await params.providers.fromInstanceMetadata()()
+                    break
+                case 'EcsContainer':
+                    parentCredentials = await params.providers.fromContainerMetadata()()
+                    break
+                case 'Environment':
+                    parentCredentials = await params.providers.fromEnv()()
+                    break
+                default:
+                    throw new AwsError(
+                        `Unsupported credential source: ${params.profile.settings?.credential_source}`,
+                        AwsErrorCodes.E_INVALID_PROFILE
+                    )
             }
         } else {
             throw new AwsError('Source credentials not found', AwsErrorCodes.E_INVALID_PROFILE)

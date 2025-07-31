@@ -13,6 +13,10 @@ import { AwsError, Observability } from '@aws/lsp-core'
 import { StsCache } from '../sts/cache/stsCache'
 import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { ProfileStore } from '../language-server/profiles/profileService'
+import { FromProcessInit } from '@aws-sdk/credential-provider-process'
+import { AwsCredentialIdentityProvider, Provider, RuntimeConfigAwsCredentialIdentityProvider } from '@aws-sdk/types'
+import { InstanceMetadataCredentials, RemoteProviderInit } from '@smithy/credential-provider-imds'
+import { FromEnvInit } from '@aws-sdk/credential-provider-env'
 
 const defaultRegion = 'us-east-1'
 
@@ -84,6 +88,13 @@ function convertToIamArn(arn: string) {
     }
 }
 
+export type CredentialProviders = {
+    fromProcess: (init?: FromProcessInit) => RuntimeConfigAwsCredentialIdentityProvider
+    fromContainerMetadata: (init?: RemoteProviderInit) => AwsCredentialIdentityProvider
+    fromInstanceMetadata: (init?: RemoteProviderInit) => Provider<InstanceMetadataCredentials>
+    fromEnv: (init?: FromEnvInit) => AwsCredentialIdentityProvider
+}
+
 export type SendGetMfaCode = (params: GetMfaCodeParams) => Promise<GetMfaCodeResult>
 export type SendStsCredentialChanged = (params: StsCredentialChangedParams) => void
 
@@ -99,6 +110,7 @@ export type IamFlowParams = {
     stsCache: StsCache
     stsAutoRefresher: StsAutoRefresher
     handlers: IamHandlers
+    providers: CredentialProviders
     token: CancellationToken
     observability: Observability
 }

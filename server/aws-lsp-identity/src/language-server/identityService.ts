@@ -36,6 +36,9 @@ import { AwsError, Observability } from '@aws/lsp-core'
 import { __ServiceException } from '@aws-sdk/client-sso-oidc/dist-types/models/SSOOIDCServiceException'
 import { deviceCodeFlow } from '../sso/deviceCode/deviceCodeFlow'
 import { SSOToken } from '@smithy/shared-ini-file-loader'
+import { fromProcess } from '@aws-sdk/credential-provider-process'
+import { fromContainerMetadata, fromInstanceMetadata } from '@smithy/credential-provider-imds'
+import { fromEnv } from '@aws-sdk/credential-provider-env'
 import { IamProvider } from '../iam/iamProvider'
 
 type SsoTokenSource = IamIdentityCenterSsoTokenSource | AwsBuilderIdSsoTokenSource
@@ -181,6 +184,12 @@ export class IdentityService {
                 stsCache: this.stsCache,
                 stsAutoRefresher: this.stsAutoRefresher,
                 handlers: this.handlers as IamHandlers,
+                providers: {
+                    fromProcess: fromProcess,
+                    fromContainerMetadata: fromContainerMetadata,
+                    fromInstanceMetadata: fromInstanceMetadata,
+                    fromEnv: fromEnv,
+                },
                 token: token,
                 observability: this.observability,
             }
