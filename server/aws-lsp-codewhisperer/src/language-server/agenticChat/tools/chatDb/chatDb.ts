@@ -45,7 +45,7 @@ export class ToolResultValidationError extends Error {
 export const EMPTY_CONVERSATION_LIST_ID = 'empty'
 // Maximum number of characters to keep in request
 // (200K tokens - 8K output tokens - 2k system prompt) * 3 = 570K characters, intentionally overestimating with 3:1 ratio
-const MaxOverallCharacters = 570_000
+export const MaxOverallCharacters = 570_000
 // Maximum number of history messages to include in each request to the LLM
 const maxConversationHistoryMessages = 250
 

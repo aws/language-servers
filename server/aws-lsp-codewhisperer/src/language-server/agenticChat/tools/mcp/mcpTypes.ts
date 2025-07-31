@@ -28,11 +28,13 @@ export interface McpToolDefinition {
 }
 
 export interface MCPServerConfig {
-    command: string
+    command?: string
     args?: string[]
     env?: Record<string, string>
     initializationTimeout?: number
     timeout?: number
+    url?: string
+    headers?: Record<string, string>
     __configPath__?: string
 }
 export interface MCPServerPermission {

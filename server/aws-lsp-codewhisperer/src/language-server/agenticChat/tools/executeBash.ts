@@ -13,15 +13,6 @@ import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 // eslint-disable-next-line import/no-nodejs-modules
 import { existsSync, statSync } from 'fs'
 
-// Warning message
-import {
-    BINARY_FILE_WARNING_MSG,
-    CREDENTIAL_FILE_WARNING_MSG,
-    DESTRUCTIVE_COMMAND_WARNING_MSG,
-    MUTATE_COMMAND_WARNING_MSG,
-    OUT_OF_WORKSPACE_WARNING_MSG,
-} from '../constants/constants'
-
 export enum CommandCategory {
     ReadOnly,
     Mutate,
@@ -50,12 +41,6 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['date', CommandCategory.ReadOnly],
     ['whoami', CommandCategory.ReadOnly],
     ['which', CommandCategory.ReadOnly],
-    ['ping', CommandCategory.ReadOnly],
-    ['ifconfig', CommandCategory.ReadOnly],
-    ['ip', CommandCategory.ReadOnly],
-    ['netstat', CommandCategory.ReadOnly],
-    ['ss', CommandCategory.ReadOnly],
-    ['dig', CommandCategory.ReadOnly],
     ['wc', CommandCategory.ReadOnly],
     ['sort', CommandCategory.ReadOnly],
     ['diff', CommandCategory.ReadOnly],
@@ -63,6 +48,12 @@ export const commandCategories = new Map<string, CommandCategory>([
     ['tail', CommandCategory.ReadOnly],
 
     // Mutable commands
+    ['ping', CommandCategory.Mutate],
+    ['ifconfig', CommandCategory.Mutate],
+    ['ip', CommandCategory.Mutate],
+    ['netstat', CommandCategory.Mutate],
+    ['dig', CommandCategory.Mutate],
+    ['ss', CommandCategory.Mutate],
     ['chmod', CommandCategory.Mutate],
     ['curl', CommandCategory.Mutate],
     ['mount', CommandCategory.Mutate],
@@ -117,6 +108,12 @@ export const commandCategories = new Map<string, CommandCategory>([
 ])
 export const maxToolResponseSize: number = 1024 * 1024 // 1MB
 export const lineCount: number = 1024
+export const destructiveCommandWarningMessage = 'WARNING: Potentially destructive command detected:\n\n'
+export const mutateCommandWarningMessage = 'Mutation command:\n\n'
+export const outOfWorkspaceWarningmessage = 'Execution out of workspace scope:\n\n'
+export const credentialFileWarningMessage =
+    'WARNING: Command involves credential files that require secure permissions:\n\n'
+export const binaryFileWarningMessage = 'WARNING: Command involves binary files that require secure permissions:\n\n'
 
 /**
  * Parameters for executing a command on the system shell.
@@ -235,7 +232,7 @@ export class ExecuteBash {
                             // Treat tilde paths as absolute paths (they will be expanded by the shell)
                             return {
                                 requiresAcceptance: true,
-                                warning: DESTRUCTIVE_COMMAND_WARNING_MSG,
+                                warning: destructiveCommandWarningMessage,
                                 commandCategory: CommandCategory.Destructive,
                             }
                         } else if (!isAbsolute(arg) && params.cwd) {
@@ -258,7 +255,7 @@ export class ExecuteBash {
                                     this.logging.info(`Detected credential file in command: ${fullPath}`)
                                     return {
                                         requiresAcceptance: true,
-                                        warning: CREDENTIAL_FILE_WARNING_MSG,
+                                        warning: credentialFileWarningMessage,
                                         commandCategory: CommandCategory.Mutate,
                                     }
                                 }
@@ -268,7 +265,7 @@ export class ExecuteBash {
                                     this.logging.info(`Detected binary file in command: ${fullPath}`)
                                     return {
                                         requiresAcceptance: true,
-                                        warning: BINARY_FILE_WARNING_MSG,
+                                        warning: binaryFileWarningMessage,
                                         commandCategory: CommandCategory.Mutate,
                                     }
                                 }
@@ -285,7 +282,7 @@ export class ExecuteBash {
                         if (!isInWorkspace) {
                             return {
                                 requiresAcceptance: true,
-                                warning: OUT_OF_WORKSPACE_WARNING_MSG,
+                                warning: outOfWorkspaceWarningmessage,
                                 commandCategory: highestCommandCategory,
                             }
                         }
@@ -309,13 +306,13 @@ export class ExecuteBash {
                     case CommandCategory.Destructive:
                         return {
                             requiresAcceptance: true,
-                            warning: DESTRUCTIVE_COMMAND_WARNING_MSG,
+                            warning: destructiveCommandWarningMessage,
                             commandCategory: CommandCategory.Destructive,
                         }
                     case CommandCategory.Mutate:
                         return {
                             requiresAcceptance: true,
-                            warning: MUTATE_COMMAND_WARNING_MSG,
+                            warning: mutateCommandWarningMessage,
                             commandCategory: CommandCategory.Mutate,
                         }
                     case CommandCategory.ReadOnly:
@@ -337,7 +334,7 @@ export class ExecuteBash {
                     if (!workspaceFolders || workspaceFolders.length === 0) {
                         return {
                             requiresAcceptance: true,
-                            warning: OUT_OF_WORKSPACE_WARNING_MSG,
+                            warning: outOfWorkspaceWarningmessage,
                             commandCategory: highestCommandCategory,
                         }
                     }
@@ -354,7 +351,7 @@ export class ExecuteBash {
                     if (!isInWorkspace) {
                         return {
                             requiresAcceptance: true,
-                            warning: OUT_OF_WORKSPACE_WARNING_MSG,
+                            warning: outOfWorkspaceWarningmessage,
                             commandCategory: highestCommandCategory,
                         }
                     }
