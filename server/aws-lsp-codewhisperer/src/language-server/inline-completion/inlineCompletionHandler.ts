@@ -42,7 +42,6 @@ import { DocumentChangedListener } from './documentChangedListener'
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
 export class InlineCompletionHandler {
-    readonly codeWhispererService: CodeWhispererServiceBase
     readonly ideCategory: string
 
     private isOnInlineCompletionHandlerInProgress = false
@@ -61,8 +60,11 @@ export class InlineCompletionHandler {
         readonly telemetryService: TelemetryService,
         readonly credentialsProvider: CredentialsProvider
     ) {
-        this.codeWhispererService = qServiceManager.getCodewhispererService()
         this.ideCategory = clientMetadata ? getIdeCategory(clientMetadata) : ''
+    }
+
+    get codeWhispererService() {
+        return this.qServiceManager.getCodewhispererService()
     }
 
     async onInlineCompletion(

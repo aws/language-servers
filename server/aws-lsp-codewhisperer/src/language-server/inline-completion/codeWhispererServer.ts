@@ -10,7 +10,7 @@ import { getSupportedLanguageId } from '../../shared/languageDetection'
 import { SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { safeGet } from '../../shared/utils'
-import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
+import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AcceptedInlineSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
@@ -23,10 +23,8 @@ import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
-import { EditCompletionHandler } from './editCompletionHandler'
-import { InlineCompletionHandler } from './inlineCompletionHandler'
 import { DocumentChangedListener } from './documentChangedListener'
-import { LogInlineCompletionSessionResultsHandler } from './logInlineCompletionSessionResultsHandler'
+import { CodeWhispererController } from './codewhispererController'
 
 export const CONTEXT_CHARACTERS_LIMIT = 10240
 
@@ -44,6 +42,8 @@ export const CodewhispererServerFactory =
         const sessionManager = SessionManager.getInstance('COMPLETIONS')
         const editsSessionManager = SessionManager.getInstance('EDITS')
 
+        const apiController = new CodeWhispererController(sessionManager, editsSessionManager)
+
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
         let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
@@ -60,11 +60,6 @@ export const CodewhispererServerFactory =
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
 
         let editsEnabled = false
-
-        // API handlers
-        let editCompletionHandler: EditCompletionHandler
-        let inlineCompletionHandler: InlineCompletionHandler
-        let logInlineCompletionSessionResultsHandler: LogInlineCompletionSessionResultsHandler
 
         const updateConfiguration = (updatedConfig: AmazonQWorkspaceConfig) => {
             logging.debug('Updating configuration of inline complete server.')
@@ -139,28 +134,11 @@ export const CodewhispererServerFactory =
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
 
-            // Initialize api handler
-            editCompletionHandler = new EditCompletionHandler(
+            await apiController.init(
                 logging,
-                clientMetadata!!,
+                clientParams,
                 workspace,
                 amazonQServiceManager,
-                editsSessionManager,
-                cursorTracker,
-                recentEditTracker,
-                rejectedEditTracker,
-                documentChangedListener,
-                telemetry,
-                telemetryService,
-                credentialsProvider
-            )
-
-            inlineCompletionHandler = new InlineCompletionHandler(
-                logging,
-                clientMetadata!!,
-                workspace,
-                amazonQServiceManager,
-                sessionManager,
                 cursorTracker,
                 recentEditTracker,
                 codePercentageTracker,
@@ -168,20 +146,9 @@ export const CodewhispererServerFactory =
                 documentChangedListener,
                 telemetry,
                 telemetryService,
-                credentialsProvider
-            )
-
-            logInlineCompletionSessionResultsHandler = new LogInlineCompletionSessionResultsHandler(
-                logging,
-                clientMetadata!!,
-                sessionManager,
-                editsSessionManager,
-                codePercentageTracker,
-                codeDiffTracker,
+                credentialsProvider,
                 rejectedEditTracker,
-                documentChangedListener,
-                telemetry,
-                telemetryService
+                codeDiffTracker
             )
         }
 
@@ -189,18 +156,18 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            return inlineCompletionHandler.onInlineCompletion(params, token)
+            return apiController.onInlineCompletion(params, token)
         }
 
         const onEditCompletion = async (
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            return editCompletionHandler.onEditCompletion(params, token)
+            return apiController.onEditCompletion(params, token)
         }
 
         const onLogInlineCompletionSessionResults = async (params: LogInlineCompletionSessionResultsParams) => {
-            return logInlineCompletionSessionResultsHandler.onLogInlineCompletionSessionResultsHandler(params)
+            await apiController.onLogInlineCompletionSessionResultsHandler(params)
         }
 
         lsp.extensions.onEditCompletion(onEditCompletion)

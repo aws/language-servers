@@ -40,8 +40,6 @@ import { DocumentChangedListener } from './documentChangedListener'
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
 export class EditCompletionHandler {
-    readonly codeWhispererService: CodeWhispererServiceBase
-
     private readonly editsEnabled: boolean
 
     constructor(
@@ -58,10 +56,13 @@ export class EditCompletionHandler {
         readonly telemetryService: TelemetryService,
         readonly credentialsProvider: CredentialsProvider
     ) {
-        this.codeWhispererService = qServiceManager.getCodewhispererService()
         this.editsEnabled =
             this.clientMetadata.initializationOptions?.aws?.awsClientCapabilities?.textDocument
                 ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
+    }
+
+    get codeWhispererService() {
+        return this.qServiceManager.getCodewhispererService()
     }
 
     async onEditCompletion(
