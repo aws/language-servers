@@ -200,7 +200,10 @@ import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { CodeReview } from './tools/qCodeAnalysis/codeReview'
-import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/codeReviewConstants'
+import {
+    CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
+    DISPLAY_FINDINGS_MESSAGE_SUFFIX,
+} from './tools/qCodeAnalysis/codeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -224,6 +227,7 @@ import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -1763,6 +1767,9 @@ export class AgenticChatController implements ChatHandlers {
                     case CodeReview.toolName:
                         // no need to write tool message for code review
                         break
+                    case DisplayFindings.toolName:
+                        // no need to write tool message for code review
+                        break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
@@ -1937,8 +1944,24 @@ export class AgenticChatController implements ChatHandlers {
                         ) {
                             await chatResultStream.writeResultBlock({
                                 type: 'tool',
-                                messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
+                                messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
                                 body: (codeReviewResult.output.content as any).findingsByFile,
+                            })
+                        }
+                        break
+                    case DisplayFindings.toolName:
+                        // no need to write tool result for code review, this is handled by model via chat
+                        // Push result in message so that it is picked by IDE plugin to show in issues panel
+                        const displayFindingsResult = result as InvokeOutput
+                        if (
+                            displayFindingsResult?.output?.kind === 'json' &&
+                            displayFindingsResult.output.success &&
+                            displayFindingsResult.output.content !== undefined
+                        ) {
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId + DISPLAY_FINDINGS_MESSAGE_SUFFIX,
+                                body: JSON.stringify(displayFindingsResult.output.content),
                             })
                         }
                         break
