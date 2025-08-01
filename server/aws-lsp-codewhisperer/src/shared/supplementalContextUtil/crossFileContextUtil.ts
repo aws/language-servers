@@ -67,7 +67,8 @@ export async function fetchSupplementalContextForSrc(
     position: Position,
     workspace: Workspace,
     cancellationToken: CancellationToken,
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    amazonQServiceManager?: AmazonQBaseServiceManager,
+    openTabFiles?: string[]
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     const supplementalContextConfig = getSupplementalContextConfig(document.languageId)
 
@@ -76,7 +77,14 @@ export async function fetchSupplementalContextForSrc(
     }
     //TODO: add logic for other strategies once available
     if (supplementalContextConfig === 'codemap') {
-        return await codemapContext(document, position, workspace, cancellationToken, amazonQServiceManager)
+        return await codemapContext(
+            document,
+            position,
+            workspace,
+            cancellationToken,
+            amazonQServiceManager,
+            openTabFiles
+        )
     }
     return { supplementalContextItems: [], strategy: 'Empty' }
 }
@@ -86,13 +94,14 @@ export async function codemapContext(
     position: Position,
     workspace: Workspace,
     cancellationToken: CancellationToken,
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    amazonQServiceManager?: AmazonQBaseServiceManager,
+    openTabFiles?: string[]
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     let strategy: SupplementalContextStrategy = 'Empty'
 
     const openTabsContextPromise = waitUntil(
         async function () {
-            return await fetchOpenTabsContext(document, position, workspace, cancellationToken)
+            return await fetchOpenTabsContext(document, position, workspace, cancellationToken, openTabFiles)
         },
         { timeout: supplementalContextTimeoutInMs, interval: 5, truthy: false }
     )
@@ -160,12 +169,13 @@ export async function fetchOpenTabsContext(
     document: TextDocument,
     position: Position,
     workspace: Workspace,
-    cancellationToken: CancellationToken
+    cancellationToken: CancellationToken,
+    openTabFiles?: string[]
 ): Promise<CodeWhispererSupplementalContextItem[]> {
     const codeChunksCalculated = crossFileContextConfig.numberOfChunkToFetch
 
     // Step 1: Get relevant cross files to refer
-    const relevantCrossFileCandidates = await getCrossFileCandidates(document, workspace)
+    const relevantCrossFileCandidates = await getCrossFileCandidates(document, workspace, openTabFiles)
 
     throwIfCancelled(cancellationToken)
 
@@ -322,7 +332,11 @@ function createFileUrl(uri: string): URL {
  * This function will return relevant cross files sorted by file distance for the given editor file
  * by referencing open files, imported files and same package files.
  */
-export async function getCrossFileCandidates(document: TextDocument, workspace: Workspace): Promise<TextDocument[]> {
+export async function getCrossFileCandidates(
+    document: TextDocument,
+    workspace: Workspace,
+    openTabFiles?: string[]
+): Promise<TextDocument[]> {
     const targetFile = document.uri
     const language = document.languageId as CrossFileSupportedLanguage
     const dialects = supportedLanguageToDialects[language]
@@ -336,7 +350,20 @@ export async function getCrossFileCandidates(document: TextDocument, workspace: 
      * Porting note: this function relies of Workspace feature to get all documents,
      * managed by this language server, instead of VSCode `vscode.window` API as VSCode toolkit does.
      */
-    const unsortedCandidates = await workspace.getAllTextDocuments()
+    let unsortedCandidates: TextDocument[] = []
+    if (openTabFiles && openTabFiles.length > 0) {
+        for (const openTabFile of openTabFiles) {
+            const openTab = await workspace.getTextDocument(openTabFile)
+            if (openTab) {
+                unsortedCandidates.push(openTab)
+            }
+        }
+    } else {
+        // this function only gets the user opened tab in this IDE session
+        // for a resumed IDE session, opened tabs are restored but this function returns empty
+        unsortedCandidates = await workspace.getAllTextDocuments()
+    }
+
     return unsortedCandidates
         .filter((candidateFile: TextDocument) => {
             let candidateFileURL
