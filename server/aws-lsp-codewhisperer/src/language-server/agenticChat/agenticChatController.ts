@@ -125,6 +125,7 @@ import {
     isNullish,
     getOriginFromClientInfo,
     sanitizeInput,
+    sanitizeRequestInput,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -1084,6 +1085,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#debug(`Compacting history with ${characterCount} characters`)
         this.#llmRequestStartTime = Date.now()
         // Phase 3: Request Execution
+        currentRequestInput = sanitizeRequestInput(currentRequestInput)
         this.#debug(`Compaction Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
         const response = await session.getChatResponse(currentRequestInput)
         if (response.$metadata.requestId) {
@@ -1231,6 +1233,7 @@ export class AgenticChatController implements ChatHandlers {
 
             this.#llmRequestStartTime = Date.now()
             // Phase 3: Request Execution
+            currentRequestInput = sanitizeRequestInput(currentRequestInput)
             // Note: these logs are very noisy, but contain information redacted on the backend.
             this.#debug(
                 `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
