@@ -15,6 +15,7 @@ import {
     GetMfaCodeParams,
     StsCredentialChangedParams,
     SsoTokenChangedParams,
+    ProfileChangedParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { SharedConfigProfileStore } from './profiles/sharedConfigProfileStore'
 import { IdentityService } from './identityService'
@@ -25,8 +26,9 @@ import { StsAutoRefresher } from '../sts/stsAutoRefresher'
 import { AwsError, ServerBase } from '@aws/lsp-core'
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
 import { ShowUrl, ShowMessageRequest, ShowProgress, SendSsoTokenChanged } from '../sso/utils'
-import { SendGetMfaCode, SendStsCredentialChanged } from '../iam/utils'
+import { SendGetMfaCode, SendProfileChanged, SendStsCredentialChanged } from '../iam/utils'
 import { IamProvider } from '../iam/iamProvider'
+import { ProfileWatcher } from './profiles/profileWatcher'
 
 export class IdentityServer extends ServerBase {
     constructor(features: Features) {
@@ -41,7 +43,7 @@ export class IdentityServer extends ServerBase {
     protected override async initialize(params: InitializeParams): Promise<PartialInitializeResult<any>> {
         const result = await super.initialize(params)
 
-        // Callbacks for server->client JSON-RPC calls
+        // Callbacks for JSON-RPC calls
         const showUrl: ShowUrl = (url: URL) =>
             this.features.lsp.window.showDocument({ uri: url.toString(), external: true })
         const showMessageRequest: ShowMessageRequest = (params: ShowMessageRequestParams) =>
@@ -49,12 +51,12 @@ export class IdentityServer extends ServerBase {
         const showProgress: ShowProgress = this.features.lsp.sendProgress
         const sendGetMfaCode: SendGetMfaCode = (params: GetMfaCodeParams) =>
             this.features.identityManagement.sendGetMfaCode(params)
-
-        // Callbacks for client->server JSON-RPC calls
         const sendSsoTokenChanged: SendSsoTokenChanged = (params: SsoTokenChangedParams) =>
             this.features.identityManagement.sendSsoTokenChanged(params)
         const sendStsCredentialChanged: SendStsCredentialChanged = (params: StsCredentialChangedParams) =>
             this.features.identityManagement.sendStsCredentialChanged(params)
+        const sendProfileChanged: SendProfileChanged = (params: ProfileChangedParams) =>
+            this.features.identityManagement.sendProfileChanged(params)
 
         // Initialize dependencies
         const profileStore = new SharedConfigProfileStore(this.observability)
@@ -83,6 +85,8 @@ export class IdentityServer extends ServerBase {
         )
 
         const profileService = new ProfileService(profileStore, this.observability)
+        const profileWatcher = new ProfileWatcher(profileStore, sendProfileChanged, this.observability)
+        profileWatcher.watch()
 
         // JSON-RPC request/notification handlers (client->server)
         this.features.identityManagement.onGetSsoToken(
@@ -135,6 +139,7 @@ export class IdentityServer extends ServerBase {
 
         this.disposables.push(autoRefresher)
         this.disposables.push(stsAutoRefresher)
+        this.disposables.push(profileWatcher)
 
         return {
             ...result,

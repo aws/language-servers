@@ -7,6 +7,7 @@ import {
     GetMfaCodeResult,
     IamCredentials,
     Profile,
+    ProfileChangedParams,
     StsCredentialChangedParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { AwsError, Observability } from '@aws/lsp-core'
@@ -97,6 +98,7 @@ export type CredentialProviders = {
 
 export type SendGetMfaCode = (params: GetMfaCodeParams) => Promise<GetMfaCodeResult>
 export type SendStsCredentialChanged = (params: StsCredentialChangedParams) => void
+export type SendProfileChanged = (params: ProfileChangedParams) => void
 
 export type IamHandlers = {
     sendGetMfaCode: SendGetMfaCode
