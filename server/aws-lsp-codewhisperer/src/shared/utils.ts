@@ -593,3 +593,25 @@ export function sanitizeInput(input: string): string {
         ''
     )
 }
+
+/**
+ * Recursively sanitizes the entire request input to prevent Unicode ASCII smuggling
+ * @param input The request input to sanitize
+ * @returns The sanitized request input
+ */
+export function sanitizeRequestInput(input: any): any {
+    if (typeof input === 'string') {
+        return sanitizeInput(input)
+    }
+    if (Array.isArray(input)) {
+        return input.map(item => sanitizeRequestInput(item))
+    }
+    if (input && typeof input === 'object') {
+        const sanitized: any = {}
+        for (const [key, value] of Object.entries(input)) {
+            sanitized[key] = sanitizeRequestInput(value)
+        }
+        return sanitized
+    }
+    return input
+}
