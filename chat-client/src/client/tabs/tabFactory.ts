@@ -77,7 +77,7 @@ export class TabFactory {
                           body: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 200px 0 20px 0;">
 
 <div style="font-size: 24px; margin-bottom: 12px;"><strong>Amazon Q</strong></div>
-<div style="background: rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 8px; margin: 4px 0; text-align: center;">
+<div style="background: rgba(128, 128, 128, 0.15); border: 1px solid rgba(128, 128, 128, 0.25); border-radius: 8px; padding: 8px; margin: 4px 0; text-align: center;">
 <div style="font-size: 14px; margin-bottom: 4px;"><strong>Did you know?</strong></div>
 <div>${this.getRandomTip()}</div>
 </div>
