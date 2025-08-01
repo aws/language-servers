@@ -2442,10 +2442,9 @@ export class AgenticChatController implements ChatHandlers {
         tabId?: string
     ): ChatResult {
         const toolName = originalToolName ?? (toolType || toolUse.name)
-
+        const quickSettings = this.#buildQuickSettings(toolUse, toolName!, toolType, tabId)
         // Handle bash commands with special formatting
         if (toolName === EXECUTE_BASH) {
-            const permission = McpManager.instance.getToolPerm('Built-in', 'executeBash')
             return {
                 messageId: toolUse.toolUseId,
                 type: 'tool',
@@ -2463,21 +2462,7 @@ export class AgenticChatController implements ChatHandlers {
                           }),
                     buttons: isAccept ? [this.#renderStopShellCommandButton()] : [],
                 },
-                quickSettings: {
-                    type: 'select',
-                    description: 'Configure for this session only. To edit globally, go to',
-                    messageId: toolUse.toolUseId!,
-                    tabId: tabId!,
-                    options: [
-                        { id: 'ask', label: 'Ask to run', value: toolName, selected: permission === 'ask' },
-                        {
-                            id: 'alwaysAllow',
-                            label: 'Auto run',
-                            value: toolName,
-                            selected: permission === 'alwaysAllow',
-                        },
-                    ],
-                },
+                quickSettings,
             }
         }
 
@@ -2531,6 +2516,7 @@ export class AgenticChatController implements ChatHandlers {
                                     icon: isAccept ? 'ok' : 'cancel',
                                     text: isAccept ? 'Completed' : 'Rejected',
                                 },
+                                quickSettings,
                                 fileList: undefined,
                             },
                         },
@@ -2697,17 +2683,23 @@ export class AgenticChatController implements ChatHandlers {
     #buildQuickSettings(toolUse: ToolUse, toolName: string, toolType?: string, tabId?: string) {
         const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name!)
         let serverName = 'Built-in'
+        let description = 'More control, modify the commands'
         if (originalNames) {
             serverName = originalNames.serverName
             toolName = originalNames.toolName
+            description = 'Configure auto-run permissions'
         }
         const permission = McpManager.instance.getToolPerm(serverName, toolName)
-
         return {
             type: 'select' as 'select' | 'checkbox' | 'radio', // will update this later
             messageId: this.#getMessageIdForToolUse(toolType, toolUse),
             tabId: tabId!,
             description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
+            descriptionLink: {
+                id: 'open-mcp-server',
+                text: '',
+                destination: serverName,
+            },
             options: [
                 { id: 'ask', label: 'Ask to run', value: `${serverName}@${toolName}`, selected: permission === 'ask' },
                 {

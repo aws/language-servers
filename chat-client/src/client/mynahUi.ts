@@ -56,7 +56,7 @@ import {
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
-import { MCP_IDS, McpMynahUi } from './mcpMynahUi'
+import { McpMynahUi } from './mcpMynahUi'
 import { ExportTabBarButtonId, ShowLogsTabBarButtonId, McpServerTabButtonId, TabFactory } from './tabs/tabFactory'
 import { disclaimerAcknowledgeButtonId, disclaimerCard } from './texts/disclaimer'
 import { ChatClientAdapter, ChatEventHandler } from '../contracts/chatClientAdapter'
@@ -988,11 +988,7 @@ export const createMynahUi = (
                               messageId: am.quickSettings.messageId,
                               tabId: am.quickSettings.tabId,
                               description: am.quickSettings.description,
-                              descriptionLink: {
-                                  text: 'Auto-approve settings',
-                                  id: MCP_IDS.OPEN_SERVER,
-                                  destination: am.quickSettings.options[0].value.split('@')[0],
-                              },
+                              descriptionLink: am.quickSettings.descriptionLink,
                               options: am.quickSettings.options || [],
                           }
                         : undefined,
@@ -1343,7 +1339,14 @@ export const createMynahUi = (
                                 }
                               : undefined,
                           quickSettings: message.summary.content.quickSettings
-                              ? message.summary.content.quickSettings
+                              ? {
+                                    type: message.summary.content.quickSettings.type,
+                                    messageId: message.summary.content.quickSettings.messageId,
+                                    tabId: message.summary.content.quickSettings.tabId,
+                                    description: message.summary.content.quickSettings.description,
+                                    descriptionLink: message.summary.content.quickSettings.descriptionLink,
+                                    options: message.summary.content.quickSettings.options || [],
+                                }
                               : undefined,
                       }
                     : undefined,
