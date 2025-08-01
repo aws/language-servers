@@ -5,6 +5,7 @@ import {
     ShowMessageRequestParams,
     SsoSession,
     Lsp,
+    SsoTokenChangedParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { CreateTokenCommandOutput, SSOOIDC, SSOOIDCClientConfig } from '@aws-sdk/client-sso-oidc'
 import { SsoClientRegistration } from './cache'
@@ -36,7 +37,7 @@ export function getSsoOidc(ssoRegion: string): SSOOIDC & Disposable {
 }
 
 export function throwOnInvalidClientName(clientName?: string): asserts clientName is string {
-    if (!clientName?.trim().length) {
+    if (typeof clientName?.trim !== 'function' || !clientName?.trim().length) {
         throw new AwsError(`Client name [${clientName}] is invalid.`, AwsErrorCodes.E_INVALID_SSO_CLIENT)
     }
 }
@@ -57,7 +58,7 @@ export function throwOnInvalidClientRegistration(
 }
 
 export function throwOnInvalidSsoSessionName(ssoSessionName?: string): asserts ssoSessionName is string {
-    if (!ssoSessionName?.trim()) {
+    if (typeof ssoSessionName?.trim !== 'function' || !ssoSessionName?.trim()) {
         throw new AwsError('SSO session name is invalid.', AwsErrorCodes.E_INVALID_SSO_SESSION)
     }
 }
@@ -111,17 +112,19 @@ export function UpdateSsoTokenFromCreateToken(
 export type ShowUrl = (url: URL) => void
 export type ShowMessageRequest = (params: ShowMessageRequestParams) => Promise<MessageActionItem | null>
 export type ShowProgress = Lsp['sendProgress']
+export type SendSsoTokenChanged = (params: SsoTokenChangedParams) => void
+export type SsoHandlers = {
+    showUrl: ShowUrl
+    showMessageRequest: ShowMessageRequest
+    showProgress: ShowProgress
+    // Add `showMsg: ShowMessage` if needed.
+}
 
 export type SsoFlowParams = {
     clientName: string
     clientRegistration: SsoClientRegistration
     ssoSession: SsoSession
-    handlers: {
-        showUrl: ShowUrl
-        showMessageRequest: ShowMessageRequest
-        showProgress: ShowProgress
-        // Add `showMsg: ShowMessage` if needed.
-    }
+    handlers: SsoHandlers
     token: CancellationToken
     observability: Observability
 }

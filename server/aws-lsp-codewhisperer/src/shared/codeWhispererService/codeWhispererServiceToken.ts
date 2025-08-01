@@ -9,167 +9,48 @@ import {
     CancellationTokenSource,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
-import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
+import { AWSError } from 'aws-sdk'
 import { PromiseResult } from 'aws-sdk/lib/request'
-import { Request } from 'aws-sdk/lib/core'
-import { v4 as uuidv4 } from 'uuid'
-import {
-    CodeWhispererSigv4ClientConfigurationOptions,
-    createCodeWhispererSigv4Client,
-} from '../client/sigv4/codewhisperer'
 import {
     CodeWhispererTokenClientConfigurationOptions,
     createCodeWhispererTokenClient,
-    RequestExtras,
-} from '../client/token/codewhisperer'
-import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4client')
-import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
-import { getErrorId } from './utils'
-import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
-
-export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
-    itemId: string
-}
-
-export interface GenerateSuggestionsRequest extends CodeWhispererTokenClient.GenerateCompletionsRequest {
-    // TODO : This is broken due to Interface 'GenerateSuggestionsRequest' cannot simultaneously extend types 'GenerateCompletionsRequest' and 'GenerateRecommendationsRequest'.
-    //CodeWhispererSigv4Client.GenerateRecommendationsRequest {
-    maxResults: number
-}
-
-export type FileContext = GenerateSuggestionsRequest['fileContext']
-
-export interface ResponseContext {
-    requestId: string
-    codewhispererSessionId: string
-    nextToken?: string
-}
-
-export enum SuggestionType {
-    EDIT = 'EDIT',
-    COMPLETION = 'COMPLETION',
-}
-
-export interface GenerateSuggestionsResponse {
-    suggestions: Suggestion[]
-    suggestionType?: SuggestionType
-    responseContext: ResponseContext
-}
-
-// This abstract class can grow in the future to account for any additional changes across the clients
-export abstract class CodeWhispererServiceBase {
-    protected readonly codeWhispererRegion
-    protected readonly codeWhispererEndpoint
-    public shareCodeWhispererContentWithAWS = false
-    public customizationArn?: string
-    public profileArn?: string
-    abstract client: CodeWhispererSigv4Client | CodeWhispererTokenClient
-
-    inflightRequests: Set<AWS.Request<any, AWSError> & RequestExtras> = new Set()
-
-    abortInflightRequests() {
-        this.inflightRequests.forEach(request => {
-            request.abort()
-        })
-        this.inflightRequests.clear()
-    }
-
-    trackRequest(request: AWS.Request<any, AWSError> & RequestExtras) {
-        this.inflightRequests.add(request)
-    }
-
-    completeRequest(request: AWS.Request<any, AWSError> & RequestExtras) {
-        this.inflightRequests.delete(request)
-    }
-
-    abstract getCredentialsType(): CredentialsType
-
-    abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
-
-    constructor(codeWhispererRegion: string, codeWhispererEndpoint: string) {
-        this.codeWhispererRegion = codeWhispererRegion
-        this.codeWhispererEndpoint = codeWhispererEndpoint
-    }
-
-    /**
-     * Updates Service Client options after client was instantiated.
-     */
-    public updateClientConfig(options: ConfigurationOptions) {
-        this.client.config.update(options)
-    }
-
-    generateItemId = () => uuidv4()
-
-    async getSubscriptionStatus(
-        statusOnly?: boolean
-    ): Promise<{ status: 'active' | 'active-expiring' | 'none'; encodedVerificationUrl?: string }> {
-        // No-op/default implementation: assume no subscription
-        return {
-            status: 'none',
-        }
-    }
-
-    async waitUntilSubscriptionActive(_cancelToken?: CancellationToken): Promise<boolean> {
-        // No-op: base class doesn't support subscription polling
-        return false
-    }
-}
-
-export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
-    client: CodeWhispererSigv4Client
-    constructor(
-        credentialsProvider: CredentialsProvider,
-        workspace: Workspace,
-        logging: Logging,
-        codeWhispererRegion: string,
-        codeWhispererEndpoint: string,
-        sdkInitializator: SDKInitializator
-    ) {
-        super(codeWhispererRegion, codeWhispererEndpoint)
-        const options: CodeWhispererSigv4ClientConfigurationOptions = {
-            region: this.codeWhispererRegion,
-            endpoint: this.codeWhispererEndpoint,
-            credentialProvider: new CredentialProviderChain([
-                () => credentialsProvider.getCredentials('iam') as Credentials,
-            ]),
-        }
-        this.client = createCodeWhispererSigv4Client(options, sdkInitializator, logging)
-        // Avoid overwriting any existing client listeners
-        const clientRequestListeners = this.client.setupRequestListeners
-        this.client.setupRequestListeners = (request: Request<unknown, AWSError>) => {
-            if (clientRequestListeners) {
-                clientRequestListeners.call(this.client, request)
-            }
-            request.httpRequest.headers['x-amzn-codewhisperer-optout'] = `${!this.shareCodeWhispererContentWithAWS}`
-        }
-    }
-
-    getCredentialsType(): CredentialsType {
-        return 'iam'
-    }
-
-    async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
-        // add cancellation check
-        // add error check
-        if (this.customizationArn) request = { ...request, customizationArn: this.customizationArn }
-        const response = await this.client.generateRecommendations(request).promise()
-        const responseContext = {
-            requestId: response?.$response?.requestId,
-            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
-            nextToken: response.nextToken,
-        }
-
-        for (const recommendation of response?.recommendations ?? []) {
-            Object.assign(recommendation, { itemId: this.generateItemId() })
-        }
-
-        return {
-            suggestions: response.recommendations as Suggestion[],
-            suggestionType: SuggestionType.COMPLETION,
-            responseContext,
-        }
-    }
-}
+} from '../../client/token/codewhisperer'
+import CodeWhispererTokenClient = require('../../client/token/codewhispererbearertokenclient')
+import { getErrorId } from '../utils'
+import { GenerateCompletionsResponse } from '../../client/token/codewhispererbearertokenclient'
+import {
+    CodeWhispererServiceBase,
+    CreateSubscriptionTokenRequest,
+    CreateSubscriptionTokenResponse,
+    CreateUploadUrlRequest,
+    CreateUploadUrlResponse,
+    CreateWorkspaceRequest,
+    DeleteWorkspaceRequest,
+    GenerateSuggestionsRequest,
+    GenerateSuggestionsResponse,
+    GetCodeAnalysisRequest,
+    GetCodeAnalysisResponse,
+    GetTransformationPlanRequest,
+    GetTransformationPlanResponse,
+    GetTransformationRequest,
+    GetTransformationResponse,
+    ListAvailableCustomizationsRequest,
+    ListAvailableProfilesRequest,
+    ListCodeAnalysisFindingsRequest,
+    ListCodeAnalysisFindingsResponse,
+    ListFeatureEvaluationsRequest,
+    ListWorkspaceMetadataRequest,
+    ResponseContext,
+    SendTelemetryEventRequest,
+    StartCodeAnalysisRequest,
+    StartCodeAnalysisResponse,
+    StartTransformationRequest,
+    StartTransformationResponse,
+    StopTransformationRequest,
+    StopTransformationResponse,
+    Suggestion,
+    SuggestionType,
+} from './codeWhispererServiceBase'
 
 /**
  * Hint: to get an instance of this: `AmazonQTokenServiceManager.getInstance().getCodewhispererService()`
@@ -177,7 +58,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     client: CodeWhispererTokenClient
     /** Debounce createSubscriptionToken by storing the current, pending promise (if any). */
-    #createSubscriptionTokenPromise?: Promise<CodeWhispererTokenClient.CreateSubscriptionTokenResponse>
+    #createSubscriptionTokenPromise?: Promise<CreateSubscriptionTokenResponse>
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
@@ -307,9 +188,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         }
     }
 
-    public async codeModernizerCreateUploadUrl(
-        request: CodeWhispererTokenClient.CreateUploadUrlRequest
-    ): Promise<CodeWhispererTokenClient.CreateUploadUrlResponse> {
+    public async codeModernizerCreateUploadUrl(request: CreateUploadUrlRequest): Promise<CreateUploadUrlResponse> {
         return this.client.createUploadUrl(this.withProfileArn(request)).promise()
     }
     /**
@@ -319,8 +198,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      */
 
     public async codeModernizerStartCodeTransformation(
-        request: CodeWhispererTokenClient.StartTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StartTransformationResponse, AWSError>> {
+        request: StartTransformationRequest
+    ): Promise<PromiseResult<StartTransformationResponse, AWSError>> {
         return await this.client.startTransformation(this.withProfileArn(request)).promise()
     }
 
@@ -330,8 +209,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @returns transformationJobId - String id for the Job
      */
     public async codeModernizerStopCodeTransformation(
-        request: CodeWhispererTokenClient.StopTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StopTransformationResponse, AWSError>> {
+        request: StopTransformationRequest
+    ): Promise<PromiseResult<StopTransformationResponse, AWSError>> {
         return await this.client.stopTransformation(this.withProfileArn(request)).promise()
     }
 
@@ -341,8 +220,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * returns COMPLETED we know the transformation is done.
      */
     public async codeModernizerGetCodeTransformation(
-        request: CodeWhispererTokenClient.GetTransformationRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationResponse, AWSError>> {
+        request: GetTransformationRequest
+    ): Promise<PromiseResult<GetTransformationResponse, AWSError>> {
         return await this.client.getTransformation(this.withProfileArn(request)).promise()
     }
 
@@ -352,17 +231,15 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @params tranformationJobId - String id returned from StartCodeTransformationResponse
      */
     public async codeModernizerGetCodeTransformationPlan(
-        request: CodeWhispererTokenClient.GetTransformationPlanRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetTransformationPlanResponse, AWSError>> {
+        request: GetTransformationPlanRequest
+    ): Promise<PromiseResult<GetTransformationPlanResponse, AWSError>> {
         return this.client.getTransformationPlan(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description get a pre-signed url to upload source code into S3 bucket
      */
-    async createUploadUrl(
-        request: CodeWhispererTokenClient.CreateUploadUrlRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.CreateUploadUrlResponse, AWSError>> {
+    async createUploadUrl(request: CreateUploadUrlRequest): Promise<PromiseResult<CreateUploadUrlResponse, AWSError>> {
         return this.client.createUploadUrl(this.withProfileArn(request)).promise()
     }
 
@@ -370,17 +247,15 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @description Once source code uploaded to S3, send a request to run security scan on uploaded source code.
      */
     async startCodeAnalysis(
-        request: CodeWhispererTokenClient.StartCodeAnalysisRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.StartCodeAnalysisResponse, AWSError>> {
+        request: StartCodeAnalysisRequest
+    ): Promise<PromiseResult<StartCodeAnalysisResponse, AWSError>> {
         return this.client.startCodeAnalysis(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description Send a request to get the code scan status detail.
      */
-    async getCodeAnalysis(
-        request: CodeWhispererTokenClient.GetCodeAnalysisRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.GetCodeAnalysisResponse, AWSError>> {
+    async getCodeAnalysis(request: GetCodeAnalysisRequest): Promise<PromiseResult<GetCodeAnalysisResponse, AWSError>> {
         return this.client.getCodeAnalysis(this.withProfileArn(request)).promise()
     }
 
@@ -388,57 +263,57 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      * @description Once scan completed successfully, send a request to get list of all the findings for the given scan.
      */
     async listCodeAnalysisFindings(
-        request: CodeWhispererTokenClient.ListCodeAnalysisFindingsRequest
-    ): Promise<PromiseResult<CodeWhispererTokenClient.ListCodeAnalysisFindingsResponse, AWSError>> {
+        request: ListCodeAnalysisFindingsRequest
+    ): Promise<PromiseResult<ListCodeAnalysisFindingsResponse, AWSError>> {
         return this.client.listCodeAnalysisFindings(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description Get list of available customizations
      */
-    async listAvailableCustomizations(request: CodeWhispererTokenClient.ListAvailableCustomizationsRequest) {
+    async listAvailableCustomizations(request: ListAvailableCustomizationsRequest) {
         return this.client.listAvailableCustomizations(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description Get list of available profiles
      */
-    async listAvailableProfiles(request: CodeWhispererTokenClient.ListAvailableProfilesRequest) {
+    async listAvailableProfiles(request: ListAvailableProfilesRequest) {
         return this.client.listAvailableProfiles(request).promise()
     }
 
     /**
      * @description send telemetry event to code whisperer data warehouse
      */
-    async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
+    async sendTelemetryEvent(request: SendTelemetryEventRequest) {
         return this.client.sendTelemetryEvent(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description create a remote workspace
      */
-    async createWorkspace(request: CodeWhispererTokenClient.CreateWorkspaceRequest) {
+    async createWorkspace(request: CreateWorkspaceRequest) {
         return this.client.createWorkspace(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description get list of workspace metadata
      */
-    async listWorkspaceMetadata(request: CodeWhispererTokenClient.ListWorkspaceMetadataRequest) {
+    async listWorkspaceMetadata(request: ListWorkspaceMetadataRequest) {
         return this.client.listWorkspaceMetadata(this.withProfileArn(request)).promise()
     }
 
     /**
      * @description delete the remote workspace
      */
-    async deleteWorkspace(request: CodeWhispererTokenClient.DeleteWorkspaceRequest) {
+    async deleteWorkspace(request: DeleteWorkspaceRequest) {
         return this.client.deleteWorkspace(this.withProfileArn(request)).promise()
     }
 
     /*
      * @description get the list of feature evaluations
      */
-    async listFeatureEvaluations(request: CodeWhispererTokenClient.ListFeatureEvaluationsRequest) {
+    async listFeatureEvaluations(request: ListFeatureEvaluationsRequest) {
         return this.client.listFeatureEvaluations(this.withProfileArn(request)).promise()
     }
 
@@ -447,7 +322,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
      *
      * cool api you have there 🥹
      */
-    async createSubscriptionToken(request: CodeWhispererTokenClient.CreateSubscriptionTokenRequest) {
+    async createSubscriptionToken(request: CreateSubscriptionTokenRequest) {
         // Debounce.
         if (this.#createSubscriptionTokenPromise) {
             return this.#createSubscriptionTokenPromise

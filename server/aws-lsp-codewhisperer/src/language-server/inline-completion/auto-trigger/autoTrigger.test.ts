@@ -1,5 +1,5 @@
 import assert = require('assert')
-import { FileContext } from '../../../shared/codeWhispererService'
+import { FileContext } from '../../../shared/codeWhispererService/codeWhispererServiceBase'
 import { autoTrigger, getAutoTriggerType, triggerType } from './autoTrigger'
 
 describe('Auto Trigger', async () => {

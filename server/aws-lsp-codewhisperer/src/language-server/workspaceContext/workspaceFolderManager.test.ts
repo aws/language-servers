@@ -5,7 +5,7 @@ import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/serv
 import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { WorkspaceFolder } from 'vscode-languageserver-protocol'
 import { ArtifactManager } from './artifactManager'
-import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { CodeWhispererServiceToken } from '../../shared/codeWhispererService/codeWhispererServiceToken'
 import { CreateWorkspaceResponse } from '../../client/token/codewhispererbearertokenclient'
 import { AWSError } from 'aws-sdk'
 

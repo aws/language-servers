@@ -34,6 +34,7 @@ export type ChatCommandOutput = SendMessageCommandOutput | GenerateAssistantResp
 export abstract class StreamingClientServiceBase {
     protected readonly region
     protected readonly endpoint
+    public profileArn?: string
 
     inflightRequests: Set<AbortController> = new Set()
 
@@ -49,6 +50,16 @@ export abstract class StreamingClientServiceBase {
         abortController?: AbortController
     ): Promise<SendMessageCommandOutput>
 
+    abstract generateAssistantResponse(
+        request: GenerateAssistantResponseCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<GenerateAssistantResponseCommandOutputCodeWhispererStreaming>
+
+    abstract exportResultArchive(
+        request: ExportResultArchiveCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<ExportResultArchiveCommandOutputCodeWhispererStreaming>
+
     public abortInflightRequests() {
         this.inflightRequests.forEach(abortController => {
             abortController.abort()
@@ -59,7 +70,6 @@ export abstract class StreamingClientServiceBase {
 
 export class StreamingClientServiceToken extends StreamingClientServiceBase {
     client: CodeWhispererStreaming
-    public profileArn?: string
     constructor(
         credentialsProvider: CredentialsProvider,
         sdkInitializator: SDKInitializator,
@@ -208,5 +218,18 @@ export class StreamingClientServiceIAM extends StreamingClientServiceBase {
         this.inflightRequests.delete(controller)
 
         return response
+    }
+
+    public async generateAssistantResponse(
+        request: GenerateAssistantResponseCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<GenerateAssistantResponseCommandOutputCodeWhispererStreaming> {
+        throw new Error('Method not implemented.')
+    }
+    public async exportResultArchive(
+        request: ExportResultArchiveCommandInputCodeWhispererStreaming,
+        abortController?: AbortController
+    ): Promise<ExportResultArchiveCommandOutputCodeWhispererStreaming> {
+        throw new Error('Method not implemented.')
     }
 }

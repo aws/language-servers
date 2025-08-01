@@ -15,7 +15,7 @@ import { CodeWhispererSession } from '../../language-server/inline-completion/se
 import sinon, { StubbedInstance, stubInterface } from 'ts-sinon'
 import { BUILDER_ID_START_URL } from '../constants'
 import { ChatInteractionType } from './types'
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../codeWhispererService/codeWhispererServiceToken'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../amazonQServiceManager/testUtils'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 

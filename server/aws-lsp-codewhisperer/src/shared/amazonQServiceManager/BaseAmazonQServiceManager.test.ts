@@ -1,7 +1,7 @@
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import sinon, { StubbedInstance } from 'ts-sinon'
 import { expect } from 'chai'
-import { CodeWhispererServiceBase } from '../codeWhispererService'
+import { CodeWhispererServiceBase } from '../codeWhispererService/codeWhispererServiceBase'
 import { stubCodeWhispererService } from '../testUtils'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from './testUtils'
 import {

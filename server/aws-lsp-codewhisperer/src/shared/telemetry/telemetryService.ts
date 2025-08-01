@@ -1,4 +1,5 @@
-import { CodeWhispererServiceToken, SuggestionType } from '../codeWhispererService'
+import { CodeWhispererServiceToken } from '../codeWhispererService/codeWhispererServiceToken'
+import { SuggestionType } from '../codeWhispererService/codeWhispererServiceBase'
 import {
     CredentialsProvider,
     CredentialsType,

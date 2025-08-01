@@ -1,0 +1,401 @@
+import { expect, use } from 'chai'
+import { StubbedInstance, stubInterface } from 'ts-sinon'
+import { ProfileData, ProfileStore } from '../language-server/profiles/profileService'
+import { createStubInstance, restore, SinonSpy, SinonStub, spy, stub } from 'sinon'
+import { CancellationToken, Profile, ProfileKind } from '@aws/language-server-runtimes/protocol'
+import { Logging, Telemetry } from '@aws/language-server-runtimes/server-interface'
+import { IamCredentials, Observability } from '@aws/lsp-core'
+import { StsCache } from '../sts/cache/stsCache'
+import { StsAutoRefresher } from '../sts/stsAutoRefresher'
+import { IamProvider } from '../iam/iamProvider'
+import { IamFlowParams } from './utils'
+import * as iamUtils from '../iam/utils'
+import { STSClient } from '@aws-sdk/client-sts'
+
+// eslint-disable-next-line
+use(require('chai-as-promised'))
+
+let sut: IamProvider
+let defaultParams: IamFlowParams
+let defaultProfile: Profile
+let profileStore: StubbedInstance<ProfileStore>
+let stsCache: StubbedInstance<StsCache>
+let stsAutoRefresher: StubbedInstance<StsAutoRefresher>
+let handlers: StubbedInstance<iamUtils.IamHandlers>
+let observability: StubbedInstance<Observability>
+let token: StubbedInstance<CancellationToken>
+let checkMfaRequiredStub: SinonStub<
+    [credentials: IamCredentials, permissions: string[], region?: string | undefined],
+    Promise<boolean>
+>
+let providerSpy: SinonSpy
+let emitMetricSpy: SinonSpy
+
+describe('IamProvider', () => {
+    beforeEach(() => {
+        defaultProfile = {
+            kinds: [ProfileKind.Unknown],
+            name: 'default-profile',
+        }
+
+        profileStore = stubInterface<ProfileStore>({
+            load: Promise.resolve({
+                profiles: [
+                    {
+                        kinds: [ProfileKind.IamSourceProfileProfile],
+                        name: 'cyclic-profile-1',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'cyclic-profile-1',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamSourceProfileProfile],
+                        name: 'cyclic-profile-2',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'cyclic-profile-3',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamSourceProfileProfile],
+                        name: 'cyclic-profile-3',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'cyclic-profile-2',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamSourceProfileProfile],
+                        name: 'base-profile',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'intermediate-profile',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamSourceProfileProfile],
+                        name: 'intermediate-profile',
+                        settings: {
+                            role_arn: 'my-role-arn',
+                            source_profile: 'my-iam-profile',
+                        },
+                    },
+                    {
+                        kinds: [ProfileKind.IamCredentialsProfile],
+                        name: 'my-iam-profile',
+                        settings: {
+                            aws_access_key_id: 'my-access-key',
+                            aws_secret_access_key: 'my-secret-key',
+                        },
+                    },
+                ],
+                ssoSessions: [],
+            } satisfies ProfileData),
+        })
+
+        stsCache = stubInterface<StsCache>({
+            getStsCredential: Promise.resolve(undefined),
+            setStsCredential: Promise.resolve(),
+            removeStsCredential: Promise.resolve(),
+        })
+
+        stsAutoRefresher = createStubInstance(StsAutoRefresher, {
+            watch: Promise.resolve(),
+            unwatch: undefined,
+        }) as StubbedInstance<StsAutoRefresher>
+
+        observability = stubInterface<Observability>()
+        observability.logging = stubInterface<Logging>()
+        observability.telemetry = stubInterface<Telemetry>()
+
+        handlers = stubInterface<iamUtils.IamHandlers>({
+            sendGetMfaCode: Promise.resolve({ code: 'mfa-code', mfaSerial: 'mfa-serial' }),
+        })
+
+        providerSpy = spy(() => () => {
+            return {
+                accessKeyId: 'provider-access-key',
+                secretAccessKey: 'provider-secret-key',
+                sessionToken: 'provider-session-token',
+                credentialScope: 'provider-credential-scope',
+                accountId: 'provider-account-id',
+            }
+        })
+
+        emitMetricSpy = spy()
+
+        token = stubInterface<CancellationToken>()
+
+        defaultParams = {
+            profile: defaultProfile,
+            callStsOnInvalidIamCredential: true,
+            recursionCount: 0,
+            profileStore: profileStore,
+            stsCache: stsCache,
+            stsAutoRefresher: stsAutoRefresher,
+            handlers: handlers,
+            providers: {
+                fromProcess: providerSpy,
+                fromEnv: providerSpy,
+                fromInstanceMetadata: providerSpy,
+                fromContainerMetadata: providerSpy,
+            },
+            emitMetric: emitMetricSpy,
+            token: token,
+            observability: observability,
+        }
+
+        sut = new IamProvider()
+
+        checkMfaRequiredStub = stub(iamUtils, 'checkMfaRequired')
+        checkMfaRequiredStub.resolves(false)
+
+        stub(STSClient.prototype, 'send').resolves({
+            Credentials: {
+                AccessKeyId: 'role-access-key',
+                SecretAccessKey: 'role-secret-key',
+                SessionToken: 'role-session-token',
+                Expiration: new Date('2024-09-25T18:09:20.455Z'),
+            },
+            AssumedRoleUser: {
+                Arn: 'role-arn',
+                AssumedRoleId: 'role-id',
+            },
+        })
+    })
+
+    afterEach(() => {
+        restore()
+    })
+
+    describe('getCredential', () => {
+        it('Can get credentials from profile', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamCredentialsProfile],
+                name: 'iam-profile',
+                settings: {
+                    aws_access_key_id: 'access-key',
+                    aws_secret_access_key: 'secret-key',
+                    aws_session_token: 'session-token',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('secret-key')
+            expect(actual.credentials.sessionToken).to.equal('session-token')
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'staticSessionProfile')).to.be.true
+        })
+
+        it('Can generate credentials by assuming role.', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamSourceProfileProfile],
+                name: 'my-role-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    source_profile: 'my-iam-profile',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'assumeRoleProfile')).to.be.true
+        })
+
+        it('Can generate credentials with MFA.', async () => {
+            checkMfaRequiredStub.resolves(true)
+            const profile: Profile = {
+                kinds: [ProfileKind.IamSourceProfileProfile],
+                name: 'my-mfa-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    source_profile: 'my-iam-profile',
+                    mfa_serial: 'my-device-arn',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(handlers.sendGetMfaCode.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'assumeMfaRoleProfile')).to.be.true
+        })
+
+        it('Returns existing STS credential.', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamSourceProfileProfile],
+                name: 'my-role-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    source_profile: 'my-iam-profile',
+                },
+            }
+            stsCache.getStsCredential = (() =>
+                Promise.resolve({
+                    accessKeyId: 'other-access-key',
+                    secretAccessKey: 'other-secret-key',
+                    sessionToken: 'other-session-token',
+                    expiration: new Date('2024-10-25T18:09:20.455Z'),
+                })) as any
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('other-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('other-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('other-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-10-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'assumeRoleProfile')).to.be.true
+        })
+
+        it('Throws when no STS credential cached and callStsOnInvalidIamCredential is false.', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamSourceProfileProfile],
+                name: 'my-role-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    source_profile: 'my-iam-profile',
+                },
+            }
+            const error = await expect(
+                sut.getCredential({ ...defaultParams, profile: profile, callStsOnInvalidIamCredential: false })
+            ).rejectedWith(Error)
+
+            expect(error.message).to.equal('STS credential not found.')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.false
+        })
+
+        it('Can login with chained IamSourceProfileProfiles.', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamSourceProfileProfile],
+                name: 'base-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    source_profile: 'intermediate-profile',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(stsAutoRefresher.watch.called).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'assumeRoleProfile')).to.be.true
+        })
+
+        it('Throws when IamSourceProfileProfile points to itself.', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamSourceProfileProfile],
+                name: 'cyclic-profile-1',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    source_profile: 'cyclic-profile-1',
+                },
+            }
+            const error = await expect(sut.getCredential({ ...defaultParams, profile: profile })).rejectedWith(Error)
+
+            expect(error.message).to.equal('Source profile chain exceeded max length.')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.false
+        })
+
+        it('Throws when IamSourceProfileProfile form cycle.', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamSourceProfileProfile],
+                name: 'cyclic-profile-2',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    source_profile: 'cyclic-profile-3',
+                },
+            }
+            const error = await expect(sut.getCredential({ ...defaultParams, profile: profile })).rejectedWith(Error)
+
+            expect(error.message).to.equal('Source profile chain exceeded max length.')
+            expect(stsAutoRefresher.watch.calledOnce).to.be.false
+        })
+
+        it('Can login with credential process.', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamCredentialProcessProfile],
+                name: 'process-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    credential_process: 'my-process',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('provider-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('provider-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('provider-session-token')
+            expect(providerSpy.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'credentialProcessProfile')).to.be.true
+        })
+
+        it('Can assume role with environment variables', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamCredentialSourceProfile],
+                name: 'env-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    credential_source: 'Environment',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(providerSpy.calledOnce).to.be.true
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'environment')).to.be.true
+        })
+
+        it('Can assume role with EC2 metadata', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamCredentialSourceProfile],
+                name: 'env-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    credential_source: 'Ec2InstanceMetadata',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(providerSpy.calledOnce).to.be.true
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'ec2Metadata')).to.be.true
+        })
+
+        it('Can assume role with ECS metadata', async () => {
+            const profile: Profile = {
+                kinds: [ProfileKind.IamCredentialSourceProfile],
+                name: 'env-profile',
+                settings: {
+                    role_arn: 'my-role-arn',
+                    credential_source: 'EcsContainer',
+                },
+            }
+            const actual = await sut.getCredential({ ...defaultParams, profile: profile })
+
+            expect(actual.credentials.accessKeyId).to.equal('role-access-key')
+            expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
+            expect(actual.credentials.sessionToken).to.equal('role-session-token')
+            expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
+            expect(providerSpy.calledOnce).to.be.true
+            expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'ecsMetatdata')).to.be.true
+        })
+    })
+})
