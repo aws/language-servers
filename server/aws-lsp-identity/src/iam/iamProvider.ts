@@ -61,6 +61,7 @@ export class IamProvider {
 
         if (credential) {
             result = credential
+            params.emitMetric('Succeeded', null, 'assumeRoleProfile')
         } else if (params.callStsOnInvalidIamCredential) {
             // Generate STS credentials
             result = await this.generateStsCredential(params)

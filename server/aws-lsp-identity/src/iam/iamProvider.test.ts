@@ -28,7 +28,8 @@ let checkMfaRequiredStub: SinonStub<
     [credentials: IamCredentials, permissions: string[], region?: string | undefined],
     Promise<boolean>
 >
-let provider: SinonSpy
+let providerSpy: SinonSpy
+let emitMetricSpy: SinonSpy
 
 describe('IamProvider', () => {
     beforeEach(() => {
@@ -112,7 +113,7 @@ describe('IamProvider', () => {
             sendGetMfaCode: Promise.resolve({ code: 'mfa-code', mfaSerial: 'mfa-serial' }),
         })
 
-        provider = spy(() => () => {
+        providerSpy = spy(() => () => {
             return {
                 accessKeyId: 'provider-access-key',
                 secretAccessKey: 'provider-secret-key',
@@ -121,6 +122,8 @@ describe('IamProvider', () => {
                 accountId: 'provider-account-id',
             }
         })
+
+        emitMetricSpy = spy()
 
         token = stubInterface<CancellationToken>()
 
@@ -133,12 +136,12 @@ describe('IamProvider', () => {
             stsAutoRefresher: stsAutoRefresher,
             handlers: handlers,
             providers: {
-                fromProcess: provider,
-                fromEnv: provider,
-                fromInstanceMetadata: provider,
-                fromContainerMetadata: provider,
+                fromProcess: providerSpy,
+                fromEnv: providerSpy,
+                fromInstanceMetadata: providerSpy,
+                fromContainerMetadata: providerSpy,
             },
-            emitMetric: () => {},
+            emitMetric: emitMetricSpy,
             token: token,
             observability: observability,
         }
@@ -182,6 +185,7 @@ describe('IamProvider', () => {
             expect(actual.credentials.accessKeyId).to.equal('access-key')
             expect(actual.credentials.secretAccessKey).to.equal('secret-key')
             expect(actual.credentials.sessionToken).to.equal('session-token')
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'staticSessionProfile')).to.be.true
         })
 
         it('Can generate credentials by assuming role.', async () => {
@@ -200,6 +204,7 @@ describe('IamProvider', () => {
             expect(actual.credentials.sessionToken).to.equal('role-session-token')
             expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'assumeRoleProfile')).to.be.true
         })
 
         it('Can generate credentials with MFA.', async () => {
@@ -220,6 +225,7 @@ describe('IamProvider', () => {
             expect(actual.credentials.sessionToken).to.equal('role-session-token')
             expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(handlers.sendGetMfaCode.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'assumeMfaRoleProfile')).to.be.true
         })
 
         it('Returns existing STS credential.', async () => {
@@ -245,6 +251,7 @@ describe('IamProvider', () => {
             expect(actual.credentials.sessionToken).to.equal('other-session-token')
             expect(actual.credentials.expiration?.toISOString()).to.equal('2024-10-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'assumeRoleProfile')).to.be.true
         })
 
         it('Throws when no STS credential cached and callStsOnInvalidIamCredential is false.', async () => {
@@ -280,6 +287,7 @@ describe('IamProvider', () => {
             expect(actual.credentials.sessionToken).to.equal('role-session-token')
             expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
             expect(stsAutoRefresher.watch.called).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'assumeRoleProfile')).to.be.true
         })
 
         it('Throws when IamSourceProfileProfile points to itself.', async () => {
@@ -326,7 +334,8 @@ describe('IamProvider', () => {
             expect(actual.credentials.accessKeyId).to.equal('provider-access-key')
             expect(actual.credentials.secretAccessKey).to.equal('provider-secret-key')
             expect(actual.credentials.sessionToken).to.equal('provider-session-token')
-            expect(provider.calledOnce).to.be.true
+            expect(providerSpy.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'credentialProcessProfile')).to.be.true
         })
 
         it('Can assume role with environment variables', async () => {
@@ -344,8 +353,9 @@ describe('IamProvider', () => {
             expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
             expect(actual.credentials.sessionToken).to.equal('role-session-token')
             expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
-            expect(provider.calledOnce).to.be.true
+            expect(providerSpy.calledOnce).to.be.true
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'environment')).to.be.true
         })
 
         it('Can assume role with EC2 metadata', async () => {
@@ -363,8 +373,9 @@ describe('IamProvider', () => {
             expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
             expect(actual.credentials.sessionToken).to.equal('role-session-token')
             expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
-            expect(provider.calledOnce).to.be.true
+            expect(providerSpy.calledOnce).to.be.true
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'ec2Metadata')).to.be.true
         })
 
         it('Can assume role with ECS metadata', async () => {
@@ -382,8 +393,9 @@ describe('IamProvider', () => {
             expect(actual.credentials.secretAccessKey).to.equal('role-secret-key')
             expect(actual.credentials.sessionToken).to.equal('role-session-token')
             expect(actual.credentials.expiration?.toISOString()).to.equal('2024-09-25T18:09:20.455Z')
-            expect(provider.calledOnce).to.be.true
+            expect(providerSpy.calledOnce).to.be.true
             expect(stsAutoRefresher.watch.calledOnce).to.be.true
+            expect(emitMetricSpy.calledWith('Succeeded', null, 'ecsMetatdata')).to.be.true
         })
     })
 })
