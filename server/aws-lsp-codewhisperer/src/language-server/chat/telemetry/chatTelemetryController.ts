@@ -259,6 +259,18 @@ export class ChatTelemetryController {
         })
     }
 
+    public emitBashCommand(tabId: string, command: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.BashCommand,
+            data: {
+                [CONVERSATION_ID_METRIC_KEY]: this.getConversationId(tabId) ?? '',
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                result: 'Succeeded',
+                command: command,
+            },
+        })
+    }
+
     public emitInteractWithAgenticChat(
         interactionType: AgenticChatInteractionType,
         tabId: string,
