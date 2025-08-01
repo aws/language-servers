@@ -9,6 +9,7 @@ import * as sinon from 'sinon'
 import * as path from 'path'
 import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
+import { CodeReviewFinding } from './codeReviewTypes'
 
 describe('DisplayFindings', () => {
     let sandbox: sinon.SinonSandbox
@@ -17,6 +18,14 @@ describe('DisplayFindings', () => {
     let mockCancellationToken: any
     let mockWritableStream: any
     let mockWriter: any
+
+    let CODE_REVIEW_FINDING_1: CodeReviewFinding
+
+    let CODE_REVIEW_FINDING_2: CodeReviewFinding
+
+    let INPUT_FINDING_1: any
+
+    let INPUT_FINDING_2: any
 
     beforeEach(() => {
         sandbox = sinon.createSandbox()
@@ -54,6 +63,66 @@ describe('DisplayFindings', () => {
         }
 
         displayFindings = new DisplayFindings(mockFeatures)
+
+        CODE_REVIEW_FINDING_1 = {
+            filePath: '/test/file1.js',
+            startLine: 10,
+            endLine: 15,
+            title: 'Issue 1',
+            comment: 'Description 1',
+            description: { text: 'Description 1', markdown: 'Description 1' },
+            severity: 'High',
+            language: 'javascript',
+            detectorName: 'DisplayFindings',
+            detectorId: '',
+            findingId: '',
+            relatedVulnerabilities: [],
+            recommendation: { text: '' },
+            suggestedFixes: [],
+            scanJobId: '',
+            autoDetected: false,
+            findingContext: undefined,
+        }
+
+        CODE_REVIEW_FINDING_2 = {
+            filePath: '/test/file2.py',
+            startLine: 5,
+            endLine: 10,
+            title: 'Issue 2',
+            comment: 'Description 2',
+            description: { text: 'Description 2', markdown: 'Description 2' },
+            severity: 'Low',
+            language: 'python',
+            detectorName: 'DisplayFindings',
+            detectorId: '',
+            findingId: '',
+            relatedVulnerabilities: [],
+            recommendation: { text: '' },
+            suggestedFixes: [],
+            scanJobId: '',
+            autoDetected: false,
+            findingContext: undefined,
+        }
+
+        INPUT_FINDING_1 = {
+            filePath: '/test/file1.js',
+            startLine: '10',
+            endLine: '15',
+            title: 'Issue 1',
+            description: 'Description 1',
+            severity: 'High',
+            language: 'javascript',
+        }
+
+        INPUT_FINDING_2 = {
+            filePath: '/test/file2.py',
+            startLine: '5',
+            endLine: '10',
+            title: 'Issue 2',
+            description: 'Description 2',
+            severity: 'Low',
+            language: 'python',
+        }
     })
 
     afterEach(() => {
@@ -85,18 +154,7 @@ describe('DisplayFindings', () => {
             }
 
             validInput = {
-                findings: [
-                    {
-                        filePath: '/test/file.js',
-                        startLine: '10',
-                        endLine: '15',
-                        title: 'Test Issue',
-                        description: 'Test description',
-                        severity: 'High',
-                        language: 'javascript',
-                        suggestedFixes: ['Fix suggestion'],
-                    },
-                ],
+                findings: [INPUT_FINDING_1],
             }
         })
 
@@ -107,32 +165,14 @@ describe('DisplayFindings', () => {
             expect(result.output.kind).to.equal('json')
             expect(result.output.content).to.be.an('array')
             expect(result.output.content).to.have.length(1)
-            expect((result.output.content as any)[0].filePath).to.equal(path.normalize('/test/file.js'))
+            expect((result.output.content as any)[0].filePath).to.equal(path.normalize('/test/file1.js'))
             expect((result.output.content as any)[0].issues).to.have.length(1)
         })
 
         it('should handle multiple findings for same file', async () => {
+            INPUT_FINDING_2.filePath = '/test/file1.js'
             const inputWithMultipleFindings = {
-                findings: [
-                    {
-                        filePath: '/test/file.js',
-                        startLine: '10',
-                        endLine: '15',
-                        title: 'Issue 1',
-                        description: 'Description 1',
-                        severity: 'High',
-                        language: 'javascript',
-                    },
-                    {
-                        filePath: '/test/file.js',
-                        startLine: '20',
-                        endLine: '25',
-                        title: 'Issue 2',
-                        description: 'Description 2',
-                        severity: 'Medium',
-                        language: 'javascript',
-                    },
-                ],
+                findings: [INPUT_FINDING_1, INPUT_FINDING_2],
             }
 
             const result = await displayFindings.execute(inputWithMultipleFindings, context)
@@ -144,26 +184,7 @@ describe('DisplayFindings', () => {
 
         it('should handle findings for different files', async () => {
             const inputWithDifferentFiles = {
-                findings: [
-                    {
-                        filePath: '/test/file1.js',
-                        startLine: '10',
-                        endLine: '15',
-                        title: 'Issue 1',
-                        description: 'Description 1',
-                        severity: 'High',
-                        language: 'javascript',
-                    },
-                    {
-                        filePath: '/test/file2.py',
-                        startLine: '5',
-                        endLine: '10',
-                        title: 'Issue 2',
-                        description: 'Description 2',
-                        severity: 'Low',
-                        language: 'python',
-                    },
-                ],
+                findings: [INPUT_FINDING_1, INPUT_FINDING_2],
             }
 
             const result = await displayFindings.execute(inputWithDifferentFiles, context)
@@ -225,17 +246,7 @@ describe('DisplayFindings', () => {
     describe('validateInputAndSetup', () => {
         it('should validate and setup correctly', async () => {
             const input = {
-                findings: [
-                    {
-                        filePath: '/test/file.js',
-                        startLine: '10',
-                        endLine: '15',
-                        title: 'Test Issue',
-                        description: 'Test description',
-                        severity: 'High',
-                        language: 'javascript',
-                    },
-                ],
+                findings: [INPUT_FINDING_1],
             }
 
             const context = {
@@ -247,7 +258,7 @@ describe('DisplayFindings', () => {
 
             expect(result).to.be.an('array')
             expect(result).to.have.length(1)
-            expect(result[0].filePath).to.equal('/test/file.js')
+            expect(result[0].filePath).to.equal('/test/file1.js')
         })
     })
 
@@ -299,95 +310,18 @@ describe('DisplayFindings', () => {
 
     describe('aggregateFindingsByFile', () => {
         it('should aggregate findings by file path', () => {
-            const findings = [
-                {
-                    filePath: '/test/file.js',
-                    startLine: 10,
-                    endLine: 15,
-                    title: 'Issue 1',
-                    comment: 'Description 1',
-                    description: { text: 'Description 1', markdown: 'Description 1' },
-                    severity: 'High',
-                    language: 'javascript',
-                    detectorName: 'DisplayFindings',
-                    detectorId: '',
-                    findingId: '',
-                    relatedVulnerabilities: [],
-                    recommendation: { text: '' },
-                    suggestedFixes: [],
-                    scanJobId: '',
-                    autoDetected: false,
-                    findingContext: undefined,
-                },
-                {
-                    filePath: '/test/file.js',
-                    startLine: 20,
-                    endLine: 25,
-                    title: 'Issue 2',
-                    comment: 'Description 2',
-                    description: { text: 'Description 2', markdown: 'Description 2' },
-                    severity: 'Medium',
-                    language: 'javascript',
-                    detectorName: 'DisplayFindings',
-                    detectorId: '',
-                    findingId: '',
-                    relatedVulnerabilities: [],
-                    recommendation: { text: '' },
-                    suggestedFixes: [],
-                    scanJobId: '',
-                    autoDetected: false,
-                    findingContext: undefined,
-                },
-            ]
+            CODE_REVIEW_FINDING_2.filePath = '/test/file1.js'
+            const findings = [CODE_REVIEW_FINDING_1, CODE_REVIEW_FINDING_2]
 
             const result = (displayFindings as any).aggregateFindingsByFile(findings)
 
             expect(result).to.have.length(1)
-            expect(result[0].filePath).to.equal(path.normalize('/test/file.js'))
+            expect(result[0].filePath).to.equal(path.normalize('/test/file1.js'))
             expect(result[0].issues).to.have.length(2)
         })
 
         it('should handle findings from different files', () => {
-            const findings = [
-                {
-                    filePath: '/test/file1.js',
-                    startLine: 10,
-                    endLine: 15,
-                    title: 'Issue 1',
-                    comment: 'Description 1',
-                    description: { text: 'Description 1', markdown: 'Description 1' },
-                    severity: 'High',
-                    language: 'javascript',
-                    detectorName: 'DisplayFindings',
-                    detectorId: '',
-                    findingId: '',
-                    relatedVulnerabilities: [],
-                    recommendation: { text: '' },
-                    suggestedFixes: [],
-                    scanJobId: '',
-                    autoDetected: false,
-                    findingContext: undefined,
-                },
-                {
-                    filePath: '/test/file2.py',
-                    startLine: 5,
-                    endLine: 10,
-                    title: 'Issue 2',
-                    comment: 'Description 2',
-                    description: { text: 'Description 2', markdown: 'Description 2' },
-                    severity: 'Low',
-                    language: 'python',
-                    detectorName: 'DisplayFindings',
-                    detectorId: '',
-                    findingId: '',
-                    relatedVulnerabilities: [],
-                    recommendation: { text: '' },
-                    suggestedFixes: [],
-                    scanJobId: '',
-                    autoDetected: false,
-                    findingContext: undefined,
-                },
-            ]
+            const findings = [CODE_REVIEW_FINDING_1, CODE_REVIEW_FINDING_2]
 
             const result = (displayFindings as any).aggregateFindingsByFile(findings)
 

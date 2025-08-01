@@ -1768,10 +1768,8 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     }
                     case CodeReview.toolName:
-                        // no need to write tool message for code review
-                        break
                     case DisplayFindings.toolName:
-                        // no need to write tool message for code review
+                        // no need to write tool message for CodeReview or DisplayFindings
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
