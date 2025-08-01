@@ -431,7 +431,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     private async gc(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
-        this.logging.info(request.editorState?.document?.text ?? '')
         if (this.customizationArn) request.customizationArn = this.customizationArn
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         this.logging.info(
@@ -446,8 +445,27 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "language": ${request.fileContext.programmingLanguage.languageName},
     "supplementalContextLength": ${request.supplementalContexts?.length ?? 0},
     "request.nextToken": ${request.nextToken},
-    "response.nextToken": ${response.nextToken}`
+    "response.nextToken": ${response.nextToken},
+    "cursorState.position.line": ${request.editorState?.cursorState?.position?.line},
+    "cursorState.position.character": ${request.editorState?.cursorState?.position?.character}`
         )
+
+        this.logging.info(`[NEP] - editorState.document.text\n${request.editorState?.document?.text ?? ''}`)
+        const recentEdits = request.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
+        let recentEditsLogStr = ''
+        if (recentEdits) {
+            if (recentEdits.length === 0) {
+                recentEditsLogStr += `[NEP]: recentEdits: EMPTY`
+            } else {
+                recentEditsLogStr += `[NEP] - recentEdits (of size ${recentEdits.length})\n`
+                for (let i = 0; i < recentEdits.length; i++) {
+                    const e = recentEdits[i]
+                    recentEditsLogStr += `[recentEdits ${i}th]:\n`
+                    recentEditsLogStr += `${e.content}\n`
+                }
+            }
+        }
+        this.logging.info(recentEditsLogStr)
 
         const responseContext = {
             requestId: response?.$response?.requestId,
