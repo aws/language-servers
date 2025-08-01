@@ -74,18 +74,26 @@ export class TabFactory {
                       ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
-                          body: `Hi, I'm Amazon Q. I can answer your software development questions. 
-                        Ask me to explain, debug, or optimize your code. 
-                        You can enter \`/\` to see a list of quick actions.`,
+                          body: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 100px 0 20px 0;">
+<div style="font-family: monospace; font-size: 16px; line-height: 1.2; margin-bottom: 8px;">
+<pre>• • •
+•     •
+•   •   •
+•   • •
+• • •</pre>
+</div>
+
+<div style="text-align: center;">
+
+# Amazon Q
+**Coding Assistant Reimagined**
+
+💡 Select code and ask me to explain it, or type \`/\` for quick commands
+
+</div>
+</div>`,
+                          canBeVoted: false,
                       },
-                      ...(!this.agenticMode
-                          ? [
-                                {
-                                    type: ChatItemType.ANSWER,
-                                    followUp: this.getWelcomeBlock(),
-                                },
-                            ]
-                          : []),
                   ]
                 : chatMessages
                   ? (chatMessages as ChatItem[])
@@ -216,6 +224,34 @@ export class TabFactory {
         }
 
         return tabBarButtons.length ? tabBarButtons : undefined
+    }
+
+    // Enhanced welcome messages block for non-agentic mode
+    private getEnhancedWelcomeBlock() {
+        return {
+            text: '',
+            options: [
+                {
+                    pillText: 'Getting Started',
+                    prompt: 'What can Amazon Q help me with?',
+                    type: 'help',
+                },
+            ],
+        }
+    }
+
+    // Agentic welcome messages block
+    private getAgenticWelcomeBlock() {
+        return {
+            text: '',
+            options: [
+                {
+                    pillText: 'Getting Started',
+                    prompt: 'What can Amazon Q help me with?',
+                    type: 'help',
+                },
+            ],
+        }
     }
 
     // Legacy welcome messages block
