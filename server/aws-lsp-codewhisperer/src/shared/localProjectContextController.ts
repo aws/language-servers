@@ -50,6 +50,8 @@ export interface LocalProjectContextInitializationOptions {
 export class LocalProjectContextController {
     // Event handler for context items updated
     public onContextItemsUpdated: ((contextItems: ContextCommandItem[]) => Promise<void>) | undefined
+    // Event handler for index build completion
+    public onIndexBuildComplete: (() => void) | undefined
     private static instance: LocalProjectContextController | undefined
 
     private workspaceFolders: WorkspaceFolder[]
@@ -212,6 +214,7 @@ export class LocalProjectContextController {
         if (this._isIndexingInProgress) {
             return
         }
+
         try {
             this._isIndexingInProgress = true
             if (this._vecLib) {
@@ -229,6 +232,7 @@ export class LocalProjectContextController {
                 const projectRoot = URI.parse(this.workspaceFolders.sort()[0].uri).fsPath
                 await this._vecLib?.buildIndex(sourceFiles, projectRoot, indexingType)
                 this.log.info('Context index built successfully')
+                this.onIndexBuildComplete?.()
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)

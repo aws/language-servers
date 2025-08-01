@@ -1546,6 +1546,7 @@ ${params.message}`,
                 commands: toContextCommands(child.commands),
             })),
             icon: toMynahIcon(command.icon),
+            disabled: command.pending === true,
         }))
     }
 

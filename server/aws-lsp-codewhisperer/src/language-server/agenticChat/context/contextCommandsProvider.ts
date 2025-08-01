@@ -12,6 +12,9 @@ import { activeFileCmd } from './additionalContextProvider'
 export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
     private cachedContextCommands?: ContextCommandItem[]
+    private codeSymbolsPending = true
+    public filesAndFoldersPending = true
+    private workspacePending = true
     constructor(
         private readonly logging: Logging,
         private readonly chat: Chat,
@@ -105,6 +108,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add all files in a folder to context',
             icon: 'folder',
+            pending: this.filesAndFoldersPending,
         }
 
         const fileCmds: ContextCommand[] = [activeFileCmd]
@@ -118,6 +122,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add a file to context',
             icon: 'file',
+            pending: this.filesAndFoldersPending,
         }
 
         const codeCmds: ContextCommand[] = []
@@ -131,6 +136,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add code to context',
             icon: 'code-block',
+            pending: this.codeSymbolsPending,
         }
 
         const promptCmds: ContextCommand[] = []
@@ -156,6 +162,7 @@ export class ContextCommandsProvider implements Disposable {
             command: '@workspace',
             id: '@workspace',
             description: 'Reference all code in workspace',
+            pending: this.workspacePending,
         }
         const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
 
@@ -209,8 +216,16 @@ export class ContextCommandsProvider implements Disposable {
             await LocalProjectContextController.getInstance()
         ).shouldUpdateContextCommandSymbolsOnce()
         if (needUpdate) {
+            this.codeSymbolsPending = false
             const items = await (await LocalProjectContextController.getInstance()).getContextCommandItems()
             await this.processContextCommandUpdate(items)
+        }
+    }
+
+    async maybeUpdateWorkspacePending() {
+        if (this.workspacePending) {
+            this.workspacePending = false
+            void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
         }
     }
 
