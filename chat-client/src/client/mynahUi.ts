@@ -692,7 +692,7 @@ export const createMynahUi = (
             const payload: ButtonClickParams = {
                 tabId,
                 messageId,
-                buttonId: 'auto-run-commands',
+                buttonId: 'trust-command',
                 metadata,
             }
             messager.onButtonClick(payload)

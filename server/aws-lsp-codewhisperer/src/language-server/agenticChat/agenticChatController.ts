@@ -37,6 +37,7 @@ import {
     SUFFIX_PERMISSION,
     SUFFIX_UNDOALL,
     SUFFIX_EXPLANATION,
+    BUTTON_TRUST_COMMAND,
 } from './constants/toolConstants'
 import {
     SendMessageCommandInput,
@@ -389,13 +390,13 @@ export class AgenticChatController implements ChatHandlers {
             params.buttonId === BUTTON_REJECT_SHELL_COMMAND ||
             params.buttonId === BUTTON_REJECT_MCP_TOOL ||
             params.buttonId === BUTTON_ALLOW_TOOLS ||
-            params.buttonId === 'auto-run-commands'
+            params.buttonId === BUTTON_TRUST_COMMAND
         ) {
             if (!session.data) {
                 return { success: false, failureReason: `could not find chat session for tab: ${params.tabId} ` }
             }
             // update permission if it's auto-run
-            if (params.buttonId === 'auto-run-commands') {
+            if (params.buttonId === BUTTON_TRUST_COMMAND) {
                 // get result from metadata
                 const toolName = params.metadata['toolName']
                 const new_permission = params.metadata['permission']
@@ -435,14 +436,14 @@ export class AgenticChatController implements ChatHandlers {
             }
             // For 'allow-tools', remove suffix as permission card needs to be seperate from file list card
             const messageId =
-                (params.buttonId === BUTTON_ALLOW_TOOLS || params.buttonId === 'auto-run-commands') &&
+                (params.buttonId === BUTTON_ALLOW_TOOLS || params.buttonId === BUTTON_TRUST_COMMAND) &&
                 params.messageId.endsWith(SUFFIX_PERMISSION)
                     ? params.messageId.replace(SUFFIX_PERMISSION, '')
                     : params.messageId
 
             const handler = session.data.getDeferredToolExecution(messageId)
             if (!handler?.reject || !handler.resolve) {
-                if (params.buttonId === 'auto-run-commands') {
+                if (params.buttonId === BUTTON_TRUST_COMMAND) {
                     // change permission of a completed task --> no handler
                     // should not return an error because it's a expected behavior
                     return {
