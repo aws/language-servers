@@ -1174,11 +1174,6 @@ export class McpEventHandler {
      * Applies the stored permission changes
      */
     async #handleSavePermissionChange(params: McpServerClickParams) {
-        if (!params.optionsValues) {
-            return this.#getDefaultMcpResponse(params.id)
-        }
-        const selectedTransport = params.optionsValues.transport
-
         if (!this.#pendingPermissionConfig) {
             this.#features.logging.warn('No pending permission changes to save')
             return { id: params.id }
@@ -1198,10 +1193,11 @@ export class McpEventHandler {
             const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
             if (serverConfig) {
                 // Emit server initialize event after permission change
+                const transportType = serverConfig.command ? 'stdio' : 'http'
                 this.#telemetryController?.emitMCPServerInitializeEvent({
                     source: 'updatePermission',
-                    command: selectedTransport === 'stdio' ? params.optionsValues.command : undefined,
-                    url: selectedTransport === 'http' ? params.optionsValues.url : undefined,
+                    command: transportType === 'stdio' ? serverConfig.command : undefined,
+                    url: transportType === 'http' ? serverConfig.url : undefined,
                     enabled: true,
                     numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
                     scope:
@@ -1209,7 +1205,7 @@ export class McpEventHandler {
                         getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
                             ? 'global'
                             : 'workspace',
-                    transportType: selectedTransport,
+                    transportType: transportType,
                     languageServerVersion: this.#features.runtime.serverInfo.version,
                 })
             }
