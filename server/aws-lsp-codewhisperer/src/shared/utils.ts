@@ -373,8 +373,16 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
     return credentials.token
 }
 
+export const SAGEMAKER_UNIFIED_STUDIO_SERVICE = 'SageMakerUnifiedStudio'
+
+export function getClientName(lspParams: any): string | undefined {
+    return process.env.SERVICE_NAME === SAGEMAKER_UNIFIED_STUDIO_SERVICE
+        ? lspParams?.initializationOptions?.aws?.clientInfo?.name
+        : lspParams?.clientInfo?.name
+}
+
 export function getOriginFromClientInfo(clientName: string | undefined): Origin {
-    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE')) {
+    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE') || clientName?.startsWith('AmazonQ-For-SMUS-CE')) {
         return 'MD_IDE'
     }
     return 'IDE'

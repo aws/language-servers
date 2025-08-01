@@ -124,6 +124,7 @@ import {
     isUsageLimitError,
     isNullish,
     getOriginFromClientInfo,
+    getClientName,
     sanitizeInput,
     sanitizeRequestInput,
 } from '../../shared/utils'
@@ -362,7 +363,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.lsp
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
-        this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
+        this.#origin = getOriginFromClientInfo(getClientName(this.#features.lsp.getClientInitializeParams()))
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
     }
 
