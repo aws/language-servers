@@ -25,6 +25,7 @@ export class IamProvider {
                 secretAccessKey: params.profile.settings!.aws_secret_access_key!,
                 sessionToken: params.profile.settings?.aws_session_token,
             }
+            params.emitMetric('Succeeded', null, credentials.sessionToken ? 'staticSessionProfile' : 'staticProfile')
         }
         // Assume the role matching the found ARN
         else if (
@@ -36,6 +37,7 @@ export class IamProvider {
         // Get the credentials from the process output
         else if (params.profile.kinds.includes(ProfileKind.IamCredentialProcessProfile)) {
             credentials = await params.providers.fromProcess({ profile: params.profile.name })()
+            params.emitMetric('Succeeded', null, 'credentialProcessProfile')
         } else {
             throw new AwsError(
                 'Credentials could not be found for provided profile kind',
@@ -59,6 +61,7 @@ export class IamProvider {
 
         if (credential) {
             result = credential
+            params.emitMetric('Succeeded', null, 'assumeRoleProfile')
         } else if (params.callStsOnInvalidIamCredential) {
             // Generate STS credentials
             result = await this.generateStsCredential(params)
@@ -111,12 +114,15 @@ export class IamProvider {
                 // TODO: test whether EC2 and ECS metadata credentials are retrieved as expected
                 case 'Ec2InstanceMetadata':
                     parentCredentials = await params.providers.fromInstanceMetadata()()
+                    params.emitMetric('Succeeded', null, 'ec2Metadata')
                     break
                 case 'EcsContainer':
                     parentCredentials = await params.providers.fromContainerMetadata()()
+                    params.emitMetric('Succeeded', null, 'ecsMetatdata')
                     break
                 case 'Environment':
                     parentCredentials = await params.providers.fromEnv()()
+                    params.emitMetric('Succeeded', null, 'environment')
                     break
                 default:
                     throw new AwsError(
@@ -174,6 +180,12 @@ export class IamProvider {
                     AwsErrorCodes.E_CANNOT_CREATE_STS_CREDENTIAL
                 )
             }
+
+            // Emit metric if this is not an intermediate profile
+            if (params.recursionCount === 0) {
+                params.emitMetric('Succeeded', null, mfaRequired ? 'assumeMfaRoleProfile' : 'assumeRoleProfile')
+            }
+
             return {
                 accessKeyId: Credentials.AccessKeyId,
                 secretAccessKey: Credentials.SecretAccessKey,

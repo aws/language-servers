@@ -102,6 +102,22 @@ export type IamHandlers = {
     sendGetMfaCode: SendGetMfaCode
 }
 
+// Based on:
+// https://github.com/aws/aws-toolkit-common/blob/e57f13e15adcd4e8c7c43313431f0a134ff804eb/telemetry/definitions/commonDefinitions.json
+type EmitMetric = (
+    result: 'Succeeded' | 'Failed' | 'Cancelled',
+    error?: unknown,
+    credentialType?:
+        | 'staticProfile'
+        | 'staticSessionProfile'
+        | 'credentialProcessProfile'
+        | 'assumeRoleProfile'
+        | 'assumeMfaRoleProfile'
+        | 'ecsMetatdata'
+        | 'ec2Metadata'
+        | 'environment'
+) => void
+
 export type IamFlowParams = {
     profile: Profile
     callStsOnInvalidIamCredential: boolean
@@ -112,5 +128,6 @@ export type IamFlowParams = {
     handlers: IamHandlers
     providers: CredentialProviders
     token: CancellationToken
+    emitMetric: EmitMetric
     observability: Observability
 }
