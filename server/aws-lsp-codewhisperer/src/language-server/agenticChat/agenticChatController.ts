@@ -2687,14 +2687,14 @@ export class AgenticChatController implements ChatHandlers {
         if (originalNames) {
             serverName = originalNames.serverName
             toolName = originalNames.toolName
-            descriptionLinkText = 'Configure auto-run permissions'
+            descriptionLinkText = 'Advanced'
         }
         const permission = McpManager.instance.getToolPerm(serverName, toolName)
         return {
             type: 'select' as 'select' | 'checkbox' | 'radio', // will update this later
             messageId: this.#getMessageIdForToolUse(toolType, toolUse),
             tabId: tabId!,
-            description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
+            description: '',
             descriptionLink: {
                 id: 'open-mcp-server',
                 text: descriptionLinkText,
@@ -2704,20 +2704,10 @@ export class AgenticChatController implements ChatHandlers {
                 { id: 'ask', label: 'Ask to run', value: `${serverName}@${toolName}`, selected: permission === 'ask' },
                 {
                     id: 'alwaysAllow',
-                    label: 'Auto run',
+                    label: 'Always allow',
                     value: `${serverName}@${toolName}`,
                     selected: permission === 'alwaysAllow',
                 },
-                ...(serverName !== 'Built-in'
-                    ? [
-                          {
-                              id: 'deny',
-                              label: 'Deny',
-                              value: `${serverName}@${toolName}`,
-                              selected: permission === 'deny',
-                          },
-                      ]
-                    : []),
             ],
         }
     }
