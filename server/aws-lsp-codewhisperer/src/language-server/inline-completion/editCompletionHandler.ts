@@ -132,7 +132,7 @@ export class EditCompletionHandler {
             this.debounceTimeout = setTimeout(async () => {
                 const result = await this._invoke(params, token, textDocument, inferredLanguageId, currentSession)
                 resolve(result)
-            }, 250)
+            }, 500)
         })
     }
 

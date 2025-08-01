@@ -270,7 +270,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     /** If user clicks "Upgrade" multiple times, cancel the previous wait-promise. */
     #waitUntilSubscriptionCancelSource?: CancellationTokenSource
 
-    private cache: Map<string, GenerateSuggestionsResponse> = new Map()
+    private invocationCnt = 0
 
     constructor(
         private credentialsProvider: CredentialsProvider,
@@ -432,10 +432,12 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
+        this.invocationCnt++
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         this.logging.info(
             `GenerateCompletion response: 
-    "version": "debounced gc",
+    "version": "debounced gc 8/1 12:30PM PT",
+    "invocationCountSinceStart": ${this.invocationCnt},
     "endpoint": ${this.codeWhispererEndpoint},
     "requestId": ${response.$response.requestId},
     "responseCompletionCount": ${response.completions?.length ?? 0},
@@ -472,7 +474,14 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
             nextToken: response.nextToken,
         }
-        return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+
+        const result = this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+
+        const firstSuggestion = result.suggestions[0]
+        const firstSuggestionLog = firstSuggestion ? firstSuggestion.content : 'No Suggestion'
+        this.logging.info(`[NEP] - first model output:\n${firstSuggestionLog}`)
+
+        return result
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
