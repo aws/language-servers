@@ -982,16 +982,6 @@ export const createMynahUi = (
                               ? ChatItemType.DIRECTIVE
                               : ChatItemType.ANSWER_STREAM,
                     ...prepareChatItemFromMessage(am, isPairProgrammingMode, isPartialResult),
-                    quickSettings: am.quickSettings
-                        ? {
-                              type: am.quickSettings.type,
-                              messageId: am.quickSettings.messageId,
-                              tabId: am.quickSettings.tabId,
-                              description: am.quickSettings.description,
-                              descriptionLink: am.quickSettings.descriptionLink,
-                              options: am.quickSettings.options || [],
-                          }
-                        : undefined,
                 }
 
                 if (!chatItems.find(ci => ci.messageId === am.messageId)) {
@@ -1443,6 +1433,16 @@ export const createMynahUi = (
                       ? { 'insert-to-cursor': null }
                       : undefined,
             ...(shouldMute ? { muted: true } : {}),
+            quickSettings: message.quickSettings
+                ? {
+                      type: message.quickSettings.type,
+                      messageId: message.quickSettings.messageId,
+                      tabId: message.quickSettings.tabId,
+                      description: message.quickSettings.description,
+                      descriptionLink: message.quickSettings.descriptionLink,
+                      options: message.quickSettings.options || [],
+                  }
+                : undefined,
         }
     }
 

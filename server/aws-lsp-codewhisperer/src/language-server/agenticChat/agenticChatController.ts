@@ -2683,11 +2683,11 @@ export class AgenticChatController implements ChatHandlers {
     #buildQuickSettings(toolUse: ToolUse, toolName: string, toolType?: string, tabId?: string) {
         const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name!)
         let serverName = 'Built-in'
-        let description = 'More control, modify the commands'
+        let descriptionLinkText = 'More control, modify the commands'
         if (originalNames) {
             serverName = originalNames.serverName
             toolName = originalNames.toolName
-            description = 'Configure auto-run permissions'
+            descriptionLinkText = 'Configure auto-run permissions'
         }
         const permission = McpManager.instance.getToolPerm(serverName, toolName)
         return {
@@ -2697,7 +2697,7 @@ export class AgenticChatController implements ChatHandlers {
             description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
             descriptionLink: {
                 id: 'open-mcp-server',
-                text: '',
+                text: descriptionLinkText,
                 destination: serverName,
             },
             options: [
