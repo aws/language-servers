@@ -209,6 +209,7 @@ import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
 import { McpTool } from './tools/mcp/mcpTool'
+import { parseBaseCommands } from './utils/commandParser'
 import {
     freeTierLimitUserMsg,
     onPaidTierLearnMore,
@@ -1755,6 +1756,16 @@ export class AgenticChatController implements ChatHandlers {
                                 )
                             }
                             if (isExecuteBash) {
+                                const fullCommand = (toolUse.input as unknown as ExecuteBashParams).command
+
+                                // Extract just the base commands without arguments or options
+                                const baseCommands = parseBaseCommands(fullCommand)
+
+                                // Emit each seperately for visualization purposes
+                                baseCommands.forEach(command => {
+                                    this.#telemetryController.emitBashCommand(tabId, command)
+                                })
+
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'RunCommand',
                                     tabId,
