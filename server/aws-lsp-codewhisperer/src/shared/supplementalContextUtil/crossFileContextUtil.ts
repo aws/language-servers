@@ -329,6 +329,93 @@ function createFileUrl(uri: string): URL {
 }
 
 /**
+ * Returns the language id for construction a TextDocument
+ * @param filepath
+ * @returns
+ */
+
+function guessLanguageId(filepath: string): string {
+    const ext = path.extname(filepath).toLowerCase()
+    switch (ext) {
+        case '.abap':
+            return 'abap'
+        case '.c':
+            return 'c'
+        case '.cpp':
+        case '.cc':
+        case '.cxx':
+        case '.hpp':
+        case '.h':
+            return 'cpp'
+        case '.cs':
+            return 'csharp'
+        case '.dart':
+            return 'dart'
+        case '.go':
+            return 'go'
+        case '.java':
+            return 'java'
+        case '.js':
+            return 'javascript'
+        case '.json':
+            return 'json'
+        case '.jsx':
+            return 'jsx'
+        case '.kt':
+        case '.kts':
+            return 'kotlin'
+        case '.lua':
+            return 'lua'
+        case '.php':
+            return 'php'
+        case '.txt':
+            return 'plaintext'
+        case '.ps1':
+        case '.psm1':
+        case '.psd1':
+            return 'powershell'
+        case '.py':
+            return 'python'
+        case '.r':
+        case '.R':
+            return 'r'
+        case '.rb':
+        case '.rbw':
+            return 'ruby'
+        case '.rs':
+            return 'rust'
+        case '.scala':
+        case '.sc':
+            return 'scala'
+        case '.sh':
+        case '.bash':
+            return 'shell'
+        case '.sql':
+            return 'sql'
+        case '.swift':
+            return 'swift'
+        case '.sv':
+        case '.svh':
+        case '.v':
+            return 'systemverilog'
+        case '.tf':
+        case '.tfvars':
+            return 'tf'
+        case '.tsx':
+            return 'tsx'
+        case '.ts':
+            return 'typescript'
+        case '.vue':
+            return 'vue'
+        case '.yml':
+        case '.yaml':
+            return 'yaml'
+        default:
+            return ''
+    }
+}
+
+/**
  * This function will return relevant cross files sorted by file distance for the given editor file
  * by referencing open files, imported files and same package files.
  */
@@ -349,19 +436,32 @@ export async function getCrossFileCandidates(
      *
      * Porting note: this function relies of Workspace feature to get all documents,
      * managed by this language server, instead of VSCode `vscode.window` API as VSCode toolkit does.
+     * this function only gets the user opened tab in this IDE session
+     * for a resumed IDE session, opened tabs are restored but this getAllTextDocuments function returns empty
+     * in that case we manually create TextDocuments from it
      */
-    let unsortedCandidates: TextDocument[] = []
+    let unsortedCandidates: TextDocument[] = await workspace.getAllTextDocuments()
     if (openTabFiles && openTabFiles.length > 0) {
         for (const openTabFile of openTabFiles) {
-            const openTab = await workspace.getTextDocument(openTabFile)
-            if (openTab) {
-                unsortedCandidates.push(openTab)
+            try {
+                const openTabFilesUri = URI.file(openTabFile)
+                if (!unsortedCandidates.some(x => x.uri === openTabFilesUri.toString())) {
+                    const content = await workspace.fs.readFile(openTabFilesUri.fsPath)
+                    if (content) {
+                        unsortedCandidates.push(
+                            TextDocument.create(
+                                URI.file(openTabFile).toString(),
+                                guessLanguageId(openTabFilesUri.fsPath),
+                                1,
+                                content
+                            )
+                        )
+                    }
+                }
+            } catch (e) {
+                // do not throw here.
             }
         }
-    } else {
-        // this function only gets the user opened tab in this IDE session
-        // for a resumed IDE session, opened tabs are restored but this function returns empty
-        unsortedCandidates = await workspace.getAllTextDocuments()
     }
 
     return unsortedCandidates
