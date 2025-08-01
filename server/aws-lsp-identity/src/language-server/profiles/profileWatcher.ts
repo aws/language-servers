@@ -38,7 +38,7 @@ export class ProfileWatcher implements Disposable {
         this.fileWatchers = []
     }
 
-    private onFileChange() {
+    onFileChange() {
         // Reset the debounce time if this change occurred shortly after previous change
         if (this.debounceTimeout) {
             clearTimeout(this.debounceTimeout)
