@@ -397,28 +397,33 @@ export class AgenticChatController implements ChatHandlers {
             // update permission if it's auto-run
             if (params.buttonId === 'auto-run-commands') {
                 // get result from metadata
-                const option = params.metadata
-                const toolName = option.value
-                const new_permission = option.id
+                const toolName = params.metadata['toolName']
+                const new_permission = params.metadata['permission']
+                const serverName = params.metadata['serverName']
 
-                const current_permission = McpManager.instance.getToolPerm('Built-in', toolName)
-
+                const current_permission = McpManager.instance.getToolPerm(serverName, toolName)
                 // only trigger update if curren != previous
                 if (current_permission !== new_permission) {
                     // generate perm object
                     const perm = await this.#mcpEventHandler.generateEmptyBuiltInToolPermission()
 
                     // load updated permission
-                    perm.toolPerms[option.value] = new_permission as McpPermissionType
+                    perm.toolPerms[toolName] = new_permission as McpPermissionType
 
                     // update permission
                     try {
-                        await McpManager.instance.updateServerPermission('Built-in', perm)
+                        await McpManager.instance.updateServerPermission(serverName, perm)
+                        // if the new permission is asks --> only update permission, dont continue
+                        if (new_permission === 'ask') {
+                            return {
+                                success: true,
+                            }
+                        }
                     } catch (error) {
                         this.#features.logging.error(`Failed to save MCP permissions: ${error}`)
                         return {
                             success: false,
-                            failureReason: `Failed to update permission for ${option.value}`,
+                            failureReason: `Failed to update permission for ${toolName}`,
                         }
                     }
                 } else {
@@ -430,7 +435,8 @@ export class AgenticChatController implements ChatHandlers {
             }
             // For 'allow-tools', remove suffix as permission card needs to be seperate from file list card
             const messageId =
-                params.buttonId === BUTTON_ALLOW_TOOLS && params.messageId.endsWith(SUFFIX_PERMISSION)
+                (params.buttonId === BUTTON_ALLOW_TOOLS || params.buttonId === 'auto-run-commands') &&
+                params.messageId.endsWith(SUFFIX_PERMISSION)
                     ? params.messageId.replace(SUFFIX_PERMISSION, '')
                     : params.messageId
 
@@ -1885,7 +1891,9 @@ export class AgenticChatController implements ChatHandlers {
                                         requiresAcceptance,
                                         warning,
                                         undefined,
-                                        toolName // Pass the original tool name here
+                                        toolName, // Pass the original tool name here,
+                                        undefined,
+                                        tabId
                                     )
                                     cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmation)
                                     await this.waitForToolApproval(
@@ -2685,6 +2693,42 @@ export class AgenticChatController implements ChatHandlers {
         return defaultKey
     }
 
+    #buildQuickSettings(toolUse: ToolUse, toolName: string, toolType?: string, tabId?: string) {
+        const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name!)
+        let serverName = 'Built-in'
+        if (originalNames) {
+            serverName = originalNames.serverName
+            toolName = originalNames.toolName
+        }
+        const permission = McpManager.instance.getToolPerm(serverName, toolName)
+
+        return {
+            type: 'select' as 'select' | 'checkbox' | 'radio', // will update this later
+            messageId: this.#getMessageIdForToolUse(toolType, toolUse),
+            tabId: tabId!,
+            description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
+            options: [
+                { id: 'ask', label: 'Ask to run', value: `${serverName}@${toolName}`, selected: permission === 'ask' },
+                {
+                    id: 'alwaysAllow',
+                    label: 'Auto run',
+                    value: `${serverName}@${toolName}`,
+                    selected: permission === 'alwaysAllow',
+                },
+                ...(serverName !== 'Built-in'
+                    ? [
+                          {
+                              id: 'deny',
+                              label: 'Deny',
+                              value: `${serverName}@${toolName}`,
+                              selected: permission === 'deny',
+                          },
+                      ]
+                    : []),
+            ],
+        }
+    }
+
     #processToolConfirmation(
         toolUse: ToolUse,
         requiresAcceptance: Boolean,
@@ -2710,30 +2754,11 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
         let body: string | undefined
-        let quickSettings:
-            | {
-                  type: 'select' | 'checkbox' | 'radio'
-                  description: string
-                  messageId: string
-                  tabId: string
-                  options: {
-                      id: string
-                      label: string
-                      value: string
-                      selected?: boolean | undefined
-                  }[]
-              }
-            | undefined = undefined
+        const quickSettings = this.#buildQuickSettings(toolUse, toolName!, toolType, tabId)
         // Configure tool-specific UI elements
         switch (toolName) {
             case 'executeBash': {
-                const permissions = McpManager.instance.getToolPerm('Built-in', 'executeBash')
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                // get feature flag
-                const shortcut =
-                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
-                        ?.shortcut
-
                 const runKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
                 const rejectKey = this.#getKeyBinding('aws.amazonq.rejectCmdExecution')
 
@@ -2778,22 +2803,7 @@ export class AgenticChatController implements ChatHandlers {
                     body: 'shell',
                     buttons,
                 }
-                ;((body = '```shell\n' + commandString),
-                    (quickSettings = {
-                        type: 'select',
-                        messageId: this.#getMessageIdForToolUse(toolType, toolUse),
-                        tabId: tabId!,
-                        description: 'Configure for this session only. To edit globally, view Auto-approve settings.',
-                        options: [
-                            { id: 'ask', label: 'Ask to run', value: toolName, selected: permissions === 'ask' },
-                            {
-                                id: 'alwaysAllow',
-                                label: 'Auto run',
-                                value: toolName,
-                                selected: permissions === 'alwaysAllow',
-                            },
-                        ],
-                    }))
+                body = '```shell\n' + commandString
                 break
             }
 
@@ -2928,6 +2938,7 @@ export class AgenticChatController implements ChatHandlers {
                                 },
                             ],
                         },
+                        quickSettings,
                     },
                     collapsedContent: [
                         {

@@ -677,22 +677,30 @@ export const createMynahUi = (
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
         },
         onDropDownOptionChange: (tabId: string, messageId: string, value: DropdownListOption[]) => {
-            console.log(`dropdown option: ${value[0]}, ${messageId}, ${tabId}`)
-            // map value: string [] to Record <string, string>
+            // process data before sending
+            // map data to Record <string, string>
+            // value: `${serverName}@${toolName}`
+            const metadata: Record<string, string> = {}
+            const option = value[0]
+            const [serverName, toolName] = option.value.split('@')
+            const new_permission = option.id
+
+            metadata['toolName'] = toolName
+            metadata['serverName'] = serverName
+            metadata['permission'] = new_permission
+
             const payload: ButtonClickParams = {
                 tabId,
                 messageId,
                 buttonId: 'auto-run-commands',
-                metadata: value[0],
+                metadata,
             }
             messager.onButtonClick(payload)
         },
         onDropDownLinkClick: (tabId: string, actionId: string) => {
-            console.log('Dropdown linked in flare clicked')
             messager.onMcpServerClick(actionId, 'Built-in')
         },
         onPromptInputOptionChange: (tabId, optionsValues) => {
-            console.log('PromptOptions', optionsValues)
             if (agenticMode) {
                 handlePromptInputChange(mynahUi, tabId, optionsValues)
             }
@@ -983,6 +991,7 @@ export const createMynahUi = (
                               descriptionLink: {
                                   text: 'Auto-approve settings',
                                   id: MCP_IDS.OPEN_SERVER,
+                                  destination: am.quickSettings.options[0].value.split('@')[0],
                               },
                               options: am.quickSettings.options || [],
                           }
@@ -1313,6 +1322,7 @@ export const createMynahUi = (
      * Creates a properly formatted chat item for MCP tool summary with accordion view
      */
     const createMcpToolSummaryItem = (message: ChatMessage, isPartialResult?: boolean): Partial<ChatItem> => {
+        console.log('rendering MCP card', message)
         return {
             type: ChatItemType.ANSWER,
             messageId: message.messageId,
@@ -1331,6 +1341,9 @@ export const createMynahUi = (
                                         : undefined,
                                     fileList: undefined,
                                 }
+                              : undefined,
+                          quickSettings: message.summary.content.quickSettings
+                              ? message.summary.content.quickSettings
                               : undefined,
                       }
                     : undefined,
