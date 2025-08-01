@@ -697,8 +697,8 @@ export const createMynahUi = (
             }
             messager.onButtonClick(payload)
         },
-        onDropDownLinkClick: (tabId: string, actionId: string) => {
-            messager.onMcpServerClick(actionId, 'Built-in')
+        onDropDownLinkClick: (tabId: string, actionId: string, destination: string) => {
+            messager.onMcpServerClick(actionId, destination)
         },
         onPromptInputOptionChange: (tabId, optionsValues) => {
             if (agenticMode) {
@@ -1329,14 +1329,7 @@ export const createMynahUi = (
                                 }
                               : undefined,
                           quickSettings: message.summary.content.quickSettings
-                              ? {
-                                    type: message.summary.content.quickSettings.type,
-                                    messageId: message.summary.content.quickSettings.messageId,
-                                    tabId: message.summary.content.quickSettings.tabId,
-                                    description: message.summary.content.quickSettings.description,
-                                    descriptionLink: message.summary.content.quickSettings.descriptionLink,
-                                    options: message.summary.content.quickSettings.options || [],
-                                }
+                              ? message.summary.content.quickSettings
                               : undefined,
                       }
                     : undefined,
@@ -1433,16 +1426,7 @@ export const createMynahUi = (
                       ? { 'insert-to-cursor': null }
                       : undefined,
             ...(shouldMute ? { muted: true } : {}),
-            quickSettings: message.quickSettings
-                ? {
-                      type: message.quickSettings.type,
-                      messageId: message.quickSettings.messageId,
-                      tabId: message.quickSettings.tabId,
-                      description: message.quickSettings.description,
-                      descriptionLink: message.quickSettings.descriptionLink,
-                      options: message.quickSettings.options || [],
-                  }
-                : undefined,
+            quickSettings: message.quickSettings ? message.quickSettings : undefined,
         }
     }
 
