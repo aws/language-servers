@@ -1488,7 +1488,7 @@ ${params.message}`,
 
                 if (foundButton) {
                     messageId = item.messageId
-                    // hanlde mcp tools run/reject buttons and allow buttons
+                    // handle mcp tools run/reject buttons and allow buttons
                     if (buttonId !== foundButton.id) {
                         if (buttonId === 'reject-shell-command') {
                             buttonId = 'reject-mcp-tool'
