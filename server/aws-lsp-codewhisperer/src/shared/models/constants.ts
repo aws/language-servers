@@ -12,7 +12,7 @@ export const supplemetalContextFetchingTimeoutMsg = 'Amazon Q supplemental conte
 
 export const supplementalContextMaxTotalLength = 20480
 
-export const supplementalContextTimeoutInMs = 10000
+export const supplementalContextTimeoutInMs = 100
 
 // reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/models/constants.ts#L827
 export const crossFileContextConfig = {
