@@ -10,22 +10,43 @@ import * as path from 'path'
 import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import { CodeReviewFinding } from './codeReviewTypes'
+import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 describe('DisplayFindings', () => {
     let sandbox: sinon.SinonSandbox
     let displayFindings: DisplayFindings
-    let mockFeatures: any
-    let mockCancellationToken: any
-    let mockWritableStream: any
-    let mockWriter: any
+    let mockFeatures: Pick<Features, 'logging' | 'telemetry' | 'workspace'> & Partial<Features>
+    let mockCancellationToken: { isCancellationRequested: boolean }
+    let mockWritableStream: { getWriter: sinon.SinonStub }
+    let mockWriter: {
+        write: sinon.SinonStub
+        close: sinon.SinonStub
+        releaseLock: sinon.SinonStub
+    }
 
     let CODE_REVIEW_FINDING_1: CodeReviewFinding
 
     let CODE_REVIEW_FINDING_2: CodeReviewFinding
 
-    let INPUT_FINDING_1: any
+    let INPUT_FINDING_1: {
+        filePath: string
+        startLine: string
+        endLine: string
+        title: string
+        description: string
+        severity: string
+        language: string
+    }
 
-    let INPUT_FINDING_2: any
+    let INPUT_FINDING_2: {
+        filePath: string
+        startLine: string
+        endLine: string
+        title: string
+        description: string
+        severity: string
+        language: string
+    }
 
     beforeEach(() => {
         sandbox = sinon.createSandbox()
@@ -50,14 +71,32 @@ describe('DisplayFindings', () => {
                 warn: sandbox.stub(),
                 error: sandbox.stub(),
                 debug: sandbox.stub(),
+                log: sandbox.stub(),
             },
             telemetry: {
                 emitMetric: sandbox.stub(),
+                onClientTelemetry: sandbox.stub(),
             },
             workspace: {
+                getTextDocument: sandbox.stub(),
+                getAllTextDocuments: sandbox.stub(),
+                getWorkspaceFolder: sandbox.stub(),
+                getAllWorkspaceFolders: sandbox.stub(),
                 fs: {
-                    readFile: sandbox.stub(),
+                    copyFile: sandbox.stub(),
+                    exists: sandbox.stub(),
+                    getFileSize: sandbox.stub(),
+                    getServerDataDirPath: sandbox.stub(),
+                    getTempDirPath: sandbox.stub(),
+                    getUserHomeDir: sandbox.stub(),
                     readdir: sandbox.stub(),
+                    readFile: sandbox.stub(),
+                    isFile: sandbox.stub(),
+                    rm: sandbox.stub(),
+                    writeFile: sandbox.stub(),
+                    appendFile: sandbox.stub(),
+                    mkdir: sandbox.stub(),
+                    readFileSync: sandbox.stub(),
                 },
             },
         }
@@ -215,10 +254,12 @@ describe('DisplayFindings', () => {
                 ],
             }
 
-            const result = await displayFindings.execute(invalidInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.be.a('string')
+            try {
+                await displayFindings.execute(invalidInput, context)
+                expect.fail('Expected validation error')
+            } catch (error) {
+                expect(error).to.be.instanceOf(Error)
+            }
         })
 
         it('should handle cancellation', async () => {
@@ -236,10 +277,12 @@ describe('DisplayFindings', () => {
             // Make validateInputAndSetup throw an error
             sandbox.stub(displayFindings as any, 'validateInputAndSetup').rejects(new Error('Unexpected error'))
 
-            const result = await displayFindings.execute(validInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.equal('Unexpected error')
+            try {
+                await displayFindings.execute(validInput, context)
+                expect.fail('Expected error to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.equal('Unexpected error')
+            }
         })
     })
 
@@ -273,7 +316,6 @@ describe('DisplayFindings', () => {
                 severity: 'High',
                 language: 'javascript',
                 suggestedFixes: ['Fix suggestion'],
-                comment: 'Test comment',
             }
 
             const result = (displayFindings as any).mapToCodeReviewFinding(displayFinding)
@@ -299,7 +341,6 @@ describe('DisplayFindings', () => {
                 description: 'Test description',
                 severity: 'High',
                 language: 'javascript',
-                comment: 'Test comment',
             }
 
             const result = (displayFindings as any).mapToCodeReviewFinding(displayFinding)

@@ -37,4 +37,4 @@ export const DISPLAY_FINDINGS_TOOL_DESCRIPTION = [
 
 export const FINDINGS_MESSAGE_SUFFIX = '_displayFindings'
 
-export const DISPLAY_FINDINGS_METRICS_PARENT_NAME = 'amazonq_codeReviewTool'
+export const DISPLAY_FINDINGS_METRICS_PARENT_NAME = 'amazonq_displayFindingsTool'

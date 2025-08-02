@@ -7,9 +7,10 @@ import { DISPLAY_FINDINGS_INPUT_SCHEMA, Z_DISPLAY_FINDINGS_INPUT_SCHEMA } from '
 import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
 import { InvokeOutput } from '../toolShared'
 import { CancellationError } from '@aws/lsp-core'
-import { DisplayFinding } from './displayFindingsTypes'
+import { DisplayFinding, FailedMetricName, SuccessMetricName } from './displayFindingsTypes'
 import { CodeReviewFinding } from './codeReviewTypes'
-import path = require('path')
+import * as path from 'path'
+import { DisplayFindingsUtils } from './displayFindingsUtils'
 
 export class DisplayFindings {
     private readonly logging: Features['logging']
@@ -50,6 +51,18 @@ export class DisplayFindings {
             const mappedFindings = setup.map(finding => this.mapToCodeReviewFinding(finding))
             const aggregatedFindings = this.aggregateFindingsByFile(mappedFindings)
 
+            DisplayFindingsUtils.emitMetric(
+                {
+                    reason: SuccessMetricName.DisplayFindingsSuccess,
+                    result: 'Succeeded',
+                    metadata: {
+                        findingsCount: setup.length,
+                    },
+                },
+                this.logging,
+                this.telemetry
+            )
+
             return {
                 output: {
                     kind: 'json',
@@ -61,15 +74,18 @@ export class DisplayFindings {
             if (error instanceof CancellationError) {
                 throw error
             }
-            return {
-                output: {
-                    kind: 'json',
-                    success: false,
-                    content: {
-                        errorMessage: error.message,
-                    },
+
+            DisplayFindingsUtils.emitMetric(
+                {
+                    reason: FailedMetricName.DisplayFindingsFailed,
+                    result: 'Failed',
+                    reasonDesc: error,
                 },
-            }
+                this.logging,
+                this.telemetry
+            )
+
+            throw new Error(error.message)
         } finally {
             await chatStreamWriter?.close()
             chatStreamWriter?.releaseLock()
