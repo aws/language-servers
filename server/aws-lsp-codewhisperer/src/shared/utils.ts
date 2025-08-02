@@ -14,6 +14,7 @@ import {
     crashMonitoringDirName,
     driveLetterRegex,
     MISSING_BEARER_TOKEN_ERROR,
+    SAGEMAKER_UNIFIED_STUDIO_SERVICE,
 } from './constants'
 import {
     CodeWhispererStreamingServiceException,
@@ -373,9 +374,7 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
     return credentials.token
 }
 
-export const SAGEMAKER_UNIFIED_STUDIO_SERVICE = 'SageMakerUnifiedStudio'
-
-export function getClientName(lspParams: any): string | undefined {
+export function getClientName(lspParams: InitializeParams | undefined): string | undefined {
     return process.env.SERVICE_NAME === SAGEMAKER_UNIFIED_STUDIO_SERVICE
         ? lspParams?.initializationOptions?.aws?.clientInfo?.name
         : lspParams?.clientInfo?.name

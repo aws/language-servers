@@ -3,14 +3,14 @@ import {
     ThrottlingException,
     ThrottlingExceptionReason,
 } from '@amzn/codewhisperer-streaming'
-import { CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, Position, InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import { expect } from 'chai'
 import * as sinon from 'sinon'
 import * as os from 'os'
 import * as path from 'path'
-import { BUILDER_ID_START_URL } from './constants'
+import { BUILDER_ID_START_URL, SAGEMAKER_UNIFIED_STUDIO_SERVICE } from './constants'
 import {
     getBearerTokenFromProvider,
     getEndPositionForAcceptedSuggestion,
@@ -25,7 +25,6 @@ import {
     listFilesWithGitignore,
     getOriginFromClientInfo,
     getClientName,
-    SAGEMAKER_UNIFIED_STUDIO_SERVICE,
     sanitizeInput,
     sanitizeRequestInput,
 } from './utils'
@@ -103,7 +102,7 @@ describe('getClientName', () => {
             clientInfo: {
                 name: 'VSCode-Extension',
             },
-        }
+        } as InitializeParams
 
         const result = getClientName(lspParams)
         assert.strictEqual(result, 'AmazonQ-For-SMUS-CE-1.0.0')
@@ -122,7 +121,7 @@ describe('getClientName', () => {
             clientInfo: {
                 name: 'VSCode-Extension',
             },
-        }
+        } as InitializeParams
 
         const result = getClientName(lspParams)
         assert.strictEqual(result, 'VSCode-Extension')
