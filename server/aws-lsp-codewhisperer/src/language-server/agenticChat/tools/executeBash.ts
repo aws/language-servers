@@ -12,6 +12,8 @@ import { Features } from '../../types'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 // eslint-disable-next-line import/no-nodejs-modules
 import { existsSync, statSync } from 'fs'
+import { parseBaseCommands } from '../utils/commandParser'
+import { BashCommandEvent, ChatTelemetryEventName } from '../../../shared/telemetry/types'
 
 export enum CommandCategory {
     ReadOnly,
@@ -130,9 +132,15 @@ export class ExecuteBash {
     private childProcess?: ChildProcess
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
-    constructor(features: Pick<Features, 'logging' | 'workspace'> & Partial<Features>) {
+    private readonly telemetry: Features['telemetry']
+    private readonly credentialsProvider: Features['credentialsProvider']
+    constructor(
+        features: Pick<Features, 'logging' | 'workspace' | 'telemetry' | 'credentialsProvider'> & Partial<Features>
+    ) {
         this.logging = features.logging
         this.workspace = features.workspace
+        this.telemetry = features.telemetry
+        this.credentialsProvider = features.credentialsProvider
     }
 
     public async validate(input: ExecuteBashParams): Promise<void> {
@@ -145,6 +153,20 @@ export class ExecuteBash {
         if (!args || args.length === 0) {
             throw new Error('No command found.')
         }
+
+        // Extract individual base commands for telemetry purposes
+        const baseCommands = parseBaseCommands(args)
+        baseCommands.forEach(command => {
+            const metricPayload = {
+                name: ChatTelemetryEventName.BashCommand,
+                data: {
+                    credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                    result: 'Succeeded',
+                    command: command,
+                } as BashCommandEvent,
+            }
+            this.telemetry.emitMetric(metricPayload)
+        })
 
         try {
             await ExecuteBash.whichCommand(this.logging, args[0])
