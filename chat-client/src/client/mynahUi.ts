@@ -52,6 +52,7 @@ import {
     MynahIcons,
     CustomQuickActionCommand,
     ConfigTexts,
+    DropdownListOption,
 } from '@aws/mynah-ui'
 import { VoteParams } from '../contracts/telemetry'
 import { Messager } from './messager'
@@ -674,6 +675,30 @@ export const createMynahUi = (
             }
 
             throw new Error(`Unhandled tab bar button id: ${buttonId}`)
+        },
+        onDropDownOptionChange: (tabId: string, messageId: string, value: DropdownListOption[]) => {
+            // process data before sending
+            // map data to Record <string, string>
+            // value: `${serverName}@${toolName}`
+            const metadata: Record<string, string> = {}
+            const option = value[0]
+            const [serverName, toolName] = option.value.split('@')
+            const new_permission = option.id
+
+            metadata['toolName'] = toolName
+            metadata['serverName'] = serverName
+            metadata['permission'] = new_permission
+
+            const payload: ButtonClickParams = {
+                tabId,
+                messageId,
+                buttonId: 'trust-command',
+                metadata,
+            }
+            messager.onButtonClick(payload)
+        },
+        onDropDownLinkClick: (tabId: string, actionId: string, destination: string) => {
+            messager.onMcpServerClick(actionId, destination)
         },
         onPromptInputOptionChange: (tabId, optionsValues) => {
             if (agenticMode) {
@@ -1304,6 +1329,9 @@ export const createMynahUi = (
                                     fileList: undefined,
                                 }
                               : undefined,
+                          quickSettings: message.summary.content.quickSettings
+                              ? message.summary.content.quickSettings
+                              : undefined,
                       }
                     : undefined,
                 collapsedContent:
@@ -1399,6 +1427,7 @@ export const createMynahUi = (
                       ? { 'insert-to-cursor': null }
                       : undefined,
             ...(shouldMute ? { muted: true } : {}),
+            quickSettings: message.quickSettings ? message.quickSettings : undefined,
         }
     }
 
