@@ -275,7 +275,6 @@ export type ActiveUserEvent = {
 
 export type BashCommandEvent = {
     credentialStartUrl: string
-    cwsprChatConversationId: string
     result: string
     command: string
 }

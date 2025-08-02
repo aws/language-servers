@@ -1,122 +1,98 @@
 import { splitOperators } from '../tools/executeBash'
-import { split } from 'shlex'
 
 /**
- * Parses a command string and extracts only the base commands without arguments or options.
+ * Parses command arguments and extracts only the base commands without arguments or options.
  *
  * Examples:
  * - "cd /home/user/documents" -> ["cd"]
  * - "echo 'Hello World' && ls -la" -> ["echo", "ls"]
  * - "sudo apt-get install" -> ["sudo", "apt-get"]
  * - "time curl http://example.com" -> ["time", "curl"]
- * - "cd /tmp; ls -la; echo done" -> ["cd", "ls", "echo"]
+ * - "command1; command2" -> ["command1", "command2"]
  * - "/usr/bin/python script.py" -> ["python"]
  * - "./script.sh" -> ["script.sh"]
  * - "function_name args" -> ["function_name"]
  *
- * @param commandString The full command string to parse
- * @returns Array of base commands found in the string
+ * @param args Array of command arguments
+ * @returns Array of base commands found in the input args
  */
-export function parseBaseCommands(commandString: string): string[] {
-    if (!commandString || typeof commandString !== 'string') {
+export function parseBaseCommands(args: string[]): string[] {
+    if (!args || !Array.isArray(args) || args.length === 0) {
         return []
     }
 
     const baseCommands: string[] = []
 
-    // First split by semicolons (;) which separate commands
-    const semicolonSegments = commandString.split(/\s*;\s*/).filter(Boolean)
+    // Process the args to extract base commands
+    let i = 0
+    let expectCommand = true // Flag to indicate we're expecting a command
 
-    for (const semicolonSegment of semicolonSegments) {
-        // Split by operators (&&, ||, |, >) but filter out the operators themselves
-        const operatorRegex = new RegExp(
-            `\\s*(${Array.from(splitOperators)
-                .map(op => op.replace(/[|\\{}()[\]^$+*?.]/g, '\\$&'))
-                .join('|')})\\s*`
-        )
-        const commandSegments = semicolonSegment.split(operatorRegex).filter(segment => {
-            const trimmed = segment.trim()
-            return trimmed && !splitOperators.has(trimmed)
-        })
-
-        // Process each command segment
-        for (const segment of commandSegments) {
-            const trimmedSegment = segment.trim()
-            if (!trimmedSegment) continue
-
-            // Use shlex.split to properly handle quoted arguments
-            const args = split(trimmedSegment)
-            if (args.length > 0) {
-                const command = extractBaseCommandFromArgs(args)
-                if (command) {
-                    baseCommands.push(...command)
-                }
-            }
-        }
-    }
-
-    return baseCommands
-}
-
-/**
- * Extracts base commands from parsed arguments (when shlex parsing succeeds).
- * Handles path prefixes and prefix commands like sudo, time, nice, nohup, env.
- * For prefix commands, attempts to find and include the actual command being executed.
- */
-function extractBaseCommandFromArgs(args: string[]): string[] | null {
-    if (args.length === 0) return null
-
-    const commands: string[] = []
-
-    // Extract the base command (first argument)
-    let baseCommand = args[0]
-
-    // Handle path prefixes (/usr/bin/command or ./command)
-    if (baseCommand.includes('/')) {
-        baseCommand = baseCommand.split('/').pop() || baseCommand
-    }
-
-    commands.push(baseCommand)
-
-    // Special case for prefix commands - find the actual command they're running
-    if (['sudo', 'time', 'nice', 'nohup', 'env'].includes(baseCommand)) {
-        // Note: This doesn't handle nested prefix commands (e.g., "sudo time curl") but such cases are rare enough
-        const actualCommand = findActualCommand(args, 1)
-        if (actualCommand) {
-            commands.push(actualCommand)
-        }
-    }
-
-    return commands.length > 0 ? commands : null
-}
-
-/**
- * Finds the actual command after prefix commands like sudo, time, nice, etc.
- * Skips over flags and their values to locate the first non-prefix command.
- * Note: Does not handle nested prefix commands (e.g., "sudo time curl" -> only finds first non-prefix).
- */
-function findActualCommand(args: string[], startIndex: number): string | null {
-    // Skip over flags and options to find the actual command
-    for (let i = startIndex; i < args.length; i++) {
+    while (i < args.length) {
         const arg = args[i]
 
-        // Skip flags (starting with -)
-        if (arg.startsWith('-')) {
-            // Some flags take values, skip the next argument too if it doesn't start with -
-            if (i + 1 < args.length && !args[i + 1].startsWith('-')) {
-                i++ // Skip the flag value
-            }
+        // Check if this arg is an operator or contains an operator
+        if (splitOperators.has(arg) || arg.includes(';')) {
+            expectCommand = true // Next argument should be a command
+            i++
             continue
         }
 
-        // This should be the actual command
-        let command = arg
-        if (command.includes('/')) {
-            command = command.split('/').pop() || command
+        if (expectCommand) {
+            // Extract the base command
+            let baseCommand = arg
+
+            // Handle path prefixes (/usr/bin/command or ./command)
+            if (baseCommand.includes('/')) {
+                baseCommand = baseCommand.split('/').pop() || baseCommand
+            }
+
+            baseCommands.push(baseCommand)
+
+            // Special case for sudo, time, etc. - include the actual command too
+            if (['sudo', 'time', 'nice', 'nohup', 'env'].includes(baseCommand)) {
+                // Skip any flags/options and their values
+                let j = i + 1
+                while (j < args.length) {
+                    // If we find an operator, stop looking for the command
+                    if (splitOperators.has(args[j]) || args[j].includes(';')) {
+                        break
+                    }
+
+                    // Skip flag and its value if present
+                    if (args[j].startsWith('-')) {
+                        // Handle flags with values (e.g., -u user, -n 10)
+                        if (
+                            j + 1 < args.length &&
+                            !args[j + 1].startsWith('-') &&
+                            !splitOperators.has(args[j + 1]) &&
+                            !args[j + 1].includes(';')
+                        ) {
+                            j += 2 // Skip both the flag and its value
+                        } else {
+                            j++ // Skip just the flag
+                        }
+                        continue
+                    }
+
+                    // Found the actual command
+                    let nextCommand = args[j]
+
+                    // Handle path prefixes for the command after sudo/time
+                    if (nextCommand.includes('/')) {
+                        nextCommand = nextCommand.split('/').pop() || nextCommand
+                    }
+
+                    baseCommands.push(nextCommand)
+                    break
+                }
+            }
+
+            // For all commands, we don't expect another command until we see an operator
+            expectCommand = false
         }
 
-        return command
+        i++
     }
 
-    return null
+    return baseCommands
 }
