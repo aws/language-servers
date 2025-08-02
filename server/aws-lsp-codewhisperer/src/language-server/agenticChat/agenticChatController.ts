@@ -406,7 +406,12 @@ export class AgenticChatController implements ChatHandlers {
             }
             params.buttonId === BUTTON_REJECT_SHELL_COMMAND || params.buttonId === BUTTON_REJECT_MCP_TOOL
                 ? (() => {
-                      handler.reject(new ToolApprovalException('Command was rejected.', true))
+                      if (params.buttonId === BUTTON_REJECT_SHELL_COMMAND) {
+                          handler.reject(new ToolApprovalException('Command was rejected.', true))
+                      }
+                      if (params.buttonId === BUTTON_REJECT_MCP_TOOL) {
+                          handler.reject(new ToolApprovalException('MCP Tool was rejected.', true))
+                      }
                       this.#stoppedToolUses.add(messageId)
                   })()
                 : handler.resolve()
@@ -2526,13 +2531,24 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #renderStopShellCommandButton() {
+    #renderStopShellCommandButton(): Button {
         const stopKey = this.#getKeyBinding('aws.amazonq.stopCmdExecution')
         return {
             id: BUTTON_STOP_SHELL_COMMAND,
             text: 'Stop',
             icon: 'stop',
             ...(stopKey ? { description: `Stop:  ${stopKey}` } : {}),
+        }
+    }
+
+    #renderAllowToolButton(): Button {
+        const allowKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
+        return {
+            id: BUTTON_ALLOW_TOOLS,
+            text: 'Allow',
+            icon: 'ok',
+            status: 'clear',
+            ...(allowKey ? { description: `Allow:  ${allowKey}` } : {}),
         }
     }
 
@@ -2595,19 +2611,13 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
         let body: string | undefined
+        const runKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
+        const rejectKey = this.#getKeyBinding('aws.amazonq.rejectCmdExecution')
 
         // Configure tool-specific UI elements
         switch (toolName) {
             case EXECUTE_BASH: {
                 const commandString = (toolUse.input as unknown as ExecuteBashParams).command
-                // get feature flag
-                const shortcut =
-                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
-                        ?.shortcut
-
-                const runKey = this.#getKeyBinding('aws.amazonq.runCmdExecution')
-                const rejectKey = this.#getKeyBinding('aws.amazonq.rejectCmdExecution')
-
                 buttons = requiresAcceptance
                     ? [
                           {
@@ -2625,7 +2635,6 @@ export class AgenticChatController implements ChatHandlers {
                           },
                       ]
                     : []
-
                 const statusIcon =
                     commandCategory === CommandCategory.Destructive
                         ? 'warning'
@@ -2664,7 +2673,7 @@ export class AgenticChatController implements ChatHandlers {
                 validatePathBasic(writeFilePath)
 
                 this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
-                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [this.#renderAllowToolButton()]
                 header = {
                     icon: 'warning',
                     iconForegroundStatus: 'warning',
@@ -2686,7 +2695,7 @@ export class AgenticChatController implements ChatHandlers {
                 validatePathExists(writeFilePath)
 
                 this.#debug(`Processing ${toolUse.name} for path: ${writeFilePath}`)
-                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [this.#renderAllowToolButton()]
                 header = {
                     icon: 'warning',
                     iconForegroundStatus: 'warning',
@@ -2703,7 +2712,7 @@ export class AgenticChatController implements ChatHandlers {
 
             case FS_READ:
             case LIST_DIRECTORY: {
-                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [this.#renderAllowToolButton()]
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'tools',
@@ -2741,7 +2750,7 @@ export class AgenticChatController implements ChatHandlers {
 
             default: {
                 // — DEFAULT ⇒ MCP tools
-                buttons = [{ id: BUTTON_ALLOW_TOOLS, text: 'Allow', icon: 'ok', status: 'clear' }]
+                buttons = [this.#renderAllowToolButton()]
                 header = {
                     icon: 'tools',
                     iconForegroundStatus: 'warning',
@@ -2773,12 +2782,19 @@ export class AgenticChatController implements ChatHandlers {
                             icon: 'tools',
                             body: `${toolName}`,
                             buttons: [
-                                { id: BUTTON_ALLOW_TOOLS, text: 'Run', icon: 'play', status: 'clear' },
+                                {
+                                    id: BUTTON_ALLOW_TOOLS,
+                                    text: 'Run',
+                                    icon: 'play',
+                                    status: 'clear',
+                                    ...(runKey ? { description: `Run:  ${runKey}` } : {}),
+                                },
                                 {
                                     id: BUTTON_REJECT_MCP_TOOL,
                                     text: 'Reject',
                                     icon: 'cancel',
                                     status: 'dimmed-clear' as Status,
+                                    ...(rejectKey ? { description: `Reject:  ${rejectKey}` } : {}),
                                 },
                             ],
                         },
