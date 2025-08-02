@@ -1166,14 +1166,17 @@ export class McpEventHandler {
 
         try {
             // Skip server config check for Built-in server
+            const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
             if (serverName !== 'Built-in') {
-                const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
                 if (!serverConfig) {
                     throw new Error(`Server '${serverName}' not found`)
                 }
             }
 
-            const mcpServerPermission = await this.#processPermissionUpdates(updatedPermissionConfig)
+            const mcpServerPermission = await this.#processPermissionUpdates(
+                updatedPermissionConfig,
+                serverConfig?.__configPath__
+            )
 
             // Store the permission config instead of applying it immediately
             this.#pendingPermissionConfig = {
@@ -1368,10 +1371,7 @@ export class McpEventHandler {
     /**
      * Processes permission updates from the UI
      */
-    async #processPermissionUpdates(updatedPermissionConfig: any) {
-        // Get the appropriate agent path
-        const agentPath = await this.#getAgentPath()
-
+    async #processPermissionUpdates(updatedPermissionConfig: any, agentPath: string | undefined) {
         const perm: MCPServerPermission = {
             enabled: true,
             toolPerms: {},

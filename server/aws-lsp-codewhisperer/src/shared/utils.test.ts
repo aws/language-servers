@@ -770,4 +770,35 @@ describe('sanitizeRequestInput', () => {
             '<pinnedContext>\n<promptInstruction>\n<text>\n\n</text>\n</promptInstruction>\n</pinnedContext>'
         )
     })
+
+    it('should preserve Uint8Array objects (like image data) without modification', () => {
+        const imageData = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]) // PNG header bytes
+        const input = {
+            conversationState: {
+                currentMessage: {
+                    userInputMessage: {
+                        content: 'Tell me what this image says',
+                        images: [
+                            {
+                                format: 'png',
+                                source: {
+                                    bytes: imageData,
+                                },
+                            },
+                        ],
+                    },
+                },
+            },
+        }
+
+        const result = sanitizeRequestInput(input)
+
+        // The Uint8Array should be preserved exactly as-is
+        assert.strictEqual(result.conversationState.currentMessage.userInputMessage.images[0].source.bytes, imageData)
+        assert.ok(result.conversationState.currentMessage.userInputMessage.images[0].source.bytes instanceof Uint8Array)
+        assert.deepStrictEqual(
+            Array.from(result.conversationState.currentMessage.userInputMessage.images[0].source.bytes),
+            [137, 80, 78, 71, 13, 10, 26, 10]
+        )
+    })
 })
