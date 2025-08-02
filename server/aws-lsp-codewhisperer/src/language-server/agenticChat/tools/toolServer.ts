@@ -19,10 +19,13 @@ import {
     createNamespacedToolName,
     enabledMCP,
     migrateToAgentConfig,
+    enabledMcpAdmin,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
+import { ProfileStatusMonitor } from './mcp/profileStatusMonitor'
+import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -172,10 +175,45 @@ export const LspToolsServer: Server = ({ workspace, logging, lsp, agent }) => {
     return () => {}
 }
 
-export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging, lsp, agent, telemetry, runtime }) => {
+export const McpToolsServer: Server = ({
+    credentialsProvider,
+    workspace,
+    logging,
+    lsp,
+    agent,
+    telemetry,
+    runtime,
+    sdkInitializator,
+    chat,
+}) => {
     const registered: Record<string, string[]> = {}
-
     const allNamespacedTools = new Set<string>()
+    let profileStatusMonitor: ProfileStatusMonitor | undefined
+
+    function removeAllMcpTools(): void {
+        logging.info('Removing all MCP tools due to admin configuration')
+        for (const [server, toolNames] of Object.entries(registered)) {
+            for (const name of toolNames) {
+                agent.removeTool(name)
+                allNamespacedTools.delete(name)
+                logging.info(`MCP: removed tool ${name}`)
+            }
+            registered[server] = []
+        }
+        void McpManager.instance.close(true) //keep the instance but close all servers.
+
+        try {
+            chat?.sendChatUpdate({
+                tabId: 'mcpserver',
+                data: {
+                    placeholderText: 'mcp-server-update',
+                    messages: [],
+                },
+            })
+        } catch (error) {
+            logging.error(`Failed to send chatOptionsUpdate: ${error}`)
+        }
+    }
 
     function registerServerTools(server: string, defs: McpToolDefinition[]) {
         // 1) remove old tools
@@ -230,20 +268,13 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
         }
     }
 
-    lsp.onInitialized(async () => {
+    async function initializeMcp() {
         try {
-            if (!enabledMCP(lsp.getClientInitializeParams())) {
-                logging.warn('MCP is currently not supported')
-                return
-            }
-
             const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
-            // Get agent paths
             const wsAgentPaths = getWorkspaceAgentConfigPaths(wsUris)
             const globalAgentPath = getGlobalAgentConfigPath(workspace.fs.getUserHomeDir())
             const allAgentPaths = [...wsAgentPaths, globalAgentPath]
 
-            // Migrate config and persona files to agent config
             await migrateToAgentConfig(workspace, logging, agent)
 
             const mgr = await McpManager.init(allAgentPaths, {
@@ -255,13 +286,9 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
                 runtime,
             })
 
-            // Clear tool name mapping before registering all tools to avoid conflicts from previous registrations
             McpManager.instance.clearToolNameMapping()
 
             const byServer: Record<string, McpToolDefinition[]> = {}
-
-            logging.info(`enabled Tools: ${mgr.getEnabledTools().entries()}`)
-            // only register enabled tools
             for (const d of mgr.getEnabledTools()) {
                 ;(byServer[d.serverName] ||= []).push(d)
             }
@@ -273,11 +300,66 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
                 registerServerTools(server, defs)
             })
         } catch (e) {
-            console.warn('Caught error during MCP tool initialization; initialization may be incomplete:', e)
+            logging.error(`Failed to initialize MCP:', ${e}`)
+        }
+    }
+
+    lsp.onInitialized(async () => {
+        if (!enabledMCP(lsp.getClientInitializeParams())) {
+            logging.warn('MCP is currently not supported')
+            return
+        }
+
+        if (sdkInitializator) {
+            profileStatusMonitor = new ProfileStatusMonitor(
+                credentialsProvider,
+                workspace,
+                logging,
+                sdkInitializator,
+                removeAllMcpTools,
+                () => {
+                    logging.info('MCP enabled by profile status monitor')
+                    void initializeMcp()
+                }
+            )
+
+            // Wait for profile ARN to be available before checking MCP state
+            const checkAndInitialize = async (connectionType?: string) => {
+                const shouldInitialize = await profileStatusMonitor!.checkInitialState()
+                if (shouldInitialize) {
+                    logging.info('MCP enabled, initializing immediately')
+                    void initializeMcp()
+                }
+                profileStatusMonitor!.start()
+            }
+
+            // Check if service manager is ready
+            try {
+                const serviceManager = AmazonQTokenServiceManager.getInstance()
+                if (serviceManager.getState() === 'INITIALIZED') {
+                    void checkAndInitialize(serviceManager.getConnectionType())
+                } else {
+                    // Poll for service manager to be ready
+                    const pollForReady = () => {
+                        if (serviceManager.getState() === 'INITIALIZED') {
+                            void checkAndInitialize(serviceManager.getConnectionType())
+                        } else {
+                            setTimeout(pollForReady, 100)
+                        }
+                    }
+                    setTimeout(pollForReady, 100)
+                }
+            } catch (error) {
+                // Service manager not initialized yet, default to enabled
+                logging.info('Service manager not ready, defaulting MCP to enabled')
+                void initializeMcp()
+                profileStatusMonitor!.start()
+            }
         }
     })
 
     return async () => {
+        profileStatusMonitor?.stop()
         await McpManager.instance.close()
     }
 }
