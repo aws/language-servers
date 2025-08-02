@@ -35,9 +35,12 @@ import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
-import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
+// import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
+
+const RETRY_COUNT = 3
+const DEBOUNCE_INTERVAL_MS = 750
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -77,6 +80,10 @@ export class EditCompletionHandler {
         if (this.debounceTimeout) {
             this.logging.info('[NEP] refresh timeout')
             this.debounceTimeout.refresh()
+        }
+
+        if (this.isWaiting) {
+            this.hasDocumentChangedSinceInvocation = true
         }
     }
 
@@ -134,12 +141,46 @@ export class EditCompletionHandler {
             }
         }
 
-        return new Promise(async resolve => {
-            this.debounceTimeout = setTimeout(async () => {
-                const result = await this._invoke(params, token, textDocument, inferredLanguageId, currentSession)
-                resolve(result)
-            }, 500)
-        })
+        // TODO: telemetry, discarded suggestions
+        // The other easy way to do this is simply not return any suggestion (which is used when retry > 3)
+        const invokeWithRetry = async (attempt: number = 0): Promise<InlineCompletionListWithReferences> => {
+            return new Promise(async resolve => {
+                this.debounceTimeout = setTimeout(async () => {
+                    try {
+                        this.isWaiting = true
+                        const result = await this._invoke(
+                            params,
+                            token,
+                            textDocument,
+                            inferredLanguageId,
+                            currentSession
+                        ).finally(() => {
+                            this.isWaiting = false
+                        })
+                        if (this.hasDocumentChangedSinceInvocation) {
+                            if (attempt < RETRY_COUNT) {
+                                this.logging.info(
+                                    `Document changed during execution, retrying (attempt ${attempt + 1})`
+                                )
+                                this.hasDocumentChangedSinceInvocation = false
+                                const retryResult = await invokeWithRetry(attempt + 1)
+                                resolve(retryResult)
+                            } else {
+                                this.logging.info('Max retries reached, returning empty result')
+                                resolve(EMPTY_RESULT)
+                            }
+                        } else {
+                            this.logging.info('No document changes, resolving result')
+                            resolve(result)
+                        }
+                    } finally {
+                        this.debounceTimeout = undefined
+                    }
+                }, DEBOUNCE_INTERVAL_MS)
+            })
+        }
+
+        return invokeWithRetry()
     }
 
     async _invoke(
