@@ -35,12 +35,15 @@ import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
+import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
     private debounceTimeout: NodeJS.Timeout | undefined
+    private isWaiting: boolean = false
+    private hasDocumentChangedSinceInvocation: boolean = false
 
     constructor(
         readonly logging: Logging,
@@ -81,6 +84,9 @@ export class EditCompletionHandler {
         params: InlineCompletionWithReferencesParams,
         token: CancellationToken
     ): Promise<InlineCompletionListWithReferences> {
+        this.hasDocumentChangedSinceInvocation = false
+        this.debounceTimeout = undefined
+
         // On every new completion request close current inflight session.
         const currentSession = this.sessionManager.getCurrentSession()
         if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
@@ -101,6 +107,15 @@ export class EditCompletionHandler {
             return EMPTY_RESULT
         }
 
+        // request for new session
+        const inferredLanguageId = getSupportedLanguageId(textDocument)
+        if (!inferredLanguageId) {
+            this.logging.log(
+                `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
+            )
+            return EMPTY_RESULT
+        }
+
         if (params.partialResultToken && currentSession) {
             // subsequent paginated requests for current session
             try {
@@ -117,15 +132,6 @@ export class EditCompletionHandler {
             } catch (error) {
                 return this.handleSuggestionsErrors(error as Error, currentSession)
             }
-        }
-
-        // request for new session
-        const inferredLanguageId = getSupportedLanguageId(textDocument)
-        if (!inferredLanguageId) {
-            this.logging.log(
-                `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
-            )
-            return EMPTY_RESULT
         }
 
         return new Promise(async resolve => {

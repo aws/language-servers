@@ -163,7 +163,13 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            return apiController.onEditCompletion(params, token)
+            logging.info(
+                'EDIT request arrives +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++'
+            )
+            const r = await apiController.onEditCompletion(params, token)
+            logging.info(`EDIT response:\n`)
+            logging.info(`${r.items[0]?.insertText ?? 'No suggestion'}`)
+            return r
         }
 
         const onLogInlineCompletionSessionResults = async (params: LogInlineCompletionSessionResultsParams) => {
