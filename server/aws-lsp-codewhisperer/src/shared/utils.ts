@@ -611,6 +611,10 @@ export function sanitizeRequestInput(input: any): any {
     if (typeof input === 'string') {
         return sanitizeInput(input)
     }
+    if (input instanceof Uint8Array) {
+        // Don't sanitize binary data like images - return as-is
+        return input
+    }
     if (Array.isArray(input)) {
         return input.map(item => sanitizeRequestInput(item))
     }

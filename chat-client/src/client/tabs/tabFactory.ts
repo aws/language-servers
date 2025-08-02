@@ -74,23 +74,16 @@ export class TabFactory {
                       ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
-                          body: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 100px 0 20px 0;">
-<div style="font-family: monospace; font-size: 16px; line-height: 1.2; margin-bottom: 8px;">
-<pre>• • •
-•     •
-•   •   •
-•   • •
-• • •</pre>
+                          body: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 200px 0 20px 0;">
+
+<div style="font-size: 24px; margin-bottom: 12px;"><strong>Amazon Q</strong></div>
+<div style="background: rgba(128, 128, 128, 0.15); border: 1px solid rgba(128, 128, 128, 0.25); border-radius: 8px; padding: 8px; margin: 4px 0; text-align: center;">
+<div style="font-size: 14px; margin-bottom: 4px;"><strong>Did you know?</strong></div>
+<div>${this.getRandomTip()}</div>
 </div>
 
-<div style="text-align: center;">
+Select code & ask me to explain, debug or optimize it, or type \`/\` for quick actions
 
-# Amazon Q
-**Coding Assistant Reimagined**
-
-💡 Select code and ask me to explain it, or type \`/\` for quick commands
-
-</div>
 </div>`,
                           canBeVoted: false,
                       },
@@ -186,6 +179,18 @@ export class TabFactory {
             } as ChatItem
         }
         return undefined
+    }
+
+    private getRandomTip(): string {
+        const hints = [
+            'You can now see logs with 1-Click!',
+            'MCP is available in Amazon Q!',
+            'Pinned context is always included in future chat messages',
+            'Create and add Saved Prompts using the @ context menu',
+        ]
+
+        const randomIndex = Math.floor(Math.random() * hints.length)
+        return hints[randomIndex]
     }
 
     private getTabBarButtons(): TabBarMainAction[] | undefined {
