@@ -2,6 +2,8 @@ import { ChatMessage } from '@aws/language-server-runtimes/protocol'
 
 const userGuideURL = 'https://docs.aws.amazon.com/amazonq/latest/aws-builder-use-ug/getting-started.html'
 
+export const INVALID_PROMPT_MESSAGE = 'Please enter a valid message to start the conversation.'
+
 export const HELP_MESSAGE = `I'm Amazon Q, a generative AI assistant. Learn more about me below. Your feedback will help me improve.
 \n\n### What I can do:
 \n\n- Answer questions about AWS

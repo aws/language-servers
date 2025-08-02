@@ -776,20 +776,22 @@ export const createMynahUi = (
                 mynahUi.addCustomContextToPrompt(tabId, commands, insertPosition)
             }
 
-            const imageVerificationBanner: Partial<ChatItem> = {
-                messageId: 'image-verification-banner',
-                header: {
-                    icon: 'warning',
-                    iconStatus: 'warning',
-                    body: '### Invalid Image',
-                },
-                body: `${errors.join('\n')}`,
-                canBeDismissed: true,
-            }
+            if (errors.length > 0) {
+                const imageVerificationBanner: Partial<ChatItem> = {
+                    messageId: 'image-verification-banner',
+                    header: {
+                        icon: 'warning',
+                        iconStatus: 'warning',
+                        body: '### Invalid Image',
+                    },
+                    body: `${errors.join('\n')}`,
+                    canBeDismissed: true,
+                }
 
-            mynahUi.updateStore(tabId, {
-                promptInputStickyCard: imageVerificationBanner,
-            })
+                mynahUi.updateStore(tabId, {
+                    promptInputStickyCard: imageVerificationBanner,
+                })
+            }
         },
     }
 
