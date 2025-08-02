@@ -23,6 +23,7 @@ import {
 import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
+import { DisplayFindings } from './qCodeAnalysis/displayFindings'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -102,6 +103,12 @@ export const QCodeAnalysisServer: Server = ({
         workspace,
     })
 
+    const displayFindingsTool = new DisplayFindings({
+        logging,
+        telemetry,
+        workspace,
+    })
+
     lsp.onInitialized(async () => {
         if (!CodeReviewUtils.isAgenticReviewEnabled(lsp.getClientInitializeParams())) {
             logging.warn('Agentic Review is currently not supported')
@@ -134,6 +141,26 @@ export const QCodeAnalysisServer: Server = ({
             async (input: any, token?: CancellationToken, updates?: WritableStream) => {
                 return await codeReviewTool.execute(input, {
                     codeWhispererClient: codeWhispererClient,
+                    cancellationToken: token,
+                    writableStream: updates,
+                })
+            },
+            ToolClassification.BuiltIn
+        )
+
+        if (!CodeReviewUtils.isDisplayFindingsEnabled(lsp.getClientInitializeParams())) {
+            logging.warn('Display Findings is currently not supported')
+            return
+        }
+
+        agent.addTool(
+            {
+                name: DisplayFindings.toolName,
+                description: DisplayFindings.toolDescription,
+                inputSchema: DisplayFindings.inputSchema,
+            },
+            async (input: any, token?: CancellationToken, updates?: WritableStream) => {
+                return await displayFindingsTool.execute(input, {
                     cancellationToken: token,
                     writableStream: updates,
                 })
