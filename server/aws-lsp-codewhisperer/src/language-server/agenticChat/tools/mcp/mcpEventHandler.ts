@@ -273,6 +273,17 @@ export class McpEventHandler {
         return this.#getDefaultMcpResponse(params.id)
     }
 
+    async generateEmptyBuiltInToolPermission() {
+        const personaPath = await this.#getAgentPath()
+        const perm: MCPServerPermission = {
+            enabled: true,
+            toolPerms: {},
+            __configPath__: personaPath,
+        }
+
+        return perm
+    }
+
     /**
      * Returns the default MCP servers response
      */
@@ -1041,10 +1052,10 @@ export class McpEventHandler {
         toolsWithPermissions.forEach(item => {
             const toolName = item.tool.toolName
             // For Built-in server, use a special function that doesn't include the 'Deny' option
-            let permissionOptions = this.#buildPermissionOptions(item.permission)
+            let permissionOptions = this.#buildPermissionOptions()
 
             if (serverName === 'Built-in') {
-                permissionOptions = this.#buildBuiltInPermissionOptions(item.permission)
+                permissionOptions = this.#buildBuiltInPermissionOptions()
             }
 
             filterOptions.push({
@@ -1094,22 +1105,9 @@ export class McpEventHandler {
     }
 
     /**
-     * Gets the current permission setting for a tool
-     */
-    #getCurrentPermission(permission: string): string {
-        if (permission === McpPermissionType.alwaysAllow) {
-            return 'Always allow'
-        } else if (permission === McpPermissionType.deny) {
-            return 'Deny'
-        } else {
-            return 'Ask'
-        }
-    }
-
-    /**
      * Builds permission options excluding the current one
      */
-    #buildPermissionOptions(currentPermission: string) {
+    #buildPermissionOptions() {
         const permissionOptions: PermissionOption[] = []
 
         permissionOptions.push({
@@ -1132,7 +1130,7 @@ export class McpEventHandler {
     /**
      * Builds permission options for Built-in tools (no 'Disable' option)
      */
-    #buildBuiltInPermissionOptions(currentPermission: string) {
+    #buildBuiltInPermissionOptions() {
         const permissionOptions: PermissionOption[] = []
 
         permissionOptions.push({
@@ -1163,7 +1161,7 @@ export class McpEventHandler {
             case 'fsWrite':
             case 'fsReplace':
                 return 'Create or edit files.'
-            case 'qCodeReview':
+            case 'codeReview':
                 return 'Review tool analyzes code for security vulnerabilities, quality issues, and best practices across multiple programming languages.'
             default:
                 return ''
@@ -1175,12 +1173,6 @@ export class McpEventHandler {
      */
     async #handleMcpPermissionChange(params: McpServerClickParams) {
         const serverName = params.title
-
-        // combine fsWrite and fsReplace into fsWrite
-        if (serverName === 'Built-in' && params.optionsValues?.fsWrite) {
-            // add fsReplace along
-            params.optionsValues.fsReplace = params.optionsValues.fsWrite
-        }
 
         const updatedPermissionConfig = params.optionsValues
         if (!serverName || !updatedPermissionConfig) {
@@ -1197,6 +1189,7 @@ export class McpEventHandler {
             }
 
             const mcpServerPermission = await this.#processPermissionUpdates(
+                serverName,
                 updatedPermissionConfig,
                 serverConfig?.__configPath__
             )
@@ -1255,6 +1248,33 @@ export class McpEventHandler {
                     transportType: transportType,
                     languageServerVersion: this.#features.runtime.serverInfo.version,
                 })
+            } else {
+                // it's mean built-in tool, but do another extra check to confirm
+                if (serverName === 'Built-in') {
+                    let toolName: string[] = []
+                    let perm: string[] = []
+
+                    for (const [key, val] of Object.entries(permission.toolPerms)) {
+                        toolName.push(key)
+                        perm.push(val)
+                    }
+
+                    this.#telemetryController?.emitMCPServerInitializeEvent({
+                        source: 'updatePermission',
+                        command: 'Built-in',
+                        enabled: true,
+                        numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+                        scope:
+                            permission.__configPath__ ===
+                            getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
+                                ? 'global'
+                                : 'workspace',
+                        transportType: '',
+                        languageServerVersion: this.#features.runtime.serverInfo.version,
+                        toolName: toolName,
+                        permission: perm,
+                    })
+                }
             }
 
             // Clear the pending permission config after applying
@@ -1394,7 +1414,7 @@ export class McpEventHandler {
     /**
      * Processes permission updates from the UI
      */
-    async #processPermissionUpdates(updatedPermissionConfig: any, agentPath: string | undefined) {
+    async #processPermissionUpdates(serverName: string, updatedPermissionConfig: any, agentPath: string | undefined) {
         const perm: MCPServerPermission = {
             enabled: true,
             toolPerms: {},
@@ -1405,16 +1425,8 @@ export class McpEventHandler {
         for (const [key, val] of Object.entries(updatedPermissionConfig)) {
             if (key === 'scope') continue
 
-            // // Get the default permission for this tool from McpManager
-            // let defaultPermission = McpManager.instance.getToolPerm(serverName, key)
-
-            // // If no default permission is found, use 'alwaysAllow' for Built-in and 'ask' for MCP servers
-            // if (!defaultPermission) {
-            //     defaultPermission = serverName === 'Built-in' ? 'alwaysAllow' : 'ask'
-            // }
-
-            // If the value is an empty string (''), skip this tool to preserve its existing permission in the persona file
-            if (val === '') continue
+            const currentPerm = McpManager.instance.getToolPerm(serverName, key)
+            if (val === currentPerm) continue
             switch (val) {
                 case McpPermissionType.alwaysAllow:
                     perm.toolPerms[key] = McpPermissionType.alwaysAllow
