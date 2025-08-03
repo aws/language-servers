@@ -200,7 +200,7 @@ Select code & ask me to explain, debug or optimize it, or type \`/\` for quick a
             tabBarButtons.push({
                 id: McpServerTabButtonId,
                 icon: MynahIcons.TOOLS,
-                description: 'Configure MCP servers',
+                description: 'Configure MCP servers and Built-in tools',
             })
         }
 

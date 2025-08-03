@@ -13,6 +13,15 @@ import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 // eslint-disable-next-line import/no-nodejs-modules
 import { existsSync, statSync } from 'fs'
 
+// Warning message
+import {
+    BINARY_FILE_WARNING_MSG,
+    CREDENTIAL_FILE_WARNING_MSG,
+    DESTRUCTIVE_COMMAND_WARNING_MSG,
+    MUTATE_COMMAND_WARNING_MSG,
+    OUT_OF_WORKSPACE_WARNING_MSG,
+} from '../constants/constants'
+
 export enum CommandCategory {
     ReadOnly,
     Mutate,
@@ -87,12 +96,6 @@ export const commandCategories = new Map<string, CommandCategory>([
 ])
 export const maxToolResponseSize: number = 1024 * 1024 // 1MB
 export const lineCount: number = 1024
-export const destructiveCommandWarningMessage = 'WARNING: Potentially destructive command detected:\n\n'
-export const mutateCommandWarningMessage = 'Mutation command:\n\n'
-export const outOfWorkspaceWarningmessage = 'Execution out of workspace scope:\n\n'
-export const credentialFileWarningMessage =
-    'WARNING: Command involves credential files that require secure permissions:\n\n'
-export const binaryFileWarningMessage = 'WARNING: Command involves binary files that require secure permissions:\n\n'
 
 /**
  * Parameters for executing a command on the system shell.
@@ -211,7 +214,7 @@ export class ExecuteBash {
                             // Treat tilde paths as absolute paths (they will be expanded by the shell)
                             return {
                                 requiresAcceptance: true,
-                                warning: destructiveCommandWarningMessage,
+                                warning: DESTRUCTIVE_COMMAND_WARNING_MSG,
                                 commandCategory: CommandCategory.Destructive,
                             }
                         } else if (!isAbsolute(arg) && params.cwd) {
@@ -234,7 +237,7 @@ export class ExecuteBash {
                                     this.logging.info(`Detected credential file in command: ${fullPath}`)
                                     return {
                                         requiresAcceptance: true,
-                                        warning: credentialFileWarningMessage,
+                                        warning: CREDENTIAL_FILE_WARNING_MSG,
                                         commandCategory: CommandCategory.Mutate,
                                     }
                                 }
@@ -244,7 +247,7 @@ export class ExecuteBash {
                                     this.logging.info(`Detected binary file in command: ${fullPath}`)
                                     return {
                                         requiresAcceptance: true,
-                                        warning: binaryFileWarningMessage,
+                                        warning: BINARY_FILE_WARNING_MSG,
                                         commandCategory: CommandCategory.Mutate,
                                     }
                                 }
@@ -261,7 +264,7 @@ export class ExecuteBash {
                         if (!isInWorkspace) {
                             return {
                                 requiresAcceptance: true,
-                                warning: outOfWorkspaceWarningmessage,
+                                warning: OUT_OF_WORKSPACE_WARNING_MSG,
                                 commandCategory: highestCommandCategory,
                             }
                         }
@@ -285,13 +288,13 @@ export class ExecuteBash {
                     case CommandCategory.Destructive:
                         return {
                             requiresAcceptance: true,
-                            warning: destructiveCommandWarningMessage,
+                            warning: DESTRUCTIVE_COMMAND_WARNING_MSG,
                             commandCategory: CommandCategory.Destructive,
                         }
                     case CommandCategory.Mutate:
                         return {
                             requiresAcceptance: true,
-                            warning: mutateCommandWarningMessage,
+                            warning: MUTATE_COMMAND_WARNING_MSG,
                             commandCategory: CommandCategory.Mutate,
                         }
                     case CommandCategory.ReadOnly:
@@ -313,7 +316,7 @@ export class ExecuteBash {
                     if (!workspaceFolders || workspaceFolders.length === 0) {
                         return {
                             requiresAcceptance: true,
-                            warning: outOfWorkspaceWarningmessage,
+                            warning: OUT_OF_WORKSPACE_WARNING_MSG,
                             commandCategory: highestCommandCategory,
                         }
                     }
@@ -330,7 +333,7 @@ export class ExecuteBash {
                     if (!isInWorkspace) {
                         return {
                             requiresAcceptance: true,
-                            warning: outOfWorkspaceWarningmessage,
+                            warning: OUT_OF_WORKSPACE_WARNING_MSG,
                             commandCategory: highestCommandCategory,
                         }
                     }
