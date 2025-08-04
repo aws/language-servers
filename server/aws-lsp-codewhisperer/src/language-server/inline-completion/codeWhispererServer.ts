@@ -31,7 +31,7 @@ import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUti
 import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
+import { AcceptedInlineSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
 import {
     AmazonQError,
     AmazonQServiceConnectionExpiredError,
@@ -141,16 +141,6 @@ const mergeSuggestionsWithRightContext = (
                 : undefined,
         }
     })
-}
-
-interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
-    sessionId: string
-    requestId: string
-    languageId: CodewhispererLanguage
-    customizationArn?: string
-    completionType: string
-    triggerType: string
-    credentialStartUrl?: string | undefined
 }
 
 export const CodewhispererServerFactory =
