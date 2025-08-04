@@ -294,6 +294,10 @@ export const createChat = (
                     tabFactory.enableReroute()
                 }
 
+                if ((params as any)?.codeReviewInChat) {
+                    tabFactory.enableCodeReviewInChat()
+                }
+
                 if (params?.quickActions?.quickActionsCommandGroups) {
                     const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
                         ...group,
@@ -315,6 +319,10 @@ export const createChat = (
 
                 if (params?.export) {
                     tabFactory.enableExport()
+                }
+
+                if (params?.showLogs) {
+                    tabFactory.enableShowLogs()
                 }
 
                 const allExistingTabs: MynahUITabStoreModel = mynahUi.getAllTabs()

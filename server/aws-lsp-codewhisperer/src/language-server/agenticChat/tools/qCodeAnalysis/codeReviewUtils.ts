@@ -6,7 +6,7 @@
 /* eslint-disable import/no-nodejs-modules */
 
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE } from './qCodeReviewConstants'
+import { SKIP_DIRECTORIES, EXTENSION_TO_LANGUAGE, CODE_REVIEW_METRICS_PARENT_NAME } from './codeReviewConstants'
 import JSZip = require('jszip')
 import { exec } from 'child_process'
 import * as path from 'path'
@@ -18,11 +18,12 @@ import { QClientCapabilities } from '../../../configuration/qConfigurationServer
 import { CancellationError } from '@aws/lsp-core'
 import { InvokeOutput } from '../toolShared'
 import { CancellationToken } from '@aws/language-server-runtimes/server-interface'
+import { CodeReviewMetric } from './codeReviewTypes'
 
 /**
- * Utility functions for QCodeReview
+ * Utility functions for CodeReview
  */
-export class QCodeReviewUtils {
+export class CodeReviewUtils {
     /**
      * Check if a file should be skipped during zip creation
      * @param fileName Name of the file to check
@@ -35,6 +36,16 @@ export class QCodeReviewUtils {
         } else {
             return !EXTENSION_TO_LANGUAGE.hasOwnProperty(extension)
         }
+    }
+
+    /**
+     * Get language of a file based on extension
+     * @param fileName Name of the file
+     * @returns Language of file
+     */
+    public static getFileLanguage(fileName: string): string {
+        const extension = path.extname(fileName).toLowerCase()
+        return EXTENSION_TO_LANGUAGE[extension]
     }
 
     /**
@@ -126,7 +137,7 @@ export class QCodeReviewUtils {
     public static async getGitDiff(artifactPath: string, logging: Features['logging']): Promise<string | null> {
         logging.info(`Get git diff for path - ${artifactPath}`)
 
-        const directoryPath = QCodeReviewUtils.getFolderPath(artifactPath)
+        const directoryPath = CodeReviewUtils.getFolderPath(artifactPath)
         const gitDiffCommandUnstaged = `cd ${directoryPath} && git diff ${artifactPath}`
         const gitDiffCommandStaged = `cd ${directoryPath} && git diff --staged ${artifactPath}`
 
@@ -134,8 +145,8 @@ export class QCodeReviewUtils {
 
         try {
             const [unstagedDiff, stagedDiff] = await Promise.all([
-                QCodeReviewUtils.executeGitCommand(gitDiffCommandUnstaged, 'unstaged', logging),
-                QCodeReviewUtils.executeGitCommand(gitDiffCommandStaged, 'staged', logging),
+                CodeReviewUtils.executeGitCommand(gitDiffCommandUnstaged, 'unstaged', logging),
+                CodeReviewUtils.executeGitCommand(gitDiffCommandStaged, 'staged', logging),
             ])
 
             const combinedDiff = [unstagedDiff, stagedDiff].filter(Boolean).join('\n\n')
@@ -224,7 +235,7 @@ export class QCodeReviewUtils {
         if (!isCodeDiffScan) return ''
 
         try {
-            const diff = await QCodeReviewUtils.getGitDiff(artifact.path, logging)
+            const diff = await CodeReviewUtils.getGitDiff(artifact.path, logging)
             return diff ? `${diff}\n` : ''
         } catch (diffError) {
             logging.warn(`Failed to get git diff for ${artifact.path}: ${diffError}`)
@@ -264,7 +275,19 @@ export class QCodeReviewUtils {
         const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
             | QClientCapabilities
             | undefined
-        return qCapabilities?.qCodeReviewInChat || false
+        return qCapabilities?.codeReviewInChat || false
+    }
+
+    /**
+     * Check if storing display findings in the Code Issues panel is enabled.
+     * @param params Initialize parameters from client
+     * @returns True if display findings is enabled, false otherwise
+     */
+    public static isDisplayFindingsEnabled(params: InitializeParams | undefined): boolean {
+        const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+            | QClientCapabilities
+            | undefined
+        return qCapabilities?.displayFindings || false
     }
 
     /**
@@ -350,43 +373,6 @@ export class QCodeReviewUtils {
     }
 
     /**
-     * Handle failure in a consistent way
-     * @param error Error object
-     * @param scanName Optional scan name for context
-     * @param jobId Optional job ID for context
-     * @param logging Logging interface
-     * @param telemetry Telemetry interface
-     * @param toolName Tool name for error messages
-     * @returns Standardized error response
-     */
-    public static handleFailure(
-        error: any,
-        logging: Features['logging'],
-        telemetry: Features['telemetry'],
-        toolName: string,
-        scanName?: string,
-        jobId?: string
-    ): any {
-        // if error is of type CancellationError then throw
-        if (error instanceof CancellationError) {
-            throw error
-        }
-
-        const errorData: any = { errorMessage: error?.message }
-        if (scanName) errorData.codeScanName = scanName
-        if (jobId) errorData.codeReviewId = jobId
-
-        QCodeReviewUtils.emitMetric('failed', { data: errorData }, toolName, logging, telemetry)
-
-        logging.error(`Error in ${toolName} - ${error?.message}`)
-
-        return {
-            status: 'Failed',
-            ...errorData,
-        }
-    }
-
-    /**
      * Emit a telemetry metric with standard formatting
      * @param metricSuffix Suffix for the metric name
      * @param metricData Additional metric data
@@ -396,22 +382,20 @@ export class QCodeReviewUtils {
      * @param credentialStartUrl Optional credential start URL
      */
     public static emitMetric(
-        metricSuffix: string,
-        metricData: any,
-        toolName: string,
+        metric: CodeReviewMetric,
         logging: Features['logging'],
-        telemetry: Features['telemetry'],
-        credentialStartUrl?: string
+        telemetry: Features['telemetry']
     ): void {
-        const metricName = `${toolName}_${metricSuffix}`
+        const { metadata, ...metricDetails } = metric
         const metricPayload = {
-            name: metricName,
+            name: CODE_REVIEW_METRICS_PARENT_NAME,
             data: {
-                ...(credentialStartUrl ? { credentialStartUrl } : {}),
-                ...metricData,
+                // metadata is optional attribute
+                ...(metadata || {}),
+                ...metricDetails,
             },
         }
-        logging.info(`Emitting telemetry metric: ${metricName} with data: ${JSON.stringify(metricPayload.data)}`)
+        logging.info(`Emitting telemetry metric: ${metric.reason} with data: ${JSON.stringify(metricPayload.data)}`)
         telemetry.emitMetric(metricPayload)
     }
 

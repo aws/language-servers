@@ -32,10 +32,11 @@
         "test:coverage": "npm run compile && npm run test:coverage --workspaces --if-present",
         "coverage:report": "npm run coverage:report --workspaces --if-present",
         "coverage:check": "npm run coverage:check --workspaces --if-present",
-        "package": "npm run compile && npm run package --workspaces --if-present"
+        "package": "npm run compile && npm run package --workspaces --if-present",
+        "ci:generate:agentic:attribution": "ts-node ./script/prepare-agentic-attribution-dependencies.ts && ./script/generate-agentic-attribution.sh && git restore package.json"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.112",
+        "@aws/language-server-runtimes": "^0.2.116",
         "@smithy/types": "4.2.0",
         "clean": "^4.0.2",
         "typescript": "^5.8.2"
@@ -53,7 +54,9 @@
         "eslint-plugin-import": "^2.29.1",
         "eslint-plugin-unused-imports": "^4.1.4",
         "husky": "^9.1.7",
+        "license-checker": "^25.0.1",
         "node-loader": "^2.1.0",
+        "oss-attribution-generator": "^1.7.1",
         "prettier": "^3.3.3",
         "pretty-quick": "^4.0.0",
         "shx": "^0.3.4",

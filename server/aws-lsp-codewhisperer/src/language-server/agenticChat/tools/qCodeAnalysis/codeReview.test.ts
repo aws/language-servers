@@ -3,18 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { QCodeReview } from './qCodeReview'
-import { QCodeReviewUtils } from './qCodeReviewUtils'
-import { Q_CODE_REVIEW_TOOL_NAME, FULL_REVIEW, CODE_DIFF_REVIEW } from './qCodeReviewConstants'
+import { CodeReview } from './codeReview'
+import { CodeReviewUtils } from './codeReviewUtils'
+import { CODE_REVIEW_TOOL_NAME, FULL_REVIEW, CODE_DIFF_REVIEW } from './codeReviewConstants'
 import * as sinon from 'sinon'
 import * as path from 'path'
 import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import * as JSZip from 'jszip'
 
-describe('QCodeReview', () => {
+describe('CodeReview', () => {
     let sandbox: sinon.SinonSandbox
-    let qCodeReview: QCodeReview
+    let codeReview: CodeReview
     let mockFeatures: any
     let mockCodeWhispererClient: any
     let mockCancellationToken: any
@@ -66,7 +66,7 @@ describe('QCodeReview', () => {
             },
         }
 
-        qCodeReview = new QCodeReview(mockFeatures)
+        codeReview = new CodeReview(mockFeatures)
     })
 
     afterEach(() => {
@@ -75,15 +75,15 @@ describe('QCodeReview', () => {
 
     describe('static properties', () => {
         it('should have correct tool name', () => {
-            expect(QCodeReview.toolName).to.equal(Q_CODE_REVIEW_TOOL_NAME)
+            expect(CodeReview.toolName).to.equal(CODE_REVIEW_TOOL_NAME)
         })
 
         it('should have tool description', () => {
-            expect(QCodeReview.toolDescription).to.be.a('string')
+            expect(CodeReview.toolDescription).to.be.a('string')
         })
 
         it('should have input schema', () => {
-            expect(QCodeReview.inputSchema).to.be.an('object')
+            expect(CodeReview.inputSchema).to.be.an('object')
         })
     })
 
@@ -128,15 +128,16 @@ describe('QCodeReview', () => {
                 nextToken: undefined,
             })
 
-            sandbox.stub(QCodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
-            sandbox.stub(qCodeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
+            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
+            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
             })
-            sandbox.stub(qCodeReview as any, 'parseFindings').returns([])
+            sandbox.stub(codeReview as any, 'parseFindings').returns([])
 
-            const result = await qCodeReview.execute(validInput, context)
+            const result = await codeReview.execute(validInput, context)
 
             expect(result.output.success).to.be.true
             expect(result.output.kind).to.equal('json')
@@ -145,10 +146,12 @@ describe('QCodeReview', () => {
         it('should handle missing client error', async () => {
             context.codeWhispererClient = undefined
 
-            const result = await qCodeReview.execute(validInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.equal('CodeWhisperer client not available')
+            try {
+                await codeReview.execute(validInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.equal('CodeWhisperer client not available')
+            }
         })
 
         it('should handle missing artifacts error', async () => {
@@ -159,12 +162,14 @@ describe('QCodeReview', () => {
                 scopeOfReview: FULL_REVIEW,
             }
 
-            const result = await qCodeReview.execute(invalidInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.include(
-                'Missing fileLevelArtifacts and folderLevelArtifacts for qCodeReview tool'
-            )
+            try {
+                await codeReview.execute(invalidInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.include(
+                    'Missing fileLevelArtifacts and folderLevelArtifacts for codeReview tool'
+                )
+            }
         })
 
         it('should handle upload failure', async () => {
@@ -173,16 +178,19 @@ describe('QCodeReview', () => {
                 uploadId: undefined,
             })
 
-            sandbox.stub(qCodeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
+            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
             })
 
-            const result = await qCodeReview.execute(validInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.include('Failed to upload artifact')
+            try {
+                await codeReview.execute(validInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.include('Failed to upload artifact')
+            }
         })
 
         it('should handle analysis start failure', async () => {
@@ -196,17 +204,20 @@ describe('QCodeReview', () => {
                 jobId: undefined,
             })
 
-            sandbox.stub(QCodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
-            sandbox.stub(qCodeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
+            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
+            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
             })
 
-            const result = await qCodeReview.execute(validInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.include('Failed to start code analysis')
+            try {
+                await codeReview.execute(validInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.include('Failed to start code analysis')
+            }
         })
 
         it('should handle scan timeout', async () => {
@@ -226,11 +237,12 @@ describe('QCodeReview', () => {
                 status: 'Pending',
             })
 
-            sandbox.stub(QCodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
-            sandbox.stub(qCodeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
+            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
+            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
                 zipBuffer: Buffer.from('test'),
                 md5Hash: 'hash123',
                 isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
             })
 
             // Stub setTimeout to avoid actual delays
@@ -240,17 +252,19 @@ describe('QCodeReview', () => {
                 return {} as any
             })
 
-            const result = await qCodeReview.execute(validInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.include('Code scan timed out')
+            try {
+                await codeReview.execute(validInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.include('Code review timed out')
+            }
         })
 
         it('should handle cancellation', async () => {
             mockCancellationToken.isCancellationRequested = true
 
             try {
-                await qCodeReview.execute(validInput, context)
+                await codeReview.execute(validInput, context)
                 expect.fail('Expected cancellation error')
             } catch (error) {
                 expect(error).to.be.instanceOf(CancellationError)
@@ -273,7 +287,7 @@ describe('QCodeReview', () => {
                 codeWhispererClient: mockCodeWhispererClient,
             }
 
-            const result = await (qCodeReview as any).validateInputAndSetup(input, context)
+            const result = await (codeReview as any).validateInputAndSetup(input, context)
 
             expect(result.fileArtifacts).to.have.length(1)
             expect(result.folderArtifacts).to.have.length(0)
@@ -297,7 +311,7 @@ describe('QCodeReview', () => {
                 codeWhispererClient: mockCodeWhispererClient,
             }
 
-            const result = await (qCodeReview as any).validateInputAndSetup(input, context)
+            const result = await (codeReview as any).validateInputAndSetup(input, context)
 
             expect(result.fileArtifacts).to.have.length(0)
             expect(result.folderArtifacts).to.have.length(1)
@@ -322,7 +336,7 @@ describe('QCodeReview', () => {
             const folderArtifacts = [{ path: '/test/folder' }]
             const ruleArtifacts: any[] = []
 
-            const result = await (qCodeReview as any).prepareFilesAndFoldersForUpload(
+            const result = await (codeReview as any).prepareFilesAndFoldersForUpload(
                 fileArtifacts,
                 folderArtifacts,
                 ruleArtifacts,
@@ -339,9 +353,9 @@ describe('QCodeReview', () => {
             const folderArtifacts: any[] = []
             const ruleArtifacts: any[] = []
 
-            sandbox.stub(QCodeReviewUtils, 'processArtifactWithDiff').resolves('diff content\n')
+            sandbox.stub(CodeReviewUtils, 'processArtifactWithDiff').resolves('diff content\n')
 
-            const result = await (qCodeReview as any).prepareFilesAndFoldersForUpload(
+            const result = await (codeReview as any).prepareFilesAndFoldersForUpload(
                 fileArtifacts,
                 folderArtifacts,
                 ruleArtifacts,
@@ -357,10 +371,10 @@ describe('QCodeReview', () => {
             const ruleArtifacts = [{ path: '/test/rule.json' }]
 
             // Mock countZipFiles to return only rule artifacts count
-            sandbox.stub(QCodeReviewUtils, 'countZipFiles').returns(1)
+            sandbox.stub(CodeReviewUtils, 'countZipFiles').returns(1)
 
             try {
-                await (qCodeReview as any).prepareFilesAndFoldersForUpload(
+                await (codeReview as any).prepareFilesAndFoldersForUpload(
                     fileArtifacts,
                     folderArtifacts,
                     ruleArtifacts,
@@ -376,7 +390,7 @@ describe('QCodeReview', () => {
     describe('collectFindings', () => {
         beforeEach(() => {
             // Set up the client in the instance
-            ;(qCodeReview as any).codeWhispererClient = mockCodeWhispererClient
+            ;(codeReview as any).codeWhispererClient = mockCodeWhispererClient
         })
 
         it('should collect findings for full review', async () => {
@@ -390,9 +404,9 @@ describe('QCodeReview', () => {
                 nextToken: undefined,
             })
 
-            sandbox.stub(qCodeReview as any, 'parseFindings').returns(mockFindings)
+            sandbox.stub(codeReview as any, 'parseFindings').returns(mockFindings)
 
-            const result = await (qCodeReview as any).collectFindings('job-123', true, false, 'javascript')
+            const result = await (codeReview as any).collectFindings('job-123', true, false, 'javascript')
 
             expect(result.totalFindings).to.have.length(2)
             expect(result.findingsExceededLimit).to.be.false
@@ -409,9 +423,9 @@ describe('QCodeReview', () => {
                 nextToken: undefined,
             })
 
-            sandbox.stub(qCodeReview as any, 'parseFindings').returns(mockFindings)
+            sandbox.stub(codeReview as any, 'parseFindings').returns(mockFindings)
 
-            const result = await (qCodeReview as any).collectFindings('job-123', false, true, 'javascript')
+            const result = await (codeReview as any).collectFindings('job-123', false, true, 'javascript')
 
             expect(result.totalFindings).to.have.length(1)
             expect(result.totalFindings[0].findingContext).to.equal('CodeDiff')
@@ -434,13 +448,13 @@ describe('QCodeReview', () => {
                 })
 
             sandbox
-                .stub(qCodeReview as any, 'parseFindings')
+                .stub(codeReview as any, 'parseFindings')
                 .onFirstCall()
                 .returns(mockFindings1)
                 .onSecondCall()
                 .returns(mockFindings2)
 
-            const result = await (qCodeReview as any).collectFindings('job-123', true, false, 'javascript')
+            const result = await (codeReview as any).collectFindings('job-123', true, false, 'javascript')
 
             expect(result.totalFindings).to.have.length(2)
             sinon.assert.calledTwice(mockCodeWhispererClient.listCodeAnalysisFindings)
@@ -476,9 +490,9 @@ describe('QCodeReview', () => {
             const fileArtifacts = [{ path: '/test/file.js' }]
             const folderArtifacts: any[] = []
 
-            sandbox.stub(qCodeReview as any, 'resolveFilePath').returns('/test/file.js')
+            sandbox.stub(codeReview as any, 'resolveFilePath').returns('/test/file.js')
 
-            const result = (qCodeReview as any).aggregateFindingsByFile(mockFindings, fileArtifacts, folderArtifacts)
+            const result = (codeReview as any).aggregateFindingsByFile(mockFindings, fileArtifacts, folderArtifacts)
 
             expect(result).to.have.length(1)
             expect(result[0].filePath).to.equal('/test/file.js')
@@ -500,7 +514,7 @@ describe('QCodeReview', () => {
             const fileArtifacts = [{ path: filePath }]
             const folderArtifacts: any[] = []
 
-            const result = (qCodeReview as any).resolveFilePath('src/file.js', fileArtifacts, folderArtifacts)
+            const result = (codeReview as any).resolveFilePath('src/file.js', fileArtifacts, folderArtifacts)
 
             expect(result).to.equal(filePath)
         })
@@ -509,7 +523,7 @@ describe('QCodeReview', () => {
             const fileArtifacts: any[] = []
             const folderArtifacts = [{ path: path.resolve('/project/src') }]
 
-            const result = (qCodeReview as any).resolveFilePath('file.js', fileArtifacts, folderArtifacts)
+            const result = (codeReview as any).resolveFilePath('file.js', fileArtifacts, folderArtifacts)
 
             expect(result).to.equal(path.resolve('/project/src/file.js'))
         })
@@ -521,11 +535,7 @@ describe('QCodeReview', () => {
             existsSyncStub.returns(true)
             statSyncStub.returns({ isFile: () => true })
 
-            const result = (qCodeReview as any).resolveFilePath(
-                'src/main/java/App.java',
-                fileArtifacts,
-                folderArtifacts
-            )
+            const result = (codeReview as any).resolveFilePath('src/main/java/App.java', fileArtifacts, folderArtifacts)
 
             expect(result).to.equal(path.resolve('/project/src/main/java/App.java'))
         })
@@ -536,7 +546,7 @@ describe('QCodeReview', () => {
             const fileArtifacts: any[] = []
             const folderArtifacts: any[] = []
 
-            const result = (qCodeReview as any).resolveFilePath('nonexistent.js', fileArtifacts, folderArtifacts)
+            const result = (codeReview as any).resolveFilePath('nonexistent.js', fileArtifacts, folderArtifacts)
 
             expect(result).to.be.null
         })
@@ -547,7 +557,7 @@ describe('QCodeReview', () => {
             mockCancellationToken.isCancellationRequested = false
 
             expect(() => {
-                ;(qCodeReview as any).checkCancellation()
+                ;(codeReview as any).checkCancellation()
             }).to.not.throw()
         })
 
@@ -555,10 +565,10 @@ describe('QCodeReview', () => {
             mockCancellationToken.isCancellationRequested = true
 
             // Set up the cancellation token in the instance
-            ;(qCodeReview as any).cancellationToken = mockCancellationToken
+            ;(codeReview as any).cancellationToken = mockCancellationToken
 
             expect(() => {
-                ;(qCodeReview as any).checkCancellation()
+                ;(codeReview as any).checkCancellation()
             }).to.throw(CancellationError)
         })
     })
@@ -579,12 +589,14 @@ describe('QCodeReview', () => {
             }
 
             // Make prepareFilesAndFoldersForUpload throw an error
-            sandbox.stub(qCodeReview as any, 'prepareFilesAndFoldersForUpload').rejects(new Error('Unexpected error'))
+            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').rejects(new Error('Unexpected error'))
 
-            const result = await qCodeReview.execute(input, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.equal('Unexpected error')
+            try {
+                await codeReview.execute(input, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.equal('Unexpected error')
+            }
         })
     })
 })

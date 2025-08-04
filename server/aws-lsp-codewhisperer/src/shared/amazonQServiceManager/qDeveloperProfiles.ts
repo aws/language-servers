@@ -45,12 +45,18 @@ export const getListAllAvailableProfilesHandler =
         let allProfiles: AmazonQDeveloperProfile[] = []
         const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
 
+        // Log all regions we're going to try
+        logging.log(
+            `Attempting to fetch profiles from ${qEndpoints.size} regions: ${Array.from(qEndpoints.keys()).join(', ')}`
+        )
+
         if (token.isCancellationRequested) {
             return []
         }
 
         const result = await Promise.allSettled(
             Array.from(qEndpoints.entries(), ([region, endpoint]) => {
+                logging.log(`Creating service client for region: ${region}`)
                 const codeWhispererService = service(region, endpoint)
                 return fetchProfilesFromRegion(codeWhispererService, region, logging, token)
             })
@@ -59,6 +65,21 @@ export const getListAllAvailableProfilesHandler =
         if (token.isCancellationRequested) {
             return []
         }
+
+        // Log detailed results from each region
+        try {
+            result.forEach((settledResult, index) => {
+                const [region, endpoint] = Array.from(qEndpoints.entries())[index]
+                if (settledResult.status === 'fulfilled') {
+                    const profiles = settledResult.value
+                    logging.log(`Successfully fetched ${profiles.length} profiles from region: ${region}`)
+                } else {
+                    logging.error(
+                        `Failed to fetch profiles from region: ${region}, error: ${settledResult.reason?.name || 'unknown'}, message: ${settledResult.reason?.message || 'No message'}`
+                    )
+                }
+            })
+        } catch (loggingError) {}
 
         const fulfilledResults = result.filter(settledResult => settledResult.status === 'fulfilled')
         const hasThrottlingError = result.some(
@@ -76,6 +97,15 @@ export const getListAllAvailableProfilesHandler =
         }
 
         fulfilledResults.forEach(fulfilledResult => allProfiles.push(...fulfilledResult.value))
+
+        // Log summary of all profiles fetched
+        try {
+            logging.log(`Total profiles fetched: ${allProfiles.length}`)
+            if (allProfiles.length > 0) {
+                logging.log(`Profile names: ${allProfiles.map(p => p.name).join(', ')}`)
+                logging.log(`Profile regions: ${allProfiles.map(p => p.identityDetails?.region).join(', ')}`)
+            }
+        } catch (loggingError) {}
 
         // Check for partial throttling
         if (hasThrottlingError && allProfiles.length == 0) {
@@ -97,17 +127,25 @@ async function fetchProfilesFromRegion(
     let numberOfPages = 0
 
     try {
+        logging.log(`Starting profile fetch from region: ${region}`)
+
         do {
-            logging.debug(`Fetching profiles from region: ${region} (iteration: ${numberOfPages})`)
+            logging.debug(`Fetching profiles from region: ${region} (page: ${numberOfPages + 1})`)
 
             if (token.isCancellationRequested) {
+                logging.debug(`Cancellation requested during profile fetch from region: ${region}`)
                 return allRegionalProfiles
             }
 
-            const response = await service.listAvailableProfiles({
+            const requestParams = {
                 maxResults: MAX_Q_DEVELOPER_PROFILES_PER_PAGE,
                 nextToken: nextToken,
-            })
+            }
+            logging.debug(`Request params for region ${region}: ${JSON.stringify(requestParams)}`)
+
+            const response = await service.listAvailableProfiles(requestParams)
+
+            logging.debug(`Raw response from ${region}: ${JSON.stringify(response)}`)
 
             const profiles = response.profiles.map(profile => ({
                 arn: profile.arn,
@@ -117,16 +155,29 @@ async function fetchProfilesFromRegion(
                 },
             }))
 
+            logging.log(`Fetched ${profiles.length} profiles from ${region} (page: ${numberOfPages + 1})`)
+            if (profiles.length > 0) {
+                logging.log(`Profile names from ${region}: ${profiles.map(p => p.name).join(', ')}`)
+            }
+
             allRegionalProfiles.push(...profiles)
 
-            logging.debug(`Fetched profiles from ${region}: ${JSON.stringify(response)} (iteration: ${numberOfPages})`)
             nextToken = response.nextToken
+            if (nextToken) {
+                logging.debug(`Next token received from ${region}: ${nextToken.substring(0, 10)}...`)
+            } else {
+                logging.debug(`No next token received from ${region}, pagination complete`)
+            }
+
             numberOfPages++
         } while (nextToken !== undefined && numberOfPages < MAX_Q_DEVELOPER_PROFILE_PAGES)
 
+        logging.log(`Completed fetching profiles from ${region}, total profiles: ${allRegionalProfiles.length}`)
         return allRegionalProfiles
     } catch (error) {
-        logging.error(`Error fetching profiles from ${region}: ${error}`)
+        // Enhanced error logging with complete error object
+        logging.error(`Error fetching profiles from region: ${region}`)
+        logging.log(`Complete error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
 
         throw error
     }

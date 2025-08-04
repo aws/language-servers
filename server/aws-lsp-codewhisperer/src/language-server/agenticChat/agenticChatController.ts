@@ -24,7 +24,7 @@ import {
     GREP_SEARCH,
     FILE_SEARCH,
     EXECUTE_BASH,
-    Q_CODE_REVIEW,
+    CODE_REVIEW,
     BUTTON_RUN_SHELL_COMMAND,
     BUTTON_REJECT_SHELL_COMMAND,
     BUTTON_REJECT_MCP_TOOL,
@@ -106,6 +106,7 @@ import {
     ChatInteractionType,
     ChatTelemetryEventName,
     CombinedConversationEvent,
+    CompactHistoryActionType,
 } from '../../shared/telemetry/types'
 import { Features, LspHandlers, Result } from '../types'
 import { ChatEventParser, ChatResultWithMetadata } from '../chat/chatEventParser'
@@ -123,6 +124,8 @@ import {
     isUsageLimitError,
     isNullish,
     getOriginFromClientInfo,
+    sanitizeInput,
+    sanitizeRequestInput,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -135,7 +138,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { TabBarController } from './tabBarController'
-import { ChatDatabase, ToolResultValidationError } from './tools/chatDb/chatDb'
+import { ChatDatabase, MaxOverallCharacters, ToolResultValidationError } from './tools/chatDb/chatDb'
 import {
     AgenticChatEventParser,
     ChatResultWithMetadata as AgenticChatResultWithMetadata,
@@ -185,9 +188,6 @@ import {
     DEFAULT_WINDOW_REJECT_SHORTCUT,
     DEFAULT_MACOS_STOP_SHORTCUT,
     DEFAULT_WINDOW_STOP_SHORTCUT,
-    OUT_OF_WORKSPACE_WARNING_MSG,
-    CREDENTIAL_FILE_WARNING_MSG,
-    BINARY_FILE_WARNING_MSG,
 } from './constants/constants'
 import {
     AgenticChatError,
@@ -200,8 +200,11 @@ import {
 import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
-import { QCodeReview } from './tools/qCodeAnalysis/qCodeReview'
-import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/qCodeReviewConstants'
+import { CodeReview } from './tools/qCodeAnalysis/codeReview'
+import {
+    CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
+    DISPLAY_FINDINGS_MESSAGE_SUFFIX,
+} from './tools/qCodeAnalysis/codeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -225,7 +228,7 @@ import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { enabledCompaction } from './qAgenticChatServer'
+import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -716,7 +719,9 @@ export class AgenticChatController implements ChatHandlers {
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         // Phase 1: Initial Setup - This happens only once
-        const maybeDefaultResponse = getDefaultChatResponse(params.prompt.prompt)
+        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
+
+        const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
             return maybeDefaultResponse
         }
@@ -838,6 +843,7 @@ export class AgenticChatController implements ChatHandlers {
                     chatResultStream,
                     params.tabId,
                     promptId,
+                    CompactHistoryActionType.Manual,
                     session.conversationId,
                     token,
                     triggerContext.documentReference
@@ -971,7 +977,7 @@ export class AgenticChatController implements ChatHandlers {
      */
     #shouldCompact(currentRequestCount: number): boolean {
         // 80% of 570K limit
-        if (enabledCompaction(this.#features.lsp.getClientInitializeParams()) && currentRequestCount > 456_000) {
+        if (currentRequestCount > 456_000) {
             this.#debug(`Current request total character count is: ${currentRequestCount}, prompting user to compact`)
             return true
         } else {
@@ -989,6 +995,7 @@ export class AgenticChatController implements ChatHandlers {
         chatResultStream: AgenticChatResultStream,
         tabId: string,
         promptId: string,
+        type: CompactHistoryActionType,
         conversationIdentifier?: string,
         token?: CancellationToken,
         documentReference?: FileList
@@ -1062,6 +1069,15 @@ export class AgenticChatController implements ChatHandlers {
         }
         await resultStreamWriter.close()
 
+        session.setConversationType('AgenticChatWithCompaction')
+        const conversationType = session.getConversationType() as ChatConversationType
+        metric.setDimension('cwsprChatConversationType', conversationType)
+        this.#telemetryController.emitCompactHistory(
+            type,
+            characterCount,
+            this.#features.runtime.serverInfo.version ?? ''
+        )
+
         // Add loading message before making the request
         const loadingMessageId = `loading-${uuid()}`
         await chatResultStream.writeResultBlock({ ...loadingMessage, messageId: loadingMessageId })
@@ -1069,19 +1085,15 @@ export class AgenticChatController implements ChatHandlers {
         this.#debug(`Compacting history with ${characterCount} characters`)
         this.#llmRequestStartTime = Date.now()
         // Phase 3: Request Execution
-        // Note: these logs are very noisy, but contain information redacted on the backend.
-        this.#debug(
-            `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`
-        )
+        currentRequestInput = sanitizeRequestInput(currentRequestInput)
+        this.#debug(`Compaction Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
         const response = await session.getChatResponse(currentRequestInput)
         if (response.$metadata.requestId) {
             metric.mergeWith({
                 requestIds: [response.$metadata.requestId],
             })
         }
-        this.#features.logging.info(
-            `generateAssistantResponse/SendMessage ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`
-        )
+        this.#features.logging.info(`Compaction ResponseMetadata: ${loggingUtils.formatObj(response.$metadata)}`)
         await chatResultStream.removeResultBlock(loadingMessageId)
 
         // Phase 4: Response Processing
@@ -1221,6 +1233,7 @@ export class AgenticChatController implements ChatHandlers {
 
             this.#llmRequestStartTime = Date.now()
             // Phase 3: Request Execution
+            currentRequestInput = sanitizeRequestInput(currentRequestInput)
             // Note: these logs are very noisy, but contain information redacted on the backend.
             this.#debug(
                 `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
@@ -1425,7 +1438,7 @@ export class AgenticChatController implements ChatHandlers {
 
         if (this.#shouldCompact(currentRequestCount)) {
             const messageId = this.#getMessageIdForCompact(uuid())
-            const confirmationResult = this.#processCompactConfirmation(messageId)
+            const confirmationResult = this.#processCompactConfirmation(messageId, currentRequestCount)
             const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
             await this.waitForCompactApproval(messageId, chatResultStream, cachedButtonBlockId, session)
             // Get the compaction request input
@@ -1438,6 +1451,7 @@ export class AgenticChatController implements ChatHandlers {
                 chatResultStream,
                 tabId,
                 promptId,
+                CompactHistoryActionType.Nudge,
                 session.conversationId,
                 token,
                 documentReference
@@ -1695,9 +1709,9 @@ export class AgenticChatController implements ChatHandlers {
                         const tool = new Tool(this.#features)
 
                         // For MCP tools, get the permission from McpManager
-                        const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
+                        // const permission = McpManager.instance.getToolPerm('Built-in', toolUse.name)
                         // If permission is 'alwaysAllow', we don't need to ask for acceptance
-                        const builtInPermission = permission !== 'alwaysAllow'
+                        // const builtInPermission = permission !== 'alwaysAllow'
 
                         // Get the approved paths from the session
                         const approvedPaths = session.approvedPaths
@@ -1708,40 +1722,19 @@ export class AgenticChatController implements ChatHandlers {
                             approvedPaths
                         )
 
-                        const isExecuteBash = toolUse.name === EXECUTE_BASH
-
-                        // check if tool execution's path is out of workspace
-                        const isOutOfWorkSpace = warning === OUT_OF_WORKSPACE_WARNING_MSG
-                        // check if tool involved secured files
-                        const isSecuredFilesInvoled =
-                            warning === BINARY_FILE_WARNING_MSG || warning === CREDENTIAL_FILE_WARNING_MSG
-
                         // Honor built-in permission if available, otherwise use tool's requiresAcceptance
-                        let toolRequiresAcceptance =
-                            (builtInPermission || isOutOfWorkSpace || isSecuredFilesInvoled) ?? requiresAcceptance
+                        // const requiresAcceptance = builtInPermission || toolRequiresAcceptance
 
-                        // if the command is read-only and in-workspace --> flip back to no approval needed
-                        if (
-                            isExecuteBash &&
-                            commandCategory === CommandCategory.ReadOnly &&
-                            !isOutOfWorkSpace &&
-                            !requiresAcceptance
-                        ) {
-                            toolRequiresAcceptance = false
-                        }
-
-                        if (toolRequiresAcceptance || isExecuteBash) {
+                        if (requiresAcceptance || toolUse.name === EXECUTE_BASH) {
                             // for executeBash, we till send the confirmation message without action buttons
                             const confirmationResult = this.#processToolConfirmation(
                                 toolUse,
-                                toolRequiresAcceptance,
+                                requiresAcceptance,
                                 warning,
-                                commandCategory,
-                                toolUse.name,
-                                builtInPermission
+                                commandCategory
                             )
                             cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
-
+                            const isExecuteBash = toolUse.name === EXECUTE_BASH
                             if (isExecuteBash) {
                                 this.#telemetryController.emitInteractWithAgenticChat(
                                     'GeneratedCommand',
@@ -1752,7 +1745,7 @@ export class AgenticChatController implements ChatHandlers {
                                     this.#abTestingAllocation?.userVariation
                                 )
                             }
-                            if (toolRequiresAcceptance) {
+                            if (requiresAcceptance) {
                                 await this.waitForToolApproval(
                                     toolUse,
                                     chatResultStream,
@@ -1774,8 +1767,9 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         break
                     }
-                    case QCodeReview.toolName:
-                        // no need to write tool message for code review
+                    case CodeReview.toolName:
+                    case DisplayFindings.toolName:
+                        // no need to write tool message for CodeReview or DisplayFindings
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
@@ -1849,7 +1843,7 @@ export class AgenticChatController implements ChatHandlers {
                     })
                 }
 
-                if (toolUse.name === QCodeReview.toolName) {
+                if (toolUse.name === CodeReview.toolName) {
                     try {
                         let initialInput = JSON.parse(JSON.stringify(toolUse.input))
                         let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
@@ -1861,7 +1855,7 @@ export class AgenticChatController implements ChatHandlers {
                         }
                         toolUse.input = initialInput
                     } catch (e) {
-                        this.#features.logging.warn(`could not parse QCodeReview tool input: ${e}`)
+                        this.#features.logging.warn(`could not parse CodeReview tool input: ${e}`)
                     }
                 }
 
@@ -1940,19 +1934,35 @@ export class AgenticChatController implements ChatHandlers {
                         )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
-                    case QCodeReview.toolName:
+                    case CodeReview.toolName:
                         // no need to write tool result for code review, this is handled by model via chat
                         // Push result in message so that it is picked by IDE plugin to show in issues panel
-                        const qCodeReviewResult = result as InvokeOutput
+                        const codeReviewResult = result as InvokeOutput
                         if (
-                            qCodeReviewResult?.output?.kind === 'json' &&
-                            qCodeReviewResult.output.success &&
-                            (qCodeReviewResult.output.content as any)?.findingsByFile
+                            codeReviewResult?.output?.kind === 'json' &&
+                            codeReviewResult.output.success &&
+                            (codeReviewResult.output.content as any)?.findingsByFile
                         ) {
                             await chatResultStream.writeResultBlock({
                                 type: 'tool',
-                                messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
-                                body: (qCodeReviewResult.output.content as any).findingsByFile,
+                                messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
+                                body: (codeReviewResult.output.content as any).findingsByFile,
+                            })
+                        }
+                        break
+                    case DisplayFindings.toolName:
+                        // no need to write tool result for code review, this is handled by model via chat
+                        // Push result in message so that it is picked by IDE plugin to show in issues panel
+                        const displayFindingsResult = result as InvokeOutput
+                        if (
+                            displayFindingsResult?.output?.kind === 'json' &&
+                            displayFindingsResult.output.success &&
+                            displayFindingsResult.output.content !== undefined
+                        ) {
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId + DISPLAY_FINDINGS_MESSAGE_SUFFIX,
+                                body: JSON.stringify(displayFindingsResult.output.content),
                             })
                         }
                         break
@@ -1986,7 +1996,8 @@ export class AgenticChatController implements ChatHandlers {
                         latency,
                         session.pairProgrammingMode,
                         this.#abTestingAllocation?.experimentName,
-                        this.#abTestingAllocation?.userVariation
+                        this.#abTestingAllocation?.userVariation,
+                        'Succeeded'
                     )
                 }
             } catch (err) {
@@ -2023,6 +2034,18 @@ export class AgenticChatController implements ChatHandlers {
                     if (toolUse.name === EXECUTE_BASH || toolUse.name) {
                         throw err
                     }
+                } else {
+                    // only emit if this is an actual tool error (not a user rejecting/canceling tool)
+                    this.#telemetryController.emitToolUseSuggested(
+                        toolUse,
+                        session.conversationId ?? '',
+                        this.#features.runtime.serverInfo.version ?? '',
+                        undefined,
+                        session.pairProgrammingMode,
+                        this.#abTestingAllocation?.experimentName,
+                        this.#abTestingAllocation?.userVariation,
+                        'Failed'
+                    )
                 }
 
                 // display fs write failure status in the UX of that file card
@@ -2261,7 +2284,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     #getWritableStream(chatResultStream: AgenticChatResultStream, toolUse: ToolUse): WritableStream | undefined {
-        if (toolUse.name === QCodeReview.toolName) {
+        if (toolUse.name === CodeReview.toolName) {
             return this.#getToolOverWritableStream(chatResultStream, toolUse)
         }
         if (toolUse.name !== EXECUTE_BASH) {
@@ -2458,7 +2481,7 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
-    #processCompactConfirmation(messageId: string): ChatResult {
+    #processCompactConfirmation(messageId: string, characterCount: number): ChatResult {
         const buttons = [{ id: 'allow-tools', text: 'Allow', icon: 'ok', status: 'clear' }]
         const header = {
             icon: 'warning',
@@ -2466,7 +2489,7 @@ export class AgenticChatController implements ChatHandlers {
             body: COMPACTION_HEADER_BODY,
             buttons,
         } as any
-        const body = COMPACTION_BODY
+        const body = COMPACTION_BODY(Math.round((characterCount / MaxOverallCharacters) * 100))
         return {
             type: 'tool',
             messageId,
@@ -2723,7 +2746,7 @@ export class AgenticChatController implements ChatHandlers {
                     body = builtInPermission
                         ? `I need permission to read files.\n${formattedPaths.join('\n')}`
                         : `I need permission to read files outside the workspace.\n${formattedPaths.join('\n')}`
-                } else if (toolName === 'listDirectory') {
+                } else {
                     const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
 
                     // Validate the path using our synchronous utility
@@ -2733,11 +2756,6 @@ export class AgenticChatController implements ChatHandlers {
                     body = builtInPermission
                         ? `I need permission to list directories.\n\`${readFilePath}\``
                         : `I need permission to list directories outside the workspace.\n\`${readFilePath}\``
-                } else {
-                    const readFilePath = (toolUse.input as unknown as ListDirectoryParams).path
-                    body = builtInPermission
-                        ? `I need permission to search files.\n\`${readFilePath}\``
-                        : `I need permission to search files outside the workspace.\n\`${readFilePath}\``
                 }
                 break
             }
@@ -3675,7 +3693,7 @@ export class AgenticChatController implements ChatHandlers {
                         {
                             messageId,
                             type: 'tool',
-                            body: COMPACTION_BODY,
+                            body: 'Compaction is skipped.',
                             header: {
                                 body: COMPACTION_HEADER_BODY,
                                 status: { icon: 'block', text: 'Ignored' },

@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.1.29](https://github.com/aws/language-servers/compare/chat-client/v0.1.28...chat-client/v0.1.29) (2025-07-29)
+
+
+### Features
+
+* **amazonq:** redirect /review, rename CodeReview tool, emit metrics, modify prompts ([#1964](https://github.com/aws/language-servers/issues/1964)) ([ad8e2db](https://github.com/aws/language-servers/commit/ad8e2db77e34f369fef9af71cdda2d3522f555c6))
+* **amazonq:** revert auto-approve ([#2002](https://github.com/aws/language-servers/issues/2002)) ([c8181f7](https://github.com/aws/language-servers/commit/c8181f7a1de224dfcc7a77cd0bfc905fa1018372))
+
+## [0.1.28](https://github.com/aws/language-servers/compare/chat-client/v0.1.27...chat-client/v0.1.28) (2025-07-23)
+
+
+### Bug Fixes
+
+* **amazonq:** revert commit f17b631d9e06371a11ef8e9cb1413762fb51a143 ([#1965](https://github.com/aws/language-servers/issues/1965)) ([8c2cab6](https://github.com/aws/language-servers/commit/8c2cab6995922c96030b5bbdf3cbbdef7eadd7c2))
+
+## [0.1.27](https://github.com/aws/language-servers/compare/chat-client/v0.1.26...chat-client/v0.1.27) (2025-07-22)
+
+
+### Features
+
+* **amazonq:** enable show logs feature ([#1947](https://github.com/aws/language-servers/issues/1947)) ([86ea83d](https://github.com/aws/language-servers/commit/86ea83dd53b447f6decccf16559b76f4989ea712))
+
+## [0.1.26](https://github.com/aws/language-servers/compare/chat-client/v0.1.25...chat-client/v0.1.26) (2025-07-22)
+
+
+### Features
+
+* **chat-client:** add auto-approve (trust mode) for built-in tools ([#1949](https://github.com/aws/language-servers/issues/1949)) ([f17b631](https://github.com/aws/language-servers/commit/f17b631d9e06371a11ef8e9cb1413762fb51a143))
+* **chat-client:** add shortcut for stop/reject/run commands ([#1932](https://github.com/aws/language-servers/issues/1932)) ([087f338](https://github.com/aws/language-servers/commit/087f3387ba736e92d014274e195f7ef76e377f1e))
+
+
+### Bug Fixes
+
+* **amazonq:** fix for mcp server unnecessary refresh from file watchers ([#1933](https://github.com/aws/language-servers/issues/1933)) ([208909b](https://github.com/aws/language-servers/commit/208909b55ecda40ff8d412b2b3be890eccee70bc))
+* **amazonq:** update mcp and persona config to agent config ([#1897](https://github.com/aws/language-servers/issues/1897)) ([530977f](https://github.com/aws/language-servers/commit/530977f8c73c7946a0205f02014248d71b4b1fe0))
+* replace cancel with stop ([#1935](https://github.com/aws/language-servers/issues/1935)) ([2f51923](https://github.com/aws/language-servers/commit/2f51923f9d3497469c70162235482b569e2d796e))
+
 ## [0.1.25](https://github.com/aws/language-servers/compare/chat-client/v0.1.24...chat-client/v0.1.25) (2025-07-17)
 
 

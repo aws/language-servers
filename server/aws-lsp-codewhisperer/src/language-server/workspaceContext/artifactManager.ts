@@ -6,7 +6,11 @@ import JSZip = require('jszip')
 import { EclipseConfigGenerator, JavaProjectAnalyzer } from './javaManager'
 import { resolveSymlink, isDirectory, isEmptyDirectory } from './util'
 import glob = require('fast-glob')
-import { CodewhispererLanguage, getCodeWhispererLanguageIdFromPath } from '../../shared/languageDetection'
+import {
+    CodewhispererLanguage,
+    getCodeWhispererLanguageIdFromPath,
+    isJavaProjectFileFromPath,
+} from '../../shared/languageDetection'
 
 export interface FileMetadata {
     filePath: string
@@ -62,6 +66,7 @@ interface FileSizeDetails {
     skippedSize: number
 }
 const MAX_UNCOMPRESSED_SRC_SIZE_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB
+const MAX_FILES = 500_000
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -171,7 +176,8 @@ export class ArtifactManager {
         }
 
         if (isDirectory(filePath)) {
-            const files = await glob(['**/*'], {
+            let fileCount = 0
+            const filesStream = glob.stream(['**/*'], {
                 cwd: filePath,
                 dot: false,
                 ignore: IGNORE_DEPENDENCY_PATTERNS,
@@ -180,7 +186,11 @@ export class ArtifactManager {
                 onlyFiles: true,
             })
 
-            for (const relativePath of files) {
+            for await (const entry of filesStream) {
+                if (fileCount >= MAX_FILES) {
+                    break
+                }
+                const relativePath = entry.toString()
                 try {
                     const fullPath = resolveSymlink(path.join(filePath, relativePath))
                     const fileMetadata = await this.createFileMetadata(
@@ -193,6 +203,7 @@ export class ArtifactManager {
                 } catch (error) {
                     this.logging.warn(`Error processing file ${relativePath}: ${error}`)
                 }
+                fileCount++
             }
         } else {
             const workspaceUri = URI.parse(currentWorkspace.uri)
@@ -355,7 +366,8 @@ export class ArtifactManager {
     ): Promise<Map<CodewhispererLanguage, FileMetadata[]>> {
         const filesByLanguage = new Map<CodewhispererLanguage, FileMetadata[]>()
 
-        const files = await glob(['**/*'], {
+        const files = []
+        const filesStream = glob.stream(['**/*'], {
             cwd: directoryPath,
             dot: false,
             ignore: IGNORE_PATTERNS,
@@ -364,11 +376,26 @@ export class ArtifactManager {
             onlyFiles: true,
         })
 
+        for await (const entry of filesStream) {
+            if (files.length >= MAX_FILES) {
+                break
+            }
+            files.push(entry.toString())
+        }
+
+        const hasJavaFile = files.some(file => file.endsWith('.java'))
+
         for (const relativePath of files) {
             const fullPath = path.join(directoryPath, relativePath)
-            const language = getCodeWhispererLanguageIdFromPath(fullPath)
+            const isJavaProjectFile = isJavaProjectFileFromPath(fullPath)
+            const language = isJavaProjectFileFromPath(fullPath) ? 'java' : getCodeWhispererLanguageIdFromPath(fullPath)
 
-            if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
+            if (
+                !language ||
+                !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language) ||
+                // skip processing the java project file if there's no java source file
+                (!hasJavaFile && isJavaProjectFile)
+            ) {
                 continue
             }
 
@@ -627,31 +654,55 @@ export class ArtifactManager {
         files: FileMetadata[]
     ): Promise<FileMetadata[]> {
         const workspacePath = URI.parse(workspaceFolder.uri).path
-        const hasJavaFiles = files.some(file => file.language === 'java')
+        const hasJavaFiles = files.some(file => file.language === 'java' && file.relativePath.endsWith('.java'))
 
         if (!hasJavaFiles) {
             return files
         }
 
+        // Extract project roots from file paths for scenarios that workspace were not opened up from project roots
+        const projectRoots = this.extractJavaProjectRoots(files)
         const additionalFiles: FileMetadata[] = []
 
-        // Generate Eclipse configuration files
-        const javaManager = new JavaProjectAnalyzer(workspacePath)
-        const structure = await javaManager.analyze()
-        const generator = new EclipseConfigGenerator(workspaceFolder, this.logging)
+        // Process each project root separately
+        for (const projectRoot of projectRoots) {
+            const isRootProject = projectRoot === '.'
+            const projectPath = path.join(workspacePath, projectRoot)
 
-        // Generate and add .classpath file
-        const classpathFiles = await generator.generateDotClasspath(structure)
-        for (const classpathFile of classpathFiles) {
-            additionalFiles.push(classpathFile)
-        }
+            // Create project-specific "workspace folder" for analyzing
+            const projectWorkspaceFolder: WorkspaceFolder = {
+                ...workspaceFolder,
+                uri: URI.file(projectPath).toString(),
+            }
 
-        // Generate and add .project file
-        const projectFiles = await generator.generateDotProject(path.basename(workspacePath), structure)
-        for (const projectFile of projectFiles) {
-            additionalFiles.push(projectFile)
+            const javaManager = new JavaProjectAnalyzer(projectPath)
+            const structure = await javaManager.analyze()
+            const generator = new EclipseConfigGenerator(projectWorkspaceFolder, this.logging)
+
+            const classpathFiles = await generator.generateDotClasspath(structure)
+            const projectConfigFiles = await generator.generateDotProject(
+                isRootProject ? workspaceFolder.name : projectRoot,
+                structure
+            )
+
+            // Update relativePath to include project directory for zip upload
+            const updatedFiles = [...classpathFiles, ...projectConfigFiles].map(file => ({
+                ...file,
+                relativePath: isRootProject ? file.relativePath : path.join(projectRoot, file.relativePath),
+            }))
+
+            additionalFiles.push(...updatedFiles)
         }
 
         return [...files, ...additionalFiles]
+    }
+
+    private extractJavaProjectRoots(files: FileMetadata[]): string[] {
+        const projectRoots = new Set<string>()
+        files
+            .filter(file => isJavaProjectFileFromPath(file.relativePath))
+            .map(file => path.dirname(file.relativePath))
+            .forEach(projectRoot => projectRoots.add(projectRoot))
+        return Array.from(projectRoots)
     }
 }
