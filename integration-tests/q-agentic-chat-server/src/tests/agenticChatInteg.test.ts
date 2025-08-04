@@ -8,7 +8,7 @@ import { JSONRPCEndpoint, LspClient } from './lspClient'
 import { pathToFileURL } from 'url'
 import * as crypto from 'crypto'
 import { EncryptionInitialization } from '@aws/lsp-core'
-import { authenticateServer, decryptObjectWithKey, encryptObjectWithKey } from './testUtils'
+import { authenticateServer, decryptObjectWithKey, encryptObjectWithKey, normalizePath } from './testUtils'
 import { ChatParams, ChatResult } from '@aws/language-server-runtimes/protocol'
 import * as fs from 'fs'
 
@@ -172,7 +172,9 @@ describe('Q Agentic Chat Server Integration Tests', async () => {
             msg => msg.type === 'tool' && msg.fileList?.rootFolderTitle === '1 file read'
         )
         expect(fsReadMessage).to.exist
-        expect(fsReadMessage?.fileList?.filePaths).to.include.members([path.join(rootPath, 'test.py')])
+        const expectedPath = path.join(rootPath, 'test.py')
+        const actualPaths = fsReadMessage?.fileList?.filePaths?.map(normalizePath) || []
+        expect(actualPaths).to.include.members([normalizePath(expectedPath)])
         expect(fsReadMessage?.messageId?.startsWith('tooluse_')).to.be.true
     })
 
@@ -192,7 +194,8 @@ describe('Q Agentic Chat Server Integration Tests', async () => {
             msg => msg.type === 'tool' && msg.fileList?.rootFolderTitle === '1 directory listed'
         )
         expect(listDirectoryMessage).to.exist
-        expect(listDirectoryMessage?.fileList?.filePaths).to.include.members([rootPath])
+        const actualPaths = listDirectoryMessage?.fileList?.filePaths?.map(normalizePath) || []
+        expect(actualPaths).to.include.members([normalizePath(rootPath)])
         expect(listDirectoryMessage?.messageId?.startsWith('tooluse_')).to.be.true
     })
 
@@ -216,12 +219,17 @@ describe('Q Agentic Chat Server Integration Tests', async () => {
         expect(executeBashMessage?.body).to.include('test.ts')
     })
 
-    it('waits for user acceptance when executing mutable bash commands', async () => {
+    it('waits for user acceptance when executing mutable bash commands', async function () {
+        const command =
+            process.platform === 'win32'
+                ? 'echo %date% > timestamp.txt && echo "Timestamp saved"'
+                : 'date > timestamp.txt && echo "Timestamp saved"'
+
         const encryptedMessage = await encryptObjectWithKey<ChatParams>(
             {
                 tabId,
                 prompt: {
-                    prompt: `Run this command using the executeBash tool: \`date > timestamp.txt && echo "Timestamp saved"\``,
+                    prompt: `Run this command using the executeBash tool: \`${command}\``,
                 },
             },
             encryptionKey
@@ -367,6 +375,7 @@ describe('Q Agentic Chat Server Integration Tests', async () => {
         )
         expect(fileSearchMessage).to.exist
         expect(fileSearchMessage?.messageId?.startsWith('tooluse_')).to.be.true
-        expect(fileSearchMessage?.fileList?.filePaths).to.include.members([rootPath])
+        const actualPaths = fileSearchMessage?.fileList?.filePaths?.map(normalizePath) || []
+        expect(actualPaths).to.include.members([normalizePath(rootPath)])
     })
 })
