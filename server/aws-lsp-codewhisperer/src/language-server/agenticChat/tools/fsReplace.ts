@@ -71,16 +71,13 @@ export class FsReplace {
         return {
             name: 'fsReplace',
             description:
-                'A tool for search and replace contents of an existing file using SMALL, GRANULAR diff pairs for optimal animation.\n\n' +
+                'A tool for search and replace contents of an existing file using SMALL, GRANULAR diff pairs.\n\n' +
                 '## Overview\n' +
                 'This tool replaces sections of content using MULTIPLE SMALL `oldStr`/`newStr` pairs (30-50 chars MAXIMUM each) that define precise, granular changes.' +
                 'CRITICAL: Create MANY small diff pairs instead of few large ones for better visual animation.\n' +
                 'SUPER IMPORTANT: The file path should ALWAYS be the first parameter in the JSON, followed by the diffs and explanation.\n\n' +
                 '## GRANULAR DIFF STRATEGY (REQUIRED)\n' +
                 '- **BREAK DOWN LARGE CHANGES**: Split big modifications into multiple small diff pairs\n' +
-                '- **ONE CONCEPT PER DIFF**: Each diff pair should change only one small concept (variable name, single line, small block)\n' +
-                '- **OPTIMAL SIZE RANGE**: Keep each oldStr/newStr between 50-150 characters for best animation balance\n' +
-                "- **AVOID TOO SMALL**: Don't make diff pairs smaller than 50 characters to prevent race conditions\n" +
                 '- **MULTIPLE PAIRS FOR FUNCTIONS**: When modifying a function, create separate diff pairs for:\n' +
                 '  * Function name change\n' +
                 '  * Parameter changes\n' +
@@ -120,7 +117,6 @@ export class FsReplace {
                 '- **EXACT MATCHING**: `oldStr` must match EXACTLY including whitespaces, tabs, and line breaks\n' +
                 '- **SMALL DIFF PAIRS**: Each oldStr/newStr should be 20-50 characters maximum\n' +
                 '- **MULTIPLE PAIRS**: Create 3-10+ small diff pairs instead of 1-2 large ones\n' +
-                '- **UNIQUE MATCHING**: Include minimal surrounding context if needed for uniqueness\n' +
                 '- **DELETE WITH EMPTY**: Use empty `newStr` to delete content\n\n',
             inputSchema: {
                 type: 'object',
