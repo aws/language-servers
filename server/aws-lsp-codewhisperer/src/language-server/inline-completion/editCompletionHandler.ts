@@ -40,7 +40,7 @@ import { DocumentChangedListener } from './documentChangedListener'
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
 const RETRY_COUNT = 3
-const DEBOUNCE_INTERVAL_MS = 750
+const DEBOUNCE_INTERVAL_MS = 500
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
