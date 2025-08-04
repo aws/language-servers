@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.16](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.15...lsp-partiql/v0.0.16) (2025-08-04)
+
+
+### Bug Fixes
+
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
 ## [0.0.15](https://github.com/aws/language-servers/compare/lsp-partiql/v0.0.14...lsp-partiql/v0.0.15) (2025-07-17)
 
 

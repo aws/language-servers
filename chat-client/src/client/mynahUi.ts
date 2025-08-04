@@ -810,6 +810,7 @@ export const createMynahUi = (
         },
         config: {
             maxTabs: 10,
+            test: true,
             dragOverlayIcon: MynahIcons.IMAGE,
             texts: {
                 ...uiComponentsTexts,
