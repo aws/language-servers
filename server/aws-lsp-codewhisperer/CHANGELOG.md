@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.0.71](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.70...lsp-codewhisperer/v0.0.71) (2025-08-04)
+
+
+### Features
+
+* adding inline chat telemetry ([#2001](https://github.com/aws/language-servers/issues/2001)) ([8b1c9c7](https://github.com/aws/language-servers/commit/8b1c9c7c3859cdfbbd0abb059066a5c6fe2ffaf2))
+* **amazonq:** implement displayFindings tool ([#2029](https://github.com/aws/language-servers/issues/2029)) ([da11663](https://github.com/aws/language-servers/commit/da1166340f3d13e1d7fd83b260359661443230ea))
+* improve code review tool reliability and error handling ([#2033](https://github.com/aws/language-servers/issues/2033)) ([124244e](https://github.com/aws/language-servers/commit/124244ee7d97adf71a52c4fde7ddb908dbc0bd08))
+* support http transport without authorization for MCP ([97e806c](https://github.com/aws/language-servers/commit/97e806ce7ea5e5be1fd60c4a4d9a54cf76c8f8cb))
+
+
+### Bug Fixes
+
+* add bash command parsing for telemetry metrics ([#2039](https://github.com/aws/language-servers/issues/2039)) ([01d8112](https://github.com/aws/language-servers/commit/01d811225281a2e32f9cd6dab1b575aad8c0b4d6))
+* adding acceptedCharacterCount to UserTriggerDecisionEvent ([#2014](https://github.com/aws/language-servers/issues/2014)) ([3f94486](https://github.com/aws/language-servers/commit/3f944865483a6913138335fe61eee70ae71d7c03))
+* adjust bash command categories ([#2030](https://github.com/aws/language-servers/issues/2030)) ([25ed99f](https://github.com/aws/language-servers/commit/25ed99fcf0eeaa86b0a5e040e90d69becf625c71))
+* adjust cross file context config ([#2011](https://github.com/aws/language-servers/issues/2011)) ([f7ade37](https://github.com/aws/language-servers/commit/f7ade3767e714d5178f24fd9cc90349c5f417979))
+* **amazonq:** fix for mcp server permissions ([#2026](https://github.com/aws/language-servers/issues/2026)) ([89ae720](https://github.com/aws/language-servers/commit/89ae720dc036a90338d192aca801a858e8fa19f8))
+* **amazonq:** fix for mcp server permissions to prefer workspace agent config files ([#2038](https://github.com/aws/language-servers/issues/2038)) ([d2ac614](https://github.com/aws/language-servers/commit/d2ac614f0f16faa8bf689ac9c8bff09d64fc3a3b))
+* **amazonq:** fix processing empty unsupported workspace file ([#2017](https://github.com/aws/language-servers/issues/2017)) ([9e4d0af](https://github.com/aws/language-servers/commit/9e4d0af244b5edba73771b6cb4290d922ef83c43))
+* correct the implementation of gathering open tabs in cross file context ([#2040](https://github.com/aws/language-servers/issues/2040)) ([b7b7a2b](https://github.com/aws/language-servers/commit/b7b7a2bd2020f50069ce89f6505cc2a36b1f3fa7))
+* remove malicious characters from prompt input ([#2009](https://github.com/aws/language-servers/issues/2009)) ([bf8a1e6](https://github.com/aws/language-servers/commit/bf8a1e6136801532132f2bf82def4ca5bf49c82f))
+* sanitize request input ([#2025](https://github.com/aws/language-servers/issues/2025)) ([7c0efd7](https://github.com/aws/language-servers/commit/7c0efd73d5e9a0e3f42d143a10c16782f6e35db8))
+* skip image sanitization ([#2031](https://github.com/aws/language-servers/issues/2031)) ([f02fc23](https://github.com/aws/language-servers/commit/f02fc231136940bd644c426d2b222ae2cba779c4))
+* sometimes Enter does not auto trigger ([#2005](https://github.com/aws/language-servers/issues/2005)) ([c9af035](https://github.com/aws/language-servers/commit/c9af0353a6c6f3b2ca4eead02f19e8ab5ddb8ef1))
+* use fast glob streaming when collecting files ([#2003](https://github.com/aws/language-servers/issues/2003)) ([f7c0a0b](https://github.com/aws/language-servers/commit/f7c0a0b0ef9ce3ecd620acfef00e55745db3d71f))
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.12 to ^0.0.13
+
 ## [0.0.70](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.69...lsp-codewhisperer/v0.0.70) (2025-07-29)
 
 
