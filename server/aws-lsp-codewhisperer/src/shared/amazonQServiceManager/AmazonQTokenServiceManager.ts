@@ -33,6 +33,7 @@ import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
 import { parse } from '@aws-sdk/util-arn-parser'
+import FileManagerUtil from '../../FileManagerUtil'
 
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
@@ -92,6 +93,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 
     public static initInstance(features: QServiceManagerFeatures): AmazonQTokenServiceManager {
+        FileManagerUtil.appendToFile("initInstance")
         if (!AmazonQTokenServiceManager.instance) {
             AmazonQTokenServiceManager.instance = new AmazonQTokenServiceManager(features)
             AmazonQTokenServiceManager.instance.initialize()
@@ -135,6 +137,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.state = 'PENDING_CONNECTION'
 
         this.log('Manager instance is initialize')
+        FileManagerUtil.appendToFile('Manager instance is initializeD ' + this.state)
     }
 
     public handleOnCredentialsDeleted(type: CredentialsType): void {
@@ -147,6 +150,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.resetCodewhispererService()
         this.connectionType = 'none'
         this.state = 'PENDING_CONNECTION'
+        FileManagerUtil.appendToFile('handleOnCredentialsDeleted ' + this.state)
     }
 
     public async handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken) {
@@ -185,6 +189,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 this.profileChangeTokenSource = undefined
             }
         }
+        FileManagerUtil.appendToFile('handleOnUpdateConfiguration ' + this.state)
     }
 
     /**
@@ -192,52 +197,59 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
      * When connection type change is detected: reinitialize CodeWhispererService class with current connection type.
      */
     private handleSsoConnectionChange() {
-        const newConnectionType = this.features.credentialsProvider.getConnectionType()
+
+
+        //const newConnectionType = this.features.credentialsProvider.getConnectionType()
+        const newConnectionType = "identityCenter"
+        FileManagerUtil.appendToFile("Credential Provide output : " + this.features.credentialsProvider)
+        FileManagerUtil.appendToFile("handleSsoConnectionChange  new connection:" + newConnectionType)
 
         this.logServiceState('Validate State of SSO Connection')
 
         const noCreds = !this.features.credentialsProvider.hasCredentials('bearer')
-        const noConnectionType = newConnectionType === 'none'
-        if (noCreds || noConnectionType) {
-            // Connection was reset, wait for SSO connection token from client
-            this.log(
-                `No active SSO connection is detected: no ${noCreds ? 'credentials' : 'connection type'} provided. Resetting the client`
-            )
-            this.resetCodewhispererService()
-            this.connectionType = 'none'
-            this.state = 'PENDING_CONNECTION'
+        // const noConnectionType = newConnectionType === 'none'
+        // if (noCreds || noConnectionType) {
+        //     // Connection was reset, wait for SSO connection token from client
+        //     this.log(
+        //         `No active SSO connection is detected: no ${noCreds ? 'credentials' : 'connection type'} provided. Resetting the client`
+        //     )
+        //     this.resetCodewhispererService()
+        //     this.connectionType = 'none'
+        //     this.state = 'PENDING_CONNECTION'
 
-            return
-        }
+        //     return
+        // }
 
-        // Connection type hasn't change.
+        // // Connection type hasn't change.
 
-        if (newConnectionType === this.connectionType) {
-            this.logging.debug(`Connection type did not change: ${this.connectionType}`)
+        // if (newConnectionType === this.connectionType) {
+        //     this.logging.debug(`Connection type did not change: ${this.connectionType}`)
 
-            return
-        }
+        //     return
+        // }
 
         // Connection type changed to 'builderId'
 
-        if (newConnectionType === 'builderId') {
-            this.log('Detected New connection type: builderId')
-            this.resetCodewhispererService()
+        // if (newConnectionType === 'builderId') {
+        //     this.log('Detected New connection type: builderId')
+        //     this.resetCodewhispererService()
 
-            // For the builderId connection type regional endpoint discovery chain is:
-            // region set by client -> runtime region -> default region
-            const clientParams = this.features.lsp.getClientInitializeParams()
+        //     // For the builderId connection type regional endpoint discovery chain is:
+        //     // region set by client -> runtime region -> default region
+        //     const clientParams = this.features.lsp.getClientInitializeParams()
 
-            this.createCodewhispererServiceInstances('builderId', clientParams?.initializationOptions?.aws?.region)
-            this.state = 'INITIALIZED'
-            this.log('Initialized Amazon Q service with builderId connection')
+        //     this.createCodewhispererServiceInstances('builderId', clientParams?.initializationOptions?.aws?.region)
+        //     this.state = 'INITIALIZED'
+        //     this.log('Initialized Amazon Q service with builderId connection')
 
-            return
-        }
+        //     return
+        // }
 
         // Connection type changed to 'identityCenter'
 
         if (newConnectionType === 'identityCenter') {
+
+            FileManagerUtil.appendToFile("handleSsoConnectionChange  new connection with type identity center :" + newConnectionType)
             this.log('Detected New connection type: identityCenter')
 
             this.resetCodewhispererService()
@@ -274,6 +286,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
     }
 
     private async handleProfileChange(newProfileArn: string | null, token: CancellationToken): Promise<void> {
+        FileManagerUtil.appendToFile("handleProfileChange  new connection arn:" + newProfileArn)
         if (!this.enableDeveloperProfileSupport) {
             this.log('Developer Profiles Support is not enabled')
             return
@@ -412,6 +425,7 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
 
     public getCodewhispererService(): CodeWhispererServiceToken {
         // Prevent initiating requests while profile change is in progress.
+        FileManagerUtil.appendToFile('q profile statte is ' + this.state)
         if (this.state === 'PENDING_Q_PROFILE_UPDATE') {
             throw new AmazonQServicePendingProfileUpdateError()
         }

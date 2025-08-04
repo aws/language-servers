@@ -29,6 +29,7 @@ import * as validation from './validation'
 import path = require('path')
 import AdmZip = require('adm-zip')
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import FileManagerUtil from '../../FileManagerUtil'
 
 const workspaceFolderName = 'artifactWorkspace'
 
@@ -66,6 +67,7 @@ export class TransformHandler {
         } else {
             unsupportedProjects = validation.validateSolution(userInputrequest)
         }
+        FileManagerUtil.appendToFile("Unsupport Project Validation Done")
 
         const artifactManager = new ArtifactManager(
             this.workspace,
@@ -79,10 +81,12 @@ export class TransformHandler {
             const uploadId = await this.preTransformationUploadCode(payloadFilePath)
             const request = getCWStartTransformRequest(userInputrequest, uploadId, this.logging)
             this.logging.log('Sending request to start transform api: ' + JSON.stringify(request))
+            FileManagerUtil.appendToFile('Sending request to start transform api: ' + JSON.stringify(request))
             const response = await this.serviceManager
                 .getCodewhispererService()
                 .codeModernizerStartCodeTransformation(request)
             this.logging.log('Received transformation job Id: ' + response?.transformationJobId)
+            FileManagerUtil.appendToFile('Received transformation job Id: ' + response?.transformationJobId)
             return getCWStartTransformResponse(
                 response,
                 uploadId,
@@ -97,6 +101,7 @@ export class TransformHandler {
                     'Your profile credentials are not allow-listed or lack the necessary access. Please check your credentials.'
             }
             this.logging.log(errorMessage)
+            FileManagerUtil.appendToFile(errorMessage)
             throw new Error(errorMessage)
         } finally {
             const env = this.runtime.getConfiguration('RUNENV') ?? ''

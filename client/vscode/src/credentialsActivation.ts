@@ -13,6 +13,7 @@ import {
 } from 'vscode-languageclient/node'
 import { SSOConnectionBuilder, SsoConnection } from './sso/connectionBuilder'
 import { LoginType } from './sso/model'
+import FileManagerUtil from './FileManagerUtil'
 
 /**
  * Request for custom notifications that Update Credentials and tokens.
@@ -218,6 +219,7 @@ async function sendIamCredentialsUpdate(
 }
 
 async function sendBearerTokenUpdate(request: UpdateCredentialsRequest, languageClient: LanguageClient): Promise<void> {
+    FileManagerUtil.appendToFile("inside sendBearerTokenUpdate")
     await languageClient.sendRequest(notificationTypes.updateBearerToken, request)
 }
 

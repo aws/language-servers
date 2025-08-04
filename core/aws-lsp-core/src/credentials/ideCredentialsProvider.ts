@@ -5,6 +5,7 @@ import { BearerToken, CredentialsProvider, IamCredentials, credentialsProtocolMe
 import { CredentialsEncoding } from './encryption'
 import { NoCredentialsError } from './error/noCredentialsError'
 import { UpdateCredentialsRequest } from './updateCredentialsRequest'
+import FileManagerUtil from '../FileManagerUtil'
 
 /**
  * Receives credentials from IDE extensions, and decrypts them for use by language server components.
@@ -52,6 +53,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
 
     private registerIamCredentialsPushHandlers(): void {
         this.connection.console.info('Server: Registering IAM credentials push handlers')
+        FileManagerUtil.appendToFile('Server: Registering IAM credentials push handlers')
 
         // Handle when host sends us credentials to use
         this.connection.onRequest(
@@ -96,14 +98,16 @@ export class IdeCredentialsProvider implements CredentialsProvider {
 
     private registerBearerTokenPushHandlers(): void {
         this.connection.console.info('Server: Registering bearer token push handlers')
+        FileManagerUtil.appendToFile('Server: Registering bearer token push handlers')
 
         // Handle when host sends us credentials to use
         this.connection.onRequest(
             credentialsProtocolMethodNames.iamBearerTokenUpdate,
             async (request: UpdateCredentialsRequest) => {
                 try {
+                    FileManagerUtil.appendToFile("registerBearerTokenPushHandlers")
                     const bearerToken = await this.decodeCredentialsRequestToken<BearerToken>(request)
-
+                    FileManagerUtil.appendToFile("bearer token : " + bearerToken)
                     this.validateBearerTokenFields(bearerToken)
 
                     this.pushedToken = bearerToken
@@ -113,6 +117,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
                     this.connection.console.error(
                         `Server: Failed to set bearer token: ${error}. Server bearer token has been removed.`
                     )
+                    FileManagerUtil.appendToFile("token error " + error)
                 }
             }
         )
@@ -121,6 +126,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
         this.connection.onNotification(credentialsProtocolMethodNames.iamBearerTokenDelete, () => {
             this.pushedToken = undefined
             this.connection.console.info('Server: The language server bearer token has been removed.')
+            FileManagerUtil.appendToFile("Server: The language server bearer token has been removed.")
         })
     }
 
@@ -158,6 +164,7 @@ export class IdeCredentialsProvider implements CredentialsProvider {
     }
 
     private async decodeCredentialsRequestToken<T>(request: UpdateCredentialsRequest): Promise<T> {
+        FileManagerUtil.appendToFile("decodeCredentialsRequestToken")
         if (!this.key) {
             throw new Error('no encryption key')
         }
