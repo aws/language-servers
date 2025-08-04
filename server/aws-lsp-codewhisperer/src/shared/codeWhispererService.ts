@@ -31,7 +31,7 @@ import { getErrorId } from './utils'
 import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 import { getRelativePath } from '../language-server/workspaceContext/util'
-import path = require('path')
+import * as path from 'path'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
