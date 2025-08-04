@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-core",
-    "version": "0.0.12",
+    "version": "0.0.13",
     "description": "Core library, contains common code and utilities",
     "main": "out/index.js",
     "repository": {
@@ -28,7 +28,7 @@
         "prepack": "shx cp ../../LICENSE ../../NOTICE ../../SECURITY.md ."
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.112",
+        "@aws/language-server-runtimes": "^0.2.121",
         "@gerhobbelt/gitignore-parser": "^0.2.0-9",
         "cross-spawn": "7.0.6",
         "jose": "^5.2.4",

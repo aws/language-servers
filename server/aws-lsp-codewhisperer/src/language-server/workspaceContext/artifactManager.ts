@@ -66,6 +66,7 @@ interface FileSizeDetails {
     skippedSize: number
 }
 const MAX_UNCOMPRESSED_SRC_SIZE_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB
+const MAX_FILES = 500_000
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -175,7 +176,8 @@ export class ArtifactManager {
         }
 
         if (isDirectory(filePath)) {
-            const files = await glob(['**/*'], {
+            let fileCount = 0
+            const filesStream = glob.stream(['**/*'], {
                 cwd: filePath,
                 dot: false,
                 ignore: IGNORE_DEPENDENCY_PATTERNS,
@@ -184,7 +186,11 @@ export class ArtifactManager {
                 onlyFiles: true,
             })
 
-            for (const relativePath of files) {
+            for await (const entry of filesStream) {
+                if (fileCount >= MAX_FILES) {
+                    break
+                }
+                const relativePath = entry.toString()
                 try {
                     const fullPath = resolveSymlink(path.join(filePath, relativePath))
                     const fileMetadata = await this.createFileMetadata(
@@ -197,6 +203,7 @@ export class ArtifactManager {
                 } catch (error) {
                     this.logging.warn(`Error processing file ${relativePath}: ${error}`)
                 }
+                fileCount++
             }
         } else {
             const workspaceUri = URI.parse(currentWorkspace.uri)
@@ -359,7 +366,8 @@ export class ArtifactManager {
     ): Promise<Map<CodewhispererLanguage, FileMetadata[]>> {
         const filesByLanguage = new Map<CodewhispererLanguage, FileMetadata[]>()
 
-        const files = await glob(['**/*'], {
+        const files = []
+        const filesStream = glob.stream(['**/*'], {
             cwd: directoryPath,
             dot: false,
             ignore: IGNORE_PATTERNS,
@@ -368,11 +376,26 @@ export class ArtifactManager {
             onlyFiles: true,
         })
 
+        for await (const entry of filesStream) {
+            if (files.length >= MAX_FILES) {
+                break
+            }
+            files.push(entry.toString())
+        }
+
+        const hasJavaFile = files.some(file => file.endsWith('.java'))
+
         for (const relativePath of files) {
             const fullPath = path.join(directoryPath, relativePath)
-            const language = getCodeWhispererLanguageIdFromPath(fullPath)
+            const isJavaProjectFile = isJavaProjectFileFromPath(fullPath)
+            const language = isJavaProjectFileFromPath(fullPath) ? 'java' : getCodeWhispererLanguageIdFromPath(fullPath)
 
-            if (!language || !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language)) {
+            if (
+                !language ||
+                !SUPPORTED_WORKSPACE_CONTEXT_LANGUAGES.includes(language) ||
+                // skip processing the java project file if there's no java source file
+                (!hasJavaFile && isJavaProjectFile)
+            ) {
                 continue
             }
 
@@ -631,7 +654,7 @@ export class ArtifactManager {
         files: FileMetadata[]
     ): Promise<FileMetadata[]> {
         const workspacePath = URI.parse(workspaceFolder.uri).path
-        const hasJavaFiles = files.some(file => file.language === 'java' && file.relativePath.endsWith('java'))
+        const hasJavaFiles = files.some(file => file.language === 'java' && file.relativePath.endsWith('.java'))
 
         if (!hasJavaFiles) {
             return files

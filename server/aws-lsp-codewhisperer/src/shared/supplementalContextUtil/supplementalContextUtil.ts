@@ -27,7 +27,8 @@ export async function fetchSupplementalContext(
     position: Position,
     workspace: Workspace,
     logging: Logging,
-    cancellationToken: CancellationToken
+    cancellationToken: CancellationToken,
+    openTabFiles?: string[]
 ): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = performance.now()
 
@@ -70,7 +71,8 @@ export async function fetchSupplementalContext(
                 document,
                 position,
                 workspace,
-                cancellationToken
+                cancellationToken,
+                openTabFiles
             )
         }
 

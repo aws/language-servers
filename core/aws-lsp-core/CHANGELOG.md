@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.13](https://github.com/aws/language-servers/compare/lsp-core/v0.0.12...lsp-core/v0.0.13) (2025-08-04)
+
+
+### Bug Fixes
+
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
 ## [0.0.12](https://github.com/aws/language-servers/compare/lsp-core/v0.0.11...lsp-core/v0.0.12) (2025-07-17)
 
 

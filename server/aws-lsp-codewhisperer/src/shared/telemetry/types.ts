@@ -210,6 +210,7 @@ export enum ChatTelemetryEventName {
     ExportTab = 'amazonq_exportTab',
     UiClick = 'ui_click',
     ActiveUser = 'amazonq_activeUser',
+    BashCommand = 'amazonq_bashCommand',
 }
 
 export interface ChatTelemetryEventMap {
@@ -234,6 +235,7 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.ExportTab]: ExportTabEvent
     [ChatTelemetryEventName.UiClick]: UiClickEvent
     [ChatTelemetryEventName.ActiveUser]: ActiveUserEvent
+    [ChatTelemetryEventName.BashCommand]: BashCommandEvent
 }
 
 export type AgencticLoop_InvokeLLMEvent = {
@@ -269,6 +271,12 @@ export type InteractWithAgenticChatEvent = {
 export type ActiveUserEvent = {
     credentialStartUrl?: string
     result: string
+}
+
+export type BashCommandEvent = {
+    credentialStartUrl: string
+    result: string
+    command: string
 }
 
 export type ModifyCodeEvent = {

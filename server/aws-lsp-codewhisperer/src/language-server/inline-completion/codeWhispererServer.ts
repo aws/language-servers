@@ -328,7 +328,8 @@ export const CodewhispererServerFactory =
                                   workspace,
                                   logging,
                                   token,
-                                  amazonQServiceManager
+                                  amazonQServiceManager,
+                                  params.openTabFilepaths
                               )
                             : Promise.resolve(undefined)
 
