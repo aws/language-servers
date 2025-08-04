@@ -1415,10 +1415,11 @@ export class McpEventHandler {
      * Processes permission updates from the UI
      */
     async #processPermissionUpdates(serverName: string, updatedPermissionConfig: any, agentPath: string | undefined) {
+        const builtInToolAgentPath = await this.#getAgentPath()
         const perm: MCPServerPermission = {
             enabled: true,
             toolPerms: {},
-            __configPath__: agentPath,
+            __configPath__: serverName === 'Built-in' ? builtInToolAgentPath : agentPath,
         }
 
         // Process each tool permission setting
