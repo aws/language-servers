@@ -31,24 +31,21 @@ export class CodeWhispererController {
 
     constructor(
         readonly sessionManager: SessionManager,
-        readonly editsSessionManager: SessionManager
-    ) {}
-
-    async init(
-        logging: Logging,
-        clientMetadata: InitializeParams,
-        workspace: Workspace,
-        qServiceManager: AmazonQBaseServiceManager,
-        cursorTracker: CursorTracker,
-        recentEditsTracker: RecentEditTracker,
-        codePercentageTracker: CodePercentageTracker,
-        userWrittenCodeTracker: UserWrittenCodeTracker | undefined,
-        documentChangedListener: DocumentChangedListener,
-        telemetry: Telemetry,
-        telemetryService: TelemetryService,
-        credentialsProvider: CredentialsProvider,
-        rejectedEditTracker: RejectedEditTracker,
-        codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
+        readonly editsSessionManager: SessionManager,
+        readonly logging: Logging,
+        readonly clientMetadata: InitializeParams,
+        readonly workspace: Workspace,
+        readonly qServiceManager: AmazonQBaseServiceManager,
+        readonly cursorTracker: CursorTracker,
+        readonly recentEditsTracker: RecentEditTracker,
+        readonly codePercentageTracker: CodePercentageTracker,
+        readonly userWrittenCodeTracker: UserWrittenCodeTracker | undefined,
+        readonly documentChangedListener: DocumentChangedListener,
+        readonly telemetry: Telemetry,
+        readonly telemetryService: TelemetryService,
+        readonly credentialsProvider: CredentialsProvider,
+        readonly rejectedEditTracker: RejectedEditTracker,
+        readonly codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
     ) {
         // Initialize api handler
         this.editCompletionHandler = new EditCompletionHandler(

@@ -35,7 +35,6 @@ import { RecentEditTracker } from '../language-server/inline-completion/tracker/
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 import { getRelativePath } from '../language-server/workspaceContext/util'
 import path = require('path')
-import { applyPatch } from 'diff'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -436,7 +435,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         this.logging.info(
             `GenerateCompletion response: 
-    "version": "debounced gc 8/1 12:30PM PT",
+    "version": "debounced gc 8/4 12:30PM PT",
     "invocationCountSinceStart": ${this.invocationCnt},
     "endpoint": ${this.codeWhispererEndpoint},
     "requestId": ${response.$response.requestId},

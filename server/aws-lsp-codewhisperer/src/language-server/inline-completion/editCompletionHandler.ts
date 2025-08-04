@@ -35,7 +35,6 @@ import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
-// import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
