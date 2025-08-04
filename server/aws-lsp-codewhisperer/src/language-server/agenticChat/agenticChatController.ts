@@ -1672,8 +1672,7 @@ export class AgenticChatController implements ChatHandlers {
                 // remove progress UI
                 await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
 
-                // fsRead and listDirectory write to an existing card and could show nothing in the current position
-                if (![FS_WRITE, FS_REPLACE, FS_READ, LIST_DIRECTORY].includes(toolUse.name)) {
+                if (![FS_WRITE, FS_REPLACE].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
@@ -1889,9 +1888,9 @@ export class AgenticChatController implements ChatHandlers {
                     case FS_READ:
                     case LIST_DIRECTORY:
                     case FILE_SEARCH:
-                        const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
-                        if (initialListDirResult) {
-                            await chatResultStream.writeResultBlock(initialListDirResult)
+                        const readToolResult = await this.#processReadTool(toolUse, chatResultStream)
+                        if (readToolResult) {
+                            await chatResultStream.writeResultBlock(readToolResult)
                         }
                         break
                     // no need to write tool result for listDir,fsRead,fileSearch into chat stream
@@ -2854,70 +2853,101 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #processReadOrListOrSearch(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
-        let messageIdToUpdate = toolUse.toolUseId!
-        const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
-
-        if (currentId) {
-            messageIdToUpdate = currentId
-        } else {
-            chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
-        }
-        let currentPaths = []
+    async #processReadTool(
+        toolUse: ToolUse,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<ChatMessage | undefined> {
+        let currentPaths: string[] = []
         if (toolUse.name === FS_READ) {
-            currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
+            currentPaths = (toolUse.input as unknown as FsReadParams)?.paths || []
+        } else if (toolUse.name === LIST_DIRECTORY) {
+            const singlePath = (toolUse.input as unknown as ListDirectoryParams)?.path
+            if (singlePath) {
+                currentPaths = [singlePath]
+            }
+        } else if (toolUse.name === FILE_SEARCH) {
+            const queryName = (toolUse.input as unknown as FileSearchParams)?.queryName
+            if (queryName) {
+                currentPaths = [queryName]
+            }
         } else {
-            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
+            return
         }
 
-        if (!currentPaths) return
+        if (currentPaths.length === 0) return
 
-        for (const currentPath of currentPaths) {
-            const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
-            // Check if path already exists in the list
-            const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
-            if (!isPathAlreadyProcessed) {
-                const currentFileDetail = {
-                    relativeFilePath: currentPath,
-                    lineRanges: [{ first: -1, second: -1 }],
-                }
-                chatResultStream.addMessageOperation(messageIdToUpdate, toolUse.name!, [
-                    ...existingPaths,
-                    currentFileDetail,
-                ])
+        // Check if the last message is the same tool type
+        const lastMessage = chatResultStream.getLastMessage()
+        const isSameToolType =
+            lastMessage?.type === 'tool' && lastMessage.header?.icon === this.#toolToIcon(toolUse.name)
+
+        let allPaths = currentPaths
+
+        if (isSameToolType && lastMessage.messageId) {
+            // Combine with existing paths and overwrite the last message
+            const existingPaths = lastMessage.header?.fileList?.filePaths || []
+            allPaths = [...existingPaths, ...currentPaths]
+
+            const blockId = chatResultStream.getMessageBlockId(lastMessage.messageId)
+            if (blockId !== undefined) {
+                // Create the updated message with combined paths
+                const updatedMessage = this.#createFileListToolMessage(toolUse, allPaths, lastMessage.messageId)
+                // Overwrite the existing block
+                await chatResultStream.overwriteResultBlock(updatedMessage, blockId)
+                return undefined // Don't return a message since we already wrote it
             }
         }
+
+        // Create new message with current paths
+        return this.#createFileListToolMessage(toolUse, allPaths, toolUse.toolUseId!)
+    }
+
+    #createFileListToolMessage(toolUse: ToolUse, filePaths: string[], messageId: string): ChatMessage {
+        const itemCount = filePaths.length
         let title: string
-        const itemCount = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths.length
-        const filePathsPushed = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths ?? []
-        if (!itemCount) {
+        if (itemCount === 0) {
             title = 'Gathering context'
         } else {
             title =
                 toolUse.name === FS_READ
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
                     : toolUse.name === FILE_SEARCH
-                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
-                      : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                      ? `${itemCount} pattern${itemCount > 1 ? 's' : ''} searched`
+                      : toolUse.name === LIST_DIRECTORY
+                        ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                        : ''
         }
         const details: Record<string, FileDetails> = {}
-        for (const item of filePathsPushed) {
-            details[item.relativeFilePath] = {
-                lineRanges: item.lineRanges,
-                description: item.relativeFilePath,
+        for (const filePath of filePaths) {
+            details[filePath] = {
+                description: filePath,
+                visibleName: path.basename(filePath),
             }
-        }
-
-        const fileList: FileList = {
-            rootFolderTitle: title,
-            filePaths: filePathsPushed.map(item => item.relativeFilePath),
-            details,
         }
         return {
             type: 'tool',
-            fileList,
-            messageId: messageIdToUpdate,
-            body: '',
+            header: {
+                body: title,
+                icon: this.#toolToIcon(toolUse.name),
+                fileList: {
+                    filePaths,
+                    details,
+                },
+            },
+            messageId,
+        }
+    }
+
+    #toolToIcon(toolName: string | undefined): string | undefined {
+        switch (toolName) {
+            case FS_READ:
+                return 'eye'
+            case LIST_DIRECTORY:
+                return 'check-list'
+            case FILE_SEARCH:
+                return 'search'
+            default:
+                return undefined
         }
     }
 
@@ -2933,14 +2963,7 @@ export class AgenticChatController implements ChatHandlers {
             return undefined
         }
 
-        let messageIdToUpdate = toolUse.toolUseId!
-        const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
-
-        if (currentId) {
-            messageIdToUpdate = currentId
-        } else {
-            chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
-        }
+        const messageIdToUpdate = toolUse.toolUseId!
 
         // Extract search results from the tool output
         const output = result.output.content as SanitizedRipgrepOutput

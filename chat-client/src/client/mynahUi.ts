@@ -1330,7 +1330,7 @@ export const createMynahUi = (
         isPairProgrammingMode: boolean,
         isPartialResult?: boolean
     ): Partial<ChatItem> => {
-        const contextHeader = contextListToHeader(message.contextList)
+        const contextHeader = message.type !== 'tool' ? contextListToHeader(message.contextList) : undefined
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
         const fileList = toMynahFileList(message.fileList)
 
@@ -1353,10 +1353,15 @@ export const createMynahUi = (
                     fileTreeTitle: '',
                     hideFileCount: true,
                     details: toDetailsWithoutIcon(header.fileList.details),
+                    renderAsPills:
+                        !header.fileList.details ||
+                        (Object.values(header.fileList.details).every(detail => !detail.changes) &&
+                            (!header.buttons || !header.buttons.some(button => button.id === 'undo-changes')) &&
+                            !header.status?.icon),
                 }
             }
             if (!isPartialResult) {
-                if (processedHeader) {
+                if (processedHeader && !message.header?.status) {
                     processedHeader.status = undefined
                 }
             }
@@ -1369,7 +1374,8 @@ export const createMynahUi = (
                 processedHeader.buttons !== null &&
                 processedHeader.buttons.length > 0) ||
                 processedHeader.status !== undefined ||
-                processedHeader.icon !== undefined)
+                processedHeader.icon !== undefined ||
+                processedHeader.fileList !== undefined)
 
         const padding =
             message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
