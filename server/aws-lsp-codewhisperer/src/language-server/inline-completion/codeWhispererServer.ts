@@ -27,10 +27,6 @@ import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tra
 import { CodeWhispererController } from './codewhispererController'
 import { DocumentChangedListener } from './documentChangedListener'
 
-export const FILE_URI_CHARS_LIMIT = 1024
-export const FILENAME_CHARS_LIMIT = 1024
-export const CONTEXT_CHARACTERS_LIMIT = 10240
-
 export const CodewhispererServerFactory =
     (serviceManager: () => AmazonQBaseServiceManager): Server =>
     ({ credentialsProvider, lsp, workspace, telemetry, logging, runtime, sdkInitializator }) => {
