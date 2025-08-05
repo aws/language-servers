@@ -38,7 +38,6 @@ import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared
 import { DocumentChangedListener } from './documentChangedListener'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
-
 const RETRY_COUNT = 3
 const DEBOUNCE_INTERVAL_MS = 500
 
