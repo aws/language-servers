@@ -46,11 +46,9 @@ import { getRelativePath } from '../workspaceContext/util'
 import { getAutoTriggerType, triggerType, autoTrigger, getNormalizeOsName } from './auto-trigger/autoTrigger'
 import { editPredictionAutoTrigger } from './auto-trigger/editPredictionAutoTrigger'
 import { RejectedEditTracker } from './tracker/rejectedEditTracker'
+import { CONTEXT_CHARACTERS_LIMIT, FILE_URI_CHARS_LIMIT, FILENAME_CHARS_LIMIT } from './constants'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
-const CONTEXT_CHARACTERS_LIMIT = 10240
-const FILE_URI_CHARS_LIMIT = 1024
-const FILENAME_CHARS_LIMIT = 1024
 
 // Both clients (token, sigv4) define their own types, this return value needs to match both of them.
 const getFileContext = (params: {
