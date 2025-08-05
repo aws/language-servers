@@ -60,6 +60,7 @@ import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
 import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
+import { CONTEXT_CHARACTERS_LIMIT } from './constants'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -85,8 +86,6 @@ const startServer = async (features: TestFeatures, server: Server): Promise<Test
 
     return features
 }
-
-const CONTEXT_CHARACTERS_LIMIT = 10240
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
