@@ -53,8 +53,8 @@ import {
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
 } from './telemetry'
-import { CodeWhispererController } from './codewhispererController'
 import { DocumentChangedListener } from './documentChangedListener'
+import { EditCompletionHandler } from './editCompletionHandler'
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
@@ -122,6 +122,7 @@ export const CodewhispererServerFactory =
         let codePercentageTracker: CodePercentageTracker
         let userWrittenCodeTracker: UserWrittenCodeTracker | undefined
         let codeDiffTracker: CodeDiffTracker<AcceptedInlineSuggestionEntry>
+        let editCompletionHandler: EditCompletionHandler
 
         // Trackers for monitoring edits and cursor position.
         const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
@@ -130,7 +131,6 @@ export const CodewhispererServerFactory =
         let editsEnabled = false
         let isOnInlineCompletionHandlerInProgress = false
 
-        const apiController = new CodeWhispererController()
         const documentChangedListener = new DocumentChangedListener()
 
         const onInlineCompletionHandler = async (
@@ -782,19 +782,19 @@ export const CodewhispererServerFactory =
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
 
-            apiController.init(
-                editSessionManager,
+            editCompletionHandler = new EditCompletionHandler(
                 logging,
                 clientParams,
                 workspace,
                 amazonQServiceManager,
+                editSessionManager,
                 cursorTracker,
                 recentEditTracker,
+                rejectedEditTracker,
                 documentChangedListener,
                 telemetry,
                 telemetryService,
-                credentialsProvider,
-                rejectedEditTracker
+                credentialsProvider
             )
         }
 
@@ -802,7 +802,7 @@ export const CodewhispererServerFactory =
             param: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            return apiController.onEditCompletion(param, token)
+            return await editCompletionHandler.onEditCompletion(param, token)
         }
 
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
@@ -843,7 +843,7 @@ export const CodewhispererServerFactory =
             lastUserModificationTime = new Date().getTime()
 
             documentChangedListener.onDocumentChanged(p)
-            apiController?.editCompletionHandler?.documentChanged()
+            editCompletionHandler.documentChanged()
 
             // Process document changes with RecentEditTracker.
             if (editsEnabled && recentEditTracker) {

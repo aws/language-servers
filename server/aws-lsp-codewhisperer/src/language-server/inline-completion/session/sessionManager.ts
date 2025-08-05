@@ -299,6 +299,7 @@ export class SessionManager {
     // For unit tests
     public static reset() {
         SessionManager._completionInstance = undefined
+        SessionManager._editInstance = undefined
     }
 
     public createSession(data: SessionData): CodeWhispererSession {
