@@ -275,7 +275,8 @@ export class CodeWhispererSession {
 }
 
 export class SessionManager {
-    private static _instance?: SessionManager
+    private static _completionInstance?: SessionManager
+    private static _editInstance?: SessionManager
     private currentSession?: CodeWhispererSession
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
@@ -287,17 +288,17 @@ export class SessionManager {
     /**
      * Singleton SessionManager class
      */
-    public static getInstance(): SessionManager {
-        if (!SessionManager._instance) {
-            SessionManager._instance = new SessionManager()
+    public static getInstance(type: 'COMPLETIONS' | 'EDITS' = 'COMPLETIONS'): SessionManager {
+        if (type === 'EDITS') {
+            return (SessionManager._editInstance ??= new SessionManager())
         }
 
-        return SessionManager._instance
+        return (SessionManager._completionInstance ??= new SessionManager())
     }
 
     // For unit tests
     public static reset() {
-        SessionManager._instance = undefined
+        SessionManager._completionInstance = undefined
     }
 
     public createSession(data: SessionData): CodeWhispererSession {

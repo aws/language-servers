@@ -12,23 +12,20 @@ import {
     TextDocument,
     ResponseError,
     LSPErrorCodes,
-    WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
-    CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     Suggestion,
     SuggestionType,
 } from '../../shared/codeWhispererService'
-import { CodewhispererLanguage, getRuntimeLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
+import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
 import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
 import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage, safeGet } from '../../shared/utils'
 import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
-import { fetchSupplementalContext } from '../../shared/supplementalContextUtil/supplementalContextUtil'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
@@ -57,7 +54,6 @@ import {
 } from './telemetry'
 import { CodeWhispererController } from './codewhispererController'
 import { DocumentChangedListener } from './documentChangedListener'
-const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
 
@@ -118,7 +114,8 @@ export const CodewhispererServerFactory =
         let lastUserModificationTime: number
         let timeSinceLastUserModification: number = 0
 
-        const sessionManager = SessionManager.getInstance()
+        const completionSessionManager = SessionManager.getInstance('COMPLETIONS')
+        const editSessionManager = SessionManager.getInstance('EDITS')
 
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
         let amazonQServiceManager: AmazonQBaseServiceManager
@@ -162,7 +159,7 @@ export const CodewhispererServerFactory =
 
             try {
                 // On every new completion request close current inflight session.
-                const currentSession = sessionManager.getCurrentSession()
+                const currentSession = completionSessionManager.getCurrentSession()
                 if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
                     // this REQUESTING state only happens when the session is initialized, which is rare
                     currentSession.discardInflightSessionOnNewInvocation = true
@@ -225,7 +222,7 @@ export const CodewhispererServerFactory =
                         ? workspaceState.workspaceId
                         : undefined
 
-                    const previousSession = sessionManager.getPreviousSession()
+                    const previousSession = completionSessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
@@ -318,8 +315,8 @@ export const CodewhispererServerFactory =
                             }
                         }
                         // Emit user trigger decision at session close time for active session
-                        sessionManager.discardSession(currentSession)
-                        const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                        completionSessionManager.discardSession(currentSession)
+                        const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(false) : 0
                         await emitUserTriggerDecisionTelemetry(
                             telemetry,
                             telemetryService,
@@ -335,7 +332,7 @@ export const CodewhispererServerFactory =
 
                     const supplementalMetadata = supplementalContext?.supContextData
 
-                    const newSession = sessionManager.createSession({
+                    const newSession = completionSessionManager.createSession({
                         document: textDocument,
                         startPosition: params.position,
                         triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
@@ -406,8 +403,8 @@ export const CodewhispererServerFactory =
             // Discard previous inflight API response due to new trigger
             if (session.discardInflightSessionOnNewInvocation) {
                 session.discardInflightSessionOnNewInvocation = false
-                sessionManager.discardSession(session)
-                const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(false) : 0
+                completionSessionManager.discardSession(session)
+                const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(false) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
@@ -430,7 +427,7 @@ export const CodewhispererServerFactory =
             }
 
             // API response was recieved, we can activate session now
-            sessionManager.activateSession(session)
+            completionSessionManager.activateSession(session)
 
             // Process suggestions to apply Empty or Filter filters
             const filteredSuggestions = suggestionResponse.suggestions
@@ -500,7 +497,7 @@ export const CodewhispererServerFactory =
                     session.suggestionsAfterRightContextMerge.length === 0 &&
                     !suggestionResponse.responseContext.nextToken
                 ) {
-                    sessionManager.closeSession(session)
+                    completionSessionManager.closeSession(session)
                     await emitUserTriggerDecisionTelemetry(
                         telemetry,
                         telemetryService,
@@ -561,7 +558,7 @@ export const CodewhispererServerFactory =
             logging.log('Recommendation failure: ' + error)
             emitServiceInvocationFailure(telemetry, session, error)
 
-            sessionManager.closeSession(session)
+            completionSessionManager.closeSession(session)
 
             let translatedError = error
 
@@ -619,6 +616,8 @@ export const CodewhispererServerFactory =
                 addedDiagnostics,
                 removedDiagnostics,
             } = params
+
+            const sessionManager = params.isInlineEdit ? editSessionManager : completionSessionManager
 
             const session = sessionManager.getSessionById(sessionId)
             if (!session) {
@@ -709,9 +708,9 @@ export const CodewhispererServerFactory =
                 session.suggestionType === SuggestionType.EDIT && isAccepted && session.hasEditsPending
 
             if (!shouldKeepSessionOpen) {
-                sessionManager.closeSession(session)
+                completionSessionManager.closeSession(session)
             }
-            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,
@@ -799,7 +798,7 @@ export const CodewhispererServerFactory =
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
 
             apiController.init(
-                sessionManager, // TODO
+                editSessionManager,
                 logging,
                 clientParams,
                 workspace,
@@ -842,7 +841,7 @@ export const CodewhispererServerFactory =
                     return
                 }
                 // exclude cases that the document change is from Q suggestions
-                const currentSession = sessionManager.getCurrentSession()
+                const currentSession = completionSessionManager.getCurrentSession()
                 if (
                     !currentSession?.suggestions.some(
                         suggestion => suggestion?.insertText && suggestion.insertText === change.text
@@ -857,6 +856,9 @@ export const CodewhispererServerFactory =
                 timeSinceLastUserModification = new Date().getTime() - lastUserModificationTime
             }
             lastUserModificationTime = new Date().getTime()
+
+            documentChangedListener.onDocumentChanged(p)
+            apiController?.editCompletionHandler?.documentChanged()
 
             // Process document changes with RecentEditTracker.
             if (editsEnabled && recentEditTracker) {
