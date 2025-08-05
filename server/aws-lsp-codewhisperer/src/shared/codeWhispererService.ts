@@ -460,6 +460,13 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     }
 
     /**
+     * @description Get list of available models
+     */
+    async listAvailableModels(request: CodeWhispererTokenClient.ListAvailableModelsRequest) {
+        return this.client.listAvailableModels(request).promise()
+    }
+
+    /**
      * @description send telemetry event to code whisperer data warehouse
      */
     async sendTelemetryEvent(request: CodeWhispererTokenClient.SendTelemetryEventRequest) {
