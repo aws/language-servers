@@ -228,6 +228,18 @@ export class ChatTelemetryController {
             data: {
                 type,
                 characters,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                languageServerVersion: languageServerVersion,
+            },
+        })
+    }
+
+    public emitCompactNudge(characters: number, languageServerVersion: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.CompactNudge,
+            data: {
+                characters,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 languageServerVersion: languageServerVersion,
             },
         })

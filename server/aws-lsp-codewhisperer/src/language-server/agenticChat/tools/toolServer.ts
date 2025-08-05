@@ -172,8 +172,8 @@ export const QCodeAnalysisServer: Server = ({
     return () => {}
 }
 
-export const BashToolsServer: Server = ({ logging, workspace, agent, lsp }) => {
-    const bashTool = new ExecuteBash({ logging, workspace, lsp })
+export const BashToolsServer: Server = ({ logging, workspace, agent, lsp, telemetry, credentialsProvider }) => {
+    const bashTool = new ExecuteBash({ logging, workspace, lsp, telemetry, credentialsProvider })
     agent.addTool(
         bashTool.getSpec(),
         async (input: ExecuteBashParams, token?: CancellationToken, updates?: WritableStream) => {
