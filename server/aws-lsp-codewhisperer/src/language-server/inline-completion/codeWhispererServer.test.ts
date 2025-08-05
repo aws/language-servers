@@ -12,7 +12,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
+import { CodewhispererServerFactory } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
@@ -58,8 +58,9 @@ import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../sha
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
-import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
+import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
+import { CONTEXT_CHARACTERS_LIMIT } from './constants'
 
 const updateConfiguration = async (
     features: TestFeatures,
