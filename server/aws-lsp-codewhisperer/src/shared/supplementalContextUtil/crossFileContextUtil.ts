@@ -29,7 +29,6 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { QueryInlineProjectContextRequestV2 } from 'local-indexing'
 import { URI } from 'vscode-uri'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
-import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 
 type CrossFileSupportedLanguage =
     | 'java'

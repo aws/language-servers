@@ -12,7 +12,6 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { crossFileContextConfig, supplementalContextTimeoutInMs } from '../models/constants'
 import * as os from 'os'
-import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 import { TestIntentDetector } from './unitTestIntentDetection'
 import { FocalFileResolver } from './focalFileResolution'
 import * as fs from 'fs'

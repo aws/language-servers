@@ -30,13 +30,12 @@ import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4cli
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { getErrorId } from './utils'
 import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
-import path = require('path')
-
 import { getRelativePath } from '../language-server/workspaceContext/util'
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 import { RecentEditTracker } from '../language-server/inline-completion/tracker/codeEditTracker'
 import { CodeWhispererSupplementalContext } from './models/model'
 import { fetchSupplementalContext } from './supplementalContextUtil/supplementalContextUtil'
+import * as path from 'path'
 import {
     CONTEXT_CHARACTERS_LIMIT,
     FILE_URI_CHARS_LIMIT,
@@ -51,6 +50,25 @@ export interface GenerateSuggestionsRequest extends CodeWhispererTokenClient.Gen
     // TODO : This is broken due to Interface 'GenerateSuggestionsRequest' cannot simultaneously extend types 'GenerateCompletionsRequest' and 'GenerateRecommendationsRequest'.
     //CodeWhispererSigv4Client.GenerateRecommendationsRequest {
     maxResults: number
+}
+
+export type FileContext = GenerateSuggestionsRequest['fileContext']
+
+export interface ResponseContext {
+    requestId: string
+    codewhispererSessionId: string
+    nextToken?: string
+}
+
+export enum SuggestionType {
+    EDIT = 'EDIT',
+    COMPLETION = 'COMPLETION',
+}
+
+export interface GenerateSuggestionsResponse {
+    suggestions: Suggestion[]
+    suggestionType?: SuggestionType
+    responseContext: ResponseContext
 }
 
 export function getFileContext(params: {
@@ -92,25 +110,6 @@ export function getFileContext(params: {
         leftFileContent: trimmedLeft,
         rightFileContent: trimmedRight,
     }
-}
-
-export type FileContext = GenerateSuggestionsRequest['fileContext']
-
-export interface ResponseContext {
-    requestId: string
-    codewhispererSessionId: string
-    nextToken?: string
-}
-
-export enum SuggestionType {
-    EDIT = 'EDIT',
-    COMPLETION = 'COMPLETION',
-}
-
-export interface GenerateSuggestionsResponse {
-    suggestions: Suggestion[]
-    suggestionType?: SuggestionType
-    responseContext: ResponseContext
 }
 
 // This abstract class can grow in the future to account for any additional changes across the clients

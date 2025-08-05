@@ -21,7 +21,7 @@ import {
     Suggestion,
     SuggestionType,
 } from '../../shared/codeWhispererService'
-import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
+import { getSupportedLanguageId } from '../../shared/languageDetection'
 import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
@@ -29,7 +29,7 @@ import { getCompletionType, getEndPositionForAcceptedSuggestion, getErrorMessage
 import { getIdeCategory, makeUserContextObject } from '../../shared/telemetryUtils'
 import { textUtils } from '@aws/lsp-core'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AcceptedSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
+import { AcceptedInlineSuggestionEntry, CodeDiffTracker } from './codeDiffTracker'
 import {
     AmazonQError,
     AmazonQServiceConnectionExpiredError,
@@ -97,16 +97,6 @@ const mergeSuggestionsWithRightContext = (
                 : undefined,
         }
     })
-}
-
-interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
-    sessionId: string
-    requestId: string
-    languageId: CodewhispererLanguage
-    customizationArn?: string
-    completionType: string
-    triggerType: string
-    credentialStartUrl?: string | undefined
 }
 
 export const CodewhispererServerFactory =
@@ -354,9 +344,6 @@ export const CodewhispererServerFactory =
 
                     const generateCompletionReq = {
                         ...requestContext,
-                        fileContext: {
-                            ...requestContext.fileContext,
-                        },
                         ...(workspaceId ? { workspaceId: workspaceId } : {}),
                     }
                     try {
