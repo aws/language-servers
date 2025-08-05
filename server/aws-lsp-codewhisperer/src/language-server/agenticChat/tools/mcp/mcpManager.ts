@@ -300,6 +300,7 @@ export class McpManager {
             const isStdio = !!cfg.command
             const doConnect = async () => {
                 if (isStdio) {
+                    // stdio transport
                     const mergedEnv = {
                         ...(process.env as Record<string, string>),
                         // Make sure we do not have empty key and value in mergedEnv, or adding server through UI will fail on Windows
@@ -340,22 +341,26 @@ export class McpManager {
                         )
                     }
                 } else {
+                    // streamable http/SSE transport
                     const base = new URL(cfg.url!)
                     try {
-                        // first determine if authroization is needed
+                        // Use HEAD to check if it nees OAuth
                         let headers: Record<string, string> = { ...(cfg.headers ?? {}) }
-                        const headStatus = await fetch(base, { method: 'HEAD', headers }).then(r => r.status)
-                        const needsOAuth = headStatus === 401
+                        let needsOAuth = false
+                        try {
+                            const headResp = await fetch(base, { method: 'HEAD', headers })
+                            const www = headResp.headers.get('www-authenticate') || ''
+                            needsOAuth = headResp.status === 401 || headResp.status === 403 || /bearer/i.test(www)
+                        } catch {
+                            this.features.logging.info(`MCP: HEAD not available`)
+                        }
 
                         if (needsOAuth) {
                             OAuthClient.initialize(this.features.workspace, this.features.logging)
-                            const bearer = needsOAuth ? await OAuthClient.getValidAccessToken(base) : ''
+                            const bearer = await OAuthClient.getValidAccessToken(base)
                             // add authorization header if we are able to obtain a bearer token
                             if (bearer) {
-                                headers = {
-                                    ...headers,
-                                    Authorization: `Bearer ${bearer}`,
-                                }
+                                headers = { ...headers, Authorization: `Bearer ${bearer}` }
                             }
                         }
 
@@ -375,8 +380,9 @@ export class McpManager {
                         }
                     } catch (err: any) {
                         let errorMessage = err?.message ?? String(err)
+                        const oauthHint = /oauth/i.test(errorMessage) ? ' (OAuth)' : ''
                         throw new AgenticChatError(
-                            `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
+                            `MCP: server '${serverName}' failed to connect${oauthHint}: ${errorMessage}`,
                             'MCPServerConnectionFailed'
                         )
                     }
