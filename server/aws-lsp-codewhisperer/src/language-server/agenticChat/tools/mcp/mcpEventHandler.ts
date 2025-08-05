@@ -227,6 +227,7 @@ export class McpEventHandler {
             title: 'MCP Servers',
             description: mcpState === false ? '' : "Add MCP servers to extend Q's capabilities.",
             status: this.#getListMcpServersStatus(configLoadErrors, mcpState),
+            actions: this.#getListMcpServersActions(configLoadErrors, mcpState),
         }
 
         return { header, list: groups }
@@ -252,6 +253,30 @@ export class McpEventHandler {
         }
 
         return undefined
+    }
+
+    /**
+     * Gets the actions for the list MCP servers header
+     */
+    #getListMcpServersActions(configLoadErrors: string | undefined, mcpState: boolean | undefined) {
+        return mcpState !== false && (!configLoadErrors || configLoadErrors === '')
+            ? [
+                  {
+                      id: 'add-new-mcp',
+                      icon: 'plus',
+                      status: 'clear',
+                      text: 'Add new MCP',
+                      description: 'Add new MCP',
+                  },
+                  {
+                      id: 'refresh-mcp-list',
+                      icon: 'refresh',
+                      status: 'clear',
+                      text: 'Refresh MCP servers',
+                      description: 'Refresh MCP servers',
+                  },
+              ]
+            : []
     }
 
     /**
