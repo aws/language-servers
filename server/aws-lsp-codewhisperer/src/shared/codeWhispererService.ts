@@ -7,6 +7,9 @@ import {
     SDKInitializator,
     CancellationToken,
     CancellationTokenSource,
+    TextDocument,
+    Position,
+    WorkspaceFolder,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -26,6 +29,14 @@ import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4cli
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { getErrorId } from './utils'
 import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
+import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
+import {
+    CONTEXT_CHARACTERS_LIMIT,
+    FILE_URI_CHARS_LIMIT,
+    FILENAME_CHARS_LIMIT,
+} from '../language-server/inline-completion/constants'
+import path = require('path')
+import { getRelativePath } from '../language-server/workspaceContext/util'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -80,6 +91,47 @@ export abstract class CodeWhispererServiceBase {
 
     completeRequest(request: AWS.Request<any, AWSError> & RequestExtras) {
         this.inflightRequests.delete(request)
+    }
+
+    getFileContext(params: {
+        textDocument: TextDocument
+        position: Position
+        inferredLanguageId: CodewhispererLanguage
+        workspaceFolder: WorkspaceFolder | null | undefined
+    }): {
+        fileUri: string
+        filename: string
+        programmingLanguage: {
+            languageName: CodewhispererLanguage
+        }
+        leftFileContent: string
+        rightFileContent: string
+    } {
+        const left = params.textDocument.getText({
+            start: { line: 0, character: 0 },
+            end: params.position,
+        })
+        const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+        const right = params.textDocument.getText({
+            start: params.position,
+            end: params.textDocument.positionAt(params.textDocument.getText().length),
+        })
+        const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+        const relativeFilePath = params.workspaceFolder
+            ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
+            : path.basename(params.textDocument.uri)
+
+        return {
+            fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
+            filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
+            programmingLanguage: {
+                languageName: getRuntimeLanguage(params.inferredLanguageId),
+            },
+            leftFileContent: trimmedLeft,
+            rightFileContent: trimmedRight,
+        }
     }
 
     abstract getCredentialsType(): CredentialsType
