@@ -214,7 +214,6 @@ export class LocalProjectContextController {
         if (this._isIndexingInProgress) {
             return
         }
-
         try {
             this._isIndexingInProgress = true
             if (this._vecLib) {
