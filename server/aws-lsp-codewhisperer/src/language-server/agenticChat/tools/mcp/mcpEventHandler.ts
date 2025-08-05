@@ -34,6 +34,7 @@ import { URI } from 'vscode-uri'
 interface PermissionOption {
     label: string
     value: string
+    description?: string
 }
 
 export class McpEventHandler {
@@ -128,38 +129,42 @@ export class McpEventHandler {
         // Transform server configs into DetailedListItem objects
         const activeItems: DetailedListItem[] = []
         const disabledItems: DetailedListItem[] = []
-        const builtInItems: DetailedListItem[] = []
 
         // Get built-in tools programmatically
         const allTools = this.#features.agent.getTools({ format: 'bedrock' })
-        const mcpToolNames = new Set(mcpManager.getAllTools().map(tool => tool.toolName))
+        const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
         const builtInTools = allTools
-            .filter(tool => !mcpToolNames.has(tool.toolSpecification.name))
+            .filter(tool => {
+                return builtInToolNames.has(tool.toolSpecification.name) && tool.toolSpecification.name !== 'fsReplace'
+            })
             .map(tool => ({
                 name: tool.toolSpecification.name,
-                description: tool.toolSpecification.description || `${tool.toolSpecification.name} tool`,
+                description:
+                    this.#getBuiltInToolDescription(tool.toolSpecification.name) ||
+                    tool.toolSpecification.description ||
+                    `${tool.toolSpecification.name} tool`,
             }))
 
         // Add built-in tools as a server in the active items
-        // activeItems.push({
-        //     title: 'Built-in',
-        //     description: `${builtInTools.length} tools`,
-        //     children: [
-        //         {
-        //             groupName: 'serverInformation',
-        //             children: [
-        //                 {
-        //                     title: 'status',
-        //                     description: 'ENABLED',
-        //                 },
-        //                 {
-        //                     title: 'toolcount',
-        //                     description: `${builtInTools.length}`,
-        //                 },
-        //             ],
-        //         },
-        //     ],
-        // })
+        activeItems.push({
+            title: 'Built-in',
+            description: `${builtInTools.length} tools`,
+            children: [
+                {
+                    groupName: 'serverInformation',
+                    children: [
+                        {
+                            title: 'status',
+                            description: 'ENABLED',
+                        },
+                        {
+                            title: 'toolcount',
+                            description: `${builtInTools.length}`,
+                        },
+                    ],
+                },
+            ],
+        })
 
         Array.from(mcpManagerServerConfigs.entries()).forEach(([serverName, config]) => {
             const toolsWithPermissions = mcpManager.getAllToolsWithPermissions(serverName)
@@ -222,7 +227,7 @@ export class McpEventHandler {
 
         // Return the result in the expected format
         const header = {
-            title: 'MCP Servers',
+            title: 'MCP Servers and Built-in Tools',
             description: "Add MCP servers to extend Q's capabilities.",
             // only  show error on list mcp server page if unable to read mcp.json file
             status: configLoadErrors
@@ -268,6 +273,17 @@ export class McpEventHandler {
         return this.#getDefaultMcpResponse(params.id)
     }
 
+    async generateEmptyBuiltInToolPermission() {
+        const personaPath = await this.#getAgentPath()
+        const perm: MCPServerPermission = {
+            enabled: true,
+            toolPerms: {},
+            __configPath__: personaPath,
+        }
+
+        return perm
+    }
+
     /**
      * Returns the default MCP servers response
      */
@@ -275,7 +291,7 @@ export class McpEventHandler {
         return {
             id,
             header: {
-                title: 'MCP Servers',
+                title: 'MCP Servers and Built-in Tools',
                 status: {},
                 description: `Add MCP servers to extend Q's capabilities.`,
                 actions: [],
@@ -797,17 +813,23 @@ export class McpEventHandler {
         if (serverName === 'Built-in') {
             // Handle Built-in server specially
             const allTools = this.#features.agent.getTools({ format: 'bedrock' })
-            const mcpToolNames = new Set(McpManager.instance.getAllTools().map(tool => tool.toolName))
+            const builtInToolNames = new Set(this.#features.agent.getBuiltInToolNames())
+            // combine fsWrite and fsReplace into fsWrite
             const builtInTools = allTools
-                .filter(tool => !mcpToolNames.has(tool.toolSpecification.name))
+                .filter(tool => {
+                    return (
+                        builtInToolNames.has(tool.toolSpecification.name) && tool.toolSpecification.name !== 'fsReplace'
+                    )
+                })
                 .map(tool => {
-                    // Set default permission based on tool name
-                    const permission = 'alwaysAllow'
-
+                    const permission = McpManager.instance.getToolPerm(serverName, tool.toolSpecification.name)
                     return {
                         tool: {
                             toolName: tool.toolSpecification.name,
-                            description: tool.toolSpecification.description || `${tool.toolSpecification.name} tool`,
+                            description:
+                                this.#getBuiltInToolDescription(tool.toolSpecification.name) ||
+                                tool.toolSpecification.description ||
+                                `${tool.toolSpecification.name} tool`,
                         },
                         permission,
                     }
@@ -820,6 +842,7 @@ export class McpEventHandler {
                 header: {
                     title: serverName,
                     status: serverStatusError || {},
+                    description: 'TOOLS',
                     actions: [],
                 },
                 list: [],
@@ -1028,17 +1051,23 @@ export class McpEventHandler {
         // Add tool select options
         toolsWithPermissions.forEach(item => {
             const toolName = item.tool.toolName
-            const currentPermission = this.#getCurrentPermission(item.permission)
             // For Built-in server, use a special function that doesn't include the 'Deny' option
-            const permissionOptions = this.#buildPermissionOptions(item.permission)
+            let permissionOptions = this.#buildPermissionOptions()
+
+            if (serverName === 'Built-in') {
+                permissionOptions = this.#buildBuiltInPermissionOptions()
+            }
 
             filterOptions.push({
                 type: 'select',
                 id: `${toolName}`,
                 title: toolName,
                 description: item.tool.description,
-                placeholder: currentPermission,
                 options: permissionOptions,
+                ...(toolName === 'fsWrite'
+                    ? { disabled: true, selectTooltip: 'Permission for this tool is not configurable yet' }
+                    : {}),
+                ...{ value: item.permission, boldTitle: true, mandatory: true, hideMandatoryIcon: true },
             })
         })
 
@@ -1076,35 +1105,24 @@ export class McpEventHandler {
     }
 
     /**
-     * Gets the current permission setting for a tool
-     */
-    #getCurrentPermission(permission: string): string {
-        if (permission === McpPermissionType.alwaysAllow) {
-            return 'Always allow'
-        } else if (permission === McpPermissionType.deny) {
-            return 'Deny'
-        } else {
-            return 'Ask'
-        }
-    }
-
-    /**
      * Builds permission options excluding the current one
      */
-    #buildPermissionOptions(currentPermission: string) {
+    #buildPermissionOptions() {
         const permissionOptions: PermissionOption[] = []
 
-        if (currentPermission !== McpPermissionType.alwaysAllow) {
-            permissionOptions.push({ label: 'Always allow', value: McpPermissionType.alwaysAllow })
-        }
+        permissionOptions.push({
+            label: 'Ask',
+            value: McpPermissionType.ask,
+            description: 'Ask for your approval each time this tool is run',
+        })
 
-        if (currentPermission !== McpPermissionType.ask) {
-            permissionOptions.push({ label: 'Ask', value: McpPermissionType.ask })
-        }
+        permissionOptions.push({
+            label: 'Always allow',
+            value: McpPermissionType.alwaysAllow,
+            description: 'Always allow this tool to run without asking for approval',
+        })
 
-        if (currentPermission !== McpPermissionType.deny) {
-            permissionOptions.push({ label: 'Deny', value: McpPermissionType.deny })
-        }
+        permissionOptions.push({ label: 'Deny', value: McpPermissionType.deny, description: 'Never run this tool' })
 
         return permissionOptions
     }
@@ -1112,33 +1130,51 @@ export class McpEventHandler {
     /**
      * Builds permission options for Built-in tools (no 'Disable' option)
      */
-    // #buildBuiltInPermissionOptions(currentPermission: string) {
-    //     const permissionOptions: PermissionOption[] = []
+    #buildBuiltInPermissionOptions() {
+        const permissionOptions: PermissionOption[] = []
 
-    //     if (currentPermission !== 'alwaysAllow') {
-    //         permissionOptions.push({
-    //             label: 'Always run',
-    //             value: 'alwaysAllow',
-    //         })
-    //     }
+        permissionOptions.push({
+            label: 'Ask',
+            value: 'ask',
+            description: 'Ask for your approval each time this tool is run',
+        })
 
-    //     if (currentPermission !== 'ask') {
-    //         permissionOptions.push({
-    //             label: 'Ask to run',
-    //             value: 'ask',
-    //         })
-    //     }
+        permissionOptions.push({
+            label: 'Always Allow',
+            value: 'alwaysAllow',
+            description: 'Always allow this tool to run without asking for approval',
+        })
 
-    //     return permissionOptions
-    // }
+        return permissionOptions
+    }
+
+    #getBuiltInToolDescription(toolName: string) {
+        switch (toolName) {
+            case 'fsRead':
+                return 'Read the content of files.'
+            case 'listDirectory':
+                return 'List the structure of a directory and its subdirectories.'
+            case 'fileSearch':
+                return 'Search for files and directories using fuzzy name matching.'
+            case 'executeBash':
+                return 'Run shell or powershell commands.\n\nNote: read-only commands are auto-run'
+            case 'fsWrite':
+            case 'fsReplace':
+                return 'Create or edit files.'
+            case 'codeReview':
+                return 'Review tool analyzes code for security vulnerabilities, quality issues, and best practices across multiple programming languages.'
+            default:
+                return ''
+        }
+    }
 
     /**
      * Handles MCP permission change events to update the pending permission config without applying changes
      */
     async #handleMcpPermissionChange(params: McpServerClickParams) {
         const serverName = params.title
-        const updatedPermissionConfig = params.optionsValues
 
+        const updatedPermissionConfig = params.optionsValues
         if (!serverName || !updatedPermissionConfig) {
             return { id: params.id }
         }
@@ -1153,6 +1189,7 @@ export class McpEventHandler {
             }
 
             const mcpServerPermission = await this.#processPermissionUpdates(
+                serverName,
                 updatedPermissionConfig,
                 serverConfig?.__configPath__
             )
@@ -1211,6 +1248,33 @@ export class McpEventHandler {
                     transportType: transportType,
                     languageServerVersion: this.#features.runtime.serverInfo.version,
                 })
+            } else {
+                // it's mean built-in tool, but do another extra check to confirm
+                if (serverName === 'Built-in') {
+                    let toolName: string[] = []
+                    let perm: string[] = []
+
+                    for (const [key, val] of Object.entries(permission.toolPerms)) {
+                        toolName.push(key)
+                        perm.push(val)
+                    }
+
+                    this.#telemetryController?.emitMCPServerInitializeEvent({
+                        source: 'updatePermission',
+                        command: 'Built-in',
+                        enabled: true,
+                        numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+                        scope:
+                            permission.__configPath__ ===
+                            getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
+                                ? 'global'
+                                : 'workspace',
+                        transportType: '',
+                        languageServerVersion: this.#features.runtime.serverInfo.version,
+                        toolName: toolName,
+                        permission: perm,
+                    })
+                }
             }
 
             // Clear the pending permission config after applying
@@ -1350,27 +1414,20 @@ export class McpEventHandler {
     /**
      * Processes permission updates from the UI
      */
-    async #processPermissionUpdates(updatedPermissionConfig: any, agentPath: string | undefined) {
+    async #processPermissionUpdates(serverName: string, updatedPermissionConfig: any, agentPath: string | undefined) {
+        const builtInToolAgentPath = await this.#getAgentPath()
         const perm: MCPServerPermission = {
             enabled: true,
             toolPerms: {},
-            __configPath__: agentPath,
+            __configPath__: serverName === 'Built-in' ? builtInToolAgentPath : agentPath,
         }
 
         // Process each tool permission setting
         for (const [key, val] of Object.entries(updatedPermissionConfig)) {
             if (key === 'scope') continue
 
-            // // Get the default permission for this tool from McpManager
-            // let defaultPermission = McpManager.instance.getToolPerm(serverName, key)
-
-            // // If no default permission is found, use 'alwaysAllow' for Built-in and 'ask' for MCP servers
-            // if (!defaultPermission) {
-            //     defaultPermission = serverName === 'Built-in' ? 'alwaysAllow' : 'ask'
-            // }
-
-            // If the value is an empty string (''), skip this tool to preserve its existing permission in the persona file
-            if (val === '') continue
+            const currentPerm = McpManager.instance.getToolPerm(serverName, key)
+            if (val === currentPerm) continue
             switch (val) {
                 case McpPermissionType.alwaysAllow:
                     perm.toolPerms[key] = McpPermissionType.alwaysAllow

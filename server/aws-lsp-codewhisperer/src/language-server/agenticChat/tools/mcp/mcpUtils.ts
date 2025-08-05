@@ -10,6 +10,7 @@ import path = require('path')
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
 import crypto = require('crypto')
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { EXECUTE_BASH } from '../../constants/toolConstants'
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
@@ -594,7 +595,8 @@ export function enabledMCP(params: InitializeParams | undefined): boolean {
 export function convertPersonaToAgent(
     persona: PersonaConfig,
     mcpServers: Record<string, MCPServerConfig>,
-    featureAgent: Agent
+    featureAgent: Agent,
+    existingAgentConfig: AgentConfig | undefined
 ): AgentConfig {
     const agent: AgentConfig = {
         name: 'default-agent',
@@ -661,12 +663,22 @@ export function convertPersonaToAgent(
         }
     }
 
-    // Add default allowed tools
-    const writeToolNames = new Set(featureAgent.getBuiltInWriteToolNames())
-    const defaultAllowedTools = featureAgent.getBuiltInToolNames().filter(toolName => !writeToolNames.has(toolName))
-    for (const toolName of defaultAllowedTools) {
-        if (!agent.allowedTools.includes(toolName)) {
-            agent.allowedTools.push(toolName)
+    // handle permission of built-in tools
+    // check if agent config exists
+    const defaultAllowedTools = featureAgent.getBuiltInToolNames().filter(toolName => toolName !== EXECUTE_BASH)
+    if (!existingAgentConfig) {
+        // not yet created --> add all defaults tools
+        for (const toolName of defaultAllowedTools) {
+            if (!agent.allowedTools.includes(toolName)) {
+                agent.allowedTools.push(toolName)
+            }
+        }
+    } else {
+        // only consider tools that are not in existingAgentConfig
+        for (const toolName of defaultAllowedTools) {
+            if (!agent.allowedTools.includes(toolName) && !existingAgentConfig.tools.includes(toolName)) {
+                agent.allowedTools.push(toolName)
+            }
         }
     }
 
@@ -875,7 +887,8 @@ async function migrateConfigToAgent(
     }
 
     // Convert to agent config
-    const newAgentConfig = convertPersonaToAgent(personaConfig, serverConfigs, agent)
+    logging.info('Migrating started')
+    const newAgentConfig = convertPersonaToAgent(personaConfig, serverConfigs, agent, existingAgentConfig)
     newAgentConfig.includedFiles = ['AmazonQ.md', 'README.md', '.amazonq/rules/**/*.md']
     newAgentConfig.resources = [] // Initialize with empty array
 
