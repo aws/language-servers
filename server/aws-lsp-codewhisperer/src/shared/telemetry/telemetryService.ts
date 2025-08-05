@@ -5,7 +5,10 @@ import {
     Logging,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
-import { CodeWhispererSession } from '../../language-server/inline-completion/session/sessionManager'
+import {
+    CodeWhispererSession,
+    UserTriggerDecision,
+} from '../../language-server/inline-completion/session/sessionManager'
 import {
     SuggestionState,
     UserTriggerDecisionEvent,
@@ -115,14 +118,10 @@ export class TelemetryService {
         return service
     }
 
-    private getSuggestionState(session: CodeWhispererSession): SuggestionState {
+    private getSuggestionState(userTriggerDecision: UserTriggerDecision): SuggestionState {
         let suggestionState: SuggestionState
         // Edits show one suggestion sequentially (with pagination), so use latest itemId state;
         // Completions show multiple suggestions together, so aggregate all states
-        const userTriggerDecision =
-            session.suggestionType === SuggestionType.EDIT
-                ? session.getLatestUserTriggerDecision()
-                : session.getAggregatedUserTriggerDecision()
         switch (userTriggerDecision) {
             case 'Accept':
                 suggestionState = 'ACCEPT'
@@ -192,6 +191,7 @@ export class TelemetryService {
 
     public emitUserTriggerDecision(
         session: CodeWhispererSession,
+        userTriggerDecision: UserTriggerDecision,
         timeSinceLastUserModification?: number,
         addedCharacterCount?: number,
         deletedCharacterCount?: number,
@@ -265,7 +265,7 @@ export class TelemetryService {
             },
             completionType:
                 session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : 'LINE',
-            suggestionState: this.getSuggestionState(session),
+            suggestionState: this.getSuggestionState(userTriggerDecision),
             recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency
                 ? session.firstCompletionDisplayLatency
                 : 0,

@@ -885,7 +885,8 @@ export const CodewhispererServerFactory =
                 deletedCharactersForEditSuggestion.length,
                 addedDiagnostics,
                 removedDiagnostics,
-                streakLength
+                streakLength,
+                Object.keys(params.completionSessionResult)[0]
             )
         }
 

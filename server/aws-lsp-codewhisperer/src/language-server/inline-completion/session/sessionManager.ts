@@ -18,7 +18,7 @@ import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
-type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
+export type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
 
 interface CachedSuggestion extends Suggestion {
     insertText?: string
@@ -82,7 +82,6 @@ export class CodeWhispererSession {
     suggestionType?: string
     hasEditsPending?: boolean = false
     // Track the most recent itemId for paginated Edit suggestions
-    recentItemId?: string
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
@@ -207,8 +206,6 @@ export class CodeWhispererSession {
                 // No recommendation was accepted, but user have seen this suggestion
                 this.setSuggestionState(itemId, 'Reject')
             }
-
-            this.recentItemId = itemId
         }
 
         this.firstCompletionDisplayLatency = firstCompletionDisplayLatency
@@ -259,15 +256,15 @@ export class CodeWhispererSession {
      * Determines trigger decision based on the most recent user action.
      * Uses the last processed itemId to determine the overall session decision.
      */
-    getLatestUserTriggerDecision(): UserTriggerDecision | undefined {
+    getLatestUserTriggerDecision(itemId?: string): UserTriggerDecision | undefined {
         // Force Discard trigger decision when session was explicitly discarded by server
         if (this.state === 'DISCARD') {
             return 'Discard'
         }
 
-        if (!this.recentItemId) return
+        if (!itemId) return
 
-        const state = this.getSuggestionState(this.recentItemId)
+        const state = this.getSuggestionState(itemId)
         if (state === 'Accept') return 'Accept'
         if (state === 'Reject') return 'Reject'
         return state === 'Empty' ? 'Empty' : 'Discard'
