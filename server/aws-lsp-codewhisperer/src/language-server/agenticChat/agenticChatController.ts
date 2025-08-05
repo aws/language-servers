@@ -360,16 +360,6 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.lsp
         )
 
-        // Set up index completion callback to toggle workspacePending
-        LocalProjectContextController.getInstance()
-            .then(controller => {
-                controller.onIndexBuildComplete = () => {
-                    this.#contextCommandsProvider.maybeUpdateWorkspacePending()
-                }
-            })
-            .catch(err => {
-                this.#features.logging.error(`Failed to set up index completion callback: ${err}`)
-            })
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
@@ -3444,11 +3434,10 @@ export class AgenticChatController implements ChatHandlers {
      */
     async onReady() {
         await this.restorePreviousChats()
-        await this.#contextCommandsProvider.processContextCommandUpdate([])
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
-            this.#contextCommandsProvider.filesAndFoldersPending = false
+            this.#contextCommandsProvider.setFilesAndFoldersPending(false)
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
         } catch (error) {

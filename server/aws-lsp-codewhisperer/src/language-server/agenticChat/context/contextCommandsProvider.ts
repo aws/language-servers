@@ -13,7 +13,7 @@ export class ContextCommandsProvider implements Disposable {
     private promptFileWatcher?: FSWatcher
     private cachedContextCommands?: ContextCommandItem[]
     private codeSymbolsPending = true
-    public filesAndFoldersPending = true
+    private filesAndFoldersPending = true
     private workspacePending = true
     constructor(
         private readonly logging: Logging,
@@ -25,6 +25,8 @@ export class ContextCommandsProvider implements Disposable {
         this.registerContextCommandHandler().catch(e =>
             this.logging.error(`Error registering context command handler: ${e}`)
         )
+        //send initial pending state to client immediately
+        void this.processContextCommandUpdate([]).catch(() => {})
     }
 
     private async registerContextCommandHandler() {
@@ -32,6 +34,12 @@ export class ContextCommandsProvider implements Disposable {
             const controller = await LocalProjectContextController.getInstance()
             controller.onContextItemsUpdated = async contextItems => {
                 await this.processContextCommandUpdate(contextItems)
+            }
+            controller.onIndexBuildComplete = () => {
+                if (this.workspacePending) {
+                    this.workspacePending = false
+                    void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
+                }
             }
         } catch (e) {
             this.logging.warn(`Error processing context command update: ${e}`)
@@ -222,11 +230,8 @@ export class ContextCommandsProvider implements Disposable {
         }
     }
 
-    async maybeUpdateWorkspacePending() {
-        if (this.workspacePending) {
-            this.workspacePending = false
-            void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
-        }
+    setFilesAndFoldersPending(value: boolean) {
+        this.filesAndFoldersPending = value
     }
 
     dispose() {
