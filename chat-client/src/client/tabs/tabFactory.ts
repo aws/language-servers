@@ -187,6 +187,8 @@ Select code & ask me to explain, debug or optimize it, or type \`/\` for quick a
             'MCP is available in Amazon Q!',
             'Pinned context is always included in future chat messages',
             'Create and add Saved Prompts using the @ context menu',
+            'Compact your conversation with /compact',
+            'Ask Q to review your code and see results in the code issues panel!',
         ]
 
         const randomIndex = Math.floor(Math.random() * hints.length)
