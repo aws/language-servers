@@ -57,9 +57,6 @@ import {
 const { editPredictionAutoTrigger } = require('./auto-trigger/editPredictionAutoTrigger')
 
 const EMPTY_RESULT = { sessionId: '', items: [] }
-export const FILE_URI_CHARS_LIMIT = 1024
-export const FILENAME_CHARS_LIMIT = 1024
-export const CONTEXT_CHARACTERS_LIMIT = 10240
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -168,12 +165,6 @@ export const CodewhispererServerFactory =
                             ...currentSession.requestContext,
                             fileContext: {
                                 ...currentSession.requestContext.fileContext,
-                                leftFileContent: currentSession.requestContext.fileContext.leftFileContent
-                                    .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                    .replaceAll('\r\n', '\n'),
-                                rightFileContent: currentSession.requestContext.fileContext.rightFileContent
-                                    .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                    .replaceAll('\r\n', '\n'),
                             },
                             nextToken: `${params.partialResultToken}`,
                         })
@@ -465,15 +456,6 @@ export const CodewhispererServerFactory =
 
                     const generateCompletionReq = {
                         ...requestContext,
-                        fileContext: {
-                            ...requestContext.fileContext,
-                            leftFileContent: requestContext.fileContext.leftFileContent
-                                .slice(-CONTEXT_CHARACTERS_LIMIT)
-                                .replaceAll('\r\n', '\n'),
-                            rightFileContent: requestContext.fileContext.rightFileContent
-                                .slice(0, CONTEXT_CHARACTERS_LIMIT)
-                                .replaceAll('\r\n', '\n'),
-                        },
                         ...(workspaceId ? { workspaceId: workspaceId } : {}),
                     }
                     try {

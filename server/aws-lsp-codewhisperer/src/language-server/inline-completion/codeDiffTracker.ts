@@ -17,7 +17,6 @@ export interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
     sessionId: string
     requestId: string
     languageId: CodewhispererLanguage
-    customizationArn?: string
     completionType: string
     triggerType: string
     credentialStartUrl?: string | undefined

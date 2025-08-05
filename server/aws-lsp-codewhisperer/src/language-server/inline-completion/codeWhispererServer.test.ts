@@ -58,7 +58,7 @@ import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../sha
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
-import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
+import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
 
 const updateConfiguration = async (
@@ -85,6 +85,8 @@ const startServer = async (features: TestFeatures, server: Server): Promise<Test
 
     return features
 }
+
+const CONTEXT_CHARACTERS_LIMIT = 10240
 
 describe('CodeWhisperer Server', () => {
     const sandbox = sinon.createSandbox()
