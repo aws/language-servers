@@ -49,7 +49,7 @@ export class InlineCompletionHandler {
         readonly logging: Logging,
         readonly clientMetadata: InitializeParams,
         readonly workspace: Workspace,
-        readonly qServiceManager: AmazonQBaseServiceManager,
+        readonly amazonQServiceManager: AmazonQBaseServiceManager,
         readonly sessionManager: SessionManager,
         readonly cursorTracker: CursorTracker,
         readonly recentEditsTracker: RecentEditTracker,
@@ -64,7 +64,7 @@ export class InlineCompletionHandler {
     }
 
     get codeWhispererService() {
-        return this.qServiceManager.getCodewhispererService()
+        return this.amazonQServiceManager.getCodewhispererService()
     }
 
     async onInlineCompletion(
@@ -221,7 +221,7 @@ export class InlineCompletionHandler {
 
         // TODO: What's this???
         // Add extra context to request context
-        const { extraContext } = this.qServiceManager.getConfiguration().inlineSuggestions
+        const { extraContext } = this.amazonQServiceManager.getConfiguration().inlineSuggestions
         if (extraContext) {
             generateCompletionReq.fileContext.leftFileContent =
                 extraContext + '\n' + generateCompletionReq.fileContext.leftFileContent
@@ -302,7 +302,7 @@ export class InlineCompletionHandler {
                 // the response. No locking or concurrency controls, filtering is done
                 // right before returning and is only guaranteed to be consistent within
                 // the context of a single response.
-                const { includeSuggestionsWithCodeReferences } = this.qServiceManager.getConfiguration()
+                const { includeSuggestionsWithCodeReferences } = this.amazonQServiceManager.getConfiguration()
                 if (includeSuggestionsWithCodeReferences) {
                     return true
                 }
@@ -316,7 +316,7 @@ export class InlineCompletionHandler {
                 return false
             })
 
-        const { includeImportsWithSuggestions } = this.qServiceManager.getConfiguration()
+        const { includeImportsWithSuggestions } = this.amazonQServiceManager.getConfiguration()
         const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
             session.requestContext.fileContext.rightFileContent,
             filteredSuggestions,

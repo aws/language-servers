@@ -52,7 +52,7 @@ export class EditCompletionHandler {
         readonly logging: Logging,
         readonly clientMetadata: InitializeParams,
         readonly workspace: Workspace,
-        readonly qServiceManager: AmazonQBaseServiceManager,
+        readonly amazonQServiceManager: AmazonQBaseServiceManager,
         readonly sessionManager: SessionManager,
         readonly cursorTracker: CursorTracker,
         readonly recentEditsTracker: RecentEditTracker,
@@ -68,7 +68,7 @@ export class EditCompletionHandler {
     }
 
     get codeWhispererService() {
-        return this.qServiceManager.getCodewhispererService()
+        return this.amazonQServiceManager.getCodewhispererService()
     }
 
     /**
@@ -377,7 +377,7 @@ export class EditCompletionHandler {
                 // the response. No locking or concurrency controls, filtering is done
                 // right before returning and is only guaranteed to be consistent within
                 // the context of a single response.
-                const { includeSuggestionsWithCodeReferences } = this.qServiceManager.getConfiguration()
+                const { includeSuggestionsWithCodeReferences } = this.amazonQServiceManager.getConfiguration()
                 if (includeSuggestionsWithCodeReferences) {
                     return true
                 }
