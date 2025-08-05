@@ -211,6 +211,7 @@ export const SKIP_DIRECTORIES = [
     'temp',
 ]
 
-export const FINDINGS_MESSAGE_SUFFIX = '_codeReviewFindings'
+export const CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX = '_codeReviewFindings'
+export const DISPLAY_FINDINGS_MESSAGE_SUFFIX = '_displayFindings'
 
 export const CODE_REVIEW_METRICS_PARENT_NAME = 'amazonq_codeReviewTool'

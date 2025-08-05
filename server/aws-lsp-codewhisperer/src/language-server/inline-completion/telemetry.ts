@@ -4,6 +4,7 @@ import { CodeWhispererSession } from './session/sessionManager'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
 import { getCompletionType, isAwsError } from '../../shared/utils'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { SuggestionType } from '../../shared/codeWhispererService'
 
 export const emitServiceInvocationTelemetry = (
     telemetry: Telemetry,
@@ -121,8 +122,15 @@ export const emitUserTriggerDecisionTelemetry = async (
         return
     }
 
+    // Edits show one suggestion sequentially (with pagination), so use latest itemId state;
+    // Completions show multiple suggestions together, so aggregate all states
+    const userTriggerDecision =
+        session.suggestionType === SuggestionType.EDIT
+            ? session.getLatestUserTriggerDecision()
+            : session.getAggregatedUserTriggerDecision()
+
     // Can not emit previous trigger decision if it's not available on the session
-    if (!session.getAggregatedUserTriggerDecision()) {
+    if (!userTriggerDecision) {
         return
     }
 
@@ -137,7 +145,13 @@ export const emitUserTriggerDecisionTelemetry = async (
         streakLength
     )
 
-    session.reportedUserDecision = true
+    // Mark telemetry as complete unless Edit suggestion was accepted with more pending
+    const hasPendingEditTelemetry =
+        session.suggestionType === SuggestionType.EDIT && session.acceptedSuggestionId && session.hasEditsPending
+
+    if (!hasPendingEditTelemetry) {
+        session.reportedUserDecision = true
+    }
 }
 
 export const emitAggregatedUserTriggerDecisionTelemetry = (
