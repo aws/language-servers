@@ -3573,6 +3573,10 @@
                     "shape": "Models",
                     "documentation": "<p>List of available models</p>"
                 },
+                "defaultModel": {
+                    "shape": "Model",
+                    "documentation": "<p>Default model set by the client</p>"
+                },
                 "nextToken": {
                     "shape": "Base64EncodedPaginationToken",
                     "documentation": "<p>Token for retrieving the next page of results</p>"
