@@ -32,6 +32,11 @@ import { GenerateCompletionsResponse } from '../client/token/codewhispererbearer
 import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
 import { getRelativePath } from '../language-server/workspaceContext/util'
 import * as path from 'path'
+import {
+    CONTEXT_CHARACTERS_LIMIT,
+    FILE_URI_CHARS_LIMIT,
+    FILENAME_CHARS_LIMIT,
+} from '../language-server/inline-completion/constants'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -61,10 +66,6 @@ export interface GenerateSuggestionsResponse {
     suggestionType?: SuggestionType
     responseContext: ResponseContext
 }
-
-const FILE_URI_CHARS_LIMIT = 1024
-const FILENAME_CHARS_LIMIT = 1024
-const CONTEXT_CHARACTERS_LIMIT = 10240
 
 // This abstract class can grow in the future to account for any additional changes across the clients
 export abstract class CodeWhispererServiceBase {
