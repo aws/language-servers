@@ -17,6 +17,7 @@ import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from
 import {
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
+    getFileContext,
     Suggestion,
     SuggestionType,
 } from '../../shared/codeWhispererService'
@@ -210,7 +211,7 @@ export const CodewhispererServerFactory =
                         params.context.triggerKind == InlineCompletionTriggerKind.Automatic
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
-                    const fileContext = codeWhispererService.getFileContext({
+                    const fileContext = getFileContext({
                         textDocument,
                         inferredLanguageId,
                         position: params.position,

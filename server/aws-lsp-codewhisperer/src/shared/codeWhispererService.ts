@@ -53,6 +53,47 @@ export interface GenerateSuggestionsRequest extends CodeWhispererTokenClient.Gen
     maxResults: number
 }
 
+export function getFileContext(params: {
+    textDocument: TextDocument
+    position: Position
+    inferredLanguageId: CodewhispererLanguage
+    workspaceFolder: WorkspaceFolder | null | undefined
+}): {
+    fileUri: string
+    filename: string
+    programmingLanguage: {
+        languageName: CodewhispererLanguage
+    }
+    leftFileContent: string
+    rightFileContent: string
+} {
+    const left = params.textDocument.getText({
+        start: { line: 0, character: 0 },
+        end: params.position,
+    })
+    const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+    const right = params.textDocument.getText({
+        start: params.position,
+        end: params.textDocument.positionAt(params.textDocument.getText().length),
+    })
+    const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
+
+    const relativeFilePath = params.workspaceFolder
+        ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
+        : path.basename(params.textDocument.uri)
+
+    return {
+        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
+        filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
+        programmingLanguage: {
+            languageName: getRuntimeLanguage(params.inferredLanguageId),
+        },
+        leftFileContent: trimmedLeft,
+        rightFileContent: trimmedRight,
+    }
+}
+
 export type FileContext = GenerateSuggestionsRequest['fileContext']
 
 export interface ResponseContext {
@@ -96,47 +137,6 @@ export abstract class CodeWhispererServiceBase {
 
     completeRequest(request: AWS.Request<any, AWSError> & RequestExtras) {
         this.inflightRequests.delete(request)
-    }
-
-    getFileContext(params: {
-        textDocument: TextDocument
-        position: Position
-        inferredLanguageId: CodewhispererLanguage
-        workspaceFolder: WorkspaceFolder | null | undefined
-    }): {
-        fileUri: string
-        filename: string
-        programmingLanguage: {
-            languageName: CodewhispererLanguage
-        }
-        leftFileContent: string
-        rightFileContent: string
-    } {
-        const left = params.textDocument.getText({
-            start: { line: 0, character: 0 },
-            end: params.position,
-        })
-        const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
-
-        const right = params.textDocument.getText({
-            start: params.position,
-            end: params.textDocument.positionAt(params.textDocument.getText().length),
-        })
-        const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
-
-        const relativeFilePath = params.workspaceFolder
-            ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
-            : path.basename(params.textDocument.uri)
-
-        return {
-            fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
-            filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
-            programmingLanguage: {
-                languageName: getRuntimeLanguage(params.inferredLanguageId),
-            },
-            leftFileContent: trimmedLeft,
-            rightFileContent: trimmedRight,
-        }
     }
 
     abstract getCredentialsType(): CredentialsType

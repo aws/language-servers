@@ -15,6 +15,7 @@ import {
     CodeWhispererServiceToken,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
+    getFileContext,
     SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
@@ -192,7 +193,7 @@ export class EditCompletionHandler {
         // Build request context
         const isAutomaticLspTriggerKind = params.context.triggerKind == InlineCompletionTriggerKind.Automatic
         const maxResults = isAutomaticLspTriggerKind ? 1 : 5
-        const fileContext = this.codeWhispererService.getFileContext({
+        const fileContext = getFileContext({
             textDocument,
             inferredLanguageId,
             position: params.position,
