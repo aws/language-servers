@@ -62,6 +62,18 @@ export class CodeWhispererController {
             credentialsProvider,
             rejectedEditTracker
         )
+
+        this.logInlineCompletionSessionResultsHandler = new LogInlineCompletionSessionResultsHandler(
+            logging,
+            lsp,
+            sessionManager,
+            codePercentageTracker,
+            codeDiffTracker,
+            rejectedEditTracker,
+            documentChangedListener,
+            telemetry,
+            telemetryService
+        )
     }
 
     async onInlineCompletion(

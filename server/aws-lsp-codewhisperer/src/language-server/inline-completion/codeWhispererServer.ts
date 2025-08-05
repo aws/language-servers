@@ -155,11 +155,11 @@ export const CodewhispererServerFactory =
             params: InlineCompletionWithReferencesParams,
             token: CancellationToken
         ): Promise<InlineCompletionListWithReferences> => {
-            return apiController.onInlineCompletion(params, token)
+            return await apiController.onInlineCompletion(params, token)
         }
 
         const onLogInlineCompletionSessionResultsHandler = async (params: LogInlineCompletionSessionResultsParams) => {
-            return apiController.onLogInlineCompletionSessionResultsHandler(params)
+            await apiController.onLogInlineCompletionSessionResultsHandler(params)
         }
 
         lsp.extensions.onInlineCompletionWithReferences(onInlineCompletionHandler)
