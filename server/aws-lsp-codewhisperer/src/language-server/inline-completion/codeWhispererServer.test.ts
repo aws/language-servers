@@ -12,7 +12,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
+import { CodewhispererServerFactory } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
