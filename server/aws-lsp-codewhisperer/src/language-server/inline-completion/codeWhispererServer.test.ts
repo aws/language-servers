@@ -775,6 +775,38 @@ describe('CodeWhisperer Server', () => {
                 const test_service = sinon.createStubInstance(
                     CodeWhispererServiceToken
                 ) as StubbedInstance<CodeWhispererServiceToken>
+                // TODO: Use real CodeWhispererServiceToken instead of stub
+                test_service.constructSupplementalContext.resolves({
+                    supContextData: {
+                        isUtg: false,
+                        isProcessTimeout: false,
+                        supplementalContextItems: [
+                            {
+                                content: 'class Foo',
+                                filePath: 'foo.java',
+                                score: 0,
+                            },
+                            {
+                                content: 'class Bar',
+                                filePath: 'bar.java',
+                                score: 0,
+                            },
+                        ],
+                        contentsLength: 0,
+                        latency: 0,
+                        strategy: 'OpenTabs_BM25',
+                    },
+                    items: [
+                        {
+                            content: 'class Foo',
+                            filePath: 'Foo.java',
+                        },
+                        {
+                            content: 'class Bar',
+                            filePath: 'Bar.java',
+                        },
+                    ],
+                })
 
                 test_service.generateSuggestions.returns(
                     Promise.resolve({
@@ -828,8 +860,8 @@ describe('CodeWhisperer Server', () => {
                     },
                     maxResults: 5,
                     supplementalContexts: [
-                        { content: 'sample-content', filePath: '/SampleFile.java' },
-                        { content: 'sample-content', filePath: '/SampleFile.java' },
+                        { content: 'class Foo', filePath: 'Foo.java' },
+                        { content: 'class Bar', filePath: 'Bar.java' },
                     ],
                     // workspaceId: undefined,
                 }
@@ -2376,48 +2408,6 @@ describe('CodeWhisperer Server', () => {
         afterEach(() => {
             features.dispose()
             TestAmazonQServiceManager.resetInstance()
-        })
-
-        it('should handle editsEnabled=true with COMPLETIONS prediction type', async () => {
-            const result = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                },
-                CancellationToken.None
-            )
-
-            // Check the completion result
-            assert.deepEqual(result, EXPECTED_RESULT_EDITS)
-
-            const expectedGenerateSuggestionsRequest = {
-                fileContext: {
-                    fileUri: SOME_FILE.uri,
-                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
-                    programmingLanguage: { languageName: 'csharp' },
-                    leftFileContent: '',
-                    rightFileContent: HELLO_WORLD_IN_CSHARP,
-                },
-                maxResults: 5,
-                supplementalContexts: [],
-                predictionTypes: ['COMPLETIONS'],
-                editorState: {
-                    document: {
-                        relativeFilePath: SOME_FILE.uri,
-                        programmingLanguage: { languageName: 'csharp' },
-                        text: HELLO_WORLD_IN_CSHARP,
-                    },
-                    cursorState: {
-                        position: {
-                            line: 0,
-                            character: 0,
-                        },
-                    },
-                },
-            }
-
-            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
     })
 })

@@ -276,9 +276,6 @@ export const CodewhispererServerFactory =
                         }
                     }
 
-                    // Get supplemental context from recent edits if available.
-                    let supplementalContextFromEdits = undefined
-
                     let requestContext: GenerateSuggestionsRequest = {
                         fileContext,
                         maxResults,
