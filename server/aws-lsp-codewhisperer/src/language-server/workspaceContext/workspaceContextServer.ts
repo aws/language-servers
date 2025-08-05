@@ -221,7 +221,6 @@ export const WorkspaceContextServer = (): Server => features => {
             isLoggedInUsingBearerToken(credentialsProvider) &&
             abTestingEnabled &&
             !workspaceFolderManager.getOptOutStatus() &&
-            !workspaceFolderManager.getServiceQuotaExceededStatus() &&
             workspaceIdentifier
         )
     }
@@ -303,7 +302,7 @@ export const WorkspaceContextServer = (): Server => features => {
                     await evaluateABTesting()
                     isWorkflowInitialized = true
 
-                    workspaceFolderManager.resetAdminOptOutAndServiceQuotaStatus()
+                    workspaceFolderManager.resetAdminOptOutStatus()
                     if (!isUserEligibleForWorkspaceContext()) {
                         return
                     }
