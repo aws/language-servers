@@ -14,7 +14,6 @@ import { editPredictionAutoTrigger } from './auto-trigger/editPredictionAutoTrig
 import { CursorTracker } from './tracker/cursorTracker'
 import { RecentEditTracker } from './tracker/codeEditTracker'
 import { CodeWhispererServiceBase, CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { PredictionTypes } from '../../client/token/codewhispererbearertokenclient'
 
 interface QInlineTrigger {
     triggerCharacters: string
@@ -49,62 +48,6 @@ export class ClassifierAutoTrigger extends QAutoTrigger {
         readonly classifierThreshold: number
     ) {
         super('Classifier', ch)
-    }
-}
-
-/**
- * Manual trigger - should always have 'Completions'
- * Auto trigger
- *  - Classifier - should have 'Completions' when classifier evalualte to true given the editor's states
- *  - Others - should always have 'Completions'
- */
-export function shouldTriggerSuggestion(
-    service: CodeWhispererServiceBase,
-    fileContext: {
-        fileUri: string
-        filename: string
-        programmingLanguage: {
-            languageName: CodewhispererLanguage
-        }
-        leftFileContent: string
-        rightFileContent: string
-    },
-    inlineParams: InlineCompletionWithReferencesParams,
-    sessionManager: SessionManager,
-    cursorTracker: CursorTracker,
-    recentEditsTracker: RecentEditTracker,
-    ideCategory: string,
-    logging: Logging,
-    config: any
-): {
-    predictionTypes: PredictionTypes
-    completions: QInlineTrigger | undefined
-    edits: NepTrigger | undefined
-} {
-    const predictionTypes: PredictionTypes = []
-    const inlineTrigger = shouldTriggerCompletions(fileContext, inlineParams, sessionManager, ideCategory, logging)
-    const editsEnabled: boolean = config.editsEnabled === true
-    const editsTrigger = shouldTriggerEdits(
-        service,
-        fileContext,
-        inlineParams,
-        cursorTracker,
-        recentEditsTracker,
-        sessionManager,
-        editsEnabled
-    )
-
-    if (inlineTrigger) {
-        predictionTypes.push('COMPLETIONS')
-    }
-    if (editsTrigger) {
-        predictionTypes.push('EDITS')
-    }
-
-    return {
-        predictionTypes: predictionTypes,
-        completions: inlineTrigger,
-        edits: editsTrigger,
     }
 }
 
