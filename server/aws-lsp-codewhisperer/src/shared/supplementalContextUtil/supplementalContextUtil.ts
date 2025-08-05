@@ -29,7 +29,6 @@ export async function fetchSupplementalContext(
     workspace: Workspace,
     logging: Logging,
     cancellationToken: CancellationToken,
-    amazonQServiceManager?: AmazonQBaseServiceManager,
     openTabFiles?: string[]
 ): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = performance.now()
@@ -74,7 +73,6 @@ export async function fetchSupplementalContext(
                 position,
                 workspace,
                 cancellationToken,
-                amazonQServiceManager,
                 openTabFiles
             )
         }

@@ -177,7 +177,7 @@ type AutoTriggerParams = {
     char: string
     triggerType: string // Left as String intentionally to support future and unknown trigger types
     os: string
-    previousDecision: string
+    previousDecision: string | undefined
     ide: string
     lineNum: number
 }
