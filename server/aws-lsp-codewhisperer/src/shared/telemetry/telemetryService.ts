@@ -117,7 +117,13 @@ export class TelemetryService {
 
     private getSuggestionState(session: CodeWhispererSession): SuggestionState {
         let suggestionState: SuggestionState
-        switch (session.getAggregatedUserTriggerDecision()) {
+        // Edits show one suggestion sequentially (with pagination), so use latest itemId state;
+        // Completions show multiple suggestions together, so aggregate all states
+        const userTriggerDecision =
+            session.suggestionType === SuggestionType.EDIT
+                ? session.getLatestUserTriggerDecision()
+                : session.getAggregatedUserTriggerDecision()
+        switch (userTriggerDecision) {
             case 'Accept':
                 suggestionState = 'ACCEPT'
                 break
