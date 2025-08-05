@@ -338,7 +338,8 @@ export const CodewhispererServerFactory =
                                   workspace,
                                   logging,
                                   token,
-                                  amazonQServiceManager
+                                  amazonQServiceManager,
+                                  params.openTabFilepaths
                               )
                             : Promise.resolve(undefined)
 
@@ -680,6 +681,7 @@ export const CodewhispererServerFactory =
                     partialResultToken: suggestionResponse.responseContext.nextToken,
                 }
             } else {
+                session.hasEditsPending = suggestionResponse.responseContext.nextToken ? true : false
                 return {
                     items: suggestionResponse.suggestions
                         .map(suggestion => {
@@ -866,7 +868,13 @@ export const CodewhispererServerFactory =
             if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
 
             // Always emit user trigger decision at session close
-            sessionManager.closeSession(session)
+            // Close session unless Edit suggestion was accepted with more pending
+            const shouldKeepSessionOpen =
+                session.suggestionType === SuggestionType.EDIT && isAccepted && session.hasEditsPending
+
+            if (!shouldKeepSessionOpen) {
+                sessionManager.closeSession(session)
+            }
             const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
