@@ -5,8 +5,7 @@ import { CLEAR_QUICK_ACTION, HELP_QUICK_ACTION } from './quickActions'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { makeUserContextObject } from '../../shared/telemetryUtils'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
-import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { getOrThrowBaseServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 
 import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { AmazonQServiceInitializationError } from '../../shared/amazonQServiceManager/errors'
@@ -17,7 +16,7 @@ export const QChatServerFactory =
     features => {
         const { chat, credentialsProvider, lsp, telemetry, logging, runtime } = features
 
-        // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
+        // AmazonQServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
         let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
 
@@ -127,5 +126,4 @@ export const QChatServerFactory =
         }
     }
 
-export const QChatServerIAM = QChatServerFactory(getOrThrowBaseIAMServiceManager)
-export const QChatServerToken = QChatServerFactory(getOrThrowBaseTokenServiceManager)
+export const QChatServer = QChatServerFactory(getOrThrowBaseServiceManager)

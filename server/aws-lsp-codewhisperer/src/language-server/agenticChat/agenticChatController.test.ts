@@ -35,7 +35,11 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
-import { createIterableResponse, setCredentialsForAmazonQTokenServiceManagerFactory } from '../../shared/testUtils'
+import {
+    createIterableResponse,
+    setTokenCredentialsForAmazonQServiceManagerFactory,
+    setIamCredentialsForAmazonQServiceManagerFactory,
+} from '../../shared/testUtils'
 import sinon from 'ts-sinon'
 import { AgenticChatController } from './agenticChatController'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
@@ -45,8 +49,7 @@ import { DocumentContextExtractor } from '../chat/contexts/documentContext'
 import * as utils from '../chat/utils'
 import { DEFAULT_HELP_FOLLOW_UP_PROMPT, HELP_MESSAGE } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { AmazonQIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
+import { AmazonQServiceManager } from '../../shared/amazonQServiceManager/AmazonQServiceManager'
 import { TabBarController } from './tabBarController'
 import { getUserPromptsDirectory, promptFileExtension } from './context/contextUtils'
 import { AdditionalContextProvider } from './context/additionalContextProvider'
@@ -170,7 +173,7 @@ describe('AgenticChatController', () => {
     let emitConversationMetricStub: sinon.SinonStub
 
     let testFeatures: TestFeatures
-    let serviceManager: AmazonQTokenServiceManager
+    let serviceManager: AmazonQServiceManager
     let chatSessionManagementService: ChatSessionManagementService
     let chatController: AgenticChatController
     let telemetryService: TelemetryService
@@ -179,7 +182,8 @@ describe('AgenticChatController', () => {
     let getMessagesStub: sinon.SinonStub
     let addMessageStub: sinon.SinonStub
 
-    const setCredentials = setCredentialsForAmazonQTokenServiceManagerFactory(() => testFeatures)
+    const setSsoCredentials = setTokenCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
+    const setIamCredentials = setIamCredentialsForAmazonQServiceManagerFactory(() => testFeatures)
 
     beforeEach(() => {
         // Override the response timeout for tests to avoid long waits
@@ -272,7 +276,7 @@ describe('AgenticChatController', () => {
         }
         testFeatures.lsp.window.showDocument = sinon.stub()
         testFeatures.setClientParams(cachedInitializeParams)
-        setCredentials('builderId')
+        setSsoCredentials('builderId')
 
         activeTabSpy = sinon.spy(ChatTelemetryController.prototype, 'activeTabId', ['get', 'set'])
         removeConversationSpy = sinon.spy(ChatTelemetryController.prototype, 'removeConversation')
@@ -281,14 +285,14 @@ describe('AgenticChatController', () => {
         disposeStub = sinon.stub(ChatSessionService.prototype, 'dispose')
         sinon.stub(ContextCommandsProvider.prototype, 'maybeUpdateCodeSymbols').resolves()
 
-        AmazonQTokenServiceManager.resetInstance()
+        AmazonQServiceManager.resetInstance()
 
-        serviceManager = AmazonQTokenServiceManager.initInstance(testFeatures)
+        serviceManager = AmazonQServiceManager.initInstance(testFeatures)
         chatSessionManagementService = ChatSessionManagementService.getInstance()
         chatSessionManagementService.withAmazonQServiceManager(serviceManager)
 
         const mockCredentialsProvider: CredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
+            hasCredentials: sinon.stub().withArgs('bearer').returns(true),
             getCredentials: sinon.stub().returns({ token: 'token' }),
             getConnectionMetadata: sinon.stub().returns({
                 sso: {
@@ -2993,7 +2997,7 @@ ${' '.repeat(8)}}
     })
 
     describe('onListAvailableModels', () => {
-        let tokenServiceManagerStub: sinon.SinonStub
+        let serviceManagerStub: sinon.SinonStub
 
         beforeEach(() => {
             // Create a session with a model ID
@@ -3002,16 +3006,16 @@ ${' '.repeat(8)}}
             session.modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
 
             // Stub the getRegion method
-            tokenServiceManagerStub = sinon.stub(AmazonQTokenServiceManager.prototype, 'getRegion')
+            serviceManagerStub = sinon.stub(AmazonQServiceManager.prototype, 'getRegion')
         })
 
         afterEach(() => {
-            tokenServiceManagerStub.restore()
+            serviceManagerStub.restore()
         })
 
         it('should return all available models for us-east-1 region', async () => {
             // Set up the region to be us-east-1
-            tokenServiceManagerStub.returns('us-east-1')
+            serviceManagerStub.returns('us-east-1')
 
             // Call the method
             const params = { tabId: mockTabId }
@@ -3030,7 +3034,7 @@ ${' '.repeat(8)}}
 
         it('should return limited models for eu-central-1 region', async () => {
             // Set up the region to be eu-central-1
-            tokenServiceManagerStub.returns('eu-central-1')
+            serviceManagerStub.returns('eu-central-1')
 
             // Call the method
             const params = { tabId: mockTabId }
@@ -3049,7 +3053,7 @@ ${' '.repeat(8)}}
 
         it('should return all models when region is unknown', async () => {
             // Set up the region to be unknown
-            tokenServiceManagerStub.returns('unknown-region')
+            serviceManagerStub.returns('unknown-region')
 
             // Call the method
             const params = { tabId: mockTabId }
@@ -3084,7 +3088,7 @@ ${' '.repeat(8)}}
 
         it('should fallback to latest available model when saved model is not available in current region', async () => {
             // Set up the region to be eu-central-1 (which only has Claude 3.7)
-            tokenServiceManagerStub.returns('eu-central-1')
+            serviceManagerStub.returns('eu-central-1')
 
             // Mock database to return Claude Sonnet 4 (not available in eu-central-1)
             const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
@@ -3104,7 +3108,7 @@ ${' '.repeat(8)}}
 
         it('should use saved model when it is available in current region', async () => {
             // Set up the region to be us-east-1 (which has both models)
-            tokenServiceManagerStub.returns('us-east-1')
+            serviceManagerStub.returns('us-east-1')
 
             // Mock database to return Claude 3.7 (available in us-east-1)
             const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
@@ -3124,7 +3128,7 @@ ${' '.repeat(8)}}
     })
 
     describe('IAM Authentication', () => {
-        let iamServiceManager: AmazonQIAMServiceManager
+        let serviceManager: AmazonQServiceManager
         let iamChatController: AgenticChatController
         let iamChatSessionManagementService: ChatSessionManagementService
 
@@ -3144,26 +3148,29 @@ ${' '.repeat(8)}}
             // Reset the singleton instance
             ChatSessionManagementService.reset()
 
+            // Store IAM credentials
+            setIamCredentials()
+
             // Create IAM service manager
-            AmazonQIAMServiceManager.resetInstance()
-            iamServiceManager = AmazonQIAMServiceManager.initInstance(testFeatures)
+            AmazonQServiceManager.resetInstance()
+            serviceManager = AmazonQServiceManager.initInstance(testFeatures)
 
             // Create chat session management service with IAM service manager
             iamChatSessionManagementService = ChatSessionManagementService.getInstance()
-            iamChatSessionManagementService.withAmazonQServiceManager(iamServiceManager)
+            iamChatSessionManagementService.withAmazonQServiceManager(serviceManager)
             // Create controller with IAM service manager
             iamChatController = new AgenticChatController(
                 iamChatSessionManagementService,
                 testFeatures,
                 telemetryService,
-                iamServiceManager
+                serviceManager
             )
         })
 
         afterEach(() => {
             iamChatController.dispose()
             ChatSessionManagementService.reset()
-            AmazonQIAMServiceManager.resetInstance()
+            AmazonQServiceManager.resetInstance()
         })
 
         it('creates a session with IAM service manager', () => {
