@@ -42,10 +42,11 @@ export const CodewhispererServerFactory =
         const sessionManager = SessionManager.getInstance('COMPLETIONS')
         const editsSessionManager = SessionManager.getInstance('EDITS')
 
+        const apiController = new CodeWhispererController(sessionManager, editsSessionManager)
+
         // AmazonQTokenServiceManager and TelemetryService are initialized in `onInitialized` handler to make sure Language Server connection is started
         let amazonQServiceManager: AmazonQBaseServiceManager
         let telemetryService: TelemetryService
-        let apiController: CodeWhispererController
 
         lsp.addInitializer((params: InitializeParams) => {
             return {
@@ -133,9 +134,7 @@ export const CodewhispererServerFactory =
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
 
-            apiController = new CodeWhispererController(
-                sessionManager,
-                editsSessionManager,
+            await apiController.init(
                 logging,
                 clientParams,
                 workspace,
