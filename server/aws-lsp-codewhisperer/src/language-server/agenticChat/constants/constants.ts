@@ -9,7 +9,8 @@ export const RESPONSE_TIMEOUT_PARTIAL_MSG = 'Response processing timed out after
 export const LOADING_THRESHOLD_MS = 2000
 export const CLIENT_TIMEOUT_MS = 245_000
 export const RESPONSE_TIMEOUT_MS = 240_000
-export const SERVICE_MANAGER_TIMEOUT_MS = 10_000 //10 seconds
+export const SERVICE_MANAGER_TIMEOUT_MS = 10_000
+export const SERVICE_MANAGER_POLL_INTERVAL_MS = 100 //10 seconds
 
 // LLM Constants
 export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000

@@ -26,7 +26,7 @@ import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../share
 import { DisplayFindings } from './qCodeAnalysis/displayFindings'
 import { ProfileStatusMonitor } from './mcp/profileStatusMonitor'
 import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { SERVICE_MANAGER_TIMEOUT_MS } from '../constants/constants'
+import { SERVICE_MANAGER_TIMEOUT_MS, SERVICE_MANAGER_POLL_INTERVAL_MS } from '../constants/constants'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -344,18 +344,18 @@ export const McpToolsServer: Server = ({
                 logging,
                 sdkInitializator,
                 removeAllMcpTools,
-                () => {
+                async () => {
                     logging.info('MCP enabled by profile status monitor')
-                    void initializeMcp()
+                    await initializeMcp()
                 }
             )
 
             // Wait for profile ARN to be available before checking MCP state
-            const checkAndInitialize = async (connectionType?: string) => {
+            const checkAndInitialize = async () => {
                 const shouldInitialize = await profileStatusMonitor!.checkInitialState()
                 if (shouldInitialize) {
                     logging.info('MCP enabled, initializing immediately')
-                    void initializeMcp()
+                    await initializeMcp()
                 }
                 profileStatusMonitor!.start()
             }
@@ -364,27 +364,27 @@ export const McpToolsServer: Server = ({
             try {
                 const serviceManager = AmazonQTokenServiceManager.getInstance()
                 if (serviceManager.getState() === 'INITIALIZED') {
-                    void checkAndInitialize(serviceManager.getConnectionType())
+                    await checkAndInitialize()
                 } else {
                     // Poll for service manager to be ready with 10s timeout
                     const startTime = Date.now()
-                    const pollForReady = () => {
+                    const pollForReady = async () => {
                         if (serviceManager.getState() === 'INITIALIZED') {
-                            void checkAndInitialize(serviceManager.getConnectionType())
+                            await checkAndInitialize()
                         } else if (Date.now() - startTime < SERVICE_MANAGER_TIMEOUT_MS) {
-                            setTimeout(pollForReady, 100)
+                            setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                         } else {
                             logging.warn('Service manager not ready after 10s, defaulting MCP to enabled')
-                            void initializeMcp()
+                            await initializeMcp()
                             profileStatusMonitor!.start()
                         }
                     }
-                    setTimeout(pollForReady, 100)
+                    setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                 }
             } catch (error) {
                 // Service manager not initialized yet, default to enabled
                 logging.info('Service manager not ready, defaulting MCP to enabled')
-                void initializeMcp()
+                await initializeMcp()
                 profileStatusMonitor!.start()
             }
         }
