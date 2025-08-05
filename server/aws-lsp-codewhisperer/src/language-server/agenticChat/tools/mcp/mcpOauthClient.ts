@@ -87,13 +87,23 @@ export class OAuthClient {
             }
 
             // 3) Discover AS metadata
-            const meta = await this.discoverAS(mcpBase)
-            const scopes = ['openid']
-
+            let meta: Meta
+            try {
+                meta = await this.discoverAS(mcpBase)
+            } catch (e: any) {
+                throw new Error(`OAuth discovery failed: ${e?.message ?? String(e)}`)
+            }
             // 4) Register (or reuse) a dynamic client
-            const reg = await this.obtainClient(meta, regPath, scopes, redirectUri)
+            const scopes = ['openid', 'offline_access']
+            let reg: Registration
+            try {
+                reg = await this.obtainClient(meta, regPath, scopes, redirectUri)
+            } catch (e: any) {
+                throw new Error(`OAuth client registration failed: ${e?.message ?? String(e)}`)
+            }
 
             // 5) Refresh‑token grant (one shot)
+            const attemptedRefresh = !!cached?.refresh_token
             if (cached?.refresh_token) {
                 const refreshed = await this.refreshGrant(meta, reg, mcpBase, cached.refresh_token)
                 if (refreshed) {
@@ -105,9 +115,14 @@ export class OAuthClient {
             }
 
             // 6) PKCE interactive flow
-            const fresh = await this.pkceGrant(meta, reg, mcpBase, scopes, redirectUri, server)
-            await this.write(tokPath, fresh)
-            return fresh.access_token
+            try {
+                const fresh = await this.pkceGrant(meta, reg, mcpBase, scopes, redirectUri, server)
+                await this.write(tokPath, fresh)
+                return fresh.access_token
+            } catch (e: any) {
+                const suffix = attemptedRefresh ? ' after refresh attempt' : ''
+                throw new Error(`OAuth authorization (PKCE) failed${suffix}: ${e?.message ?? String(e)}`)
+            }
         } finally {
             await new Promise<void>(res => server.close(() => res()))
         }
@@ -133,7 +148,7 @@ export class OAuthClient {
                 const metaUrl = new URL(m[1] || m[2], rs).toString()
                 this.logger.info(`OAuth: resource_metadata → ${metaUrl}`)
                 const raw = await this.json<any>(metaUrl)
-                return this.fetchASFromResourceMeta(raw, metaUrl)
+                return await this.fetchASFromResourceMeta(raw, metaUrl)
             }
         } catch {
             // ignore and fallback
@@ -155,7 +170,7 @@ export class OAuthClient {
             }
         }
 
-        // c) fallback to GitHub‑style
+        // c) fallback to static OAuth2 endpoints
         const base = (rs.origin + rs.pathname).replace(/\/+$/, '')
         this.logger.warn(`OAuth: synthesising endpoints from ${base}`)
         return {
@@ -182,7 +197,12 @@ export class OAuthClient {
                 // next
             }
         }
-        throw new Error(`Failed well‑known fetch from ${asBase}, the server might not support OAuth authroization`)
+        // fallback to static OAuth2 endpoints
+        this.logger.warn(`OAuth: no well-known on ${asBase}, falling back to static endpoints`)
+        return {
+            authorization_endpoint: `${asBase}/authorize`,
+            token_endpoint: `${asBase}/access_token`,
+        }
     }
 
     /** DCR: POST client metadata → client_id; cache to disk */
@@ -244,7 +264,11 @@ export class OAuthClient {
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
             body: form,
         })
-        if (!res.ok) return undefined
+        if (!res.ok) {
+            const msg = await res.text().catch(() => '')
+            this.logger.warn(`OAuth: refresh grant HTTP ${res.status} — ${msg?.slice(0, 300)}`)
+            return undefined
+        }
         const j = (await res.json()) as Record<string, unknown>
         return { ...(j as object), obtained_at: Date.now() } as Token
     }
@@ -313,8 +337,10 @@ export class OAuthClient {
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
             body: form2,
         })
-        if (!res2.ok) throw new Error(`Token exchange failed: ${await res2.text()}`)
-
+        if (!res2.ok) {
+            const txt = await res2.text().catch(() => '')
+            throw new Error(`Token exchange failed (HTTP ${res2.status}): ${txt?.slice(0, 300)}`)
+        }
         const tk = (await res2.json()) as Record<string, unknown>
         return { ...(tk as object), obtained_at: Date.now() } as Token
     }
