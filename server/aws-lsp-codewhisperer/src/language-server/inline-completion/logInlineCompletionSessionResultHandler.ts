@@ -1,4 +1,4 @@
-import { InitializeParams, LogInlineCompletionSessionResultsParams } from '@aws/language-server-runtimes/protocol'
+import { LogInlineCompletionSessionResultsParams } from '@aws/language-server-runtimes/protocol'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { Logging, Lsp, Telemetry } from '@aws/language-server-runtimes/server-interface'
 import { CodePercentageTracker } from './codePercentage'
@@ -6,9 +6,7 @@ import { AcceptedInlineSuggestionEntry, CodeDiffTracker } from './codeDiffTracke
 import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { DocumentChangedListener } from './documentChangedListener'
-import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/configurationUtils'
 import { Suggestion, SuggestionType } from '../../shared/codeWhispererService'
-import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { getAddedAndDeletedChars } from './diffUtils'
 import { emitPerceivedLatencyTelemetry, emitUserTriggerDecisionTelemetry } from './telemetry'
 import { getEndPositionForAcceptedSuggestion, getCompletionType } from '../../shared/utils'
@@ -127,7 +125,13 @@ export class LogInlineCompletionSessionResultsHandler {
         if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(this.telemetry, session)
 
         // Always emit user trigger decision at session close
-        this.sessionManager.closeSession(session)
+        // Close session unless Edit suggestion was accepted with more pending
+        const shouldKeepSessionOpen =
+            session.suggestionType === SuggestionType.EDIT && isAccepted && session.hasEditsPending
+
+        if (!shouldKeepSessionOpen) {
+            this.sessionManager.closeSession(session)
+        }
         const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(isAccepted) : 0
         await emitUserTriggerDecisionTelemetry(
             this.telemetry,
