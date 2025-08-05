@@ -36,10 +36,7 @@ import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
-
-const EMPTY_RESULT = { sessionId: '', items: [] }
-const RETRY_COUNT = 3
-const DEBOUNCE_INTERVAL_MS = 500
+import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS, EDIT_STALE_RETRY_COUNT } from './constants'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -157,7 +154,7 @@ export class EditCompletionHandler {
                             this.isWaiting = false
                         })
                         if (this.hasDocumentChangedSinceInvocation) {
-                            if (attempt < RETRY_COUNT) {
+                            if (attempt < EDIT_STALE_RETRY_COUNT) {
                                 this.logging.info(
                                     `Document changed during execution, retrying (attempt ${attempt + 1})`
                                 )
@@ -175,7 +172,7 @@ export class EditCompletionHandler {
                     } finally {
                         this.debounceTimeout = undefined
                     }
-                }, DEBOUNCE_INTERVAL_MS)
+                }, EDIT_DEBOUNCE_INTERVAL_MS)
             })
         }
 

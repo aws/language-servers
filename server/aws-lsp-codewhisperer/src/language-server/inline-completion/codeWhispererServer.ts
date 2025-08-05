@@ -55,8 +55,7 @@ import {
 } from './telemetry'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EditCompletionHandler } from './editCompletionHandler'
-
-const EMPTY_RESULT = { sessionId: '', items: [] }
+import { EMPTY_RESULT } from './constants'
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
