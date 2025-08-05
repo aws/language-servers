@@ -269,22 +269,6 @@ export const CodewhispererServerFactory =
                         ? workspaceState.workspaceId
                         : undefined
 
-                    let triggerCharacters = ''
-                    let codewhispererAutoTriggerType = undefined
-                    // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
-                    if (
-                        params.documentChangeParams?.contentChanges &&
-                        params.documentChangeParams.contentChanges.length > 0 &&
-                        params.documentChangeParams.contentChanges[0].text !== undefined
-                    ) {
-                        triggerCharacters = params.documentChangeParams.contentChanges[0].text
-                        codewhispererAutoTriggerType = getAutoTriggerType(params.documentChangeParams.contentChanges)
-                    } else {
-                        // if the client does not emit document change for the trigger, use left most character.
-                        triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
-                        codewhispererAutoTriggerType = triggerType(fileContext)
-                    }
-
                     const previousSession = sessionManager.getPreviousSession()
                     const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
                     let ideCategory: string | undefined = ''
@@ -293,32 +277,53 @@ export const CodewhispererServerFactory =
                         ideCategory = getIdeCategory(initializeParams)
                     }
 
-                    // See: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L132
-                    // In such cases, do not auto trigger.
-                    if (codewhispererAutoTriggerType === undefined) {
-                        return EMPTY_RESULT
-                    }
+                    // auto trigger code path
+                    let codewhispererAutoTriggerType = undefined
+                    let triggerCharacters = ''
+                    let autoTriggerResult = undefined
 
-                    const autoTriggerResult = autoTrigger(
-                        {
-                            fileContext, // The left/right file context and programming language
-                            lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
-                            char: triggerCharacters, // Add the character just inserted, if any, before the invication position
-                            ide: ideCategory ?? '',
-                            os: getNormalizeOsName(),
-                            previousDecision, // The last decision by the user on the previous invocation
-                            triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
-                        },
-                        logging
-                    )
+                    if (isAutomaticLspTriggerKind) {
+                        // Reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/classifierTrigger.ts#L477
+                        if (
+                            params.documentChangeParams?.contentChanges &&
+                            params.documentChangeParams.contentChanges.length > 0 &&
+                            params.documentChangeParams.contentChanges[0].text !== undefined
+                        ) {
+                            triggerCharacters = params.documentChangeParams.contentChanges[0].text
+                            codewhispererAutoTriggerType = getAutoTriggerType(
+                                params.documentChangeParams.contentChanges
+                            )
+                        } else {
+                            // if the client does not emit document change for the trigger, use left most character.
+                            triggerCharacters = fileContext.leftFileContent.trim().at(-1) ?? ''
+                            codewhispererAutoTriggerType = triggerType(fileContext)
+                        }
+                        // See: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/service/keyStrokeHandler.ts#L132
+                        // In such cases, do not auto trigger.
+                        if (codewhispererAutoTriggerType === undefined) {
+                            return EMPTY_RESULT
+                        }
 
-                    if (
-                        isAutomaticLspTriggerKind &&
-                        codewhispererAutoTriggerType === 'Classifier' &&
-                        !autoTriggerResult.shouldTrigger &&
-                        !(editsEnabled && codeWhispererService instanceof CodeWhispererServiceToken) // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
-                    ) {
-                        return EMPTY_RESULT
+                        autoTriggerResult = autoTrigger(
+                            {
+                                fileContext, // The left/right file context and programming language
+                                lineNum: params.position.line, // the line number of the invocation, this is the line of the cursor
+                                char: triggerCharacters, // Add the character just inserted, if any, before the invication position
+                                ide: ideCategory ?? '',
+                                os: getNormalizeOsName(),
+                                previousDecision, // The last decision by the user on the previous invocation
+                                triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
+                            },
+                            logging
+                        )
+
+                        if (
+                            codewhispererAutoTriggerType === 'Classifier' &&
+                            !autoTriggerResult.shouldTrigger &&
+                            !(editsEnabled && codeWhispererService instanceof CodeWhispererServiceToken) // There is still potentially a Edit trigger without Completion if NEP is enabled (current only BearerTokenClient)
+                        ) {
+                            return EMPTY_RESULT
+                        }
                     }
 
                     // Get supplemental context from recent edits if available.
@@ -333,7 +338,8 @@ export const CodewhispererServerFactory =
                                   workspace,
                                   logging,
                                   token,
-                                  amazonQServiceManager
+                                  amazonQServiceManager,
+                                  params.openTabFilepaths
                               )
                             : Promise.resolve(undefined)
 
@@ -367,7 +373,7 @@ export const CodewhispererServerFactory =
                                 (isAutomaticLspTriggerKind && codewhispererAutoTriggerType !== 'Classifier') ||
                                 (isAutomaticLspTriggerKind &&
                                     codewhispererAutoTriggerType === 'Classifier' &&
-                                    autoTriggerResult.shouldTrigger)
+                                    autoTriggerResult?.shouldTrigger)
                             ) {
                                 predictionTypes.push(['COMPLETIONS'])
                             }
@@ -675,6 +681,7 @@ export const CodewhispererServerFactory =
                     partialResultToken: suggestionResponse.responseContext.nextToken,
                 }
             } else {
+                session.hasEditsPending = suggestionResponse.responseContext.nextToken ? true : false
                 return {
                     items: suggestionResponse.suggestions
                         .map(suggestion => {
@@ -798,7 +805,7 @@ export const CodewhispererServerFactory =
             if (acceptedSuggestion !== undefined) {
                 if (acceptedSuggestion) {
                     codePercentageTracker.countSuccess(session.language)
-                    if (isInlineEdit && acceptedSuggestion.content) {
+                    if (session.suggestionType === SuggestionType.EDIT && acceptedSuggestion.content) {
                         // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
                         // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
                         const addedAndDeletedChars = getAddedAndDeletedChars(acceptedSuggestion.content)
@@ -861,7 +868,13 @@ export const CodewhispererServerFactory =
             if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
 
             // Always emit user trigger decision at session close
-            sessionManager.closeSession(session)
+            // Close session unless Edit suggestion was accepted with more pending
+            const shouldKeepSessionOpen =
+                session.suggestionType === SuggestionType.EDIT && isAccepted && session.hasEditsPending
+
+            if (!shouldKeepSessionOpen) {
+                sessionManager.closeSession(session)
+            }
             const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,

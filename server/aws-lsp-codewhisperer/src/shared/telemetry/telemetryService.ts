@@ -1,4 +1,4 @@
-import { CodeWhispererServiceToken } from '../codeWhispererService'
+import { CodeWhispererServiceToken, SuggestionType } from '../codeWhispererService'
 import {
     CredentialsProvider,
     CredentialsType,
@@ -21,6 +21,7 @@ import {
     InlineChatEvent,
     AgenticChatEventStatus,
     IdeDiagnostic,
+    UserModificationEvent,
 } from '../../client/token/codewhispererbearertokenclient'
 import { getCompletionType, getSsoConnectionType, isAwsError } from '../utils'
 import {
@@ -116,7 +117,13 @@ export class TelemetryService {
 
     private getSuggestionState(session: CodeWhispererSession): SuggestionState {
         let suggestionState: SuggestionState
-        switch (session.getAggregatedUserTriggerDecision()) {
+        // Edits show one suggestion sequentially (with pagination), so use latest itemId state;
+        // Completions show multiple suggestions together, so aggregate all states
+        const userTriggerDecision =
+            session.suggestionType === SuggestionType.EDIT
+                ? session.getLatestUserTriggerDecision()
+                : session.getAggregatedUserTriggerDecision()
+        switch (userTriggerDecision) {
             case 'Accept':
                 suggestionState = 'ACCEPT'
                 break
@@ -247,6 +254,7 @@ export class TelemetryService {
             acceptedSuggestion && acceptedSuggestion.content ? acceptedSuggestion.content.length : 0
         const perceivedLatencyMilliseconds =
             session.triggerType === 'OnDemand' ? session.timeToFirstRecommendation : timeSinceLastUserModification
+        const isInlineEdit = session.suggestionType === SuggestionType.EDIT
 
         const event: UserTriggerDecisionEvent = {
             sessionId: session.codewhispererSessionId || '',
@@ -267,12 +275,19 @@ export class TelemetryService {
             generatedLine: generatedLines,
             numberOfRecommendations: session.suggestions.length,
             perceivedLatencyMilliseconds: perceivedLatencyMilliseconds,
-            addedCharacterCount: addedCharacterCount,
-            deletedCharacterCount: deletedCharacterCount,
+            acceptedCharacterCount: isInlineEdit ? addedCharacterCount : acceptedCharacterCount,
+            addedCharacterCount: isInlineEdit ? addedCharacterCount : acceptedCharacterCount,
+            deletedCharacterCount: isInlineEdit ? deletedCharacterCount : 0,
             addedIdeDiagnostics: addedIdeDiagnostics,
             removedIdeDiagnostics: removedIdeDiagnostics,
             streakLength: streakLength ?? 0,
         }
+        this.logging.info(`Invoking SendTelemetryEvent:UserTriggerDecisionEvent with:
+            "suggestionState": ${event.suggestionState}
+            "acceptedCharacterCount": ${event.acceptedCharacterCount}
+            "addedCharacterCount": ${event.addedCharacterCount}
+            "deletedCharacterCount": ${event.deletedCharacterCount}
+            "streakLength": ${event.streakLength}`)
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
         })
@@ -381,22 +396,30 @@ export class TelemetryService {
             })
         }
 
-        return this.invokeSendTelemetryEvent({
-            userModificationEvent: {
-                sessionId: params.sessionId,
-                requestId: params.requestId,
-                programmingLanguage: {
-                    languageName: getRuntimeLanguage(params.languageId),
-                },
-                // deprecated % value and should not be used by service side
-                modificationPercentage: params.modificationPercentage,
-                customizationArn: params.customizationArn,
-                timestamp: params.timestamp,
-                acceptedCharacterCount: params.acceptedCharacterCount,
-                unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
-                addedCharacterCount: params.acceptedCharacterCount,
-                unmodifiedAddedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+        const event: UserModificationEvent = {
+            sessionId: params.sessionId,
+            requestId: params.requestId,
+            programmingLanguage: {
+                languageName: getRuntimeLanguage(params.languageId),
             },
+            // deprecated % value and should not be used by service side
+            modificationPercentage: params.modificationPercentage,
+            customizationArn: params.customizationArn,
+            timestamp: params.timestamp,
+            acceptedCharacterCount: params.acceptedCharacterCount,
+            unmodifiedAcceptedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+            addedCharacterCount: params.acceptedCharacterCount,
+            unmodifiedAddedCharacterCount: params.unmodifiedAcceptedCharacterCount,
+        }
+
+        this.logging.info(`Invoking SendTelemetryEvent:UserModificationEvent with:
+            "acceptedCharacterCount": ${event.acceptedCharacterCount}
+            "unmodifiedAcceptedCharacterCount": ${event.unmodifiedAcceptedCharacterCount}
+            "addedCharacterCount": ${event.addedCharacterCount}
+            "unmodifiedAddedCharacterCount": ${event.unmodifiedAddedCharacterCount}`)
+
+        return this.invokeSendTelemetryEvent({
+            userModificationEvent: event,
         })
     }
 
@@ -441,6 +464,11 @@ export class TelemetryService {
             userWrittenCodeLineCount: params.userWrittenCodeLineCount,
         }
         if (params.customizationArn) event.customizationArn = params.customizationArn
+
+        this.logging.info(`Invoking SendTelemetryEvent:CodeCoverageEvent with:
+            "acceptedCharacterCount": ${event.acceptedCharacterCount}
+            "totalCharacterCount": ${event.totalCharacterCount}
+            "addedCharacterCount": ${event.addedCharacterCount}`)
 
         return this.invokeSendTelemetryEvent({
             codeCoverageEvent: event,

@@ -114,7 +114,7 @@ describe('ExecuteBash Tool', () => {
                 getTextDocument: async s => ({}) as TextDocument,
             },
         })
-        const result = await execBash.requiresAcceptance({ command: 'ps aux', cwd: workspaceFolder })
+        const result = await execBash.requiresAcceptance({ command: 'pwd', cwd: workspaceFolder })
 
         assert.equal(
             result.requiresAcceptance,
@@ -158,7 +158,7 @@ describe('ExecuteBash Tool', () => {
             assert.equal((execBash as any).isLikelyCredentialFile('/path/to/data.csv'), false)
         })
 
-        it('should equire acceptance for network commands like ping', async () => {
+        it('should require acceptance for network commands like ping', async () => {
             const execBash = new ExecuteBash(features)
             const validation = await execBash.requiresAcceptance({ command: 'ping example.com' })
             assert.equal(validation.requiresAcceptance, true, 'Ping should not require acceptance')

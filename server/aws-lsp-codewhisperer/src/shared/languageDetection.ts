@@ -294,8 +294,6 @@ export function getCodeWhispererLanguageIdFromPath(filePath: string): Codewhispe
         return 'javascript'
     }
 
-    if (isJavaProjectFileFromPath(filePath)) return 'java'
-
     for (const [extension, languageId] of Object.entries(languageByExtension)) {
         if (filePath.endsWith(extension)) {
             return getRuntimeLanguage(languageId)

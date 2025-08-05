@@ -124,6 +124,9 @@ import {
     isUsageLimitError,
     isNullish,
     getOriginFromClientInfo,
+    getClientName,
+    sanitizeInput,
+    sanitizeRequestInput,
 } from '../../shared/utils'
 import { HELP_MESSAGE, loadingMessage } from '../chat/constants'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
@@ -199,7 +202,10 @@ import { URI } from 'vscode-uri'
 import { CommandCategory } from './tools/executeBash'
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { CodeReview } from './tools/qCodeAnalysis/codeReview'
-import { FINDINGS_MESSAGE_SUFFIX } from './tools/qCodeAnalysis/codeReviewConstants'
+import {
+    CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
+    DISPLAY_FINDINGS_MESSAGE_SUFFIX,
+} from './tools/qCodeAnalysis/codeReviewConstants'
 import { McpEventHandler } from './tools/mcp/mcpEventHandler'
 import { enabledMCP, createNamespacedToolName } from './tools/mcp/mcpUtils'
 import { McpManager } from './tools/mcp/mcpManager'
@@ -223,6 +229,7 @@ import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
+import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -361,7 +368,7 @@ export class AgenticChatController implements ChatHandlers {
         )
 
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
-        this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
+        this.#origin = getOriginFromClientInfo(getClientName(this.#features.lsp.getClientInitializeParams()))
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
     }
 
@@ -714,7 +721,9 @@ export class AgenticChatController implements ChatHandlers {
 
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         // Phase 1: Initial Setup - This happens only once
-        const maybeDefaultResponse = getDefaultChatResponse(params.prompt.prompt)
+        params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
+
+        const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
             return maybeDefaultResponse
         }
@@ -1014,11 +1023,8 @@ export class AgenticChatController implements ChatHandlers {
         if (currentMessage) {
             //  Get and process the messages from history DB to maintain invariants for service requests
             try {
-                const { messages: historyMessages, count: historyCharCount } = this.#chatHistoryDb.fixAndGetHistory(
-                    tabId,
-                    currentMessage,
-                    []
-                )
+                const { history: historyMessages, historyCount: historyCharCount } =
+                    this.#chatHistoryDb.fixAndGetHistory(tabId, conversationIdentifier ?? '', currentMessage, [])
                 messages = historyMessages
                 characterCount = historyCharCount
             } catch (err) {
@@ -1078,6 +1084,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#debug(`Compacting history with ${characterCount} characters`)
         this.#llmRequestStartTime = Date.now()
         // Phase 3: Request Execution
+        currentRequestInput = sanitizeRequestInput(currentRequestInput)
         this.#debug(`Compaction Request: ${JSON.stringify(currentRequestInput, undefined, 2)}`)
         const response = await session.getChatResponse(currentRequestInput)
         if (response.$metadata.requestId) {
@@ -1191,19 +1198,18 @@ export class AgenticChatController implements ChatHandlers {
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    const newUserInputCount = this.#chatHistoryDb.calculateNewMessageCharacterCount(
+                    const {
+                        history: historyMessages,
+                        historyCount: historyCharacterCount,
+                        currentCount: currentInputCount,
+                    } = this.#chatHistoryDb.fixAndGetHistory(
+                        tabId,
+                        conversationId,
                         currentMessage,
                         pinnedContextMessages
                     )
-                    const { messages: historyMessages, count: historyCharacterCount } =
-                        this.#chatHistoryDb.fixAndGetHistory(
-                            tabId,
-                            currentMessage,
-                            pinnedContextMessages,
-                            newUserInputCount
-                        )
                     messages = historyMessages
-                    currentRequestCount = newUserInputCount + historyCharacterCount
+                    currentRequestCount = currentInputCount + historyCharacterCount
                     this.#debug(`Request total character count: ${currentRequestCount}`)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
@@ -1225,6 +1231,7 @@ export class AgenticChatController implements ChatHandlers {
 
             this.#llmRequestStartTime = Date.now()
             // Phase 3: Request Execution
+            currentRequestInput = sanitizeRequestInput(currentRequestInput)
             // Note: these logs are very noisy, but contain information redacted on the backend.
             this.#debug(
                 `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
@@ -1428,6 +1435,10 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         if (this.#shouldCompact(currentRequestCount)) {
+            this.#telemetryController.emitCompactNudge(
+                currentRequestCount,
+                this.#features.runtime.serverInfo.version ?? ''
+            )
             const messageId = this.#getMessageIdForCompact(uuid())
             const confirmationResult = this.#processCompactConfirmation(messageId, currentRequestCount)
             const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)
@@ -1759,7 +1770,8 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     }
                     case CodeReview.toolName:
-                        // no need to write tool message for code review
+                    case DisplayFindings.toolName:
+                        // no need to write tool message for CodeReview or DisplayFindings
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
@@ -1935,8 +1947,24 @@ export class AgenticChatController implements ChatHandlers {
                         ) {
                             await chatResultStream.writeResultBlock({
                                 type: 'tool',
-                                messageId: toolUse.toolUseId + FINDINGS_MESSAGE_SUFFIX,
+                                messageId: toolUse.toolUseId + CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX,
                                 body: (codeReviewResult.output.content as any).findingsByFile,
+                            })
+                        }
+                        break
+                    case DisplayFindings.toolName:
+                        // no need to write tool result for code review, this is handled by model via chat
+                        // Push result in message so that it is picked by IDE plugin to show in issues panel
+                        const displayFindingsResult = result as InvokeOutput
+                        if (
+                            displayFindingsResult?.output?.kind === 'json' &&
+                            displayFindingsResult.output.success &&
+                            displayFindingsResult.output.content !== undefined
+                        ) {
+                            await chatResultStream.writeResultBlock({
+                                type: 'tool',
+                                messageId: toolUse.toolUseId + DISPLAY_FINDINGS_MESSAGE_SUFFIX,
+                                body: JSON.stringify(displayFindingsResult.output.content),
                             })
                         }
                         break

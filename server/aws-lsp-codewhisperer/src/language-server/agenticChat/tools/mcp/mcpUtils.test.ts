@@ -20,12 +20,12 @@ import {
     enabledMCP,
     normalizePathFromUri,
     saveAgentConfig,
-    sanitizeContent,
 } from './mcpUtils'
 import type { MCPServerConfig } from './mcpTypes'
 import { pathToFileURL } from 'url'
 import * as sinon from 'sinon'
 import { URI } from 'vscode-uri'
+import { sanitizeInput } from '../../../../shared/utils'
 
 describe('loadMcpServerConfigs', () => {
     let tmpDir: string
@@ -108,6 +108,38 @@ describe('loadMcpServerConfigs', () => {
 
         const out2 = await loadMcpServerConfigs(workspace, logger, [overridePath, globalPath])
         expect(out2.servers.get('S')!.command).to.equal('workspaceCmd')
+    })
+
+    it('loads config that uses url only', async () => {
+        const cfg = { mcpServers: { WebSrv: { url: 'https://example.com/mcp' } } }
+        const p = path.join(tmpDir, 'http.json')
+        fs.writeFileSync(p, JSON.stringify(cfg))
+
+        const out = await loadMcpServerConfigs(workspace, logger, [p])
+        expect(out.servers.has('WebSrv')).to.be.true
+        const c = out.servers.get('WebSrv')!
+        expect(c.url).to.equal('https://example.com/mcp')
+        expect(c.command).to.be.undefined
+    })
+
+    it('skips server that specifies both command and url', async () => {
+        const cfg = { mcpServers: { BadSrv: { command: 'foo', url: 'https://example.com' } } }
+        const p = path.join(tmpDir, 'bad.json')
+        fs.writeFileSync(p, JSON.stringify(cfg))
+
+        const out = await loadMcpServerConfigs(workspace, logger, [p])
+        expect(out.servers.size).to.equal(0)
+        expect(out.errors.get('BadSrv')).to.match(/either.*command.*url/i)
+    })
+
+    it('skips server that has neither command nor url', async () => {
+        const cfg = { mcpServers: { EmptySrv: { args: [] } } }
+        const p = path.join(tmpDir, 'empty.json')
+        fs.writeFileSync(p, JSON.stringify(cfg))
+
+        const out = await loadMcpServerConfigs(workspace, logger, [p])
+        expect(out.servers.size).to.equal(0)
+        expect(out.errors.get('EmptySrv')).to.match(/either.*command.*url/i)
     })
 })
 
@@ -386,17 +418,6 @@ describe('loadMcpServerConfigs error handling', () => {
         expect(result.errors.get(missingFieldPath)).to.include("missing or invalid 'mcpServers' field")
     })
 
-    it('captures missing command errors', async () => {
-        const missingCommandPath = path.join(tmpDir, 'missing-command.json')
-        fs.writeFileSync(missingCommandPath, '{"mcpServers": {"serverA": {"args": []}}}')
-
-        const result = await loadMcpServerConfigs(workspace, logger, [missingCommandPath])
-
-        expect(result.servers.size).to.equal(0)
-        expect(result.errors.size).to.equal(1)
-        expect(result.errors.get('serverA')).to.include("missing required 'command'")
-    })
-
     it('captures invalid timeout errors', async () => {
         const invalidTimeoutPath = path.join(tmpDir, 'invalid-timeout.json')
         fs.writeFileSync(
@@ -590,6 +611,6 @@ describe('sanitizeContent', () => {
     it('removes Unicode Tag characters (U+E0000–U+E007F)', () => {
         const input = 'foo\u{E0001}bar\u{E0060}baz'
         const expected = 'foobarbaz'
-        expect(sanitizeContent(input)).to.equal(expected)
+        expect(sanitizeInput(input)).to.equal(expected)
     })
 })

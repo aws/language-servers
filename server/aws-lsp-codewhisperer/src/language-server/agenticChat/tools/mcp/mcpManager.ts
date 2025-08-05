@@ -8,6 +8,11 @@ import { ChatTelemetryEventName } from '../../../../shared/telemetry/types'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import {
+    StreamableHTTPClientTransport,
+    StreamableHTTPClientTransportOptions,
+} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import { SSEClientTransport, SSEClientTransportOptions } from '@modelcontextprotocol/sdk/client/sse.js'
+import {
     MCPServerConfig,
     McpToolDefinition,
     ListToolsResponse,
@@ -25,13 +30,13 @@ import {
     getGlobalAgentConfigPath,
     getWorkspaceMcpConfigPaths,
     getGlobalMcpConfigPath,
-    sanitizeContent,
 } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
 import { Mutex } from 'async-mutex'
 import path = require('path')
 import { URI } from 'vscode-uri'
+import { sanitizeInput } from '../../../../shared/utils'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -266,73 +271,106 @@ export class McpManager {
         try {
             this.features.logging.debug(`MCP: initializing server [${serverName}]`)
 
-            const mergedEnv = {
-                ...(process.env as Record<string, string>),
-                // Make sure we do not have empty key and value in mergedEnv, or adding server through UI will fail on Windows
-                ...(cfg.env && !isEmptyEnv(cfg.env)
-                    ? Object.fromEntries(Object.entries(cfg.env).filter(([key]) => key && key.trim() !== ''))
-                    : {}),
-            }
-            const transportConfig: any = {
-                command: cfg.command,
-                args: cfg.args ?? [],
-                env: mergedEnv,
-            }
-
-            try {
-                const workspaceFolders = this.features.workspace.getAllWorkspaceFolders()
-                if (workspaceFolders.length > 0) {
-                    transportConfig.cwd = URI.parse(workspaceFolders[0].uri).fsPath
-                }
-            } catch {
-                this.features.logging.debug(
-                    `MCP: No workspace folder available for server [${serverName}], continuing without cwd`
-                )
-            }
-
-            const transport = new StdioClientTransport(transportConfig)
             const client = new Client({
                 name: `mcp-client-${serverName}`,
                 version: '1.0.0',
             })
 
-            const connectPromise = client.connect(transport).catch(err => {
-                let errorMessage = err.message
-
-                // Provide specific guidance for common command not found errors
-                if (err.code === 'ENOENT') {
-                    errorMessage = `Command '${cfg.command}' not found. Please ensure it's installed and available in your PATH.`
-                } else if (err.code === 'EINVAL') {
-                    errorMessage = `Invalid arguments. Please check the command and arguments.`
-                } else if (err.code === -32000) {
-                    errorMessage = `MCP protocol error. The server may not be properly configured.`
+            let transport: any
+            const isStdio = !!cfg.command
+            const doConnect = async () => {
+                if (isStdio) {
+                    const mergedEnv = {
+                        ...(process.env as Record<string, string>),
+                        // Make sure we do not have empty key and value in mergedEnv, or adding server through UI will fail on Windows
+                        ...(cfg.env && !isEmptyEnv(cfg.env)
+                            ? Object.fromEntries(Object.entries(cfg.env).filter(([k, v]) => k.trim() && v.trim()))
+                            : {}),
+                    }
+                    let cwd: string | undefined
+                    try {
+                        const folders = this.features.workspace.getAllWorkspaceFolders()
+                        if (folders.length > 0) cwd = URI.parse(folders[0].uri).fsPath
+                    } catch {
+                        this.features.logging.debug(
+                            `MCP: no workspace folder for [${serverName}], continuing without cwd`
+                        )
+                    }
+                    transport = new StdioClientTransport({
+                        command: cfg.command!,
+                        args: cfg.args ?? [],
+                        env: mergedEnv,
+                        cwd,
+                    })
+                    this.features.logging.info(`MCP: Connecting MCP server using StdioClientTransport`)
+                    try {
+                        await client.connect(transport)
+                    } catch (err: any) {
+                        let errorMessage = err?.message ?? String(err)
+                        if (err?.code === 'ENOENT') {
+                            errorMessage = `Command '${cfg.command}' not found. Please ensure it's installed and on your PATH.`
+                        } else if (err?.code === 'EINVAL') {
+                            errorMessage = `Invalid arguments for command '${cfg.command}'.`
+                        } else if (err?.code === -32000) {
+                            errorMessage = `MCP protocol error. The server may not be properly configured.`
+                        }
+                        throw new AgenticChatError(
+                            `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
+                            'MCPServerConnectionFailed'
+                        )
+                    }
+                } else {
+                    const base = new URL(cfg.url!)
+                    try {
+                        try {
+                            // try streamable http first
+                            transport = new StreamableHTTPClientTransport(base, this.buildHttpOpts(cfg.headers))
+                            this.features.logging.info(`MCP: Connecting MCP server using StreamableHTTPClientTransport`)
+                            await client.connect(transport)
+                        } catch (err) {
+                            // fallback to SSE
+                            this.features.logging.info(
+                                `MCP: streamable http connect failed for [${serverName}], fallback to SSEClientTransport: ${String(err)}`
+                            )
+                            transport = new SSEClientTransport(new URL(cfg.url!), this.buildSseOpts(cfg.headers))
+                            await client.connect(transport)
+                        }
+                    } catch (err: any) {
+                        let errorMessage = err?.message ?? String(err)
+                        throw new AgenticChatError(
+                            `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
+                            'MCPServerConnectionFailed'
+                        )
+                    }
                 }
+            }
 
-                throw new AgenticChatError(
-                    `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
-                    'MCPServerConnectionFailed'
-                )
-            })
+            const connectPromise = doConnect()
 
-            // 0 or undefined -> no timeout
-            if (cfg.initializationTimeout === 0 || cfg.initializationTimeout === undefined) {
-                await connectPromise
+            const timeoutMs =
+                cfg.initializationTimeout === 0 || cfg.initializationTimeout === undefined
+                    ? 0
+                    : (cfg.initializationTimeout ?? DEFAULT_SERVER_INIT_TIMEOUT_MS)
+
+            if (timeoutMs > 0) {
+                await Promise.race([
+                    connectPromise,
+                    new Promise<never>((_, reject) => {
+                        const t = setTimeout(
+                            () =>
+                                reject(
+                                    new AgenticChatError(
+                                        `MCP: server '${serverName}' initialization timed out after ${timeoutMs} ms`,
+                                        'MCPServerInitTimeout'
+                                    )
+                                ),
+                            timeoutMs
+                        )
+                        t.unref()
+                    }),
+                ])
             } else {
-                const timeoutMs = cfg.initializationTimeout ?? DEFAULT_SERVER_INIT_TIMEOUT_MS
-                const timeoutPromise = new Promise<never>((_, reject) => {
-                    const timer = setTimeout(
-                        () =>
-                            reject(
-                                new AgenticChatError(
-                                    `MCP: server '${serverName}' initialization timed out after ${timeoutMs} ms`,
-                                    'MCPServerInitTimeout'
-                                )
-                            ),
-                        timeoutMs
-                    )
-                    timer.unref()
-                })
-                await Promise.race([connectPromise, timeoutPromise])
+                await connectPromise
             }
 
             this.clients.set(serverName, client)
@@ -348,7 +386,7 @@ export class McpManager {
                 this.mcpTools.push({
                     serverName,
                     toolName: t.name,
-                    description: sanitizeContent(t.description ?? ''),
+                    description: sanitizeInput(t.description ?? ''),
                     inputSchema: t.inputSchema ?? {},
                 })
             }
@@ -365,6 +403,13 @@ export class McpManager {
             this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
             this.handleError(serverName, e)
         }
+    }
+
+    /**
+     * Update server map
+     */
+    public updateServerMap(newMap: Map<string, MCPServerConfig>): void {
+        this.mcpServers = new Map(newMap)
     }
 
     /**
@@ -566,9 +611,9 @@ export class McpManager {
             // Add server to agent config
             const serverConfig: MCPServerConfig = {
                 command: cfg.command,
+                url: cfg.url,
                 initializationTimeout: cfg.initializationTimeout,
             }
-
             // Only add timeout to agent config if it's not 0
             if (cfg.timeout !== 0) {
                 serverConfig.timeout = cfg.timeout
@@ -578,6 +623,9 @@ export class McpManager {
             }
             if (cfg.env && !isEmptyEnv(cfg.env)) {
                 serverConfig.env = cfg.env
+            }
+            if (cfg.headers && !isEmptyEnv(cfg.headers)) {
+                serverConfig.headers = cfg.headers
             }
 
             // Add to agent config
@@ -716,6 +764,14 @@ export class McpManager {
             // Update agent config
             if (this.agentConfig && unsanitizedServerName) {
                 const updatedConfig = { ...(this.agentConfig.mcpServers[unsanitizedServerName] || {}) }
+                if (configUpdates.url !== undefined) updatedConfig.url = configUpdates.url
+                if (configUpdates.headers !== undefined) {
+                    if (configUpdates.headers && Object.keys(configUpdates.headers).length) {
+                        updatedConfig.headers = configUpdates.headers
+                    } else {
+                        delete updatedConfig.headers // allow user to clear headers
+                    }
+                }
                 if (configUpdates.command !== undefined) updatedConfig.command = configUpdates.command
                 if (configUpdates.initializationTimeout !== undefined)
                     updatedConfig.initializationTimeout = configUpdates.initializationTimeout
@@ -734,7 +790,6 @@ export class McpManager {
                         delete updatedConfig.env
                     }
                 }
-
                 this.agentConfig.mcpServers[unsanitizedServerName] = updatedConfig
 
                 // Save agent config
@@ -968,45 +1023,6 @@ export class McpManager {
     }
 
     /**
-     * Updates the runtime state for a given server, including status, tool count, and optional error message.
-     * This is used by the UI to reflect real-time server status.
-     * @private
-     */
-    private setState(server: string, status: McpServerStatus, toolsCount: number, lastError?: string) {
-        const st: McpServerRuntimeState = { status, toolsCount, lastError }
-        this.mcpServerStates.set(server, st)
-        this.events.emit(MCP_SERVER_STATUS_CHANGED, server, { ...st })
-    }
-
-    /**
-     * Emits an event when the tools associated with a server change.
-     * Used to refresh the Agent's tool list.
-     * @private
-     */
-    private emitToolsChanged(server: string) {
-        const enabled = this.getEnabledTools()
-            .filter(t => t.serverName === server)
-            .map(t => ({ ...t }))
-        this.features.logging.debug(`ToolsChanged | server=${server} | toolCount=${enabled.length}`)
-        this.events.emit(AGENT_TOOLS_CHANGED, server, enabled)
-    }
-
-    /**
-     * Centralized error handling: logs the error, updates the status, and emits an event.
-     * Exceptions are no longer thrown to ensure the remaining workflow continues uninterrupted.
-     */
-    private handleError(server: string | undefined, err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err)
-
-        this.features.logging.error(`MCP ERROR${server ? ` [${server}]` : ''}: ${msg}`)
-
-        if (server) {
-            this.setState(server, McpServerStatus.FAILED, 0, msg)
-            this.emitToolsChanged(server)
-        }
-    }
-
-    /**
      * Returns any errors that occurred during loading of MCP configuration files
      */
     public getConfigLoadErrors(): string | undefined {
@@ -1146,5 +1162,106 @@ export class McpManager {
 
     public setToolNameMapping(mapping: Map<string, { serverName: string; toolName: string }>): void {
         this.toolNameMapping = new Map(mapping)
+    }
+
+    /**
+     * Updates the runtime state for a given server, including status, tool count, and optional error message.
+     * This is used by the UI to reflect real-time server status.
+     * @private
+     */
+    private setState(server: string, status: McpServerStatus, toolsCount: number, lastError?: string) {
+        const st: McpServerRuntimeState = { status, toolsCount, lastError }
+        this.mcpServerStates.set(server, st)
+        this.events.emit(MCP_SERVER_STATUS_CHANGED, server, { ...st })
+    }
+
+    /**
+     * Emits an event when the tools associated with a server change.
+     * Used to refresh the Agent's tool list.
+     * @private
+     */
+    private emitToolsChanged(server: string) {
+        const enabled = this.getEnabledTools()
+            .filter(t => t.serverName === server)
+            .map(t => ({ ...t }))
+        this.features.logging.debug(`ToolsChanged | server=${server} | toolCount=${enabled.length}`)
+        this.events.emit(AGENT_TOOLS_CHANGED, server, enabled)
+    }
+
+    /**
+     * Centralized error handling: logs the error, updates the status, and emits an event.
+     * Exceptions are no longer thrown to ensure the remaining workflow continues uninterrupted.
+     */
+    private handleError(server: string | undefined, err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+
+        this.features.logging.error(`MCP ERROR${server ? ` [${server}]` : ''}: ${msg}`)
+
+        if (server) {
+            this.setState(server, McpServerStatus.FAILED, 0, msg)
+            this.emitToolsChanged(server)
+        }
+    }
+
+    /**
+     * Ensure the server-specific config is internally consistent.
+     * Mutates `cfg` in-place, trimming fields that don't belong to the selected transport.
+     * @private
+     */
+    private validateServerCfg(cfg: MCPServerConfig): void {
+        const hasCmd = !!cfg.command?.trim()
+        const hasUrl = !!cfg.url?.trim()
+
+        if (hasCmd && hasUrl) throw new Error('Specify either command or url, not both')
+        if (!hasCmd && !hasUrl) throw new Error('Either command or url is required')
+
+        if (hasCmd) {
+            if (!cfg.command!.trim()) throw new Error('Stdio transport requires "command"')
+            delete cfg.url
+            delete cfg.headers
+        } else {
+            if (!cfg.url!.trim()) throw new Error('HTTP transport requires "url"')
+            delete cfg.command
+            delete cfg.args
+            delete cfg.env
+        }
+    }
+
+    /**
+     * Creates the option bag for SSEClientTransport
+     * @private
+     */
+    private buildSseOpts(headers?: Record<string, string>): SSEClientTransportOptions | undefined {
+        if (!headers || Object.keys(headers).length === 0) {
+            return
+        }
+        const requestInit: RequestInit = { headers }
+
+        // override only the SSE‐GET:
+        const eventSourceInit = {
+            fetch: (input: RequestInfo | URL | string, init: RequestInit = {}) => {
+                const merged = new Headers(init.headers || {})
+                for (const [k, v] of Object.entries(headers)) {
+                    merged.set(k, v)
+                }
+                return fetch(input, {
+                    ...init,
+                    headers: merged,
+                })
+            },
+        } as any
+
+        return { requestInit, eventSourceInit }
+    }
+
+    /**
+     * Creates the option bag for StreamableHTTPClientTransport
+     * @private
+     */
+    private buildHttpOpts(headers?: Record<string, string>): StreamableHTTPClientTransportOptions | undefined {
+        if (!headers || Object.keys(headers).length === 0) {
+            return
+        }
+        return { requestInit: { headers } }
     }
 }

@@ -38,9 +38,9 @@ export class CodeReview {
     private static readonly CUSTOMER_CODE_ZIP_NAME = 'customerCode.zip'
     private static readonly CODE_DIFF_PATH = 'code_artifact/codeDiff/customerCodeDiff.diff'
     private static readonly RULE_ARTIFACT_PATH = '.amazonq/rules'
-    private static readonly MAX_POLLING_ATTEMPTS = 60
+    private static readonly MAX_POLLING_ATTEMPTS = 90 // 90 * POLLING_INTERVAL_MS (10000) = 15 mins
     private static readonly MID_POLLING_ATTEMPTS = 20
-    private static readonly POLLING_INTERVAL_MS = 10000
+    private static readonly POLLING_INTERVAL_MS = 10000 // 10 seconds
     private static readonly UPLOAD_INTENT = 'AGENTIC_CODE_REVIEW'
     private static readonly SCAN_SCOPE = 'AGENTIC'
     private static readonly MAX_FINDINGS_COUNT = 50
@@ -48,15 +48,14 @@ export class CodeReview {
     private static readonly ERROR_MESSAGES = {
         MISSING_CLIENT: 'CodeWhisperer client not available',
         MISSING_ARTIFACTS: `Missing fileLevelArtifacts and folderLevelArtifacts for ${CODE_REVIEW_TOOL_NAME} tool. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
-        MISSING_FILES_TO_SCAN: `There are no valid files to scan. Ask user to provide a specific file / folder / workspace which has code that can be scanned.`,
+        MISSING_FILES_TO_SCAN: `There are no valid files to scan in the input. Use other available tools to find the correct path to the files, otherwise ask user to provide a specific file which has code that can be scanned.`,
         UPLOAD_FAILED: `Failed to upload artifact for code review in ${CODE_REVIEW_TOOL_NAME} tool.`,
         START_CODE_ANALYSIS_FAILED: (scanName: string, errorMessage?: string) =>
             `Failed to start code analysis for scanName - ${scanName} due to - ${errorMessage}`,
         CODE_ANALYSIS_FAILED: (jobId: string, message: string) =>
             `Code analysis failed for jobId - ${jobId} due to ${message}`,
         SCAN_FAILED: 'Code scan failed',
-        TIMEOUT: (attempts: number) =>
-            `Code scan timed out after ${attempts} attempts. Ask user to provide a smaller size of code to scan.`,
+        TIMEOUT: `Code review timed out. Ask user to provide a smaller size of code to scan.`,
     }
 
     private readonly credentialsProvider: Features['credentialsProvider']
@@ -66,6 +65,7 @@ export class CodeReview {
     private codeWhispererClient?: CodeWhispererServiceToken
     private cancellationToken?: CancellationToken
     private writableStream?: WritableStream
+    private toolStartTime: number = 0
 
     constructor(
         features: Pick<Features, 'credentialsProvider' | 'logging' | 'telemetry' | 'workspace'> & Partial<Features>
@@ -89,6 +89,7 @@ export class CodeReview {
      * @returns Output containing code review results or error message
      */
     public async execute(input: any, context: any): Promise<InvokeOutput> {
+        this.toolStartTime = Date.now()
         let chatStreamWriter: WritableStreamDefaultWriter<any> | undefined
 
         try {
@@ -129,15 +130,7 @@ export class CodeReview {
             if (error instanceof CancellationError) {
                 throw error
             }
-            return {
-                output: {
-                    kind: 'json',
-                    success: false,
-                    content: {
-                        errorMessage: error.message,
-                    },
-                },
-            }
+            throw new Error(error.message)
         } finally {
             await chatStreamWriter?.close()
             chatStreamWriter?.releaseLock()
@@ -378,7 +371,7 @@ export class CodeReview {
                 {
                     reason: FailedMetricName.CodeScanTimeout,
                     result: 'Failed',
-                    reasonDesc: CodeReview.ERROR_MESSAGES.TIMEOUT(CodeReview.MAX_POLLING_ATTEMPTS),
+                    reasonDesc: CodeReview.ERROR_MESSAGES.TIMEOUT,
                     metadata: {
                         artifactType: setup.artifactType,
                         codewhispererCodeScanJobId: jobId,
@@ -394,7 +387,7 @@ export class CodeReview {
                 this.logging,
                 this.telemetry
             )
-            throw new CodeReviewTimeoutError(CodeReview.ERROR_MESSAGES.TIMEOUT(CodeReview.MAX_POLLING_ATTEMPTS))
+            throw new CodeReviewTimeoutError(CodeReview.ERROR_MESSAGES.TIMEOUT)
         }
 
         this.logging.info(`Code scan completed with status: ${status}`)
@@ -432,6 +425,7 @@ export class CodeReview {
                     customRules: setup.ruleArtifacts.length,
                     programmingLanguages: Array.from(uploadResult.programmingLanguages),
                     scope: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                    latency: Date.now() - this.toolStartTime,
                 },
             },
             this.logging,

@@ -74,18 +74,19 @@ export class TabFactory {
                       ...(this.agenticMode && pairProgrammingCardActive ? [programmerModeCard] : []),
                       {
                           type: ChatItemType.ANSWER,
-                          body: `Hi, I'm Amazon Q. I can answer your software development questions. 
-                        Ask me to explain, debug, or optimize your code. 
-                        You can enter \`/\` to see a list of quick actions.`,
+                          body: `<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 200px 0 20px 0;">
+
+<div style="font-size: 24px; margin-bottom: 12px;"><strong>Amazon Q</strong></div>
+<div style="background: rgba(128, 128, 128, 0.15); border: 1px solid rgba(128, 128, 128, 0.25); border-radius: 8px; padding: 8px; margin: 4px 0; text-align: center;">
+<div style="font-size: 14px; margin-bottom: 4px;"><strong>Did you know?</strong></div>
+<div>${this.getRandomTip()}</div>
+</div>
+
+Select code & ask me to explain, debug or optimize it, or type \`/\` for quick actions
+
+</div>`,
+                          canBeVoted: false,
                       },
-                      ...(!this.agenticMode
-                          ? [
-                                {
-                                    type: ChatItemType.ANSWER,
-                                    followUp: this.getWelcomeBlock(),
-                                },
-                            ]
-                          : []),
                   ]
                 : chatMessages
                   ? (chatMessages as ChatItem[])
@@ -180,6 +181,18 @@ export class TabFactory {
         return undefined
     }
 
+    private getRandomTip(): string {
+        const hints = [
+            'You can now see logs with 1-Click!',
+            'MCP is available in Amazon Q!',
+            'Pinned context is always included in future chat messages',
+            'Create and add Saved Prompts using the @ context menu',
+        ]
+
+        const randomIndex = Math.floor(Math.random() * hints.length)
+        return hints[randomIndex]
+    }
+
     private getTabBarButtons(): TabBarMainAction[] | undefined {
         const tabBarButtons = [...(this.defaultTabData.tabBarButtons ?? [])]
 
@@ -216,6 +229,34 @@ export class TabFactory {
         }
 
         return tabBarButtons.length ? tabBarButtons : undefined
+    }
+
+    // Enhanced welcome messages block for non-agentic mode
+    private getEnhancedWelcomeBlock() {
+        return {
+            text: '',
+            options: [
+                {
+                    pillText: 'Getting Started',
+                    prompt: 'What can Amazon Q help me with?',
+                    type: 'help',
+                },
+            ],
+        }
+    }
+
+    // Agentic welcome messages block
+    private getAgenticWelcomeBlock() {
+        return {
+            text: '',
+            options: [
+                {
+                    pillText: 'Getting Started',
+                    prompt: 'What can Amazon Q help me with?',
+                    type: 'help',
+                },
+            ],
+        }
     }
 
     // Legacy welcome messages block

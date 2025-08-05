@@ -12,6 +12,8 @@ import { Features } from '../../types'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 // eslint-disable-next-line import/no-nodejs-modules
 import { existsSync, statSync } from 'fs'
+import { parseBaseCommands } from '../utils/commandParser'
+import { BashCommandEvent, ChatTelemetryEventName } from '../../../shared/telemetry/types'
 
 export enum CommandCategory {
     ReadOnly,
@@ -25,35 +27,14 @@ export const commandCategories = new Map<string, CommandCategory>([
     // ReadOnly commands
     ['ls', CommandCategory.ReadOnly],
     ['cat', CommandCategory.ReadOnly],
-    ['bat', CommandCategory.ReadOnly],
     ['pwd', CommandCategory.ReadOnly],
-    ['file', CommandCategory.ReadOnly],
-    ['less', CommandCategory.ReadOnly],
-    ['more', CommandCategory.ReadOnly],
-    ['tree', CommandCategory.ReadOnly],
-    ['top', CommandCategory.ReadOnly],
-    ['htop', CommandCategory.ReadOnly],
-    ['ps', CommandCategory.ReadOnly],
-    ['df', CommandCategory.ReadOnly],
-    ['du', CommandCategory.ReadOnly],
-    ['free', CommandCategory.ReadOnly],
-    ['uname', CommandCategory.ReadOnly],
-    ['date', CommandCategory.ReadOnly],
-    ['whoami', CommandCategory.ReadOnly],
     ['which', CommandCategory.ReadOnly],
-    ['wc', CommandCategory.ReadOnly],
-    ['sort', CommandCategory.ReadOnly],
-    ['diff', CommandCategory.ReadOnly],
     ['head', CommandCategory.ReadOnly],
     ['tail', CommandCategory.ReadOnly],
+    ['dir', CommandCategory.ReadOnly],
+    ['type', CommandCategory.ReadOnly],
 
     // Mutable commands
-    ['ping', CommandCategory.Mutate],
-    ['ifconfig', CommandCategory.Mutate],
-    ['ip', CommandCategory.Mutate],
-    ['netstat', CommandCategory.Mutate],
-    ['dig', CommandCategory.Mutate],
-    ['ss', CommandCategory.Mutate],
     ['chmod', CommandCategory.Mutate],
     ['curl', CommandCategory.Mutate],
     ['mount', CommandCategory.Mutate],
@@ -151,9 +132,15 @@ export class ExecuteBash {
     private childProcess?: ChildProcess
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
-    constructor(features: Pick<Features, 'logging' | 'workspace'> & Partial<Features>) {
+    private readonly telemetry: Features['telemetry']
+    private readonly credentialsProvider: Features['credentialsProvider']
+    constructor(
+        features: Pick<Features, 'logging' | 'workspace' | 'telemetry' | 'credentialsProvider'> & Partial<Features>
+    ) {
         this.logging = features.logging
         this.workspace = features.workspace
+        this.telemetry = features.telemetry
+        this.credentialsProvider = features.credentialsProvider
     }
 
     public async validate(input: ExecuteBashParams): Promise<void> {
@@ -588,6 +575,7 @@ export class ExecuteBash {
                 })
             }
 
+            let success = false
             try {
                 const result = await this.childProcess.run()
 
@@ -600,7 +588,7 @@ export class ExecuteBash {
                 const exitStatus = result.exitCode ?? 0
                 const stdout = stdoutBuffer.join('\n')
                 const stderr = stderrBuffer.join('\n')
-                const success = exitStatus === 0 && !stderr
+                success = exitStatus === 0 && !stderr
                 const [stdoutTrunc, stdoutSuffix] = ExecuteBash.truncateSafelyWithSuffix(
                     stdout,
                     maxToolResponseSize / 3
@@ -632,6 +620,25 @@ export class ExecuteBash {
                     reject(new Error(`Failed to execute command: ${err.message}`))
                 }
             } finally {
+                // Extract individual base commands for telemetry purposes
+                const args = split(params.command)
+                const baseCommands = parseBaseCommands(args)
+                baseCommands.forEach(command => {
+                    const metricPayload = {
+                        name: ChatTelemetryEventName.BashCommand,
+                        data: {
+                            credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                            result: cancellationToken?.isCancellationRequested
+                                ? 'Cancelled'
+                                : success
+                                  ? 'Succeeded'
+                                  : 'Failed',
+                            command: command,
+                        } as BashCommandEvent,
+                    }
+                    this.telemetry.emitMetric(metricPayload)
+                })
+
                 await writer?.close()
                 writer?.releaseLock()
             }

@@ -226,6 +226,18 @@ export class ChatTelemetryController {
             data: {
                 type,
                 characters,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                languageServerVersion: languageServerVersion,
+            },
+        })
+    }
+
+    public emitCompactNudge(characters: number, languageServerVersion: string) {
+        this.#telemetry.emitMetric({
+            name: ChatTelemetryEventName.CompactNudge,
+            data: {
+                characters,
+                credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 languageServerVersion: languageServerVersion,
             },
         })
@@ -365,6 +377,7 @@ export class ChatTelemetryController {
 
     public emitMCPServerInitializeEvent(data?: {
         command?: string
+        url?: string
         enabled?: boolean
         initializeTime?: number
         numTools?: number
@@ -378,6 +391,7 @@ export class ChatTelemetryController {
             data: {
                 credentialStartUrl: this.#credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
                 command: data?.command,
+                url: data?.url,
                 enabled: data?.enabled,
                 initializeTime: data?.initializeTime,
                 languageServerVersion: data?.languageServerVersion,

@@ -14,10 +14,11 @@ export const supplementalContextMaxTotalLength = 20480
 
 export const supplementalContextTimeoutInMs = 100
 
+// reference: https://github.com/aws/aws-toolkit-vscode/blob/amazonq/v1.74.0/packages/core/src/codewhisperer/models/constants.ts#L827
 export const crossFileContextConfig = {
     numberOfChunkToFetch: 60,
     topK: 3,
-    numberOfLinesEachChunk: 10,
+    numberOfLinesEachChunk: 50,
     maximumTotalLength: 20480,
     maxLengthEachChunk: 10240,
     maxContextCount: 5,

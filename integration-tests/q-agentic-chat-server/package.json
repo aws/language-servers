@@ -4,12 +4,12 @@
     "description": "Integration tests for Q Agentic Chat Server",
     "main": "out/index.js",
     "scripts": {
-        "clean": "rm -rf out/ node_modules/ tsconfig.tsbuildinfo .tsbuildinfo",
+        "clean": "rimraf out/ node_modules/ tsconfig.tsbuildinfo .tsbuildinfo",
         "compile": "tsc --build && cp -r src/tests/testFixture out/tests/",
         "test-integ": "npm run compile && mocha --timeout 30000 \"./out/**/*.test.js\" --retries 2"
     },
     "dependencies": {
-        "@aws/language-server-runtimes": "^0.2.112",
+        "@aws/language-server-runtimes": "^0.2.121",
         "@aws/lsp-core": "*"
     },
     "devDependencies": {
@@ -22,6 +22,7 @@
         "jose": "^5.10.0",
         "json-rpc-2.0": "^1.7.1",
         "mocha": "^11.0.1",
+        "rimraf": "^3.0.2",
         "typescript": "^5.0.0",
         "yauzl-promise": "^4.0.0"
     }
