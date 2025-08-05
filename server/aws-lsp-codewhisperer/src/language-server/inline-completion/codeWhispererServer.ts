@@ -132,6 +132,7 @@ export const CodewhispererServerFactory =
             )
 
             await amazonQServiceManager.addDidChangeConfigurationListener(updateConfiguration)
+            // TODO: figure out a better way to intialize this api controller, can't use ctor here simply as some other dependecies issue and will cause crashing
             apiController.init(
                 sessionManager,
                 logging,

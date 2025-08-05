@@ -257,7 +257,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         this.logging.info(
             `GenerateCompletion response: 
-    "version": "refactor 11:30PT",
     "endpoint": ${this.codeWhispererEndpoint},
     "requestId": ${response.$response.requestId},
     "responseCompletionCount": ${response.completions?.length ?? 0},
