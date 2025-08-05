@@ -31,7 +31,7 @@ export class ProfileStatusMonitor {
 
     async checkInitialState(): Promise<boolean> {
         try {
-            const isMcpEnabled = await this.checkMcpConfiguration()
+            const isMcpEnabled = await this.isMcpEnabled()
             return isMcpEnabled !== false // Return true if enabled or API failed
         } catch (error) {
             this.logging.debug(`Initial MCP state check failed, defaulting to enabled: ${error}`)
@@ -46,7 +46,7 @@ export class ProfileStatusMonitor {
         }
 
         this.intervalId = setInterval(() => {
-            void this.checkMcpConfiguration()
+            void this.isMcpEnabled()
         }, this.CHECK_INTERVAL)
 
         this.logging.info('ProfileStatusMonitor started - checking MCP configuration every 24 hours')
@@ -60,7 +60,7 @@ export class ProfileStatusMonitor {
         }
     }
 
-    private async checkMcpConfiguration(): Promise<boolean | undefined> {
+    private async isMcpEnabled(): Promise<boolean | undefined> {
         try {
             const profileArn = this.getProfileArn()
             if (!profileArn) {

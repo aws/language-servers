@@ -19,7 +19,6 @@ import {
     createNamespacedToolName,
     enabledMCP,
     migrateToAgentConfig,
-    enabledMcpAdmin,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
@@ -27,6 +26,7 @@ import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../share
 import { DisplayFindings } from './qCodeAnalysis/displayFindings'
 import { ProfileStatusMonitor } from './mcp/profileStatusMonitor'
 import { AmazonQTokenServiceManager } from '../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import { SERVICE_MANAGER_TIMEOUT_MS } from '../constants/constants'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -327,7 +327,7 @@ export const McpToolsServer: Server = ({
                 registerServerTools(server, defs)
             })
         } catch (e) {
-            logging.error(`Failed to initialize MCP:', ${e}`)
+            logging.error(`Failed to initialize MCP:' ${e}`)
         }
     }
 
@@ -366,12 +366,17 @@ export const McpToolsServer: Server = ({
                 if (serviceManager.getState() === 'INITIALIZED') {
                     void checkAndInitialize(serviceManager.getConnectionType())
                 } else {
-                    // Poll for service manager to be ready
+                    // Poll for service manager to be ready with 10s timeout
+                    const startTime = Date.now()
                     const pollForReady = () => {
                         if (serviceManager.getState() === 'INITIALIZED') {
                             void checkAndInitialize(serviceManager.getConnectionType())
-                        } else {
+                        } else if (Date.now() - startTime < SERVICE_MANAGER_TIMEOUT_MS) {
                             setTimeout(pollForReady, 100)
+                        } else {
+                            logging.warn('Service manager not ready after 10s, defaulting MCP to enabled')
+                            void initializeMcp()
+                            profileStatusMonitor!.start()
                         }
                     }
                     setTimeout(pollForReady, 100)
