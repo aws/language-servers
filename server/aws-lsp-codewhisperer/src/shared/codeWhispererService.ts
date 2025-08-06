@@ -421,27 +421,41 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
-        const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
+        const beforeApiCall = performance.now()
         this.logging.info(
-            `GenerateCompletion response: 
+            `GenerateCompletion request: 
     "endpoint": ${this.codeWhispererEndpoint},
-    "requestId": ${response.$response.requestId},
-    "responseCompletionCount": ${response.completions?.length ?? 0},
-    "responsePredictionCount": ${response.predictions?.length ?? 0},
-    "suggestionType": ${request.predictionTypes?.toString() ?? ''},
+    "predictionType": ${request.predictionTypes?.toString() ?? ''},
     "filename": ${request.fileContext.filename},
     "language": ${request.fileContext.programmingLanguage.languageName},
-    "supplementalContextLength": ${request.supplementalContexts?.length ?? 0},
-    "request.nextToken": ${request.nextToken},
-    "response.nextToken": ${response.nextToken}`
+    "supplementalContextCount": ${request.supplementalContexts?.length ?? 0},
+    "request.nextToken": ${request.nextToken}`
         )
+        const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
 
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
             nextToken: response.nextToken,
         }
-        return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+
+        const r = this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+        const firstSuggestionLogstr = r.suggestions.length > 0 ? `\n${r.suggestions[0].content}` : 'No suggestion'
+
+        this.logging.info(
+            `GenerateCompletion response: 
+    "endpoint": ${this.codeWhispererEndpoint},
+    "requestId": ${responseContext.requestId},
+    "sessionId": ${responseContext.codewhispererSessionId},
+    "responseCompletionCount": ${response.completions?.length ?? 0},
+    "responsePredictionCount": ${response.predictions?.length ?? 0},
+    "predictionType": ${request.predictionTypes?.toString() ?? ''},
+    "latency": ${performance.now() - beforeApiCall},
+    "filename": ${request.fileContext.filename},
+    "response.nextToken": ${response.nextToken}
+    "firstSuggestion": ${firstSuggestionLogstr}`
+        )
+        return r
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
