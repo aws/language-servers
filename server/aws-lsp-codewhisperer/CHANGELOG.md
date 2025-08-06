@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.0.72](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.71...lsp-codewhisperer/v0.0.72) (2025-08-06)
+
+
+### Features
+
+* add support for SMUS Q CodeEditor client to send MD IDE origin ([#2032](https://github.com/aws/language-servers/issues/2032)) ([a8725b4](https://github.com/aws/language-servers/commit/a8725b4b7dcb7718864620721aa3633151e8877b))
+* **amazonq:** enable sonnet 4 for fra region ([#2069](https://github.com/aws/language-servers/issues/2069)) ([3a4b8df](https://github.com/aws/language-servers/commit/3a4b8df981b2c3b0532360a11472169fffec7924))
+
+
+### Bug Fixes
+
+* **amazonq:** add distinctive identifier for cloud trail ([#2059](https://github.com/aws/language-servers/issues/2059)) ([18bbc2c](https://github.com/aws/language-servers/commit/18bbc2c54f5cc72e2624020fc17214c448926b0e))
+* **amazonq:** fix to add disable/enable feature back to mcp servers ([#2052](https://github.com/aws/language-servers/issues/2052)) ([c03e017](https://github.com/aws/language-servers/commit/c03e017b9ccbbbb9c80a3c3afd5da38a50bd6cff))
+* **amazonq:** make display findings tool run more often ([#2067](https://github.com/aws/language-servers/issues/2067)) ([479ccd0](https://github.com/aws/language-servers/commit/479ccd0a1b8b7e98684275c66274d284599c5933))
+* outdated history when trimming happens, add missing metric for compaction ([#2047](https://github.com/aws/language-servers/issues/2047)) ([8390f66](https://github.com/aws/language-servers/commit/8390f6686c804dfbeff91018635df21e9dd89236))
+* should keep reporting UTDE telemetry if there are still pending Edits suggestions ([#2051](https://github.com/aws/language-servers/issues/2051)) ([78c67b1](https://github.com/aws/language-servers/commit/78c67b1a29821f54006d160695e997870d17f3b5))
+
 ## [0.0.71](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.70...lsp-codewhisperer/v0.0.71) (2025-08-04)
 
 
