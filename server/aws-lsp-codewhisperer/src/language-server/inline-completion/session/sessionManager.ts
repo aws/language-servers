@@ -256,7 +256,7 @@ export class CodeWhispererSession {
      * Determines trigger decision based on the most recent user action.
      * Uses the last processed itemId to determine the overall session decision.
      */
-    getLatestUserTriggerDecision(itemId?: string): UserTriggerDecision | undefined {
+    getUserTriggerDecision(itemId?: string): UserTriggerDecision | undefined {
         // Force Discard trigger decision when session was explicitly discarded by server
         if (this.state === 'DISCARD') {
             return 'Discard'

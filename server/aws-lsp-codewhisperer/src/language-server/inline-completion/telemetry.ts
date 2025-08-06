@@ -127,7 +127,7 @@ export const emitUserTriggerDecisionTelemetry = async (
     // Completions show multiple suggestions together, so aggregate all states
     const userTriggerDecision =
         session.suggestionType === SuggestionType.EDIT
-            ? session.getLatestUserTriggerDecision(itemId)
+            ? session.getUserTriggerDecision(itemId)
             : session.getAggregatedUserTriggerDecision()
 
     // Can not emit previous trigger decision if it's not available on the session

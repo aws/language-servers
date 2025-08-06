@@ -287,7 +287,8 @@ export class TelemetryService {
             "acceptedCharacterCount": ${event.acceptedCharacterCount}
             "addedCharacterCount": ${event.addedCharacterCount}
             "deletedCharacterCount": ${event.deletedCharacterCount}
-            "streakLength": ${event.streakLength}`)
+            "streakLength": ${event.streakLength}
+            "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds}`)
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
         })

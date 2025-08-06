@@ -308,7 +308,7 @@ describe('Telemetry', () => {
                 sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
 
                 const expectedUserTriggerDecisionMetric = aUserTriggerDecision()
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Empty')
             })
 
             it('should send Empty User Decision when Codewhisperer returned empty list of suggestions', async () => {
@@ -326,7 +326,7 @@ describe('Telemetry', () => {
                     suggestions: [],
                     suggestionsStates: new Map([]),
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Empty')
             })
 
             it('should send Discard User Decision when all suggestions are filtered out by includeSuggestionsWithCodeReferences setting filter', async () => {
@@ -383,7 +383,7 @@ describe('Telemetry', () => {
                         ['cwspr-item-id-3', 'Filter'],
                     ]),
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
             })
 
             it('should send Discard User Decision when all suggestions are discarded after right context merge', async () => {
@@ -467,7 +467,7 @@ describe('Telemetry', () => {
                         maxResults: 5,
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
             })
         })
 
@@ -571,7 +571,7 @@ describe('Telemetry', () => {
                         codewhispererSessionId: 'cwspr-session-id-1',
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedEvent, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedEvent, 'Discard')
 
                 telemetryServiceSpy.resetHistory()
 
@@ -662,7 +662,7 @@ describe('Telemetry', () => {
                     ]),
                     acceptedSuggestionId: 'cwspr-item-id-2',
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Accept')
             })
 
             it('should emit Reject User Decision event for current active completion session when session results are received without accepted suggestion', async () => {
@@ -734,7 +734,7 @@ describe('Telemetry', () => {
                         'cwspr-item-id-3': { seen: false, accepted: false, discarded: true },
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Reject')
             })
 
             it('should send Discard User Decision when all suggestions have Discard state', async () => {
@@ -806,7 +806,7 @@ describe('Telemetry', () => {
                         'cwspr-item-id-3': { seen: false, accepted: false, discarded: true },
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
             })
 
             it('should set codewhispererTimeSinceLastDocumentChange as difference between 2 any document changes', async () => {
@@ -873,7 +873,7 @@ describe('Telemetry', () => {
                     ]),
                     closeTime: clock.now,
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 5678)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Reject', 5678)
             })
         })
 
@@ -932,7 +932,7 @@ describe('Telemetry', () => {
                         codewhispererSessionId: 'cwspr-session-id-1',
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
                 sinon.assert.neverCalledWithMatch(
                     telemetryServiceSpy,
                     {
@@ -996,7 +996,7 @@ describe('Telemetry', () => {
                         codewhispererSessionId: 'cwspr-session-id-1',
                     },
                 })
-                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 0)
+                sinon.assert.calledWithMatch(telemetryServiceSpy, expectedUserTriggerDecisionMetric, 'Discard')
                 sinon.assert.neverCalledWithMatch(
                     telemetryServiceSpy,
                     {
@@ -1451,7 +1451,7 @@ describe('Telemetry', () => {
                             codewhispererSessionId: 'cwspr-session-id-2',
                         },
                     }),
-                    0
+                    'Discard'
                 )
             })
         })
@@ -1515,6 +1515,12 @@ describe('Telemetry', () => {
                         'cwspr-item-id-3': { seen: true, accepted: false, discarded: false },
                     },
                 }),
+                'Reject',
+                0,
+                0,
+                0,
+                undefined,
+                undefined,
                 0
             )
             assert.equal(firstSession?.state, 'CLOSED')
