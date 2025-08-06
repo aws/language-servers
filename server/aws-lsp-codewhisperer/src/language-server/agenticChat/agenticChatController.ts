@@ -734,6 +734,7 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 tabId: params.tabId,
                 models: models,
+                selectedModelId: MODEL_RECORD[DEFAULT_MODEL_ID].label,
             }
         }
 
@@ -3570,7 +3571,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.logging.info(`Setting default model as ${MODEL_RECORD[DEFAULT_MODEL_ID].label}`)
         }
 
-        const modelLabel = MODEL_RECORD[modelId as keyof typeof MODEL_RECORD]?.label
+        const modelLabel = MODEL_RECORD[modelId as keyof typeof MODEL_RECORD]?.label || modelId
         session.modelId = modelLabel
 
         // Update the client with the initial pair programming mode and model ID
