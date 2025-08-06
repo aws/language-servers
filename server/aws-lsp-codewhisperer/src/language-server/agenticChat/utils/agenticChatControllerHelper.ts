@@ -12,5 +12,5 @@ export function getLatestAvailableModel(
     exclude?: string
 ): ListAvailableModelsResult['models'][0] {
     const models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
-    return models.reverse().find(model => model.id !== exclude) ?? models[models.length - 1]
+    return [...models].reverse().find(model => model.id !== exclude) ?? models[models.length - 1]
 }
