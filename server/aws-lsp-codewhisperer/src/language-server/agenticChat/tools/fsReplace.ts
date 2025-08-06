@@ -81,7 +81,7 @@ export class FsReplace {
                 '- When you need to create a new file\n' +
                 '- When you need to rename or move a file\n\n' +
                 '## IMPORTANT Notes\n' +
-                'The absolute path should ALWAYS be the first parameter in the JSON result\n' +
+                '- CRITICAL: The absolute path should ALWAYS be the first parameter in the JSON result\n' +
                 '- Use this tool to delete code by using empty `newStr` parameter\n' +
                 '- The `oldStr` parameter should match EXACTLY one or more consecutive lines from the target file. Be mindful of whitespaces including the tabs and spaces! Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`\n' +
                 '- When multiple edits to the same file are needed, ALWAYS populate the diffs array with MULTIPLE `oldStr` and `newStr` pairs. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state\n' +
