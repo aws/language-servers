@@ -468,7 +468,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "predictionType": ${request.predictionTypes?.toString() ?? ''},
     "latency": ${performance.now() - beforeApiCall},
     "filename": ${request.fileContext.filename},
-    "response.nextToken": ${response.nextToken}
+    "response.nextToken": ${response.nextToken},
     "firstSuggestion": ${firstSuggestionLogstr}`
         )
         return r
