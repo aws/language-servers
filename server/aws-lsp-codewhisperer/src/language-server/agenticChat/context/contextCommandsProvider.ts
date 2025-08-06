@@ -35,9 +35,9 @@ export class ContextCommandsProvider implements Disposable {
             controller.onContextItemsUpdated = async contextItems => {
                 await this.processContextCommandUpdate(contextItems)
             }
-            controller.onIndexBuildComplete = () => {
-                if (this.workspacePending) {
-                    this.workspacePending = false
+            controller.onIndexingInProgressChanged = (indexingInProgress: boolean) => {
+                if (this.workspacePending !== indexingInProgress) {
+                    this.workspacePending = indexingInProgress
                     void this.processContextCommandUpdate(this.cachedContextCommands ?? [])
                 }
             }

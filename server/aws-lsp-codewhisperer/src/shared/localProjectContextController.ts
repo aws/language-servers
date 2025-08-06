@@ -51,7 +51,7 @@ export class LocalProjectContextController {
     // Event handler for context items updated
     public onContextItemsUpdated: ((contextItems: ContextCommandItem[]) => Promise<void>) | undefined
     // Event handler for index build completion
-    public onIndexBuildComplete: (() => void) | undefined
+    public onIndexingInProgressChanged: ((enabled: boolean) => void) | undefined
     private static instance: LocalProjectContextController | undefined
 
     private workspaceFolders: WorkspaceFolder[]
@@ -216,6 +216,7 @@ export class LocalProjectContextController {
         }
         try {
             this._isIndexingInProgress = true
+            this.onIndexingInProgressChanged?.(this._isIndexingInProgress)
             if (this._vecLib) {
                 if (!this.workspaceFolders.length) {
                     this.log.info('skip building index because no workspace folder found')
@@ -231,12 +232,12 @@ export class LocalProjectContextController {
                 const projectRoot = URI.parse(this.workspaceFolders.sort()[0].uri).fsPath
                 await this._vecLib?.buildIndex(sourceFiles, projectRoot, indexingType)
                 this.log.info('Context index built successfully')
-                this.onIndexBuildComplete?.()
             }
         } catch (error) {
             this.log.error(`Error building index: ${error}`)
         } finally {
             this._isIndexingInProgress = false
+            this.onIndexingInProgressChanged?.(this._isIndexingInProgress)
         }
     }
 
