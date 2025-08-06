@@ -244,7 +244,7 @@ export class ChatSessionService {
                 // SendMessageStreaming checks for origin from request source
                 // https://code.amazon.com/packages/AWSVectorConsolasRuntimeService/blobs/ac917609a28dbcb6757a8427bcc585a42fd15bf2/--/src/com/amazon/aws/vector/consolas/runtimeservice/activity/SendMessageStreamingActivity.java#L246
                 request.source = this.#origin ? this.#origin : 'IDE'
-                return await client.sendMessage(request as any, this.#abortController)
+                return await client.sendMessage(request, this.#abortController)
             } catch (e) {
                 // Log the error using the logging property if available, otherwise fall back to console.error
                 if (this.#logging) {

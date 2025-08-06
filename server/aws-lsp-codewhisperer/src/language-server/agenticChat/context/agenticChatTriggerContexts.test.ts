@@ -146,9 +146,7 @@ describe('AgenticChatTriggerContext', () => {
             undefined,
             modelId
         )
-        // Note: modelId is not part of the UserInputMessage type in current definitions
-        // This test verifies the method can be called with modelId parameter
-        assert.ok(chatParams.conversationState?.currentMessage?.userInputMessage)
+        assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, modelId)
     })
 
     it('does not include modelId in chat params when not provided', async () => {
@@ -158,9 +156,7 @@ describe('AgenticChatTriggerContext', () => {
             {},
             ChatTriggerType.MANUAL
         )
-        // Note: modelId is not part of the UserInputMessage type in current definitions
-        // This test verifies the method works without modelId parameter
-        assert.ok(chatParams.conversationState?.currentMessage?.userInputMessage)
+        assert.strictEqual(chatParams.conversationState?.currentMessage?.userInputMessage?.modelId, undefined)
     })
 
     it('includes remote workspaceId if it exists and is connected', async () => {
@@ -194,9 +190,7 @@ describe('AgenticChatTriggerContext', () => {
                 ?.workspaceFolders,
             mockWorkspaceFolders.map(f => URI.parse(f.uri).fsPath)
         )
-        // Note: workspaceId is not part of the ConversationState type in current definitions
-        // This test verifies the method works with workspace state configuration
-        assert.ok(chatParamsWithMore.conversationState)
+        assert.deepStrictEqual(chatParamsWithMore.conversationState?.workspaceId, 'test-workspace-123')
     })
     describe('getTextDocument*', function () {
         let tempFolder: TestFolder
