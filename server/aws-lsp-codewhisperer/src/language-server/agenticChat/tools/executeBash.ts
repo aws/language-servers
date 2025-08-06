@@ -134,9 +134,12 @@ export class ExecuteBash {
     private readonly workspace: Features['workspace']
     private readonly telemetry: Features['telemetry']
     private readonly credentialsProvider: Features['credentialsProvider']
+    private readonly features: Pick<Features, 'logging' | 'workspace' | 'telemetry' | 'credentialsProvider'> &
+        Partial<Features>
     constructor(
         features: Pick<Features, 'logging' | 'workspace' | 'telemetry' | 'credentialsProvider'> & Partial<Features>
     ) {
+        this.features = features
         this.logging = features.logging
         this.workspace = features.workspace
         this.telemetry = features.telemetry
@@ -507,9 +510,43 @@ export class ExecuteBash {
                 }
             }
 
+            // Set up environment variables with AWS CLI identifier for CloudTrail auditability
+            const env = { ...process.env }
+
+            // Add Q Developer IDE identifier for AWS CLI commands
+            // Check if command contains 'aws ' anywhere (handles multi-command scenarios)
+            if (params.command.includes('aws ')) {
+                let extensionVersion = 'unknown'
+                try {
+                    const clientInfo = this.features?.lsp?.getClientInitializeParams()?.clientInfo
+                    const initOptions = this.features?.lsp?.getClientInitializeParams()?.initializationOptions
+                    extensionVersion =
+                        initOptions?.aws?.clientInfo?.extension?.version || clientInfo?.version || 'unknown'
+                } catch {
+                    extensionVersion = 'unknown'
+                }
+                const userAgentMetadata = `AmazonQ-For-IDE Version/${extensionVersion}`
+                this.logging.info(
+                    `AWS command detected: ${params.command}, setting AWS_EXECUTION_ENV to: ${userAgentMetadata}`
+                )
+
+                if (env.AWS_EXECUTION_ENV) {
+                    env.AWS_EXECUTION_ENV = env.AWS_EXECUTION_ENV.trim()
+                        ? `${env.AWS_EXECUTION_ENV} ${userAgentMetadata}`
+                        : userAgentMetadata
+                } else {
+                    env.AWS_EXECUTION_ENV = userAgentMetadata
+                }
+
+                this.logging.info(`Final AWS_EXECUTION_ENV value: ${env.AWS_EXECUTION_ENV}`)
+            } else {
+                this.logging.debug(`Non-AWS command: ${params.command}`)
+            }
+
             const childProcessOptions: ChildProcessOptions = {
                 spawnOptions: {
                     cwd: params.cwd,
+                    env,
                     stdio: ['pipe', 'pipe', 'pipe'],
                     windowsVerbatimArguments: IS_WINDOWS_PLATFORM, // if true, then arguments are passed exactly as provided. no quoting or escaping is done.
                 },
