@@ -139,6 +139,7 @@ describe('McpEventHandler error handling', () => {
                     command: '', // Invalid - missing command
                     args: [],
                     env: {},
+                    disabled: false,
                     __configPath__: 'config.json',
                 },
             ],

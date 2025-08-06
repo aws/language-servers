@@ -113,6 +113,7 @@ describe('callTool()', () => {
         args: [],
         env: {},
         timeout: 0,
+        disabled: false,
         __configPath__: 'p.json',
     }
 
@@ -137,6 +138,42 @@ describe('callTool()', () => {
             throw new Error('should have thrown')
         } catch (err: any) {
             expect(err.message).to.equal("MCP: server 'nope' is not configured")
+        }
+    })
+
+    it('throws when server is disabled', async () => {
+        const disabledCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: true,
+            __configPath__: 'p.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['s1', disabledCfg]]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { s1: disabledCfg },
+                tools: ['@s1'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+        const mgr = await McpManager.init(['p.json'], features)
+
+        try {
+            await mgr.callTool('s1', 'tool1', {})
+            throw new Error('should have thrown')
+        } catch (err: any) {
+            expect(err.message).to.equal("MCP: server 's1' is disabled")
         }
     })
 
@@ -225,6 +262,7 @@ describe('addServer()', () => {
             args: ['a'],
             env: { X: '1' },
             timeout: 0,
+            disabled: false,
             __configPath__: 'path.json',
         }
 
@@ -257,6 +295,7 @@ describe('addServer()', () => {
             url: 'https://api.example.com/mcp',
             headers: { Authorization: 'Bearer 123' },
             timeout: 0,
+            disabled: false,
             __configPath__: 'http.json',
         }
 
@@ -308,6 +347,7 @@ describe('removeServer()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'c.json',
         } as MCPServerConfig)
         ;(mgr as any).serverNameMapping.set('x', 'x')
@@ -337,6 +377,7 @@ describe('removeServer()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'c.json',
         } as MCPServerConfig)
         ;(mgr as any).serverNameMapping.set('x', 'x')
@@ -494,6 +535,7 @@ describe('updateServer()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'z.json',
         }
 
@@ -637,6 +679,7 @@ describe('getServerState()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'state.json',
         }
         loadStub.resolves({
@@ -678,6 +721,7 @@ describe('getAllServerStates()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'state.json',
         }
         loadStub.resolves({
@@ -726,6 +770,7 @@ describe('getEnabledTools()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 't.json',
         }
 
@@ -767,6 +812,38 @@ describe('getEnabledTools()', () => {
         }
         expect(mgr.getEnabledTools()).to.be.empty
     })
+
+    it('filters out tools from disabled servers', async () => {
+        const disabledCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: true,
+            __configPath__: 't.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', disabledCfg]]),
+            serverNameMapping: new Map([['srv', 'srv']]),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: disabledCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        const mgr = await McpManager.init(['t.json'], features)
+        // Should be empty because server is disabled
+        expect(mgr.getEnabledTools()).to.be.empty
+    })
 })
 
 describe('getAllToolsWithPermissions()', () => {
@@ -779,6 +856,7 @@ describe('getAllToolsWithPermissions()', () => {
         args: [],
         env: {},
         timeout: 0,
+        disabled: false,
         __configPath__: 'p.json',
     }
 
@@ -825,6 +903,109 @@ describe('getAllToolsWithPermissions()', () => {
         expect(mgr.getAllToolsWithPermissions()).to.have.length(2)
         expect(mgr.getAllToolsWithPermissions('s1')).to.have.length(1)
         expect(mgr.getAllToolsWithPermissions('s2')).to.have.length(1)
+    })
+})
+
+describe('isServerDisabled()', () => {
+    let loadStub: sinon.SinonStub
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('returns true when server is disabled', async () => {
+        const disabledCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: true,
+            __configPath__: 'p.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', disabledCfg]]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: disabledCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        const mgr = await McpManager.init(['p.json'], features)
+        expect(mgr.isServerDisabled('srv')).to.be.true
+    })
+
+    it('returns false when server is enabled', async () => {
+        const enabledCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: false,
+            __configPath__: 'p.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', enabledCfg]]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: enabledCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        const mgr = await McpManager.init(['p.json'], features)
+        expect(mgr.isServerDisabled('srv')).to.be.false
+    })
+
+    it('returns false when disabled property is undefined', async () => {
+        const undefinedCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            __configPath__: 'p.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', undefinedCfg]]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: undefinedCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        const mgr = await McpManager.init(['p.json'], features)
+        expect(mgr.isServerDisabled('srv')).to.be.false
     })
 })
 
@@ -899,6 +1080,7 @@ describe('updateServerPermission()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'x.json',
         }
 
@@ -953,6 +1135,7 @@ describe('reinitializeMcpServers()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'a.json',
         }
         const cfg2: MCPServerConfig = {
@@ -960,6 +1143,7 @@ describe('reinitializeMcpServers()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'b.json',
         }
         const loadStub = sinon
@@ -1085,6 +1269,7 @@ describe('concurrent server initialization', () => {
                 args: [],
                 env: {},
                 timeout: 0,
+                disabled: false,
                 __configPath__: `config${i}.json`,
             }
         }
