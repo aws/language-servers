@@ -83,27 +83,6 @@ export class FsReplace {
                 '  * Parameter changes\n' +
                 '  * Individual line changes inside function body\n' +
                 '  * Return statement changes\n\n' +
-                '## EXAMPLES OF GOOD GRANULAR DIFFS\n' +
-                '```json\n' +
-                '// GOOD: Multiple small diff pairs\n' +
-                '{\n' +
-                '  "diffs": [\n' +
-                '    {"oldStr": "function oldName(", "newStr": "function newName("},\n' +
-                '    {"oldStr": "param1, param2", "newStr": "param1, param2, param3"},\n' +
-                '    {"oldStr": "  let x = 5;", "newStr": "  let x = 10;"},\n' +
-                '    {"oldStr": "  return x;", "newStr": "  return x * 2;"}\n' +
-                '  ]\n' +
-                '}\n' +
-                '```\n\n' +
-                '## EXAMPLES OF BAD DIFFS (AVOID)\n' +
-                '```json\n' +
-                '// BAD: One large diff pair (hard to animate)\n' +
-                '{\n' +
-                '  "diffs": [\n' +
-                '    {"oldStr": "function oldName(param1, param2) {\\n  let x = 5;\\n  return x;\\n}", "newStr": "function newName(param1, param2, param3) {\\n  let x = 10;\\n  return x * 2;\\n}"}\n' +
-                '  ]\n' +
-                '}\n' +
-                '```\n\n' +
                 '## When to use\n' +
                 '- When you need to make targeted changes to specific parts of a file\n' +
                 '- When you need to update multiple sections of the same file\n' +
@@ -153,7 +132,7 @@ export class FsReplace {
                         type: 'string',
                     },
                 },
-                required: ['path', 'diffs'],
+                required: ['path'],
             },
         } as const
     }
