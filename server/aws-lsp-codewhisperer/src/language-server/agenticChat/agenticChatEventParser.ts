@@ -863,6 +863,9 @@ export class AgenticChatEventParser implements ChatResult {
                         ...this.toolUses[toolUseId],
                         input: parsedInput,
                     }
+                    this.#logging.log(
+                        `ToolUseEvent: ${toolUseId} ${name} ${loggingUtils.formatObj(this.toolUses[toolUseId].input)}`
+                    )
                 }
             }
         } else if (followupPromptEvent?.followupPrompt) {
@@ -911,7 +914,7 @@ export class AgenticChatEventParser implements ChatResult {
             relatedContent: this.relatedContent,
             followUp: this.followUp,
             codeReference: this.codeReference,
-            ...(this.contextList && { ...this.contextList }),
+            ...(this.contextList && { contextList: { ...this.contextList } }),
         }
 
         const chatResultWithMetadata = {

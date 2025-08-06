@@ -754,7 +754,6 @@ export class AgenticChatController implements ChatHandlers {
 
         try {
             const triggerContext = await this.#getTriggerContext(params, metric)
-
             if (triggerContext.programmingLanguage?.languageName) {
                 this.#userWrittenCodeTracker?.recordUsageCount(triggerContext.programmingLanguage.languageName)
             }
@@ -3465,12 +3464,6 @@ export class AgenticChatController implements ChatHandlers {
         await this.restorePreviousChats()
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
-            if (!localProjectContextController) {
-                this.#features.logging.warn(
-                    '[AgenticChatController] LocalProjectContextController not available - skipping context initialization'
-                )
-                return
-            }
             const contextItems = await localProjectContextController.getContextCommandItems()
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
