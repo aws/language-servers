@@ -20,8 +20,3 @@ export const MODEL_OPTIONS: ListAvailableModelsResult['models'] = Object.entries
         name: label,
     })
 )
-
-export const MODEL_OPTIONS_FOR_REGION: Record<string, ListAvailableModelsResult['models']> = {
-    'us-east-1': MODEL_OPTIONS,
-    'eu-central-1': MODEL_OPTIONS.filter(option => option.id !== BedrockModel.CLAUDE_SONNET_4_20250514_V1_0),
-}

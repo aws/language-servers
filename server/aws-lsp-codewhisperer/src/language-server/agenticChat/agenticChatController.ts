@@ -220,7 +220,7 @@ import {
     Message as DbMessage,
     messageToStreamingMessage,
 } from './tools/chatDb/util'
-import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION, MODEL_RECORD } from './constants/modelSelection'
+import { MODEL_OPTIONS, MODEL_RECORD } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
@@ -678,11 +678,9 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
         let models: Model[] = []
         let defaultModelId: string | undefined
         let isFromCache = false
-        let arn = undefined
 
         // Check if cache is valid (less than 5 minutes old)
         if (this.#chatHistoryDb.isCachedModelsValid()) {
@@ -699,13 +697,12 @@ export class AgenticChatController implements ChatHandlers {
         if (!isFromCache) {
             this.#log('Cache miss or expired, fetching models from API')
             try {
-                if (AmazonQTokenServiceManager.getInstance().getConnectionType()) {
-                    arn = AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
-                }
                 const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
                 const responsePromise = client.listAvailableModels({
                     origin: 'IDE',
-                    profileArn: arn,
+                    profileArn: AmazonQTokenServiceManager.getInstance().getConnectionType()
+                        ? AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+                        : undefined,
                     modelProvider: 'DEFAULT',
                 })
 
@@ -724,7 +721,7 @@ export class AgenticChatController implements ChatHandlers {
             } catch (err) {
                 // In case of API throttling or other errors, fall back to hardcoded models
                 this.#log('Error fetching models from API, using fallback models:', fmtError(err))
-                models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
+                models = MODEL_OPTIONS
             }
         }
 
@@ -747,7 +744,7 @@ export class AgenticChatController implements ChatHandlers {
             if (defaultModelId) {
                 selectedModelId = defaultModelId
             } else {
-                // Last resort: use mapped default model
+                // Last resort: use hardcoded default model
                 selectedModelId = MODEL_RECORD[DEFAULT_MODEL_ID].label
             }
         }
@@ -3560,7 +3557,7 @@ export class AgenticChatController implements ChatHandlers {
         // Get the saved pair programming mode from the database or default to true if not found
         const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
         session.pairProgrammingMode = savedPairProgrammingMode !== undefined ? savedPairProgrammingMode : true
-        if (success && session) {
+        if (session) {
             // Set the logging object on the session
             session.setLogging(this.#features.logging)
         }
@@ -3574,7 +3571,7 @@ export class AgenticChatController implements ChatHandlers {
         const modelLabel = MODEL_RECORD[modelId as keyof typeof MODEL_RECORD]?.label || modelId
         session.modelId = modelLabel
 
-        // Update the client with the initial pair programming mode and model ID
+        // Update the client with the initial pair programming mode and modelId/modelName
         this.#features.chat.chatOptionsUpdate({
             tabId: params.tabId,
             // Type assertion to support pairProgrammingMode
