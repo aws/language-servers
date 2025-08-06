@@ -24,7 +24,6 @@ import {
     GREP_SEARCH,
     FILE_SEARCH,
     EXECUTE_BASH,
-    CODE_REVIEW,
     BUTTON_RUN_SHELL_COMMAND,
     BUTTON_REJECT_SHELL_COMMAND,
     BUTTON_REJECT_MCP_TOOL,
@@ -67,8 +66,6 @@ import {
     ListAvailableModelsResult,
     OpenFileDialogParams,
     OpenFileDialogResult,
-} from '@aws/language-server-runtimes/protocol'
-import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
     FeedbackParams,
@@ -3490,25 +3487,6 @@ export class AgenticChatController implements ChatHandlers {
 
     onSourceLinkClick() {}
 
-    /**
-     * @deprecated use aws/chat/listAvailableModels server request instead
-     */
-    #legacySetModelId(tabId: string, session: ChatSessionService) {
-        // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
-        // In that case, we use the default modelId.
-        let modelId = this.#chatHistoryDb.getModelId() ?? DEFAULT_MODEL_ID
-
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        if (region === 'eu-central-1') {
-            // Only 3.7 Sonnet is available in eu-central-1 for now
-            modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
-            // @ts-ignore
-            this.#features.chat.chatOptionsUpdate({ region })
-        }
-        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: tabId })
-        session.modelId = modelId
-    }
-
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
@@ -3521,23 +3499,32 @@ export class AgenticChatController implements ChatHandlers {
         if (!success) {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
-        this.#legacySetModelId(params.tabId, session)
 
         // Get the saved pair programming mode from the database or default to true if not found
         const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
         session.pairProgrammingMode = savedPairProgrammingMode !== undefined ? savedPairProgrammingMode : true
-
-        // Update the client with the initial pair programming mode
-        this.#features.chat.chatOptionsUpdate({
-            tabId: params.tabId,
-            // Type assertion to support pairProgrammingMode
-            ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
-        } as ChatUpdateParams)
-
         if (success && session) {
             // Set the logging object on the session
             session.setLogging(this.#features.logging)
         }
+        // Get the saved model ID from the database and set it on the session
+        const modelId = this.#chatHistoryDb.getModelId()
+        const effectiveModelId = modelId || DEFAULT_MODEL_ID
+
+        if (!modelId) {
+            this.#features.logging.info(`Setting default model as ${DEFAULT_MODEL_ID}`)
+        }
+
+        // Set the model ID on the session if it exists in db
+        session.modelId = modelId
+
+        // Update the client with the initial pair programming mode and model ID
+        this.#features.chat.chatOptionsUpdate({
+            tabId: params.tabId,
+            // Type assertion to support pairProgrammingMode
+            ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
+            modelId: effectiveModelId,
+        } as ChatUpdateParams)
         this.setPaidTierMode(params.tabId)
     }
 

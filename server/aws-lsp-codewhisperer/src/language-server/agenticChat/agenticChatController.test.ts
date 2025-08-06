@@ -32,6 +32,7 @@ import {
     InlineChatResult,
     CancellationTokenSource,
     ContextCommand,
+    ChatUpdateParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
@@ -372,7 +373,11 @@ describe('AgenticChatController', () => {
         sinon.stub(ChatDatabase.prototype, 'getModelId').returns(modelId)
         chatController.onTabAdd({ tabId: mockTabId })
 
-        sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, { modelId, tabId: mockTabId })
+        sinon.assert.calledWithExactly(testFeatures.chat.chatOptionsUpdate, {
+            tabId: mockTabId,
+            pairProgrammingMode: true,
+            modelId: modelId,
+        } as ChatUpdateParams)
 
         const session = chatSessionManagementService.getSession(mockTabId).data
         assert.strictEqual(session!.modelId, modelId)
