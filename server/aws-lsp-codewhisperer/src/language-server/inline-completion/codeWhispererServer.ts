@@ -846,11 +846,6 @@ export const CodewhispererServerFactory =
 
             // Process document changes with RecentEditTracker.
             if (editsEnabled && recentEditTracker) {
-                logging.log(
-                    `[SERVER] Processing document change with RecentEditTracker: ${p.textDocument.uri}, version: ${textDocument.version}`
-                )
-                logging.log(`[SERVER] Change details: ${p.contentChanges.length} changes`)
-
                 await recentEditTracker.handleDocumentChange({
                     uri: p.textDocument.uri,
                     languageId: textDocument.languageId,
