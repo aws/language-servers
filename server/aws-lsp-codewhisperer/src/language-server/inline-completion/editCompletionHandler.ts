@@ -156,17 +156,17 @@ export class EditCompletionHandler {
                         if (this.hasDocumentChangedSinceInvocation) {
                             if (attempt < EDIT_STALE_RETRY_COUNT) {
                                 this.logging.info(
-                                    `Document changed during execution, retrying (attempt ${attempt + 1})`
+                                    `EditCompletionHandler - Document changed during execution, retrying (attempt ${attempt + 1})`
                                 )
                                 this.hasDocumentChangedSinceInvocation = false
                                 const retryResult = await invokeWithRetry(attempt + 1)
                                 resolve(retryResult)
                             } else {
-                                this.logging.info('Max retries reached, returning empty result')
+                                this.logging.info('EditCompletionHandler - Max retries reached, returning empty result')
                                 resolve(EMPTY_RESULT)
                             }
                         } else {
-                            this.logging.info('No document changes, resolving result')
+                            this.logging.info('EditCompletionHandler - No document changes, resolving result')
                             resolve(result)
                         }
                     } finally {
