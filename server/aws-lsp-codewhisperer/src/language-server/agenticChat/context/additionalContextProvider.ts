@@ -12,6 +12,7 @@ import {
 } from '@aws/language-server-runtimes/protocol'
 import { AdditionalContextPrompt, ContextCommandItem, ContextCommandItemType } from 'local-indexing'
 import * as path from 'path'
+import { normalizePathForDescription } from './pathEscapeUtils'
 import {
     AdditionalContentEntryAddition,
     additionalContextMaxLength,
@@ -426,7 +427,7 @@ export class AdditionalContextProvider {
                         second: item.name === 'symbol' ? item.endLine : -1,
                     },
                 ],
-                description: item.path,
+                description: normalizePathForDescription(item.path),
                 fullPath: item.path,
             }
         }
