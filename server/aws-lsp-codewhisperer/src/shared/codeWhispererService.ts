@@ -422,6 +422,20 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
         const beforeApiCall = performance.now()
+        let recentEditsLogStr = ''
+        const recentEdits = request.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
+        if (recentEdits) {
+            if (recentEdits.length === 0) {
+                recentEditsLogStr += `No recent edits`
+            } else {
+                recentEditsLogStr += '\n'
+                for (let i = 0; i < recentEdits.length; i++) {
+                    const e = recentEdits[i]
+                    recentEditsLogStr += `[recentEdits ${i}th]:\n`
+                    recentEditsLogStr += `${e.content}\n`
+                }
+            }
+        }
         this.logging.info(
             `GenerateCompletion request: 
     "endpoint": ${this.codeWhispererEndpoint},
@@ -429,8 +443,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "filename": ${request.fileContext.filename},
     "language": ${request.fileContext.programmingLanguage.languageName},
     "supplementalContextCount": ${request.supplementalContexts?.length ?? 0},
-    "request.nextToken": ${request.nextToken}`
+    "request.nextToken": ${request.nextToken},
+    "recentEdits": ${recentEditsLogStr}`
         )
+
         const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
 
         const responseContext = {
