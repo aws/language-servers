@@ -26,7 +26,9 @@ export class ContextCommandsProvider implements Disposable {
             this.logging.error(`Error registering context command handler: ${e}`)
         )
         //send initial pending state to client immediately
-        void this.processContextCommandUpdate([]).catch(() => {})
+        void this.processContextCommandUpdate([]).catch(e =>
+            this.logging.error(`Failed to send initial context commands: ${e}`)
+        )
     }
 
     private async registerContextCommandHandler() {

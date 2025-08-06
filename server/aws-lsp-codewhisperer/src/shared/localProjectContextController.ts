@@ -50,7 +50,7 @@ export interface LocalProjectContextInitializationOptions {
 export class LocalProjectContextController {
     // Event handler for context items updated
     public onContextItemsUpdated: ((contextItems: ContextCommandItem[]) => Promise<void>) | undefined
-    // Event handler for index build completion
+    // Event handler for when index is being built
     public onIndexingInProgressChanged: ((enabled: boolean) => void) | undefined
     private static instance: LocalProjectContextController | undefined
 
