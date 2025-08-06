@@ -1300,6 +1300,25 @@ export class AgenticChatController implements ChatHandlers {
                 shouldDisplayMessage = false
                 // set the in progress tool use UI status to Error
                 await chatResultStream.updateOngoingProgressResult('Error')
+
+                // emit invokeLLM event with status Failed for timeout calls
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    'AgenticChat',
+                    undefined,
+                    undefined,
+                    'Failed',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
+                    llmLatency,
+                    this.#toolCallLatencies,
+                    this.#timeToFirstChunk,
+                    this.#timeBetweenChunks,
+                    session.pairProgrammingMode,
+                    this.#abTestingAllocation?.experimentName,
+                    this.#abTestingAllocation?.userVariation
+                )
                 continue
             }
 
@@ -1345,7 +1364,7 @@ export class AgenticChatController implements ChatHandlers {
                     'AgenticChat',
                     undefined,
                     undefined,
-                    'Succeeded',
+                    result.success ? 'Succeeded' : 'Failed',
                     this.#features.runtime.serverInfo.version ?? '',
                     session.modelId,
                     llmLatency,
