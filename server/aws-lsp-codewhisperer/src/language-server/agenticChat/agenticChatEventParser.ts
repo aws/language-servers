@@ -131,11 +131,20 @@ export class AgenticChatEventParser implements ChatResult {
         }
     }
 
-    constructor(messageId: string, metric: Metric<AddMessageEvent>, logging: Features['logging'], features?: Features) {
+    #enableStreamingAnimation: boolean
+
+    constructor(
+        messageId: string,
+        metric: Metric<AddMessageEvent>,
+        logging: Features['logging'],
+        features?: Features,
+        enableStreamingAnimation: boolean = false
+    ) {
         this.messageId = messageId
         this.#metric = metric
         this.#logging = logging
         this.#features = features
+        this.#enableStreamingAnimation = enableStreamingAnimation
     }
 
     public get totalEvents() {
@@ -795,12 +804,13 @@ export class AgenticChatEventParser implements ChatResult {
                     input: `${this.toolUses[toolUseId]?.input || ''}${input || ''}`,
                     stop: !!toolUseEvent.stop,
                 }
-                // Send streaming chunk for fsWrite and fsReplace tools
+                // Send streaming chunk for fsWrite and fsReplace tools only if streaming animation is enabled
                 if (
                     (name === AgenticChatEventParser.TOOL_NAMES.FS_WRITE ||
                         name === AgenticChatEventParser.TOOL_NAMES.FS_REPLACE) &&
                     this.#features?.chat &&
-                    input
+                    input &&
+                    this.#enableStreamingAnimation
                 ) {
                     const isComplete = !!toolUseEvent.stop
                     this.#sendStreamingChunk(
@@ -818,7 +828,8 @@ export class AgenticChatEventParser implements ChatResult {
                         (name === AgenticChatEventParser.TOOL_NAMES.FS_WRITE ||
                             name === AgenticChatEventParser.TOOL_NAMES.FS_REPLACE) &&
                         this.#features?.chat &&
-                        !input
+                        !input &&
+                        this.#enableStreamingAnimation
                     ) {
                         this.#sendStreamingChunk(
                             toolUseId,

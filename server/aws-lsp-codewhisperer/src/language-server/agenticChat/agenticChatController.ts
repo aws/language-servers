@@ -222,7 +222,7 @@ import {
     Message as DbMessage,
     messageToStreamingMessage,
 } from './tools/chatDb/util'
-import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
+import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION, BedrockModel } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
@@ -4081,7 +4081,21 @@ export class AgenticChatController implements ChatHandlers {
         isCompaction?: boolean
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
         const requestId = response.$metadata.requestId!
-        const chatEventParser = new AgenticChatEventParser(requestId, metric, this.#features.logging, this.#features)
+
+        // Check if streaming animation should be enabled based on feature flag and model selection
+        const diffAnimationEnabled =
+            this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                ?.diffAnimation
+        const isClaudeSonnet4 = session.modelId === BedrockModel.CLAUDE_SONNET_4_20250514_V1_0
+        const enableStreamingAnimation = diffAnimationEnabled && isClaudeSonnet4
+
+        const chatEventParser = new AgenticChatEventParser(
+            requestId,
+            metric,
+            this.#features.logging,
+            this.#features,
+            enableStreamingAnimation
+        )
 
         // Display context transparency list once at the beginning of response
         // Use a flag to track if contextList has been sent already to avoid ux flickering
