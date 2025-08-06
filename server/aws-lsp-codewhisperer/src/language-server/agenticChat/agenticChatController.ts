@@ -4079,6 +4079,7 @@ export class AgenticChatController implements ChatHandlers {
         const diffAnimationEnabled =
             this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
                 ?.diffAnimation
+        //to do: @laileni-aws's feature should be integrated here
         const isClaudeSonnet4 = session.modelId === BedrockModel.CLAUDE_SONNET_4_20250514_V1_0
         const enableStreamingAnimation = diffAnimationEnabled && isClaudeSonnet4
 
