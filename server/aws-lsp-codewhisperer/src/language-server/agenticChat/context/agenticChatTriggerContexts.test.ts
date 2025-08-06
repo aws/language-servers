@@ -143,7 +143,6 @@ describe('AgenticChatTriggerContext', () => {
             undefined,
             undefined,
             [],
-            [],
             undefined,
             modelId
         )

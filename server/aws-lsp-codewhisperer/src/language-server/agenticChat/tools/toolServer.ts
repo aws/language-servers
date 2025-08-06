@@ -10,24 +10,26 @@ import { AGENT_TOOLS_CHANGED, McpManager } from './mcp/mcpManager'
 import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
+import { CodeReview } from './qCodeAnalysis/codeReview'
+import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
-    getGlobalMcpConfigPath,
-    getGlobalPersonaConfigPath,
-    getWorkspaceMcpConfigPaths,
-    getWorkspacePersonaConfigPaths,
+    getGlobalAgentConfigPath,
+    getWorkspaceAgentConfigPaths,
     createNamespacedToolName,
     enabledMCP,
-    sanitizeName,
+    migrateToAgentConfig,
 } from './mcp/mcpUtils'
 import { FsReplace, FsReplaceParams } from './fsReplace'
+import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
+import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
+import { DisplayFindings } from './qCodeAnalysis/displayFindings'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
     const fsWriteTool = new FsWrite({ workspace, lsp, logging })
     const listDirectoryTool = new ListDirectory({ workspace, logging, lsp })
     const fileSearchTool = new FileSearch({ workspace, lsp, logging })
-    const grepSearchTool = new GrepSearch({ workspace, logging, lsp })
     const fsReplaceTool = new FsReplace({ workspace, lsp, logging })
 
     agent.addTool(
@@ -84,8 +86,94 @@ export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     return () => {}
 }
 
-export const BashToolsServer: Server = ({ logging, workspace, agent, lsp }) => {
-    const bashTool = new ExecuteBash({ logging, workspace, lsp })
+export const QCodeAnalysisServer: Server = ({
+    agent,
+    credentialsProvider,
+    logging,
+    lsp,
+    sdkInitializator,
+    telemetry,
+    workspace,
+}) => {
+    logging.info('QCodeAnalysisServer')
+    const codeReviewTool = new CodeReview({
+        credentialsProvider,
+        logging,
+        telemetry,
+        workspace,
+    })
+
+    const displayFindingsTool = new DisplayFindings({
+        logging,
+        telemetry,
+        workspace,
+    })
+
+    lsp.onInitialized(async () => {
+        if (!CodeReviewUtils.isAgenticReviewEnabled(lsp.getClientInitializeParams())) {
+            logging.warn('Agentic Review is currently not supported')
+            return
+        }
+
+        logging.info('LSP on initialize for QCodeAnalysisServer')
+        // Get credentials provider from the LSP context
+        if (!credentialsProvider.hasCredentials) {
+            logging.error('Credentials provider not available')
+            return
+        }
+
+        // Create the CodeWhisperer client
+        const codeWhispererClient = new CodeWhispererServiceToken(
+            credentialsProvider,
+            workspace,
+            logging,
+            process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+            process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+            sdkInitializator
+        )
+
+        agent.addTool(
+            {
+                name: CodeReview.toolName,
+                description: CodeReview.toolDescription,
+                inputSchema: CodeReview.inputSchema,
+            },
+            async (input: any, token?: CancellationToken, updates?: WritableStream) => {
+                return await codeReviewTool.execute(input, {
+                    codeWhispererClient: codeWhispererClient,
+                    cancellationToken: token,
+                    writableStream: updates,
+                })
+            },
+            ToolClassification.BuiltIn
+        )
+
+        if (!CodeReviewUtils.isDisplayFindingsEnabled(lsp.getClientInitializeParams())) {
+            logging.warn('Display Findings is currently not supported')
+            return
+        }
+
+        agent.addTool(
+            {
+                name: DisplayFindings.toolName,
+                description: DisplayFindings.toolDescription,
+                inputSchema: DisplayFindings.inputSchema,
+            },
+            async (input: any, token?: CancellationToken, updates?: WritableStream) => {
+                return await displayFindingsTool.execute(input, {
+                    cancellationToken: token,
+                    writableStream: updates,
+                })
+            },
+            ToolClassification.BuiltIn
+        )
+    })
+
+    return () => {}
+}
+
+export const BashToolsServer: Server = ({ logging, workspace, agent, lsp, telemetry, credentialsProvider }) => {
+    const bashTool = new ExecuteBash({ logging, workspace, lsp, telemetry, credentialsProvider })
     agent.addTool(
         bashTool.getSpec(),
         async (input: ExecuteBashParams, token?: CancellationToken, updates?: WritableStream) => {
@@ -127,7 +215,6 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
         // 2) add new enabled tools
         for (const def of defs) {
             // Sanitize the tool name
-            const sanitizedToolName = sanitizeName(def.toolName)
 
             // Check if this tool name is already in use
             const namespaced = createNamespacedToolName(
@@ -178,15 +265,15 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             }
 
             const wsUris = workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
-            const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
-            const globalConfigPath = getGlobalMcpConfigPath(workspace.fs.getUserHomeDir())
-            const allConfigPaths = [...wsConfigPaths, globalConfigPath]
+            // Get agent paths
+            const wsAgentPaths = getWorkspaceAgentConfigPaths(wsUris)
+            const globalAgentPath = getGlobalAgentConfigPath(workspace.fs.getUserHomeDir())
+            const allAgentPaths = [...wsAgentPaths, globalAgentPath]
 
-            const wsPersonaPaths = getWorkspacePersonaConfigPaths(wsUris)
-            const globalPersonaPath = getGlobalPersonaConfigPath(workspace.fs.getUserHomeDir())
-            const allPersonaPaths = [...wsPersonaPaths, globalPersonaPath]
+            // Migrate config and persona files to agent config
+            await migrateToAgentConfig(workspace, logging, agent)
 
-            const mgr = await McpManager.init(allConfigPaths, allPersonaPaths, {
+            const mgr = await McpManager.init(allAgentPaths, {
                 logging,
                 workspace,
                 lsp,
@@ -199,6 +286,8 @@ export const McpToolsServer: Server = ({ credentialsProvider, workspace, logging
             McpManager.instance.clearToolNameMapping()
 
             const byServer: Record<string, McpToolDefinition[]> = {}
+
+            logging.info(`enabled Tools: ${mgr.getEnabledTools().entries()}`)
             // only register enabled tools
             for (const d of mgr.getEnabledTools()) {
                 ;(byServer[d.serverName] ||= []).push(d)

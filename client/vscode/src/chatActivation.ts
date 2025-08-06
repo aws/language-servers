@@ -6,7 +6,6 @@ import {
     CHAT_OPTIONS,
     COPY_TO_CLIPBOARD,
     UiMessageResultParams,
-    OPEN_FILE_DIALOG,
 } from '@aws/chat-client-ui-types'
 import {
     ChatResult,
@@ -37,8 +36,6 @@ import {
     chatUpdateNotificationType,
     listRulesRequestType,
     ruleClickRequestType,
-    openFileDialogRequestType,
-    OPEN_FILE_DIALOG_METHOD,
 } from '@aws/language-server-runtimes/protocol'
 import { v4 as uuidv4 } from 'uuid'
 import { Uri, Webview, WebviewView, commands, window } from 'vscode'
@@ -58,7 +55,8 @@ export function registerChat(
     extensionUri: Uri,
     encryptionKey?: Buffer,
     agenticMode?: boolean,
-    modelSelectionEnabled?: boolean
+    modelSelectionEnabled?: boolean,
+    os?: string
 ) {
     const webviewInitialized: Promise<Webview> = new Promise(resolveWebview => {
         const provider = {
@@ -71,8 +69,7 @@ export function registerChat(
                 resolveWebview(webviewView.webview)
 
                 webviewView.webview.onDidReceiveMessage(async message => {
-                    languageClient.info(`[VSCode Client]  Received ${JSON.stringify(message)} from chat`)
-
+                    languageClient.info(`[VSCode Client]  Received ${JSON.stringify(message)}`)
                     switch (message.command) {
                         case COPY_TO_CLIPBOARD:
                             languageClient.info('[VSCode Client] Copy to clipboard event received')
@@ -301,7 +298,8 @@ export function registerChat(
                     webviewView.webview,
                     extensionUri,
                     !!agenticMode,
-                    !!modelSelectionEnabled
+                    !!modelSelectionEnabled,
+                    os!
                 )
 
                 registerGenericCommand('aws.sample-vscode-ext-amazonq.explainCode', 'Explain', webviewView.webview)
@@ -435,7 +433,13 @@ async function handleRequest(
     })
 }
 
-function getWebviewContent(webView: Webview, extensionUri: Uri, agenticMode: boolean, modelSelectionEnabled: boolean) {
+function getWebviewContent(
+    webView: Webview,
+    extensionUri: Uri,
+    agenticMode: boolean,
+    modelSelectionEnabled: boolean,
+    os: string
+) {
     return `
     <!DOCTYPE html>
     <html lang="en">
@@ -446,7 +450,7 @@ function getWebviewContent(webView: Webview, extensionUri: Uri, agenticMode: boo
         ${generateCss()}
     </head>
     <body>
-        ${generateJS(webView, extensionUri, agenticMode, modelSelectionEnabled)}
+        ${generateJS(webView, extensionUri, agenticMode, modelSelectionEnabled, os)}
     </body>
     </html>`
 }
@@ -467,7 +471,13 @@ function generateCss() {
     </style>`
 }
 
-function generateJS(webView: Webview, extensionUri: Uri, agenticMode: boolean, modelSelectionEnabled: boolean): string {
+function generateJS(
+    webView: Webview,
+    extensionUri: Uri,
+    agenticMode: boolean,
+    modelSelectionEnabled: boolean,
+    os: string
+): string {
     const assetsPath = Uri.joinPath(extensionUri)
     const chatUri = Uri.joinPath(assetsPath, 'build', 'amazonq-ui.js')
 
@@ -486,7 +496,7 @@ function generateJS(webView: Webview, extensionUri: Uri, agenticMode: boolean, m
     <script type="text/javascript">
         const init = () => {
             amazonQChat.createChat(acquireVsCodeApi(), 
-                {disclaimerAcknowledged: false, agenticMode: ${!!agenticMode}, modelSelectionEnabled: ${!!modelSelectionEnabled}},
+                {disclaimerAcknowledged: false, agenticMode: ${!!agenticMode}, modelSelectionEnabled: ${!!modelSelectionEnabled}, os: "${os}"},
                 undefined,
                 JSON.stringify(${stringifiedContextCommands})
             );

@@ -11,6 +11,7 @@ import { Message } from './util'
 import { ChatMessage, ToolResultStatus } from '@amzn/codewhisperer-streaming'
 import * as fs from 'fs'
 import * as util from './util'
+import { sleep } from '@aws/lsp-core/out/util/timeoutUtils'
 
 describe('ChatDatabase', () => {
     let mockFeatures: Features
@@ -62,6 +63,56 @@ describe('ChatDatabase', () => {
     afterEach(() => {
         chatDb.close()
         sinon.restore()
+    })
+
+    describe('replaceWithSummary', () => {
+        it('should create a new history with summary message', async () => {
+            await chatDb.databaseInitialize(0)
+            const tabId = 'tab-1'
+            const tabType = 'cwc'
+            const conversationId = 'conv-1'
+            const summaryMessage = {
+                body: 'This is a summary of the conversation',
+                type: 'prompt' as any,
+                timestamp: new Date(),
+            }
+
+            // Call the method
+            chatDb.replaceWithSummary(tabId, tabType, conversationId, summaryMessage)
+
+            // Verify the messages array contains the summary and a dummy response
+            const messages = chatDb.getMessages(tabId, 250)
+            assert.strictEqual(messages.length, 2)
+            assert.strictEqual(messages[0].body, summaryMessage.body)
+            assert.strictEqual(messages[0].type, 'prompt')
+            assert.strictEqual(messages[1].body, 'Working...')
+            assert.strictEqual(messages[1].type, 'answer')
+            assert.strictEqual(messages[1].shouldDisplayMessage, false)
+        })
+    })
+
+    describe('replaceHistory', () => {
+        it('should replace history with messages', async () => {
+            await chatDb.databaseInitialize(0)
+            const tabId = 'tab-1'
+            const tabType = 'cwc'
+            const conversationId = 'conv-1'
+            const messages = [
+                { body: 'Test', type: 'prompt' as any, timestamp: new Date() },
+                { body: 'Thinking...', type: 'answer', timestamp: new Date() },
+            ]
+
+            // Call the method
+            chatDb.replaceHistory(tabId, tabType, conversationId, messages)
+
+            // Verify the messages array contains the summary and a dummy response
+            const messagesFromDb = chatDb.getMessages(tabId, 250)
+            assert.strictEqual(messagesFromDb.length, 2)
+            assert.strictEqual(messagesFromDb[0].body, 'Test')
+            assert.strictEqual(messagesFromDb[0].type, 'prompt')
+            assert.strictEqual(messagesFromDb[1].body, 'Thinking...')
+            assert.strictEqual(messagesFromDb[1].type, 'answer')
+        })
     })
 
     describe('ensureValidMessageSequence', () => {
@@ -431,6 +482,59 @@ describe('ChatDatabase', () => {
         })
     })
 
+    describe('calculateNewMessageCharacterCount', () => {
+        it('should calculate character count for new message and pinned context', () => {
+            const newUserMessage = {
+                userInputMessage: {
+                    content: 'Test message',
+                    userInputMessageContext: {},
+                },
+            } as ChatMessage
+
+            const pinnedContextMessages = [
+                {
+                    userInputMessage: {
+                        content: 'Pinned context 1',
+                    },
+                },
+                {
+                    assistantResponseMessage: {
+                        content: 'Pinned response 1',
+                    },
+                },
+            ]
+
+            // Stub the calculateMessagesCharacterCount method
+            const calculateMessagesCharacterCountStub = sinon.stub(chatDb, 'calculateMessagesCharacterCount')
+            calculateMessagesCharacterCountStub.onFirstCall().returns(11) // 'Test message'
+            calculateMessagesCharacterCountStub.onSecondCall().returns(30) // Pinned context messages
+
+            // Stub the calculateToolSpecCharacterCount method
+            const calculateToolSpecCharacterCountStub = sinon.stub(chatDb as any, 'calculateToolSpecCharacterCount')
+            calculateToolSpecCharacterCountStub.returns(50) // Tool spec count
+
+            const result = chatDb.calculateNewMessageCharacterCount(newUserMessage, pinnedContextMessages)
+
+            // Verify the result is the sum of all character counts
+            assert.strictEqual(result, 91) // 11 + 30 + 50
+
+            // Verify the methods were called with correct arguments
+            sinon.assert.calledWith(calculateMessagesCharacterCountStub.firstCall, [
+                {
+                    body: 'Test message',
+                    type: 'prompt',
+                    userIntent: undefined,
+                    origin: 'IDE',
+                    userInputMessageContext: {},
+                },
+            ])
+
+            // Clean up
+            calculateMessagesCharacterCountStub.restore()
+            calculateToolSpecCharacterCountStub.restore()
+        })
+    })
+
     describe('getWorkspaceIdentifier', () => {
         const MOCK_MD5_HASH = '5bc032692b81700eb516f317861fbf32'
         const MOCK_SHA256_HASH = 'bb6b72d3eab82acaabbda8ca6c85658b83e178bb57760913ccdd938bbeaede9f'
@@ -562,3 +666,6 @@ describe('ChatDatabase', () => {
         })
     })
 })
+function uuid(): `${string}-${string}-${string}-${string}-${string}` {
+    throw new Error('Function not implemented.')
+}

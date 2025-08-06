@@ -12,7 +12,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CONTEXT_CHARACTERS_LIMIT, CodewhispererServerFactory } from './codeWhispererServer'
+import { CodewhispererServerFactory } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
@@ -58,8 +58,9 @@ import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../sha
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { URI } from 'vscode-uri'
 import { INVALID_TOKEN } from '../../shared/constants'
-import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
+import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
+import { CONTEXT_CHARACTERS_LIMIT } from './constants'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -774,6 +775,38 @@ describe('CodeWhisperer Server', () => {
                 const test_service = sinon.createStubInstance(
                     CodeWhispererServiceToken
                 ) as StubbedInstance<CodeWhispererServiceToken>
+                // TODO: Use real CodeWhispererServiceToken instead of stub
+                test_service.constructSupplementalContext.resolves({
+                    supContextData: {
+                        isUtg: false,
+                        isProcessTimeout: false,
+                        supplementalContextItems: [
+                            {
+                                content: 'class Foo',
+                                filePath: 'foo.java',
+                                score: 0,
+                            },
+                            {
+                                content: 'class Bar',
+                                filePath: 'bar.java',
+                                score: 0,
+                            },
+                        ],
+                        contentsLength: 0,
+                        latency: 0,
+                        strategy: 'OpenTabs_BM25',
+                    },
+                    items: [
+                        {
+                            content: 'class Foo',
+                            filePath: 'Foo.java',
+                        },
+                        {
+                            content: 'class Bar',
+                            filePath: 'Bar.java',
+                        },
+                    ],
+                })
 
                 test_service.generateSuggestions.returns(
                     Promise.resolve({
@@ -827,8 +860,8 @@ describe('CodeWhisperer Server', () => {
                     },
                     maxResults: 5,
                     supplementalContexts: [
-                        { content: 'sample-content', filePath: '/SampleFile.java' },
-                        { content: 'sample-content', filePath: '/SampleFile.java' },
+                        { content: 'class Foo', filePath: 'Foo.java' },
+                        { content: 'class Bar', filePath: 'Bar.java' },
                     ],
                     // workspaceId: undefined,
                 }
@@ -2065,8 +2098,8 @@ describe('CodeWhisperer Server', () => {
                 expectedSessionData
             )
         })
-
-        it('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+        // we decided to temporarily stop concurrent trigger and disable such logic
+        it.skip('should discard inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
             const getCompletionsResponses = await Promise.all([
                 features.doInlineCompletionWithReferences(
                     {
@@ -2128,7 +2161,47 @@ describe('CodeWhisperer Server', () => {
             )
         })
 
-        it('should record all sessions that were created in session log', async () => {
+        it('should block inflight session on new request when cached session is in REQUESTING state on subsequent requests', async () => {
+            const getCompletionsResponses = await Promise.all([
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+                features.doInlineCompletionWithReferences(
+                    {
+                        textDocument: { uri: SOME_FILE.uri },
+                        position: AUTO_TRIGGER_POSITION,
+                        context: { triggerKind: InlineCompletionTriggerKind.Automatic },
+                    },
+                    CancellationToken.None
+                ),
+            ])
+
+            // 3 requests were processed by server, but only first should return results
+            const EXPECTED_COMPLETION_RESPONSES = [
+                { sessionId: SESSION_IDS_LOG[0], items: EXPECTED_RESULT.items, partialResultToken: undefined }, // First session wins
+                { sessionId: '', items: [] },
+                { sessionId: '', items: [] },
+            ]
+            // Only last request must return completion items
+            assert.deepEqual(getCompletionsResponses, EXPECTED_COMPLETION_RESPONSES)
+
+            assert.equal(sessionManagerSpy.createSession.callCount, 1)
+        })
+
+        it.skip('should record all sessions that were created in session log', async () => {
             // Start 3 session, 2 will be cancelled inflight
             await Promise.all([
                 features.doInlineCompletionWithReferences(
@@ -2335,94 +2408,6 @@ describe('CodeWhisperer Server', () => {
         afterEach(() => {
             features.dispose()
             TestAmazonQServiceManager.resetInstance()
-        })
-
-        it('should handle editsEnabled=true with COMPLETIONS prediction type', async () => {
-            const result = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                },
-                CancellationToken.None
-            )
-
-            // Check the completion result
-            assert.deepEqual(result, EXPECTED_RESULT_EDITS)
-
-            const expectedGenerateSuggestionsRequest = {
-                fileContext: {
-                    fileUri: SOME_FILE.uri,
-                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
-                    programmingLanguage: { languageName: 'csharp' },
-                    leftFileContent: '',
-                    rightFileContent: HELLO_WORLD_IN_CSHARP,
-                },
-                maxResults: 5,
-                supplementalContexts: [],
-                predictionTypes: ['COMPLETIONS'],
-                editorState: {
-                    document: {
-                        relativeFilePath: SOME_FILE.uri,
-                        programmingLanguage: { languageName: 'csharp' },
-                        text: HELLO_WORLD_IN_CSHARP,
-                    },
-                    cursorState: {
-                        position: {
-                            line: 0,
-                            character: 0,
-                        },
-                    },
-                },
-            }
-
-            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
-        })
-
-        it('should include EDITS in predictionTypes when previous session was accepted EDIT', async () => {
-            const session = sessionManager.createSession(SAMPLE_SESSION_DATA)
-            sessionManager.closeSession(session)
-            const currentSession = sessionManager.getCurrentSession()
-            if (currentSession) {
-                currentSession.suggestionsStates = new Map([['test-suggestion-id', 'Accept']])
-                currentSession.suggestionType = SuggestionType.EDIT
-            }
-
-            await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                },
-                CancellationToken.None
-            )
-
-            const expectedGenerateSuggestionsRequest = {
-                fileContext: {
-                    fileUri: SOME_FILE.uri,
-                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
-                    programmingLanguage: { languageName: 'csharp' },
-                    leftFileContent: '',
-                    rightFileContent: HELLO_WORLD_IN_CSHARP,
-                },
-                maxResults: 5,
-                supplementalContexts: [],
-                predictionTypes: ['EDITS'],
-                editorState: {
-                    document: {
-                        relativeFilePath: SOME_FILE.uri,
-                        programmingLanguage: { languageName: 'csharp' },
-                        text: HELLO_WORLD_IN_CSHARP,
-                    },
-                    cursorState: {
-                        position: {
-                            line: 0,
-                            character: 0,
-                        },
-                    },
-                },
-            }
-            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
         })
     })
 })

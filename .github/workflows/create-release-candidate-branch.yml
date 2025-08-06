@@ -1,0 +1,116 @@
+﻿name: Set up a new Release Candidate
+
+on:
+    workflow_dispatch:
+        inputs:
+            versionIncrement:
+                description: 'Release Version Increment'
+                default: 'Minor'
+                required: true
+                type: choice
+                options:
+                    - Major
+                    - Minor
+                    - Patch
+                    - Custom
+            customVersion:
+                description: "Custom Release Version (only used if release increment is 'Custom') - Format: 1.2.3"
+                default: ''
+                required: false
+                type: string
+            commitId:
+                description: 'The commit Id to produce a release candidate with'
+                default: ''
+                required: true
+                type: string
+
+jobs:
+    setupRcBranch:
+        name: Set up a Release Candidate Branch
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Sync code
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ inputs.commitId }}
+                  # Use RELEASE_CANDIDATE_BRANCH_CREATION_PAT to ensure workflow triggering works
+                  token: ${{ secrets.RELEASE_CANDIDATE_BRANCH_CREATION_PAT }}
+                  persist-credentials: true
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+
+            - name: Calculate Release Version
+              id: release-version
+              env:
+                  VERSION_FILE: app/aws-lsp-codewhisperer-runtimes/src/version.json
+              run: |
+                  customVersion="${{ inputs.customVersion }}"
+                  versionIncrement="${{ inputs.versionIncrement }}"
+
+                  # Read current version
+                  currentVersion=$(jq -r '.agenticChat' "$VERSION_FILE")
+
+                  if [[ "$versionIncrement" == "Custom" && -n "$customVersion" ]]; then
+                      newVersion="$customVersion"
+                  else
+                      # Parse current version
+                      IFS='.' read -r major minor patch <<< "$currentVersion"
+                      
+                      case "$versionIncrement" in
+                          "Major")
+                              major=$((major + 1))
+                              minor=0
+                              patch=0
+                              ;;
+                          "Minor")
+                              minor=$((minor + 1))
+                              patch=0
+                              ;;
+                          "Patch")
+                              patch=$((patch + 1))
+                              ;;
+                      esac
+                      
+                      newVersion="$major.$minor.$patch"
+                  fi
+
+                  # Update version.json
+                  jq --arg version "$newVersion" '.agenticChat = $version' "$VERSION_FILE" > tmp.json && mv tmp.json "$VERSION_FILE"
+
+                  # Set output only
+                  echo "RELEASE_VERSION=$newVersion" >> $GITHUB_OUTPUT
+
+                  git add "$VERSION_FILE"
+
+            - name: Create Release Candidate Branch
+              id: release-branch
+              env:
+                  RELEASE_VERSION: ${{ steps.release-version.outputs.RELEASE_VERSION }}
+              run: |
+                  branch="release/agentic/$RELEASE_VERSION"
+                  git checkout -b "$branch"
+
+                  # Save the branch value as output only
+                  echo "BRANCH_NAME=$branch" >> $GITHUB_OUTPUT
+
+            - name: Commit and Push changes
+              env:
+                  BRANCH_NAME: ${{ steps.release-branch.outputs.BRANCH_NAME }}
+                  RELEASE_VERSION: ${{ steps.release-version.outputs.RELEASE_VERSION }}
+                  # We use the toolkit-automation account, basically something that
+                  # isn't the default GitHub Token, because you cannot chain actions with that.
+                  # In our case, after pushing a commit (below), we want create-agent-standalone.yml
+                  # to start automatically.
+                  REPO_PAT: ${{ secrets.RELEASE_CANDIDATE_BRANCH_CREATION_PAT }}
+              run: |
+                  git config --global user.email "<>"
+                  git config --global user.name "aws-toolkit-automation"
+                  # Configure git to use the PAT token for authentication
+                  git remote set-url origin "https://x-access-token:${REPO_PAT}@github.com/${{ github.repository }}.git"
+                  git commit -m "Bump agentic version: $RELEASE_VERSION"
+                  git push --set-upstream origin "$BRANCH_NAME"

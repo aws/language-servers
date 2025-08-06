@@ -20,6 +20,7 @@ import {
     ToolUse,
     UserInputMessage,
     AssistantResponseMessage,
+    ImageBlock,
 } from '@amzn/codewhisperer-streaming'
 import { Workspace } from '@aws/language-server-runtimes/server-interface'
 import { activeFileCmd } from '../../context/additionalContextProvider'
@@ -104,6 +105,7 @@ export type Message = {
     toolUses?: ToolUse[]
     timestamp?: Date
     shouldDisplayMessage?: boolean
+    images?: ImageBlock[]
 }
 
 /**
@@ -123,6 +125,12 @@ export type TabWithDbMetadata = {
  */
 export type DbReference = { collection: Collection<Tab>; db: Loki }
 
+export type MessagesWithCharacterCount = {
+    history: Message[]
+    historyCount: number
+    currentCount: number
+}
+
 /**
  * Converts Message to codewhisperer-streaming ChatMessage
  */
@@ -141,6 +149,7 @@ export function messageToStreamingMessage(msg: Message): StreamingMessage {
                   userIntent: msg.userIntent,
                   origin: msg.origin || 'IDE',
                   userInputMessageContext: msg.userInputMessageContext || {},
+                  images: msg.images || [],
               },
           }
 }
@@ -453,4 +462,20 @@ export function getMd5WorkspaceId(filePath: string): string {
 
 export function getSha256WorkspaceId(filePath: string): string {
     return crypto.createHash('sha256').update(filePath).digest('hex')
+}
+
+/**
+ * Estimates the number of characters that an image binary would represent in a text context.
+ * The estimation is based on the image's byte size, converting bytes to megabytes, then estimating tokens (using 1100 tokens per MB),
+ * and finally converting tokens to characters (assuming 1 token ≈ 3 characters).
+ *
+ * @param image The ImageBlock object containing the image data (expects image.source.bytes to be a Buffer or Uint8Array).
+ * @returns The estimated number of characters that the image would represent.
+ */
+export function estimateCharacterCountFromImageBlock(image: ImageBlock): number {
+    let imagesBytesLen = image.source?.bytes?.byteLength ?? 0
+    // Convert bytes to MB and estimate tokens (using 1100 tokens per MB as middle ground)
+    const imageTokens = (imagesBytesLen / 1000000) * 1100
+    // Each token is 3 characters
+    return imageTokens * 3
 }

@@ -2,6 +2,7 @@ import { distance } from 'fastest-levenshtein'
 import { Position } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
 import { getErrorMessage, getUnmodifiedAcceptedTokens } from '../../shared/utils'
+import { CodewhispererLanguage } from '../../shared/languageDetection'
 
 export interface AcceptedSuggestionEntry {
     fileUrl: string
@@ -10,6 +11,15 @@ export interface AcceptedSuggestionEntry {
     startPosition: Position
     endPosition: Position
     customizationArn?: string
+}
+
+export interface AcceptedInlineSuggestionEntry extends AcceptedSuggestionEntry {
+    sessionId: string
+    requestId: string
+    languageId: CodewhispererLanguage
+    completionType: string
+    triggerType: string
+    credentialStartUrl?: string | undefined
 }
 
 export interface CodeDiffTrackerOptions {

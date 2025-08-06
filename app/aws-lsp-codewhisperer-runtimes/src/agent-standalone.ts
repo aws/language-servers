@@ -14,17 +14,16 @@ import { IdentityServer } from '@aws/lsp-identity'
 import {
     BashToolsServer,
     FsToolsServer,
+    QCodeAnalysisServer,
     McpToolsServer,
 } from '@aws/lsp-codewhisperer/out/language-server/agenticChat/tools/toolServer'
 import { RuntimeProps } from '@aws/language-server-runtimes/runtimes/runtime'
 
-const MAJOR = 0
-const MINOR = 1
-const PATCH = 0
-const VERSION = `${MAJOR}.${MINOR}.${PATCH}`
+const versionJson = require('./version.json')
+const version = versionJson.agenticChat
 
 const props = {
-    version: VERSION,
+    version: version,
     servers: [
         CodeWhispererServerTokenProxy,
         CodeWhispererSecurityScanServerTokenProxy,
@@ -33,6 +32,7 @@ const props = {
         QAgenticChatServerProxy,
         IdentityServer.create,
         FsToolsServer,
+        QCodeAnalysisServer,
         BashToolsServer,
         QLocalProjectContextServerProxy,
         WorkspaceContextServerTokenProxy,

@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.17](https://github.com/aws/language-servers/compare/lsp-json/v0.1.16...lsp-json/v0.1.17) (2025-08-04)
+
+
+### Bug Fixes
+
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.12 to ^0.0.13
+
+## [0.1.16](https://github.com/aws/language-servers/compare/lsp-json/v0.1.15...lsp-json/v0.1.16) (2025-07-17)
+
+
+### Bug Fixes
+
+* use document change events for auto trigger classifier input ([#1912](https://github.com/aws/language-servers/issues/1912)) ([2204da6](https://github.com/aws/language-servers/commit/2204da6193f2030ee546f61c969b1a664d8025e3))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.11 to ^0.0.12
+
 ## [0.1.15](https://github.com/aws/language-servers/compare/lsp-json/v0.1.14...lsp-json/v0.1.15) (2025-07-02)
 
 

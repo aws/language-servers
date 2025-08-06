@@ -14,6 +14,7 @@ import {
     crashMonitoringDirName,
     driveLetterRegex,
     MISSING_BEARER_TOKEN_ERROR,
+    SAGEMAKER_UNIFIED_STUDIO_SERVICE,
 } from './constants'
 import {
     CodeWhispererStreamingServiceException,
@@ -24,7 +25,8 @@ import {
 } from '@amzn/codewhisperer-streaming'
 import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
-import * as ignoreWalk from 'ignore-walk'
+import { promises as fs } from 'fs'
+import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 import ignore = require('ignore')
 import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
@@ -372,21 +374,14 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
     return credentials.token
 }
 
-export function getIAMCredentialsFromProvider(credentialsProvider: CredentialsProvider) {
-    if (!credentialsProvider.hasCredentials('iam')) {
-        throw new Error('Missing IAM creds')
-    }
-
-    const credentials = credentialsProvider.getCredentials('iam') as Credentials
-    return {
-        accessKeyId: credentials.accessKeyId,
-        secretAccessKey: credentials.secretAccessKey,
-        sessionToken: credentials.sessionToken,
-    }
+export function getClientName(lspParams: InitializeParams | undefined): string | undefined {
+    return process.env.SERVICE_NAME === SAGEMAKER_UNIFIED_STUDIO_SERVICE
+        ? lspParams?.initializationOptions?.aws?.clientInfo?.name
+        : lspParams?.clientInfo?.name
 }
 
 export function getOriginFromClientInfo(clientName: string | undefined): Origin {
-    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE')) {
+    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE') || clientName?.startsWith('AmazonQ-For-SMUS-CE')) {
         return 'MD_IDE'
     }
     return 'IDE'
@@ -506,36 +501,67 @@ export function hasConnectionExpired(error: any) {
 }
 
 /**
-  Lists files in a directory while respecting .gitignore.
+  Lists files in a directory respecting gitignore and npmignore rules.
   @param directory The absolute path of root directory.
-  @param limit The maximum number of files to return.
   @returns A promise that resolves to an array of absolute file paths.
  */
 export async function listFilesWithGitignore(directory: string): Promise<string[]> {
-    const commonIgnore = ignore().add(COMMON_GITIGNORE_PATTERNS)
+    let ignorePatterns: string[] = [...COMMON_GITIGNORE_PATTERNS]
 
+    // Process .gitignore
+    const gitignorePath = path.join(directory, '.gitignore')
     try {
-        let ignoreWalkFiles = await ignoreWalk({
-            path: directory,
-            // Use multiple ignore files
-            ignoreFiles: ['.gitignore', '.npmignore'],
-            // Additional options
-            follow: false, // follow symlinks
-            includeEmpty: false, // exclude empty directories
-        })
-        // hard limit of 500k files to avoid hitting memory limit
-        ignoreWalkFiles = ignoreWalkFiles.slice(0, 500_000)
-
-        // apply common gitignore in case some build system like Brazil
-        // generates a lot of temp files that is not in Gitignore.
-        ignoreWalkFiles = commonIgnore.filter(ignoreWalkFiles)
-
-        const absolutePaths = ignoreWalkFiles.map(file => path.join(directory, file))
-        return absolutePaths
-    } catch (error) {
-        console.error('Error gathering files:', error)
-        return []
+        const gitignoreContent = await fs.readFile(gitignorePath, { encoding: 'utf8' })
+        ignorePatterns = ignorePatterns.concat(
+            gitignoreContent
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+        )
+    } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+            console.log('Preindexing walk: gitIgnore file could not be read', err)
+        }
     }
+
+    // Process .npmignore
+    const npmignorePath = path.join(directory, '.npmignore')
+    try {
+        const npmignoreContent = await fs.readFile(npmignorePath, { encoding: 'utf8' })
+        ignorePatterns = ignorePatterns.concat(
+            npmignoreContent
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && !line.startsWith('#'))
+        )
+    } catch (err: any) {
+        if (err.code !== 'ENOENT') {
+            console.log('Preindexing walk: npmIgnore file could not be read', err)
+        }
+    }
+
+    const absolutePaths: string[] = []
+    let fileCount = 0
+    const MAX_FILES = 500_000
+
+    const stream = fg.stream(['**/*'], {
+        cwd: directory,
+        dot: true,
+        ignore: ignorePatterns,
+        onlyFiles: true,
+        followSymbolicLinks: false,
+        absolute: true,
+    })
+
+    for await (const entry of stream) {
+        if (fileCount >= MAX_FILES) {
+            break
+        }
+        absolutePaths.push(entry.toString())
+        fileCount++
+    }
+
+    return absolutePaths
 }
 
 export function getFileExtensionName(filepath: string): string {
@@ -555,4 +581,48 @@ export function getFileExtensionName(filepath: string): string {
     }
 
     return filepath.substring(filepath.lastIndexOf('.') + 1).toLowerCase()
+}
+
+/**
+ * Sanitizes input by removing dangerous Unicode characters that could be used for ASCII smuggling
+ * @param input The input string to sanitize
+ * @returns The sanitized string with dangerous characters removed
+ */
+export function sanitizeInput(input: string): string {
+    if (!input) {
+        return input
+    }
+
+    // Remove Unicode tag characters (U+E0000-U+E007F) used in ASCII smuggling
+    // Remove other invisible/control characters that could hide content
+    return input.replace(
+        /[\u{E0000}-\u{E007F}\u{200B}-\u{200F}\u{2028}-\u{202F}\u{205F}-\u{206F}\u{FFF0}-\u{FFFF}]/gu,
+        ''
+    )
+}
+
+/**
+ * Recursively sanitizes the entire request input to prevent Unicode ASCII smuggling
+ * @param input The request input to sanitize
+ * @returns The sanitized request input
+ */
+export function sanitizeRequestInput(input: any): any {
+    if (typeof input === 'string') {
+        return sanitizeInput(input)
+    }
+    if (input instanceof Uint8Array) {
+        // Don't sanitize binary data like images - return as-is
+        return input
+    }
+    if (Array.isArray(input)) {
+        return input.map(item => sanitizeRequestInput(item))
+    }
+    if (input && typeof input === 'object') {
+        const sanitized: any = {}
+        for (const [key, value] of Object.entries(input)) {
+            sanitized[key] = sanitizeRequestInput(value)
+        }
+        return sanitized
+    }
+    return input
 }
