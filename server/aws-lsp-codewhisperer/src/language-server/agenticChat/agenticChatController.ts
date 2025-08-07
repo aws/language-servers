@@ -682,6 +682,7 @@ export class AgenticChatController implements ChatHandlers {
         let models: Model[] = []
         let defaultModelId: string | undefined
         let isFromCache = false
+        let errorFromAPI = false
 
         // Check if cache is valid (less than 5 minutes old)
         if (this.#chatHistoryDb.isCachedModelsValid()) {
@@ -719,13 +720,14 @@ export class AgenticChatController implements ChatHandlers {
             } catch (err) {
                 // In case of API throttling or other errors, fall back to hardcoded models
                 this.#log('Error fetching models from API, using fallback models:', fmtError(err))
+                errorFromAPI = true
                 models = MODEL_OPTIONS
             }
         }
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         const { data: session, success } = sessionResult
-        if (!success) {
+        if (!success || errorFromAPI) {
             return {
                 tabId: params.tabId,
                 models: models,
