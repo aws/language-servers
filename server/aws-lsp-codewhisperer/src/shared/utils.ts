@@ -26,10 +26,9 @@ import {
 import * as path from 'path'
 import { ServiceException } from '@smithy/smithy-client'
 import { promises as fs } from 'fs'
-import * as fg from 'fast-glob'
 import { getAuthFollowUpType } from '../language-server/chat/utils'
 import ignore = require('ignore')
-import { InitializeParams } from '@aws/language-server-runtimes/server-interface'
+import { InitializeParams, Logging } from '@aws/language-server-runtimes/server-interface'
 import { QClientCapabilities } from '../language-server/configuration/qConfigurationServer'
 export type SsoConnectionType = 'builderId' | 'identityCenter' | 'none'
 
@@ -503,65 +502,100 @@ export function hasConnectionExpired(error: any) {
 /**
   Lists files in a directory respecting gitignore and npmignore rules.
   @param directory The absolute path of root directory.
+  @param logging Optional logging instance for error reporting.
   @returns A promise that resolves to an array of absolute file paths.
  */
-export async function listFilesWithGitignore(directory: string): Promise<string[]> {
-    let ignorePatterns: string[] = [...COMMON_GITIGNORE_PATTERNS]
-
-    // Process .gitignore
-    const gitignorePath = path.join(directory, '.gitignore')
+export async function listFilesWithGitignore(directory: string, logging?: Logging): Promise<string[]> {
     try {
-        const gitignoreContent = await fs.readFile(gitignorePath, { encoding: 'utf8' })
-        ignorePatterns = ignorePatterns.concat(
-            gitignoreContent
-                .split('\n')
-                .map(line => line.trim())
-                .filter(line => line && !line.startsWith('#'))
-        )
+        const MAX_FILES = 500_000
+
+        async function findIgnoreFiles(dir: string): Promise<string[]> {
+            const ignoreFiles: string[] = []
+
+            async function walkDir(currentDir: string): Promise<void> {
+                try {
+                    const entries = await fs.readdir(currentDir, { withFileTypes: true })
+
+                    for (const entry of entries) {
+                        const fullPath = path.join(currentDir, entry.name)
+
+                        if (entry.isFile() && (entry.name === '.gitignore' || entry.name === '.npmignore')) {
+                            ignoreFiles.push(fullPath)
+                        } else if (entry.isDirectory() && !entry.name.startsWith('.')) {
+                            await walkDir(fullPath)
+                        }
+                    }
+                } catch (err: any) {
+                    if (err.code !== 'ENOENT' && err.code !== 'EACCES') {
+                        logging?.warn(`Error reading directory ${currentDir}: ${err.message}`)
+                    }
+                }
+            }
+
+            await walkDir(dir)
+            return ignoreFiles
+        }
+
+        const allIgnoreFiles = await findIgnoreFiles(directory)
+
+        let allIgnorePatterns: string[] = [...COMMON_GITIGNORE_PATTERNS]
+
+        for (const ignoreFile of allIgnoreFiles) {
+            try {
+                const content = await fs.readFile(ignoreFile, { encoding: 'utf8' })
+                const patterns = content
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(line => line && !line.startsWith('#'))
+
+                const relativePath = path.relative(directory, path.dirname(ignoreFile))
+                if (relativePath) {
+                    const prefixedPatterns = patterns.map(pattern => {
+                        if (pattern.startsWith('/')) {
+                            return relativePath + pattern
+                        } else {
+                            return relativePath + '/' + pattern
+                        }
+                    })
+                    allIgnorePatterns = allIgnorePatterns.concat(prefixedPatterns)
+                } else {
+                    allIgnorePatterns = allIgnorePatterns.concat(patterns)
+                }
+            } catch (err: any) {
+                if (err.code !== 'ENOENT') {
+                    logging?.warn(`Preindexing walk: ignore file could not be read ${ignoreFile}: ${err.message}`)
+                }
+            }
+        }
+
+        const ig = ignore().add(allIgnorePatterns)
+
+        const { fdir } = await import('fdir')
+        const files = await new fdir().withFullPaths().withDirs().crawl(directory).withPromise()
+
+        const filteredFiles: string[] = []
+
+        for (const file of files) {
+            try {
+                const stat = await fs.stat(file)
+                if (stat.isFile()) {
+                    const relativePath = path.relative(directory, file)
+                    if (!ig.ignores(relativePath)) {
+                        filteredFiles.push(file)
+                    }
+                }
+            } catch (err: any) {
+                if (err.code !== 'ENOENT') {
+                    logging?.warn(`Error checking file ${file}: ${err.message}`)
+                }
+            }
+        }
+
+        return filteredFiles.slice(0, MAX_FILES)
     } catch (err: any) {
-        if (err.code !== 'ENOENT') {
-            console.log('Preindexing walk: gitIgnore file could not be read', err)
-        }
+        logging?.warn(`Failed to list files with gitignore: ${err.message}`)
+        return []
     }
-
-    // Process .npmignore
-    const npmignorePath = path.join(directory, '.npmignore')
-    try {
-        const npmignoreContent = await fs.readFile(npmignorePath, { encoding: 'utf8' })
-        ignorePatterns = ignorePatterns.concat(
-            npmignoreContent
-                .split('\n')
-                .map(line => line.trim())
-                .filter(line => line && !line.startsWith('#'))
-        )
-    } catch (err: any) {
-        if (err.code !== 'ENOENT') {
-            console.log('Preindexing walk: npmIgnore file could not be read', err)
-        }
-    }
-
-    const absolutePaths: string[] = []
-    let fileCount = 0
-    const MAX_FILES = 500_000
-
-    const stream = fg.stream(['**/*'], {
-        cwd: directory,
-        dot: true,
-        ignore: ignorePatterns,
-        onlyFiles: true,
-        followSymbolicLinks: false,
-        absolute: true,
-    })
-
-    for await (const entry of stream) {
-        if (fileCount >= MAX_FILES) {
-            break
-        }
-        absolutePaths.push(entry.toString())
-        fileCount++
-    }
-
-    return absolutePaths
 }
 
 export function getFileExtensionName(filepath: string): string {
