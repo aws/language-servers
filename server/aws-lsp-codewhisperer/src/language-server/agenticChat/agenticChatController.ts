@@ -168,7 +168,7 @@ import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
-import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { FileSearch, FileSearchParams, isFileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
 import { loggingUtils, timeoutUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
@@ -1887,10 +1887,19 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case FS_READ:
                     case LIST_DIRECTORY:
-                    case FILE_SEARCH:
                         const readToolResult = await this.#processReadTool(toolUse, chatResultStream)
                         if (readToolResult) {
                             await chatResultStream.writeResultBlock(readToolResult)
+                        }
+                        break
+                    case FILE_SEARCH:
+                        if (isFileSearchParams(toolUse.input)) {
+                            await this.#processFileSearchTool(
+                                toolUse.input,
+                                toolUse.toolUseId,
+                                result,
+                                chatResultStream
+                            )
                         }
                         break
                     // no need to write tool result for listDir,fsRead,fileSearch into chat stream
@@ -2291,7 +2300,6 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         const toolMsgId = toolUse.toolUseId!
-        const chatMsgId = chatResultStream.getResult().messageId
         let headerEmitted = false
 
         const initialHeader: ChatMessage['header'] = {
@@ -2327,13 +2335,6 @@ export class AgenticChatController implements ChatHandlers {
                     messageId: toolMsgId,
                     body: '```',
                     header: completedHeader,
-                })
-
-                await chatResultStream.writeResultBlock({
-                    type: 'answer',
-                    messageId: chatMsgId,
-                    body: '',
-                    header: undefined,
                 })
 
                 this.#stoppedToolUses.add(toolMsgId)
@@ -2853,6 +2854,44 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
+    async #processFileSearchTool(
+        toolInput: FileSearchParams,
+        toolUseId: string,
+        result: InvokeOutput,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        if (!isFileSearchParams(toolInput)) return
+        if (typeof result.output.content !== 'string') return
+
+        const { queryName, path: inputPath } = toolInput
+        const resultCount = result.output.content
+            .split('\n')
+            .filter(line => line.trim().startsWith('[F]') || line.trim().startsWith('[D]')).length
+
+        const chatMessage: ChatMessage = {
+            type: 'tool',
+            messageId: toolUseId,
+            header: {
+                body: `Searched for \`${queryName}\` in `,
+                icon: 'search',
+                status: {
+                    text: `${resultCount} result${resultCount !== 1 ? 's' : ''} found`,
+                },
+                fileList: {
+                    filePaths: [inputPath],
+                    details: {
+                        [inputPath]: {
+                            description: inputPath,
+                            visibleName: path.basename(inputPath),
+                            clickable: false,
+                        },
+                    },
+                },
+            },
+        }
+        await chatResultStream.writeResultBlock(chatMessage)
+    }
+
     async #processReadTool(
         toolUse: ToolUse,
         chatResultStream: AgenticChatResultStream
@@ -2911,17 +2950,16 @@ export class AgenticChatController implements ChatHandlers {
             title =
                 toolUse.name === FS_READ
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === FILE_SEARCH
-                      ? `${itemCount} pattern${itemCount > 1 ? 's' : ''} searched`
-                      : toolUse.name === LIST_DIRECTORY
-                        ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
-                        : ''
+                    : toolUse.name === LIST_DIRECTORY
+                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                      : ''
         }
         const details: Record<string, FileDetails> = {}
         for (const filePath of filePaths) {
             details[filePath] = {
                 description: filePath,
                 visibleName: path.basename(filePath),
+                clickable: toolUse.name === FS_READ,
             }
         }
         return {
@@ -2944,8 +2982,6 @@ export class AgenticChatController implements ChatHandlers {
                 return 'eye'
             case LIST_DIRECTORY:
                 return 'check-list'
-            case FILE_SEARCH:
-                return 'search'
             default:
                 return undefined
         }
