@@ -1229,6 +1229,10 @@ declare namespace CodeWhispererBearerTokenClient {
      */
     modelId: ModelId;
     /**
+     * User-facing display name
+     */
+    modelName?: ModelName;
+    /**
      * Description of the model
      */
     description?: Description;
@@ -1238,6 +1242,7 @@ declare namespace CodeWhispererBearerTokenClient {
     modelMetadata?: ModelMetadata;
   }
   export type ModelId = string;
+  export type ModelName = string;
   export interface ModelMetadata {
     /**
      * Maximum number of input tokens the model can process

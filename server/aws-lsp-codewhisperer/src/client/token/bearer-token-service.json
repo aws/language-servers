@@ -3901,6 +3901,10 @@
                     "shape": "ModelId",
                     "documentation": "<p>Unique identifier for the model</p>"
                 },
+                "modelName": {
+                    "shape": "ModelName",
+                    "documentation": "<p>User-facing display name</p>"
+                },
                 "description": {
                     "shape": "Description",
                     "documentation": "<p>Description of the model</p>"
@@ -3917,6 +3921,13 @@
             "max": 1024,
             "min": 1,
             "pattern": "[a-zA-Z0-9_:.-]+"
+        },
+        "ModelName": {
+            "type": "string",
+            "documentation": "<p>Identifier for the model Name</p>",
+            "max": 1024,
+            "min": 1,
+            "pattern": "[a-zA-Z0-9-_.]+"
         },
         "ModelMetadata": {
             "type": "structure",

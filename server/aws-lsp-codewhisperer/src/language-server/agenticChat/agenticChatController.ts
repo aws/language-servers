@@ -709,9 +709,9 @@ export class AgenticChatController implements ChatHandlers {
                 // Wait for the response to be completed before proceeding
                 this.#log('Model Response', responseResult.models.toString())
                 // TODO: After backend makes change assign modelName to name
-                models = Object.values(responseResult.models).map(({ modelId }) => ({
+                models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
                     id: modelId,
-                    name: modelId,
+                    name: modelName ?? modelId,
                 }))
                 defaultModelId = responseResult.defaultModel?.modelId
 
