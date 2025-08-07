@@ -65,18 +65,14 @@ export class AgenticChatResultStream {
         }
 
         return chatResults
-            .filter(
-                cr =>
-                    cr.messageId &&
-                    (cr.messageId === this.#state.messageId || only === undefined || only === cr.messageId)
-            )
+            .filter(cr => cr.messageId === this.#state.messageId || only === undefined || only === cr.messageId)
             .reduce<ChatResult>((acc, c) => {
                 if (c.messageId === this.#state.messageId) {
                     return {
                         ...acc,
                         buttons: [...(acc.buttons ?? []), ...(c.buttons ?? [])],
                         body: acc.body + (c.body ? AgenticChatResultStream.resultDelimiter + c.body : ''),
-                        ...(c.contextList && { contextList: c.contextList }),
+                        ...(c.contextList && c.type !== 'tool' && { contextList: c.contextList }),
                         header: c.header !== undefined ? c.header : acc.header,
                         codeReference: [...(acc.codeReference ?? []), ...(c.codeReference ?? [])],
                     }
