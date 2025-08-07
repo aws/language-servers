@@ -118,7 +118,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add all files in a folder to context',
             icon: 'folder',
-            pending: this.filesAndFoldersPending,
+            disabledText: this.filesAndFoldersPending ? 'pending' : undefined,
         }
 
         const fileCmds: ContextCommand[] = [activeFileCmd]
@@ -132,7 +132,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add a file to context',
             icon: 'file',
-            pending: this.filesAndFoldersPending,
+            disabledText: this.filesAndFoldersPending ? 'pending' : undefined,
         }
 
         const codeCmds: ContextCommand[] = []
@@ -146,7 +146,7 @@ export class ContextCommandsProvider implements Disposable {
             ],
             description: 'Add code to context',
             icon: 'code-block',
-            pending: this.codeSymbolsPending,
+            disabledText: this.codeSymbolsPending ? 'pending' : undefined,
         }
 
         const promptCmds: ContextCommand[] = []
@@ -168,11 +168,12 @@ export class ContextCommandsProvider implements Disposable {
             icon: 'image',
             placeholder: 'Select an image file',
         }
-        const workspaceCmd = {
+
+        const workspaceCmd: ContextCommand = {
             command: '@workspace',
             id: '@workspace',
             description: 'Reference all code in workspace',
-            pending: this.workspacePending,
+            disabledText: this.workspacePending ? 'pending' : undefined,
         }
         const commands = [workspaceCmd, folderCmdGroup, fileCmdGroup, codeCmdGroup, promptCmdGroup]
 
