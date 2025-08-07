@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.31](https://github.com/aws/language-servers/compare/chat-client/v0.1.30...chat-client/v0.1.31) (2025-08-06)
+
+
+### Features
+
+* **amazonq:** add two more tips for the did you know section ([#2063](https://github.com/aws/language-servers/issues/2063)) ([9949c6d](https://github.com/aws/language-servers/commit/9949c6dd81c56b5ea82563310da2eaee4d00a059))
+* **amazonq:** enable sonnet 4 for fra region ([#2069](https://github.com/aws/language-servers/issues/2069)) ([3a4b8df](https://github.com/aws/language-servers/commit/3a4b8df981b2c3b0532360a11472169fffec7924))
+
+
+### Bug Fixes
+
+* **amazonq:** fix to add disable/enable feature back to mcp servers ([#2052](https://github.com/aws/language-servers/issues/2052)) ([c03e017](https://github.com/aws/language-servers/commit/c03e017b9ccbbbb9c80a3c3afd5da38a50bd6cff))
+
 ## [0.1.30](https://github.com/aws/language-servers/compare/chat-client/v0.1.29...chat-client/v0.1.30) (2025-08-04)
 
 
