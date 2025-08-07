@@ -708,7 +708,6 @@ export class AgenticChatController implements ChatHandlers {
 
                 // Wait for the response to be completed before proceeding
                 this.#log('Model Response', responseResult.models.toString())
-                // TODO: After backend makes change assign modelName to name
                 models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
                     id: modelId,
                     name: modelName ?? modelId,
@@ -730,7 +729,7 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 tabId: params.tabId,
                 models: models,
-                selectedModelId: DEFAULT_MODEL_ID,
+                selectedModelId: MODEL_RECORD[DEFAULT_MODEL_ID].label,
             }
         }
 

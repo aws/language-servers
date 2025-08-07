@@ -3125,7 +3125,6 @@ ${' '.repeat(8)}}
                 sinon.assert.calledOnceWithExactly(listAvailableModelsStub, {
                     origin: 'IDE',
                     profileArn: 'test-profile-arn',
-                    modelProvider: 'DEFAULT',
                 })
 
                 // Verify result structure
