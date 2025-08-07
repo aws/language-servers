@@ -729,7 +729,7 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 tabId: params.tabId,
                 models: models,
-                selectedModelId: MODEL_RECORD[DEFAULT_MODEL_ID].label,
+                selectedModelId: DEFAULT_MODEL_ID,
             }
         }
 

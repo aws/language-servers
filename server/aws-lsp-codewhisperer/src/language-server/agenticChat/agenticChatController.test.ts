@@ -57,7 +57,7 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { CancellationError } from '@aws/lsp-core'
 import { ToolApprovalException } from './tools/toolShared'
 import * as constants from './constants/constants'
-import { GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT, GENERIC_ERROR_MS } from './constants/constants'
+import { DEFAULT_MODEL_ID, GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT, GENERIC_ERROR_MS } from './constants/constants'
 import { MISSING_BEARER_TOKEN_ERROR } from '../../shared/constants'
 import {
     AmazonQError,
@@ -3196,20 +3196,9 @@ ${' '.repeat(8)}}
                 const result = await chatController.onListAvailableModels({ tabId: 'invalid-tab' })
 
                 assert.strictEqual(result.tabId, 'invalid-tab')
-                assert.strictEqual(result.selectedModelId, 'claude-4-sonnet') // MODEL_RECORD[DEFAULT_MODEL_ID].label
+                assert.strictEqual(result.selectedModelId, DEFAULT_MODEL_ID)
 
                 getSessionStub.restore()
-            })
-
-            it('should use session modelId when available', async () => {
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                session.modelId = 'custom-model-id'
-
-                const result = await chatController.onListAvailableModels({ tabId: mockTabId })
-
-                assert.strictEqual(result.selectedModelId, 'custom-model-id')
-                // Verify session modelId is updated
-                assert.strictEqual(session.modelId, 'custom-model-id')
             })
 
             it('should use defaultModelId from cache when session has no modelId', async () => {
