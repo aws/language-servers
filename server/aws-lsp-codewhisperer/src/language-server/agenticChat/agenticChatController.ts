@@ -707,7 +707,7 @@ export class AgenticChatController implements ChatHandlers {
                 })
 
                 // Wait for the response to be completed before proceeding
-                this.#log('Model Response', responseResult.models.toString())
+                this.#log('Model Response', responseResult.toString())
                 models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
                     id: modelId,
                     name: modelName ?? modelId,
@@ -3560,7 +3560,7 @@ export class AgenticChatController implements ChatHandlers {
             session.setLogging(this.#features.logging)
         }
 
-        // Update the client with the initial pair programming mode and modelId/modelName
+        // Update the client with the initial pair programming mode
         this.#features.chat.chatOptionsUpdate({
             tabId: params.tabId,
             // Type assertion to support pairProgrammingMode
