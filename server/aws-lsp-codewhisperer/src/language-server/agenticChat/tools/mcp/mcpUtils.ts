@@ -163,7 +163,8 @@ const DEFAULT_AGENT_RAW = `{
     "fs_read",
     "report_issue",
     "use_aws",
-    "execute_bash"
+    "execute_bash",
+    "fs_write"
   ],
   "toolsSettings": {
     "use_aws": { "preset": "readOnly" },
@@ -262,8 +263,15 @@ export async function loadAgentConfig(
 
     const globalConfigPath = getGlobalAgentConfigPath(workspace.fs.getUserHomeDir())
 
+    // Sort paths to process global config last
+    const sortedPaths = uniquePaths.sort((a, b) => {
+        if (a === globalConfigPath) return 1
+        if (b === globalConfigPath) return -1
+        return 0
+    })
+
     // Process each path like loadMcpServerConfigs
-    for (const fsPath of uniquePaths) {
+    for (const fsPath of sortedPaths) {
         // 1) Skip missing files or create default global
         let exists: boolean
         try {
@@ -327,7 +335,7 @@ export async function loadAgentConfig(
         // 4) Process permissions (tools and allowedTools)
         if (Array.isArray(json.tools)) {
             for (const tool of json.tools) {
-                if (!agentConfig.tools.includes(tool)) {
+                if (!tool.startsWith('@') && !agentConfig.tools.includes(tool)) {
                     agentConfig.tools.push(tool)
                 }
             }
@@ -335,7 +343,7 @@ export async function loadAgentConfig(
 
         if (Array.isArray(json.allowedTools)) {
             for (const tool of json.allowedTools) {
-                if (!agentConfig.allowedTools.includes(tool)) {
+                if (!tool.startsWith('@') && !agentConfig.allowedTools.includes(tool)) {
                     agentConfig.allowedTools.push(tool)
                 }
             }
@@ -379,6 +387,7 @@ export async function loadAgentConfig(
                             ? (entry as any).initializationTimeout
                             : undefined,
                     timeout: typeof (entry as any).timeout === 'number' ? (entry as any).timeout : undefined,
+                    disabled: typeof (entry as any).disabled === 'boolean' ? (entry as any).disabled : false,
                     __configPath__: fsPath, // Store config path for determining global vs workspace
                 }
 
@@ -417,7 +426,31 @@ export async function loadAgentConfig(
                     agentEntry.initializationTimeout = cfg.initializationTimeout
                 }
                 if (typeof cfg.timeout === 'number') agentEntry.timeout = cfg.timeout
+                agentEntry.disabled = cfg.disabled
                 agentConfig.mcpServers[name] = agentEntry
+
+                // Add MCP server-specific tools and allowedTools after server is successfully added
+                if (Array.isArray(json.tools)) {
+                    for (const tool of json.tools) {
+                        if (
+                            (tool === `@${name}` || tool.startsWith(`@${name}/`)) &&
+                            !agentConfig.tools.includes(tool)
+                        ) {
+                            agentConfig.tools.push(tool)
+                        }
+                    }
+                }
+
+                if (Array.isArray(json.allowedTools)) {
+                    for (const tool of json.allowedTools) {
+                        if (
+                            (tool === `@${name}` || tool.startsWith(`@${name}/`)) &&
+                            !agentConfig.allowedTools.includes(tool)
+                        ) {
+                            agentConfig.allowedTools.push(tool)
+                        }
+                    }
+                }
 
                 logging.info(
                     `Loaded MCP server with sanitizedName: '${sanitizedName}' and originalName: '${name}' from ${fsPath}`
@@ -925,12 +958,61 @@ export async function saveAgentConfig(
     workspace: Workspace,
     logging: Logger,
     config: AgentConfig,
-    configPath: string
+    configPath: string,
+    serverName?: string
 ): Promise<void> {
     try {
         await workspace.fs.mkdir(path.dirname(configPath), { recursive: true })
-        await workspace.fs.writeFile(configPath, JSON.stringify(config, null, 2))
-        logging.info(`Saved agent config to ${configPath}`)
+
+        if (!serverName) {
+            // Save the whole config
+            await workspace.fs.writeFile(configPath, JSON.stringify(config, null, 2))
+            logging.info(`Saved agent config to ${configPath}`)
+            return
+        }
+
+        // Read existing config if it exists, otherwise use default
+        let existingConfig: any
+        try {
+            const configExists = await workspace.fs.exists(configPath)
+            if (configExists) {
+                const raw = (await workspace.fs.readFile(configPath)).toString().trim()
+                existingConfig = raw ? JSON.parse(raw) : JSON.parse(DEFAULT_AGENT_RAW)
+            } else {
+                existingConfig = JSON.parse(DEFAULT_AGENT_RAW)
+            }
+        } catch (err) {
+            logging.warn(`Failed to read existing config at ${configPath}: ${err}`)
+            existingConfig = JSON.parse(DEFAULT_AGENT_RAW)
+        }
+
+        // Update only the specific server's config
+        if (config.mcpServers[serverName]) {
+            existingConfig.mcpServers[serverName] = config.mcpServers[serverName]
+        }
+
+        // Remove existing tools for this server
+        const serverToolPattern = `@${serverName}`
+        existingConfig.tools = existingConfig.tools.filter(
+            (tool: string) => tool !== serverToolPattern && !tool.startsWith(`${serverToolPattern}/`)
+        )
+        existingConfig.allowedTools = existingConfig.allowedTools.filter(
+            (tool: string) => tool !== serverToolPattern && !tool.startsWith(`${serverToolPattern}/`)
+        )
+
+        // Add only tools for this server
+        const serverTools = config.tools.filter(
+            tool => tool === serverToolPattern || tool.startsWith(`${serverToolPattern}/`)
+        )
+        const serverAllowedTools = config.allowedTools.filter(
+            tool => tool === serverToolPattern || tool.startsWith(`${serverToolPattern}/`)
+        )
+
+        existingConfig.tools.push(...serverTools)
+        existingConfig.allowedTools.push(...serverAllowedTools)
+
+        await workspace.fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2))
+        logging.info(`Saved agent config for server ${serverName} to ${configPath}`)
     } catch (err: any) {
         logging.error(`Failed to save agent config to ${configPath}: ${err.message}`)
         throw err

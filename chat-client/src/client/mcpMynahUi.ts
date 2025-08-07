@@ -167,11 +167,11 @@ export class McpMynahUi {
                     id: MCP_IDS.DETAILS_MENU,
                     icon: toMynahIcon('ellipsis'),
                     items: [
-                        // {
-                        //     id: MCP_IDS.DISABLE_SERVER,
-                        //     text: `Disable MCP server`,
-                        //     data: { serverName },
-                        // },
+                        {
+                            id: MCP_IDS.DISABLE_SERVER,
+                            text: `Disable MCP server`,
+                            data: { serverName },
+                        },
                         {
                             id: MCP_IDS.DELETE_SERVER,
                             confirmation: {
@@ -220,10 +220,10 @@ export class McpMynahUi {
                     ...(action.id === MCP_IDS.DETAILS_MENU
                         ? {
                               items: [
-                                  //   {
-                                  //       id: MCP_IDS.DISABLE_SERVER,
-                                  //       text: `Disable MCP server`,
-                                  //   },
+                                  {
+                                      id: MCP_IDS.DISABLE_SERVER,
+                                      text: `Disable MCP server`,
+                                  },
                                   {
                                       id: MCP_IDS.DELETE_SERVER,
                                       confirmation: {

@@ -3,14 +3,14 @@ import {
     ThrottlingException,
     ThrottlingExceptionReason,
 } from '@amzn/codewhisperer-streaming'
-import { CredentialsProvider, Position } from '@aws/language-server-runtimes/server-interface'
+import { CredentialsProvider, Position, InitializeParams } from '@aws/language-server-runtimes/server-interface'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import { expect } from 'chai'
 import * as sinon from 'sinon'
 import * as os from 'os'
 import * as path from 'path'
-import { BUILDER_ID_START_URL } from './constants'
+import { BUILDER_ID_START_URL, SAGEMAKER_UNIFIED_STUDIO_SERVICE } from './constants'
 import {
     getBearerTokenFromProvider,
     getEndPositionForAcceptedSuggestion,
@@ -24,6 +24,7 @@ import {
     getFileExtensionName,
     listFilesWithGitignore,
     getOriginFromClientInfo,
+    getClientName,
     sanitizeInput,
     sanitizeRequestInput,
 } from './utils'
@@ -73,9 +74,83 @@ describe('getBearerTokenFromProvider', () => {
     })
 })
 
+describe('getClientName', () => {
+    let originalEnv: string | undefined
+
+    beforeEach(() => {
+        originalEnv = process.env.SERVICE_NAME
+    })
+
+    afterEach(() => {
+        if (originalEnv !== undefined) {
+            process.env.SERVICE_NAME = originalEnv
+        } else {
+            delete process.env.SERVICE_NAME
+        }
+    })
+
+    it('returns client name from initializationOptions path when SERVICE_NAME is SageMakerUnifiedStudio', () => {
+        process.env.SERVICE_NAME = SAGEMAKER_UNIFIED_STUDIO_SERVICE
+        const lspParams = {
+            initializationOptions: {
+                aws: {
+                    clientInfo: {
+                        name: 'AmazonQ-For-SMUS-CE-1.0.0',
+                    },
+                },
+            },
+            clientInfo: {
+                name: 'VSCode-Extension',
+            },
+        } as InitializeParams
+
+        const result = getClientName(lspParams)
+        assert.strictEqual(result, 'AmazonQ-For-SMUS-CE-1.0.0')
+    })
+
+    it('returns client name from clientInfo path when SERVICE_NAME is not SageMakerUnifiedStudio', () => {
+        process.env.SERVICE_NAME = 'SomeOtherService'
+        const lspParams = {
+            initializationOptions: {
+                aws: {
+                    clientInfo: {
+                        name: 'AmazonQ-For-SMUS-CE-1.0.0',
+                    },
+                },
+            },
+            clientInfo: {
+                name: 'VSCode-Extension',
+            },
+        } as InitializeParams
+
+        const result = getClientName(lspParams)
+        assert.strictEqual(result, 'VSCode-Extension')
+    })
+
+    it('returns undefined when lspParams is undefined', () => {
+        const result = getClientName(undefined)
+        assert.strictEqual(result, undefined)
+    })
+})
+
 describe('getOriginFromClientInfo', () => {
-    it('returns MD_IDE for SMUS client name', () => {
+    it('returns MD_IDE for SMUS-IDE client name', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-SMUS-IDE-1.0.0')
+        assert.strictEqual(result, 'MD_IDE')
+    })
+
+    it('returns MD_IDE for SMUS-CE client name', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMUS-CE-1.0.0')
+        assert.strictEqual(result, 'MD_IDE')
+    })
+
+    it('returns MD_IDE for client names starting with SMUS-IDE prefix', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMUS-IDE')
+        assert.strictEqual(result, 'MD_IDE')
+    })
+
+    it('returns MD_IDE for client names starting with SMUS-CE prefix', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMUS-CE')
         assert.strictEqual(result, 'MD_IDE')
     })
 
@@ -91,6 +166,11 @@ describe('getOriginFromClientInfo', () => {
 
     it('returns IDE for empty string client name', () => {
         const result = getOriginFromClientInfo('')
+        assert.strictEqual(result, 'IDE')
+    })
+
+    it('returns IDE for client names that do not match SMUS patterns', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-Other-IDE')
         assert.strictEqual(result, 'IDE')
     })
 })
