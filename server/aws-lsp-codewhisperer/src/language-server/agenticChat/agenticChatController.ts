@@ -2880,7 +2880,6 @@ export class AgenticChatController implements ChatHandlers {
         result: InvokeOutput,
         chatResultStream: AgenticChatResultStream
     ): Promise<void> {
-        if (!isFileSearchParams(toolInput)) return
         if (typeof result.output.content !== 'string') return
 
         const { queryName, path: inputPath } = toolInput
