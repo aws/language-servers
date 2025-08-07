@@ -124,6 +124,7 @@ import {
     isUsageLimitError,
     isNullish,
     getOriginFromClientInfo,
+    getClientName,
     sanitizeInput,
     sanitizeRequestInput,
 } from '../../shared/utils'
@@ -366,7 +367,7 @@ export class AgenticChatController implements ChatHandlers {
             this.#features.lsp
         )
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
-        this.#origin = getOriginFromClientInfo(this.#features.lsp.getClientInitializeParams()?.clientInfo?.name)
+        this.#origin = getOriginFromClientInfo(getClientName(this.#features.lsp.getClientInitializeParams()))
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
     }
 
@@ -1021,11 +1022,8 @@ export class AgenticChatController implements ChatHandlers {
         if (currentMessage) {
             //  Get and process the messages from history DB to maintain invariants for service requests
             try {
-                const { messages: historyMessages, count: historyCharCount } = this.#chatHistoryDb.fixAndGetHistory(
-                    tabId,
-                    currentMessage,
-                    []
-                )
+                const { history: historyMessages, historyCount: historyCharCount } =
+                    this.#chatHistoryDb.fixAndGetHistory(tabId, conversationIdentifier ?? '', currentMessage, [])
                 messages = historyMessages
                 characterCount = historyCharCount
             } catch (err) {
@@ -1199,19 +1197,18 @@ export class AgenticChatController implements ChatHandlers {
             if (currentMessage) {
                 //  Get and process the messages from history DB to maintain invariants for service requests
                 try {
-                    const newUserInputCount = this.#chatHistoryDb.calculateNewMessageCharacterCount(
+                    const {
+                        history: historyMessages,
+                        historyCount: historyCharacterCount,
+                        currentCount: currentInputCount,
+                    } = this.#chatHistoryDb.fixAndGetHistory(
+                        tabId,
+                        conversationId,
                         currentMessage,
                         pinnedContextMessages
                     )
-                    const { messages: historyMessages, count: historyCharacterCount } =
-                        this.#chatHistoryDb.fixAndGetHistory(
-                            tabId,
-                            currentMessage,
-                            pinnedContextMessages,
-                            newUserInputCount
-                        )
                     messages = historyMessages
-                    currentRequestCount = newUserInputCount + historyCharacterCount
+                    currentRequestCount = currentInputCount + historyCharacterCount
                     this.#debug(`Request total character count: ${currentRequestCount}`)
                 } catch (err) {
                     if (err instanceof ToolResultValidationError) {
@@ -1303,6 +1300,25 @@ export class AgenticChatController implements ChatHandlers {
                 shouldDisplayMessage = false
                 // set the in progress tool use UI status to Error
                 await chatResultStream.updateOngoingProgressResult('Error')
+
+                // emit invokeLLM event with status Failed for timeout calls
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    'AgenticChat',
+                    undefined,
+                    undefined,
+                    'Failed',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
+                    llmLatency,
+                    this.#toolCallLatencies,
+                    this.#timeToFirstChunk,
+                    this.#timeBetweenChunks,
+                    session.pairProgrammingMode,
+                    this.#abTestingAllocation?.experimentName,
+                    this.#abTestingAllocation?.userVariation
+                )
                 continue
             }
 
@@ -1348,7 +1364,7 @@ export class AgenticChatController implements ChatHandlers {
                     'AgenticChat',
                     undefined,
                     undefined,
-                    'Succeeded',
+                    result.success ? 'Succeeded' : 'Failed',
                     this.#features.runtime.serverInfo.version ?? '',
                     session.modelId,
                     llmLatency,
@@ -1437,6 +1453,10 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         if (this.#shouldCompact(currentRequestCount)) {
+            this.#telemetryController.emitCompactNudge(
+                currentRequestCount,
+                this.#features.runtime.serverInfo.version ?? ''
+            )
             const messageId = this.#getMessageIdForCompact(uuid())
             const confirmationResult = this.#processCompactConfirmation(messageId, currentRequestCount)
             const cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmationResult)

@@ -91,6 +91,30 @@ describe('ChatDatabase', () => {
         })
     })
 
+    describe('replaceHistory', () => {
+        it('should replace history with messages', async () => {
+            await chatDb.databaseInitialize(0)
+            const tabId = 'tab-1'
+            const tabType = 'cwc'
+            const conversationId = 'conv-1'
+            const messages = [
+                { body: 'Test', type: 'prompt' as any, timestamp: new Date() },
+                { body: 'Thinking...', type: 'answer', timestamp: new Date() },
+            ]
+
+            // Call the method
+            chatDb.replaceHistory(tabId, tabType, conversationId, messages)
+
+            // Verify the messages array contains the summary and a dummy response
+            const messagesFromDb = chatDb.getMessages(tabId, 250)
+            assert.strictEqual(messagesFromDb.length, 2)
+            assert.strictEqual(messagesFromDb[0].body, 'Test')
+            assert.strictEqual(messagesFromDb[0].type, 'prompt')
+            assert.strictEqual(messagesFromDb[1].body, 'Thinking...')
+            assert.strictEqual(messagesFromDb[1].type, 'answer')
+        })
+    })
+
     describe('ensureValidMessageSequence', () => {
         it('should preserve valid alternating sequence', () => {
             const messages: Message[] = [

@@ -43,26 +43,17 @@ describe('modelSelection', () => {
             )
         })
 
-        it('should provide limited models for eu-central-1 region', () => {
+        it('should provide all models for eu-central-1 region', () => {
             const euCentral1Models = MODEL_OPTIONS_FOR_REGION['eu-central-1']
-            assert.ok(Array.isArray(euCentral1Models), 'eu-central-1 models should be an array')
-            assert.strictEqual(euCentral1Models.length, 1, 'eu-central-1 should have 1 model')
+            assert.deepStrictEqual(euCentral1Models, MODEL_OPTIONS, 'us-east-1 should have all models')
+            assert.strictEqual(euCentral1Models.length, 2, 'us-east-1 should have 2 models')
 
             const modelIds = euCentral1Models.map(model => model.id)
-            assert.ok(
-                !modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'),
-                'eu-central-1 should not include Claude Sonnet 4'
-            )
+            assert.ok(modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'), 'eu-central-1 should include Claude Sonnet 4')
             assert.ok(
                 modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'),
                 'eu-central-1 should include Claude Sonnet 3.7'
             )
-        })
-
-        it('should filter out Claude Sonnet 4 for eu-central-1 region', () => {
-            const euCentral1Models = MODEL_OPTIONS_FOR_REGION['eu-central-1']
-            const claudeSonnet4 = euCentral1Models.find(model => model.id === 'CLAUDE_SONNET_4_20250514_V1_0')
-            assert.strictEqual(claudeSonnet4, undefined, 'Claude Sonnet 4 should be filtered out for eu-central-1')
         })
 
         it('should fall back to all models for unknown regions', () => {
