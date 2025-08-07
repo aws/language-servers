@@ -45,6 +45,7 @@ export interface QClientCapabilities {
     displayFindings?: boolean
     compaction?: boolean
     shortcut?: boolean
+    mcpAdmin?: boolean
 }
 
 type QConfigurationResponse =
