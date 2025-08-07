@@ -24,6 +24,7 @@ import {
     getMd5WorkspaceId,
     MessagesWithCharacterCount,
     estimateCharacterCountFromImageBlock,
+    isCachedValid,
 } from './util'
 import * as crypto from 'crypto'
 import * as path from 'path'
@@ -1112,12 +1113,7 @@ export class ChatDatabase {
     isCachedModelsValid(): boolean {
         const cachedData = this.getCachedModels()
         if (!cachedData) return false
-
-        const currentTime = Date.now()
-        const cacheAge = currentTime - cachedData.timestamp
-        const CACHE_TTL = 5 * 60 * 1000 // 5 minutes in milliseconds
-
-        return cacheAge < CACHE_TTL
+        return isCachedValid(cachedData.timestamp)
     }
 
     getPairProgrammingMode(): boolean | undefined {

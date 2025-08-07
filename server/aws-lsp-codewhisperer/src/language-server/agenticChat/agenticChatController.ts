@@ -227,6 +227,7 @@ import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
+import { IDE } from '../../shared/constants'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -698,23 +699,21 @@ export class AgenticChatController implements ChatHandlers {
             this.#log('Cache miss or expired, fetching models from API')
             try {
                 const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
-                const responsePromise = client.listAvailableModels({
-                    origin: 'IDE',
+                const responseResult = await client.listAvailableModels({
+                    origin: IDE,
                     profileArn: AmazonQTokenServiceManager.getInstance().getConnectionType()
                         ? AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
                         : undefined,
-                    modelProvider: 'DEFAULT',
                 })
 
                 // Wait for the response to be completed before proceeding
-                const responseResult = await responsePromise
                 this.#log('Model Response', responseResult.models.toString())
-
-                models = Object.entries(responseResult.models).map(([, { modelId }]) => ({
+                // TODO: After backend makes change assign modelName to name
+                models = Object.values(responseResult.models).map(({ modelId }) => ({
                     id: modelId,
                     name: modelId,
                 }))
-                defaultModelId = (await responsePromise).defaultModel?.modelId
+                defaultModelId = responseResult.defaultModel?.modelId
 
                 // Cache the models with defaultModelId
                 this.#chatHistoryDb.setCachedModels(models, defaultModelId)
@@ -731,15 +730,15 @@ export class AgenticChatController implements ChatHandlers {
             return {
                 tabId: params.tabId,
                 models: models,
-                selectedModelId: MODEL_RECORD[DEFAULT_MODEL_ID].label,
+                selectedModelId: DEFAULT_MODEL_ID,
             }
         }
 
         let selectedModelId: string
-
-        if (session.modelId) {
+        let modelId = this.#chatHistoryDb.getModelId()
+        if (modelId) {
             // User's previously selected model (or its mapped version) exists
-            selectedModelId = session.modelId
+            selectedModelId = MODEL_RECORD[modelId as keyof typeof MODEL_RECORD]?.label || modelId
         } else {
             if (defaultModelId) {
                 selectedModelId = defaultModelId
@@ -3561,22 +3560,12 @@ export class AgenticChatController implements ChatHandlers {
             // Set the logging object on the session
             session.setLogging(this.#features.logging)
         }
-        // Get the saved model ID from the database and set it on the session
-        const modelId = this.#chatHistoryDb.getModelId()
-
-        if (!modelId) {
-            this.#features.logging.info(`Setting default model as ${MODEL_RECORD[DEFAULT_MODEL_ID].label}`)
-        }
-
-        const modelLabel = MODEL_RECORD[modelId as keyof typeof MODEL_RECORD]?.label || modelId
-        session.modelId = modelLabel
 
         // Update the client with the initial pair programming mode and modelId/modelName
         this.#features.chat.chatOptionsUpdate({
             tabId: params.tabId,
             // Type assertion to support pairProgrammingMode
             ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
-            modelId: modelLabel ?? MODEL_RECORD[DEFAULT_MODEL_ID].label,
         } as ChatUpdateParams)
         this.setPaidTierMode(params.tabId)
     }
