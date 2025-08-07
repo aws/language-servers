@@ -3145,9 +3145,9 @@ ${' '.repeat(8)}}
 
                 const result = await chatController.onListAvailableModels({ tabId: mockTabId })
 
-                // Verify fallback to MODEL_OPTIONS
+                // Verify fallback to FALLBACK_MODEL_OPTIONS
                 assert.strictEqual(result.tabId, mockTabId)
-                assert.strictEqual(result.models.length, 2) // MODEL_OPTIONS length
+                assert.strictEqual(result.models.length, 2) // FALLBACK_MODEL_OPTIONS length
 
                 // Verify cache was not updated due to error
                 sinon.assert.notCalled(setCachedModelsStub)

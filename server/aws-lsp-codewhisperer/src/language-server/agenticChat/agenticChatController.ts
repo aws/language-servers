@@ -220,7 +220,7 @@ import {
     Message as DbMessage,
     messageToStreamingMessage,
 } from './tools/chatDb/util'
-import { MODEL_OPTIONS, MODEL_RECORD } from './constants/modelSelection'
+import { FALLBACK_MODEL_OPTIONS, MODEL_RECORD } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
@@ -678,10 +678,15 @@ export class AgenticChatController implements ChatHandlers {
         return this.#mcpEventHandler.onMcpServerClick(params)
     }
 
-    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
+    /**
+     * Fetches available models either from cache or API
+     * If cache is valid (less than 5 minutes old), returns cached models
+     * If cache is invalid or empty, makes an API call and stores results in cache
+     * If the API throws errors (e.g., throttling), falls back to default models
+     */
+    async #fetchModelsWithCache(): Promise<{ models: Model[]; defaultModelId?: string; errorFromAPI: boolean }> {
         let models: Model[] = []
         let defaultModelId: string | undefined
-        let isFromCache = false
         let errorFromAPI = false
 
         // Check if cache is valid (less than 5 minutes old)
@@ -689,44 +694,73 @@ export class AgenticChatController implements ChatHandlers {
             const cachedData = this.#chatHistoryDb.getCachedModels()
             if (cachedData && cachedData.models && cachedData.models.length > 0) {
                 this.#log('Using cached models, last updated at:', new Date(cachedData.timestamp).toISOString())
-                models = cachedData.models
-                defaultModelId = cachedData.defaultModelId
-                isFromCache = true
+                return {
+                    models: cachedData.models,
+                    defaultModelId: cachedData.defaultModelId,
+                    errorFromAPI: false,
+                }
             }
         }
 
         // If cache is invalid or empty, make an API call
-        if (!isFromCache) {
-            this.#log('Cache miss or expired, fetching models from API')
-            try {
-                const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
-                const responseResult = await client.listAvailableModels({
-                    origin: IDE,
-                    profileArn: AmazonQTokenServiceManager.getInstance().getConnectionType()
-                        ? AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
-                        : undefined,
-                })
+        this.#log('Cache miss or expired, fetching models from API')
+        try {
+            const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+            const responseResult = await client.listAvailableModels({
+                origin: IDE,
+                profileArn: AmazonQTokenServiceManager.getInstance().getConnectionType()
+                    ? AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+                    : undefined,
+            })
 
-                // Wait for the response to be completed before proceeding
-                this.#log('Model Response', responseResult.toString())
-                models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
-                    id: modelId,
-                    name: modelName ?? modelId,
-                }))
-                defaultModelId = responseResult.defaultModel?.modelId
+            // Wait for the response to be completed before proceeding
+            this.#log('Model Response', responseResult.toString())
+            models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
+                id: modelId,
+                name: modelName ?? modelId,
+            }))
+            defaultModelId = responseResult.defaultModel?.modelId
 
-                // Cache the models with defaultModelId
-                this.#chatHistoryDb.setCachedModels(models, defaultModelId)
-            } catch (err) {
-                // In case of API throttling or other errors, fall back to hardcoded models
-                this.#log('Error fetching models from API, using fallback models:', fmtError(err))
-                errorFromAPI = true
-                models = MODEL_OPTIONS
-            }
+            // Cache the models with defaultModelId
+            this.#chatHistoryDb.setCachedModels(models, defaultModelId)
+        } catch (err) {
+            // In case of API throttling or other errors, fall back to hardcoded models
+            this.#log('Error fetching models from API, using fallback models:', fmtError(err))
+            errorFromAPI = true
+            models = FALLBACK_MODEL_OPTIONS
         }
+
+        return {
+            models,
+            defaultModelId,
+            errorFromAPI,
+        }
+    }
+
+    /**
+     * This function handles the model selection process for the chat interface.
+     * It first attempts to retrieve models from cache or API, then determines the appropriate model to select
+     * based on the following priority:
+     * 1. When errors occur or session is invalid: Use the default model as a fallback
+     * 2. When user has previously selected a model: Use that model (or its mapped version if the model ID has changed)
+     * 3. When there's a default model from the API: Use the server-recommended default model
+     * 4. Last resort: Use the newest model defined in modelSelection constants
+     *
+     * This ensures users maintain consistent model selection across sessions while also handling
+     * API failures and model ID migrations gracefully.
+     */
+    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
+        // Get models from cache or API
+        const { models, defaultModelId, errorFromAPI } = await this.#fetchModelsWithCache()
+
+        // Get the first fallback model option as default
+        const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
+        const DEFAULT_MODEL_ID = defaultModelOption?.id || Object.keys(MODEL_RECORD)[1]
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         const { data: session, success } = sessionResult
+
+        // Handle error cases by returning default model
         if (!success || errorFromAPI) {
             return {
                 tabId: params.tabId,
@@ -735,21 +769,31 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
 
+        // Determine which model ID to select based on priority.
         let selectedModelId: string
         let modelId = this.#chatHistoryDb.getModelId()
+
         if (modelId) {
-            // User's previously selected model (or its mapped version) exists
-            selectedModelId = MODEL_RECORD[modelId as keyof typeof MODEL_RECORD]?.label || modelId
-        } else {
-            if (defaultModelId) {
-                selectedModelId = defaultModelId
+            // Case 1: User has previously selected a model - use that model or its mapped version
+            // Check if modelId is a key in MODEL_RECORD
+            if (modelId in MODEL_RECORD) {
+                // If it's a valid model key, use its mapped label
+                selectedModelId = MODEL_RECORD[modelId as keyof typeof MODEL_RECORD]?.label || modelId
             } else {
-                // Last resort: use hardcoded default model
-                selectedModelId = MODEL_RECORD[DEFAULT_MODEL_ID].label
+                // Otherwise use as is (might be a direct model ID from the API)
+                selectedModelId = modelId
             }
+        } else if (defaultModelId) {
+            // Case 2: No user selection, but API provided a default model - use server recommendation
+            selectedModelId = defaultModelId
+        } else {
+            // Case 3: Last resort - use default model's label
+            selectedModelId = MODEL_RECORD[DEFAULT_MODEL_ID as keyof typeof MODEL_RECORD]?.label || DEFAULT_MODEL_ID
         }
 
+        // Store the selected model in the session
         session.modelId = selectedModelId
+
         return {
             tabId: params.tabId,
             models: models,
