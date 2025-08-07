@@ -256,16 +256,6 @@ export class EditCompletionHandler {
 
         // Close ACTIVE session and record Discard trigger decision immediately
         if (currentSession && currentSession.state === 'ACTIVE') {
-            if (this.editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
-                const mergedSuggestions = mergeEditSuggestionsWithFileContext(currentSession, textDocument, fileContext)
-
-                if (mergedSuggestions.length > 0) {
-                    return {
-                        items: mergedSuggestions,
-                        sessionId: currentSession.id,
-                    }
-                }
-            }
             // Emit user trigger decision at session close time for active session
             this.sessionManager.discardSession(currentSession)
             const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0
