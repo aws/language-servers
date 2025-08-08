@@ -55,7 +55,7 @@ import {
 } from './telemetry'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EditCompletionHandler } from './editCompletionHandler'
-import { EMPTY_RESULT } from './constants'
+import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 const mergeSuggestionsWithRightContext = (
@@ -161,7 +161,7 @@ export const CodewhispererServerFactory =
                 if (cursorTracker) {
                     cursorTracker.trackPosition(params.textDocument.uri, params.position)
                 }
-                const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+                const textDocument = await getTextDocument(params.textDocument.uri, workspace, logging)
 
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
                 if (params.partialResultToken && currentSession) {
@@ -725,10 +725,9 @@ export const CodewhispererServerFactory =
                 userWrittenCodeTracker.customizationArn = customizationArn
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
-            /*
-                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-            */
+
+            // The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+            // configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -905,3 +904,27 @@ export const CodewhispererServerFactory =
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
 export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
+
+const getLanguageIdFromUri = (uri: string, logging?: any): string => {
+    try {
+        const extension = uri.split('.').pop()?.toLowerCase()
+        return ABAP_EXTENSIONS.has(extension || '') ? 'abap' : ''
+    } catch (err) {
+        logging?.log(`Error parsing URI: ${uri}: ${err}`)
+        return ''
+    }
+}
+
+const getTextDocument = async (uri: string, workspace: any, logging: any): Promise<TextDocument | undefined> => {
+    let textDocument = await workspace.getTextDocument(uri)
+    if (!textDocument) {
+        try {
+            const content = await workspace.fs.readFile(URI.parse(uri).fsPath)
+            const languageId = getLanguageIdFromUri(uri)
+            textDocument = TextDocument.create(uri, languageId, 0, content)
+        } catch (err) {
+            logging.log(`Unable to load from ${uri}: ${err}`)
+        }
+    }
+    return textDocument
+}
