@@ -34,6 +34,10 @@ import {
     BUTTON_STOP_SHELL_COMMAND,
     BUTTON_PAIDTIER_UPGRADE_Q_LEARNMORE,
     BUTTON_PAIDTIER_UPGRADE_Q,
+    BUTTON_FIX_DIAGNOSTIC_ERRORS,
+    BUTTON_FIX_ALL_DIAGNOSTIC_ERRORS,
+    BUTTON_FIX_SELECTED_DIAGNOSTIC_ERRORS,
+    BUTTON_CONTINUE_WITH_ERRORS,
     SUFFIX_PERMISSION,
     SUFFIX_UNDOALL,
     SUFFIX_EXPLANATION,
@@ -67,6 +71,9 @@ import {
     ListAvailableModelsResult,
     OpenFileDialogParams,
     OpenFileDialogResult,
+    CheckDiagnosticsParams,
+    CheckDiagnosticsResult,
+    LinkClickParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -230,6 +237,7 @@ import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
+import { DiagnosticManager, DiagnosticError } from './diagnosticManager'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -274,6 +282,8 @@ export class AgenticChatController implements ChatHandlers {
     #paidTierMode: PaidTierMode | undefined
     #origin: Origin
     #activeUserTracker: ActiveUserTracker
+    #modifiedFile = new Set<string>()
+    #diagnosticManager: DiagnosticManager
 
     // latency metrics
     #llmRequestStartTime: number = 0
@@ -369,6 +379,7 @@ export class AgenticChatController implements ChatHandlers {
         this.#mcpEventHandler = new McpEventHandler(features, telemetryService)
         this.#origin = getOriginFromClientInfo(getClientName(this.#features.lsp.getClientInitializeParams()))
         this.#activeUserTracker = ActiveUserTracker.getInstance(this.#features)
+        this.#diagnosticManager = new DiagnosticManager(features, chatSessionManagementService)
     }
 
     async onExecuteCommand(params: ExecuteCommandParams, _token: CancellationToken): Promise<any> {
@@ -454,6 +465,27 @@ export class AgenticChatController implements ChatHandlers {
         } else if (params.buttonId === BUTTON_PAIDTIER_UPGRADE_Q) {
             await this.onManageSubscription(params.tabId)
 
+            return { success: true }
+        } else if (
+            params.buttonId === BUTTON_FIX_ALL_DIAGNOSTIC_ERRORS ||
+            params.buttonId === BUTTON_FIX_SELECTED_DIAGNOSTIC_ERRORS ||
+            params.buttonId === BUTTON_CONTINUE_WITH_ERRORS
+        ) {
+            await this.#diagnosticManager.handleDiagnosticButtonClick(params.buttonId)
+            return { success: true }
+        } else if (params.buttonId.startsWith('diagnostic-checkbox-')) {
+            // Handle diagnostic checkbox clicks
+            const index = parseInt(params.buttonId.replace('diagnostic-checkbox-', ''))
+            const currentErrors = this.#diagnosticManager.getCurrentDiagnosticErrors()
+            if (index >= 0 && index < currentErrors.length) {
+                const filePath = currentErrors[index].filePath
+                await this.#diagnosticManager.handleDiagnosticCheckboxClick({
+                    tabId: params.tabId,
+                    messageId: params.messageId,
+                    filePath: filePath,
+                    index: index,
+                })
+            }
             return { success: true }
         } else {
             return {
@@ -542,6 +574,9 @@ export class AgenticChatController implements ChatHandlers {
         for (const messageId of [...toUndo].reverse()) {
             await this.onButtonClick({ buttonId: BUTTON_UNDO_CHANGES, messageId, tabId })
         }
+    }
+    async getDiagnostics(params: CheckDiagnosticsParams): Promise<CheckDiagnosticsResult> {
+        return await this.#diagnosticManager.getDiagnostics(params)
     }
 
     async onOpenFileDialog(params: OpenFileDialogParams, token: CancellationToken): Promise<OpenFileDialogResult> {
@@ -679,7 +714,6 @@ export class AgenticChatController implements ChatHandlers {
     async onMcpServerClick(params: McpServerClickParams) {
         return this.#mcpEventHandler.onMcpServerClick(params)
     }
-
     async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
         const region = AmazonQTokenServiceManager.getInstance().getRegion()
         const models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
@@ -1375,7 +1409,43 @@ export class AgenticChatController implements ChatHandlers {
                     this.#abTestingAllocation?.experimentName,
                     this.#abTestingAllocation?.userVariation
                 )
+
+                // Check for diagnostic errors before setting final result
+                if (this.#modifiedFile.size > 0) {
+                    this.#log(
+                        `Checking diagnostic errors for ${this.#modifiedFile.size} modified files before final result`
+                    )
+                    const diagnosticErrors = await this.#diagnosticManager.checkDiagnosticErrors(
+                        Array.from(this.#modifiedFile)
+                    )
+                    if (diagnosticErrors.length > 0) {
+                        this.#log(`Found ${diagnosticErrors.length} files with diagnostic errors`)
+                        const selectedErrors = await this.#diagnosticManager.showDiagnosticErrorsUI(
+                            chatResultStream,
+                            diagnosticErrors,
+                            tabId
+                        )
+                        if (selectedErrors && selectedErrors.length > 0) {
+                            this.#log('User selected errors to fix, starting new agent loop')
+                            // Start a new agent loop to fix the selected errors
+                            const fixPrompt = this.#diagnosticManager.generateFixPrompt(selectedErrors)
+                            currentRequestInput = this.#updateRequestInputWithToolResults(
+                                currentRequestInput,
+                                [],
+                                fixPrompt
+                            )
+                            shouldDisplayMessage = false
+                            continue
+                        } else {
+                            this.#log('User chose to continue with diagnostic errors or no errors selected')
+                        }
+                    } else {
+                        this.#log('No diagnostic errors found in modified files')
+                    }
+                }
+
                 finalResult = result
+                this.#modifiedFile.clear()
                 break
             }
 
@@ -1855,6 +1925,7 @@ export class AgenticChatController implements ChatHandlers {
 
                 if (toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) {
                     const input = toolUse.input as unknown as FsWriteParams | FsReplaceParams
+                    this.#modifiedFile.add(input.path)
                     const document = await this.#triggerContext.getTextDocumentFromPath(input.path, true, true)
 
                     session.toolUseLookup.set(toolUse.toolUseId, {
@@ -3473,7 +3544,11 @@ export class AgenticChatController implements ChatHandlers {
 
     onInfoLinkClick() {}
 
-    onLinkClick() {}
+    async onLinkClick(params: LinkClickParams) {
+        this.#log(`onLinkClick called with: tabId=${params.tabId}, messageId=${params.messageId}, link=${params.link}`)
+        // Handle diagnostic error file links
+        await this.#diagnosticManager.handleDiagnosticFileLink(params.link, params.messageId, params.tabId)
+    }
 
     /**
      * After the Chat UI (mynah-ui) is ready.
@@ -4334,14 +4409,18 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #createDeferred() {
-        let resolve
-        let reject
-        const promise = new Promise((res, rej) => {
+    #createDeferred(): {
+        promise: Promise<DiagnosticError[]>
+        resolve: (value: DiagnosticError[]) => void
+        reject: (error: Error) => void
+    } {
+        let resolve: (value: DiagnosticError[]) => void
+        let reject: (error: Error) => void
+        const promise = new Promise<DiagnosticError[]>((res, rej) => {
             resolve = res
-            reject = (e: Error) => rej(e)
+            reject = rej
         })
-        return { promise, resolve, reject }
+        return { promise, resolve: resolve!, reject: reject! }
     }
 
     /**
