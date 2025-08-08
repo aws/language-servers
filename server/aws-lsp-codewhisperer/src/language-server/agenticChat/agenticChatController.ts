@@ -220,7 +220,7 @@ import {
     Message as DbMessage,
     messageToStreamingMessage,
 } from './tools/chatDb/util'
-import { FALLBACK_MODEL_OPTIONS, MODEL_RECORD } from './constants/modelSelection'
+import { FALLBACK_MODEL_OPTIONS, FALLBACK_MODEL_RECORD } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
@@ -756,7 +756,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // Get the first fallback model option as default
         const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
-        const DEFAULT_MODEL_ID = defaultModelOption?.id || Object.keys(MODEL_RECORD)[1]
+        const DEFAULT_MODEL_ID = defaultModelOption?.id || Object.keys(FALLBACK_MODEL_RECORD)[1]
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         const { data: session, success } = sessionResult
@@ -774,22 +774,27 @@ export class AgenticChatController implements ChatHandlers {
         let selectedModelId: string
         let modelId = this.#chatHistoryDb.getModelId()
 
+        // Helper function to get model label from FALLBACK_MODEL_RECORD
+        const getModelLabel = (modelKey: string) =>
+            FALLBACK_MODEL_RECORD[modelKey as keyof typeof FALLBACK_MODEL_RECORD]?.label || modelKey
+
+        // Determine selected model ID based on priority
         if (modelId) {
-            // Case 1: User has previously selected a model - use that model or its mapped version
-            // Check if modelId is a key in MODEL_RECORD
-            if (modelId in MODEL_RECORD) {
-                // If it's a valid model key, use its mapped label
-                selectedModelId = MODEL_RECORD[modelId as keyof typeof MODEL_RECORD]?.label || modelId
-            } else {
-                // Otherwise use as is (might be a direct model ID from the API)
+            // Priority 1: Use modelId if it exists in available models from backend
+            if (models.some(model => model.id === modelId)) {
                 selectedModelId = modelId
             }
-        } else if (defaultModelId) {
-            // Case 2: No user selection, but API provided a default model - use server recommendation
-            selectedModelId = defaultModelId
+            // Priority 2: Use mapped version if modelId exists in FALLBACK_MODEL_RECORD
+            else if (modelId in FALLBACK_MODEL_RECORD) {
+                selectedModelId = getModelLabel(modelId)
+            }
+            // Priority 3: Fall back to default or system default
+            else {
+                selectedModelId = defaultModelId || getModelLabel(DEFAULT_MODEL_ID)
+            }
         } else {
-            // Case 3: Last resort - use default model's label
-            selectedModelId = MODEL_RECORD[DEFAULT_MODEL_ID as keyof typeof MODEL_RECORD]?.label || DEFAULT_MODEL_ID
+            // No user-selected model - use API default or system default
+            selectedModelId = defaultModelId || getModelLabel(DEFAULT_MODEL_ID)
         }
 
         // Store the selected model in the session
