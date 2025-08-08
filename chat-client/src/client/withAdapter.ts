@@ -171,6 +171,10 @@ export const withAdapter = (
             defaultEventHandler.onTabBarButtonClick?.(tabId, buttonId)
         },
 
+        onSearchShortcut(tabId, eventId) {
+            defaultEventHandler.onSearchShortcut?.(tabId, eventId)
+        },
+
         onReady() {
             customEventHandler.onReady?.()
             defaultEventHandler.onReady?.()

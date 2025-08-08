@@ -433,6 +433,9 @@ export const createMynahUi = (
         onTabChange: (tabId: string) => {
             messager.onTabChange(tabId)
         },
+        onSearchShortcut: () => {
+            messager.onListConversations(undefined, true)
+        },
         onResetStore: () => {},
         onCopyCodeToClipboard: (
             tabId,
@@ -827,6 +830,7 @@ export const createMynahUi = (
             // if we want to max user input as 500000, need to configure the maxUserInput as 500096
             maxUserInput: 500096,
             userInputLengthWarningThreshold: 450000,
+            enableSearchKeyboardShortcut: true,
         },
     }
 
