@@ -3234,7 +3234,7 @@ ${' '.repeat(8)}}
 
                 const result = await chatController.onListAvailableModels({ tabId: mockTabId })
 
-                assert.strictEqual(result.selectedModelId, 'claude-4-sonnet') // MODEL_RECORD[DEFAULT_MODEL_ID].label
+                assert.strictEqual(result.selectedModelId, 'claude-4-sonnet') // FALLBACK_MODEL_RECORD[DEFAULT_MODEL_ID].label
                 // Verify session modelId is updated
                 assert.strictEqual(session.modelId, 'claude-4-sonnet')
             })
