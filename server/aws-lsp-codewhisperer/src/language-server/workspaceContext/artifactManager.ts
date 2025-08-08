@@ -694,6 +694,21 @@ export class ArtifactManager {
             additionalFiles.push(...updatedFiles)
         }
 
+        // Fallback methods to generate a .classpath at workspace folder root
+        if (projectRoots.length == 0) {
+            const javaManager = new JavaProjectAnalyzer(workspacePath)
+            const structure = await javaManager.analyze()
+            const generator = new EclipseConfigGenerator(workspaceFolder, this.logging)
+            const classpathFiles = await generator.generateDotClasspath(structure)
+            for (const classpathFile of classpathFiles) {
+                additionalFiles.push(classpathFile)
+            }
+            const projectFiles = await generator.generateDotProject(path.basename(workspacePath), structure)
+            for (const projectFile of projectFiles) {
+                additionalFiles.push(projectFile)
+            }
+        }
+
         return [...files, ...additionalFiles]
     }
 
