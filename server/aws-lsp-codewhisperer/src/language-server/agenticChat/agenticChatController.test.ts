@@ -451,7 +451,7 @@ describe('AgenticChatController', () => {
 
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -1150,7 +1150,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading messages
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 codeReference: [],
                 buttons: [],
@@ -1169,7 +1169,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
