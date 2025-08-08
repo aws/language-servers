@@ -2891,7 +2891,7 @@ export class AgenticChatController implements ChatHandlers {
             type: 'tool',
             messageId: toolUseId,
             header: {
-                body: `Searched for \`${queryName}\` in `,
+                body: `Searched for "${queryName}" in `,
                 icon: 'search',
                 status: {
                     text: `${resultCount} result${resultCount !== 1 ? 's' : ''} found`,
