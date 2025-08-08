@@ -1,10 +1,9 @@
 import { Telemetry, IdeDiagnostic } from '@aws/language-server-runtimes/server-interface'
 import { AWSError } from 'aws-sdk'
-import { CodeWhispererSession, UserTriggerDecision } from './session/sessionManager'
+import { CodeWhispererSession } from './session/sessionManager'
 import { CodeWhispererPerceivedLatencyEvent, CodeWhispererServiceInvocationEvent } from '../../shared/telemetry/types'
 import { getCompletionType, isAwsError } from '../../shared/utils'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { SuggestionType } from '../../shared/codeWhispererService'
 
 export const emitServiceInvocationTelemetry = (
     telemetry: Telemetry,
@@ -115,30 +114,21 @@ export const emitUserTriggerDecisionTelemetry = async (
     deletedCharsCountForEditSuggestion?: number,
     addedIdeDiagnostics?: IdeDiagnostic[],
     removedIdeDiagnostics?: IdeDiagnostic[],
-    streakLength?: number,
-    itemId?: string
+    streakLength?: number
 ) => {
     // Prevent reporting user decision if it was already sent
     if (session.reportedUserDecision) {
         return
     }
 
-    // Edits show one suggestion sequentially (with pagination), so use latest itemId state;
-    // Completions show multiple suggestions together, so aggregate all states
-    const userTriggerDecision =
-        session.suggestionType === SuggestionType.EDIT
-            ? session.getUserTriggerDecision(itemId)
-            : session.getAggregatedUserTriggerDecision()
-
     // Can not emit previous trigger decision if it's not available on the session
-    if (!userTriggerDecision) {
+    if (!session.getAggregatedUserTriggerDecision()) {
         return
     }
 
     await emitAggregatedUserTriggerDecisionTelemetry(
         telemetryService,
         session,
-        userTriggerDecision,
         timeSinceLastUserModification,
         addedCharsCountForEditSuggestion,
         deletedCharsCountForEditSuggestion,
@@ -147,19 +137,12 @@ export const emitUserTriggerDecisionTelemetry = async (
         streakLength
     )
 
-    // Mark telemetry as complete unless Edit suggestion was accepted with more pending
-    const hasPendingEditTelemetry =
-        session.suggestionType === SuggestionType.EDIT && session.acceptedSuggestionId && session.hasEditsPending
-
-    if (!hasPendingEditTelemetry) {
-        session.reportedUserDecision = true
-    }
+    session.reportedUserDecision = true
 }
 
 export const emitAggregatedUserTriggerDecisionTelemetry = (
     telemetryService: TelemetryService,
     session: CodeWhispererSession,
-    userTriggerDecision: UserTriggerDecision,
     timeSinceLastUserModification?: number,
     addedCharsCountForEditSuggestion?: number,
     deletedCharsCountForEditSuggestion?: number,
@@ -169,7 +152,6 @@ export const emitAggregatedUserTriggerDecisionTelemetry = (
 ) => {
     return telemetryService.emitUserTriggerDecision(
         session,
-        userTriggerDecision,
         timeSinceLastUserModification,
         addedCharsCountForEditSuggestion,
         deletedCharsCountForEditSuggestion,

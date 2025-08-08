@@ -7,10 +7,6 @@ import {
     SDKInitializator,
     CancellationToken,
     CancellationTokenSource,
-    TextDocument,
-    Position,
-    WorkspaceFolder,
-    InlineCompletionWithReferencesParams,
 } from '@aws/language-server-runtimes/server-interface'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
 import { AWSError, ConfigurationOptions, CredentialProviderChain, Credentials } from 'aws-sdk'
@@ -30,17 +26,6 @@ import CodeWhispererSigv4Client = require('../client/sigv4/codewhisperersigv4cli
 import CodeWhispererTokenClient = require('../client/token/codewhispererbearertokenclient')
 import { getErrorId } from './utils'
 import { GenerateCompletionsResponse } from '../client/token/codewhispererbearertokenclient'
-import { getRelativePath } from '../language-server/workspaceContext/util'
-import { CodewhispererLanguage, getRuntimeLanguage } from './languageDetection'
-import { RecentEditTracker } from '../language-server/inline-completion/tracker/codeEditTracker'
-import { CodeWhispererSupplementalContext } from './models/model'
-import { fetchSupplementalContext } from './supplementalContextUtil/supplementalContextUtil'
-import * as path from 'path'
-import {
-    CONTEXT_CHARACTERS_LIMIT,
-    FILE_URI_CHARS_LIMIT,
-    FILENAME_CHARS_LIMIT,
-} from '../language-server/inline-completion/constants'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -69,47 +54,6 @@ export interface GenerateSuggestionsResponse {
     suggestions: Suggestion[]
     suggestionType?: SuggestionType
     responseContext: ResponseContext
-}
-
-export function getFileContext(params: {
-    textDocument: TextDocument
-    position: Position
-    inferredLanguageId: CodewhispererLanguage
-    workspaceFolder: WorkspaceFolder | null | undefined
-}): {
-    fileUri: string
-    filename: string
-    programmingLanguage: {
-        languageName: CodewhispererLanguage
-    }
-    leftFileContent: string
-    rightFileContent: string
-} {
-    const left = params.textDocument.getText({
-        start: { line: 0, character: 0 },
-        end: params.position,
-    })
-    const trimmedLeft = left.slice(-CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
-
-    const right = params.textDocument.getText({
-        start: params.position,
-        end: params.textDocument.positionAt(params.textDocument.getText().length),
-    })
-    const trimmedRight = right.slice(0, CONTEXT_CHARACTERS_LIMIT).replaceAll('\r\n', '\n')
-
-    const relativeFilePath = params.workspaceFolder
-        ? getRelativePath(params.workspaceFolder, params.textDocument.uri)
-        : path.basename(params.textDocument.uri)
-
-    return {
-        fileUri: params.textDocument.uri.substring(0, FILE_URI_CHARS_LIMIT),
-        filename: relativeFilePath.substring(0, FILENAME_CHARS_LIMIT),
-        programmingLanguage: {
-            languageName: getRuntimeLanguage(params.inferredLanguageId),
-        },
-        leftFileContent: trimmedLeft,
-        rightFileContent: trimmedRight,
-    }
 }
 
 // This abstract class can grow in the future to account for any additional changes across the clients
@@ -141,23 +85,6 @@ export abstract class CodeWhispererServiceBase {
     abstract getCredentialsType(): CredentialsType
 
     abstract generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse>
-
-    abstract constructSupplementalContext(
-        document: TextDocument,
-        position: Position,
-        workspace: Workspace,
-        recentEditTracker: RecentEditTracker,
-        logging: Logging,
-        cancellationToken: CancellationToken,
-        opentabs: InlineCompletionWithReferencesParams['openTabFilepaths'],
-        config: { includeRecentEdits: boolean }
-    ): Promise<
-        | {
-              supContextData: CodeWhispererSupplementalContext
-              items: CodeWhispererTokenClient.SupplementalContextList
-          }
-        | undefined
-    >
 
     constructor(codeWhispererRegion: string, codeWhispererEndpoint: string) {
         this.codeWhispererRegion = codeWhispererRegion
@@ -219,25 +146,6 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
     getCredentialsType(): CredentialsType {
         return 'iam'
-    }
-
-    async constructSupplementalContext(
-        document: TextDocument,
-        position: Position,
-        workspace: Workspace,
-        recentEditTracker: RecentEditTracker,
-        logging: Logging,
-        cancellationToken: CancellationToken,
-        opentabs: InlineCompletionWithReferencesParams['openTabFilepaths'],
-        config: { includeRecentEdits: boolean }
-    ): Promise<
-        | {
-              supContextData: CodeWhispererSupplementalContext
-              items: CodeWhispererTokenClient.SupplementalContextList
-          }
-        | undefined
-    > {
-        return undefined
     }
 
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
@@ -336,81 +244,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         return 'bearer'
     }
 
-    async constructSupplementalContext(
-        document: TextDocument,
-        position: Position,
-        workspace: Workspace,
-        recentEditTracker: RecentEditTracker,
-        logging: Logging,
-        cancellationToken: CancellationToken,
-        opentabs: InlineCompletionWithReferencesParams['openTabFilepaths'],
-        config: { includeRecentEdits: boolean }
-    ): Promise<
-        | {
-              supContextData: CodeWhispererSupplementalContext
-              items: CodeWhispererTokenClient.SupplementalContextList
-          }
-        | undefined
-    > {
-        const items: CodeWhispererTokenClient.SupplementalContext[] = []
-
-        const projectContext = await fetchSupplementalContext(
-            document,
-            position,
-            workspace,
-            logging,
-            cancellationToken,
-            opentabs
-        )
-        if (projectContext) {
-            items.push(
-                ...projectContext.supplementalContextItems.map(v => ({
-                    content: v.content,
-                    filePath: v.filePath,
-                }))
-            )
-        }
-
-        const recentEditsContext = config.includeRecentEdits
-            ? await recentEditTracker.generateEditBasedContext(document)
-            : undefined
-        if (recentEditsContext) {
-            items.push(
-                ...recentEditsContext.supplementalContextItems.map(item => ({
-                    content: item.content,
-                    filePath: item.filePath,
-                    type: 'PreviousEditorState',
-                    metadata: {
-                        previousEditorStateMetadata: {
-                            timeOffset: 1000,
-                        },
-                    },
-                }))
-            )
-        }
-
-        const merged: CodeWhispererSupplementalContext | undefined = recentEditsContext
-            ? {
-                  contentsLength: (projectContext?.contentsLength || 0) + (recentEditsContext?.contentsLength || 0),
-                  latency: Math.max(projectContext?.latency || 0, recentEditsContext?.latency || 0),
-                  isUtg: projectContext?.isUtg || false,
-                  isProcessTimeout: projectContext?.isProcessTimeout || false,
-                  strategy: recentEditsContext ? 'recentEdits' : projectContext?.strategy || 'Empty',
-                  supplementalContextItems: [
-                      ...(projectContext?.supplementalContextItems || []),
-                      ...(recentEditsContext?.supplementalContextItems || []),
-                  ],
-              }
-            : projectContext
-
-        return merged
-            ? {
-                  supContextData: merged,
-                  items: items,
-              }
-            : undefined
-    }
-
     private withProfileArn<T extends object>(request: T): T {
         if (!this.profileArn) return request
 
@@ -421,57 +254,27 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // add cancellation check
         // add error check
         if (this.customizationArn) request.customizationArn = this.customizationArn
-        const beforeApiCall = performance.now()
-        let recentEditsLogStr = ''
-        const recentEdits = request.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
-        if (recentEdits) {
-            if (recentEdits.length === 0) {
-                recentEditsLogStr += `No recent edits`
-            } else {
-                recentEditsLogStr += '\n'
-                for (let i = 0; i < recentEdits.length; i++) {
-                    const e = recentEdits[i]
-                    recentEditsLogStr += `[recentEdits ${i}th]:\n`
-                    recentEditsLogStr += `${e.content}\n`
-                }
-            }
-        }
+        const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
         this.logging.info(
-            `GenerateCompletion request: 
+            `GenerateCompletion response: 
     "endpoint": ${this.codeWhispererEndpoint},
-    "predictionType": ${request.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
+    "requestId": ${response.$response.requestId},
+    "responseCompletionCount": ${response.completions?.length ?? 0},
+    "responsePredictionCount": ${response.predictions?.length ?? 0},
+    "suggestionType": ${request.predictionTypes?.toString() ?? ''},
     "filename": ${request.fileContext.filename},
     "language": ${request.fileContext.programmingLanguage.languageName},
-    "supplementalContextCount": ${request.supplementalContexts?.length ?? 0},
+    "supplementalContextLength": ${request.supplementalContexts?.length ?? 0},
     "request.nextToken": ${request.nextToken},
-    "recentEdits": ${recentEditsLogStr}`
+    "response.nextToken": ${response.nextToken}`
         )
-
-        const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
 
         const responseContext = {
             requestId: response?.$response?.requestId,
             codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
             nextToken: response.nextToken,
         }
-
-        const r = this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
-        const firstSuggestionLogstr = r.suggestions.length > 0 ? `\n${r.suggestions[0].content}` : 'No suggestion'
-
-        this.logging.info(
-            `GenerateCompletion response: 
-    "endpoint": ${this.codeWhispererEndpoint},
-    "requestId": ${responseContext.requestId},
-    "sessionId": ${responseContext.codewhispererSessionId},
-    "responseCompletionCount": ${response.completions?.length ?? 0},
-    "responsePredictionCount": ${response.predictions?.length ?? 0},
-    "predictionType": ${request.predictionTypes?.toString() ?? ''},
-    "latency": ${performance.now() - beforeApiCall},
-    "filename": ${request.fileContext.filename},
-    "response.nextToken": ${response.nextToken},
-    "firstSuggestion": ${firstSuggestionLogstr}`
-        )
-        return r
+        return this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
     }
 
     private mapCodeWhispererApiResponseToSuggestion(

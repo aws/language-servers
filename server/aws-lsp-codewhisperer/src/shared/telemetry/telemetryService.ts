@@ -5,10 +5,7 @@ import {
     Logging,
     Telemetry,
 } from '@aws/language-server-runtimes/server-interface'
-import {
-    CodeWhispererSession,
-    UserTriggerDecision,
-} from '../../language-server/inline-completion/session/sessionManager'
+import { CodeWhispererSession } from '../../language-server/inline-completion/session/sessionManager'
 import {
     SuggestionState,
     UserTriggerDecisionEvent,
@@ -118,11 +115,9 @@ export class TelemetryService {
         return service
     }
 
-    private getSuggestionState(userTriggerDecision: UserTriggerDecision): SuggestionState {
+    private getSuggestionState(session: CodeWhispererSession): SuggestionState {
         let suggestionState: SuggestionState
-        // Edits show one suggestion sequentially (with pagination), so use latest itemId state;
-        // Completions show multiple suggestions together, so aggregate all states
-        switch (userTriggerDecision) {
+        switch (session.getAggregatedUserTriggerDecision()) {
             case 'Accept':
                 suggestionState = 'ACCEPT'
                 break
@@ -191,7 +186,6 @@ export class TelemetryService {
 
     public emitUserTriggerDecision(
         session: CodeWhispererSession,
-        userTriggerDecision: UserTriggerDecision,
         timeSinceLastUserModification?: number,
         addedCharacterCount?: number,
         deletedCharacterCount?: number,
@@ -265,7 +259,7 @@ export class TelemetryService {
             },
             completionType:
                 session.suggestions.length > 0 ? getCompletionType(session.suggestions[0]).toUpperCase() : 'LINE',
-            suggestionState: this.getSuggestionState(userTriggerDecision),
+            suggestionState: this.getSuggestionState(session),
             recommendationLatencyMilliseconds: session.firstCompletionDisplayLatency
                 ? session.firstCompletionDisplayLatency
                 : 0,
@@ -287,8 +281,7 @@ export class TelemetryService {
             "acceptedCharacterCount": ${event.acceptedCharacterCount}
             "addedCharacterCount": ${event.addedCharacterCount}
             "deletedCharacterCount": ${event.deletedCharacterCount}
-            "streakLength": ${event.streakLength}
-            "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds}`)
+            "streakLength": ${event.streakLength}`)
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
         })

@@ -35,7 +35,6 @@ export interface MCPServerConfig {
     timeout?: number
     url?: string
     headers?: Record<string, string>
-    disabled?: boolean
     __configPath__?: string
 }
 export interface MCPServerPermission {

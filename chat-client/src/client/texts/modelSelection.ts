@@ -37,7 +37,10 @@ const modelSelection: ChatItemFormItem = {
  */
 export const modelSelectionForRegion: Record<string, ChatItemFormItem> = {
     'us-east-1': modelSelection,
-    'eu-central-1': modelSelection,
+    'eu-central-1': {
+        ...modelSelection,
+        options: modelOptions.filter(option => option.value !== BedrockModel.CLAUDE_SONNET_4_20250514_V1_0),
+    },
 }
 
 export const getModelSelectionChatItem = (modelName: string): ChatItem => ({

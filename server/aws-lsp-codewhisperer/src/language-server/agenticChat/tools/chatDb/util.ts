@@ -126,9 +126,8 @@ export type TabWithDbMetadata = {
 export type DbReference = { collection: Collection<Tab>; db: Loki }
 
 export type MessagesWithCharacterCount = {
-    history: Message[]
-    historyCount: number
-    currentCount: number
+    messages: Message[]
+    count: number
 }
 
 /**

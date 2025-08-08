@@ -279,7 +279,8 @@ describe('crossFileContextUtil', function () {
                 document,
                 { line: 0, character: 0 },
                 features.workspace,
-                fakeCancellationToken
+                fakeCancellationToken,
+                amazonQServiceManager
             )
             assert.deepStrictEqual(result, {
                 supplementalContextItems: [],
@@ -307,7 +308,8 @@ describe('crossFileContextUtil', function () {
                 document,
                 { line: 0, character: 0 },
                 features.workspace,
-                fakeCancellationToken
+                fakeCancellationToken,
+                amazonQServiceManager
             )
 
             sinon.assert.notCalled(instanceStub)
@@ -336,7 +338,8 @@ describe('crossFileContextUtil', function () {
                 document,
                 { line: 0, character: 0 },
                 features.workspace,
-                fakeCancellationToken
+                fakeCancellationToken,
+                amazonQServiceManager
             )
             assert.deepStrictEqual(result, {
                 supplementalContextItems: [{ content: 'someOtherContet', filePath: '/path/', score: 29.879 }],
@@ -361,7 +364,8 @@ describe('crossFileContextUtil', function () {
                 document,
                 { line: 0, character: 0 },
                 features.workspace,
-                fakeCancellationToken
+                fakeCancellationToken,
+                amazonQServiceManager
             )
             assert.deepStrictEqual(result, {
                 supplementalContextItems: [

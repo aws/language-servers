@@ -12,6 +12,7 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { crossFileContextConfig, supplementalContextTimeoutInMs } from '../models/constants'
 import * as os from 'os'
+import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 import { TestIntentDetector } from './unitTestIntentDetection'
 import { FocalFileResolver } from './focalFileResolution'
 import * as fs from 'fs'
@@ -28,6 +29,7 @@ export async function fetchSupplementalContext(
     workspace: Workspace,
     logging: Logging,
     cancellationToken: CancellationToken,
+    amazonQServiceManager?: AmazonQBaseServiceManager,
     openTabFiles?: string[]
 ): Promise<CodeWhispererSupplementalContext | undefined> {
     const timesBeforeFetching = performance.now()
@@ -72,6 +74,7 @@ export async function fetchSupplementalContext(
                 position,
                 workspace,
                 cancellationToken,
+                amazonQServiceManager,
                 openTabFiles
             )
         }

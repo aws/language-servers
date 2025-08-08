@@ -188,14 +188,13 @@ export class McpEventHandler {
                 ],
             }
 
-            if (mcpManager.isServerDisabled(serverName)) {
-                disabledItems.push(item)
-            } else {
-                activeItems.push({
-                    ...item,
-                    description: `${toolsCount}`,
-                })
-            }
+            // if (mcpManager.isServerDisabled(serverName)) {
+            //     disabledItems.push(item)
+            // } else {
+            activeItems.push({
+                ...item,
+                description: `${toolsCount}`,
+            })
         })
 
         // Create the groups
@@ -866,10 +865,8 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
-        const mcpManager = McpManager.instance
-
         // Get the appropriate agent path
-        const agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
+        const agentPath = await this.#getAgentPath()
 
         const perm: MCPServerPermission = {
             enabled: true,
@@ -881,12 +878,12 @@ export class McpEventHandler {
         this.#isProgrammaticChange = true
 
         try {
-            await mcpManager.updateServerPermission(serverName, perm)
+            await McpManager.instance.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to enable MCP server: ${error}`)
-            this.#isProgrammaticChange = false
         }
+        this.#isProgrammaticChange = false
         return { id: params.id }
     }
 
@@ -899,9 +896,8 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
-        const mcpManager = McpManager.instance
         // Get the appropriate agent path
-        const agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
+        const agentPath = await this.#getAgentPath()
 
         const perm: MCPServerPermission = {
             enabled: false,
@@ -913,13 +909,13 @@ export class McpEventHandler {
         this.#isProgrammaticChange = true
 
         try {
-            await mcpManager.updateServerPermission(serverName, perm)
+            await McpManager.instance.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to disable MCP server: ${error}`)
-            this.#isProgrammaticChange = false
         }
 
+        this.#isProgrammaticChange = false
         return { id: params.id }
     }
 
@@ -1233,9 +1229,7 @@ export class McpEventHandler {
         // Emit MCP config event after reinitialization
         const mcpManager = McpManager.instance
         const serverConfigs = mcpManager.getAllServerConfigs()
-        const activeServers = Array.from(serverConfigs.entries()).filter(
-            ([name, _]) => !mcpManager.isServerDisabled(name)
-        )
+        const activeServers = Array.from(serverConfigs.entries())
 
         // Get the global agent path
         const globalAgentPath = getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
@@ -1273,12 +1267,12 @@ export class McpEventHandler {
         // Emit server initialize events for all active servers
         for (const [serverName, config] of serverConfigs.entries()) {
             const transportType = config.command ? 'stdio' : 'http'
-            const enabled = !mcpManager.isServerDisabled(serverName)
+            // const enabled = !mcpManager.isServerDisabled(serverName)
             this.#telemetryController?.emitMCPServerInitializeEvent({
                 source: 'reload',
                 command: transportType === 'stdio' ? config.command : undefined,
                 url: transportType === 'http' ? config.url : undefined,
-                enabled: enabled,
+                enabled: true,
                 numTools: mcpManager.getAllToolsWithPermissions(serverName).length,
                 scope: config.__configPath__ === globalAgentPath ? 'global' : 'workspace',
                 transportType: 'stdio',
@@ -1325,10 +1319,12 @@ export class McpEventHandler {
      * @returns The agent path to use (workspace if exists, otherwise global)
      */
     async #getAgentPath(isGlobal: boolean = true): Promise<string> {
-        const globalAgentPath = getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
         if (isGlobal) {
-            return globalAgentPath
+            return getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
         }
+
+        const globalAgentPath = getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
+
         // Get workspace folders and check for workspace agent path
         const workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
         if (workspaceFolders && workspaceFolders.length > 0) {

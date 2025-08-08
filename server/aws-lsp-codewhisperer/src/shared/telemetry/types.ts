@@ -206,7 +206,6 @@ export enum ChatTelemetryEventName {
     MCPServerInit = 'amazonq_mcpServerInit',
     LoadHistory = 'amazonq_loadHistory',
     CompactHistory = 'amazonq_compactHistory',
-    CompactNudge = 'amazonq_compactNudge',
     ChatHistoryAction = 'amazonq_performChatHistoryAction',
     ExportTab = 'amazonq_exportTab',
     UiClick = 'ui_click',
@@ -232,7 +231,6 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.MCPServerInit]: MCPServerInitializeEvent
     [ChatTelemetryEventName.LoadHistory]: LoadHistoryEvent
     [ChatTelemetryEventName.CompactHistory]: CompactHistoryEvent
-    [ChatTelemetryEventName.CompactNudge]: CompactNudgeEvent
     [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
     [ChatTelemetryEventName.ExportTab]: ExportTabEvent
     [ChatTelemetryEventName.UiClick]: UiClickEvent
@@ -394,13 +392,6 @@ export type LoadHistoryEvent = {
 export type CompactHistoryEvent = {
     type: CompactHistoryActionType
     characters: number
-    credentialStartUrl?: string
-    languageServerVersion?: string
-}
-
-export type CompactNudgeEvent = {
-    characters: number
-    credentialStartUrl?: string
     languageServerVersion?: string
 }
 
