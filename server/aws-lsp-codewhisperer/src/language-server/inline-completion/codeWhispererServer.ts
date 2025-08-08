@@ -57,6 +57,7 @@ import { DocumentChangedListener } from './documentChangedListener'
 import { EditCompletionHandler } from './editCompletionHandler'
 import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
+import { URI } from 'vscode-uri'
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
