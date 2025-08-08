@@ -696,9 +696,9 @@ export const CodewhispererServerFactory =
                 session.suggestionType === SuggestionType.EDIT && isAccepted && session.hasEditsPending
 
             if (!shouldKeepSessionOpen) {
-                completionSessionManager.closeSession(session)
+                sessionManager.closeSession(session)
             }
-            const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,
