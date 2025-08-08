@@ -80,7 +80,6 @@ export class CodeWhispererSession {
     includeImportsWithSuggestions?: boolean
     codewhispererSuggestionImportCount: number = 0
     suggestionType?: string
-    hasEditsPending?: boolean = false
     // Track the most recent itemId for paginated Edit suggestions
 
     constructor(data: SessionData) {

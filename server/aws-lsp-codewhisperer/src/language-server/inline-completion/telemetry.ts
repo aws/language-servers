@@ -147,13 +147,7 @@ export const emitUserTriggerDecisionTelemetry = async (
         streakLength
     )
 
-    // Mark telemetry as complete unless Edit suggestion was accepted with more pending
-    const hasPendingEditTelemetry =
-        session.suggestionType === SuggestionType.EDIT && session.acceptedSuggestionId && session.hasEditsPending
-
-    if (!hasPendingEditTelemetry) {
-        session.reportedUserDecision = true
-    }
+    session.reportedUserDecision = true
 }
 
 export const emitAggregatedUserTriggerDecisionTelemetry = (
