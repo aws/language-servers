@@ -2,7 +2,7 @@ import { WorkspaceFolderManager } from './workspaceFolderManager'
 
 export class IdleWorkspaceManager {
     private static readonly idleThreshold = 30 * 60 * 1000 // 30 minutes
-    private static lastActivityTimestamp = Date.now()
+    private static lastActivityTimestamp = 0 // treat session as idle as the start
 
     private constructor() {}
 

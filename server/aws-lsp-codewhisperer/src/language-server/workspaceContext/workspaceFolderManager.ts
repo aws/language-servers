@@ -56,6 +56,7 @@ export class WorkspaceFolderManager {
     private messageQueueConsumerInterval: NodeJS.Timeout | undefined
     private isOptedOut: boolean = false
     private isCheckingRemoteWorkspaceStatus: boolean = false
+    private isArtifactUploadedToRemoteWorkspace: boolean = false
 
     static createInstance(
         serviceManager: AmazonQTokenServiceManager,
@@ -319,14 +320,13 @@ export class WorkspaceFolderManager {
         this.workspaceState.webSocketClient = webSocketClient
     }
 
-    async initializeWorkspaceStatusMonitor() {
+    initializeWorkspaceStatusMonitor() {
         this.logging.log(`Initializing workspace status check for workspace [${this.workspaceIdentifier}]`)
 
         // Reset workspace ID to force operations to wait for new remote workspace information
         this.resetRemoteWorkspaceId()
 
-        this.artifactManager.resetFromDisposal()
-        this.dependencyDiscoverer.resetFromDisposal()
+        this.isArtifactUploadedToRemoteWorkspace = false
 
         // Set up message queue consumer
         if (this.messageQueueConsumerInterval === undefined) {
@@ -344,10 +344,6 @@ export class WorkspaceFolderManager {
                 }
             }, this.MESSAGE_PUBLISH_INTERVAL)
         }
-
-        // Perform a one-time checkRemoteWorkspaceStatusAndReact first
-        // Pass skipUploads as true since it would be handled by processNewWorkspaceFolders
-        await this.checkRemoteWorkspaceStatusAndReact(true)
 
         // Set up continuous monitoring which periodically invokes checkRemoteWorkspaceStatusAndReact
         if (!this.isOptedOut && this.continuousMonitorInterval === undefined) {
@@ -422,7 +418,7 @@ export class WorkspaceFolderManager {
         })
     }
 
-    public async checkRemoteWorkspaceStatusAndReact(skipUploads: boolean = false) {
+    public async checkRemoteWorkspaceStatusAndReact() {
         if (this.isCheckingRemoteWorkspaceStatus) {
             // Skip checking remote workspace if a previous check is still in progress
             return
@@ -459,7 +455,7 @@ export class WorkspaceFolderManager {
             if (!metadata) {
                 // Workspace no longer exists, Recreate it.
                 this.resetRemoteWorkspaceId() // workspaceId would change if remote record is gone
-                await this.handleWorkspaceCreatedState(skipUploads)
+                await this.handleWorkspaceCreatedState()
                 return
             }
 
@@ -476,16 +472,30 @@ export class WorkspaceFolderManager {
                         this.logging.log(
                             `Workspace is ready but no connection exists or connection lost. Re-establishing connection...`
                         )
+                        let uploadArtifactsPromise: Promise<void> | undefined
+                        if (!this.isArtifactUploadedToRemoteWorkspace) {
+                            uploadArtifactsPromise = this.uploadAllArtifactsToRemoteWorkspace()
+                        }
                         await this.establishConnection(metadata)
+                        if (uploadArtifactsPromise) {
+                            await uploadArtifactsPromise
+                        }
                     }
                     break
                 case 'PENDING':
                     // Schedule an initial connection when pending
+                    let uploadArtifactsPromise: Promise<void> | undefined
+                    if (!this.isArtifactUploadedToRemoteWorkspace) {
+                        uploadArtifactsPromise = this.uploadAllArtifactsToRemoteWorkspace()
+                    }
                     await this.waitForInitialConnection()
+                    if (uploadArtifactsPromise) {
+                        await uploadArtifactsPromise
+                    }
                     break
                 case 'CREATED':
                     // Workspace has no environment, Recreate it.
-                    await this.handleWorkspaceCreatedState(skipUploads)
+                    await this.handleWorkspaceCreatedState()
                     break
                 default:
                     this.logging.warn(`Unknown workspace status: ${metadata.workspaceStatus}`)
@@ -527,9 +537,7 @@ export class WorkspaceFolderManager {
                         )
                         clearInterval(intervalId)
                         this.optOutMonitorInterval = undefined
-                        this.initializeWorkspaceStatusMonitor().catch(error => {
-                            this.logging.error(`Error while initializing workspace status monitoring: ${error}`)
-                        })
+                        this.initializeWorkspaceStatusMonitor()
                         this.processNewWorkspaceFolders(this.workspaceFolders).catch(error => {
                             this.logging.error(`Error while processing workspace folders: ${error}`)
                         })
@@ -542,7 +550,7 @@ export class WorkspaceFolderManager {
         }
     }
 
-    private async handleWorkspaceCreatedState(skipUploads: boolean = false): Promise<void> {
+    private async handleWorkspaceCreatedState(): Promise<void> {
         this.logging.log(`No READY / PENDING remote workspace found, creating a new one`)
         // If remote state is CREATED, call create API to create a new workspace
         this.resetWebSocketClient()
@@ -551,13 +559,9 @@ export class WorkspaceFolderManager {
         // If creation succeeds, establish connection
         if (initialResult.response) {
             this.logging.log(`Workspace [${this.workspaceIdentifier}] created successfully, establishing connection`)
+            const uploadArtifactsPromise = this.uploadAllArtifactsToRemoteWorkspace()
             await this.waitForInitialConnection()
-            if (!skipUploads) {
-                await this.syncSourceCodesToS3(this.workspaceFolders)
-                this.dependencyDiscoverer.reSyncDependenciesToS3(this.workspaceFolders).catch(e => {
-                    this.logging.warn(`Error during re-syncing dependencies: ${e}`)
-                })
-            }
+            await uploadArtifactsPromise
             return
         }
 
@@ -579,13 +583,23 @@ export class WorkspaceFolderManager {
         }
 
         this.logging.log(`Retry succeeded for workspace creation, establishing connection`)
+        const uploadArtifactsPromise = this.uploadAllArtifactsToRemoteWorkspace()
         await this.waitForInitialConnection()
-        if (!skipUploads) {
-            await this.syncSourceCodesToS3(this.workspaceFolders)
-            this.dependencyDiscoverer.reSyncDependenciesToS3(this.workspaceFolders).catch(e => {
-                this.logging.warn(`Error during re-syncing dependencies: ${e}`)
-            })
-        }
+        await uploadArtifactsPromise
+    }
+
+    private async uploadAllArtifactsToRemoteWorkspace() {
+        // initialize source codes
+        this.artifactManager.resetFromDisposal()
+        await this.syncSourceCodesToS3(this.workspaceFolders)
+
+        // initialize dependencies
+        this.dependencyDiscoverer.disposeAndReset()
+        this.dependencyDiscoverer.searchDependencies(this.workspaceFolders).catch(e => {
+            this.logging.warn(`Error during dependency discovery: ${e}`)
+        })
+
+        this.isArtifactUploadedToRemoteWorkspace = true
     }
 
     public isContinuousMonitoringStopped(): boolean {

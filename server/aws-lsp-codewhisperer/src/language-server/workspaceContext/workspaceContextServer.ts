@@ -309,10 +309,8 @@ export const WorkspaceContextServer = (): Server => features => {
 
                     fileUploadJobManager.startFileUploadJobConsumer()
                     dependencyEventBundler.startDependencyEventBundler()
-                    await Promise.all([
-                        workspaceFolderManager.initializeWorkspaceStatusMonitor(),
-                        workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders),
-                    ])
+
+                    workspaceFolderManager.initializeWorkspaceStatusMonitor()
                     logging.log(`Workspace context workflow initialized`)
                 } else if (!isLoggedIn) {
                     if (isWorkflowInitialized) {

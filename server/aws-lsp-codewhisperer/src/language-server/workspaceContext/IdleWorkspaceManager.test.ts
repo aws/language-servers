@@ -39,9 +39,6 @@ describe('IdleWorkspaceManager', () => {
 
     describe('recordActivityTimestamp', () => {
         it('should update activity timestamp', async () => {
-            const initialTime = Date.now()
-            clock.tick(5000)
-
             IdleWorkspaceManager.recordActivityTimestamp()
 
             expect(IdleWorkspaceManager.isSessionIdle()).toBe(false)
