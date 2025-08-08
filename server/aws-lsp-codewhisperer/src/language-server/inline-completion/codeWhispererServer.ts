@@ -866,6 +866,7 @@ export const CodewhispererServerFactory =
 
                 // Always emit user trigger decision at session close
                 sessionManager.closeSession(session)
+
                 const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
