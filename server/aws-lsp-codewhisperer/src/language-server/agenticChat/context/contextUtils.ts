@@ -4,6 +4,7 @@ import { sanitizeFilename } from '@aws/lsp-core/out/util/text'
 import { RelevantTextDocumentAddition } from './agenticChatTriggerContext'
 import { FileDetails, FileList } from '@aws/language-server-runtimes/server-interface'
 import { ContextCommandItem } from 'local-indexing'
+import { normalizePathForDescription } from './pathEscapeUtils'
 export interface ContextInfo {
     pinnedContextCount: {
         fileContextCount: number
@@ -153,7 +154,7 @@ export function mergeRelevantTextDocuments(documents: RelevantTextDocumentAdditi
         const fullPath = documents.find(doc => doc.relativeFilePath === relativeFilePath)?.path
         details[relativeFilePath] = {
             fullPath: fullPath,
-            description: fullPath,
+            description: normalizePathForDescription(fullPath),
             lineRanges: mergedRanges,
         }
     })
