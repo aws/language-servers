@@ -213,6 +213,18 @@ export function applyUnifiedDiff(docText: string, unifiedDiff: string): string {
     }
 }
 
+export function getAddedAndDeletedLines(unifiedDiff: string): { addedLines: string[]; deletedLines: string[] } {
+    const lines = unifiedDiff.split('\n')
+    const addedLines = lines.filter(line => line.startsWith('+') && !line.startsWith('+++')).map(line => line.slice(1))
+    const deletedLines = lines
+        .filter(line => line.startsWith('-') && !line.startsWith('---'))
+        .map(line => line.slice(1))
+    return {
+        addedLines,
+        deletedLines,
+    }
+}
+
 // src https://github.com/aws/aws-toolkit-vscode/blob/3921457b0a2094b831beea0d66cc2cbd2a833890/packages/amazonq/src/app/inline/EditRendering/diffUtils.ts#L147
 export function getAddedAndDeletedChars(unifiedDiff: string): {
     addedCharacters: string
@@ -252,5 +264,60 @@ export function getAddedAndDeletedChars(unifiedDiff: string): {
     return {
         addedCharacters,
         deletedCharacters,
+    }
+}
+
+/**
+ * Calculate character differences between added and deleted text blocks using LCS
+ */
+export interface CharDiffResult {
+    charactersAdded: number
+    charactersRemoved: number
+}
+
+/**
+ * Find longest common subsequence length between two strings
+ */
+function lcsLength(str1: string, str2: string): number[][] {
+    const m = str1.length
+    const n = str2.length
+    const dp = Array(m + 1)
+        .fill(null)
+        .map(() => Array(n + 1).fill(0))
+
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (str1[i - 1] === str2[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1])
+            }
+        }
+    }
+
+    return dp
+}
+
+/**
+ * Calculate character differences between added and deleted blocks
+ */
+export function getCharacterDifferences(addedLines: string[], deletedLines: string[]): CharDiffResult {
+    const addedText = addedLines.join('\n')
+    const deletedText = deletedLines.join('\n')
+
+    if (addedText.length === 0) {
+        return { charactersAdded: 0, charactersRemoved: deletedText.length }
+    }
+
+    if (deletedText.length === 0) {
+        return { charactersAdded: addedText.length, charactersRemoved: 0 }
+    }
+
+    const lcsTable = lcsLength(deletedText, addedText)
+    const lcsLen = lcsTable[deletedText.length][addedText.length]
+
+    return {
+        charactersAdded: addedText.length - lcsLen,
+        charactersRemoved: deletedText.length - lcsLen,
     }
 }
