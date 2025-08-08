@@ -3489,6 +3489,7 @@ export class AgenticChatController implements ChatHandlers {
         try {
             const localProjectContextController = await LocalProjectContextController.getInstance()
             const contextItems = await localProjectContextController.getContextCommandItems()
+            this.#contextCommandsProvider.setFilesAndFoldersPending(false)
             await this.#contextCommandsProvider.processContextCommandUpdate(contextItems)
             void this.#contextCommandsProvider.maybeUpdateCodeSymbols()
         } catch (error) {
