@@ -911,7 +911,7 @@ const getLanguageIdFromUri = (uri: string, logging?: any): string => {
         const extension = uri.split('.').pop()?.toLowerCase()
         return ABAP_EXTENSIONS.has(extension || '') ? 'abap' : ''
     } catch (err) {
-        logging?.log(`Error parsing URI: ${uri}: ${err}`)
+        logging?.log(`Error parsing URI to determine language: ${uri}: ${err}`)
         return ''
     }
 }
