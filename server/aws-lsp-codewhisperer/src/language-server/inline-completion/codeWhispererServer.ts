@@ -56,6 +56,7 @@ import {
 import { DocumentChangedListener } from './documentChangedListener'
 import { EditCompletionHandler } from './editCompletionHandler'
 import { EMPTY_RESULT } from './constants'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -141,6 +142,8 @@ export const CodewhispererServerFactory =
             // 2. it is not designed to handle concurrent changes to these state variables.
             // when one handler is at the API call stage, it has not yet update the session state
             // but another request can start, causing the state to be incorrect.
+            IdleWorkspaceManager.recordActivityTimestamp()
+
             if (isOnInlineCompletionHandlerInProgress) {
                 logging.log(`Skip concurrent inline completion`)
                 return EMPTY_RESULT
