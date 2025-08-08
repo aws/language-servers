@@ -44,6 +44,10 @@ jobs:
                   node-version: '20'
                   cache: 'npm'
 
+            # Needed to format the json file being checked in
+            - name: Install dependencies
+              run: npm ci
+
             - name: Calculate Release Version
               id: release-version
               env:
@@ -87,6 +91,9 @@ jobs:
 
                   git add "$VERSION_FILE"
 
+                  # Ensure the file does not cause issues when merged to main
+                  npm run format-staged
+
             - name: Create Release Candidate Branch
               id: release-branch
               env:
@@ -112,5 +119,5 @@ jobs:
                   git config --global user.name "aws-toolkit-automation"
                   # Configure git to use the PAT token for authentication
                   git remote set-url origin "https://x-access-token:${REPO_PAT}@github.com/${{ github.repository }}.git"
-                  git commit -m "Bump agentic version: $RELEASE_VERSION"
+                  git commit -m "chore: bump agentic version: $RELEASE_VERSION"
                   git push --set-upstream origin "$BRANCH_NAME"
