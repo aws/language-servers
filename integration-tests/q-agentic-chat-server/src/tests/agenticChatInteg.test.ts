@@ -169,11 +169,11 @@ describe('Q Agentic Chat Server Integration Tests', async () => {
 
         expect(decryptedResult.additionalMessages).to.be.an('array')
         const fsReadMessage = decryptedResult.additionalMessages?.find(
-            msg => msg.type === 'tool' && msg.fileList?.rootFolderTitle === '1 file read'
+            msg => msg.type === 'tool' && msg.header?.body === '1 file read'
         )
         expect(fsReadMessage).to.exist
         const expectedPath = path.join(rootPath, 'test.py')
-        const actualPaths = fsReadMessage?.fileList?.filePaths?.map(normalizePath) || []
+        const actualPaths = fsReadMessage?.header?.fileList?.filePaths?.map(normalizePath) || []
         expect(actualPaths).to.include.members([normalizePath(expectedPath)])
         expect(fsReadMessage?.messageId?.startsWith('tooluse_')).to.be.true
     })
@@ -191,10 +191,10 @@ describe('Q Agentic Chat Server Integration Tests', async () => {
 
         expect(decryptedResult.additionalMessages).to.be.an('array')
         const listDirectoryMessage = decryptedResult.additionalMessages?.find(
-            msg => msg.type === 'tool' && msg.fileList?.rootFolderTitle === '1 directory listed'
+            msg => msg.type === 'tool' && msg.header?.body === '1 directory listed'
         )
         expect(listDirectoryMessage).to.exist
-        const actualPaths = listDirectoryMessage?.fileList?.filePaths?.map(normalizePath) || []
+        const actualPaths = listDirectoryMessage?.header?.fileList?.filePaths?.map(normalizePath) || []
         expect(actualPaths).to.include.members([normalizePath(rootPath)])
         expect(listDirectoryMessage?.messageId?.startsWith('tooluse_')).to.be.true
     })
@@ -371,11 +371,12 @@ describe('Q Agentic Chat Server Integration Tests', async () => {
 
         expect(decryptedResult.additionalMessages).to.be.an('array')
         const fileSearchMessage = decryptedResult.additionalMessages?.find(
-            msg => msg.type === 'tool' && msg.fileList?.rootFolderTitle === '1 directory searched'
+            msg => msg.type === 'tool' && msg.header?.body === 'Searched for `test` in '
         )
         expect(fileSearchMessage).to.exist
         expect(fileSearchMessage?.messageId?.startsWith('tooluse_')).to.be.true
-        const actualPaths = fileSearchMessage?.fileList?.filePaths?.map(normalizePath) || []
+        expect(fileSearchMessage?.header?.status?.text).to.equal('3 results found')
+        const actualPaths = fileSearchMessage?.header?.fileList?.filePaths?.map(normalizePath) || []
         expect(actualPaths).to.include.members([normalizePath(rootPath)])
     })
 })
