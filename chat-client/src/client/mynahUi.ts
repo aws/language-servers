@@ -1330,7 +1330,7 @@ export const createMynahUi = (
         isPairProgrammingMode: boolean,
         isPartialResult?: boolean
     ): Partial<ChatItem> => {
-        const contextHeader = message.type !== 'tool' ? contextListToHeader(message.contextList) : undefined
+        const contextHeader = contextListToHeader(message.contextList)
         const header = contextHeader || toMynahHeader(message.header) // Is this mutually exclusive?
         const fileList = toMynahFileList(message.fileList)
 
@@ -1386,8 +1386,10 @@ export const createMynahUi = (
         // Adding this conditional check to show the stop message in the center.
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
-        // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
-        const shouldMute = message.header?.status?.text !== undefined && message.header?.status?.text !== 'Completed'
+        // If message.header?.status?.text is Stopped or Rejected or Ignored etc.. card should be in disabled state.
+        const shouldMute =
+            message.header?.status?.text !== undefined &&
+            ['Stopped', 'Rejected', 'Ignored', 'Failed', 'Error'].includes(message.header.status.text)
 
         return {
             body: message.body,
