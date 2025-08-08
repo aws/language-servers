@@ -352,7 +352,7 @@ export class McpManager {
                     // streamable http/SSE transport
                     const base = new URL(cfg.url!)
                     try {
-                        // Use HEAD to check if it nees OAuth
+                        // Use HEAD to check if it needs OAuth
                         let headers: Record<string, string> = { ...(cfg.headers ?? {}) }
                         let needsOAuth = false
                         try {
