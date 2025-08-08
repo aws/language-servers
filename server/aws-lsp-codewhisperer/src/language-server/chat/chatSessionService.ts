@@ -27,7 +27,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
-import { getOriginFromClientInfo, getRequestID, isUsageLimitError } from '../../shared/utils'
+import { getOriginFromClientInfo, getClientName, getRequestID, isUsageLimitError } from '../../shared/utils'
 import { enabledModelSelection } from '../../shared/utils'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
@@ -138,7 +138,7 @@ export class ChatSessionService {
         this.#serviceManager = serviceManager
         this.#lsp = lsp
         this.#logging = logging
-        this.#origin = getOriginFromClientInfo(this.#lsp?.getClientInitializeParams()?.clientInfo?.name)
+        this.#origin = getOriginFromClientInfo(getClientName(this.#lsp?.getClientInitializeParams()))
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
