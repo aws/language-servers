@@ -72,8 +72,8 @@ export class AgenticChatResultStream {
                         ...acc,
                         buttons: [...(acc.buttons ?? []), ...(c.buttons ?? [])],
                         body: acc.body + (c.body ? AgenticChatResultStream.resultDelimiter + c.body : ''),
-                        ...(c.contextList && { contextList: c.contextList }),
-                        header: Object.prototype.hasOwnProperty.call(c, 'header') ? c.header : acc.header,
+                        ...(c.contextList && c.type !== 'tool' && { contextList: c.contextList }),
+                        header: c.header !== undefined ? c.header : acc.header,
                         codeReference: [...(acc.codeReference ?? []), ...(c.codeReference ?? [])],
                     }
                 } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
@@ -121,7 +121,7 @@ export class AgenticChatResultStream {
                                         },
                                     },
                                 }),
-                            header: Object.prototype.hasOwnProperty.call(c, 'header') ? c.header : am.header,
+                            ...(am.messageId === c.messageId && c.header !== undefined && { header: c.header }),
                         })),
                     }
                 } else {
