@@ -779,7 +779,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // Determine selected model ID based on priority
         if (modelId) {
-            // Priority 1: Use modelId if it exists in available models
+            // Priority 1: Use modelId if it exists in available models from backend
             if (models.some(model => model.id === modelId)) {
                 selectedModelId = modelId
             }
