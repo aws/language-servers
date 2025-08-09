@@ -1,10 +1,33 @@
 import { ChatItem, ChatItemFormItem, ChatItemType } from '@aws/mynah-ui'
 
+/**
+ * @deprecated use aws/chat/listAvailableModels server request instead
+ */
+export enum BedrockModel {
+    CLAUDE_SONNET_4_20250514_V1_0 = 'CLAUDE_SONNET_4_20250514_V1_0',
+    CLAUDE_3_7_SONNET_20250219_V1_0 = 'CLAUDE_3_7_SONNET_20250219_V1_0',
+}
+
+type ModelDetails = {
+    label: string
+}
+
+const modelRecord: Record<BedrockModel, ModelDetails> = {
+    [BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0]: { label: 'claude-3.7-sonnet' },
+    [BedrockModel.CLAUDE_SONNET_4_20250514_V1_0]: { label: 'claude-4-sonnet' },
+}
+
+const modelOptions = Object.entries(modelRecord).map(([value, { label }]) => ({
+    value,
+    label,
+}))
+
 export const modelSelection: ChatItemFormItem = {
     type: 'select',
     id: 'model-selection',
     mandatory: true,
     hideMandatoryIcon: true,
+    options: modelOptions,
     border: false,
     autoWidth: true,
 }
