@@ -120,16 +120,35 @@ export class EditCompletionHandler {
         }
 
         if (params.partialResultToken && currentSession) {
+            // Close ACTIVE session. We shouldn't record Discard trigger decision for trigger with nextToken.
+            if (currentSession && currentSession.state === 'ACTIVE') {
+                this.sessionManager.discardSession(currentSession)
+            }
+
+            const newSession = this.sessionManager.createSession({
+                document: textDocument,
+                startPosition: params.position,
+                triggerType: 'AutoTrigger',
+                language: currentSession.language,
+                requestContext: currentSession.requestContext,
+                autoTriggerType: undefined,
+                triggerCharacter: '',
+                classifierResult: undefined,
+                classifierThreshold: undefined,
+                credentialStartUrl: currentSession.credentialStartUrl,
+                supplementalMetadata: currentSession.supplementalMetadata,
+                customizationArn: currentSession.customizationArn,
+            })
             // subsequent paginated requests for current session
             try {
                 const suggestionResponse = await this.codeWhispererService.generateSuggestions({
-                    ...currentSession.requestContext,
+                    ...newSession.requestContext,
                     nextToken: `${params.partialResultToken}`,
                 })
                 return await this.processSuggestionResponse(
                     suggestionResponse,
-                    currentSession,
-                    false,
+                    newSession,
+                    true,
                     params.context.selectedCompletionInfo?.range
                 )
             } catch (error) {
