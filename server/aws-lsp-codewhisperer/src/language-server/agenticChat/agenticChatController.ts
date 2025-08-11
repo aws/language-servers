@@ -2531,7 +2531,6 @@ export class AgenticChatController implements ChatHandlers {
 
             default:
                 // Default tool (not only MCP)
-                const quickSettings = this.#buildQuickSettings(toolUse, toolName, toolType, tabId)
                 return {
                     type: 'tool',
                     messageId: toolUse.toolUseId!,
@@ -2545,10 +2544,8 @@ export class AgenticChatController implements ChatHandlers {
                                     icon: isAccept ? 'ok' : 'cancel',
                                     text: isAccept ? 'Completed' : 'Rejected',
                                 },
-                                quickSettings,
                                 fileList: undefined,
                             },
-                            quickSettings,
                         },
                         collapsedContent: [
                             {
@@ -2951,7 +2948,6 @@ export class AgenticChatController implements ChatHandlers {
                                 },
                             ],
                         },
-                        quickSettings,
                     },
                     collapsedContent: [
                         {
@@ -4516,7 +4512,6 @@ export class AgenticChatController implements ChatHandlers {
                                 body: `${toolName}`,
                                 fileList: undefined,
                             },
-                            quickSettings,
                         },
                         collapsedContent: [
                             {
