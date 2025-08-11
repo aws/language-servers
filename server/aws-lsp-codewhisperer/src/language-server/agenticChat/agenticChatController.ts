@@ -1848,7 +1848,8 @@ export class AgenticChatController implements ChatHandlers {
                                     cachedButtonBlockId,
                                     session,
                                     toolUse.name,
-                                    commandCategory
+                                    commandCategory,
+                                    tabId
                                 )
                             }
                             if (isExecuteBash) {
@@ -1912,7 +1913,9 @@ export class AgenticChatController implements ChatHandlers {
                                         chatResultStream,
                                         cachedButtonBlockId,
                                         session,
-                                        toolName
+                                        toolName,
+                                        undefined,
+                                        tabId
                                     )
                                 }
 
@@ -2067,7 +2070,7 @@ export class AgenticChatController implements ChatHandlers {
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
-                        await this.#handleMcpToolResult(toolUse, result, session, chatResultStream)
+                        await this.#handleMcpToolResult(toolUse, result, session, chatResultStream, tabId)
                         break
                 }
                 this.#updateUndoAllState(toolUse, session)
@@ -2498,7 +2501,6 @@ export class AgenticChatController implements ChatHandlers {
             status: { status: 'info' | 'success' | 'warning' | 'error'; icon: string; text: string }
         }
         let body: string | undefined
-
         switch (toolName) {
             case FS_REPLACE:
             case FS_WRITE:
@@ -2529,6 +2531,7 @@ export class AgenticChatController implements ChatHandlers {
 
             default:
                 // Default tool (not only MCP)
+                const quickSettings = this.#buildQuickSettings(toolUse, toolName, toolType, tabId)
                 return {
                     type: 'tool',
                     messageId: toolUse.toolUseId!,
@@ -2545,6 +2548,7 @@ export class AgenticChatController implements ChatHandlers {
                                 quickSettings,
                                 fileList: undefined,
                             },
+                            quickSettings,
                         },
                         collapsedContent: [
                             {
@@ -4480,7 +4484,8 @@ export class AgenticChatController implements ChatHandlers {
         toolUse: ToolUse,
         result: any,
         session: ChatSessionService,
-        chatResultStream: AgenticChatResultStream
+        chatResultStream: AgenticChatResultStream,
+        tabId?: string
     ): Promise<void> {
         // Early return if name or toolUseId is undefined
         if (!toolUse.name || !toolUse.toolUseId) {
@@ -4490,6 +4495,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // Get original server and tool names from the mapping
         const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+        const quickSettings = this.#buildQuickSettings(toolUse, toolUse.name, toolUse.name, tabId)
         if (originalNames) {
             const { serverName, toolName } = originalNames
             const def = McpManager.instance
@@ -4510,6 +4516,7 @@ export class AgenticChatController implements ChatHandlers {
                                 body: `${toolName}`,
                                 fileList: undefined,
                             },
+                            quickSettings,
                         },
                         collapsedContent: [
                             {

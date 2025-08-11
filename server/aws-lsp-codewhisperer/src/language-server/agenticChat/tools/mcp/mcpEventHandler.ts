@@ -34,7 +34,7 @@ import { URI } from 'vscode-uri'
 interface PermissionOption {
     label: string
     value: string
-    description?: string
+    description: string
 }
 
 export class McpEventHandler {
