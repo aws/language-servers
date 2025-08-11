@@ -34,10 +34,6 @@ import {
     BUTTON_STOP_SHELL_COMMAND,
     BUTTON_PAIDTIER_UPGRADE_Q_LEARNMORE,
     BUTTON_PAIDTIER_UPGRADE_Q,
-    BUTTON_FIX_DIAGNOSTIC_ERRORS,
-    BUTTON_FIX_ALL_DIAGNOSTIC_ERRORS,
-    BUTTON_FIX_SELECTED_DIAGNOSTIC_ERRORS,
-    BUTTON_CONTINUE_WITH_ERRORS,
     SUFFIX_PERMISSION,
     SUFFIX_UNDOALL,
     SUFFIX_EXPLANATION,
@@ -467,27 +463,6 @@ export class AgenticChatController implements ChatHandlers {
         } else if (params.buttonId === BUTTON_PAIDTIER_UPGRADE_Q) {
             await this.onManageSubscription(params.tabId)
 
-            return { success: true }
-        } else if (
-            params.buttonId === BUTTON_FIX_ALL_DIAGNOSTIC_ERRORS ||
-            params.buttonId === BUTTON_FIX_SELECTED_DIAGNOSTIC_ERRORS ||
-            params.buttonId === BUTTON_CONTINUE_WITH_ERRORS
-        ) {
-            await this.#diagnosticManager.handleDiagnosticButtonClick(params.buttonId)
-            return { success: true }
-        } else if (params.buttonId.startsWith('diagnostic-checkbox-')) {
-            // Handle diagnostic checkbox clicks
-            const index = parseInt(params.buttonId.replace('diagnostic-checkbox-', ''))
-            const currentErrors = this.#diagnosticManager.getCurrentDiagnosticErrors()
-            if (index >= 0 && index < currentErrors.length) {
-                const filePath = currentErrors[index].filePath
-                await this.#diagnosticManager.handleDiagnosticCheckboxClick({
-                    tabId: params.tabId,
-                    messageId: params.messageId,
-                    filePath: filePath,
-                    index: index,
-                })
-            }
             return { success: true }
         } else {
             return {
@@ -3596,11 +3571,7 @@ export class AgenticChatController implements ChatHandlers {
 
     onInfoLinkClick() {}
 
-    async onLinkClick(params: LinkClickParams) {
-        this.#log(`onLinkClick called with: tabId=${params.tabId}, messageId=${params.messageId}, link=${params.link}`)
-        // Handle diagnostic error file links
-        await this.#diagnosticManager.handleDiagnosticFileLink(params.link, params.messageId, params.tabId)
-    }
+    async onLinkClick(params: LinkClickParams) {}
 
     /**
      * After the Chat UI (mynah-ui) is ready.

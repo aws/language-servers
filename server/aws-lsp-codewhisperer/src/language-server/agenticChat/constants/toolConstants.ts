@@ -32,12 +32,6 @@ export const BUTTON_STOP_SHELL_COMMAND = 'stop-shell-command'
 export const BUTTON_PAIDTIER_UPGRADE_Q_LEARNMORE = 'paidtier-upgrade-q-learnmore'
 export const BUTTON_PAIDTIER_UPGRADE_Q = 'paidtier-upgrade-q'
 
-// Diagnostic error button IDs
-export const BUTTON_FIX_DIAGNOSTIC_ERRORS = 'fix-diagnostic-errors'
-export const BUTTON_FIX_ALL_DIAGNOSTIC_ERRORS = 'fix-all-diagnostic-errors'
-export const BUTTON_FIX_SELECTED_DIAGNOSTIC_ERRORS = 'fix-selected-diagnostic-errors'
-export const BUTTON_CONTINUE_WITH_ERRORS = 'continue-with-errors'
-
 // Message ID suffixes
 export const SUFFIX_PERMISSION = '_permission'
 export const SUFFIX_UNDOALL = '_undoall'
