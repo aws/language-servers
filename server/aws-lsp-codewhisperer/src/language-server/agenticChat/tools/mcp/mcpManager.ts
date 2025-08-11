@@ -292,7 +292,7 @@ export class McpManager {
             this.features.logging.debug(`MCP: initializing server [${serverName}]`)
 
             const client = new Client({
-                name: `mcp-client-${serverName}`,
+                name: `q-chat-plugin`, // Do not use variables in the client name to avoid polluting builder-mcp metrics
                 version: '1.0.0',
             })
 
@@ -662,7 +662,7 @@ export class McpManager {
                 disabled: cfg.disabled ?? false,
             }
             // Only add timeout to agent config if it's not 0
-            if (cfg.timeout !== 0) {
+            if (cfg.timeout !== undefined) {
                 serverConfig.timeout = cfg.timeout
             }
             if (cfg.args && cfg.args.length > 0) {
@@ -1281,11 +1281,21 @@ export class McpManager {
     private handleError(server: string | undefined, err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
 
-        this.features.logging.error(`MCP ERROR${server ? ` [${server}]` : ''}: ${msg}`)
+        const isBenignSseDisconnect =
+            /SSE error:\s*TypeError:\s*terminated:\s*Body Timeout Error/i.test(msg) ||
+            /TypeError:\s*terminated:\s*Body Timeout Error/i.test(msg) ||
+            /TypeError:\s*terminated:\s*other side closed/i.test(msg) ||
+            /ECONNRESET|ENETRESET|EPIPE/i.test(msg)
 
-        if (server) {
-            this.setState(server, McpServerStatus.FAILED, 0, msg)
-            this.emitToolsChanged(server)
+        if (isBenignSseDisconnect) {
+            this.features.logging.debug(`MCP SSE idle timeout${server ? ` [${server}]` : ''}: ${msg}`)
+        } else {
+            // default path for real errors
+            this.features.logging.error(`MCP ERROR${server ? ` [${server}]` : ''}: ${msg}`)
+            if (server) {
+                this.setState(server, McpServerStatus.FAILED, 0, msg)
+                this.emitToolsChanged(server)
+            }
         }
     }
 

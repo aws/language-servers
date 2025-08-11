@@ -1238,7 +1238,7 @@ export class McpEventHandler {
             const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
             if (serverConfig) {
                 // Emit server initialize event after permission change
-                const transportType = serverConfig.command ? 'stdio' : 'http'
+                const transportType = serverConfig.command?.trim() ? 'stdio' : 'http'
                 this.#telemetryController?.emitMCPServerInitializeEvent({
                     source: 'updatePermission',
                     command: transportType === 'stdio' ? serverConfig.command : undefined,
@@ -1319,7 +1319,7 @@ export class McpEventHandler {
                 enabled: enabled,
                 numTools: mcpManager.getAllToolsWithPermissions(serverName).length,
                 scope: config.__configPath__ === globalAgentPath ? 'global' : 'workspace',
-                transportType: 'stdio',
+                transportType: transportType,
                 languageServerVersion: this.#features.runtime.serverInfo.version,
             })
         }

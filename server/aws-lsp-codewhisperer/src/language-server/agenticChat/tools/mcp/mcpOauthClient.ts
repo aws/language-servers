@@ -56,11 +56,16 @@ export class OAuthClient {
             const port = Number(new URL(savedReg.redirect_uri).port)
             server = http.createServer()
             try {
-                await new Promise<void>(res => server.listen(port, '127.0.0.1', res))
+                await this.listen(server, port)
                 redirectUri = savedReg.redirect_uri
                 this.logger.info(`OAuth: reusing redirect URI ${redirectUri}`)
             } catch (e: any) {
                 if (e.code === 'EADDRINUSE') {
+                    try {
+                        server.close()
+                    } catch {
+                        /* ignore */
+                    }
                     this.logger.warn(`Port ${port} in use; falling back to new random port`)
                     ;({ server, redirectUri } = await this.buildCallbackServer())
                     this.logger.info(`OAuth: new redirect URI ${redirectUri}`)
@@ -131,9 +136,8 @@ export class OAuthClient {
     // Spin up a one‑time HTTP listener on localhost:randomPort */
     private static async buildCallbackServer(): Promise<{ server: http.Server; redirectUri: string }> {
         const server = http.createServer()
-        const port = await new Promise<number>(res =>
-            server.listen(0, '127.0.0.1', () => res((server.address() as any).port))
-        )
+        await this.listen(server, 0)
+        const port = (server.address() as any).port as number
         return { server, redirectUri: `http://localhost:${port}` }
     }
 
@@ -393,4 +397,24 @@ export class OAuthClient {
         'sso',
         'cache'
     )
+
+    /**
+     * Await server.listen() but reject if it emits 'error' (eg EADDRINUSE),
+     * so callers can handle it immediately instead of hanging.
+     */
+    private static listen(server: http.Server, port: number, host: string = '127.0.0.1'): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const onListening = () => {
+                server.off('error', onError)
+                resolve()
+            }
+            const onError = (err: NodeJS.ErrnoException) => {
+                server.off('listening', onListening)
+                reject(err)
+            }
+            server.once('listening', onListening)
+            server.once('error', onError)
+            server.listen(port, host)
+        })
+    }
 }
