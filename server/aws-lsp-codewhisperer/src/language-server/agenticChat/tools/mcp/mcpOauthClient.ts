@@ -3,7 +3,7 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import fetch, { type RequestInit } from 'node-fetch'
+import type { RequestInit } from 'node-fetch'
 import * as crypto from 'crypto'
 import * as path from 'path'
 import { spawn } from 'child_process'
@@ -56,11 +56,16 @@ export class OAuthClient {
             const port = Number(new URL(savedReg.redirect_uri).port)
             server = http.createServer()
             try {
-                await new Promise<void>(res => server.listen(port, '127.0.0.1', res))
+                await this.listen(server, port)
                 redirectUri = savedReg.redirect_uri
                 this.logger.info(`OAuth: reusing redirect URI ${redirectUri}`)
             } catch (e: any) {
                 if (e.code === 'EADDRINUSE') {
+                    try {
+                        server.close()
+                    } catch {
+                        /* ignore */
+                    }
                     this.logger.warn(`Port ${port} in use; falling back to new random port`)
                     ;({ server, redirectUri } = await this.buildCallbackServer())
                     this.logger.info(`OAuth: new redirect URI ${redirectUri}`)
@@ -128,12 +133,11 @@ export class OAuthClient {
         }
     }
 
-    // Spin up a one‑time HTTP listener on localhost:randomPort */
+    /** Spin up a one‑time HTTP listener on localhost:randomPort */
     private static async buildCallbackServer(): Promise<{ server: http.Server; redirectUri: string }> {
         const server = http.createServer()
-        const port = await new Promise<number>(res =>
-            server.listen(0, '127.0.0.1', () => res((server.address() as any).port))
-        )
+        await this.listen(server, 0)
+        const port = (server.address() as any).port as number
         return { server, redirectUri: `http://localhost:${port}` }
     }
 
@@ -141,7 +145,8 @@ export class OAuthClient {
     private static async discoverAS(rs: URL): Promise<Meta> {
         // a) HEAD → WWW‑Authenticate → resource_metadata
         try {
-            const h = await fetch(rs.toString(), { method: 'HEAD' })
+            this.logger.info('MCP OAuth: attempting discovery via WWW-Authenticate header')
+            const h = await this.fetchCompat(rs.toString(), { method: 'HEAD' })
             const header = h.headers.get('www-authenticate') || ''
             const m = /resource_metadata=(?:"([^"]+)"|([^,\s]+))/i.exec(header)
             if (m) {
@@ -151,10 +156,11 @@ export class OAuthClient {
                 return await this.fetchASFromResourceMeta(raw, metaUrl)
             }
         } catch {
-            // ignore and fallback
+            this.logger.info('MCP OAuth: no resource_metadata found in WWW-Authenticate header')
         }
 
         // b) well‑known on resource host
+        this.logger.info('MCP OAuth: attempting discovery via well-known endpoints')
         const probes = [
             new URL('.well-known/oauth-authorization-server', rs).toString(),
             new URL('.well-known/openid-configuration', rs).toString(),
@@ -163,16 +169,16 @@ export class OAuthClient {
         ]
         for (const url of probes) {
             try {
-                this.logger.info(`OAuth: probing ${url}`)
+                this.logger.info(`MCP OAuth: probing well-known endpoint → ${url}`)
                 return await this.json<Meta>(url)
-            } catch {
-                // next
+            } catch (error) {
+                this.logger.info(`OAuth: well-known endpoint probe failed for ${url}`)
             }
         }
 
         // c) fallback to static OAuth2 endpoints
         const base = (rs.origin + rs.pathname).replace(/\/+$/, '')
-        this.logger.warn(`OAuth: synthesising endpoints from ${base}`)
+        this.logger.warn(`OAuth: all discovery attempts failed, synthesizing endpoints from ${base}`)
         return {
             authorization_endpoint: `${base}/authorize`,
             token_endpoint: `${base}/access_token`,
@@ -259,7 +265,7 @@ export class OAuthClient {
             client_id: reg.client_id,
             resource: rs.toString(),
         })
-        const res = await fetch(meta.token_endpoint, {
+        const res = await this.fetchCompat(meta.token_endpoint, {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
             body: form,
@@ -269,8 +275,8 @@ export class OAuthClient {
             this.logger.warn(`OAuth: refresh grant HTTP ${res.status} — ${msg?.slice(0, 300)}`)
             return undefined
         }
-        const j = (await res.json()) as Record<string, unknown>
-        return { ...(j as object), obtained_at: Date.now() } as Token
+        const tokenResponse = (await res.json()) as Record<string, unknown>
+        return { ...(tokenResponse as object), obtained_at: Date.now() } as Token
     }
 
     /** One PKCE flow: browser + loopback → code → token */
@@ -332,7 +338,7 @@ export class OAuthClient {
             redirect_uri: redirectUri,
             resource: rs.toString(),
         })
-        const res2 = await fetch(meta.token_endpoint, {
+        const res2 = await this.fetchCompat(meta.token_endpoint, {
             method: 'POST',
             headers: { 'content-type': 'application/x-www-form-urlencoded' },
             body: form2,
@@ -347,7 +353,7 @@ export class OAuthClient {
 
     /** Fetch + error‑check + parse JSON */
     private static async json<T>(url: string, init?: RequestInit): Promise<T> {
-        const r = await fetch(url, init)
+        const r = await this.fetchCompat(url, init)
         if (!r.ok) {
             const txt = await r.text().catch(() => '')
             throw new Error(`HTTP ${r.status}@${url} — ${txt}`)
@@ -393,4 +399,39 @@ export class OAuthClient {
         'sso',
         'cache'
     )
+
+    /**
+     * Await server.listen() but reject if it emits 'error' (eg EADDRINUSE),
+     * so callers can handle it immediately instead of hanging.
+     */
+    private static listen(server: http.Server, port: number, host: string = '127.0.0.1'): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const onListening = () => {
+                server.off('error', onError)
+                resolve()
+            }
+            const onError = (err: NodeJS.ErrnoException) => {
+                server.off('listening', onListening)
+                reject(err)
+            }
+            server.once('listening', onListening)
+            server.once('error', onError)
+            server.listen(port, host)
+        })
+    }
+
+    /**
+     * Fetch compatibility: use global fetch on Node >= 18, otherwise dynamically import('node-fetch').
+     * Using Function('return import(...)') avoids downleveling to require() in CJS builds.
+     */
+    private static async fetchCompat(url: string, init?: RequestInit): Promise<any> {
+        const globalObj = globalThis as any
+        if (typeof globalObj.fetch === 'function') {
+            return globalObj.fetch(url as any, init as any)
+        }
+        // Dynamic import of ESM node-fetch (only when global fetch is unavailable)
+        const mod = await (Function('return import("node-fetch")')() as Promise<any>)
+        const f = mod.default ?? mod
+        return f(url as any, init as any)
+    }
 }

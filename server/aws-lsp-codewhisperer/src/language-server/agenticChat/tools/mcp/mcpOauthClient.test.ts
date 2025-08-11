@@ -7,6 +7,7 @@ import { expect } from 'chai'
 import * as sinon from 'sinon'
 import * as crypto from 'crypto'
 import * as http from 'http'
+import { EventEmitter } from 'events'
 import * as path from 'path'
 import { OAuthClient } from './mcpOauthClient'
 
@@ -51,21 +52,22 @@ function stubFileSystem(tokenObj?: any, regObj?: any): void {
 }
 
 function stubHttpServer(): void {
-    sinon.stub(http, 'createServer').returns({
-        listen: (...args: any[]) => {
-            const cb = args.find(a => typeof a === 'function')
-            if (cb) cb()
-            return {} as any
-        },
-        close: (cb?: any) => {
-            if (cb) cb()
-            return {} as any
-        },
-        on: (..._args: any[]) => {
-            return {} as any
-        },
-        address: () => ({ address: '127.0.0.1', port: 12345, family: 'IPv4' }),
-    } as unknown as http.Server)
+    sinon.stub(http, 'createServer').callsFake(() => {
+        const srv = new EventEmitter() as unknown as http.Server & EventEmitter
+        ;(srv as any).address = () => ({ address: '127.0.0.1', port: 12345, family: 'IPv4' })
+        ;(srv as any).listen = (_port?: any, _host?: any, _backlog?: any, cb?: any) => {
+            if (typeof cb === 'function') cb()
+            // simulate async readiness like a real server
+            process.nextTick(() => srv.emit('listening'))
+            return srv
+        }
+        ;(srv as any).close = (cb?: any) => {
+            if (typeof cb === 'function') cb()
+            srv.removeAllListeners()
+            return srv
+        }
+        return srv
+    })
 }
 
 describe('OAuthClient helpers', () => {

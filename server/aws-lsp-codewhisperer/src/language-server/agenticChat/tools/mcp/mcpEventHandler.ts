@@ -3,7 +3,6 @@ import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
 import { ChokidarFileWatcher } from './chokidarFileWatcher'
 // eslint-disable-next-line import/no-nodejs-modules
-import * as path from 'path'
 import {
     DetailedListGroup,
     DetailedListItem,
@@ -13,14 +12,7 @@ import {
     Status,
 } from '@aws/language-server-runtimes/protocol'
 
-import {
-    getGlobalMcpConfigPath,
-    getGlobalAgentConfigPath,
-    getWorkspaceMcpConfigPaths,
-    getWorkspaceAgentConfigPaths,
-    sanitizeName,
-    normalizePathFromUri,
-} from './mcpUtils'
+import { getGlobalAgentConfigPath, getWorkspaceAgentConfigPaths, sanitizeName, normalizePathFromUri } from './mcpUtils'
 import {
     McpPermissionType,
     MCPServerConfig,
@@ -29,13 +21,17 @@ import {
     McpServerStatus,
 } from './mcpTypes'
 import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
-import { URI } from 'vscode-uri'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 
 interface PermissionOption {
     label: string
     value: string
     description?: string
+}
+
+enum TransportType {
+    STDIO = 'stdio',
+    HTTP = 'http',
 }
 
 export class McpEventHandler {
@@ -393,7 +389,7 @@ export class McpEventHandler {
         const serverStatusError = this.#getServerStatusError(existingValues.name) || {}
 
         // Determine which transport is selected (default to stdio)
-        const selectedTransport = existingValues.transport || 'stdio'
+        const selectedTransport = existingValues.transport || TransportType.STDIO
 
         return {
             id: params.id,
@@ -432,14 +428,14 @@ export class McpEventHandler {
                         title: 'Transport',
                         mandatory: true,
                         options: [
-                            { label: 'stdio', value: 'stdio' },
-                            { label: 'http', value: 'http' },
+                            { label: TransportType.STDIO, value: TransportType.STDIO },
+                            { label: TransportType.HTTP, value: TransportType.HTTP },
                         ],
                         value: selectedTransport,
                     },
                 ]
 
-                if (selectedTransport === 'http') {
+                if (selectedTransport === TransportType.HTTP) {
                     return [
                         ...common,
                         {
@@ -603,8 +599,13 @@ export class McpEventHandler {
             errors.push('Either command or url is required')
         } else if (command && url) {
             errors.push('Provide either command OR url, not both')
-        } else if (transport && ((transport === 'stdio' && !command) || (transport !== 'stdio' && !url))) {
-            errors.push(`${transport === 'stdio' ? 'Command' : 'URL'} is required for ${transport} transport`)
+        } else if (
+            transport &&
+            ((transport === TransportType.STDIO && !command) || (transport !== TransportType.STDIO && !url))
+        ) {
+            errors.push(
+                `${transport === TransportType.STDIO ? 'Command' : 'URL'} is required for ${transport} transport`
+            )
         }
 
         if (values.timeout && values.timeout.trim() !== '') {
@@ -692,7 +693,7 @@ export class McpEventHandler {
         // stdio‑specific parsing
         let args: string[] = []
         let env: Record<string, string> = {}
-        if (selectedTransport === 'stdio') {
+        if (selectedTransport === TransportType.STDIO) {
             try {
                 args = (Array.isArray(params.optionsValues.args) ? params.optionsValues.args : [])
                     .map((item: any) =>
@@ -719,7 +720,7 @@ export class McpEventHandler {
 
         // http‑specific parsing
         let headers: Record<string, string> = {}
-        if (selectedTransport === 'http') {
+        if (selectedTransport === TransportType.HTTP) {
             try {
                 const raw = Array.isArray(params.optionsValues.headers) ? params.optionsValues.headers : []
                 headers = raw.reduce((acc: Record<string, string>, item: any) => {
@@ -743,7 +744,7 @@ export class McpEventHandler {
 
         // build final config (no transport field persisted)
         let config: MCPServerConfig
-        if (selectedTransport === 'http') {
+        if (selectedTransport === TransportType.HTTP) {
             config = {
                 url: params.optionsValues.url,
                 headers,
@@ -786,14 +787,15 @@ export class McpEventHandler {
         }
 
         this.#currentEditingServerName = undefined
+        this.#serverNameBeforeUpdate = undefined
 
         // need to check server state now, as there is possibility of error during server initialization
         const serverStatusError = this.#getServerStatusError(serverName)
 
         this.#telemetryController?.emitMCPServerInitializeEvent({
             source: isEditMode ? 'updateServer' : 'addServer',
-            command: selectedTransport === 'stdio' ? params.optionsValues.command : undefined,
-            url: selectedTransport === 'http' ? params.optionsValues.url : undefined,
+            command: selectedTransport === TransportType.STDIO ? params.optionsValues.command : undefined,
+            url: selectedTransport === TransportType.HTTP ? params.optionsValues.url : undefined,
             enabled: true,
             numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
             scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
@@ -1014,7 +1016,7 @@ export class McpEventHandler {
         }
 
         // Respect a user flip first; otherwise fall back to what the stored configuration implies.
-        const transport = params.optionsValues?.transport ?? (config.url ? 'http' : 'stdio')
+        const transport = params.optionsValues?.transport ?? (config.url ? TransportType.HTTP : TransportType.STDIO)
 
         // Convert stored structures to UI‑friendly lists
         const argsList = (config.args ?? []).map(a => ({ arg_key: a })) // for stdio
@@ -1090,8 +1092,9 @@ export class McpEventHandler {
 
         // Clean up transport-specific fields
         if (optionsValues) {
-            const transport = optionsValues.transport ?? 'stdio' // Maintain default to 'stdio'
-            const fieldsToDelete = transport === 'http' ? ['command', 'args', 'env_variables'] : ['url', 'headers']
+            const transport = optionsValues.transport ?? TransportType.STDIO // Maintain default to 'stdio'
+            const fieldsToDelete =
+                transport === TransportType.HTTP ? ['command', 'args', 'env_variables'] : ['url', 'headers']
 
             fieldsToDelete.forEach(field => delete optionsValues[field])
         }
@@ -1238,11 +1241,11 @@ export class McpEventHandler {
             const serverConfig = McpManager.instance.getAllServerConfigs().get(serverName)
             if (serverConfig) {
                 // Emit server initialize event after permission change
-                const transportType = serverConfig.command ? 'stdio' : 'http'
+                const transportType = serverConfig.command?.trim() ? TransportType.STDIO : TransportType.HTTP
                 this.#telemetryController?.emitMCPServerInitializeEvent({
                     source: 'updatePermission',
-                    command: transportType === 'stdio' ? serverConfig.command : undefined,
-                    url: transportType === 'http' ? serverConfig.url : undefined,
+                    command: transportType === TransportType.STDIO ? serverConfig.command : undefined,
+                    url: transportType === TransportType.HTTP ? serverConfig.url : undefined,
                     enabled: true,
                     numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
                     scope:
@@ -1310,16 +1313,16 @@ export class McpEventHandler {
 
         // Emit server initialize events for all active servers
         for (const [serverName, config] of serverConfigs.entries()) {
-            const transportType = config.command ? 'stdio' : 'http'
+            const transportType = config.command ? TransportType.STDIO : TransportType.HTTP
             const enabled = !mcpManager.isServerDisabled(serverName)
             this.#telemetryController?.emitMCPServerInitializeEvent({
                 source: 'reload',
-                command: transportType === 'stdio' ? config.command : undefined,
-                url: transportType === 'http' ? config.url : undefined,
+                command: transportType === TransportType.STDIO ? config.command : undefined,
+                url: transportType === TransportType.HTTP ? config.url : undefined,
                 enabled: enabled,
                 numTools: mcpManager.getAllToolsWithPermissions(serverName).length,
                 scope: config.__configPath__ === globalAgentPath ? 'global' : 'workspace',
-                transportType: 'stdio',
+                transportType: transportType,
                 languageServerVersion: this.#features.runtime.serverInfo.version,
             })
         }
