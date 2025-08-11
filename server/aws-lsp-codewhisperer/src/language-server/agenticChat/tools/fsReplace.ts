@@ -73,7 +73,7 @@ export class FsReplace {
             description:
                 'A tool for search and replace contents of an existing file.\n\n' +
                 '## Overview\n' +
-                'This tool replaces sections of content in an existing file using `oldStr`/`newStr` blocks that define exact changes to specific parts of the file. You MUST ALWAYS firstly figure out the absolute path of the file to be modified and update it in the JSON file when using this tool. You MUST ALWAYS group as many changes as you can by populating the diffs array with multiple `oldStr`/`newStr` pairs, DO NOT be overly cautious and methodical by making one change at a time on the same file.\n\n' +
+                'This tool replaces sections of content in an existing file using `oldStr`/`newStr` blocks that define exact changes to specific parts of the file. You MUST ALWAYS determine the absolute path of the files to be modified and update it in the JSON file before using this tool. You MUST ALWAYS group as many changes as you can by populating the diffs array with multiple `oldStr`/`newStr` pairs, DO NOT be overly cautious and methodical by making one change at a time on the same file.\n\n' +
                 '## When to use\n' +
                 '- When you need to make targeted changes to specific parts of a file\n' +
                 '- When you need to update multiple sections of the same file\n' +
