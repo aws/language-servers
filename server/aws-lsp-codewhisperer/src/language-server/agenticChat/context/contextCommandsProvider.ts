@@ -21,13 +21,13 @@ export class ContextCommandsProvider implements Disposable {
         private readonly workspace: Workspace,
         private readonly lsp: Lsp
     ) {
-        this.registerPromptFileWatcher()
-        this.registerContextCommandHandler().catch(e =>
-            this.logging.error(`Error registering context command handler: ${e}`)
-        )
         //send initial pending state to client immediately
         void this.processContextCommandUpdate([]).catch(e =>
             this.logging.error(`Failed to send initial context commands: ${e}`)
+        )
+        this.registerPromptFileWatcher()
+        this.registerContextCommandHandler().catch(e =>
+            this.logging.error(`Error registering context command handler: ${e}`)
         )
     }
 
