@@ -135,23 +135,33 @@ describe('getClientName', () => {
 })
 
 describe('getOriginFromClientInfo', () => {
-    it('returns MD_IDE for SMUS-IDE client name', () => {
+    it('returns MD_IDE for client names starting with SMUS-IDE prefix', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-SMUS-IDE-1.0.0')
         assert.strictEqual(result, 'MD_IDE')
     })
 
-    it('returns MD_IDE for SMUS-CE client name', () => {
+    it('returns MD_IDE for client names starting with SMUS-CE prefix', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-SMUS-CE-1.0.0')
         assert.strictEqual(result, 'MD_IDE')
     })
 
-    it('returns MD_IDE for client names starting with SMUS-IDE prefix', () => {
+    it('returns MD_IDE for client names starting with SMAI-CE prefix', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMAI-CE-1.0.0')
+        assert.strictEqual(result, 'MD_IDE')
+    })
+
+    it('returns MD_IDE for SMUS-IDE client name', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-SMUS-IDE')
         assert.strictEqual(result, 'MD_IDE')
     })
 
-    it('returns MD_IDE for client names starting with SMUS-CE prefix', () => {
+    it('returns MD_IDE for SMUS-CE client name', () => {
         const result = getOriginFromClientInfo('AmazonQ-For-SMUS-CE')
+        assert.strictEqual(result, 'MD_IDE')
+    })
+
+    it('returns MD_IDE for SMAI-CE client name', () => {
+        const result = getOriginFromClientInfo('AmazonQ-For-SMAI-CE')
         assert.strictEqual(result, 'MD_IDE')
     })
 
