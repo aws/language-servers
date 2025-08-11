@@ -46,7 +46,7 @@ import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
-import { getAddedAndDeletedChars } from './diffUtils'
+import { getAddedAndDeletedLines, getCharacterDifferences } from './diffUtils'
 import {
     emitPerceivedLatencyTelemetry,
     emitServiceInvocationFailure,
@@ -55,7 +55,9 @@ import {
 } from './telemetry'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EditCompletionHandler } from './editCompletionHandler'
-import { EMPTY_RESULT } from './constants'
+import { EMPTY_RESULT, ABAP_EXTENSIONS } from './constants'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
+import { URI } from 'vscode-uri'
 
 const mergeSuggestionsWithRightContext = (
     rightFileContext: string,
@@ -141,6 +143,8 @@ export const CodewhispererServerFactory =
             // 2. it is not designed to handle concurrent changes to these state variables.
             // when one handler is at the API call stage, it has not yet update the session state
             // but another request can start, causing the state to be incorrect.
+            IdleWorkspaceManager.recordActivityTimestamp()
+
             if (isOnInlineCompletionHandlerInProgress) {
                 logging.log(`Skip concurrent inline completion`)
                 return EMPTY_RESULT
@@ -158,7 +162,7 @@ export const CodewhispererServerFactory =
                 if (cursorTracker) {
                     cursorTracker.trackPosition(params.textDocument.uri, params.position)
                 }
-                const textDocument = await workspace.getTextDocument(params.textDocument.uri)
+                const textDocument = await getTextDocument(params.textDocument.uri, workspace, logging)
 
                 const codeWhispererService = amazonQServiceManager.getCodewhispererService()
                 if (params.partialResultToken && currentSession) {
@@ -498,7 +502,6 @@ export const CodewhispererServerFactory =
                     partialResultToken: suggestionResponse.responseContext.nextToken,
                 }
             } else {
-                session.hasEditsPending = suggestionResponse.responseContext.nextToken ? true : false
                 return {
                     items: suggestionResponse.suggestions
                         .map(suggestion => {
@@ -619,36 +622,29 @@ export const CodewhispererServerFactory =
             )
             const isAccepted = acceptedItemId ? true : false
             const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
-            let addedCharactersForEditSuggestion = ''
-            let deletedCharactersForEditSuggestion = ''
-            if (acceptedSuggestion !== undefined) {
-                if (acceptedSuggestion) {
-                    codePercentageTracker.countSuccess(session.language)
-                    if (session.suggestionType === SuggestionType.EDIT && acceptedSuggestion.content) {
-                        // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
-                        // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
-                        const addedAndDeletedChars = getAddedAndDeletedChars(acceptedSuggestion.content)
-                        if (addedAndDeletedChars) {
-                            addedCharactersForEditSuggestion = addedAndDeletedChars.addedCharacters
-                            deletedCharactersForEditSuggestion = addedAndDeletedChars.deletedCharacters
+            let addedLengthForEdits = 0
+            let deletedLengthForEdits = 0
+            if (acceptedSuggestion) {
+                codePercentageTracker.countSuccess(session.language)
+                if (session.suggestionType === SuggestionType.EDIT && acceptedSuggestion.content) {
+                    // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
+                    // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
+                    const { addedLines, deletedLines } = getAddedAndDeletedLines(acceptedSuggestion.content)
+                    const charDiffResult = getCharacterDifferences(addedLines, deletedLines)
+                    addedLengthForEdits = charDiffResult.charactersAdded
+                    deletedLengthForEdits = charDiffResult.charactersRemoved
 
-                            codePercentageTracker.countAcceptedTokens(
-                                session.language,
-                                addedCharactersForEditSuggestion
-                            )
-                            codePercentageTracker.countTotalTokens(
-                                session.language,
-                                addedCharactersForEditSuggestion,
-                                true
-                            )
-                            enqueueCodeDiffEntry(session, acceptedSuggestion, addedCharactersForEditSuggestion)
-                        }
-                    } else if (acceptedSuggestion.insertText) {
-                        codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
-                        codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
+                    codePercentageTracker.countAcceptedTokensUsingCount(
+                        session.language,
+                        charDiffResult.charactersAdded
+                    )
+                    codePercentageTracker.addTotalTokensForEdits(session.language, charDiffResult.charactersAdded)
+                    enqueueCodeDiffEntry(session, acceptedSuggestion, addedLines.join('\n'))
+                } else if (acceptedSuggestion.insertText) {
+                    codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
+                    codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
 
-                        enqueueCodeDiffEntry(session, acceptedSuggestion)
-                    }
+                    enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
             }
 
@@ -687,24 +683,19 @@ export const CodewhispererServerFactory =
             if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
 
             // Always emit user trigger decision at session close
-            // Close session unless Edit suggestion was accepted with more pending
-            const shouldKeepSessionOpen =
-                session.suggestionType === SuggestionType.EDIT && isAccepted && session.hasEditsPending
-
-            if (!shouldKeepSessionOpen) {
-                completionSessionManager.closeSession(session)
-            }
-            const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            sessionManager.closeSession(session)
+            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,
                 session,
                 timeSinceLastUserModification,
-                addedCharactersForEditSuggestion.length,
-                deletedCharactersForEditSuggestion.length,
+                addedLengthForEdits,
+                deletedLengthForEdits,
                 addedDiagnostics,
                 removedDiagnostics,
-                streakLength
+                streakLength,
+                Object.keys(params.completionSessionResult)[0]
             )
         }
 
@@ -721,10 +712,9 @@ export const CodewhispererServerFactory =
                 userWrittenCodeTracker.customizationArn = customizationArn
             }
             logging.debug(`CodePercentageTracker customizationArn updated to ${customizationArn}`)
-            /*
-                The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
-                configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
-            */
+
+            // The flag enableTelemetryEventsToDestination is set to true temporarily. It's value will be determined through destination
+            // configuration post all events migration to STE. It'll be replaced by qConfig['enableTelemetryEventsToDestination'] === true
             // const enableTelemetryEventsToDestination = true
             // telemetryService.updateEnableTelemetryEventsToDestination(enableTelemetryEventsToDestination)
             telemetryService.updateOptOutPreference(optOutTelemetryPreference)
@@ -901,3 +891,27 @@ export const CodewhispererServerFactory =
 
 export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
 export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
+
+const getLanguageIdFromUri = (uri: string, logging?: any): string => {
+    try {
+        const extension = uri.split('.').pop()?.toLowerCase()
+        return ABAP_EXTENSIONS.has(extension || '') ? 'abap' : ''
+    } catch (err) {
+        logging?.log(`Error parsing URI to determine language: ${uri}: ${err}`)
+        return ''
+    }
+}
+
+const getTextDocument = async (uri: string, workspace: any, logging: any): Promise<TextDocument | undefined> => {
+    let textDocument = await workspace.getTextDocument(uri)
+    if (!textDocument) {
+        try {
+            const content = await workspace.fs.readFile(URI.parse(uri).fsPath)
+            const languageId = getLanguageIdFromUri(uri)
+            textDocument = TextDocument.create(uri, languageId, 0, content)
+        } catch (err) {
+            logging.log(`Unable to load from ${uri}: ${err}`)
+        }
+    }
+    return textDocument
+}

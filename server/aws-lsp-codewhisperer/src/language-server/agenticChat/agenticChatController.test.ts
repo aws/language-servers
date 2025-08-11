@@ -67,6 +67,7 @@ import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
 import * as sharedUtils from '../../shared/utils'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -450,7 +451,7 @@ describe('AgenticChatController', () => {
 
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -473,6 +474,15 @@ describe('AgenticChatController', () => {
             // Verify that a conversationId was created
             assert.ok(session.conversationId)
             assert.strictEqual(typeof session.conversationId, 'string')
+        })
+
+        it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
+            const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
+
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledOnce(recordActivityTimestampStub)
+            recordActivityTimestampStub.restore()
         })
 
         it('includes chat history from the database in the request input', async () => {
@@ -1140,7 +1150,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading messages
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 codeReference: [],
                 buttons: [],
@@ -1159,7 +1169,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
