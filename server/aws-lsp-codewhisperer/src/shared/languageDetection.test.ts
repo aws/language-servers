@@ -45,10 +45,6 @@ describe('LanguageDetection', () => {
 
     describe('getCodeWhispererLanguageIdFromPath', () => {
         it('should return language type with override', () => {
-            assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/pom.xml'), 'java')
-            assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/build.gradle.kts'), 'java')
-            assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/build.xml'), 'java')
-            assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/build.gradle'), 'java')
             assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/test.java'), 'java')
             assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/package.json'), 'javascript')
             assert.strictEqual(getCodeWhispererLanguageIdFromPath('test/test.js'), 'javascript')

@@ -279,6 +279,18 @@ export class CodeReviewUtils {
     }
 
     /**
+     * Check if storing display findings in the Code Issues panel is enabled.
+     * @param params Initialize parameters from client
+     * @returns True if display findings is enabled, false otherwise
+     */
+    public static isDisplayFindingsEnabled(params: InitializeParams | undefined): boolean {
+        const qCapabilities = params?.initializationOptions?.aws?.awsClientCapabilities?.q as
+            | QClientCapabilities
+            | undefined
+        return qCapabilities?.displayFindings || false
+    }
+
+    /**
      * Converts a Windows absolute file path to Unix format and removes the drive letter
      * @param windowsPath The Windows path to convert
      * @returns The Unix formatted path without drive letter

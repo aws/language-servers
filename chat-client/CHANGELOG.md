@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.1.31](https://github.com/aws/language-servers/compare/chat-client/v0.1.30...chat-client/v0.1.31) (2025-08-06)
+
+
+### Features
+
+* **amazonq:** add two more tips for the did you know section ([#2063](https://github.com/aws/language-servers/issues/2063)) ([9949c6d](https://github.com/aws/language-servers/commit/9949c6dd81c56b5ea82563310da2eaee4d00a059))
+* **amazonq:** enable sonnet 4 for fra region ([#2069](https://github.com/aws/language-servers/issues/2069)) ([3a4b8df](https://github.com/aws/language-servers/commit/3a4b8df981b2c3b0532360a11472169fffec7924))
+
+
+### Bug Fixes
+
+* **amazonq:** fix to add disable/enable feature back to mcp servers ([#2052](https://github.com/aws/language-servers/issues/2052)) ([c03e017](https://github.com/aws/language-servers/commit/c03e017b9ccbbbb9c80a3c3afd5da38a50bd6cff))
+
+## [0.1.30](https://github.com/aws/language-servers/compare/chat-client/v0.1.29...chat-client/v0.1.30) (2025-08-04)
+
+
+### Features
+
+* support http transport without authorization for MCP ([97e806c](https://github.com/aws/language-servers/commit/97e806ce7ea5e5be1fd60c4a4d9a54cf76c8f8cb))
+
+
+### Bug Fixes
+
+* **amazonq:** fix the issue that invalid image notification always show ([#2007](https://github.com/aws/language-servers/issues/2007)) ([ceed762](https://github.com/aws/language-servers/commit/ceed762ace5f94cb0e0a7978eb6c4894bc11ce42))
+* **amazonq:** improve cross theme support ([#2036](https://github.com/aws/language-servers/issues/2036)) ([002a255](https://github.com/aws/language-servers/commit/002a255c28ea07ca6623dbd074101cbc6082ceb8))
+* **amazonq:** improve welcome screen and enable tips ([#2035](https://github.com/aws/language-servers/issues/2035)) ([ac00b94](https://github.com/aws/language-servers/commit/ac00b94df45c2bba0666423c937757fad4db95cc))
+* **amazonq:** refactor the welcome screen to make it look better ([#2027](https://github.com/aws/language-servers/issues/2027)) ([1f7c608](https://github.com/aws/language-servers/commit/1f7c608ba2f89c8b0675e62451e27d2dc547613c))
+* enable test flag for amazon q ui testing ([#2046](https://github.com/aws/language-servers/issues/2046)) ([f18ea96](https://github.com/aws/language-servers/commit/f18ea96c1e5cd9b93974a047d7f2bb1aba0d9436))
+* use new language server runtime ([#2023](https://github.com/aws/language-servers/issues/2023)) ([83ea1e4](https://github.com/aws/language-servers/commit/83ea1e42fe52990696eb9b878fa11e2c5331bec5))
+
 ## [0.1.29](https://github.com/aws/language-servers/compare/chat-client/v0.1.28...chat-client/v0.1.29) (2025-07-29)
 
 

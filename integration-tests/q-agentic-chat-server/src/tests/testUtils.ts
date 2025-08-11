@@ -1,5 +1,6 @@
 import { UpdateCredentialsParams } from '@aws/language-server-runtimes/protocol'
 import * as jose from 'jose'
+import * as path from 'path'
 import { JSONRPCEndpoint } from './lspClient'
 
 /**
@@ -71,4 +72,13 @@ async function setProfile(endpoint: JSONRPCEndpoint, profileArn: string): Promis
         section: 'aws.q',
         settings: { profileArn },
     })
+}
+
+/**
+ * Normalize paths for cross-platform comparison
+ * @param filePath - The file path to normalize
+ * @returns Normalized path with consistent casing
+ */
+export function normalizePath(filePath: string): string {
+    return path.resolve(filePath).toLowerCase()
 }

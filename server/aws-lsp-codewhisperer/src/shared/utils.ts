@@ -14,6 +14,7 @@ import {
     crashMonitoringDirName,
     driveLetterRegex,
     MISSING_BEARER_TOKEN_ERROR,
+    SAGEMAKER_UNIFIED_STUDIO_SERVICE,
 } from './constants'
 import {
     CodeWhispererStreamingServiceException,
@@ -373,8 +374,14 @@ export function getBearerTokenFromProvider(credentialsProvider: CredentialsProvi
     return credentials.token
 }
 
+export function getClientName(lspParams: InitializeParams | undefined): string | undefined {
+    return process.env.SERVICE_NAME === SAGEMAKER_UNIFIED_STUDIO_SERVICE
+        ? lspParams?.initializationOptions?.aws?.clientInfo?.name
+        : lspParams?.clientInfo?.name
+}
+
 export function getOriginFromClientInfo(clientName: string | undefined): Origin {
-    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE')) {
+    if (clientName?.startsWith('AmazonQ-For-SMUS-IDE') || clientName?.startsWith('AmazonQ-For-SMUS-CE')) {
         return 'MD_IDE'
     }
     return 'IDE'
@@ -592,4 +599,30 @@ export function sanitizeInput(input: string): string {
         /[\u{E0000}-\u{E007F}\u{200B}-\u{200F}\u{2028}-\u{202F}\u{205F}-\u{206F}\u{FFF0}-\u{FFFF}]/gu,
         ''
     )
+}
+
+/**
+ * Recursively sanitizes the entire request input to prevent Unicode ASCII smuggling
+ * @param input The request input to sanitize
+ * @returns The sanitized request input
+ */
+export function sanitizeRequestInput(input: any): any {
+    if (typeof input === 'string') {
+        return sanitizeInput(input)
+    }
+    if (input instanceof Uint8Array) {
+        // Don't sanitize binary data like images - return as-is
+        return input
+    }
+    if (Array.isArray(input)) {
+        return input.map(item => sanitizeRequestInput(item))
+    }
+    if (input && typeof input === 'object') {
+        const sanitized: any = {}
+        for (const [key, value] of Object.entries(input)) {
+            sanitized[key] = sanitizeRequestInput(value)
+        }
+        return sanitized
+    }
+    return input
 }

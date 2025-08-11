@@ -146,10 +146,12 @@ describe('CodeReview', () => {
         it('should handle missing client error', async () => {
             context.codeWhispererClient = undefined
 
-            const result = await codeReview.execute(validInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.equal('CodeWhisperer client not available')
+            try {
+                await codeReview.execute(validInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.equal('CodeWhisperer client not available')
+            }
         })
 
         it('should handle missing artifacts error', async () => {
@@ -160,12 +162,14 @@ describe('CodeReview', () => {
                 scopeOfReview: FULL_REVIEW,
             }
 
-            const result = await codeReview.execute(invalidInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.include(
-                'Missing fileLevelArtifacts and folderLevelArtifacts for codeReview tool'
-            )
+            try {
+                await codeReview.execute(invalidInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.include(
+                    'Missing fileLevelArtifacts and folderLevelArtifacts for codeReview tool'
+                )
+            }
         })
 
         it('should handle upload failure', async () => {
@@ -181,10 +185,12 @@ describe('CodeReview', () => {
                 programmingLanguages: new Set(['javascript']),
             })
 
-            const result = await codeReview.execute(validInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.include('Failed to upload artifact')
+            try {
+                await codeReview.execute(validInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.include('Failed to upload artifact')
+            }
         })
 
         it('should handle analysis start failure', async () => {
@@ -206,10 +212,12 @@ describe('CodeReview', () => {
                 programmingLanguages: new Set(['javascript']),
             })
 
-            const result = await codeReview.execute(validInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.include('Failed to start code analysis')
+            try {
+                await codeReview.execute(validInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.include('Failed to start code analysis')
+            }
         })
 
         it('should handle scan timeout', async () => {
@@ -244,10 +252,12 @@ describe('CodeReview', () => {
                 return {} as any
             })
 
-            const result = await codeReview.execute(validInput, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.include('Code scan timed out')
+            try {
+                await codeReview.execute(validInput, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.include('Code review timed out')
+            }
         })
 
         it('should handle cancellation', async () => {
@@ -581,10 +591,12 @@ describe('CodeReview', () => {
             // Make prepareFilesAndFoldersForUpload throw an error
             sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').rejects(new Error('Unexpected error'))
 
-            const result = await codeReview.execute(input, context)
-
-            expect(result.output.success).to.be.false
-            expect((result.output.content as any).errorMessage).to.equal('Unexpected error')
+            try {
+                await codeReview.execute(input, context)
+                expect.fail('Expected exception to be thrown')
+            } catch (error: any) {
+                expect(error.message).to.equal('Unexpected error')
+            }
         })
     })
 })

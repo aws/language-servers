@@ -29,7 +29,6 @@ import { LocalProjectContextController } from '../../shared/localProjectContextC
 import { QueryInlineProjectContextRequestV2 } from 'local-indexing'
 import { URI } from 'vscode-uri'
 import { waitUntil } from '@aws/lsp-core/out/util/timeoutUtils'
-import { AmazonQBaseServiceManager } from '../amazonQServiceManager/BaseAmazonQServiceManager'
 
 type CrossFileSupportedLanguage =
     | 'java'
@@ -67,7 +66,7 @@ export async function fetchSupplementalContextForSrc(
     position: Position,
     workspace: Workspace,
     cancellationToken: CancellationToken,
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    openTabFiles?: string[]
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     const supplementalContextConfig = getSupplementalContextConfig(document.languageId)
 
@@ -76,7 +75,7 @@ export async function fetchSupplementalContextForSrc(
     }
     //TODO: add logic for other strategies once available
     if (supplementalContextConfig === 'codemap') {
-        return await codemapContext(document, position, workspace, cancellationToken, amazonQServiceManager)
+        return await codemapContext(document, position, workspace, cancellationToken, openTabFiles)
     }
     return { supplementalContextItems: [], strategy: 'Empty' }
 }
@@ -86,20 +85,20 @@ export async function codemapContext(
     position: Position,
     workspace: Workspace,
     cancellationToken: CancellationToken,
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    openTabFiles?: string[]
 ): Promise<Pick<CodeWhispererSupplementalContext, 'supplementalContextItems' | 'strategy'> | undefined> {
     let strategy: SupplementalContextStrategy = 'Empty'
 
     const openTabsContextPromise = waitUntil(
         async function () {
-            return await fetchOpenTabsContext(document, position, workspace, cancellationToken)
+            return await fetchOpenTabsContext(document, position, workspace, cancellationToken, openTabFiles)
         },
         { timeout: supplementalContextTimeoutInMs, interval: 5, truthy: false }
     )
 
     const projectContextPromise = waitUntil(
         async function () {
-            return await fetchProjectContext(document, position, 'codemap', amazonQServiceManager)
+            return await fetchProjectContext(document, position, 'codemap')
         },
         { timeout: supplementalContextTimeoutInMs, interval: 5, truthy: false }
     )
@@ -137,8 +136,7 @@ export async function codemapContext(
 export async function fetchProjectContext(
     document: TextDocument,
     position: Position,
-    target: 'default' | 'codemap' | 'bm25',
-    amazonQServiceManager?: AmazonQBaseServiceManager
+    target: 'default' | 'codemap' | 'bm25'
 ): Promise<CodeWhispererSupplementalContextItem[]> {
     const inputChunk: Chunk = getInputChunk(document, position, crossFileContextConfig.numberOfLinesEachChunk)
     const fsPath = URI.parse(document.uri).fsPath
@@ -160,12 +158,13 @@ export async function fetchOpenTabsContext(
     document: TextDocument,
     position: Position,
     workspace: Workspace,
-    cancellationToken: CancellationToken
+    cancellationToken: CancellationToken,
+    openTabFiles?: string[]
 ): Promise<CodeWhispererSupplementalContextItem[]> {
     const codeChunksCalculated = crossFileContextConfig.numberOfChunkToFetch
 
     // Step 1: Get relevant cross files to refer
-    const relevantCrossFileCandidates = await getCrossFileCandidates(document, workspace)
+    const relevantCrossFileCandidates = await getCrossFileCandidates(document, workspace, openTabFiles)
 
     throwIfCancelled(cancellationToken)
 
@@ -319,10 +318,101 @@ function createFileUrl(uri: string): URL {
 }
 
 /**
+ * Returns the language id for construction a TextDocument
+ * @param filepath
+ * @returns
+ */
+
+function guessLanguageId(filepath: string): string {
+    const ext = path.extname(filepath).toLowerCase()
+    switch (ext) {
+        case '.abap':
+            return 'abap'
+        case '.c':
+            return 'c'
+        case '.cpp':
+        case '.cc':
+        case '.cxx':
+        case '.hpp':
+        case '.h':
+            return 'cpp'
+        case '.cs':
+            return 'csharp'
+        case '.dart':
+            return 'dart'
+        case '.go':
+            return 'go'
+        case '.java':
+            return 'java'
+        case '.js':
+            return 'javascript'
+        case '.json':
+            return 'json'
+        case '.jsx':
+            return 'jsx'
+        case '.kt':
+        case '.kts':
+            return 'kotlin'
+        case '.lua':
+            return 'lua'
+        case '.php':
+            return 'php'
+        case '.txt':
+            return 'plaintext'
+        case '.ps1':
+        case '.psm1':
+        case '.psd1':
+            return 'powershell'
+        case '.py':
+            return 'python'
+        case '.r':
+        case '.R':
+            return 'r'
+        case '.rb':
+        case '.rbw':
+            return 'ruby'
+        case '.rs':
+            return 'rust'
+        case '.scala':
+        case '.sc':
+            return 'scala'
+        case '.sh':
+        case '.bash':
+            return 'shell'
+        case '.sql':
+            return 'sql'
+        case '.swift':
+            return 'swift'
+        case '.sv':
+        case '.svh':
+        case '.v':
+            return 'systemverilog'
+        case '.tf':
+        case '.tfvars':
+            return 'tf'
+        case '.tsx':
+            return 'tsx'
+        case '.ts':
+            return 'typescript'
+        case '.vue':
+            return 'vue'
+        case '.yml':
+        case '.yaml':
+            return 'yaml'
+        default:
+            return ''
+    }
+}
+
+/**
  * This function will return relevant cross files sorted by file distance for the given editor file
  * by referencing open files, imported files and same package files.
  */
-export async function getCrossFileCandidates(document: TextDocument, workspace: Workspace): Promise<TextDocument[]> {
+export async function getCrossFileCandidates(
+    document: TextDocument,
+    workspace: Workspace,
+    openTabFiles?: string[]
+): Promise<TextDocument[]> {
     const targetFile = document.uri
     const language = document.languageId as CrossFileSupportedLanguage
     const dialects = supportedLanguageToDialects[language]
@@ -335,8 +425,34 @@ export async function getCrossFileCandidates(document: TextDocument, workspace: 
      *
      * Porting note: this function relies of Workspace feature to get all documents,
      * managed by this language server, instead of VSCode `vscode.window` API as VSCode toolkit does.
+     * this function only gets the user opened tab in this IDE session
+     * for a resumed IDE session, opened tabs are restored but this getAllTextDocuments function returns empty
+     * in that case we manually create TextDocuments from it
      */
-    const unsortedCandidates = await workspace.getAllTextDocuments()
+    let unsortedCandidates: TextDocument[] = await workspace.getAllTextDocuments()
+    if (openTabFiles && openTabFiles.length > 0) {
+        for (const openTabFile of openTabFiles) {
+            try {
+                const openTabFilesUri = URI.file(openTabFile)
+                if (!unsortedCandidates.some(x => x.uri === openTabFilesUri.toString())) {
+                    const content = await workspace.fs.readFile(openTabFilesUri.fsPath)
+                    if (content) {
+                        unsortedCandidates.push(
+                            TextDocument.create(
+                                URI.file(openTabFile).toString(),
+                                guessLanguageId(openTabFilesUri.fsPath),
+                                1,
+                                content
+                            )
+                        )
+                    }
+                }
+            } catch (e) {
+                // do not throw here.
+            }
+        }
+    }
+
     return unsortedCandidates
         .filter((candidateFile: TextDocument) => {
             let candidateFileURL

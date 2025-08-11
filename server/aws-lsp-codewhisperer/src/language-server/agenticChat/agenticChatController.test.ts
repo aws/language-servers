@@ -67,6 +67,7 @@ import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
 import * as sharedUtils from '../../shared/utils'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -450,7 +451,7 @@ describe('AgenticChatController', () => {
 
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -473,6 +474,15 @@ describe('AgenticChatController', () => {
             // Verify that a conversationId was created
             assert.ok(session.conversationId)
             assert.strictEqual(typeof session.conversationId, 'string')
+        })
+
+        it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
+            const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
+
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledOnce(recordActivityTimestampStub)
+            recordActivityTimestampStub.restore()
         })
 
         it('includes chat history from the database in the request input', async () => {
@@ -1140,7 +1150,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading messages
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 codeReference: [],
                 buttons: [],
@@ -1159,7 +1169,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -3028,7 +3038,7 @@ ${' '.repeat(8)}}
             assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
         })
 
-        it('should return limited models for eu-central-1 region', async () => {
+        it('should return all available models for eu-central-1 region', async () => {
             // Set up the region to be eu-central-1
             tokenServiceManagerStub.returns('eu-central-1')
 
@@ -3038,12 +3048,12 @@ ${' '.repeat(8)}}
 
             // Verify the result
             assert.strictEqual(result.tabId, mockTabId)
-            assert.strictEqual(result.models.length, 1)
-            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+            assert.strictEqual(result.models.length, 2)
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_SONNET_4_20250514_V1_0')
 
-            // Check that the models only include Claude 3.7
+            // Check that the models include both Claude versions
             const modelIds = result.models.map(model => model.id)
-            assert.ok(!modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
+            assert.ok(modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'))
             assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'))
         })
 
@@ -3058,7 +3068,7 @@ ${' '.repeat(8)}}
             // Verify the result
             assert.strictEqual(result.tabId, mockTabId)
             assert.strictEqual(result.models.length, 2)
-            assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
+            assert.strictEqual(result.selectedModelId, 'CLAUDE_SONNET_4_20250514_V1_0')
         })
 
         it('should return undefined for selectedModelId when no session data exists', async () => {
@@ -3083,10 +3093,29 @@ ${' '.repeat(8)}}
         })
 
         it('should fallback to latest available model when saved model is not available in current region', async () => {
-            // Set up the region to be eu-central-1 (which only has Claude 3.7)
-            tokenServiceManagerStub.returns('eu-central-1')
+            // Import the module to stub
+            const modelSelection = await import('./constants/modelSelection')
 
-            // Mock database to return Claude Sonnet 4 (not available in eu-central-1)
+            // Create a mock region with only Claude 3.7
+            const mockModelOptionsForRegion = {
+                ...modelSelection.MODEL_OPTIONS_FOR_REGION,
+                'test-region-limited': [
+                    {
+                        id: 'CLAUDE_3_7_SONNET_20250219_V1_0',
+                        name: 'Claude Sonnet 3.7',
+                    },
+                ],
+            }
+
+            // Stub the MODEL_OPTIONS_FOR_REGION
+            const modelOptionsStub = sinon
+                .stub(modelSelection, 'MODEL_OPTIONS_FOR_REGION')
+                .value(mockModelOptionsForRegion)
+
+            // Set up the region to be the test region (which only has Claude 3.7)
+            tokenServiceManagerStub.returns('test-region-limited')
+
+            // Mock database to return Claude Sonnet 4 (not available in test-region-limited)
             const getModelIdStub = sinon.stub(ChatDatabase.prototype, 'getModelId')
             getModelIdStub.returns('CLAUDE_SONNET_4_20250514_V1_0')
 
@@ -3100,6 +3129,7 @@ ${' '.repeat(8)}}
             assert.strictEqual(result.selectedModelId, 'CLAUDE_3_7_SONNET_20250219_V1_0')
 
             getModelIdStub.restore()
+            modelOptionsStub.restore()
         })
 
         it('should use saved model when it is available in current region', async () => {

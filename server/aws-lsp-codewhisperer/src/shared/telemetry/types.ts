@@ -206,10 +206,12 @@ export enum ChatTelemetryEventName {
     MCPServerInit = 'amazonq_mcpServerInit',
     LoadHistory = 'amazonq_loadHistory',
     CompactHistory = 'amazonq_compactHistory',
+    CompactNudge = 'amazonq_compactNudge',
     ChatHistoryAction = 'amazonq_performChatHistoryAction',
     ExportTab = 'amazonq_exportTab',
     UiClick = 'ui_click',
     ActiveUser = 'amazonq_activeUser',
+    BashCommand = 'amazonq_bashCommand',
 }
 
 export interface ChatTelemetryEventMap {
@@ -230,10 +232,12 @@ export interface ChatTelemetryEventMap {
     [ChatTelemetryEventName.MCPServerInit]: MCPServerInitializeEvent
     [ChatTelemetryEventName.LoadHistory]: LoadHistoryEvent
     [ChatTelemetryEventName.CompactHistory]: CompactHistoryEvent
+    [ChatTelemetryEventName.CompactNudge]: CompactNudgeEvent
     [ChatTelemetryEventName.ChatHistoryAction]: ChatHistoryActionEvent
     [ChatTelemetryEventName.ExportTab]: ExportTabEvent
     [ChatTelemetryEventName.UiClick]: UiClickEvent
     [ChatTelemetryEventName.ActiveUser]: ActiveUserEvent
+    [ChatTelemetryEventName.BashCommand]: BashCommandEvent
 }
 
 export type AgencticLoop_InvokeLLMEvent = {
@@ -269,6 +273,12 @@ export type InteractWithAgenticChatEvent = {
 export type ActiveUserEvent = {
     credentialStartUrl?: string
     result: string
+}
+
+export type BashCommandEvent = {
+    credentialStartUrl: string
+    result: string
+    command: string
 }
 
 export type ModifyCodeEvent = {
@@ -384,6 +394,13 @@ export type LoadHistoryEvent = {
 export type CompactHistoryEvent = {
     type: CompactHistoryActionType
     characters: number
+    credentialStartUrl?: string
+    languageServerVersion?: string
+}
+
+export type CompactNudgeEvent = {
+    characters: number
+    credentialStartUrl?: string
     languageServerVersion?: string
 }
 

@@ -114,7 +114,7 @@ describe('ExecuteBash Tool', () => {
                 getTextDocument: async s => ({}) as TextDocument,
             },
         })
-        const result = await execBash.requiresAcceptance({ command: 'ps aux', cwd: workspaceFolder })
+        const result = await execBash.requiresAcceptance({ command: 'pwd', cwd: workspaceFolder })
 
         assert.equal(
             result.requiresAcceptance,

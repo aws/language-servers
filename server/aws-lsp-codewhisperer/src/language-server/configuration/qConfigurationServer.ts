@@ -42,6 +42,7 @@ export interface QClientCapabilities {
     modelSelection?: boolean
     reroute?: boolean
     codeReviewInChat?: boolean
+    displayFindings?: boolean
     compaction?: boolean
     shortcut?: boolean
 }

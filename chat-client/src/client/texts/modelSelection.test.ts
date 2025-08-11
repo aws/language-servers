@@ -39,18 +39,15 @@ describe('modelSelection', () => {
             )
         })
 
-        it('should provide limited models for eu-central-1 region', () => {
+        it('should provide all models for eu-central-1 region', () => {
             const euCentral1ModelSelection = modelSelectionForRegion['eu-central-1']
             assert.ok(euCentral1ModelSelection, 'euCentral1ModelSelection should exist')
             assert.ok(euCentral1ModelSelection.type === 'select', 'euCentral1ModelSelection should be type select')
             assert.ok(Array.isArray(euCentral1ModelSelection.options), 'options should be an array')
-            assert.strictEqual(euCentral1ModelSelection.options.length, 1, 'should have 1 option')
+            assert.strictEqual(euCentral1ModelSelection.options.length, 2, 'should have 2 option')
 
             const modelIds = euCentral1ModelSelection.options.map(option => option.value)
-            assert.ok(
-                !modelIds.includes(BedrockModel.CLAUDE_SONNET_4_20250514_V1_0),
-                'should not include Claude Sonnet 4'
-            )
+            assert.ok(modelIds.includes(BedrockModel.CLAUDE_SONNET_4_20250514_V1_0), 'should include Claude Sonnet 4')
             assert.ok(
                 modelIds.includes(BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0),
                 'should include Claude Sonnet 3.7'
