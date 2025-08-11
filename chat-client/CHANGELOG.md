@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.32](https://github.com/aws/language-servers/compare/chat-client/v0.1.31...chat-client/v0.1.32) (2025-08-11)
+
+
+### Features
+
+* **amazonq:** read tool ui revamp ([c65428b](https://github.com/aws/language-servers/commit/c65428bab2cf5e47badf1e3a9453babcf881e60c))
+
 ## [0.1.31](https://github.com/aws/language-servers/compare/chat-client/v0.1.30...chat-client/v0.1.31) (2025-08-06)
 
 
