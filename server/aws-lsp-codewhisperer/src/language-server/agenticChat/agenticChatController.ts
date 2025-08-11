@@ -783,8 +783,8 @@ export class AgenticChatController implements ChatHandlers {
             if (models.some(model => model.id === modelId)) {
                 selectedModelId = modelId
             }
-            // Priority 2: Use mapped version if modelId exists in FALLBACK_MODEL_RECORD
-            else if (modelId in FALLBACK_MODEL_RECORD) {
+            // Priority 2: Use mapped version if modelId exists in FALLBACK_MODEL_RECORD and no backend models available
+            else if (models.length === 0 && modelId in FALLBACK_MODEL_RECORD) {
                 selectedModelId = getModelLabel(modelId)
             }
             // Priority 3: Fall back to default or system default
