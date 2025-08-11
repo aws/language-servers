@@ -251,7 +251,7 @@ export class DiagnosticManager {
             })
             .join('\n\n')
 
-        return `Please fix the following errors that were detected in the selected files:\n\n${errorDescriptions}\n\n`
+        return `Please fix all the following errors that were detected in the selected files:\n\n${errorDescriptions}\n\n`
     }
 
     /**

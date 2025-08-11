@@ -42,3 +42,6 @@ export const BUTTON_CONTINUE_WITH_ERRORS = 'continue-with-errors'
 export const SUFFIX_PERMISSION = '_permission'
 export const SUFFIX_UNDOALL = '_undoall'
 export const SUFFIX_EXPLANATION = '_explanation'
+
+// Max loop times
+export const MAX_LOOP_TIMES = 5

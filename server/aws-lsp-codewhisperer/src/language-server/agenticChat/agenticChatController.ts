@@ -41,6 +41,7 @@ import {
     SUFFIX_PERMISSION,
     SUFFIX_UNDOALL,
     SUFFIX_EXPLANATION,
+    MAX_LOOP_TIMES,
 } from './constants/toolConstants'
 import {
     SendMessageCommandInput,
@@ -1194,6 +1195,7 @@ export class AgenticChatController implements ChatHandlers {
         let iterationCount = 0
         let shouldDisplayMessage = true
         let currentRequestCount = 0
+        let diagnosticLoopTimes = 0
         const pinnedContext = additionalContext?.filter(item => item.pinned)
 
         metric.recordStart()
@@ -1411,36 +1413,22 @@ export class AgenticChatController implements ChatHandlers {
                 )
 
                 // Check for diagnostic errors before setting final result
-                if (this.#modifiedFile.size > 0) {
-                    this.#log(
-                        `Checking diagnostic errors for ${this.#modifiedFile.size} modified files before final result`
-                    )
+                if (this.#modifiedFile.size > 0 && diagnosticLoopTimes < 5) {
+                    diagnosticLoopTimes += 1
                     const diagnosticErrors = await this.#diagnosticManager.checkDiagnosticErrors(
                         Array.from(this.#modifiedFile)
                     )
                     if (diagnosticErrors.length > 0) {
                         this.#log(`Found ${diagnosticErrors.length} files with diagnostic errors`)
-                        const selectedErrors = await this.#diagnosticManager.showDiagnosticErrorsUI(
-                            chatResultStream,
-                            diagnosticErrors,
-                            tabId
+                        // Start a new agent loop to fix the selected errors
+                        const fixPrompt = this.#diagnosticManager.generateFixPrompt(diagnosticErrors)
+                        currentRequestInput = this.#updateRequestInputWithToolResults(
+                            currentRequestInput,
+                            [],
+                            fixPrompt
                         )
-                        if (selectedErrors && selectedErrors.length > 0) {
-                            this.#log('User selected errors to fix, starting new agent loop')
-                            // Start a new agent loop to fix the selected errors
-                            const fixPrompt = this.#diagnosticManager.generateFixPrompt(selectedErrors)
-                            currentRequestInput = this.#updateRequestInputWithToolResults(
-                                currentRequestInput,
-                                [],
-                                fixPrompt
-                            )
-                            shouldDisplayMessage = false
-                            continue
-                        } else {
-                            this.#log('User chose to continue with diagnostic errors or no errors selected')
-                        }
-                    } else {
-                        this.#log('No diagnostic errors found in modified files')
+                        shouldDisplayMessage = false
+                        continue
                     }
                 }
 
