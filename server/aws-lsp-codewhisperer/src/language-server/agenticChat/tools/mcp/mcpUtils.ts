@@ -958,61 +958,13 @@ export async function saveAgentConfig(
     workspace: Workspace,
     logging: Logger,
     config: AgentConfig,
-    configPath: string,
-    serverName?: string
+    configPath: string
 ): Promise<void> {
     try {
         await workspace.fs.mkdir(path.dirname(configPath), { recursive: true })
-
-        if (!serverName) {
-            // Save the whole config
-            await workspace.fs.writeFile(configPath, JSON.stringify(config, null, 2))
-            logging.info(`Saved agent config to ${configPath}`)
-            return
-        }
-
-        // Read existing config if it exists, otherwise use default
-        let existingConfig: any
-        try {
-            const configExists = await workspace.fs.exists(configPath)
-            if (configExists) {
-                const raw = (await workspace.fs.readFile(configPath)).toString().trim()
-                existingConfig = raw ? JSON.parse(raw) : JSON.parse(DEFAULT_AGENT_RAW)
-            } else {
-                existingConfig = JSON.parse(DEFAULT_AGENT_RAW)
-            }
-        } catch (err) {
-            logging.warn(`Failed to read existing config at ${configPath}: ${err}`)
-            existingConfig = JSON.parse(DEFAULT_AGENT_RAW)
-        }
-
-        // Update only the specific server's config
-        if (config.mcpServers[serverName]) {
-            existingConfig.mcpServers[serverName] = config.mcpServers[serverName]
-        }
-
-        // Remove existing tools for this server
-        const serverToolPattern = `@${serverName}`
-        existingConfig.tools = existingConfig.tools.filter(
-            (tool: string) => tool !== serverToolPattern && !tool.startsWith(`${serverToolPattern}/`)
-        )
-        existingConfig.allowedTools = existingConfig.allowedTools.filter(
-            (tool: string) => tool !== serverToolPattern && !tool.startsWith(`${serverToolPattern}/`)
-        )
-
-        // Add only tools for this server
-        const serverTools = config.tools.filter(
-            tool => tool === serverToolPattern || tool.startsWith(`${serverToolPattern}/`)
-        )
-        const serverAllowedTools = config.allowedTools.filter(
-            tool => tool === serverToolPattern || tool.startsWith(`${serverToolPattern}/`)
-        )
-
-        existingConfig.tools.push(...serverTools)
-        existingConfig.allowedTools.push(...serverAllowedTools)
-
-        await workspace.fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2))
-        logging.info(`Saved agent config for server ${serverName} to ${configPath}`)
+        // Save the whole config
+        await workspace.fs.writeFile(configPath, JSON.stringify(config, null, 2))
+        logging.info(`Saved agent config to ${configPath}`)
     } catch (err: any) {
         logging.error(`Failed to save agent config to ${configPath}: ${err.message}`)
         throw err

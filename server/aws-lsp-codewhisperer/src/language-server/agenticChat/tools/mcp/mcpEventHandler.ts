@@ -1157,6 +1157,7 @@ export class McpEventHandler {
             }
 
             const mcpServerPermission = await this.#processPermissionUpdates(
+                serverName,
                 updatedPermissionConfig,
                 serverConfig?.__configPath__
             )
@@ -1354,27 +1355,20 @@ export class McpEventHandler {
     /**
      * Processes permission updates from the UI
      */
-    async #processPermissionUpdates(updatedPermissionConfig: any, agentPath: string | undefined) {
+    async #processPermissionUpdates(serverName: string, updatedPermissionConfig: any, agentPath: string | undefined) {
+        const builtInToolAgentPath = await this.#getAgentPath()
         const perm: MCPServerPermission = {
             enabled: true,
             toolPerms: {},
-            __configPath__: agentPath,
+            __configPath__: serverName === 'Built-in' ? builtInToolAgentPath : agentPath,
         }
 
         // Process each tool permission setting
         for (const [key, val] of Object.entries(updatedPermissionConfig)) {
             if (key === 'scope') continue
 
-            // // Get the default permission for this tool from McpManager
-            // let defaultPermission = McpManager.instance.getToolPerm(serverName, key)
-
-            // // If no default permission is found, use 'alwaysAllow' for Built-in and 'ask' for MCP servers
-            // if (!defaultPermission) {
-            //     defaultPermission = serverName === 'Built-in' ? 'alwaysAllow' : 'ask'
-            // }
-
-            // If the value is an empty string (''), skip this tool to preserve its existing permission in the persona file
-            if (val === '') continue
+            const currentPerm = McpManager.instance.getToolPerm(serverName, key)
+            if (val === currentPerm) continue
             switch (val) {
                 case McpPermissionType.alwaysAllow:
                     perm.toolPerms[key] = McpPermissionType.alwaysAllow
