@@ -7,6 +7,7 @@ import { ChildProcess, ChildProcessOptions } from '@aws/lsp-core/out/util/proces
 import path = require('path')
 import { dirname } from 'path'
 import { pathToFileURL } from 'url'
+import { OUT_OF_WORKSPACE_WARNING_MSG } from '../constants/constants'
 
 export interface GrepSearchParams {
     path?: string
@@ -81,7 +82,8 @@ export class GrepSearch {
 
     public async requiresAcceptance(params: GrepSearchParams): Promise<CommandValidation> {
         const path = this.getSearchDirectory(params.path)
-        return { requiresAcceptance: !workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.workspace), path) }
+        const isInWorkspace = workspaceUtils.isInWorkspace(getWorkspaceFolderPaths(this.workspace), path)
+        return { requiresAcceptance: !isInWorkspace, warning: !isInWorkspace ? OUT_OF_WORKSPACE_WARNING_MSG : '' }
     }
 
     public async invoke(params: GrepSearchParams, token?: CancellationToken): Promise<InvokeOutput> {
