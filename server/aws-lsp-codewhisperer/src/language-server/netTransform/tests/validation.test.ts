@@ -63,7 +63,7 @@ describe('Test validation functionality', () => {
         expect(validateProject(mockStartTransformationRequest, mockedLogging)).to.equal(true)
     })
 
-    it('should return false when project is not a supported type', () => {
+    it('should return true when project is not a previously supported type', () => {
         let mockStartTransformationRequest: StartTransformRequest = sampleStartTransformRequest
         const mockProjectMeta = {
             Name: '',
@@ -77,7 +77,7 @@ describe('Test validation functionality', () => {
         mockStartTransformationRequest.ProjectMetadata = []
         mockStartTransformationRequest.ProjectMetadata.push(mockProjectMeta)
 
-        expect(validateProject(mockStartTransformationRequest, mockedLogging)).to.equal(false)
+        expect(validateProject(mockStartTransformationRequest, mockedLogging)).to.equal(true)
     })
 
     it('should return false when there is no project path that is the same as the selected project path', () => {
@@ -115,7 +115,7 @@ describe('Test validation functionality', () => {
         expect(validateProject(mockStartTransformationRequest, mockedLogging)).to.equal(true)
     })
 
-    it('should not include AspNetWebForms in unsupported projects list', () => {
+    it('should return empty array for solution validation', () => {
         let mockStartTransformationRequest: StartTransformRequest = sampleStartTransformRequest
 
         // Add a supported project
@@ -159,9 +159,6 @@ describe('Test validation functionality', () => {
 
         const unsupportedProjects = validateSolution(mockStartTransformationRequest)
 
-        // Should only contain the unsupported project, not the AspNetWebForms project
-        expect(unsupportedProjects).to.have.lengthOf(1)
-        expect(unsupportedProjects[0]).to.equal('unsupported.csproj')
-        expect(unsupportedProjects).to.not.include('webforms.csproj')
+        expect(unsupportedProjects).to.have.lengthOf(0)
     })
 })

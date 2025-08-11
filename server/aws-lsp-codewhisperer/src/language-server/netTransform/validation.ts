@@ -6,9 +6,7 @@ import { TransformationJob } from '../../client/token/codewhispererbearertokencl
 import { TransformationErrorCode } from './models'
 
 /**
- * TEMPORARY HACK: AspNetWebForms project type is allowed in validateProject and validateSolution
- * functions without being added to the supportedProjects array. This is to enable WebForms to Blazor
- * transformation without officially supporting it yet.
+ * Project type validation moved to backend service.
  */
 
 export function isProject(userInputrequest: StartTransformRequest): boolean {
@@ -25,24 +23,17 @@ export function validateProject(userInputrequest: StartTransformRequest, logging
     )
 
     if (selectedProject) {
-        // Temporary hack: Allow AspNetWebForms project type without adding it to supportedProjects
-        var isValid =
-            supportedProjects.includes(selectedProject?.ProjectType) ||
-            selectedProject?.ProjectType === 'AspNetWebForms'
         logging.log(
-            `Selected project ${userInputrequest?.SelectedProjectPath} has project type ${selectedProject.ProjectType}` +
-                (isValid ? '' : ' that is not supported')
+            `Selected project ${userInputrequest?.SelectedProjectPath} has project type ${selectedProject.ProjectType}`
         )
-        return isValid
+        return true
     }
     logging.log(`Error occured in verifying selected project with path ${userInputrequest.SelectedProjectPath}`)
     return false
 }
 
 export function validateSolution(userInputrequest: StartTransformRequest): string[] {
-    return userInputrequest.ProjectMetadata.filter(
-        project => !supportedProjects.includes(project.ProjectType) && project.ProjectType !== 'AspNetWebForms'
-    ).map(project => project.ProjectPath)
+    return []
 }
 
 export async function checkForUnsupportedViews(
