@@ -397,23 +397,24 @@ export class AgenticChatController implements ChatHandlers {
             if (params.buttonId === BUTTON_TRUST_COMMAND) {
                 // get result from metadata
                 const toolName = params.metadata!['toolName']
-                const new_permission = params.metadata!['permission']
+                const newPermission = params.metadata!['permission']
                 const serverName = params.metadata!['serverName']
 
-                const current_permission = McpManager.instance.getToolPerm(serverName, toolName)
+                const currentPermission = McpManager.instance.getToolPerm(serverName, toolName)
                 // only trigger update if curren != previous
-                if (current_permission !== new_permission) {
+                if (currentPermission !== newPermission) {
                     // generate perm object
                     const perm = await this.#mcpEventHandler.generateEmptyBuiltInToolPermission()
 
                     // load updated permission
-                    perm.toolPerms[toolName] = new_permission as McpPermissionType
+                    perm.toolPerms[toolName] = newPermission as McpPermissionType
 
                     // update permission
                     try {
                         await McpManager.instance.updateServerPermission(serverName, perm)
                         // if the new permission is asks --> only update permission, dont continue
-                        if (new_permission === 'ask') {
+                        // this only happen on a completed card
+                        if (newPermission === 'ask') {
                             return {
                                 success: true,
                             }
@@ -451,6 +452,13 @@ export class AgenticChatController implements ChatHandlers {
                 return {
                     success: false,
                     failureReason: `could not find deferred tool execution for message: ${messageId} `,
+                }
+            }
+            if (params.buttonId === BUTTON_TRUST_COMMAND && params.metadata!['permission'] === 'deny') {
+                handler.reject(new ToolApprovalException('Command was denied.', true))
+                this.#stoppedToolUses.add(messageId)
+                return {
+                    success: true,
                 }
             }
             params.buttonId === BUTTON_REJECT_SHELL_COMMAND || params.buttonId === BUTTON_REJECT_MCP_TOOL
@@ -2656,6 +2664,16 @@ export class AgenticChatController implements ChatHandlers {
                     value: `${serverName}@${toolName}`,
                     selected: permission === 'alwaysAllow',
                 },
+                ...(serverName !== 'Built-in'
+                    ? [
+                          {
+                              id: 'deny',
+                              label: 'Deny',
+                              value: `${serverName}@${toolName}`,
+                              selected: permission === 'deny',
+                          },
+                      ]
+                    : []),
             ],
         }
     }
