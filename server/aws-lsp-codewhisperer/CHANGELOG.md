@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.0.73](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.72...lsp-codewhisperer/v0.0.73) (2025-08-11)
+
+
+### Features
+
+* **amazonq:** read tool ui revamp ([c65428b](https://github.com/aws/language-servers/commit/c65428bab2cf5e47badf1e3a9453babcf881e60c))
+
+
+### Bug Fixes
+
+* **amazonq:** add fallback classpath generation ([#2077](https://github.com/aws/language-servers/issues/2077)) ([3a6ef14](https://github.com/aws/language-servers/commit/3a6ef14e78fa2e75b837bba6524751d65038f416))
+* **amazonq:** emit failed status for amazonq_invokeLLM ([#2071](https://github.com/aws/language-servers/issues/2071)) ([ee52a41](https://github.com/aws/language-servers/commit/ee52a41bc869b275fff708d7955b59f43b93bbd4))
+* **amazonq:** fix fallout of [#2051](https://github.com/aws/language-servers/issues/2051) ([#2057](https://github.com/aws/language-servers/issues/2057)) ([565066b](https://github.com/aws/language-servers/commit/565066bb61adda60333c9646db958d4208bcc8af))
+* **amazonq:** leverage lcs to find the chars added and removed ([#2092](https://github.com/aws/language-servers/issues/2092)) ([40379a8](https://github.com/aws/language-servers/commit/40379a887f8d42cc184239ca3175b4e673cc5286))
+* **amazonq:** skips continuous monitoring when WCS sees workspace as idle ([#2066](https://github.com/aws/language-servers/issues/2066)) ([9cb959d](https://github.com/aws/language-servers/commit/9cb959d4cc450d0907f8bf5265ba01d2aa68bcd0))
+* creating a new sesion for Edits trigger with next token ([#2094](https://github.com/aws/language-servers/issues/2094)) ([1da8730](https://github.com/aws/language-servers/commit/1da8730b6ed6ad53b6561368bf722e56d59596a4))
+* remove edit cache logic ([#2079](https://github.com/aws/language-servers/issues/2079)) ([9bc5b9c](https://github.com/aws/language-servers/commit/9bc5b9c1d77e5fee6f518f7f5016d3a0043a5a77))
+* sessionManager misused because there are 2 types of manager now ([#2090](https://github.com/aws/language-servers/issues/2090)) ([8db059a](https://github.com/aws/language-servers/commit/8db059ab83d94fd7c3ba3eb265044add31c80aea))
+* update client name to support Sagemaker AI origin for agentic chat ([#2093](https://github.com/aws/language-servers/issues/2093)) ([a746fe8](https://github.com/aws/language-servers/commit/a746fe845d5e09563b475f01ce44059dca9fd10f))
+
 ## [0.0.72](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.71...lsp-codewhisperer/v0.0.72) (2025-08-06)
 
 

@@ -46,7 +46,7 @@ import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
-import { getAddedAndDeletedChars } from './diffUtils'
+import { getAddedAndDeletedLines, getCharacterDifferences } from './diffUtils'
 import {
     emitPerceivedLatencyTelemetry,
     emitServiceInvocationFailure,
@@ -642,36 +642,29 @@ export const CodewhispererServerFactory =
             )
             const isAccepted = acceptedItemId ? true : false
             const acceptedSuggestion = session.suggestions.find(s => s.itemId === acceptedItemId)
-            let addedCharactersForEditSuggestion = ''
-            let deletedCharactersForEditSuggestion = ''
-            if (acceptedSuggestion !== undefined) {
-                if (acceptedSuggestion) {
-                    codePercentageTracker.countSuccess(session.language)
-                    if (session.suggestionType === SuggestionType.EDIT && acceptedSuggestion.content) {
-                        // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
-                        // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
-                        const addedAndDeletedChars = getAddedAndDeletedChars(acceptedSuggestion.content)
-                        if (addedAndDeletedChars) {
-                            addedCharactersForEditSuggestion = addedAndDeletedChars.addedCharacters
-                            deletedCharactersForEditSuggestion = addedAndDeletedChars.deletedCharacters
+            let addedLengthForEdits = 0
+            let deletedLengthForEdits = 0
+            if (acceptedSuggestion) {
+                codePercentageTracker.countSuccess(session.language)
+                if (session.suggestionType === SuggestionType.EDIT && acceptedSuggestion.content) {
+                    // [acceptedSuggestion.insertText] will be undefined for NEP suggestion. Use [acceptedSuggestion.content] instead.
+                    // Since [acceptedSuggestion.content] is in the form of a diff, transform the content into addedCharacters and deletedCharacters.
+                    const { addedLines, deletedLines } = getAddedAndDeletedLines(acceptedSuggestion.content)
+                    const charDiffResult = getCharacterDifferences(addedLines, deletedLines)
+                    addedLengthForEdits = charDiffResult.charactersAdded
+                    deletedLengthForEdits = charDiffResult.charactersRemoved
 
-                            codePercentageTracker.countAcceptedTokens(
-                                session.language,
-                                addedCharactersForEditSuggestion
-                            )
-                            codePercentageTracker.countTotalTokens(
-                                session.language,
-                                addedCharactersForEditSuggestion,
-                                true
-                            )
-                            enqueueCodeDiffEntry(session, acceptedSuggestion, addedCharactersForEditSuggestion)
-                        }
-                    } else if (acceptedSuggestion.insertText) {
-                        codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
-                        codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
+                    codePercentageTracker.countAcceptedTokensUsingCount(
+                        session.language,
+                        charDiffResult.charactersAdded
+                    )
+                    codePercentageTracker.addTotalTokensForEdits(session.language, charDiffResult.charactersAdded)
+                    enqueueCodeDiffEntry(session, acceptedSuggestion, addedLines.join('\n'))
+                } else if (acceptedSuggestion.insertText) {
+                    codePercentageTracker.countAcceptedTokens(session.language, acceptedSuggestion.insertText)
+                    codePercentageTracker.countTotalTokens(session.language, acceptedSuggestion.insertText, true)
 
-                        enqueueCodeDiffEntry(session, acceptedSuggestion)
-                    }
+                    enqueueCodeDiffEntry(session, acceptedSuggestion)
                 }
             }
 
@@ -717,8 +710,8 @@ export const CodewhispererServerFactory =
                 telemetryService,
                 session,
                 timeSinceLastUserModification,
-                addedCharactersForEditSuggestion.length,
-                deletedCharactersForEditSuggestion.length,
+                addedLengthForEdits,
+                deletedLengthForEdits,
                 addedDiagnostics,
                 removedDiagnostics,
                 streakLength,
