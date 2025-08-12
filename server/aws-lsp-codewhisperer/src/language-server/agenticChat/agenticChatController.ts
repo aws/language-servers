@@ -70,7 +70,6 @@ import {
     OpenFileDialogResult,
     CheckDiagnosticsParams,
     CheckDiagnosticsResult,
-    LinkClickParams,
 } from '@aws/language-server-runtimes/protocol'
 import {
     ApplyWorkspaceEditParams,
@@ -3571,7 +3570,7 @@ export class AgenticChatController implements ChatHandlers {
 
     onInfoLinkClick() {}
 
-    async onLinkClick(params: LinkClickParams) {}
+    onLinkClick() {}
 
     /**
      * After the Chat UI (mynah-ui) is ready.
