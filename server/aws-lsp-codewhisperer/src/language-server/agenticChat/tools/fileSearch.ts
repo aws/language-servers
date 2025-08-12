@@ -158,3 +158,7 @@ export class FileSearch {
         } as const
     }
 }
+
+export function isFileSearchParams(input: any): input is FileSearchParams {
+    return input && typeof input.path === 'string' && typeof input.queryName === 'string'
+}
