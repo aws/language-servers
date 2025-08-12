@@ -67,6 +67,7 @@ import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
 import * as sharedUtils from '../../shared/utils'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -473,6 +474,15 @@ describe('AgenticChatController', () => {
             // Verify that a conversationId was created
             assert.ok(session.conversationId)
             assert.strictEqual(typeof session.conversationId, 'string')
+        })
+
+        it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
+            const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
+
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledOnce(recordActivityTimestampStub)
+            recordActivityTimestampStub.restore()
         })
 
         it('includes chat history from the database in the request input', async () => {

@@ -230,6 +230,7 @@ import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -721,6 +722,8 @@ export class AgenticChatController implements ChatHandlers {
     async onChatPrompt(params: ChatParams, token: CancellationToken): Promise<ChatResult | ResponseError<ChatResult>> {
         // Phase 1: Initial Setup - This happens only once
         params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
+
+        IdleWorkspaceManager.recordActivityTimestamp()
 
         const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
@@ -1300,6 +1303,25 @@ export class AgenticChatController implements ChatHandlers {
                 shouldDisplayMessage = false
                 // set the in progress tool use UI status to Error
                 await chatResultStream.updateOngoingProgressResult('Error')
+
+                // emit invokeLLM event with status Failed for timeout calls
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    'AgenticChat',
+                    undefined,
+                    undefined,
+                    'Failed',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
+                    llmLatency,
+                    this.#toolCallLatencies,
+                    this.#timeToFirstChunk,
+                    this.#timeBetweenChunks,
+                    session.pairProgrammingMode,
+                    this.#abTestingAllocation?.experimentName,
+                    this.#abTestingAllocation?.userVariation
+                )
                 continue
             }
 
@@ -1345,7 +1367,7 @@ export class AgenticChatController implements ChatHandlers {
                     'AgenticChat',
                     undefined,
                     undefined,
-                    'Succeeded',
+                    result.success ? 'Succeeded' : 'Failed',
                     this.#features.runtime.serverInfo.version ?? '',
                     session.modelId,
                     llmLatency,
@@ -3266,6 +3288,9 @@ export class AgenticChatController implements ChatHandlers {
         const metric = new Metric<AddMessageEvent>({
             cwsprChatConversationType: 'Chat',
         })
+
+        IdleWorkspaceManager.recordActivityTimestamp()
+
         const triggerContext = await this.#getInlineChatTriggerContext(params)
 
         let response: ChatCommandOutput
