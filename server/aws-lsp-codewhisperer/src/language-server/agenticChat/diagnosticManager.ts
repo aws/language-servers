@@ -7,7 +7,7 @@ export interface DiagnosticError {
     diagnostics: DiagnosticInfo[]
     errorCount: number
 }
-const MAX_ERROR_NUMBER = 10
+const MAX_ERROR_NUMBER = 50
 const SEVERITY_LEVEL_THRESHOLD = 2
 
 interface DiagnosticDeferred {
