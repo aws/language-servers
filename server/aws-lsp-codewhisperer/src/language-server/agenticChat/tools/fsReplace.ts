@@ -73,7 +73,7 @@ export class FsReplace {
             description:
                 'A tool for search and replace contents of an existing file.\n\n' +
                 '## Overview\n' +
-                'This tool replaces sections of content in an existing file using `oldStr`/`newStr` blocks that define exact changes to specific parts of the file. You MUST ALWAYS determine the absolute path of the file to be modified before using this tool. You MUST ALWAYS group as many changes as you can by populating the diffs array with multiple `oldStr`/`newStr` pairs, DO NOT be overly cautious and methodical by making one change at a time on the same file.\n\n' +
+                'This tool replaces sections of content in an existing file using `oldStr`/`newStr` blocks that define exact changes to specific parts of the file. You MUST ALWAYS determine the absolute path of the target file first. You MUST ALWAYS group as many changes as you can by populating the diffs array with multiple `oldStr`/`newStr` pairs, DO NOT be overly cautious and methodical by making one change at a time on the same file.\n\n' +
                 '## When to use\n' +
                 '- When you need to make targeted changes to specific parts of a file\n' +
                 '- When you need to update multiple sections of the same file\n' +
@@ -81,17 +81,16 @@ export class FsReplace {
                 '- When you need to create a new file\n' +
                 '- When you need to rename or move a file\n\n' +
                 '## IMPORTANT Notes\n' +
-                '- CRITICAL: NEVER generate diffs or explanation results before generating the absolute path of the file to be modified' +
+                '- CRITICAL: The `path` parameter must be specified first in the JSON payload, followed by `diffs`and `explanation`\n' +
                 '- Use this tool to delete code by using empty `newStr` parameter\n' +
                 '- The `oldStr` parameter should match EXACTLY one or more consecutive lines from the target file. Be mindful of whitespaces including the tabs and spaces! Include just the changing lines, and a few surrounding lines if needed for uniqueness. Do not include long runs of unchanging lines in `oldStr`\n' +
-                '- When multiple edits to the same file are needed, ALWAYS populate the diffs array with MULTIPLE `oldStr` and `newStr` pairs. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state\n' +
-                '- Keep diff pairs reasonably sized (typically 50-200 characters)',
+                '- When multiple edits to the same file are needed, ALWAYS populate the diffs array with MULTIPLE `oldStr` and `newStr` pairs. This improves efficiency by reducing the number of tool calls and ensures the file remains in a consistent state',
             inputSchema: {
                 type: 'object',
                 properties: {
                     path: {
                         description:
-                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows. CRITICALL This MUST be the first parameter in the JSON before the diffs and explanation',
+                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows. CRITICAL: This MUST be the first parameter in the JSON payload before the diffs and explanation',
                         type: 'string',
                     },
                     diffs: {
