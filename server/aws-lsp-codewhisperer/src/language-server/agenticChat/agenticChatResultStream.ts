@@ -90,6 +90,7 @@ export class AgenticChatResultStream {
                                     ? am.body + (c.body ? AgenticChatResultStream.resultDelimiter + c.body : '')
                                     : am.body,
                             ...(am.messageId === c.messageId &&
+                                c.type !== 'tool' &&
                                 (c.contextList || acc.contextList) && {
                                     contextList: {
                                         filePaths: [
