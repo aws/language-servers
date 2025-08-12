@@ -90,7 +90,7 @@ export class FsReplace {
                 properties: {
                     path: {
                         description:
-                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows. CRITICAL: This MUST be the first parameter in the JSON payload before diffs and explanation',
+                            'Absolute path to a file, e.g. `/repo/file.py` for Unix-like system including Unix/Linux/macOS or `d:\\repo\\file.py` for Windows. CRITICAL: This MUST be the first parameter in the JSON payload before `diffs` and `explanation`',
                         type: 'string',
                     },
                     diffs: {
