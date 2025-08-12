@@ -1064,6 +1064,13 @@ export class McpManager {
     }
 
     /**
+     * get server's tool permission
+     */
+    public getMcpServerPermissions(serverName: string): MCPServerPermission | undefined {
+        return this.mcpServerPermissions.get(serverName)
+    }
+
+    /**
      * Returns any errors that occurred during loading of MCP configuration files
      */
     public getConfigLoadErrors(): string | undefined {
