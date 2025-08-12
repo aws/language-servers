@@ -4432,18 +4432,14 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #createDeferred(): {
-        promise: Promise<DiagnosticError[]>
-        resolve: (value: DiagnosticError[]) => void
-        reject: (error: Error) => void
-    } {
-        let resolve: (value: DiagnosticError[]) => void
-        let reject: (error: Error) => void
-        const promise = new Promise<DiagnosticError[]>((res, rej) => {
+    #createDeferred() {
+        let resolve
+        let reject
+        const promise = new Promise((res, rej) => {
             resolve = res
-            reject = rej
+            reject = (e: Error) => rej(e)
         })
-        return { promise, resolve: resolve!, reject: reject! }
+        return { promise, resolve, reject }
     }
 
     /**
