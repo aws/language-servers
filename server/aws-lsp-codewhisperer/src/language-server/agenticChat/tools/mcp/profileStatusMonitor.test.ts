@@ -89,10 +89,8 @@ describe('ProfileStatusMonitor', () => {
         })
 
         it('should return true and log debug message on error', async () => {
-            // Stub the private checkMcpConfiguration method to throw an error
-            sinon
-                .stub(profileStatusMonitor as any, 'checkMcpConfiguration')
-                .throws(new Error('Service manager not ready'))
+            // Stub the private isMcpEnabled method to throw an error
+            sinon.stub(profileStatusMonitor as any, 'isMcpEnabled').throws(new Error('Service manager not ready'))
 
             const result = await profileStatusMonitor.checkInitialState()
             expect(result).to.be.true
