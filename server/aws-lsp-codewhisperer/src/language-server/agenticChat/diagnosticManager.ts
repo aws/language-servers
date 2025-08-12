@@ -42,16 +42,16 @@ export class DiagnosticManager {
         // First, open files to ensure diagnostics are available
         await this.#ensureFilesAreAnalyzed(filePaths)
 
-        const diagnosticParams: CheckDiagnosticsParams = { filePath: {} }
+        const diagnosticParams: CheckDiagnosticsParams = { fileDiagnostics: {} }
         for (const file of filePaths) {
-            diagnosticParams.filePath[file] = []
+            diagnosticParams.fileDiagnostics[file] = []
         }
 
         try {
             const diagnosticResult = await this.getDiagnostics(diagnosticParams)
             const errors: DiagnosticError[] = []
 
-            for (const [filePath, diagnostics] of Object.entries(diagnosticResult.filePath)) {
+            for (const [filePath, diagnostics] of Object.entries(diagnosticResult.fileDiagnostics)) {
                 if (Array.isArray(diagnostics) && diagnostics.length > 0) {
                     // Filter for errors and warnings only (severity 1 and 2)
                     const errorDiagnostics = diagnostics.filter(
