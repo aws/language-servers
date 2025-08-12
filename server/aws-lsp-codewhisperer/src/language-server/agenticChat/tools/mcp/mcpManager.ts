@@ -1035,7 +1035,7 @@ export class McpManager {
                 }
                 this.setState(serverName, McpServerStatus.DISABLED, 0)
             } else {
-                if (!this.clients.has(serverName)) {
+                if (!this.clients.has(serverName) && serverName !== 'Built-in') {
                     await this.initOneServer(serverName, this.mcpServers.get(serverName)!)
                 }
             }
