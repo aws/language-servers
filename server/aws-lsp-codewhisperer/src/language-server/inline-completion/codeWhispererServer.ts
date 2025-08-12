@@ -919,7 +919,7 @@ export const CodewhispererServerFactory =
 export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
 export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
 
-const getLanguageIdFromUri = (uri: string, logging?: any): string => {
+export const getLanguageIdFromUri = (uri: string, logging?: any): string => {
     try {
         if (uri.startsWith('vscode-notebook-cell:')) {
             // use python for now as lsp does not support JL cell language detection
