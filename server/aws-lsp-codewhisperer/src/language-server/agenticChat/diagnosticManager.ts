@@ -1,23 +1,10 @@
-import { v4 as uuid } from 'uuid'
-import { ChatResult, Button } from '@aws/language-server-runtimes/server-interface'
-import { CheckDiagnosticsParams, CheckDiagnosticsResult } from '@aws/language-server-runtimes/protocol'
+import { CheckDiagnosticsParams, CheckDiagnosticsResult, DiagnosticInfo } from '@aws/language-server-runtimes/protocol'
 import { Features } from '../types'
-import { AgenticChatResultStream } from './agenticChatResultStream'
 import { ChatSessionManagementService } from '../chat/chatSessionManagementService'
-import { URI } from 'vscode-uri'
 
 export interface DiagnosticError {
     filePath: string
-    diagnostics: Array<{
-        range: {
-            start: { line: number; character: number }
-            end: { line: number; character: number }
-        }
-        severity?: number
-        message: string
-        source?: string
-        code?: string | number
-    }>
+    diagnostics: DiagnosticInfo[]
     errorCount: number
 }
 const MAX_ERROR_NUMBER = 10
@@ -55,16 +42,16 @@ export class DiagnosticManager {
         // First, open files to ensure diagnostics are available
         await this.#ensureFilesAreAnalyzed(filePaths)
 
-        const diagnosticParams: CheckDiagnosticsParams = { filePaths: {} }
+        const diagnosticParams: CheckDiagnosticsParams = { filePath: {} }
         for (const file of filePaths) {
-            diagnosticParams.filePaths[file] = {}
+            diagnosticParams.filePath[file] = []
         }
 
         try {
             const diagnosticResult = await this.getDiagnostics(diagnosticParams)
             const errors: DiagnosticError[] = []
 
-            for (const [filePath, diagnostics] of Object.entries(diagnosticResult.filePaths)) {
+            for (const [filePath, diagnostics] of Object.entries(diagnosticResult.filePath)) {
                 if (Array.isArray(diagnostics) && diagnostics.length > 0) {
                     // Filter for errors and warnings only (severity 1 and 2)
                     const errorDiagnostics = diagnostics.filter(
@@ -110,7 +97,7 @@ export class DiagnosticManager {
         await Promise.all(openPromises)
 
         // Give language servers a moment to analyze the files
-        await new Promise(resolve => setTimeout(resolve, 2000))
+        await new Promise(resolve => setTimeout(resolve, 1000))
     }
     /**
      * Generate a prompt to fix diagnostic errors
@@ -127,23 +114,8 @@ export class DiagnosticManager {
             })
             .join('\n\n')
 
-        return `Please fix all the following errors that were detected in the selected files:\n\n${errorDescriptions}\n\n`
+        return `Please fix all the following errors:\n\n${errorDescriptions}\n\n`
     }
-    /**
-     * Create a deferred promise
-     */
-    #createDeferred(): DiagnosticDeferred {
-        let resolve: (value: DiagnosticError[]) => void
-        let reject: (error: Error) => void
-
-        const promise = new Promise<DiagnosticError[]>((res, rej) => {
-            resolve = res
-            reject = rej
-        })
-
-        return { resolve: resolve!, reject: reject!, promise }
-    }
-
     /**
      * Log helper
      */
@@ -157,14 +129,6 @@ export class DiagnosticManager {
     getCurrentDiagnosticErrors(): DiagnosticError[] {
         return this.#currentDiagnosticErrors
     }
-
-    /**
-     * Get selected diagnostic files (for external access)
-     */
-    getSelectedDiagnosticFiles(): Set<string> {
-        return this.#selectedDiagnosticFiles
-    }
-
     /**
      * Check if there's a pending diagnostic decision
      */

@@ -1391,7 +1391,7 @@ export class AgenticChatController implements ChatHandlers {
                 )
 
                 // Check for diagnostic errors before setting final result
-                if (this.#modifiedFile.size > 0 && diagnosticLoopTimes < 5) {
+                if (this.#modifiedFile.size > 0 && diagnosticLoopTimes < MAX_LOOP_TIMES) {
                     diagnosticLoopTimes += 1
                     const diagnosticErrors = await this.#diagnosticManager.checkDiagnosticErrors(
                         Array.from(this.#modifiedFile)
