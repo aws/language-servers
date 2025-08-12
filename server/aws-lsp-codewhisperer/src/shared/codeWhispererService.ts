@@ -439,7 +439,7 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         this.logging.info(
             `GenerateCompletion request: 
     "endpoint": ${this.codeWhispererEndpoint},
-    "predictionType": ${request.predictionTypes?.toString() ?? ''},
+    "predictionType": ${request.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
     "filename": ${request.fileContext.filename},
     "language": ${request.fileContext.programmingLanguage.languageName},
     "supplementalContextCount": ${request.supplementalContexts?.length ?? 0},

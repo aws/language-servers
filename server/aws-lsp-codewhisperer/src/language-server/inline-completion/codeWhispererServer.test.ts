@@ -61,6 +61,7 @@ import { INVALID_TOKEN } from '../../shared/constants'
 import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
 import { CONTEXT_CHARACTERS_LIMIT } from './constants'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -768,6 +769,22 @@ describe('CodeWhisperer Server', () => {
                 )
             // Throws expected error
             assert.rejects(promise, ResponseError)
+        })
+
+        it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
+            const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            sinon.assert.calledOnce(recordActivityTimestampStub)
+            recordActivityTimestampStub.restore()
         })
 
         describe('Supplemental Context', () => {
