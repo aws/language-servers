@@ -204,6 +204,7 @@ export const CodewhispererServerFactory =
                         params.context.triggerKind == InlineCompletionTriggerKind.Automatic
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
+                    // TODO: replace fileContext with overrides
                     const fileContext = getFileContext({
                         textDocument,
                         inferredLanguageId,
@@ -901,6 +902,10 @@ export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBas
 
 const getLanguageIdFromUri = (uri: string, logging?: any): string => {
     try {
+        if (uri.startsWith('vscode-notebook-cell:')) {
+            // use python for now as lsp does not support JL cell language detection
+            return 'python'
+        }
         const extension = uri.split('.').pop()?.toLowerCase()
         return ABAP_EXTENSIONS.has(extension || '') ? 'abap' : ''
     } catch (err) {
