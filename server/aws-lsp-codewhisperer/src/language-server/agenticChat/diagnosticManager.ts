@@ -7,7 +7,9 @@ export interface DiagnosticError {
     diagnostics: DiagnosticInfo[]
     errorCount: number
 }
+// Maximum number of diagnostic errors to include per file (limits output size)
 const MAX_ERROR_NUMBER = 50
+// Severity level threshold: 1=Error, 2=Warning, 3=Information, 4=Hint (include errors and warnings only)
 const SEVERITY_LEVEL_THRESHOLD = 2
 
 interface DiagnosticDeferred {
@@ -114,7 +116,7 @@ export class DiagnosticManager {
             })
             .join('\n\n')
 
-        return `Please fix all the following errors:\n\n${errorDescriptions}\n\n`
+        return `Please fix all errors below:\n\n${errorDescriptions}\n\n`
     }
     /**
      * Log helper

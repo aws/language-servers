@@ -37,7 +37,7 @@ import {
     SUFFIX_PERMISSION,
     SUFFIX_UNDOALL,
     SUFFIX_EXPLANATION,
-    MAX_LOOP_TIMES,
+    MAX_DIAGNOSTIC_LOOP_TIMES,
 } from './constants/toolConstants'
 import {
     SendMessageCommandInput,
@@ -1369,7 +1369,6 @@ export class AgenticChatController implements ChatHandlers {
             const pendingToolUses = this.#getPendingToolUses(result.data?.toolUses || {})
 
             if (pendingToolUses.length === 0) {
-                this.recordChunk('agent_loop_done')
                 // No more tool uses, we're done
                 this.#telemetryController.emitAgencticLoop_InvokeLLM(
                     response.$metadata.requestId!,
@@ -1390,7 +1389,7 @@ export class AgenticChatController implements ChatHandlers {
                 )
 
                 // Check for diagnostic errors before setting final result
-                if (this.#modifiedFile.size > 0 && diagnosticLoopTimes < MAX_LOOP_TIMES) {
+                if (this.#modifiedFile.size > 0 && diagnosticLoopTimes < MAX_DIAGNOSTIC_LOOP_TIMES) {
                     diagnosticLoopTimes += 1
                     const diagnosticErrors = await this.#diagnosticManager.checkDiagnosticErrors(
                         Array.from(this.#modifiedFile)
@@ -1409,6 +1408,7 @@ export class AgenticChatController implements ChatHandlers {
                     }
                 }
 
+                this.recordChunk('agent_loop_done')
                 finalResult = result
                 this.#modifiedFile.clear()
                 break

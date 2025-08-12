@@ -38,4 +38,4 @@ export const SUFFIX_UNDOALL = '_undoall'
 export const SUFFIX_EXPLANATION = '_explanation'
 
 // Max loop times
-export const MAX_LOOP_TIMES = 5
+export const MAX_DIAGNOSTIC_LOOP_TIMES = 5
