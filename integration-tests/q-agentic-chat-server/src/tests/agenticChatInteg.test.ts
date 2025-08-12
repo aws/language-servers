@@ -371,7 +371,7 @@ describe('Q Agentic Chat Server Integration Tests', async () => {
 
         expect(decryptedResult.additionalMessages).to.be.an('array')
         const fileSearchMessage = decryptedResult.additionalMessages?.find(
-            msg => msg.type === 'tool' && msg.header?.body === 'Searched for `test` in '
+            msg => msg.type === 'tool' && msg.header?.body === 'Searched for "test" in '
         )
         expect(fileSearchMessage).to.exist
         expect(fileSearchMessage?.messageId?.startsWith('tooluse_')).to.be.true
