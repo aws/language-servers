@@ -88,7 +88,7 @@ export class DiagnosticManager {
                 // Open the file without taking focus to trigger diagnostic analysis
                 await this.#features.lsp.workspace.openWorkspaceFile({
                     filePath: filePath,
-                    makeActive: false,
+                    makeActive: true,
                 })
             } catch (error) {
                 this.#log(`Failed to open file for diagnostic analysis: ${filePath} - ${error}`)
@@ -99,7 +99,7 @@ export class DiagnosticManager {
         await Promise.all(openPromises)
 
         // Give language servers a moment to analyze the files
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        await new Promise(resolve => setTimeout(resolve, 1500))
     }
     /**
      * Generate a prompt to fix diagnostic errors
