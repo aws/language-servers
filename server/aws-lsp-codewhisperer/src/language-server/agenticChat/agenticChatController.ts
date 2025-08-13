@@ -159,6 +159,7 @@ import {
     getUserPromptsDirectory,
     promptFileExtension,
 } from './context/contextUtils'
+import { normalizePathForDescription } from './context/pathEscapeUtils'
 import { ContextCommandsProvider } from './context/contextCommandsProvider'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
 import { CancellationError, workspaceUtils } from '@aws/lsp-core'
@@ -2086,7 +2087,7 @@ export class AgenticChatController implements ChatHandlers {
                                     filePaths: [fileName],
                                     details: {
                                         [fileName]: {
-                                            description: fsParam.path,
+                                            description: normalizePathForDescription(fsParam.path),
                                         },
                                     },
                                 },
@@ -2868,7 +2869,7 @@ export class AgenticChatController implements ChatHandlers {
                     details: {
                         [fileName]: {
                             changes,
-                            description: input.path,
+                            description: normalizePathForDescription(input.path),
                         },
                     },
                 },
@@ -2927,7 +2928,7 @@ export class AgenticChatController implements ChatHandlers {
         for (const item of filePathsPushed) {
             details[item.relativeFilePath] = {
                 lineRanges: item.lineRanges,
-                description: item.relativeFilePath,
+                description: normalizePathForDescription(item.relativeFilePath),
             }
         }
 
@@ -2985,7 +2986,7 @@ export class AgenticChatController implements ChatHandlers {
             if (!filePath) continue
 
             fileDetails[`${filePath} (${match.matches.length} ${match.matches.length <= 1 ? 'result' : 'results'})`] = {
-                description: filePath,
+                description: normalizePathForDescription(filePath),
                 lineRanges: [{ first: -1, second: -1 }],
             }
         }
@@ -4035,6 +4036,7 @@ export class AgenticChatController implements ChatHandlers {
         streamWriter: ResultStreamWriter
     ) {
         // extract the key value from incomplete JSON response stream
+        // TODO: better handling for escapes
         function extractKey(incompleteJson: string, key: string): string | undefined {
             const pattern = new RegExp(`"${key}":\\s*"([^"]*)"`, 'g')
             const match = pattern.exec(incompleteJson)
@@ -4058,6 +4060,9 @@ export class AgenticChatController implements ChatHandlers {
                                 details: {
                                     [fileName]: {
                                         description: filepath,
+                                        // TODO: when extractKey can handle escapes correctly,
+                                        // use the following line to normalize filepath
+                                        // description: normalizePathForDescription(filepath),
                                     },
                                 },
                             },
