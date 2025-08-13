@@ -71,20 +71,22 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
+export interface ClientFileContext {
+    leftFileContent: string
+    rightFileContent: string
+    filename: string
+    fileUri: string
+    programmingLanguage: {
+        languageName: CodewhispererLanguage
+    }
+}
+
 export function getFileContext(params: {
     textDocument: TextDocument
     position: Position
     inferredLanguageId: CodewhispererLanguage
     workspaceFolder: WorkspaceFolder | null | undefined
-}): {
-    fileUri: string
-    filename: string
-    programmingLanguage: {
-        languageName: CodewhispererLanguage
-    }
-    leftFileContent: string
-    rightFileContent: string
-} {
+}): ClientFileContext {
     const left = params.textDocument.getText({
         start: { line: 0, character: 0 },
         end: params.position,

@@ -15,13 +15,14 @@ import {
 } from '@aws/language-server-runtimes/server-interface'
 import { autoTrigger, getAutoTriggerType, getNormalizeOsName, triggerType } from './auto-trigger/autoTrigger'
 import {
+    FileContext,
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     getFileContext,
     Suggestion,
     SuggestionType,
 } from '../../shared/codeWhispererService'
-import { getSupportedLanguageId } from '../../shared/languageDetection'
+import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/languageDetection'
 import { mergeEditSuggestionsWithFileContext, truncateOverlapWithRightContext } from './mergeRightUtils'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CodePercentageTracker } from './codePercentage'
@@ -41,7 +42,6 @@ import { AmazonQWorkspaceConfig } from '../../shared/amazonQServiceManager/confi
 import { hasConnectionExpired } from '../../shared/utils'
 import { getOrThrowBaseIAMServiceManager } from '../../shared/amazonQServiceManager/AmazonQIAMServiceManager'
 import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
-import path = require('path')
 import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
@@ -191,7 +191,10 @@ export const CodewhispererServerFactory =
                         return EMPTY_RESULT
                     }
 
-                    const inferredLanguageId = getSupportedLanguageId(textDocument)
+                    let inferredLanguageId = getSupportedLanguageId(textDocument)
+                    if (params.fileContextOverride?.programmingLanguage) {
+                        inferredLanguageId = params.fileContextOverride?.programmingLanguage as CodewhispererLanguage
+                    }
                     if (!inferredLanguageId) {
                         logging.log(
                             `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
@@ -204,12 +207,29 @@ export const CodewhispererServerFactory =
                         params.context.triggerKind == InlineCompletionTriggerKind.Automatic
                     const maxResults = isAutomaticLspTriggerKind ? 1 : 5
                     const selectionRange = params.context.selectedCompletionInfo?.range
-                    const fileContext = getFileContext({
-                        textDocument,
-                        inferredLanguageId,
-                        position: params.position,
-                        workspaceFolder: workspace.getWorkspaceFolder(textDocument.uri),
-                    })
+
+                    // For Jupyter Notebook in VSC, the language server does not have access to
+                    // its internal states including current active cell index, etc
+                    // we rely on VSC to calculate file context
+                    let fileContext: FileContext | undefined = undefined
+                    if (params.fileContextOverride) {
+                        fileContext = {
+                            leftFileContent: params.fileContextOverride.leftFileContent,
+                            rightFileContent: params.fileContextOverride.rightFileContent,
+                            filename: params.fileContextOverride.filename,
+                            fileUri: params.fileContextOverride.fileUri,
+                            programmingLanguage: {
+                                languageName: inferredLanguageId,
+                            },
+                        }
+                    } else {
+                        fileContext = getFileContext({
+                            textDocument,
+                            inferredLanguageId,
+                            position: params.position,
+                            workspaceFolder: workspace.getWorkspaceFolder(textDocument.uri),
+                        })
+                    }
 
                     const workspaceState = WorkspaceFolderManager.getInstance()?.getWorkspaceState()
                     const workspaceId = workspaceState?.webSocketClient?.isConnected()
@@ -327,7 +347,7 @@ export const CodewhispererServerFactory =
                         document: textDocument,
                         startPosition: params.position,
                         triggerType: isAutomaticLspTriggerKind ? 'AutoTrigger' : 'OnDemand',
-                        language: fileContext.programmingLanguage.languageName,
+                        language: fileContext.programmingLanguage.languageName as CodewhispererLanguage,
                         requestContext: requestContext,
                         autoTriggerType: isAutomaticLspTriggerKind ? codewhispererAutoTriggerType : undefined,
                         triggerCharacter: triggerCharacters,
@@ -892,8 +912,12 @@ export const CodewhispererServerFactory =
 export const CodeWhispererServerIAM = CodewhispererServerFactory(getOrThrowBaseIAMServiceManager)
 export const CodeWhispererServerToken = CodewhispererServerFactory(getOrThrowBaseTokenServiceManager)
 
-const getLanguageIdFromUri = (uri: string, logging?: any): string => {
+export const getLanguageIdFromUri = (uri: string, logging?: any): string => {
     try {
+        if (uri.startsWith('vscode-notebook-cell:')) {
+            // use python for now as lsp does not support JL cell language detection
+            return 'python'
+        }
         const extension = uri.split('.').pop()?.toLowerCase()
         return ABAP_EXTENSIONS.has(extension || '') ? 'abap' : ''
     } catch (err) {
