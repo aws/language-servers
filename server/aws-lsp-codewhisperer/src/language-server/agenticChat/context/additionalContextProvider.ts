@@ -176,11 +176,7 @@ export class AdditionalContextProvider {
             return 'code'
         }
         if (prompt.filePath.endsWith(promptFileExtension)) {
-            if (
-                pathUtils.isInDirectory(path.join('.amazonq', 'rules'), prompt.relativePath) ||
-                path.basename(prompt.relativePath) === 'AmazonQ.md' ||
-                path.basename(prompt.relativePath) === 'README.md'
-            ) {
+            if (pathUtils.isInDirectory(path.join('.amazonq', 'rules'), prompt.relativePath)) {
                 return 'rule'
             } else if (pathUtils.isInDirectory(getUserPromptsDirectory(), prompt.filePath)) {
                 return 'prompt'
