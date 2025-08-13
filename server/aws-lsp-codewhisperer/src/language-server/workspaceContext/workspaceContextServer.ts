@@ -35,7 +35,7 @@ function shouldIgnoreFile(workspaceFolder: WorkspaceFolder, fileUri: string): bo
 }
 
 export const WorkspaceContextServer = (): Server => features => {
-    const { credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator } = features
+    const { agent, credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator } = features
 
     let workspaceIdentifier: string = ''
     let workspaceFolders: WorkspaceFolder[] = []
@@ -241,6 +241,7 @@ export const WorkspaceContextServer = (): Server => features => {
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
             dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders, artifactManager)
             workspaceFolderManager = WorkspaceFolderManager.createInstance(
+                agent,
                 amazonQServiceManager,
                 logging,
                 artifactManager,

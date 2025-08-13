@@ -1,7 +1,7 @@
 import { WorkspaceFolderManager } from './workspaceFolderManager'
 import sinon, { stubInterface, StubbedInstance } from 'ts-sinon'
 import { AmazonQTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
-import { CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
+import { Agent, CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
 import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { WorkspaceFolder } from 'vscode-languageserver-protocol'
 import { ArtifactManager } from './artifactManager'
@@ -11,6 +11,7 @@ import { IdleWorkspaceManager } from './IdleWorkspaceManager'
 import { AWSError } from 'aws-sdk'
 
 describe('WorkspaceFolderManager', () => {
+    let mockAgent: StubbedInstance<Agent>
     let mockServiceManager: StubbedInstance<AmazonQTokenServiceManager>
     let mockLogging: StubbedInstance<Logging>
     let mockCredentialsProvider: StubbedInstance<CredentialsProvider>
@@ -20,6 +21,7 @@ describe('WorkspaceFolderManager', () => {
     let workspaceFolderManager: WorkspaceFolderManager
 
     beforeEach(() => {
+        mockAgent = stubInterface<Agent>()
         mockServiceManager = stubInterface<AmazonQTokenServiceManager>()
         mockLogging = stubInterface<Logging>()
         mockCredentialsProvider = stubInterface<CredentialsProvider>()
@@ -61,6 +63,7 @@ describe('WorkspaceFolderManager', () => {
 
             // Create the WorkspaceFolderManager instance using the static createInstance method
             workspaceFolderManager = WorkspaceFolderManager.createInstance(
+                mockAgent,
                 mockServiceManager,
                 mockLogging,
                 mockArtifactManager,
@@ -113,6 +116,7 @@ describe('WorkspaceFolderManager', () => {
 
             // Create the WorkspaceFolderManager instance using the static createInstance method
             workspaceFolderManager = WorkspaceFolderManager.createInstance(
+                mockAgent,
                 mockServiceManager,
                 mockLogging,
                 mockArtifactManager,
