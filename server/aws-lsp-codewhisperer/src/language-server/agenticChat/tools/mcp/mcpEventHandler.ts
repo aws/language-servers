@@ -266,8 +266,8 @@ export class McpEventHandler {
                       id: 'add-new-mcp',
                       icon: 'plus',
                       status: 'clear',
-                      text: 'Add new MCP',
-                      description: 'Add new MCP',
+                      text: 'Add new MCP server',
+                      description: 'Add new MCP server',
                   },
                   {
                       id: 'refresh-mcp-list',

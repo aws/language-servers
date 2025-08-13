@@ -9,6 +9,7 @@ import {
     SDKInitializator,
     Workspace,
 } from '@aws/language-server-runtimes/server-interface'
+import { retryUtils } from '@aws/lsp-core'
 import { CodeWhispererServiceToken } from '../../../../shared/codeWhispererService'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../../shared/constants'
 import { AmazonQTokenServiceManager } from '../../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
@@ -81,7 +82,9 @@ export class ProfileStatusMonitor {
                 this.codeWhispererClient.profileArn = profileArn
             }
 
-            const response = await this.retryWithBackoff(() => this.codeWhispererClient!.getProfile({ profileArn }))
+            const response = await retryUtils.retryWithBackoff(() =>
+                this.codeWhispererClient!.getProfile({ profileArn })
+            )
             const isMcpEnabled = response?.profile?.optInFeatures?.mcpConfiguration?.toggle === 'ON'
 
             if (ProfileStatusMonitor.lastMcpState !== isMcpEnabled) {
@@ -120,38 +123,6 @@ export class ProfileStatusMonitor {
         return undefined
     }
 
-    private async retryWithBackoff<T>(fn: () => Promise<T>): Promise<T> {
-        const maxRetries = 2 // Reduced from 3
-
-        for (let attempt = 0; attempt < maxRetries; attempt++) {
-            try {
-                return await fn()
-            } catch (error: any) {
-                const errorCode = error.code || error.name
-                const statusCode = error.statusCode
-
-                // Fast fail on non-retryable errors
-                if (statusCode >= 400 && statusCode < 500 && errorCode !== 'ThrottlingException') {
-                    throw error
-                }
-
-                const isRetryable =
-                    errorCode === 'ThrottlingException' ||
-                    errorCode === 'InternalServerException' ||
-                    statusCode === 500 ||
-                    statusCode === 503
-
-                if (!isRetryable || attempt === maxRetries - 1) {
-                    throw error
-                }
-
-                // Shorter delay: 500ms, 1s
-                const delay = 500 * (attempt + 1)
-                await new Promise(resolve => setTimeout(resolve, delay))
-            }
-        }
-        throw new Error('Retry failed')
-    }
     static getMcpState(): boolean | undefined {
         return ProfileStatusMonitor.lastMcpState
     }
