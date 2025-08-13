@@ -15,20 +15,26 @@ export class ContextCommandsProvider implements Disposable {
     private codeSymbolsPending = true
     private filesAndFoldersPending = true
     private workspacePending = true
+    private initialStateSent = false
     constructor(
         private readonly logging: Logging,
         private readonly chat: Chat,
         private readonly workspace: Workspace,
         private readonly lsp: Lsp
     ) {
-        //send initial pending state to client immediately
-        void this.processContextCommandUpdate([]).catch(e =>
-            this.logging.error(`Failed to send initial context commands: ${e}`)
-        )
         this.registerPromptFileWatcher()
         this.registerContextCommandHandler().catch(e =>
             this.logging.error(`Error registering context command handler: ${e}`)
         )
+    }
+
+    onReady() {
+        if (!this.initialStateSent) {
+            this.initialStateSent = true
+            void this.processContextCommandUpdate([]).catch(e =>
+                this.logging.error(`Failed to send initial context commands: ${e}`)
+            )
+        }
     }
 
     private async registerContextCommandHandler() {
