@@ -17,25 +17,6 @@ export function isSolution(userInputrequest: StartTransformRequest): boolean {
     return userInputrequest.SelectedProjectPath.endsWith('.sln')
 }
 
-export function validateProject(userInputrequest: StartTransformRequest, logging: Logging): boolean {
-    var selectedProject = userInputrequest.ProjectMetadata.find(
-        project => project.ProjectPath == userInputrequest.SelectedProjectPath
-    )
-
-    if (selectedProject) {
-        logging.log(
-            `Selected project ${userInputrequest?.SelectedProjectPath} has project type ${selectedProject.ProjectType}`
-        )
-        return true
-    }
-    logging.log(`Error occured in verifying selected project with path ${userInputrequest.SelectedProjectPath}`)
-    return false
-}
-
-export function validateSolution(userInputrequest: StartTransformRequest): string[] {
-    return []
-}
-
 export async function checkForUnsupportedViews(
     userInputRequest: StartTransformRequest,
     isProject: boolean,
