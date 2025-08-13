@@ -120,16 +120,35 @@ export class EditCompletionHandler {
         }
 
         if (params.partialResultToken && currentSession) {
+            // Close ACTIVE session. We shouldn't record Discard trigger decision for trigger with nextToken.
+            if (currentSession && currentSession.state === 'ACTIVE') {
+                this.sessionManager.discardSession(currentSession)
+            }
+
+            const newSession = this.sessionManager.createSession({
+                document: textDocument,
+                startPosition: params.position,
+                triggerType: 'AutoTrigger',
+                language: currentSession.language,
+                requestContext: currentSession.requestContext,
+                autoTriggerType: undefined,
+                triggerCharacter: '',
+                classifierResult: undefined,
+                classifierThreshold: undefined,
+                credentialStartUrl: currentSession.credentialStartUrl,
+                supplementalMetadata: currentSession.supplementalMetadata,
+                customizationArn: currentSession.customizationArn,
+            })
             // subsequent paginated requests for current session
             try {
                 const suggestionResponse = await this.codeWhispererService.generateSuggestions({
-                    ...currentSession.requestContext,
+                    ...newSession.requestContext,
                     nextToken: `${params.partialResultToken}`,
                 })
                 return await this.processSuggestionResponse(
                     suggestionResponse,
-                    currentSession,
-                    false,
+                    newSession,
+                    true,
                     params.context.selectedCompletionInfo?.range
                 )
             } catch (error) {
@@ -156,17 +175,17 @@ export class EditCompletionHandler {
                         if (this.hasDocumentChangedSinceInvocation) {
                             if (attempt < EDIT_STALE_RETRY_COUNT) {
                                 this.logging.info(
-                                    `Document changed during execution, retrying (attempt ${attempt + 1})`
+                                    `EditCompletionHandler - Document changed during execution, retrying (attempt ${attempt + 1})`
                                 )
                                 this.hasDocumentChangedSinceInvocation = false
                                 const retryResult = await invokeWithRetry(attempt + 1)
                                 resolve(retryResult)
                             } else {
-                                this.logging.info('Max retries reached, returning empty result')
+                                this.logging.info('EditCompletionHandler - Max retries reached, returning empty result')
                                 resolve(EMPTY_RESULT)
                             }
                         } else {
-                            this.logging.info('No document changes, resolving result')
+                            this.logging.info('EditCompletionHandler - No document changes, resolving result')
                             resolve(result)
                         }
                     } finally {
@@ -256,16 +275,6 @@ export class EditCompletionHandler {
 
         // Close ACTIVE session and record Discard trigger decision immediately
         if (currentSession && currentSession.state === 'ACTIVE') {
-            if (this.editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
-                const mergedSuggestions = mergeEditSuggestionsWithFileContext(currentSession, textDocument, fileContext)
-
-                if (mergedSuggestions.length > 0) {
-                    return {
-                        items: mergedSuggestions,
-                        sessionId: currentSession.id,
-                    }
-                }
-            }
             // Emit user trigger decision at session close time for active session
             this.sessionManager.discardSession(currentSession)
             const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0

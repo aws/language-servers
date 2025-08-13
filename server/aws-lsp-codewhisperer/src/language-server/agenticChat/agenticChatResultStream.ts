@@ -1,4 +1,4 @@
-import { ChatResult, FileDetails, ChatMessage } from '@aws/language-server-runtimes/protocol'
+import { ChatResult, ChatMessage } from '@aws/language-server-runtimes/protocol'
 import { randomUUID } from 'crypto'
 
 export interface ResultStreamWriter {
@@ -32,33 +32,20 @@ export interface ResultStreamWriter {
     close(): Promise<void>
 }
 
+export const progressPrefix = 'progress_'
+
 /**
  * This class wraps around lsp.sendProgress to provide a more helpful interface for streaming a ChatResult to the client.
  * ChatResults are grouped into blocks that can be written directly, or streamed in.
  * In the final message, blocks are seperated by resultDelimiter defined below.
  */
-
-interface FileDetailsWithPath extends FileDetails {
-    relativeFilePath: string
-}
-
-type OperationType = 'read' | 'write' | 'listDir'
-
-export const progressPrefix = 'progress_'
-
-interface FileOperation {
-    type: OperationType
-    filePaths: FileDetailsWithPath[]
-}
 export class AgenticChatResultStream {
-    static readonly resultDelimiter = '\n\n'
+    static readonly resultDelimiter = '\n'
     #state = {
         chatResultBlocks: [] as ChatMessage[],
         isLocked: false,
         uuid: randomUUID(),
         messageId: undefined as string | undefined,
-        messageIdToUpdateForTool: new Map<OperationType, string>(),
-        messageOperations: new Map<string, FileOperation>(),
     }
     readonly #sendProgress: (newChatResult: ChatResult | string) => Promise<void>
 
@@ -68,33 +55,6 @@ export class AgenticChatResultStream {
 
     getResult(only?: string): ChatResult {
         return this.#joinResults(this.#state.chatResultBlocks, only)
-    }
-
-    setMessageIdToUpdateForTool(toolName: string, messageId: string) {
-        this.#state.messageIdToUpdateForTool.set(toolName as OperationType, messageId)
-    }
-
-    getMessageIdToUpdateForTool(toolName: string): string | undefined {
-        return this.#state.messageIdToUpdateForTool.get(toolName as OperationType)
-    }
-
-    /**
-     * Adds a file operation for a specific message
-     * @param messageId The ID of the message
-     * @param type The type of operation ('fsRead' or 'listDirectory' or 'fsWrite')
-     * @param filePaths Array of FileDetailsWithPath involved in the operation
-     */
-    addMessageOperation(messageId: string, type: string, filePaths: FileDetailsWithPath[]) {
-        this.#state.messageOperations.set(messageId, { type: type as OperationType, filePaths })
-    }
-
-    /**
-     * Gets the file operation details for a specific message
-     * @param messageId The ID of the message
-     * @returns The file operation details or undefined if not found
-     */
-    getMessageOperation(messageId: string): FileOperation | undefined {
-        return this.#state.messageOperations.get(messageId)
     }
 
     #joinResults(chatResults: ChatMessage[], only?: string): ChatResult {
@@ -111,9 +71,9 @@ export class AgenticChatResultStream {
                     return {
                         ...acc,
                         buttons: [...(acc.buttons ?? []), ...(c.buttons ?? [])],
-                        body: acc.body + AgenticChatResultStream.resultDelimiter + c.body,
-                        ...(c.contextList && { contextList: c.contextList }),
-                        header: Object.prototype.hasOwnProperty.call(c, 'header') ? c.header : acc.header,
+                        body: acc.body + (c.body ? AgenticChatResultStream.resultDelimiter + c.body : ''),
+                        ...(c.contextList && c.type !== 'tool' && { contextList: c.contextList }),
+                        header: c.header !== undefined ? c.header : acc.header,
                         codeReference: [...(acc.codeReference ?? []), ...(c.codeReference ?? [])],
                     }
                 } else if (acc.additionalMessages!.some(am => am.messageId === c.messageId)) {
@@ -127,7 +87,7 @@ export class AgenticChatResultStream {
                                     : am.buttons,
                             body:
                                 am.messageId === c.messageId
-                                    ? am.body + AgenticChatResultStream.resultDelimiter + c.body
+                                    ? am.body + (c.body ? AgenticChatResultStream.resultDelimiter + c.body : '')
                                     : am.body,
                             ...(am.messageId === c.messageId &&
                                 (c.contextList || acc.contextList) && {
@@ -161,7 +121,7 @@ export class AgenticChatResultStream {
                                         },
                                     },
                                 }),
-                            header: Object.prototype.hasOwnProperty.call(c, 'header') ? c.header : am.header,
+                            ...(am.messageId === c.messageId && c.header !== undefined && { header: c.header }),
                         })),
                     }
                 } else {
@@ -244,6 +204,10 @@ export class AgenticChatResultStream {
             }
         }
         return undefined
+    }
+
+    getLastMessage(): ChatMessage {
+        return this.#state.chatResultBlocks[this.#state.chatResultBlocks.length - 1]
     }
 
     getResultStreamWriter(): ResultStreamWriter {

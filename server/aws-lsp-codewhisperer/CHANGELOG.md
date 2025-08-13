@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.0.73](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.72...lsp-codewhisperer/v0.0.73) (2025-08-11)
+
+
+### Features
+
+* **amazonq:** read tool ui revamp ([c65428b](https://github.com/aws/language-servers/commit/c65428bab2cf5e47badf1e3a9453babcf881e60c))
+
+
+### Bug Fixes
+
+* **amazonq:** add fallback classpath generation ([#2077](https://github.com/aws/language-servers/issues/2077)) ([3a6ef14](https://github.com/aws/language-servers/commit/3a6ef14e78fa2e75b837bba6524751d65038f416))
+* **amazonq:** emit failed status for amazonq_invokeLLM ([#2071](https://github.com/aws/language-servers/issues/2071)) ([ee52a41](https://github.com/aws/language-servers/commit/ee52a41bc869b275fff708d7955b59f43b93bbd4))
+* **amazonq:** fix fallout of [#2051](https://github.com/aws/language-servers/issues/2051) ([#2057](https://github.com/aws/language-servers/issues/2057)) ([565066b](https://github.com/aws/language-servers/commit/565066bb61adda60333c9646db958d4208bcc8af))
+* **amazonq:** leverage lcs to find the chars added and removed ([#2092](https://github.com/aws/language-servers/issues/2092)) ([40379a8](https://github.com/aws/language-servers/commit/40379a887f8d42cc184239ca3175b4e673cc5286))
+* **amazonq:** skips continuous monitoring when WCS sees workspace as idle ([#2066](https://github.com/aws/language-servers/issues/2066)) ([9cb959d](https://github.com/aws/language-servers/commit/9cb959d4cc450d0907f8bf5265ba01d2aa68bcd0))
+* creating a new sesion for Edits trigger with next token ([#2094](https://github.com/aws/language-servers/issues/2094)) ([1da8730](https://github.com/aws/language-servers/commit/1da8730b6ed6ad53b6561368bf722e56d59596a4))
+* remove edit cache logic ([#2079](https://github.com/aws/language-servers/issues/2079)) ([9bc5b9c](https://github.com/aws/language-servers/commit/9bc5b9c1d77e5fee6f518f7f5016d3a0043a5a77))
+* sessionManager misused because there are 2 types of manager now ([#2090](https://github.com/aws/language-servers/issues/2090)) ([8db059a](https://github.com/aws/language-servers/commit/8db059ab83d94fd7c3ba3eb265044add31c80aea))
+* update client name to support Sagemaker AI origin for agentic chat ([#2093](https://github.com/aws/language-servers/issues/2093)) ([a746fe8](https://github.com/aws/language-servers/commit/a746fe845d5e09563b475f01ce44059dca9fd10f))
+
+## [0.0.72](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.71...lsp-codewhisperer/v0.0.72) (2025-08-06)
+
+
+### Features
+
+* add support for SMUS Q CodeEditor client to send MD IDE origin ([#2032](https://github.com/aws/language-servers/issues/2032)) ([a8725b4](https://github.com/aws/language-servers/commit/a8725b4b7dcb7718864620721aa3633151e8877b))
+* **amazonq:** enable sonnet 4 for fra region ([#2069](https://github.com/aws/language-servers/issues/2069)) ([3a4b8df](https://github.com/aws/language-servers/commit/3a4b8df981b2c3b0532360a11472169fffec7924))
+
+
+### Bug Fixes
+
+* **amazonq:** add distinctive identifier for cloud trail ([#2059](https://github.com/aws/language-servers/issues/2059)) ([18bbc2c](https://github.com/aws/language-servers/commit/18bbc2c54f5cc72e2624020fc17214c448926b0e))
+* **amazonq:** fix to add disable/enable feature back to mcp servers ([#2052](https://github.com/aws/language-servers/issues/2052)) ([c03e017](https://github.com/aws/language-servers/commit/c03e017b9ccbbbb9c80a3c3afd5da38a50bd6cff))
+* **amazonq:** make display findings tool run more often ([#2067](https://github.com/aws/language-servers/issues/2067)) ([479ccd0](https://github.com/aws/language-servers/commit/479ccd0a1b8b7e98684275c66274d284599c5933))
+* outdated history when trimming happens, add missing metric for compaction ([#2047](https://github.com/aws/language-servers/issues/2047)) ([8390f66](https://github.com/aws/language-servers/commit/8390f6686c804dfbeff91018635df21e9dd89236))
+* should keep reporting UTDE telemetry if there are still pending Edits suggestions ([#2051](https://github.com/aws/language-servers/issues/2051)) ([78c67b1](https://github.com/aws/language-servers/commit/78c67b1a29821f54006d160695e997870d17f3b5))
+
 ## [0.0.71](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.70...lsp-codewhisperer/v0.0.71) (2025-08-04)
 
 
