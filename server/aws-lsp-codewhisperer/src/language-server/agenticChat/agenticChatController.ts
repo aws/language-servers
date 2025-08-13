@@ -1387,9 +1387,15 @@ export class AgenticChatController implements ChatHandlers {
                     this.#abTestingAllocation?.experimentName,
                     this.#abTestingAllocation?.userVariation
                 )
-
+                const loopDebugEnabled =
+                    this.#features.lsp.getClientInitializeParams()?.initializationOptions?.aws?.awsClientCapabilities?.q
+                        ?.LoopDebug
                 // Check for diagnostic errors before setting final result
-                if (this.#modifiedFile.size > 0 && diagnosticLoopTimes < MAX_DIAGNOSTIC_LOOP_TIMES) {
+                if (
+                    loopDebugEnabled &&
+                    this.#modifiedFile.size > 0 &&
+                    diagnosticLoopTimes < MAX_DIAGNOSTIC_LOOP_TIMES
+                ) {
                     diagnosticLoopTimes += 1
                     const diagnosticErrors = await this.#diagnosticManager.checkDiagnosticErrors(
                         Array.from(this.#modifiedFile)
