@@ -30,6 +30,7 @@ import {
 } from './mcpTypes'
 import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
 import { URI } from 'vscode-uri'
+import { ProfileStatusMonitor } from './profileStatusMonitor'
 
 interface PermissionOption {
     label: string
@@ -223,16 +224,61 @@ export class McpEventHandler {
         }
 
         // Return the result in the expected format
+        const mcpState = ProfileStatusMonitor.getMcpState()
         const header = {
             title: 'MCP Servers',
-            description: "Add MCP servers to extend Q's capabilities.",
-            // only  show error on list mcp server page if unable to read mcp.json file
-            status: configLoadErrors
-                ? { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
-                : undefined,
+            description: mcpState === false ? '' : "Add MCP servers to extend Q's capabilities.",
+            status: this.#getListMcpServersStatus(configLoadErrors, mcpState),
+            actions: this.#getListMcpServersActions(configLoadErrors, mcpState),
         }
 
         return { header, list: groups }
+    }
+
+    /**
+     * Gets the status for the list MCP servers header
+     */
+    #getListMcpServersStatus(
+        configLoadErrors: string | undefined,
+        mcpState: boolean | undefined
+    ): { title: string; icon: string; status: Status } | undefined {
+        if (mcpState === false) {
+            return {
+                title: 'MCP functionality has been disabled by your administrator',
+                icon: 'info',
+                status: 'info' as Status,
+            }
+        }
+
+        if (configLoadErrors) {
+            return { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
+        }
+
+        return undefined
+    }
+
+    /**
+     * Gets the actions for the list MCP servers header
+     */
+    #getListMcpServersActions(configLoadErrors: string | undefined, mcpState: boolean | undefined) {
+        return mcpState !== false && (!configLoadErrors || configLoadErrors === '')
+            ? [
+                  {
+                      id: 'add-new-mcp',
+                      icon: 'plus',
+                      status: 'clear',
+                      text: 'Add new MCP server',
+                      description: 'Add new MCP server',
+                  },
+                  {
+                      id: 'refresh-mcp-list',
+                      icon: 'refresh',
+                      status: 'clear',
+                      text: 'Refresh MCP servers',
+                      description: 'Refresh MCP servers',
+                  },
+              ]
+            : []
     }
 
     /**

@@ -920,8 +920,8 @@ async function migrateConfigToAgent(
             ...existingAgentConfig,
             // Merge MCP servers, keeping existing ones if they exist
             mcpServers: {
-                ...existingAgentConfig.mcpServers,
                 ...newAgentConfig.mcpServers,
+                ...existingAgentConfig.mcpServers,
             },
             // Merge tools lists without duplicates
             tools: [...new Set([...existingAgentConfig.tools, ...newAgentConfig.tools])],
