@@ -1353,15 +1353,10 @@ export const createMynahUi = (
                     fileTreeTitle: '',
                     hideFileCount: true,
                     details: toDetailsWithoutIcon(header.fileList.details),
-                    renderAsPills:
-                        !header.fileList.details ||
-                        (Object.values(header.fileList.details).every(detail => !detail.changes) &&
-                            (!header.buttons || !header.buttons.some(button => button.id === 'undo-changes')) &&
-                            !header.status?.icon),
                 }
             }
             if (!isPartialResult) {
-                if (processedHeader && !message.header?.status) {
+                if (processedHeader) {
                     processedHeader.status = undefined
                 }
             }
@@ -1374,8 +1369,7 @@ export const createMynahUi = (
                 processedHeader.buttons !== null &&
                 processedHeader.buttons.length > 0) ||
                 processedHeader.status !== undefined ||
-                processedHeader.icon !== undefined ||
-                processedHeader.fileList !== undefined)
+                processedHeader.icon !== undefined)
 
         const padding =
             message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
@@ -1386,10 +1380,8 @@ export const createMynahUi = (
         // Adding this conditional check to show the stop message in the center.
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
-        // If message.header?.status?.text is Stopped or Rejected or Ignored etc.. card should be in disabled state.
-        const shouldMute =
-            message.header?.status?.text !== undefined &&
-            ['Stopped', 'Rejected', 'Ignored', 'Failed', 'Error'].includes(message.header.status.text)
+        // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
+        const shouldMute = message.header?.status?.text !== undefined && message.header?.status?.text !== 'Completed'
 
         return {
             body: message.body,
