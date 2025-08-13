@@ -1387,7 +1387,7 @@ export class AgenticChatController implements ChatHandlers {
             session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
-                toolResults = await this.#processToolUses(
+                toolResults = await this.processToolUses(
                     pendingToolUses,
                     chatResultStream,
                     session,
@@ -1669,7 +1669,7 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Processes tool uses by running the tools and collecting results
      */
-    async #processToolUses(
+    async processToolUses(
         toolUses: Array<ToolUse & { stop: boolean }>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
