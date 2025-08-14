@@ -505,7 +505,7 @@ export const CodewhispererServerFactory =
                     session.suggestionsAfterRightContextMerge.length === 0 &&
                     !suggestionResponse.responseContext.nextToken
                 ) {
-                    completionSessionManager.closeSession(session, 'EMPTY suggestions')
+                    completionSessionManager.closeSession(session)
                     await emitUserTriggerDecisionTelemetry(
                         telemetry,
                         telemetryService,
@@ -565,10 +565,7 @@ export const CodewhispererServerFactory =
             logging.log('Recommendation failure: ' + error)
             emitServiceInvocationFailure(telemetry, session, error)
 
-            completionSessionManager.closeSession(
-                session,
-                `handle suggestion error @ codewhispererServer ${error.message}`
-            )
+            completionSessionManager.closeSession(session)
 
             let translatedError = error
 
@@ -708,7 +705,7 @@ export const CodewhispererServerFactory =
             if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
 
             // Always emit user trigger decision at session close
-            sessionManager.closeSession(session, `end of onLogInlineCompletionSessionResultsHandler`)
+            sessionManager.closeSession(session)
             const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,

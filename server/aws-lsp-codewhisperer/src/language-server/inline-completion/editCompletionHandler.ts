@@ -16,7 +16,6 @@ import {
     GenerateSuggestionsRequest,
     GenerateSuggestionsResponse,
     getFileContext,
-    SuggestionType,
 } from '../../shared/codeWhispererService'
 import { CodeWhispererSession, SessionManager } from './session/sessionManager'
 import { CursorTracker } from './tracker/cursorTracker'
@@ -427,7 +426,7 @@ export class EditCompletionHandler {
         this.logging.log('Recommendation failure: ' + error)
         emitServiceInvocationFailure(this.telemetry, session, error)
 
-        this.sessionManager.closeSession(session, `handle suggestion error ${error.message}`)
+        this.sessionManager.closeSession(session)
 
         let translatedError = error
 
