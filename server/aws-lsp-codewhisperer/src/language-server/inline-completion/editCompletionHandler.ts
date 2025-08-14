@@ -86,9 +86,6 @@ export class EditCompletionHandler {
         params: InlineCompletionWithReferencesParams,
         token: CancellationToken
     ): Promise<InlineCompletionListWithReferences> {
-        // this.hasDocumentChangedSinceInvocation = false
-        // this.debounceTimeout = undefined
-
         // On every new completion request close current inflight session.
         const currentSession = this.sessionManager.getCurrentSession()
         if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
