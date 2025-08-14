@@ -15,6 +15,7 @@ import {
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
+import { SuggestionState } from '../../../client/token/codewhispererbearertokenclient'
 
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
@@ -45,7 +46,14 @@ export class CodeWhispererSession {
     startTime: number
     // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
     closeTime?: number = 0
-    state: SessionState
+    _state: SessionState
+    get state(): SessionState {
+        return this._state
+    }
+    private set state(newState: SessionState) {
+        console.log(`change sessino state from ${this._state} to ${newState} for session id ${this.id}`)
+        this._state = newState
+    }
     codewhispererSessionId?: string
     startPosition: Position = {
         line: 0,
@@ -96,7 +104,8 @@ export class CodeWhispererSession {
         this.classifierThreshold = data.classifierThreshold
         this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
-        this.state = 'REQUESTING'
+        this._state = 'REQUESTING'
+
         this.startTime = new Date().getTime()
     }
 
@@ -112,6 +121,8 @@ export class CodeWhispererSession {
     activate() {
         if (this.state !== 'CLOSED' && this.state !== 'DISCARD') {
             this.state = 'ACTIVE'
+        } else {
+            throw new Error('Session is either CLOSED or DISCARDED. Should not activate.')
         }
     }
 
@@ -299,8 +310,6 @@ export class SessionManager {
     }
 
     public createSession(data: SessionData): CodeWhispererSession {
-        this.closeCurrentSession()
-
         // Remove oldest session from log
         if (this.sessionsLog.length > this.maxHistorySize) {
             this.sessionsLog.shift()
@@ -308,6 +317,10 @@ export class SessionManager {
 
         // Create new session
         const session = new CodeWhispererSession(data)
+
+        if (this.currentSession) {
+            this.closeSession(this.currentSession, `creating new session, new session ${session.id}`)
+        }
 
         const previousSession = this.getPreviousSession()
         if (previousSession) {
@@ -321,17 +334,15 @@ export class SessionManager {
         return session
     }
 
-    closeCurrentSession() {
-        if (this.currentSession) {
-            this.closeSession(this.currentSession)
-        }
-    }
+    closeCurrentSession() {}
 
-    closeSession(session: CodeWhispererSession) {
+    closeSession(session: CodeWhispererSession, reason: string = '') {
+        console.log(`Closing session ${session.id}; reason = ${reason}`)
         session.close()
     }
 
     discardSession(session: CodeWhispererSession) {
+        console.log(`Discarding session ${session.id}`)
         session.discard()
     }
 

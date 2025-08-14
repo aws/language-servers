@@ -36,7 +36,7 @@ import { RejectedEditTracker } from './tracker/rejectedEditTracker'
 import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
-import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS, EDIT_STALE_RETRY_COUNT } from './constants'
+import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -74,12 +74,12 @@ export class EditCompletionHandler {
      */
     documentChanged() {
         if (this.debounceTimeout) {
-            this.logging.info('[NEP] refresh timeout')
-            this.debounceTimeout.refresh()
-        }
-
-        if (this.isWaiting) {
-            this.hasDocumentChangedSinceInvocation = true
+            if (this.isWaiting) {
+                this.hasDocumentChangedSinceInvocation = true
+            } else {
+                this.logging.info(`refresh and debounce edits suggestion for another ${EDIT_DEBOUNCE_INTERVAL_MS}`)
+                this.debounceTimeout.refresh()
+            }
         }
     }
 
@@ -87,8 +87,8 @@ export class EditCompletionHandler {
         params: InlineCompletionWithReferencesParams,
         token: CancellationToken
     ): Promise<InlineCompletionListWithReferences> {
-        this.hasDocumentChangedSinceInvocation = false
-        this.debounceTimeout = undefined
+        // this.hasDocumentChangedSinceInvocation = false
+        // this.debounceTimeout = undefined
 
         // On every new completion request close current inflight session.
         const currentSession = this.sessionManager.getCurrentSession()
@@ -156,46 +156,38 @@ export class EditCompletionHandler {
             }
         }
 
-        // TODO: telemetry, discarded suggestions
-        // The other easy way to do this is simply not return any suggestion (which is used when retry > 3)
-        const invokeWithRetry = async (attempt: number = 0): Promise<InlineCompletionListWithReferences> => {
-            return new Promise(async resolve => {
-                this.debounceTimeout = setTimeout(async () => {
-                    try {
-                        this.isWaiting = true
-                        const result = await this._invoke(
-                            params,
-                            token,
-                            textDocument,
-                            inferredLanguageId,
-                            currentSession
-                        ).finally(() => {
-                            this.isWaiting = false
+        return new Promise(async resolve => {
+            this.debounceTimeout = setTimeout(async () => {
+                try {
+                    this.isWaiting = true
+                    const result = await this._invoke(
+                        params,
+                        token,
+                        textDocument,
+                        inferredLanguageId,
+                        currentSession
+                    ).finally(() => {
+                        this.isWaiting = false
+                    })
+                    if (this.hasDocumentChangedSinceInvocation) {
+                        this.logging.info(
+                            'EditCompletionHandler - Document changed during execution, resolving empty result'
+                        )
+                        resolve({
+                            sessionId: SessionManager.getInstance('EDITS').getActiveSession()?.id ?? '',
+                            items: [],
                         })
-                        if (this.hasDocumentChangedSinceInvocation) {
-                            if (attempt < EDIT_STALE_RETRY_COUNT) {
-                                this.logging.info(
-                                    `EditCompletionHandler - Document changed during execution, retrying (attempt ${attempt + 1})`
-                                )
-                                this.hasDocumentChangedSinceInvocation = false
-                                const retryResult = await invokeWithRetry(attempt + 1)
-                                resolve(retryResult)
-                            } else {
-                                this.logging.info('EditCompletionHandler - Max retries reached, returning empty result')
-                                resolve(EMPTY_RESULT)
-                            }
-                        } else {
-                            this.logging.info('EditCompletionHandler - No document changes, resolving result')
-                            resolve(result)
-                        }
-                    } finally {
-                        this.debounceTimeout = undefined
+                    } else {
+                        this.logging.info('EditCompletionHandler - No document changes, resolving result')
+                        resolve(result)
                     }
-                }, EDIT_DEBOUNCE_INTERVAL_MS)
-            })
-        }
-
-        return invokeWithRetry()
+                } finally {
+                    this.logging.info('EditCompletionHandler - reset timeout & flag')
+                    this.debounceTimeout = undefined
+                    this.hasDocumentChangedSinceInvocation = false
+                }
+            }, EDIT_DEBOUNCE_INTERVAL_MS)
+        })
     }
 
     async _invoke(
@@ -435,7 +427,7 @@ export class EditCompletionHandler {
         this.logging.log('Recommendation failure: ' + error)
         emitServiceInvocationFailure(this.telemetry, session, error)
 
-        this.sessionManager.closeSession(session)
+        this.sessionManager.closeSession(session, `handle suggestion error ${error.message}`)
 
         let translatedError = error
 

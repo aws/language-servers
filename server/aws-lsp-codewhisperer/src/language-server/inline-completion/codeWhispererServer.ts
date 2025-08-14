@@ -485,7 +485,7 @@ export const CodewhispererServerFactory =
                     session.suggestionsAfterRightContextMerge.length === 0 &&
                     !suggestionResponse.responseContext.nextToken
                 ) {
-                    completionSessionManager.closeSession(session)
+                    completionSessionManager.closeSession(session, 'EMPTY suggestions')
                     await emitUserTriggerDecisionTelemetry(
                         telemetry,
                         telemetryService,
@@ -545,7 +545,10 @@ export const CodewhispererServerFactory =
             logging.log('Recommendation failure: ' + error)
             emitServiceInvocationFailure(telemetry, session, error)
 
-            completionSessionManager.closeSession(session)
+            completionSessionManager.closeSession(
+                session,
+                `handle suggestion error @ codewhispererServer ${error.message}`
+            )
 
             let translatedError = error
 
@@ -613,7 +616,9 @@ export const CodewhispererServerFactory =
             }
 
             if (session.state !== 'ACTIVE') {
-                logging.log(`ERROR: Trying to record trigger decision for not-active session ${sessionId}`)
+                logging.log(
+                    `ERROR: Trying to record trigger decision for not-active session ${sessionId} with wrong state ${session.state}`
+                )
                 return
             }
 
@@ -683,7 +688,7 @@ export const CodewhispererServerFactory =
             if (firstCompletionDisplayLatency) emitPerceivedLatencyTelemetry(telemetry, session)
 
             // Always emit user trigger decision at session close
-            sessionManager.closeSession(session)
+            sessionManager.closeSession(session, `end of onLogInlineCompletionSessionResultsHandler`)
             const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
