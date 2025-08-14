@@ -71,20 +71,22 @@ export interface GenerateSuggestionsResponse {
     responseContext: ResponseContext
 }
 
+export interface ClientFileContext {
+    leftFileContent: string
+    rightFileContent: string
+    filename: string
+    fileUri: string
+    programmingLanguage: {
+        languageName: CodewhispererLanguage
+    }
+}
+
 export function getFileContext(params: {
     textDocument: TextDocument
     position: Position
     inferredLanguageId: CodewhispererLanguage
     workspaceFolder: WorkspaceFolder | null | undefined
-}): {
-    fileUri: string
-    filename: string
-    programmingLanguage: {
-        languageName: CodewhispererLanguage
-    }
-    leftFileContent: string
-    rightFileContent: string
-} {
+}): ClientFileContext {
     const left = params.textDocument.getText({
         start: { line: 0, character: 0 },
         end: params.position,
@@ -420,60 +422,58 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     async generateSuggestions(request: GenerateSuggestionsRequest): Promise<GenerateSuggestionsResponse> {
         // add cancellation check
         // add error check
-        let logstr = `GenerateCompletion activity:\n`
-        try {
-            if (this.customizationArn) request.customizationArn = this.customizationArn
-            const beforeApiCall = performance.now()
-            let recentEditsLogStr = ''
-            const recentEdits = request.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
-            if (recentEdits) {
-                if (recentEdits.length === 0) {
-                    recentEditsLogStr += `No recent edits`
-                } else {
-                    recentEditsLogStr += '\n'
-                    for (let i = 0; i < recentEdits.length; i++) {
-                        const e = recentEdits[i]
-                        recentEditsLogStr += `[recentEdits ${i}th]:\n`
-                        recentEditsLogStr += `${e.content}\n`
-                    }
+        if (this.customizationArn) request.customizationArn = this.customizationArn
+        const beforeApiCall = performance.now()
+        let recentEditsLogStr = ''
+        const recentEdits = request.supplementalContexts?.filter(it => it.type === 'PreviousEditorState')
+        if (recentEdits) {
+            if (recentEdits.length === 0) {
+                recentEditsLogStr += `No recent edits`
+            } else {
+                recentEditsLogStr += '\n'
+                for (let i = 0; i < recentEdits.length; i++) {
+                    const e = recentEdits[i]
+                    recentEditsLogStr += `[recentEdits ${i}th]:\n`
+                    recentEditsLogStr += `${e.content}\n`
                 }
             }
-            logstr += `@@request metadata@@
+        }
+        this.logging.info(
+            `GenerateCompletion request: 
     "endpoint": ${this.codeWhispererEndpoint},
     "predictionType": ${request.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
     "filename": ${request.fileContext.filename},
     "language": ${request.fileContext.programmingLanguage.languageName},
     "supplementalContextCount": ${request.supplementalContexts?.length ?? 0},
     "request.nextToken": ${request.nextToken},
-    "recentEdits": ${recentEditsLogStr}\n`
+    "recentEdits": ${recentEditsLogStr}`
+        )
 
-            const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
+        const response = await this.client.generateCompletions(this.withProfileArn(request)).promise()
 
-            const responseContext = {
-                requestId: response?.$response?.requestId,
-                codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
-                nextToken: response.nextToken,
-            }
+        const responseContext = {
+            requestId: response?.$response?.requestId,
+            codewhispererSessionId: response?.$response?.httpResponse?.headers['x-amzn-sessionid'],
+            nextToken: response.nextToken,
+        }
 
-            const r = this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
-            const firstSuggestionLogstr = r.suggestions.length > 0 ? `\n${r.suggestions[0].content}` : 'No suggestion'
+        const r = this.mapCodeWhispererApiResponseToSuggestion(response, responseContext)
+        const firstSuggestionLogstr = r.suggestions.length > 0 ? `\n${r.suggestions[0].content}` : 'No suggestion'
 
-            logstr += `@@response metadata@@
+        this.logging.info(
+            `GenerateCompletion response: 
+    "endpoint": ${this.codeWhispererEndpoint},
     "requestId": ${responseContext.requestId},
     "sessionId": ${responseContext.codewhispererSessionId},
-    "response.completions.length": ${response.completions?.length ?? 0},
-    "response.predictions.length": ${response.predictions?.length ?? 0},
+    "responseCompletionCount": ${response.completions?.length ?? 0},
+    "responsePredictionCount": ${response.predictions?.length ?? 0},
+    "predictionType": ${request.predictionTypes?.toString() ?? ''},
     "latency": ${performance.now() - beforeApiCall},
+    "filename": ${request.fileContext.filename},
     "response.nextToken": ${response.nextToken},
     "firstSuggestion": ${firstSuggestionLogstr}`
-
-            return r
-        } catch (e) {
-            logstr += `error: ${(e as Error).message}`
-            throw e
-        } finally {
-            this.logging.info(logstr)
-        }
+        )
+        return r
     }
 
     private mapCodeWhispererApiResponseToSuggestion(
