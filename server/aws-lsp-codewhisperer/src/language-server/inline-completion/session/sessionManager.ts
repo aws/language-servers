@@ -14,7 +14,6 @@ import {
 } from '../../../shared/codeWhispererService'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
-import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
@@ -45,7 +44,13 @@ export class CodeWhispererSession {
     startTime: number
     // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
     closeTime?: number = 0
-    state: SessionState
+    private _state: SessionState
+    get state(): SessionState {
+        return this._state
+    }
+    private set state(newState: SessionState) {
+        this._state = newState
+    }
     codewhispererSessionId?: string
     startPosition: Position = {
         line: 0,
@@ -96,7 +101,8 @@ export class CodeWhispererSession {
         this.classifierThreshold = data.classifierThreshold
         this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
-        this.state = 'REQUESTING'
+        this._state = 'REQUESTING'
+
         this.startTime = new Date().getTime()
     }
 
