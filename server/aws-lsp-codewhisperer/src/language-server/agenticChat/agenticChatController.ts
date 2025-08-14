@@ -32,6 +32,9 @@ import {
     BUTTON_UNDO_CHANGES,
     BUTTON_UNDO_ALL_CHANGES,
     BUTTON_STOP_SHELL_COMMAND,
+    BUTTON_MODIFY_SHELL_COMMAND,
+    BUTTON_SAVE_SHELL_COMMAND,
+    BUTTON_CANCEL_SHELL_COMMAND,
     BUTTON_PAIDTIER_UPGRADE_Q_LEARNMORE,
     BUTTON_PAIDTIER_UPGRADE_Q,
     SUFFIX_PERMISSION,
@@ -382,9 +385,7 @@ export class AgenticChatController implements ChatHandlers {
 
     async onButtonClick(params: ButtonClickParams): Promise<ButtonClickResult> {
         this.#log(`onButtonClick event with params: ${JSON.stringify(params)}`)
-
         const session = this.#chatSessionManagementService.getSession(params.tabId)
-
         if (
             params.buttonId === BUTTON_RUN_SHELL_COMMAND ||
             params.buttonId === BUTTON_REJECT_SHELL_COMMAND ||
@@ -396,13 +397,13 @@ export class AgenticChatController implements ChatHandlers {
             }
 
             // For run-shell-command, check if there's edited text and update the stored command
-            if (params.buttonId === 'run-shell-command' && params.editedText) {
+            if (params.buttonId === BUTTON_RUN_SHELL_COMMAND && params.metadata?.editedText) {
                 const toolUse = session.data.toolUseLookup.get(params.messageId!)
                 if (toolUse) {
                     const originalCmd = (toolUse.input as unknown as ExecuteBashParams)?.command ?? ''
-                    ;(toolUse.input as unknown as ExecuteBashParams).command = params.editedText
+                    ;(toolUse.input as unknown as ExecuteBashParams).command = params.metadata.editedText
                     this.#log(
-                        `Updated command for messageId: ${params.messageId}, original: "${originalCmd}", edited: "${params.editedText}"`
+                        `Updated command for messageId: ${params.messageId}, original: "${originalCmd}", edited: "${params.metadata.editedText}"`
                     )
                 }
             }
@@ -466,6 +467,12 @@ export class AgenticChatController implements ChatHandlers {
             await this.onManageSubscription(params.tabId)
 
             return { success: true }
+        } else if (params.buttonId === BUTTON_MODIFY_SHELL_COMMAND) {
+            return this.#handleModifyCommand(params)
+        } else if (params.buttonId === BUTTON_SAVE_SHELL_COMMAND) {
+            return this.#handleSaveCommand(params)
+        } else if (params.buttonId === BUTTON_CANCEL_SHELL_COMMAND) {
+            return this.#handleCancelCommand(params)
         } else {
             return {
                 success: false,
@@ -2088,7 +2095,9 @@ export class AgenticChatController implements ChatHandlers {
                                 icon: 'ok',
                                 text: 'Completed',
                             },
-                            buttons: [],
+                            buttons: [
+                                { id: BUTTON_MODIFY_SHELL_COMMAND, text: 'Modify', icon: 'pencil', status: 'clear' },
+                            ],
                         },
                     } as ChatResult
 
@@ -2634,6 +2643,12 @@ export class AgenticChatController implements ChatHandlers {
                               text: 'Reject',
                               icon: 'cancel',
                               ...(rejectKey ? { description: `Reject:  ${rejectKey}` } : {}),
+                          },
+                          {
+                              id: BUTTON_MODIFY_SHELL_COMMAND,
+                              text: 'Modify',
+                              icon: 'pencil',
+                              status: 'clear' as Status,
                           },
                       ]
                     : []
@@ -4340,40 +4355,159 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
-     * Handle modify bash command button click
+     * Analyze command for helpful feedback without blocking execution
      */
-    async #handleModifyBashCommand(params: ButtonClickParams): Promise<ButtonClickResult> {
-        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+    #analyzeCommandForFeedback(newCommand: string, originalCommand: string): string | undefined {
+        // Provide helpful feedback without blocking execution
+        if (!newCommand || newCommand.trim() === '') {
+            return 'Empty command - this will not execute anything when run'
+        }
 
+        if (newCommand.length > 10000) {
+            return 'Very long command - consider breaking into smaller steps'
+        }
+
+        // Check for potentially problematic patterns
+        const concerningPatterns = [
+            {
+                pattern: /rm\s+-rf\s+\/[^\/\s]*/i,
+                message: 'Destructive operation detected - double-check this command',
+            },
+            {
+                pattern: /curl\s+.*\|\s*(?:bash|sh)/i,
+                message: 'Piping remote content to shell - verify the source is trusted',
+            },
+            { pattern: /sudo\s+/, message: 'Elevated privileges required - ensure this is necessary' },
+            { pattern: /:\(\)\{.*\};\:/g, message: 'Fork bomb pattern detected - this could crash your system' },
+            { pattern: /chmod\s+777/, message: 'Setting world-writable permissions - this may be insecure' },
+        ]
+
+        for (const { pattern, message } of concerningPatterns) {
+            if (pattern.test(newCommand)) {
+                return message
+            }
+        }
+
+        return undefined // No issues detected
+    }
+
+    /**
+     * Send chat update with retry logic and exponential backoff
+     */
+    async #sendChatUpdateWithRetry(tabId: string, message: any, maxRetries: number): Promise<void> {
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                await this.#sendChatUpdate(tabId, message)
+                return // Success
+            } catch (error) {
+                if (attempt === maxRetries) {
+                    throw error // Final attempt failed
+                }
+                // Exponential backoff
+                await new Promise(resolve => setTimeout(resolve, attempt * 1000))
+            }
+        }
+    }
+
+    /**
+     * Handle network failures during save operations
+     */
+    async #handleNetworkFailure(params: ButtonClickParams, command: string, error: any): Promise<ButtonClickResult> {
+        // Command was saved in memory, but UI update failed
+        this.#log(`Network failure during save: ${error}`)
+
+        // Try to show an error state without full UI update
+        try {
+            await this.#features.chat.sendChatUpdate({
+                tabId: params.tabId,
+                state: { inProgress: false },
+                data: {
+                    messages: [
+                        {
+                            messageId: `${params.messageId}_error`,
+                            type: 'answer',
+                            body: `Command saved locally but UI update failed due to network issue. Command: \`${command}\``,
+                            header: {
+                                status: { status: 'warning', icon: 'warning', text: 'Network Issue' },
+                            },
+                        },
+                    ],
+                },
+            })
+        } catch (secondError) {
+            // Complete network failure - command still saved in session
+            this.#log(`Complete network failure: ${secondError}`)
+        }
+
+        return {
+            success: false,
+            failureReason: `Network error: Command saved but UI update failed. ${error.message}`,
+        }
+    }
+
+    /**
+     * Get appropriate buttons for saved command based on Always Allow setting
+     */
+    #getButtonsForSavedCommand(isAlwaysAllowed: boolean): any[] {
+        const baseButtons = [
+            { id: BUTTON_RUN_SHELL_COMMAND, text: 'Run', icon: 'play' },
+            { id: BUTTON_REJECT_SHELL_COMMAND, text: 'Reject', icon: 'cancel', status: 'clear' as const },
+            { id: BUTTON_MODIFY_SHELL_COMMAND, text: 'Modify', icon: 'pencil', status: 'clear' as const },
+        ]
+
+        if (isAlwaysAllowed) {
+            // Change Run button to indicate auto-execution
+            baseButtons[0] = {
+                id: BUTTON_RUN_SHELL_COMMAND,
+                text: 'Running...',
+                icon: 'sync-spin',
+            }
+        }
+
+        return baseButtons
+    }
+
+    /**
+     * Handle modify bash command button click - Switch to edit mode
+     */
+    async #handleModifyCommand(params: ButtonClickParams): Promise<ButtonClickResult> {
+        this.#log(`Modify button clicked for messageId: ${params.messageId}`)
+
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         if (!sessionResult.success) {
             return { success: false, failureReason: 'no session' }
         }
 
         const chatSession = sessionResult.data
         const toolUse = chatSession.toolUseLookup.get(params.messageId!)
-        const oldCmd = (toolUse?.input as unknown as ExecuteBashParams)?.command ?? ''
+        const originalCmd = (toolUse?.input as unknown as ExecuteBashParams)?.command ?? ''
+
+        // Create message with editable=true for edit mode
+        const messageToSend = this.#createShellCommandMessage(
+            params.messageId,
+            originalCmd,
+            true, // editable
+            [
+                { id: BUTTON_SAVE_SHELL_COMMAND, text: 'Save', icon: 'ok', status: 'primary' as const },
+                { id: BUTTON_CANCEL_SHELL_COMMAND, text: 'Cancel', icon: 'cancel', status: 'clear' as const },
+            ]
+        )
 
         try {
-            this.#log(`Setting editable=true for messageId: ${params.messageId}, command: ${oldCmd}`)
-
-            const messageToSend = this.#createShellCommandMessage(params.messageId, oldCmd, true, [
-                { id: 'accept-bash-command', text: 'Save', icon: 'ok' },
-                { id: 'cancel-bash-edit', text: 'Cancel', icon: 'cancel', status: 'clear' as const },
-            ])
-
             await this.#sendChatUpdate(params.tabId, messageToSend)
-            this.#log(`Chat update sent successfully for messageId: ${params.messageId}`)
-            return { success: true }
+            this.#log(`Switched to edit mode for messageId: ${params.messageId}`)
         } catch (error) {
-            this.#log(`Modify error: ${error}`)
-            return { success: false, failureReason: `modify error: ${error}` }
+            this.#log(`Error sending chat update: ${error}`)
+            return { success: false, failureReason: `Failed to update chat: ${error}` }
         }
+
+        return { success: true }
     }
 
     /**
-     * Handle accept bash command button click
+     * Handle save command button click - Save edited command and switch to view mode
      */
-    async #handleAcceptBashCommand(params: ButtonClickParams): Promise<ButtonClickResult> {
+    async #handleSaveCommand(params: ButtonClickParams): Promise<ButtonClickResult> {
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         if (!sessionResult.success) {
             return { success: false, failureReason: 'no session' }
@@ -4384,36 +4518,90 @@ export class AgenticChatController implements ChatHandlers {
 
         if (toolUse) {
             const originalCmd = (toolUse.input as unknown as ExecuteBashParams)?.command ?? ''
-            const editedCmd = params.editedText || originalCmd
-
-            // Update the toolUse with the accepted command
-            ;(toolUse.input as unknown as ExecuteBashParams).command = editedCmd
+            const newCommand = params.metadata?.editedText || originalCmd
 
             this.#log(
-                `Saving edited command for messageId: ${params.messageId}, original: "${originalCmd}", edited: "${editedCmd}"`
+                `Save command: messageId=${params.messageId}, originalCmd="${originalCmd}", editedText="${params.metadata?.editedText}", newCommand="${newCommand}"`
             )
 
-            const messageToSend = this.#createShellCommandMessage(params.messageId, editedCmd, false, [
-                { id: 'run-shell-command', text: 'Run', icon: 'play' },
-                { id: 'reject-shell-command', text: 'Reject', icon: 'cancel', status: 'clear' as const },
-                { id: 'modify-bash-command', text: 'Modify', icon: 'pencil' },
-            ])
-
-            try {
-                await this.#sendChatUpdate(params.tabId, messageToSend)
-                this.#log(`Command saved and UI updated for messageId: ${params.messageId}`)
-            } catch (error) {
-                this.#log(`Error sending chat update: ${error}`)
-                return { success: false, failureReason: `Failed to update chat: ${error}` }
+            // ALWAYS save the command - no validation blocking
+            if (toolUse.input) {
+                ;(toolUse.input as unknown as ExecuteBashParams).command = newCommand
             }
+
+            // Analyze command for helpful feedback (but don't block)
+            const validationWarning = this.#analyzeCommandForFeedback(newCommand, originalCmd)
+
+            // Check Always Allow setting for the execute_bash tool
+            const permission = McpManager.instance.getToolPerm('Built-in', 'execute_bash')
+            const isAlwaysAllowed = permission === 'alwaysAllow'
+
+            // Create message with validation feedback (but allow save)
+            const messageToSend = this.#createShellCommandMessage(
+                params.messageId,
+                newCommand,
+                false, // editable=false - exit edit mode
+                this.#getButtonsForSavedCommand(isAlwaysAllowed)
+            )
+
+            // Add helpful feedback without blocking
+            if (validationWarning) {
+                messageToSend.header.status = {
+                    status: 'warning',
+                    icon: 'warning',
+                    text: 'Command Issue Detected',
+                    description: validationWarning,
+                }
+            }
+
+            // Add status indication for Always Allow
+            if (isAlwaysAllowed && !validationWarning) {
+                messageToSend.header.status = {
+                    status: 'info',
+                    icon: 'check',
+                    text: 'Auto-approved',
+                    description: 'This command will run automatically (Always Allow enabled)',
+                }
+            }
+
+            this.#log(`Backend sending save update with command: "${newCommand}"`)
+
+            // Implement retry logic for network failures
+            try {
+                await this.#sendChatUpdateWithRetry(params.tabId, messageToSend, 3)
+
+                // If Always Allow is enabled, automatically trigger execution
+                if (isAlwaysAllowed && !validationWarning) {
+                    // Automatically execute the command after a brief delay
+                    setTimeout(async () => {
+                        try {
+                            await this.onButtonClick({
+                                buttonId: BUTTON_RUN_SHELL_COMMAND,
+                                messageId: params.messageId,
+                                tabId: params.tabId,
+                            })
+                        } catch (error) {
+                            this.#log(`Auto-execution failed: ${error}`)
+                        }
+                    }, 500) // Brief delay to show the updated UI first
+                }
+
+                this.#log(`Command saved successfully for messageId: ${params.messageId}`)
+            } catch (error) {
+                // Network failure handling - save command but show error
+                return this.#handleNetworkFailure(params, newCommand, error)
+            }
+        } else {
+            this.#log(`No toolUse found for messageId: ${params.messageId}`)
+            return { success: false, failureReason: 'Command reference not found. Please refresh and try again.' }
         }
         return { success: true }
     }
 
     /**
-     * Handle cancel bash edit button click
+     * Handle cancel command button click - Cancel edit and switch to view mode
      */
-    async #handleCancelBashEdit(params: ButtonClickParams): Promise<ButtonClickResult> {
+    async #handleCancelCommand(params: ButtonClickParams): Promise<ButtonClickResult> {
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         if (!sessionResult.success) {
             return { success: false, failureReason: 'no session' }
@@ -4423,16 +4611,29 @@ export class AgenticChatController implements ChatHandlers {
         const toolUse = chatSession.toolUseLookup.get(params.messageId!)
         const originalCmd = (toolUse?.input as unknown as ExecuteBashParams)?.command ?? ''
 
-        this.#log(`Setting editable=false for messageId: ${params.messageId}, command: ${originalCmd}`)
+        this.#log(`Canceling edit for messageId: ${params.messageId}, reverting to original command`)
 
-        const messageToSend = this.#createShellCommandMessage(params.messageId, originalCmd, false, [
-            { id: 'run-shell-command', text: 'Run', icon: 'play' },
-            { id: 'reject-shell-command', text: 'Reject', icon: 'cancel', status: 'clear' as const },
-            { id: 'modify-bash-command', text: 'Modify', icon: 'pencil' },
-        ])
+        // Create message with editable=false for view mode (same as Save, but with original command)
+        // This triggers the same frontend workflow as Save but preserves the original content
+        const messageToSend = this.#createShellCommandMessage(
+            params.messageId,
+            originalCmd,
+            false, // editable=false - triggers same frontend flow as Save
+            [
+                { id: BUTTON_RUN_SHELL_COMMAND, text: 'Run', icon: 'play' },
+                { id: BUTTON_REJECT_SHELL_COMMAND, text: 'Reject', icon: 'cancel', status: 'clear' as const },
+                { id: BUTTON_MODIFY_SHELL_COMMAND, text: 'Modify', icon: 'pencil', status: 'clear' as const },
+            ]
+        )
 
-        await this.#sendChatUpdate(params.tabId, messageToSend)
-        this.#log(`Chat update sent successfully for messageId: ${params.messageId}`)
+        try {
+            await this.#sendChatUpdate(params.tabId, messageToSend)
+            this.#log(`Edit canceled and switched to view mode for messageId: ${params.messageId}`)
+        } catch (error) {
+            this.#log(`Error sending chat update: ${error}`)
+            return { success: false, failureReason: `Failed to update chat: ${error}` }
+        }
+
         return { success: true }
     }
 
