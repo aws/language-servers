@@ -113,5 +113,5 @@ jobs:
               run: |
                   git config --global user.email "<>"
                   git config --global user.name "aws-toolkit-automation"
-                  git commit -m "chore: bump agentic version: $RELEASE_VERSION"
+                  git commit --no-verify -m "chore: bump agentic version: $RELEASE_VERSION"
                   git push --set-upstream origin "$BRANCH_NAME"
