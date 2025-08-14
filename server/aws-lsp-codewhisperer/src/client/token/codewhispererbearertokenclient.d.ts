@@ -145,6 +145,14 @@ declare class CodeWhispererBearerTokenClient extends Service {
    */
   getTransformationPlan(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetTransformationPlanResponse) => void): Request<CodeWhispererBearerTokenClient.Types.GetTransformationPlanResponse, AWSError>;
   /**
+   * Get the requested CodeWhisperer profile.
+   */
+  getProfile(params: CodeWhispererBearerTokenClient.Types.GetProfileRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetProfileResponse) => void): Request<CodeWhispererBearerTokenClient.Types.GetProfileResponse, AWSError>;
+  /**
+   * Get the requested CodeWhisperer profile.
+   */
+  getProfile(callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetProfileResponse) => void): Request<CodeWhispererBearerTokenClient.Types.GetProfileResponse, AWSError>;
+  /**
    * API to get current usage limits
    */
   getUsageLimits(params: CodeWhispererBearerTokenClient.Types.GetUsageLimitsRequest, callback?: (err: AWSError, data: CodeWhispererBearerTokenClient.Types.GetUsageLimitsResponse) => void): Request<CodeWhispererBearerTokenClient.Types.GetUsageLimitsResponse, AWSError>;
@@ -961,6 +969,12 @@ declare namespace CodeWhispererBearerTokenClient {
     jobStatus?: CodeFixJobStatus;
     suggestedFix?: SuggestedFix;
   }
+  export interface GetProfileRequest {
+    profileArn: ProfileArn;
+  }
+  export interface GetProfileResponse {
+    profile: ProfileInfo;
+  }
   export interface GetTaskAssistCodeGenerationRequest {
     conversationId: ConversationId;
     codeGenerationId: CodeGenerationId;
@@ -1189,6 +1203,9 @@ declare namespace CodeWhispererBearerTokenClient {
     nextToken?: String;
   }
   export type Long = number;
+  export interface MCPConfiguration {
+    toggle: OptInFeatureToggle;
+  }
   export interface MemoryEntry {
     /**
      * A unique identifier for a single memory entry
@@ -1260,6 +1277,7 @@ declare namespace CodeWhispererBearerTokenClient {
     dashboardAnalytics?: DashboardAnalytics;
     notifications?: Notifications;
     workspaceContext?: WorkspaceContext;
+    mcpConfiguration?: MCPConfiguration;
   }
   export type OptOutPreference = "OPTIN"|"OPTOUT"|string;
   export type Origin = "CHATBOT"|"CONSOLE"|"DOCUMENTATION"|"MARKETING"|"MOBILE"|"SERVICE_INTERNAL"|"UNIFIED_SEARCH"|"UNKNOWN"|"MD"|"IDE"|"SAGE_MAKER"|"CLI"|"AI_EDITOR"|"OPENSEARCH_DASHBOARD"|"GITLAB"|string;
@@ -1314,6 +1332,14 @@ declare namespace CodeWhispererBearerTokenClient {
     optInFeatures?: OptInFeatures;
     permissionUpdateRequired?: Boolean;
     applicationProperties?: ApplicationPropertiesList;
+  }
+  export interface ProfileInfo {
+    arn: ProfileArn;
+    profileName?: ProfileName;
+    description?: ProfileDescription;
+    status?: ProfileStatus;
+    profileType?: ProfileType;
+    optInFeatures?: OptInFeatures;
   }
   export type ProfileArn = string;
   export type ProfileDescription = string;
