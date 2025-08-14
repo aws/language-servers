@@ -178,7 +178,6 @@ export class EditCompletionHandler {
                         resolve(result)
                     }
                 } finally {
-                    this.logging.info('EditCompletionHandler - reset timeout & flag')
                     this.debounceTimeout = undefined
                     this.hasDocumentChangedSinceInvocation = false
                 }

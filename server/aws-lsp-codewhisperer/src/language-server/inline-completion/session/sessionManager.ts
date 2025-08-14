@@ -44,7 +44,7 @@ export class CodeWhispererSession {
     startTime: number
     // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
     closeTime?: number = 0
-    _state: SessionState
+    private _state: SessionState
     get state(): SessionState {
         return this._state
     }
