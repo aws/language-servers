@@ -220,7 +220,7 @@ import {
     Message as DbMessage,
     messageToStreamingMessage,
 } from './tools/chatDb/util'
-import { FALLBACK_MODEL_OPTIONS, FALLBACK_MODEL_RECORD } from './constants/modelSelection'
+import { FALLBACK_MODEL_OPTIONS, FALLBACK_MODEL_RECORD, BEDROCK_MODEL_TO_MODEL_ID } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
@@ -777,11 +777,17 @@ export class AgenticChatController implements ChatHandlers {
         const getModelLabel = (modelKey: string) =>
             FALLBACK_MODEL_RECORD[modelKey as keyof typeof FALLBACK_MODEL_RECORD]?.label || modelKey
 
+        // Helper function to map enum model ID to API model ID
+        const getMappedModelId = (modelKey: string) =>
+            BEDROCK_MODEL_TO_MODEL_ID[modelKey as keyof typeof BEDROCK_MODEL_TO_MODEL_ID] || modelKey
+
         // Determine selected model ID based on priority
         if (modelId) {
-            // Priority 1: Use modelId if it exists in available models from backend
-            if (models.some(model => model.id === modelId)) {
-                selectedModelId = modelId
+            const mappedModelId = getMappedModelId(modelId)
+
+            // Priority 1: Use mapped modelId if it exists in available models from backend
+            if (models.some(model => model.id === mappedModelId)) {
+                selectedModelId = mappedModelId
             }
             // Priority 2: Use mapped version if modelId exists in FALLBACK_MODEL_RECORD and no backend models available
             else if (models.length === 0 && modelId in FALLBACK_MODEL_RECORD) {
@@ -789,11 +795,11 @@ export class AgenticChatController implements ChatHandlers {
             }
             // Priority 3: Fall back to default or system default
             else {
-                selectedModelId = defaultModelId || getModelLabel(DEFAULT_MODEL_ID)
+                selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
             }
         } else {
             // No user-selected model - use API default or system default
-            selectedModelId = defaultModelId || getModelLabel(DEFAULT_MODEL_ID)
+            selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
         }
 
         // Store the selected model in the session
