@@ -9,7 +9,7 @@ describe('modelSelection', () => {
 
             // Check that the array contains the expected models
             const modelIds = FALLBACK_MODEL_OPTIONS.map(model => model.id)
-            assert.ok(modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'), 'Should include claude-4-sonnet')
+            assert.ok(modelIds.includes('CLAUDE_SONNET_4_20250514_V1_0'), 'Should include claude-sonnet-4')
             assert.ok(modelIds.includes('CLAUDE_3_7_SONNET_20250219_V1_0'), 'Should include claude-3.7-sonnet')
 
             // Check that each model has the required properties
@@ -24,8 +24,8 @@ describe('modelSelection', () => {
             const claudeSonnet4 = FALLBACK_MODEL_OPTIONS.find(model => model.id === 'CLAUDE_SONNET_4_20250514_V1_0')
             const claudeSonnet37 = FALLBACK_MODEL_OPTIONS.find(model => model.id === 'CLAUDE_3_7_SONNET_20250219_V1_0')
 
-            assert.strictEqual(claudeSonnet4?.name, 'claude-4-sonnet', 'claude-4-sonnet should have correct name')
-            assert.strictEqual(claudeSonnet37?.name, 'claude-3.7-sonnet', 'claude-3.7-sonnet should have correct name')
+            assert.strictEqual(claudeSonnet4?.name, 'Claude Sonnet 4', 'claude-sonnet-4 should have correct name')
+            assert.strictEqual(claudeSonnet37?.name, 'Claude 3.7 Sonnet', 'claude-3.7-sonnet should have correct name')
         })
     })
 })
