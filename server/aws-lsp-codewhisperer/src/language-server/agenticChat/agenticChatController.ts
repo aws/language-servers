@@ -1409,7 +1409,14 @@ export class AgenticChatController implements ChatHandlers {
             session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
-                toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+                toolResults = await this.processToolUses(
+                    pendingToolUses,
+                    chatResultStream,
+                    session,
+                    tabId,
+                    token,
+                    additionalContext
+                )
                 if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                     shouldDisplayMessage = false
@@ -1684,12 +1691,13 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Processes tool uses by running the tools and collecting results
      */
-    async #processToolUses(
+    async processToolUses(
         toolUses: Array<ToolUse & { stop: boolean }>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
         tabId: string,
-        token?: CancellationToken
+        token?: CancellationToken,
+        additionalContext?: AdditionalContentEntryAddition[]
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
 
@@ -1890,12 +1898,11 @@ export class AgenticChatController implements ChatHandlers {
                 if (toolUse.name === CodeReview.toolName) {
                     try {
                         let initialInput = JSON.parse(JSON.stringify(toolUse.input))
-                        let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
-                        if (ruleArtifacts !== undefined || ruleArtifacts !== null) {
-                            this.#features.logging.info(`RuleArtifacts: ${JSON.stringify(ruleArtifacts)}`)
-                            let pathsToRulesMap = ruleArtifacts.map(ruleArtifact => ({ path: ruleArtifact.id }))
-                            this.#features.logging.info(`PathsToRules: ${JSON.stringify(pathsToRulesMap)}`)
-                            initialInput['ruleArtifacts'] = pathsToRulesMap
+
+                        if (additionalContext !== undefined) {
+                            initialInput['ruleArtifacts'] = additionalContext
+                                .filter(c => c.type === 'rule')
+                                .map(c => ({ path: c.path }))
                         }
                         toolUse.input = initialInput
                     } catch (e) {
