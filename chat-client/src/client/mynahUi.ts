@@ -220,11 +220,10 @@ export const handleChatPrompt = (
         messager.onStopChatResponse(tabId)
     }
 
+    const commandsToReroute = ['/dev', '/test', '/doc', '/review']
+
     const isReroutedCommand =
-        agenticMode &&
-        tabFactory?.isRerouteEnabled() &&
-        prompt.command &&
-        ['/dev', '/test', '/doc'].includes(prompt.command)
+        agenticMode && tabFactory?.isRerouteEnabled() && prompt.command && commandsToReroute.includes(prompt.command)
 
     if (prompt.command && !isReroutedCommand && prompt.command !== '/compact') {
         // Send /compact quick action as normal regular chat prompt
@@ -251,7 +250,7 @@ export const handleChatPrompt = (
     } else {
         // Go agentic chat workflow when:
         // 1. Regular prompts without commands
-        // 2. Rerouted commands (/dev, /test, /doc) when feature flag: reroute is enabled
+        // 2. Rerouted commands (/dev, /test, /doc, /review) when feature flag: reroute is enabled
 
         // Special handling for /doc command - always send fixed prompt for fixed response
         if (isReroutedCommand && prompt.command === '/doc') {
@@ -276,6 +275,9 @@ export const handleChatPrompt = (
                     break
                 case '/doc':
                     defaultPrompt = DEFAULT_DOC_PROMPT
+                    break
+                case '/review':
+                    defaultPrompt = DEFAULT_REVIEW_PROMPT
                     break
             }
 
@@ -806,20 +808,22 @@ export const createMynahUi = (
                 mynahUi.addCustomContextToPrompt(tabId, commands, insertPosition)
             }
 
-            const imageVerificationBanner: Partial<ChatItem> = {
-                messageId: 'image-verification-banner',
-                header: {
-                    icon: 'warning',
-                    iconStatus: 'warning',
-                    body: '### Invalid Image',
-                },
-                body: `${errors.join('\n')}`,
-                canBeDismissed: true,
-            }
+            if (errors.length > 0) {
+                const imageVerificationBanner: Partial<ChatItem> = {
+                    messageId: 'image-verification-banner',
+                    header: {
+                        icon: 'warning',
+                        iconStatus: 'warning',
+                        body: '### Invalid Image',
+                    },
+                    body: `${errors.join('\n')}`,
+                    canBeDismissed: true,
+                }
 
-            mynahUi.updateStore(tabId, {
-                promptInputStickyCard: imageVerificationBanner,
-            })
+                mynahUi.updateStore(tabId, {
+                    promptInputStickyCard: imageVerificationBanner,
+                })
+            }
         },
     }
 
@@ -838,6 +842,7 @@ export const createMynahUi = (
         },
         config: {
             maxTabs: 10,
+            test: true,
             dragOverlayIcon: MynahIcons.IMAGE,
             texts: {
                 ...uiComponentsTexts,
@@ -1380,10 +1385,15 @@ export const createMynahUi = (
                     fileTreeTitle: '',
                     hideFileCount: true,
                     details: toDetailsWithoutIcon(header.fileList.details),
+                    renderAsPills:
+                        !header.fileList.details ||
+                        (Object.values(header.fileList.details).every(detail => !detail.changes) &&
+                            (!header.buttons || !header.buttons.some(button => button.id === 'undo-changes')) &&
+                            !header.status?.icon),
                 }
             }
             if (!isPartialResult) {
-                if (processedHeader) {
+                if (processedHeader && !message.header?.status) {
                     processedHeader.status = undefined
                 }
             }
@@ -1396,7 +1406,8 @@ export const createMynahUi = (
                 processedHeader.buttons !== null &&
                 processedHeader.buttons.length > 0) ||
                 processedHeader.status !== undefined ||
-                processedHeader.icon !== undefined)
+                processedHeader.icon !== undefined ||
+                processedHeader.fileList !== undefined)
 
         const padding =
             message.type === 'tool' ? (fileList ? true : message.messageId?.endsWith('_permission')) : undefined
@@ -1407,8 +1418,10 @@ export const createMynahUi = (
         // Adding this conditional check to show the stop message in the center.
         const contentHorizontalAlignment: ChatItem['contentHorizontalAlignment'] = undefined
 
-        // If message.header?.status?.text is Stopped or Rejected or Ignored or Completed etc.. card should be in disabled state.
-        const shouldMute = message.header?.status?.text !== undefined && message.header?.status?.text !== 'Completed'
+        // If message.header?.status?.text is Stopped or Rejected or Ignored etc.. card should be in disabled state.
+        const shouldMute =
+            message.header?.status?.text !== undefined &&
+            ['Stopped', 'Rejected', 'Ignored', 'Failed', 'Error'].includes(message.header.status.text)
 
         return {
             body: message.body,
@@ -1454,15 +1467,25 @@ export const createMynahUi = (
             tabId = createTabId()
             if (!tabId) return
         }
-
-        const body = [
-            params.genericCommand,
-            ' the following part of my code:',
-            '\n~~~~\n',
-            params.selection,
-            '\n~~~~\n',
-        ].join('')
-        const chatPrompt: ChatPrompt = { prompt: body, escapedPrompt: body }
+        let body = ''
+        let chatPrompt: ChatPrompt
+        const genericCommandString = params.genericCommand as string
+        if (genericCommandString.includes('Review')) {
+            chatPrompt = { command: '/review' }
+            if (!tabFactory?.isCodeReviewInChatEnabled()) {
+                customChatClientAdapter?.handleQuickAction(chatPrompt, tabId, '')
+                return
+            }
+        } else {
+            body = [
+                genericCommandString,
+                ' the following part of my code:',
+                '\n~~~~\n',
+                params.selection,
+                '\n~~~~\n',
+            ].join('')
+            chatPrompt = { prompt: body, escapedPrompt: body }
+        }
 
         handleChatPrompt(mynahUi, tabId, chatPrompt, messager, params.triggerType, undefined, agenticMode, tabFactory)
     }
@@ -1786,6 +1809,8 @@ const DEFAULT_DOC_PROMPT = `You are Amazon Q. Start with a warm greeting, then a
 const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then help me generate unit tests`
 
 const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
+
+const DEFAULT_REVIEW_PROMPT = `You are Amazon Q. Start with a warm greeting, then use code review tool to perform code analysis of the open file. If there is no open file, ask what the user would like to review.`
 
 export const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',

@@ -41,7 +41,8 @@ export interface QClientCapabilities {
     mcp?: boolean
     modelSelection?: boolean
     reroute?: boolean
-    qCodeReviewInChat?: boolean
+    codeReviewInChat?: boolean
+    displayFindings?: boolean
     compaction?: boolean
     shortcut?: boolean
 }

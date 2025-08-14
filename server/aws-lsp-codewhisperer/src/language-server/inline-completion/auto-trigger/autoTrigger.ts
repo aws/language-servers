@@ -110,9 +110,10 @@ function isTabKey(str: string): boolean {
 export const getAutoTriggerType = (
     contentChanges: TextDocumentContentChangeEvent[]
 ): CodewhispererAutomatedTriggerType | undefined => {
-    if (contentChanges.length !== 1) {
+    if (contentChanges.length < 1 || contentChanges.length > 2) {
         // Won't trigger cwspr on multi-line changes
         // event.contentChanges.length will be 2 when user press Enter key multiple times
+        // in certain cases, first contentChange item is valid, 2nd is empty string
         return undefined
     }
     const changedText = contentChanges[0].text

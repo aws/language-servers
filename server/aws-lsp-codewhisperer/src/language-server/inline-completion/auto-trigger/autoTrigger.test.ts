@@ -119,6 +119,8 @@ describe('Auto Trigger', async () => {
             assert.strictEqual(getAutoTriggerType(createContentChange('\n')), 'Enter')
             assert.strictEqual(getAutoTriggerType(createContentChange('\r\n')), 'Enter')
             assert.strictEqual(getAutoTriggerType(createContentChange('\n    ')), 'Enter')
+            const changes = [{ text: '\n   ' }, { text: '' }]
+            assert.strictEqual(getAutoTriggerType(changes), 'Enter')
         })
 
         it('should return undefined for tab changes', () => {

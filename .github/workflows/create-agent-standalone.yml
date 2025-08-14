@@ -1,0 +1,101 @@
+name: Create agent-standalone bundles
+
+on:
+    push:
+        branches: [main, feature/*, release/agentic/*]
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+              with:
+                  ref: ${{ github.ref }}
+                  lfs: true
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+                  cache: 'npm'
+
+            - name: Install dependencies
+              run: npm i
+
+            - name: Compile project
+              run: npm run compile
+
+            - name: Generate agent standalone
+              run: |
+                  npm run ci:generate:agent-standalone -w app/aws-lsp-codewhisperer-runtimes
+                  npm run ci:generate:agentic:attribution
+
+            # We "flatten" out each clients.zip-servers.zip pairing so that the
+            # downloadable artifacts are nicely organized, one per platform.
+            - name: Prepare and upload artifacts
+              run: |
+                  platforms=("linux-arm64" "linux-x64" "mac-arm64" "mac-x64" "win-x64")
+                  for platform in "${platforms[@]}"; do
+                    echo "Preparing artifacts for $platform"
+                    mkdir -p "_artifacts/$platform"
+
+                    cp "app/aws-lsp-codewhisperer-runtimes/build/archives/shared/clients.zip" "_artifacts/$platform/"
+                    cp "app/aws-lsp-codewhisperer-runtimes/build/archives/agent-standalone/$platform/servers.zip" "_artifacts/$platform/"
+                  done
+                  mkdir -p "_artifacts/clients"
+                  unzip "app/aws-lsp-codewhisperer-runtimes/build/archives/shared/clients.zip" -d _artifacts/clients
+
+            # GitHub Actions zips the archive, so we upload the folder used to
+            # produce clients.zip. Otherwise we have a clients.zip artifact
+            # that contains our clients.zip file.
+            # app/aws-lsp-codewhisperer-runtimes/build/archives/shared/clients.zip
+            - name: Upload clients.zip
+              uses: actions/upload-artifact@v4
+              with:
+                  name: clients
+                  path: _artifacts/clients/
+                  if-no-files-found: error
+
+            - name: Upload linux-arm64
+              uses: actions/upload-artifact@v4
+              with:
+                  name: linux-arm64
+                  path: _artifacts/linux-arm64/
+                  if-no-files-found: error
+
+            - name: Upload linux-x64
+              uses: actions/upload-artifact@v4
+              with:
+                  name: linux-x64
+                  path: _artifacts/linux-x64/
+                  if-no-files-found: error
+
+            - name: Upload mac-arm64
+              uses: actions/upload-artifact@v4
+              with:
+                  name: mac-arm64
+                  path: _artifacts/mac-arm64/
+                  if-no-files-found: error
+
+            - name: Upload mac-x64
+              uses: actions/upload-artifact@v4
+              with:
+                  name: mac-x64
+                  path: _artifacts/mac-x64/
+                  if-no-files-found: error
+
+            - name: Upload win-x64
+              uses: actions/upload-artifact@v4
+              with:
+                  name: win-x64
+                  path: _artifacts/win-x64/
+                  if-no-files-found: error
+
+            - name: Upload THIRD_PARTY_LICENSES
+              uses: actions/upload-artifact@v4
+              with:
+                  name: THIRD_PARTY_LICENSES
+                  path: attribution/THIRD_PARTY_LICENSES
+                  if-no-files-found: error

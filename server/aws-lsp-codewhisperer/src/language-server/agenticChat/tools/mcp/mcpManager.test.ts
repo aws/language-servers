@@ -26,6 +26,7 @@ const fakeWorkspace = {
         mkdir: (_: string, __: any) => Promise.resolve(),
     },
     getUserHomeDir: () => '',
+    getAllWorkspaceFolders: () => [{ uri: '/fake/workspace' }],
 }
 const features = { logging: fakeLogging, workspace: fakeWorkspace, lsp: {} } as any
 
@@ -112,6 +113,7 @@ describe('callTool()', () => {
         args: [],
         env: {},
         timeout: 0,
+        disabled: false,
         __configPath__: 'p.json',
     }
 
@@ -136,6 +138,42 @@ describe('callTool()', () => {
             throw new Error('should have thrown')
         } catch (err: any) {
             expect(err.message).to.equal("MCP: server 'nope' is not configured")
+        }
+    })
+
+    it('throws when server is disabled', async () => {
+        const disabledCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: true,
+            __configPath__: 'p.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['s1', disabledCfg]]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { s1: disabledCfg },
+                tools: ['@s1'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+        const mgr = await McpManager.init(['p.json'], features)
+
+        try {
+            await mgr.callTool('s1', 'tool1', {})
+            throw new Error('should have thrown')
+        } catch (err: any) {
+            expect(err.message).to.equal("MCP: server 's1' is disabled")
         }
     })
 
@@ -218,26 +256,79 @@ describe('addServer()', () => {
 
     it('persists config and initializes', async () => {
         const mgr = await McpManager.init([], features)
+
         const newCfg: MCPServerConfig = {
             command: 'c2',
             args: ['a'],
             env: { X: '1' },
             timeout: 0,
+            disabled: false,
             __configPath__: 'path.json',
         }
+
         await mgr.addServer('newS', newCfg, 'path.json')
+
         expect(saveAgentConfigStub.calledOnce).to.be.true
-        expect(initOneStub.calledWith('newS', newCfg)).to.be.true
+        expect(initOneStub.calledOnceWith('newS', sinon.match(newCfg))).to.be.true
+    })
+
+    it('persists and initializes an HTTP server', async () => {
+        loadStub.resolves({
+            servers: new Map(),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: {},
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+        const mgr = await McpManager.init([], features)
+
+        const httpCfg: MCPServerConfig = {
+            url: 'https://api.example.com/mcp',
+            headers: { Authorization: 'Bearer 123' },
+            timeout: 0,
+            disabled: false,
+            __configPath__: 'http.json',
+        }
+
+        await mgr.addServer('httpSrv', httpCfg, 'http.json')
+
+        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(initOneStub.calledOnceWith('httpSrv', sinon.match(httpCfg))).to.be.true
     })
 })
 
 describe('removeServer()', () => {
     let loadStub: sinon.SinonStub
     let saveAgentConfigStub: sinon.SinonStub
+    let existsStub: sinon.SinonStub
+    let readFileStub: sinon.SinonStub
+    let writeFileStub: sinon.SinonStub
+    let mkdirStub: sinon.SinonStub
+    let getWorkspaceMcpConfigPathsStub: sinon.SinonStub
+    let getGlobalMcpConfigPathStub: sinon.SinonStub
 
     beforeEach(() => {
         loadStub = stubAgentConfig()
         saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        existsStub = sinon.stub(fakeWorkspace.fs, 'exists').resolves(true)
+        readFileStub = sinon
+            .stub(fakeWorkspace.fs, 'readFile')
+            .resolves(Buffer.from(JSON.stringify({ mcpServers: { x: {} } })))
+        writeFileStub = sinon.stub(fakeWorkspace.fs, 'writeFile').resolves()
+        mkdirStub = sinon.stub(fakeWorkspace.fs, 'mkdir').resolves()
+        getWorkspaceMcpConfigPathsStub = sinon
+            .stub(mcpUtils, 'getWorkspaceMcpConfigPaths')
+            .returns(['ws1/config.json', 'ws2/config.json'])
+        getGlobalMcpConfigPathStub = sinon.stub(mcpUtils, 'getGlobalMcpConfigPath').returns('global/config.json')
     })
 
     afterEach(async () => {
@@ -256,6 +347,7 @@ describe('removeServer()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'c.json',
         } as MCPServerConfig)
         ;(mgr as any).serverNameMapping.set('x', 'x')
@@ -274,6 +366,107 @@ describe('removeServer()', () => {
         await mgr.removeServer('x')
         expect(saveAgentConfigStub.calledOnce).to.be.true
         expect((mgr as any).clients.has('x')).to.be.false
+    })
+
+    it('removes server from all config files', async () => {
+        const mgr = await McpManager.init([], features)
+        const dummy = new Client({ name: 'c', version: 'v' })
+        ;(mgr as any).clients.set('x', dummy)
+        ;(mgr as any).mcpServers.set('x', {
+            command: '',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: false,
+            __configPath__: 'c.json',
+        } as MCPServerConfig)
+        ;(mgr as any).serverNameMapping.set('x', 'x')
+        ;(mgr as any).agentConfig = {
+            name: 'test-agent',
+            version: '1.0.0',
+            description: 'Test agent',
+            mcpServers: { x: {} },
+            tools: ['@x'],
+            allowedTools: [],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+
+        await mgr.removeServer('x')
+
+        // Verify that writeFile was called for each config path (2 workspace + 1 global)
+        expect(writeFileStub.callCount).to.equal(3)
+
+        // Verify the content of the writes (should have removed the server)
+        writeFileStub.getCalls().forEach(call => {
+            const content = JSON.parse(call.args[1])
+            expect(content.mcpServers).to.not.have.property('x')
+        })
+    })
+})
+
+describe('mutateConfigFile()', () => {
+    let existsStub: sinon.SinonStub
+    let readFileStub: sinon.SinonStub
+    let writeFileStub: sinon.SinonStub
+    let mkdirStub: sinon.SinonStub
+    let mgr: McpManager
+
+    beforeEach(async () => {
+        sinon.restore()
+        stubAgentConfig()
+        existsStub = sinon.stub(fakeWorkspace.fs, 'exists').resolves(true)
+        readFileStub = sinon
+            .stub(fakeWorkspace.fs, 'readFile')
+            .resolves(Buffer.from(JSON.stringify({ mcpServers: { test: {} } })))
+        writeFileStub = sinon.stub(fakeWorkspace.fs, 'writeFile').resolves()
+        mkdirStub = sinon.stub(fakeWorkspace.fs, 'mkdir').resolves()
+        mgr = await McpManager.init([], features)
+    })
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('reads, mutates, and writes config file', async () => {
+        // Access the private method using type assertion
+        const mutateConfigFile = (mgr as any).mutateConfigFile.bind(mgr)
+
+        await mutateConfigFile('test/path.json', (json: any) => {
+            json.mcpServers.newServer = { command: 'test' }
+            delete json.mcpServers.test
+        })
+
+        expect(readFileStub.calledOnce).to.be.true
+        expect(writeFileStub.calledOnce).to.be.true
+
+        // Verify the content was modified correctly
+        const writtenContent = JSON.parse(writeFileStub.firstCall.args[1])
+        expect(writtenContent.mcpServers).to.have.property('newServer')
+        expect(writtenContent.mcpServers).to.not.have.property('test')
+    })
+
+    it('creates new config file if it does not exist', async () => {
+        existsStub.resolves(false)
+        readFileStub.rejects({ code: 'ENOENT' })
+
+        // Access the private method using type assertion
+        const mutateConfigFile = (mgr as any).mutateConfigFile.bind(mgr)
+
+        await mutateConfigFile('test/path.json', (json: any) => {
+            json.mcpServers.newServer = { command: 'test' }
+        })
+
+        expect(mkdirStub.calledOnce).to.be.true
+        expect(writeFileStub.calledOnce).to.be.true
+
+        // Verify the content was created correctly
+        const writtenContent = JSON.parse(writeFileStub.firstCall.args[1])
+        expect(writtenContent.mcpServers).to.have.property('newServer')
     })
 })
 
@@ -294,7 +487,7 @@ describe('updateServer()', () => {
         } catch {}
     })
 
-    it('re-initializes when changing timeout', async () => {
+    it('re‑initializes when changing timeout', async () => {
         const oldCfg: MCPServerConfig = {
             command: 'cmd',
             args: [],
@@ -302,6 +495,7 @@ describe('updateServer()', () => {
             timeout: 1,
             __configPath__: 'u.json',
         }
+
         loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
             servers: new Map([['u1', oldCfg]]),
             serverNameMapping: new Map([['u1', 'u1']]),
@@ -318,6 +512,7 @@ describe('updateServer()', () => {
                 resources: [],
             },
         })
+
         await McpManager.init([], features)
         const mgr = McpManager.instance
         const fakeClient = new Client({ name: 'c', version: 'v' })
@@ -327,10 +522,50 @@ describe('updateServer()', () => {
         initOneStub.resetHistory()
         saveAgentConfigStub.resetHistory()
 
-        await mgr.updateServer('u1', { timeout: 999 }, 'fakepath')
+        await mgr.updateServer('u1', { timeout: 999 }, 'u.json')
+
         expect(saveAgentConfigStub.calledOnce).to.be.true
         expect(closeStub.calledOnce).to.be.true
-        expect(initOneStub.calledOnce).to.be.true
+        expect(initOneStub.calledOnceWith('u1', sinon.match.has('timeout', 999))).to.be.true
+    })
+
+    it('switches from stdio to http by clearing command and setting url', async () => {
+        const oldCfg: MCPServerConfig = {
+            command: 'cmd',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: false,
+            __configPath__: 'z.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', oldCfg]]),
+            serverNameMapping: new Map([['srv', 'srv']]),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: oldCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        await McpManager.init([], features)
+        const mgr = McpManager.instance
+
+        initOneStub.resetHistory()
+        saveAgentConfigStub.resetHistory()
+
+        await mgr.updateServer('srv', { command: undefined, url: 'https://new.host/mcp' }, 'z.json')
+
+        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(initOneStub.calledOnceWith('srv', sinon.match({ url: 'https://new.host/mcp' }))).to.be.true
     })
 })
 
@@ -444,6 +679,7 @@ describe('getServerState()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'state.json',
         }
         loadStub.resolves({
@@ -485,6 +721,7 @@ describe('getAllServerStates()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'state.json',
         }
         loadStub.resolves({
@@ -533,6 +770,7 @@ describe('getEnabledTools()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 't.json',
         }
 
@@ -574,6 +812,38 @@ describe('getEnabledTools()', () => {
         }
         expect(mgr.getEnabledTools()).to.be.empty
     })
+
+    it('filters out tools from disabled servers', async () => {
+        const disabledCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: true,
+            __configPath__: 't.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', disabledCfg]]),
+            serverNameMapping: new Map([['srv', 'srv']]),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: disabledCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        const mgr = await McpManager.init(['t.json'], features)
+        // Should be empty because server is disabled
+        expect(mgr.getEnabledTools()).to.be.empty
+    })
 })
 
 describe('getAllToolsWithPermissions()', () => {
@@ -586,6 +856,7 @@ describe('getAllToolsWithPermissions()', () => {
         args: [],
         env: {},
         timeout: 0,
+        disabled: false,
         __configPath__: 'p.json',
     }
 
@@ -632,6 +903,109 @@ describe('getAllToolsWithPermissions()', () => {
         expect(mgr.getAllToolsWithPermissions()).to.have.length(2)
         expect(mgr.getAllToolsWithPermissions('s1')).to.have.length(1)
         expect(mgr.getAllToolsWithPermissions('s2')).to.have.length(1)
+    })
+})
+
+describe('isServerDisabled()', () => {
+    let loadStub: sinon.SinonStub
+
+    afterEach(async () => {
+        sinon.restore()
+        try {
+            await McpManager.instance.close()
+        } catch {}
+    })
+
+    it('returns true when server is disabled', async () => {
+        const disabledCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: true,
+            __configPath__: 'p.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', disabledCfg]]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: disabledCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        const mgr = await McpManager.init(['p.json'], features)
+        expect(mgr.isServerDisabled('srv')).to.be.true
+    })
+
+    it('returns false when server is enabled', async () => {
+        const enabledCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            disabled: false,
+            __configPath__: 'p.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', enabledCfg]]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: enabledCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        const mgr = await McpManager.init(['p.json'], features)
+        expect(mgr.isServerDisabled('srv')).to.be.false
+    })
+
+    it('returns false when disabled property is undefined', async () => {
+        const undefinedCfg: MCPServerConfig = {
+            command: 'c',
+            args: [],
+            env: {},
+            timeout: 0,
+            __configPath__: 'p.json',
+        }
+
+        loadStub = sinon.stub(mcpUtils, 'loadAgentConfig').resolves({
+            servers: new Map([['srv', undefinedCfg]]),
+            serverNameMapping: new Map(),
+            errors: new Map(),
+            agentConfig: {
+                name: 'test-agent',
+                version: '1.0.0',
+                description: 'Test agent',
+                mcpServers: { srv: undefinedCfg },
+                tools: ['@srv'],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            },
+        })
+
+        const mgr = await McpManager.init(['p.json'], features)
+        expect(mgr.isServerDisabled('srv')).to.be.false
     })
 })
 
@@ -706,6 +1080,7 @@ describe('updateServerPermission()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'x.json',
         }
 
@@ -760,6 +1135,7 @@ describe('reinitializeMcpServers()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'a.json',
         }
         const cfg2: MCPServerConfig = {
@@ -767,6 +1143,7 @@ describe('reinitializeMcpServers()', () => {
             args: [],
             env: {},
             timeout: 0,
+            disabled: false,
             __configPath__: 'b.json',
         }
         const loadStub = sinon
@@ -892,6 +1269,7 @@ describe('concurrent server initialization', () => {
                 args: [],
                 env: {},
                 timeout: 0,
+                disabled: false,
                 __configPath__: `config${i}.json`,
             }
         }

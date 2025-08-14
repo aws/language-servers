@@ -294,6 +294,10 @@ export const createChat = (
                     tabFactory.enableReroute()
                 }
 
+                if ((params as any)?.codeReviewInChat) {
+                    tabFactory.enableCodeReviewInChat()
+                }
+
                 if (params?.quickActions?.quickActionsCommandGroups) {
                     const quickActionCommandGroups = params.quickActions.quickActionsCommandGroups.map(group => ({
                         ...group,

@@ -27,7 +27,7 @@ import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/Ba
 import { loggingUtils } from '@aws/lsp-core'
 import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { Features } from '../types'
-import { getOriginFromClientInfo, getRequestID, isUsageLimitError } from '../../shared/utils'
+import { getOriginFromClientInfo, getClientName, getRequestID, isUsageLimitError } from '../../shared/utils'
 import { enabledModelSelection } from '../../shared/utils'
 
 export type ChatSessionServiceConfig = CodeWhispererStreamingClientConfig
@@ -138,7 +138,7 @@ export class ChatSessionService {
         this.#serviceManager = serviceManager
         this.#lsp = lsp
         this.#logging = logging
-        this.#origin = getOriginFromClientInfo(this.#lsp?.getClientInitializeParams()?.clientInfo?.name)
+        this.#origin = getOriginFromClientInfo(getClientName(this.#lsp?.getClientInitializeParams()))
     }
 
     public async sendMessage(request: SendMessageCommandInput): Promise<SendMessageCommandOutput> {
@@ -220,10 +220,16 @@ export class ChatSessionService {
                 }
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
-                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
-                    (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
-                    error.message ===
-                        'Encountered unexpectedly high load when processing the request, please try again.'
+                    (request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
+                        (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
+                        error.message ===
+                            'Encountered unexpectedly high load when processing the request, please try again.') ||
+                    (error.cause &&
+                        typeof error.cause === 'object' &&
+                        '$metadata' in error.cause &&
+                        (error.cause as any).$metadata?.httpStatusCode === 429 &&
+                        'reason' in error.cause &&
+                        error.cause.reason === 'INSUFFICIENT_MODEL_CAPACITY')
                 ) {
                     error.message = this.isModelSelectionEnabled()
                         ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
@@ -272,12 +278,20 @@ export class ChatSessionService {
                 }
                 let error = wrapErrorWithCode(e, 'QModelResponse')
                 if (
-                    request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
-                    (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
-                    error.message ===
-                        'Encountered unexpectedly high load when processing the request, please try again.'
+                    (request.conversationState?.currentMessage?.userInputMessage?.modelId !== undefined &&
+                        (error.cause as any)?.$metadata?.httpStatusCode === 500 &&
+                        error.message ===
+                            'Encountered unexpectedly high load when processing the request, please try again.') ||
+                    (error.cause &&
+                        typeof error.cause === 'object' &&
+                        '$metadata' in error.cause &&
+                        (error.cause as any).$metadata?.httpStatusCode === 429 &&
+                        'reason' in error.cause &&
+                        error.cause.reason === 'INSUFFICIENT_MODEL_CAPACITY')
                 ) {
-                    error.message = `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                    error.message = this.isModelSelectionEnabled()
+                        ? `The model you selected is temporarily unavailable. Please switch to a different model and try again.`
+                        : `I am experiencing high traffic, please try again shortly.`
                 }
                 throw error
             }

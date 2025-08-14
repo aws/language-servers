@@ -4,16 +4,16 @@
  */
 
 import { z } from 'zod'
-import { FINDING_SEVERITY, SCOPE_OF_CODE_REVIEW } from './qCodeReviewConstants'
+import { FINDING_SEVERITY, SCOPE_OF_CODE_REVIEW } from './codeReviewConstants'
 
 /**
- * Input schema for QCodeReview tool
+ * Input schema for CodeReview tool
  */
-export const Q_CODE_REVIEW_INPUT_SCHEMA = {
+export const CODE_REVIEW_INPUT_SCHEMA = {
     type: <const>'object',
     description: [
         '**3 main fields in the tool:**',
-        '- scopeOfReview: CRITICAL - Must be set to either FULL_REVIEW (analyze entire codebase) or CODE_DIFF_REVIEW (focus only on changes/modifications). This is a required field.',
+        '- scopeOfReview: CRITICAL - Must be set to either FULL_REVIEW (analyze entire file/folder/project/workspace) or CODE_DIFF_REVIEW (focus only on changes/modifications in the file/folder/project/workspace). This is a required field.',
         '- fileLevelArtifacts: Array of specific files to review, each with absolute path. Use this when reviewing individual files, not folders. Format: [{"path": "/absolute/path/to/file.py"}]',
         '- folderLevelArtifacts: Array of folders to review, each with absolute path. Use this when reviewing entire directories, not individual files. Format: [{"path": "/absolute/path/to/folder/"}]',
         "Note: Either fileLevelArtifacts OR folderLevelArtifacts should be provided based on what's being reviewed, but not both for the same items.",
@@ -22,7 +22,7 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
         scopeOfReview: {
             type: <const>'string',
             description: [
-                'CRITICAL: You must explicitly set the value of "scopeOfReview" based on user request analysis.',
+                'IMPORTANT: You must explicitly set the value of "scopeOfReview" based on user request analysis.',
                 '',
                 'Set "scopeOfReview" to CODE_DIFF_REVIEW when:',
                 '- User explicitly asks to review only changes/modifications/diffs in their code',
@@ -37,7 +37,7 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
                 '- When user asks to review specific files or folders without mentioning changes',
                 '- When user asks for security analysis or best practices review of their code',
                 '',
-                'This is a required field. You must inform the user whether you are performing a full review or only reviewing changes.',
+                'This is a required field.',
             ].join('\n'),
             enum: SCOPE_OF_CODE_REVIEW,
         },
@@ -88,9 +88,9 @@ export const Q_CODE_REVIEW_INPUT_SCHEMA = {
 }
 
 /**
- * Zod schema for input validation during execution of Q Code Review tool
+ * Zod schema for input validation during execution of Code Review tool
  */
-export const Z_Q_CODE_REVIEW_INPUT_SCHEMA = z.object({
+export const Z_CODE_REVIEW_INPUT_SCHEMA = z.object({
     scopeOfReview: z.enum(SCOPE_OF_CODE_REVIEW as [string, ...string[]]),
     fileLevelArtifacts: z
         .array(
@@ -118,7 +118,7 @@ export const Z_Q_CODE_REVIEW_INPUT_SCHEMA = z.object({
 /**
  * Schema for a single finding
  */
-export const Q_FINDING_SCHEMA = z.object({
+export const FINDING_SCHEMA = z.object({
     description: z.object({
         markdown: z.string(),
         text: z.string(),
@@ -146,4 +146,4 @@ export const Q_FINDING_SCHEMA = z.object({
 /**
  * Schema for an array of findings
  */
-export const Q_FINDINGS_SCHEMA = z.array(Q_FINDING_SCHEMA)
+export const FINDINGS_SCHEMA = z.array(FINDING_SCHEMA)

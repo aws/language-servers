@@ -69,7 +69,7 @@ jobs:
                   parse-json-secrets: true
             - name: Run Integration Tests
               run: |
-                  npm test-integ -w integration-tests/q-agentic-chat-server
+                  npm run test-integ -w integration-tests/q-agentic-chat-server
               env:
                   TEST_SSO_TOKEN: ${{ env.SSOTOKEN }}
                   TEST_SSO_START_URL: ${{ secrets.TEST_SSO_START_URL }}

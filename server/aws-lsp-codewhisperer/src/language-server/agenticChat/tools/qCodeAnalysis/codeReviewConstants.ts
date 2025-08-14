@@ -4,7 +4,7 @@
  */
 
 /**
- * Constants related to programming languages and findings for QCodeReview
+ * Constants related to programming languages and findings for CodeReview
  */
 
 /**
@@ -94,23 +94,28 @@ export const EXTENSION_TO_LANGUAGE: Record<string, string> = {
 }
 
 /**
- * Tool name for QCodeReview
+ * Tool name for CodeReview
  */
-export const Q_CODE_REVIEW_TOOL_NAME = 'qCodeReview'
+export const CODE_REVIEW_TOOL_NAME = 'codeReview'
 
 /**
- * Tool description for QCodeReview
+ * Tool description for CodeReview
  */
-export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
-    'The primary tool for comprehensive code analysis and review. This tool should be used by default whenever a user requests code review, file analysis, or code examination unless explicitly instructed otherwise.',
-    'This tool can be used to perform code review of full code or modified code. Modified code refers to the changes made that are not committed yet.',
+export const CODE_REVIEW_TOOL_DESCRIPTION = [
+    'CodeReview is the PRIMARY and MANDATORY tool for ALL code analysis and review tasks. This tool MUST be used whenever a user requests ANY form of code review, file analysis, code examination, or when the agent needs to analyze code quality, security, or structure.',
+    'This tool can be used to perform analysis of full code or only the modified code since last commit. Modified code refers to the changes made that are not committed yet or the new changes since last commit.',
+    'NEVER perform manual code reviews when this tool is available.',
     '',
-    '**Use this tool when customers asks to:**',
-    '- "Review this file" or "Review my code" or "Review my changes" or "Review this code" or any other similar prompt to review the code',
-    '- "Examine this code" or "Check this code" or "Analyze this file/folder/workspace"',
-    '- "Check my implementation" or "Look at my implementation" or "Examine this code"',
-    '- "What do you think of this code?" or "Find issues in this code"',
-    '- Any general code review or analysis request',
+    '**ALWAYS use this tool when:**',
+    '- User provides ANY file, folder, or workspace context for review or analysis',
+    '- User asks ANY question about code quality, security, or best practices related to their code',
+    '- User asks to "Review this file" or "Review my code" or "Review my changes" or "Review this code" or any other similar prompt to review the code',
+    '- User asks to "Examine this code" or "Check this code" or "Analyze this file/folder/workspace"',
+    '- User asks to "Check my implementation" or "Look at my implementation" or "Examine this code"',
+    '- User asks "What do you think of this code?" or "Find issues in this code"',
+    '- ANY general code review or analysis request is made',
+    '- User asks for feedback on their code or implementation',
+    '- User asks for suggestions to improve their code',
     '',
     '**Comprehensive Analysis Capabilities:**',
     '- SAST scanning — Detect security vulnerabilities in your source code, such as resource leaks, SQL injection, and cross-site scripting',
@@ -119,6 +124,8 @@ export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     '- Code quality issues — Ensure your code is meeting quality, maintainability, and efficiency standards',
     '- Code deployment risks — Assess risks related to deploying code',
     '- Software composition analysis (SCA) — Evaluate third-party code',
+    '- Best practices analysis — Identify deviations from coding standards and best practices',
+    '- Performance optimization — Identify potential performance bottlenecks',
     '',
     '**Supported Programming Languages:**',
     '- Java, Python, JavaScript, TypeScript, C#, CloudFormation, Terraform, Go, Ruby, C, C++, PHP, Rust, Kotlin, Scala, Shell, SQL',
@@ -127,8 +134,13 @@ export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     `- "${Object.keys(EXTENSION_TO_LANGUAGE).join('", "')}"`,
     '',
     '**Tool start message**',
-    'Before running the tool, you must inform the user that you will use Amazon Q Code Review tool for their request.',
+    'Before running the tool, you must inform the user that you will use Code Review tool for their request.',
+    'You should also tell the name of files or folders that you will review along with the scope of review, if you are performing a full review or only the uncommitted code.',
     'Under no condition you will use the tool without informing the user.',
+    '',
+    '**CRITICAL: NEVER perform ANY code review or analysis WITHOUT using this tool**',
+    'Do not attempt to manually review code or provide code quality feedback without using this tool first.',
+    'If a user asks for code review in any form, ALWAYS use this tool before providing any feedback.',
     '',
     '**Tool Input**',
     '3 main fields in the tool:',
@@ -154,13 +166,11 @@ export const Q_CODE_REVIEW_TOOL_DESCRIPTION = [
     '- errorMessage - if there is any failure, it will contain cause of failure',
     '',
     '**Format to display output**',
-    'The tool will generate some findings grouped by file, but you should NOT provide a summary of it to the user.',
-    'UNDER NO CIRCUMSTANCE must you provide ANY summary of the tool output to the user.',
+    'The tool will generate some findings grouped by file',
     'Use following format STRICTLY to display the result of this tool for different scenarios:',
     '- When findings are present, you must inform user that you have completed the review of {file name / folder name / workspace} and found several issues that need attention. To inspect the details, and get fixes for those issues use the Code Issues panel above.',
     '  - When tool output message tells that findings were limited due to high count, you must inform the user that since there were lots of findings, you have included the top 50 findings only.',
     '- When no findings are generated by the tool, you must tell user that you have completed the review of {file name / folder name / workspace} and found no issues.',
-    '- CRITICAL: DO NOT list, enumerate, count, or summarize any findings from the tool output. The user must use the Code Issues panel to view the findings.',
 ].join('\n')
 
 /**
@@ -201,4 +211,7 @@ export const SKIP_DIRECTORIES = [
     'temp',
 ]
 
-export const FINDINGS_MESSAGE_SUFFIX = '_qCodeReviewFindings'
+export const CODE_REVIEW_FINDINGS_MESSAGE_SUFFIX = '_codeReviewFindings'
+export const DISPLAY_FINDINGS_MESSAGE_SUFFIX = '_displayFindings'
+
+export const CODE_REVIEW_METRICS_PARENT_NAME = 'amazonq_codeReviewTool'

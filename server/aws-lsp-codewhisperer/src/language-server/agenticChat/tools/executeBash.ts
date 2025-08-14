@@ -12,15 +12,8 @@ import { Features } from '../../types'
 import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 // eslint-disable-next-line import/no-nodejs-modules
 import { existsSync, statSync } from 'fs'
-
-// Warning message
-import {
-    BINARY_FILE_WARNING_MSG,
-    CREDENTIAL_FILE_WARNING_MSG,
-    DESTRUCTIVE_COMMAND_WARNING_MSG,
-    MUTATE_COMMAND_WARNING_MSG,
-    OUT_OF_WORKSPACE_WARNING_MSG,
-} from '../constants/constants'
+import { parseBaseCommands } from '../utils/commandParser'
+import { BashCommandEvent, ChatTelemetryEventName } from '../../../shared/telemetry/types'
 
 export enum CommandCategory {
     ReadOnly,
@@ -34,33 +27,12 @@ export const commandCategories = new Map<string, CommandCategory>([
     // ReadOnly commands
     ['ls', CommandCategory.ReadOnly],
     ['cat', CommandCategory.ReadOnly],
-    ['bat', CommandCategory.ReadOnly],
     ['pwd', CommandCategory.ReadOnly],
-    ['file', CommandCategory.ReadOnly],
-    ['less', CommandCategory.ReadOnly],
-    ['more', CommandCategory.ReadOnly],
-    ['tree', CommandCategory.ReadOnly],
-    ['top', CommandCategory.ReadOnly],
-    ['htop', CommandCategory.ReadOnly],
-    ['ps', CommandCategory.ReadOnly],
-    ['df', CommandCategory.ReadOnly],
-    ['du', CommandCategory.ReadOnly],
-    ['free', CommandCategory.ReadOnly],
-    ['uname', CommandCategory.ReadOnly],
-    ['date', CommandCategory.ReadOnly],
-    ['whoami', CommandCategory.ReadOnly],
     ['which', CommandCategory.ReadOnly],
-    ['ping', CommandCategory.ReadOnly],
-    ['ifconfig', CommandCategory.ReadOnly],
-    ['ip', CommandCategory.ReadOnly],
-    ['netstat', CommandCategory.ReadOnly],
-    ['ss', CommandCategory.ReadOnly],
-    ['dig', CommandCategory.ReadOnly],
-    ['wc', CommandCategory.ReadOnly],
-    ['sort', CommandCategory.ReadOnly],
-    ['diff', CommandCategory.ReadOnly],
     ['head', CommandCategory.ReadOnly],
     ['tail', CommandCategory.ReadOnly],
+    ['dir', CommandCategory.ReadOnly],
+    ['type', CommandCategory.ReadOnly],
 
     // Mutable commands
     ['chmod', CommandCategory.Mutate],
@@ -117,6 +89,12 @@ export const commandCategories = new Map<string, CommandCategory>([
 ])
 export const maxToolResponseSize: number = 1024 * 1024 // 1MB
 export const lineCount: number = 1024
+export const destructiveCommandWarningMessage = 'WARNING: Potentially destructive command detected:\n\n'
+export const mutateCommandWarningMessage = 'Mutation command:\n\n'
+export const outOfWorkspaceWarningmessage = 'Execution out of workspace scope:\n\n'
+export const credentialFileWarningMessage =
+    'WARNING: Command involves credential files that require secure permissions:\n\n'
+export const binaryFileWarningMessage = 'WARNING: Command involves binary files that require secure permissions:\n\n'
 
 /**
  * Parameters for executing a command on the system shell.
@@ -154,9 +132,18 @@ export class ExecuteBash {
     private childProcess?: ChildProcess
     private readonly logging: Features['logging']
     private readonly workspace: Features['workspace']
-    constructor(features: Pick<Features, 'logging' | 'workspace'> & Partial<Features>) {
+    private readonly telemetry: Features['telemetry']
+    private readonly credentialsProvider: Features['credentialsProvider']
+    private readonly features: Pick<Features, 'logging' | 'workspace' | 'telemetry' | 'credentialsProvider'> &
+        Partial<Features>
+    constructor(
+        features: Pick<Features, 'logging' | 'workspace' | 'telemetry' | 'credentialsProvider'> & Partial<Features>
+    ) {
+        this.features = features
         this.logging = features.logging
         this.workspace = features.workspace
+        this.telemetry = features.telemetry
+        this.credentialsProvider = features.credentialsProvider
     }
 
     public async validate(input: ExecuteBashParams): Promise<void> {
@@ -235,7 +222,7 @@ export class ExecuteBash {
                             // Treat tilde paths as absolute paths (they will be expanded by the shell)
                             return {
                                 requiresAcceptance: true,
-                                warning: DESTRUCTIVE_COMMAND_WARNING_MSG,
+                                warning: destructiveCommandWarningMessage,
                                 commandCategory: CommandCategory.Destructive,
                             }
                         } else if (!isAbsolute(arg) && params.cwd) {
@@ -258,7 +245,7 @@ export class ExecuteBash {
                                     this.logging.info(`Detected credential file in command: ${fullPath}`)
                                     return {
                                         requiresAcceptance: true,
-                                        warning: CREDENTIAL_FILE_WARNING_MSG,
+                                        warning: credentialFileWarningMessage,
                                         commandCategory: CommandCategory.Mutate,
                                     }
                                 }
@@ -268,7 +255,7 @@ export class ExecuteBash {
                                     this.logging.info(`Detected binary file in command: ${fullPath}`)
                                     return {
                                         requiresAcceptance: true,
-                                        warning: BINARY_FILE_WARNING_MSG,
+                                        warning: binaryFileWarningMessage,
                                         commandCategory: CommandCategory.Mutate,
                                     }
                                 }
@@ -285,7 +272,7 @@ export class ExecuteBash {
                         if (!isInWorkspace) {
                             return {
                                 requiresAcceptance: true,
-                                warning: OUT_OF_WORKSPACE_WARNING_MSG,
+                                warning: outOfWorkspaceWarningmessage,
                                 commandCategory: highestCommandCategory,
                             }
                         }
@@ -309,13 +296,13 @@ export class ExecuteBash {
                     case CommandCategory.Destructive:
                         return {
                             requiresAcceptance: true,
-                            warning: DESTRUCTIVE_COMMAND_WARNING_MSG,
+                            warning: destructiveCommandWarningMessage,
                             commandCategory: CommandCategory.Destructive,
                         }
                     case CommandCategory.Mutate:
                         return {
                             requiresAcceptance: true,
-                            warning: MUTATE_COMMAND_WARNING_MSG,
+                            warning: mutateCommandWarningMessage,
                             commandCategory: CommandCategory.Mutate,
                         }
                     case CommandCategory.ReadOnly:
@@ -337,7 +324,7 @@ export class ExecuteBash {
                     if (!workspaceFolders || workspaceFolders.length === 0) {
                         return {
                             requiresAcceptance: true,
-                            warning: OUT_OF_WORKSPACE_WARNING_MSG,
+                            warning: outOfWorkspaceWarningmessage,
                             commandCategory: highestCommandCategory,
                         }
                     }
@@ -354,7 +341,7 @@ export class ExecuteBash {
                     if (!isInWorkspace) {
                         return {
                             requiresAcceptance: true,
-                            warning: OUT_OF_WORKSPACE_WARNING_MSG,
+                            warning: outOfWorkspaceWarningmessage,
                             commandCategory: highestCommandCategory,
                         }
                     }
@@ -523,9 +510,43 @@ export class ExecuteBash {
                 }
             }
 
+            // Set up environment variables with AWS CLI identifier for CloudTrail auditability
+            const env = { ...process.env }
+
+            // Add Q Developer IDE identifier for AWS CLI commands
+            // Check if command contains 'aws ' anywhere (handles multi-command scenarios)
+            if (params.command.includes('aws ')) {
+                let extensionVersion = 'unknown'
+                try {
+                    const clientInfo = this.features?.lsp?.getClientInitializeParams()?.clientInfo
+                    const initOptions = this.features?.lsp?.getClientInitializeParams()?.initializationOptions
+                    extensionVersion =
+                        initOptions?.aws?.clientInfo?.extension?.version || clientInfo?.version || 'unknown'
+                } catch {
+                    extensionVersion = 'unknown'
+                }
+                const userAgentMetadata = `AmazonQ-For-IDE Version/${extensionVersion}`
+                this.logging.info(
+                    `AWS command detected: ${params.command}, setting AWS_EXECUTION_ENV to: ${userAgentMetadata}`
+                )
+
+                if (env.AWS_EXECUTION_ENV) {
+                    env.AWS_EXECUTION_ENV = env.AWS_EXECUTION_ENV.trim()
+                        ? `${env.AWS_EXECUTION_ENV} ${userAgentMetadata}`
+                        : userAgentMetadata
+                } else {
+                    env.AWS_EXECUTION_ENV = userAgentMetadata
+                }
+
+                this.logging.info(`Final AWS_EXECUTION_ENV value: ${env.AWS_EXECUTION_ENV}`)
+            } else {
+                this.logging.debug(`Non-AWS command: ${params.command}`)
+            }
+
             const childProcessOptions: ChildProcessOptions = {
                 spawnOptions: {
                     cwd: params.cwd,
+                    env,
                     stdio: ['pipe', 'pipe', 'pipe'],
                     windowsVerbatimArguments: IS_WINDOWS_PLATFORM, // if true, then arguments are passed exactly as provided. no quoting or escaping is done.
                 },
@@ -591,6 +612,7 @@ export class ExecuteBash {
                 })
             }
 
+            let success = false
             try {
                 const result = await this.childProcess.run()
 
@@ -603,7 +625,7 @@ export class ExecuteBash {
                 const exitStatus = result.exitCode ?? 0
                 const stdout = stdoutBuffer.join('\n')
                 const stderr = stderrBuffer.join('\n')
-                const success = exitStatus === 0 && !stderr
+                success = exitStatus === 0 && !stderr
                 const [stdoutTrunc, stdoutSuffix] = ExecuteBash.truncateSafelyWithSuffix(
                     stdout,
                     maxToolResponseSize / 3
@@ -635,6 +657,25 @@ export class ExecuteBash {
                     reject(new Error(`Failed to execute command: ${err.message}`))
                 }
             } finally {
+                // Extract individual base commands for telemetry purposes
+                const args = split(params.command)
+                const baseCommands = parseBaseCommands(args)
+                baseCommands.forEach(command => {
+                    const metricPayload = {
+                        name: ChatTelemetryEventName.BashCommand,
+                        data: {
+                            credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                            result: cancellationToken?.isCancellationRequested
+                                ? 'Cancelled'
+                                : success
+                                  ? 'Succeeded'
+                                  : 'Failed',
+                            command: command,
+                        } as BashCommandEvent,
+                    }
+                    this.telemetry.emitMetric(metricPayload)
+                })
+
                 await writer?.close()
                 writer?.releaseLock()
             }

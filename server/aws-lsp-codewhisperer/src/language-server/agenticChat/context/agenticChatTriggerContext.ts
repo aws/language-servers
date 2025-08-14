@@ -342,7 +342,7 @@ export class AgenticChatTriggerContext {
             const content = await this.#workspace.fs.readFile(URI.parse(uri).fsPath)
             return TextDocument.create(uri, '', 0, content)
         } catch (err) {
-            this.#logging.error(`Unable to load from ${path}: ${err}`)
+            this.#logging.error(`Unable to load from ${uri}: ${err}`)
             return
         }
     }
