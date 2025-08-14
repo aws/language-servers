@@ -200,6 +200,7 @@ export class TransformHandler {
      */
     async getTransformation(request: GetTransformRequest) {
         try {
+            FileManagerUtil.appendToFile("get transform response")
             const getCodeTransformationRequest = {
                 transformationJobId: request.TransformationJobId,
             } as GetTransformationRequest
@@ -208,6 +209,7 @@ export class TransformHandler {
                 .codeModernizerGetCodeTransformation(getCodeTransformationRequest)
             this.logging.log('Transformation status: ' + response.transformationJob?.status)
 
+            FileManagerUtil.appendToFile(JSON.stringify(response))
             // Use validation function to determine the error code
             const errorCode = validation.getTransformationErrorCode(response.transformationJob)
 
@@ -217,6 +219,7 @@ export class TransformHandler {
             } as GetTransformResponse
         } catch (e: any) {
             const errorMessage = (e as Error).message ?? 'Error in GetTransformation API call'
+            FileManagerUtil.appendToFile("get transform response exception : " + errorMessage)
             this.logging.log('Error: ' + errorMessage)
             return null
         }

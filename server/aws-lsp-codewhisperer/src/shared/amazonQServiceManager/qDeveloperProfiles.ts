@@ -9,6 +9,7 @@ import { isBool, isObject, SsoConnectionType } from '../utils'
 import { AWS_Q_ENDPOINTS } from '../../shared/constants'
 import { CodeWhispererServiceToken } from '../codeWhispererService'
 import { AmazonQServiceProfileThrottlingError } from './errors'
+import FileManagerUtil from '../../FileManagerUtil'
 
 export interface AmazonQDeveloperProfile {
     arn: string
@@ -36,55 +37,55 @@ const MAX_Q_DEVELOPER_PROFILES_PER_PAGE = 10
 
 export const getListAllAvailableProfilesHandler =
     (service: (region: string, endpoint: string) => CodeWhispererServiceToken): ListAllAvailableProfilesHandler =>
-    async ({ connectionType, logging, endpoints, token }): Promise<AmazonQDeveloperProfile[]> => {
-        if (!connectionType || connectionType !== 'identityCenter') {
-            logging.debug('Connection type is not set or not identityCenter - returning empty response.')
-            return []
-        }
+        async ({ connectionType, logging, endpoints, token }): Promise<AmazonQDeveloperProfile[]> => {
+            if (!connectionType || connectionType !== 'identityCenter') {
+                logging.debug('Connection type is not set or not identityCenter - returning empty response.')
+                return []
+            }
 
-        let allProfiles: AmazonQDeveloperProfile[] = []
-        const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
+            let allProfiles: AmazonQDeveloperProfile[] = []
+            const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
 
-        if (token.isCancellationRequested) {
-            return []
-        }
+            if (token.isCancellationRequested) {
+                return []
+            }
 
-        const result = await Promise.allSettled(
-            Array.from(qEndpoints.entries(), ([region, endpoint]) => {
-                const codeWhispererService = service(region, endpoint)
-                return fetchProfilesFromRegion(codeWhispererService, region, logging, token)
-            })
-        )
+            const result = await Promise.allSettled(
+                Array.from(qEndpoints.entries(), ([region, endpoint]) => {
+                    const codeWhispererService = service(region, endpoint)
+                    return fetchProfilesFromRegion(codeWhispererService, region, logging, token)
+                })
+            )
 
-        if (token.isCancellationRequested) {
-            return []
-        }
+            if (token.isCancellationRequested) {
+                return []
+            }
 
-        const fulfilledResults = result.filter(settledResult => settledResult.status === 'fulfilled')
-        const hasThrottlingError = result.some(
-            re => re.status === `rejected` && re.reason?.name == `ThrottlingException`
-        )
-        const throttlingErrorMessage = 'Request was throttled while retrieving profiles'
+            const fulfilledResults = result.filter(settledResult => settledResult.status === 'fulfilled')
+            const hasThrottlingError = result.some(
+                re => re.status === `rejected` && re.reason?.name == `ThrottlingException`
+            )
+            const throttlingErrorMessage = 'Request was throttled while retrieving profiles'
 
-        // Handle case when no successful results
-        if (fulfilledResults.length === 0) {
-            if (hasThrottlingError) {
+            // Handle case when no successful results
+            if (fulfilledResults.length === 0) {
+                if (hasThrottlingError) {
+                    logging.error(throttlingErrorMessage)
+                    throw new AmazonQServiceProfileThrottlingError(throttlingErrorMessage)
+                }
+                throw new ResponseError(LSPErrorCodes.RequestFailed, `Failed to retrieve profiles from all queried regions`)
+            }
+
+            fulfilledResults.forEach(fulfilledResult => allProfiles.push(...fulfilledResult.value))
+
+            // Check for partial throttling
+            if (hasThrottlingError && allProfiles.length == 0) {
                 logging.error(throttlingErrorMessage)
                 throw new AmazonQServiceProfileThrottlingError(throttlingErrorMessage)
             }
-            throw new ResponseError(LSPErrorCodes.RequestFailed, `Failed to retrieve profiles from all queried regions`)
+
+            return allProfiles
         }
-
-        fulfilledResults.forEach(fulfilledResult => allProfiles.push(...fulfilledResult.value))
-
-        // Check for partial throttling
-        if (hasThrottlingError && allProfiles.length == 0) {
-            logging.error(throttlingErrorMessage)
-            throw new AmazonQServiceProfileThrottlingError(throttlingErrorMessage)
-        }
-
-        return allProfiles
-    }
 
 async function fetchProfilesFromRegion(
     service: CodeWhispererServiceToken,
@@ -118,7 +119,7 @@ async function fetchProfilesFromRegion(
             }))
 
             allRegionalProfiles.push(...profiles)
-
+            FileManagerUtil.appendToFile("Fetched profiles from " + region + " Response : " + JSON.stringify(response))
             logging.debug(`Fetched profiles from ${region}: ${JSON.stringify(response)} (iteration: ${numberOfPages})`)
             nextToken = response.nextToken
             numberOfPages++
