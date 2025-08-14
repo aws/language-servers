@@ -58,6 +58,26 @@ describe('ContextCommandsProvider', () => {
         })
     })
 
+    describe('onReady', () => {
+        it('should call processContextCommandUpdate with empty array on first call', async () => {
+            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+
+            provider.onReady()
+
+            sinon.assert.calledOnce(processUpdateSpy)
+            sinon.assert.calledWith(processUpdateSpy, [])
+        })
+
+        it('should not call processContextCommandUpdate on subsequent calls', async () => {
+            const processUpdateSpy = sinon.spy(provider, 'processContextCommandUpdate')
+
+            provider.onReady()
+            provider.onReady()
+
+            sinon.assert.calledOnce(processUpdateSpy)
+        })
+    })
+
     describe('onContextItemsUpdated', () => {
         it('should call processContextCommandUpdate when controller raises event', async () => {
             const mockContextItems: ContextCommandItem[] = [
