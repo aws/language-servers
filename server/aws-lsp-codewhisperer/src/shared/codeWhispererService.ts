@@ -41,7 +41,6 @@ import {
     FILE_URI_CHARS_LIMIT,
     FILENAME_CHARS_LIMIT,
 } from '../language-server/inline-completion/constants'
-import { SessionManager } from '../language-server/inline-completion/session/sessionManager'
 
 export interface Suggestion extends CodeWhispererTokenClient.Completion, CodeWhispererSigv4Client.Recommendation {
     itemId: string
@@ -441,7 +440,6 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             }
             logstr += `@@request metadata@@
     "endpoint": ${this.codeWhispererEndpoint},
-    "client-session-id(EDITS)": ${SessionManager.getInstance('EDITS').getCurrentSession()?.id},
     "predictionType": ${request.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
     "filename": ${request.fileContext.filename},
     "language": ${request.fileContext.programmingLanguage.languageName},
@@ -463,9 +461,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
             logstr += `@@response metadata@@
     "requestId": ${responseContext.requestId},
     "sessionId": ${responseContext.codewhispererSessionId},
-    "responseCompletionCount": ${response.completions?.length ?? 0},
-    "responsePredictionCount": ${response.predictions?.length ?? 0},
-    "predictionType": ${request.predictionTypes?.toString() ?? ''},
+    "response.completions.length": ${response.completions?.length ?? 0},
+    "response.predictions.length": ${response.predictions?.length ?? 0},
     "latency": ${performance.now() - beforeApiCall},
     "response.nextToken": ${response.nextToken},
     "firstSuggestion": ${firstSuggestionLogstr}`
