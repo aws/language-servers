@@ -116,11 +116,20 @@ export class ChatDatabase {
         })
     }
 
-    public static getInstance(features: Features): ChatDatabase {
-        if (!ChatDatabase.#instance) {
+    public static getInstance(features?: Features): ChatDatabase {
+        if (!ChatDatabase.#instance && features) {
             ChatDatabase.#instance = new ChatDatabase(features)
         }
+        if (!ChatDatabase.#instance) {
+            throw new Error('ChatDatabase not initialized. Call getInstance with features first.')
+        }
         return ChatDatabase.#instance
+    }
+
+    public static clearModelCache(): void {
+        if (ChatDatabase.#instance) {
+            ChatDatabase.#instance.clearCachedModels()
+        }
     }
 
     public close() {
@@ -1114,6 +1123,17 @@ export class ChatDatabase {
         const cachedData = this.getCachedModels()
         if (!cachedData) return false
         return isCachedValid(cachedData.timestamp)
+    }
+
+    clearCachedModels(): void {
+        const existingSettings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({
+            ...existingSettings,
+            cachedModels: undefined,
+            cachedDefaultModelId: undefined,
+            modelCacheTimestamp: undefined,
+        })
+        this.#features.logging.log('Model cache cleared')
     }
 
     getPairProgrammingMode(): boolean | undefined {
