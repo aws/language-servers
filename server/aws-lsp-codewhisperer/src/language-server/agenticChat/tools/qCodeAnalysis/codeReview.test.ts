@@ -385,6 +385,34 @@ describe('CodeReview', () => {
                 expect(error.message).to.include('There are no valid files to scan')
             }
         })
+
+        it('should handle duplicate rule filenames with unique UUIDs', async () => {
+            const fileArtifacts = [{ path: '/test/file.js' }]
+            const folderArtifacts: any[] = []
+            const ruleArtifacts = [{ path: '/test/path1/rule.json' }, { path: '/test/path2/rule.json' }]
+
+            const mockZip = {
+                file: sandbox.stub(),
+                generateAsync: sandbox.stub().resolves(Buffer.from('test')),
+            }
+            sandbox.stub(JSZip.prototype, 'file').callsFake(mockZip.file)
+            sandbox.stub(JSZip.prototype, 'generateAsync').callsFake(mockZip.generateAsync)
+            sandbox.stub(CodeReviewUtils, 'countZipFiles').returns(3)
+            sandbox.stub(require('crypto'), 'randomUUID').returns('test-uuid-123')
+
+            await (codeReview as any).prepareFilesAndFoldersForUpload(
+                fileArtifacts,
+                folderArtifacts,
+                ruleArtifacts,
+                false
+            )
+
+            // Verify first file uses original name
+            expect(mockZip.file.firstCall.args[0]).to.include('/test/file.js')
+            expect(mockZip.file.secondCall.args[0]).to.include('rule.json')
+            // Verify second file gets UUID suffix
+            expect(mockZip.file.thirdCall.args[0]).to.include('rule_test-uuid-123.json')
+        })
     })
 
     describe('collectFindings', () => {
