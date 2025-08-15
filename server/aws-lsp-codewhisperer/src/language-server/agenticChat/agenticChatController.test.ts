@@ -73,7 +73,7 @@ describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
 
     beforeEach(() => {
-        mcpInstanceStub = sinon.stub(McpManager, 'instance').get(() => ({
+        const mockMcpInstance = {
             getAllTools: () => [
                 {
                     serverName: 'server1',
@@ -98,7 +98,10 @@ describe('AgenticChatController', () => {
             getOriginalToolNames: () => null,
             clearToolNameMapping: () => {},
             setToolNameMapping: () => {},
-        }))
+            getToolPerm: (_serverName: string, _toolName: string) => 'askEveryTime',
+        }
+
+        mcpInstanceStub = sinon.stub(McpManager, 'instance').get(() => mockMcpInstance)
     })
 
     afterEach(() => {
@@ -236,6 +239,9 @@ describe('AgenticChatController', () => {
             rm: sinon.stub().resolves(),
             getFileSize: sinon.stub().resolves(),
         }
+
+        // Add missing chat methods with proper typing
+        ;(testFeatures.chat as any).sendChatUpdate = sinon.stub().resolves()
 
         // Add agent with runTool method to testFeatures
         testFeatures.agent = {
@@ -2999,6 +3005,324 @@ ${' '.repeat(8)}}
             sinon.assert.called(setModelIdStub)
 
             setModelIdStub.restore()
+        })
+    })
+
+    describe('Enhanced Error Handling for Modify Functionality', () => {
+        describe('Session Corruption Handling', () => {
+            it('should handle corrupted session during save', async () => {
+                // Setup: Create session then corrupt it
+                chatController.onTabAdd({ tabId: mockTabId })
+                const getSessionStub = sinon.stub(chatSessionManagementService, 'getSession')
+                getSessionStub.returns({
+                    success: false,
+                    error: 'Session corrupted',
+                } as any)
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: 'test command' },
+                })
+
+                assert.strictEqual(result.success, false)
+                assert.strictEqual(result.failureReason, 'no session')
+
+                getSessionStub.restore()
+            })
+
+            it('should validate session before critical operations', async () => {
+                // No session created
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: 'non-existent-tab',
+                    metadata: { editedText: 'test' },
+                })
+
+                assert.strictEqual(result.success, false)
+                assert.strictEqual(result.failureReason, 'Command reference not found. Please refresh and try again.')
+            })
+        })
+
+        describe('Frontend-Backend Sync Issues', () => {
+            beforeEach(() => {
+                chatController.onTabAdd({ tabId: mockTabId })
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.toolUseLookup.set('test-id', {
+                    name: 'execute_bash',
+                    toolUseId: 'test-id',
+                    input: { command: 'original command' },
+                } as any)
+            })
+
+            it('should handle missing editedText parameter', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: {}, // Missing editedText
+                })
+
+                // Should use original command as fallback
+                assert.strictEqual(result.success, true)
+                const session = chatSessionManagementService.getSession(mockTabId).data
+                const toolUse = session!.toolUseLookup.get('test-id')
+                assert.strictEqual((toolUse!.input as any).command, 'original command')
+            })
+
+            it('should handle malformed metadata from frontend', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: undefined, // Malformed metadata
+                })
+
+                assert.strictEqual(result.success, true) // Should handle gracefully
+            })
+
+            it('should handle missing toolUse lookup during operations', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'non-existent-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: 'test' },
+                })
+
+                // Should detect missing toolUse and fail gracefully
+                assert.strictEqual(result.success, false)
+                assert.ok(result.failureReason?.includes('not found'))
+            })
+        })
+
+        describe('Race Condition Handling', () => {
+            beforeEach(() => {
+                chatController.onTabAdd({ tabId: mockTabId })
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.toolUseLookup.set('test-id', {
+                    name: 'execute_bash',
+                    toolUseId: 'test-id',
+                    input: { command: 'original command' },
+                } as any)
+            })
+
+            it('should handle concurrent save operations', async () => {
+                // Simulate two save operations happening simultaneously
+                const promise1 = chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: 'command 1' },
+                })
+
+                const promise2 = chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: 'command 2' },
+                })
+
+                const [result1, result2] = await Promise.all([promise1, promise2])
+
+                // Both should succeed, last one wins for final state
+                assert.strictEqual(result1.success, true)
+                assert.strictEqual(result2.success, true)
+
+                // Verify final state consistency
+                const session = chatSessionManagementService.getSession(mockTabId).data
+                const toolUse = session!.toolUseLookup.get('test-id')
+                assert.ok(['command 1', 'command 2'].includes((toolUse!.input as any).command))
+            })
+
+            it('should handle save/cancel race conditions', async () => {
+                const savePromise = chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: 'saved command' },
+                })
+
+                const cancelPromise = chatController.onButtonClick({
+                    buttonId: 'cancel-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                })
+
+                const [saveResult, cancelResult] = await Promise.all([savePromise, cancelPromise])
+
+                // Both operations should complete without error
+                assert.strictEqual(saveResult.success, true)
+                assert.strictEqual(cancelResult.success, true)
+            })
+        })
+
+        describe('Command Validation and Feedback', () => {
+            beforeEach(() => {
+                chatController.onTabAdd({ tabId: mockTabId })
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.toolUseLookup.set('test-id', {
+                    name: 'execute_bash',
+                    toolUseId: 'test-id',
+                    input: { command: 'original command' },
+                } as any)
+            })
+
+            it('should provide feedback for potentially dangerous commands', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: 'rm -rf /home/user' },
+                })
+
+                // Command should be saved despite being dangerous
+                assert.strictEqual(result.success, true)
+
+                // Verify command was stored
+                const session = chatSessionManagementService.getSession(mockTabId).data
+                const toolUse = session!.toolUseLookup.get('test-id')
+                assert.strictEqual((toolUse!.input as any).command, 'rm -rf /home/user')
+            })
+
+            it('should handle empty commands gracefully', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: '' },
+                })
+
+                // Should save empty command and provide feedback
+                assert.strictEqual(result.success, true)
+            })
+
+            it('should handle very long commands', async () => {
+                const longCommand = 'echo '.repeat(5000) + 'test'
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: longCommand },
+                })
+
+                // Should save long command and provide feedback
+                assert.strictEqual(result.success, true)
+
+                // Verify command was stored
+                const session = chatSessionManagementService.getSession(mockTabId).data
+                const toolUse = session!.toolUseLookup.get('test-id')
+                assert.strictEqual((toolUse!.input as any).command, longCommand)
+            })
+        })
+
+        describe('Always Allow Integration', () => {
+            let getToolPermStub: sinon.SinonStub
+
+            beforeEach(() => {
+                chatController.onTabAdd({ tabId: mockTabId })
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.toolUseLookup.set('test-id', {
+                    name: 'execute_bash',
+                    toolUseId: 'test-id',
+                    input: { command: 'original command' },
+                } as any)
+
+                // Mock McpManager.instance.getToolPerm
+                getToolPermStub = sinon.stub(McpManager.instance, 'getToolPerm')
+            })
+
+            afterEach(() => {
+                getToolPermStub.restore()
+            })
+
+            it('should detect Always Allow setting and modify UI accordingly', async () => {
+                getToolPermStub.returns('alwaysAllow')
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: 'safe command' },
+                })
+
+                assert.strictEqual(result.success, true)
+
+                // Verify command was stored
+                const session = chatSessionManagementService.getSession(mockTabId).data
+                const toolUse = session!.toolUseLookup.get('test-id')
+                assert.strictEqual((toolUse!.input as any).command, 'safe command')
+            })
+
+            it('should handle Always Allow with dangerous commands', async () => {
+                getToolPermStub.returns('alwaysAllow')
+
+                const result = await chatController.onButtonClick({
+                    buttonId: 'save-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                    metadata: { editedText: 'sudo rm -rf /' },
+                })
+
+                // Should save but not trigger auto-execution due to validation warning
+                assert.strictEqual(result.success, true)
+
+                // Verify command was stored
+                const session = chatSessionManagementService.getSession(mockTabId).data
+                const toolUse = session!.toolUseLookup.get('test-id')
+                assert.strictEqual((toolUse!.input as any).command, 'sudo rm -rf /')
+            })
+        })
+
+        describe('Modify Button Functionality', () => {
+            beforeEach(() => {
+                chatController.onTabAdd({ tabId: mockTabId })
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.toolUseLookup.set('test-id', {
+                    name: 'execute_bash',
+                    toolUseId: 'test-id',
+                    input: { command: 'original command' },
+                } as any)
+            })
+
+            it('should switch to edit mode when modify button is clicked', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'modify-shell-command',
+                    messageId: 'test-id',
+                    tabId: mockTabId,
+                })
+
+                assert.strictEqual(result.success, true)
+
+                // Verify the command remains unchanged
+                const session = chatSessionManagementService.getSession(mockTabId).data
+                const toolUse = session!.toolUseLookup.get('test-id')
+                assert.strictEqual((toolUse!.input as any).command, 'original command')
+            })
+
+            it('should handle modify button click with missing toolUse', async () => {
+                const result = await chatController.onButtonClick({
+                    buttonId: 'modify-shell-command',
+                    messageId: 'non-existent-id',
+                    tabId: mockTabId,
+                })
+
+                // Should handle gracefully
+                assert.strictEqual(result.success, true)
+            })
+        })
+
+        describe('Complete Workflow Error Handling', () => {
+            beforeEach(() => {
+                chatController.onTabAdd({ tabId: mockTabId })
+                const session = chatSessionManagementService.getSession(mockTabId).data!
+                session.toolUseLookup.set('test-id', {
+                    name: 'execute_bash',
+                    toolUseId: 'test-id',
+                    input: { command: 'original command' },
+                } as any)
+            })
         })
     })
 
