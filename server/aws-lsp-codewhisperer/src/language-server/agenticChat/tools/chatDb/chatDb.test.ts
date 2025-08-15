@@ -57,7 +57,7 @@ describe('ChatDatabase', () => {
             },
         } as unknown as Features
 
-        chatDb = new ChatDatabase(mockFeatures)
+        chatDb = ChatDatabase.getInstance(mockFeatures)
     })
 
     afterEach(() => {
@@ -663,6 +663,73 @@ describe('ChatDatabase', () => {
                 ),
                 'Should rename to new file path'
             )
+        })
+    })
+
+    describe('Model Cache Management', () => {
+        beforeEach(async () => {
+            await chatDb.databaseInitialize(0)
+        })
+
+        it('should cache and retrieve models', () => {
+            const models = [{ id: 'model-1', name: 'Test Model' }]
+            const defaultModelId = 'model-1'
+
+            chatDb.setCachedModels(models, defaultModelId)
+            const cached = chatDb.getCachedModels()
+
+            assert.ok(cached, 'Should return cached data')
+            assert.deepStrictEqual(cached.models, models)
+            assert.strictEqual(cached.defaultModelId, defaultModelId)
+            assert.ok(cached.timestamp > 0, 'Should have timestamp')
+        })
+
+        it('should validate cache expiry', () => {
+            const models = [{ id: 'model-1', name: 'Test Model' }]
+            chatDb.setCachedModels(models)
+
+            // Mock isCachedValid to return false (expired)
+            const isCachedValidStub = sinon.stub(util, 'isCachedValid').returns(false)
+
+            assert.strictEqual(chatDb.isCachedModelsValid(), false)
+
+            isCachedValidStub.restore()
+        })
+
+        it('should clear cached models', () => {
+            const models = [{ id: 'model-1', name: 'Test Model' }]
+            chatDb.setCachedModels(models)
+
+            // Verify cache exists
+            assert.ok(chatDb.getCachedModels(), 'Cache should exist before clearing')
+
+            chatDb.clearCachedModels()
+
+            // Verify cache is cleared
+            assert.strictEqual(chatDb.getCachedModels(), undefined, 'Cache should be cleared')
+        })
+
+        it('should clear model cache via static method when instance exists', () => {
+            const models = [{ id: 'model-1', name: 'Test Model' }]
+            chatDb.setCachedModels(models)
+
+            // Verify cache exists
+            assert.ok(chatDb.getCachedModels(), 'Cache should exist before clearing')
+
+            ChatDatabase.clearModelCache()
+
+            // Verify cache is cleared
+            assert.strictEqual(chatDb.getCachedModels(), undefined, 'Cache should be cleared via static method')
+        })
+
+        it('should handle static clearModelCache when no instance exists', () => {
+            // Close current instance
+            chatDb.close()
+
+            // Should not throw when no instance exists
+            assert.doesNotThrow(() => {
+                ChatDatabase.clearModelCache()
+            }, 'Should not throw when no instance exists')
         })
     })
 })

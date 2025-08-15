@@ -123,6 +123,12 @@ export class ChatDatabase {
         return ChatDatabase.#instance
     }
 
+    public static clearModelCache(): void {
+        if (ChatDatabase.#instance) {
+            ChatDatabase.#instance.clearCachedModels()
+        }
+    }
+
     public close() {
         this.#db.close()
         ChatDatabase.#instance = undefined
@@ -1114,6 +1120,17 @@ export class ChatDatabase {
         const cachedData = this.getCachedModels()
         if (!cachedData) return false
         return isCachedValid(cachedData.timestamp)
+    }
+
+    clearCachedModels(): void {
+        const existingSettings = this.getSettings() || { modelId: undefined }
+        this.updateSettings({
+            ...existingSettings,
+            cachedModels: undefined,
+            cachedDefaultModelId: undefined,
+            modelCacheTimestamp: undefined,
+        })
+        this.#features.logging.log('Model cache cleared')
     }
 
     getPairProgrammingMode(): boolean | undefined {
