@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.0.74](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.73...lsp-codewhisperer/v0.0.74) (2025-08-15)
+
+
+### Features
+
+* **amazonq:** added mcp admin level configuration with GetProfile ([#2000](https://github.com/aws/language-servers/issues/2000)) ([fd6e9a8](https://github.com/aws/language-servers/commit/fd6e9a829c6229c276de5340dffce52b426a864d))
+* **amazonq:** read tool ui revamp ([#2113](https://github.com/aws/language-servers/issues/2113)) ([#2121](https://github.com/aws/language-servers/issues/2121)) ([93cf229](https://github.com/aws/language-servers/commit/93cf229149ba60491f9f5763793db4a9f570b611))
+
+
+### Bug Fixes
+
+* **amazonq:** handle case where multiple rules are provided with the same name ([#2118](https://github.com/aws/language-servers/issues/2118)) ([0e23e2d](https://github.com/aws/language-servers/commit/0e23e2d29b8cad14403d372b9bbb08ca8ffa7ac7))
+* **amazonq:** persist mcp configs in agent json on start-up ([#2112](https://github.com/aws/language-servers/issues/2112)) ([817cfe2](https://github.com/aws/language-servers/commit/817cfe2656cb1deec6111c699c4ba46b4ba53e00))
+* proper path handling for additional context ([#2129](https://github.com/aws/language-servers/issues/2129)) ([971eaa5](https://github.com/aws/language-servers/commit/971eaa505d948e9d2090c85f9b965f554ea7f2c8))
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
+
+### Performance Improvements
+
+* remove edit completion retry mechanism on document change ([#2124](https://github.com/aws/language-servers/issues/2124)) ([963b6e9](https://github.com/aws/language-servers/commit/963b6e9b7887da23a85a826c55a6ed95ff36d956))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.13 to ^0.0.14
+
 ## [0.0.73](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.72...lsp-codewhisperer/v0.0.73) (2025-08-11)
 
 
