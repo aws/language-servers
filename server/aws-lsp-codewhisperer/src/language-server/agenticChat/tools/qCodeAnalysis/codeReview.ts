@@ -716,6 +716,7 @@ export class CodeReview {
      * @param customerCodeZip JSZip instance for the customer code
      */
     private async processRuleArtifacts(ruleArtifacts: RuleArtifacts, customerCodeZip: JSZip): Promise<void> {
+        let ruleNameSet = new Set<string>()
         for (const artifact of ruleArtifacts) {
             await CodeReviewUtils.withErrorHandling(
                 async () => {
@@ -725,6 +726,10 @@ export class CodeReview {
                         !CodeReviewUtils.shouldSkipFile(fileName) &&
                         existsSync(artifact.path)
                     ) {
+                        if (ruleNameSet.has(fileName)) {
+                            fileName = fileName.split('.')[0] + '_' + crypto.randomUUID() + '.' + fileName.split('.')[1]
+                        }
+                        ruleNameSet.add(fileName)
                         const fileContent = await this.workspace.fs.readFile(artifact.path)
                         customerCodeZip.file(
                             `${CodeReview.CUSTOMER_CODE_BASE_PATH}/${CodeReview.RULE_ARTIFACT_PATH}/${fileName}`,
