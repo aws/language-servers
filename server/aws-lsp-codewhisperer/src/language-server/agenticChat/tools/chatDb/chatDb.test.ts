@@ -57,7 +57,7 @@ describe('ChatDatabase', () => {
             },
         } as unknown as Features
 
-        chatDb = new ChatDatabase(mockFeatures)
+        chatDb = ChatDatabase.getInstance(mockFeatures)
     })
 
     afterEach(() => {
