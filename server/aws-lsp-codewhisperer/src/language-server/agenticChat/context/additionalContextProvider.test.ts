@@ -358,6 +358,105 @@ describe('AdditionalContextProvider', () => {
             assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.codeContextCount, 1)
             assert.strictEqual(triggerContext.contextInfo?.pinnedContextCount.promptContextCount, 1)
         })
+
+        it('should handle Unix path separators correctly', async () => {
+            const mockWorkspaceFolder = { uri: URI.file('/workspace').toString(), name: 'test' }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+
+            // Mock path.join to simulate Unix behavior
+            sinon.stub(path, 'join').callsFake((...args) => {
+                // Simulate Unix path.join behavior
+                return args.join('/').replace(/\\/g, '/')
+            })
+
+            const explicitContext = [
+                {
+                    id: 'unix-prompt',
+                    command: 'Unix Prompt',
+                    label: 'file' as any,
+                    route: ['/Users/test/.aws/amazonq/prompts', 'hello.md'],
+                },
+            ]
+
+            fsExistsStub.callsFake((path: string) => path.includes('.amazonq/rules'))
+            fsReadDirStub.resolves([])
+
+            // Reset stub - return data for first call (explicit context), empty for second call (pinned context)
+            getContextCommandPromptStub.reset()
+            getContextCommandPromptStub.onFirstCall().resolves([
+                {
+                    // promptContextCommands - explicit context
+                    name: 'Unix Prompt',
+                    content: 'content',
+                    filePath: '/Users/test/.aws/amazonq/prompts/hello.md', // Proper Unix path
+                    relativePath: 'hello.md',
+                    startLine: 1,
+                    endLine: 10,
+                },
+            ])
+            getContextCommandPromptStub.onSecondCall().resolves([]) // pinnedContextCommands - empty
+
+            const result = await provider.getAdditionalContext(
+                { workspaceFolder: mockWorkspaceFolder },
+                'tab1',
+                explicitContext
+            )
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].name, 'Unix Prompt')
+
+            // Restore original path.join
+            ;(path.join as sinon.SinonStub).restore()
+        })
+
+        it('should handle Windows path separators correctly', async () => {
+            const mockWorkspaceFolder = { uri: URI.file('/workspace').toString(), name: 'test' }
+            sinon.stub(workspaceUtils, 'getWorkspaceFolderPaths').returns(['/workspace'])
+
+            // Mock path.join to simulate Windows behavior
+            const originalPathJoin = path.join
+            sinon.stub(path, 'join').callsFake((...args) => {
+                // Simulate Windows path.join behavior
+                return args.join('\\').replace(/\//g, '\\')
+            })
+
+            const explicitContext = [
+                {
+                    id: 'windows-prompt',
+                    command: 'Windows Prompt',
+                    label: 'file' as any,
+                    route: ['C:\\Users\\test\\.aws\\amazonq\\prompts', 'hello.md'],
+                },
+            ]
+
+            fsExistsStub.callsFake((path: string) => path.includes('.amazonq/rules'))
+            fsReadDirStub.resolves([])
+
+            // Reset stub - return data for first call (explicit context), empty for second call (pinned context)
+            getContextCommandPromptStub.reset()
+            getContextCommandPromptStub.onFirstCall().resolves([
+                {
+                    // promptContextCommands - explicit context
+                    name: 'Windows Prompt',
+                    content: 'content',
+                    filePath: 'C:\\Users\\test\\.aws\\amazonq\\prompts\\hello.md', // Proper Windows path
+                    relativePath: 'hello.md',
+                    startLine: 1,
+                    endLine: 10,
+                },
+            ])
+            getContextCommandPromptStub.onSecondCall().resolves([]) // pinnedContextCommands - empty
+
+            const result = await provider.getAdditionalContext(
+                { workspaceFolder: mockWorkspaceFolder },
+                'tab1',
+                explicitContext
+            )
+            assert.strictEqual(result.length, 1)
+            assert.strictEqual(result[0].name, 'Windows Prompt')
+
+            // Restore original path.join
+            ;(path.join as sinon.SinonStub).restore()
+        })
     })
 
     describe('getFileListFromContext', () => {
