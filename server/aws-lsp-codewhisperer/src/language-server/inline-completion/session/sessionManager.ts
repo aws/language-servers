@@ -14,11 +14,10 @@ import {
 } from '../../../shared/codeWhispererService'
 import { CodewhispererLanguage } from '../../../shared/languageDetection'
 import { CodeWhispererSupplementalContext } from '../../../shared/models/model'
-import { Logging } from '@aws/language-server-runtimes/server-interface'
 
 type SessionState = 'REQUESTING' | 'ACTIVE' | 'CLOSED' | 'ERROR' | 'DISCARD'
 export type UserDecision = 'Empty' | 'Filter' | 'Discard' | 'Accept' | 'Ignore' | 'Reject' | 'Unseen'
-type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
+export type UserTriggerDecision = 'Accept' | 'Reject' | 'Empty' | 'Discard'
 
 interface CachedSuggestion extends Suggestion {
     insertText?: string
@@ -45,7 +44,13 @@ export class CodeWhispererSession {
     startTime: number
     // Time when Session was closed and final state of user decisions is recorded in suggestionsStates
     closeTime?: number = 0
-    state: SessionState
+    private _state: SessionState
+    get state(): SessionState {
+        return this._state
+    }
+    private set state(newState: SessionState) {
+        this._state = newState
+    }
     codewhispererSessionId?: string
     startPosition: Position = {
         line: 0,
@@ -80,9 +85,7 @@ export class CodeWhispererSession {
     includeImportsWithSuggestions?: boolean
     codewhispererSuggestionImportCount: number = 0
     suggestionType?: string
-    hasEditsPending?: boolean = false
     // Track the most recent itemId for paginated Edit suggestions
-    recentItemId?: string
 
     constructor(data: SessionData) {
         this.id = this.generateSessionId()
@@ -98,7 +101,8 @@ export class CodeWhispererSession {
         this.classifierThreshold = data.classifierThreshold
         this.customizationArn = data.customizationArn
         this.supplementalMetadata = data.supplementalMetadata
-        this.state = 'REQUESTING'
+        this._state = 'REQUESTING'
+
         this.startTime = new Date().getTime()
     }
 
@@ -207,8 +211,6 @@ export class CodeWhispererSession {
                 // No recommendation was accepted, but user have seen this suggestion
                 this.setSuggestionState(itemId, 'Reject')
             }
-
-            this.recentItemId = itemId
         }
 
         this.firstCompletionDisplayLatency = firstCompletionDisplayLatency
@@ -259,15 +261,15 @@ export class CodeWhispererSession {
      * Determines trigger decision based on the most recent user action.
      * Uses the last processed itemId to determine the overall session decision.
      */
-    getLatestUserTriggerDecision(): UserTriggerDecision | undefined {
+    getUserTriggerDecision(itemId?: string): UserTriggerDecision | undefined {
         // Force Discard trigger decision when session was explicitly discarded by server
         if (this.state === 'DISCARD') {
             return 'Discard'
         }
 
-        if (!this.recentItemId) return
+        if (!itemId) return
 
-        const state = this.getSuggestionState(this.recentItemId)
+        const state = this.getSuggestionState(itemId)
         if (state === 'Accept') return 'Accept'
         if (state === 'Reject') return 'Reject'
         return state === 'Empty' ? 'Empty' : 'Discard'
@@ -275,7 +277,8 @@ export class CodeWhispererSession {
 }
 
 export class SessionManager {
-    private static _instance?: SessionManager
+    private static _completionInstance?: SessionManager
+    private static _editInstance?: SessionManager
     private currentSession?: CodeWhispererSession
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
@@ -287,17 +290,18 @@ export class SessionManager {
     /**
      * Singleton SessionManager class
      */
-    public static getInstance(): SessionManager {
-        if (!SessionManager._instance) {
-            SessionManager._instance = new SessionManager()
+    public static getInstance(type: 'COMPLETIONS' | 'EDITS' = 'COMPLETIONS'): SessionManager {
+        if (type === 'EDITS') {
+            return (SessionManager._editInstance ??= new SessionManager())
         }
 
-        return SessionManager._instance
+        return (SessionManager._completionInstance ??= new SessionManager())
     }
 
     // For unit tests
     public static reset() {
-        SessionManager._instance = undefined
+        SessionManager._completionInstance = undefined
+        SessionManager._editInstance = undefined
     }
 
     public createSession(data: SessionData): CodeWhispererSession {

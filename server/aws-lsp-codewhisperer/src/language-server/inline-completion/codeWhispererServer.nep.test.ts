@@ -68,6 +68,7 @@ describe('CodeWhispererServer NEP Integration', function () {
                 extensions: {
                     onInlineCompletionWithReferences: sandbox.stub(),
                     onLogInlineCompletionSessionResults: sandbox.stub(),
+                    onEditCompletion: sandbox.stub(),
                 },
                 workspace: {
                     getConfiguration: sandbox.stub().resolves({}),
@@ -241,6 +242,7 @@ describe('CodeWhispererServer NEP Integration', function () {
                         extensions: {
                             onInlineCompletionWithReferences: sandbox.stub(),
                             onLogInlineCompletionSessionResults: sandbox.stub(),
+                            onEditCompletion: sandbox.stub(),
                         },
                         workspace: {
                             getConfiguration: sandbox.stub().resolves({}),

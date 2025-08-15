@@ -107,10 +107,8 @@ describe('McpMynahUi', () => {
             assert.strictEqual(callArgs.detailedList.header.description, 'Test Description')
             assert.deepStrictEqual(callArgs.detailedList.header.status, { status: 'success' })
 
-            // Verify the actions in the header
-            assert.strictEqual(callArgs.detailedList.header.actions.length, 2)
-            assert.strictEqual(callArgs.detailedList.header.actions[0].id, 'add-new-mcp')
-            assert.strictEqual(callArgs.detailedList.header.actions[1].id, 'refresh-mcp-list')
+            // Verify the actions in the header (no default actions are added when header is provided)
+            assert.strictEqual(callArgs.detailedList.header.actions.length, 0)
 
             // Verify the list structure
             assert.strictEqual(callArgs.detailedList.list.length, 1)
@@ -577,8 +575,9 @@ describe('McpMynahUi', () => {
             assert.strictEqual(detailedList.header.actions[0].id, 'mcp-details-menu')
 
             // Verify the mcp-details-menu items
-            assert.strictEqual(detailedList.header.actions[0].items.length, 1)
-            assert.strictEqual(detailedList.header.actions[0].items[0].id, 'mcp-delete-server')
+            assert.strictEqual(detailedList.header.actions[0].items.length, 2)
+            assert.strictEqual(detailedList.header.actions[0].items[0].id, 'mcp-disable-server')
+            assert.strictEqual(detailedList.header.actions[0].items[1].id, 'mcp-delete-server')
 
             assert.strictEqual(detailedList.filterOptions.length, 1)
             assert.strictEqual(detailedList.filterOptions[0].id, 'permission')

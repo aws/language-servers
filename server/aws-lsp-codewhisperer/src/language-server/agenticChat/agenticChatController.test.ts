@@ -68,6 +68,7 @@ import { McpManager } from './tools/mcp/mcpManager'
 import { AgenticChatResultStream } from './agenticChatResultStream'
 import { AgenticChatError } from './errors'
 import * as sharedUtils from '../../shared/utils'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
@@ -241,7 +242,7 @@ describe('AgenticChatController', () => {
         testFeatures.agent = {
             runTool: sinon.stub().resolves({}),
             getTools: sinon.stub().returns(
-                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2'].map(toolName => ({
+                ['mock-tool-name', 'mock-tool-name-1', 'mock-tool-name-2', 'codeReview'].map(toolName => ({
                     toolSpecification: { name: toolName, description: 'Mock tool for testing' },
                 }))
             ),
@@ -440,7 +441,7 @@ describe('AgenticChatController', () => {
 
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -463,6 +464,15 @@ describe('AgenticChatController', () => {
             // Verify that a conversationId was created
             assert.ok(session.conversationId)
             assert.strictEqual(typeof session.conversationId, 'string')
+        })
+
+        it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
+            const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
+
+            await chatController.onChatPrompt({ tabId: mockTabId, prompt: { prompt: 'Hello' } }, mockCancellationToken)
+
+            sinon.assert.calledOnce(recordActivityTimestampStub)
+            recordActivityTimestampStub.restore()
         })
 
         it('includes chat history from the database in the request input', async () => {
@@ -1130,7 +1140,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading messages
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 codeReference: [],
                 buttons: [],
@@ -1149,7 +1159,7 @@ describe('AgenticChatController', () => {
             sinon.assert.callCount(testFeatures.lsp.sendProgress, mockChatResponseList.length + 1) // response length + 1 loading message
             assert.deepStrictEqual(chatResult, {
                 additionalMessages: [],
-                body: '\n\nHello World!',
+                body: '\nHello World!',
                 messageId: 'mock-message-id',
                 buttons: [],
                 codeReference: [],
@@ -3359,6 +3369,90 @@ ${' '.repeat(8)}}
             sinon.assert.calledOnce(onManageSubscriptionSpy)
             const returnValue = await onManageSubscriptionSpy.returnValues[0]
             assert.strictEqual(returnValue, undefined)
+        })
+    })
+
+    describe('processToolUses', () => {
+        it('filters rule artifacts from additionalContext for CodeReview tool', async () => {
+            const mockAdditionalContext = [
+                {
+                    type: 'file',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/file.js',
+                },
+                {
+                    type: 'rule',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/rule1.json',
+                },
+                {
+                    type: 'rule',
+                    description: '',
+                    name: '',
+                    relativePath: '',
+                    startLine: 0,
+                    endLine: 0,
+                    path: '/test/rule2.json',
+                },
+            ]
+
+            const toolUse = {
+                toolUseId: 'test-id',
+                name: 'codeReview',
+                input: { fileLevelArtifacts: [{ path: '/test/file.js' }] },
+                stop: true,
+            }
+
+            const runToolStub = testFeatures.agent.runTool as sinon.SinonStub
+            runToolStub.resolves({})
+
+            // Create a mock session with toolUseLookup
+            const mockSession = {
+                toolUseLookup: new Map(),
+                pairProgrammingMode: true,
+            } as any
+
+            // Create a minimal mock of AgenticChatResultStream
+            const mockChatResultStream = {
+                removeResultBlockAndUpdateUI: sinon.stub().resolves(),
+                writeResultBlock: sinon.stub().resolves(1),
+                overwriteResultBlock: sinon.stub().resolves(),
+                removeResultBlock: sinon.stub().resolves(),
+                getMessageBlockId: sinon.stub().returns(undefined),
+                hasMessage: sinon.stub().returns(false),
+                updateOngoingProgressResult: sinon.stub().resolves(),
+                getResult: sinon.stub().returns({ messageId: 'test', body: '' }),
+                setMessageIdToUpdateForTool: sinon.stub(),
+                getMessageIdToUpdateForTool: sinon.stub().returns(undefined),
+                addMessageOperation: sinon.stub(),
+                getMessageOperation: sinon.stub().returns(undefined),
+            }
+
+            // Call processToolUses directly
+            await chatController.processToolUses(
+                [toolUse],
+                mockChatResultStream as any,
+                mockSession,
+                'tabId',
+                mockCancellationToken,
+                mockAdditionalContext
+            )
+
+            // Verify runTool was called with ruleArtifacts
+            sinon.assert.calledOnce(runToolStub)
+            const toolInput = runToolStub.firstCall.args[1]
+            assert.ok(toolInput.ruleArtifacts)
+            assert.strictEqual(toolInput.ruleArtifacts.length, 2)
+            assert.strictEqual(toolInput.ruleArtifacts[0].path, '/test/rule1.json')
+            assert.strictEqual(toolInput.ruleArtifacts[1].path, '/test/rule2.json')
         })
     })
 })

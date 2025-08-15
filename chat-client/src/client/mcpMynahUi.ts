@@ -167,11 +167,11 @@ export class McpMynahUi {
                     id: MCP_IDS.DETAILS_MENU,
                     icon: toMynahIcon('ellipsis'),
                     items: [
-                        // {
-                        //     id: MCP_IDS.DISABLE_SERVER,
-                        //     text: `Disable MCP server`,
-                        //     data: { serverName },
-                        // },
+                        {
+                            id: MCP_IDS.DISABLE_SERVER,
+                            text: `Disable MCP server`,
+                            data: { serverName },
+                        },
                         {
                             id: MCP_IDS.DELETE_SERVER,
                             confirmation: {
@@ -220,10 +220,10 @@ export class McpMynahUi {
                     ...(action.id === MCP_IDS.DETAILS_MENU
                         ? {
                               items: [
-                                  //   {
-                                  //       id: MCP_IDS.DISABLE_SERVER,
-                                  //       text: `Disable MCP server`,
-                                  //   },
+                                  {
+                                      id: MCP_IDS.DISABLE_SERVER,
+                                      text: `Disable MCP server`,
+                                  },
                                   {
                                       id: MCP_IDS.DELETE_SERVER,
                                       confirmation: {
@@ -272,20 +272,11 @@ export class McpMynahUi {
                       title: params.header.title,
                       description: params.header.description,
                       status: params.header.status,
-                      actions: [
-                          {
-                              id: MCP_IDS.ADD_NEW,
-                              icon: toMynahIcon('plus'),
-                              status: 'clear',
-                              description: 'Add new MCP',
-                          },
-                          {
-                              id: MCP_IDS.REFRESH_LIST,
-                              icon: toMynahIcon('refresh'),
-                              status: 'clear',
-                              description: 'Refresh MCP servers',
-                          },
-                      ],
+                      actions:
+                          params.header.actions?.map(action => ({
+                              ...action,
+                              icon: action.icon ? toMynahIcon(action.icon) : undefined,
+                          })) || [],
                   }
                 : undefined,
             filterOptions: params.filterOptions?.map(filter => ({

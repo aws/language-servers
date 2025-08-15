@@ -167,7 +167,7 @@ import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
-import { FileSearch, FileSearchParams } from './tools/fileSearch'
+import { FileSearch, FileSearchParams, isFileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
 import { loggingUtils, timeoutUtils } from '@aws/lsp-core'
 import { diffLines } from 'diff'
@@ -227,6 +227,7 @@ import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { IDE } from '../../shared/constants'
 
 type ChatHandlers = Omit<
@@ -828,6 +829,8 @@ export class AgenticChatController implements ChatHandlers {
         // Phase 1: Initial Setup - This happens only once
         params.prompt.prompt = sanitizeInput(params.prompt.prompt || '')
 
+        IdleWorkspaceManager.recordActivityTimestamp()
+
         const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
         if (maybeDefaultResponse) {
             return maybeDefaultResponse
@@ -1406,6 +1409,25 @@ export class AgenticChatController implements ChatHandlers {
                 shouldDisplayMessage = false
                 // set the in progress tool use UI status to Error
                 await chatResultStream.updateOngoingProgressResult('Error')
+
+                // emit invokeLLM event with status Failed for timeout calls
+                this.#telemetryController.emitAgencticLoop_InvokeLLM(
+                    response.$metadata.requestId!,
+                    conversationId,
+                    'AgenticChat',
+                    undefined,
+                    undefined,
+                    'Failed',
+                    this.#features.runtime.serverInfo.version ?? '',
+                    session.modelId,
+                    llmLatency,
+                    this.#toolCallLatencies,
+                    this.#timeToFirstChunk,
+                    this.#timeBetweenChunks,
+                    session.pairProgrammingMode,
+                    this.#abTestingAllocation?.experimentName,
+                    this.#abTestingAllocation?.userVariation
+                )
                 continue
             }
 
@@ -1451,7 +1473,7 @@ export class AgenticChatController implements ChatHandlers {
                     'AgenticChat',
                     undefined,
                     undefined,
-                    'Succeeded',
+                    result.success ? 'Succeeded' : 'Failed',
                     this.#features.runtime.serverInfo.version ?? '',
                     session.modelId,
                     llmLatency,
@@ -1471,7 +1493,14 @@ export class AgenticChatController implements ChatHandlers {
             session.setConversationType('AgenticChatWithToolUse')
             if (result.success) {
                 // Process tool uses and update the request input for the next iteration
-                toolResults = await this.#processToolUses(pendingToolUses, chatResultStream, session, tabId, token)
+                toolResults = await this.processToolUses(
+                    pendingToolUses,
+                    chatResultStream,
+                    session,
+                    tabId,
+                    token,
+                    additionalContext
+                )
                 if (toolResults.some(toolResult => this.#shouldSendBackErrorContent(toolResult))) {
                     content = 'There was an error processing one or more tool uses. Try again, do not apologize.'
                     shouldDisplayMessage = false
@@ -1746,12 +1775,13 @@ export class AgenticChatController implements ChatHandlers {
     /**
      * Processes tool uses by running the tools and collecting results
      */
-    async #processToolUses(
+    async processToolUses(
         toolUses: Array<ToolUse & { stop: boolean }>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
         tabId: string,
-        token?: CancellationToken
+        token?: CancellationToken,
+        additionalContext?: AdditionalContentEntryAddition[]
     ): Promise<ToolResult[]> {
         const results: ToolResult[] = []
 
@@ -1779,8 +1809,7 @@ export class AgenticChatController implements ChatHandlers {
                 // remove progress UI
                 await chatResultStream.removeResultBlockAndUpdateUI(progressPrefix + toolUse.toolUseId)
 
-                // fsRead and listDirectory write to an existing card and could show nothing in the current position
-                if (![FS_WRITE, FS_REPLACE, FS_READ, LIST_DIRECTORY].includes(toolUse.name)) {
+                if (![FS_WRITE, FS_REPLACE].includes(toolUse.name)) {
                     await this.#showUndoAllIfRequired(chatResultStream, session)
                 }
                 // fsWrite can take a long time, so we render fsWrite  Explanatory upon partial streaming responses.
@@ -1953,12 +1982,11 @@ export class AgenticChatController implements ChatHandlers {
                 if (toolUse.name === CodeReview.toolName) {
                     try {
                         let initialInput = JSON.parse(JSON.stringify(toolUse.input))
-                        let ruleArtifacts = await this.#additionalContextProvider.collectWorkspaceRules(tabId)
-                        if (ruleArtifacts !== undefined || ruleArtifacts !== null) {
-                            this.#features.logging.info(`RuleArtifacts: ${JSON.stringify(ruleArtifacts)}`)
-                            let pathsToRulesMap = ruleArtifacts.map(ruleArtifact => ({ path: ruleArtifact.id }))
-                            this.#features.logging.info(`PathsToRules: ${JSON.stringify(pathsToRulesMap)}`)
-                            initialInput['ruleArtifacts'] = pathsToRulesMap
+
+                        if (additionalContext !== undefined) {
+                            initialInput['ruleArtifacts'] = additionalContext
+                                .filter(c => c.type === 'rule')
+                                .map(c => ({ path: c.path }))
                         }
                         toolUse.input = initialInput
                     } catch (e) {
@@ -1995,10 +2023,19 @@ export class AgenticChatController implements ChatHandlers {
                 switch (toolUse.name) {
                     case FS_READ:
                     case LIST_DIRECTORY:
+                        const readToolResult = await this.#processReadTool(toolUse, chatResultStream)
+                        if (readToolResult) {
+                            await chatResultStream.writeResultBlock(readToolResult)
+                        }
+                        break
                     case FILE_SEARCH:
-                        const initialListDirResult = this.#processReadOrListOrSearch(toolUse, chatResultStream)
-                        if (initialListDirResult) {
-                            await chatResultStream.writeResultBlock(initialListDirResult)
+                        if (isFileSearchParams(toolUse.input)) {
+                            await this.#processFileSearchTool(
+                                toolUse.input,
+                                toolUse.toolUseId,
+                                result,
+                                chatResultStream
+                            )
                         }
                         break
                     // no need to write tool result for listDir,fsRead,fileSearch into chat stream
@@ -2399,7 +2436,6 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         const toolMsgId = toolUse.toolUseId!
-        const chatMsgId = chatResultStream.getResult().messageId
         let headerEmitted = false
 
         const initialHeader: ChatMessage['header'] = {
@@ -2435,13 +2471,6 @@ export class AgenticChatController implements ChatHandlers {
                     messageId: toolMsgId,
                     body: '```',
                     header: completedHeader,
-                })
-
-                await chatResultStream.writeResultBlock({
-                    type: 'answer',
-                    messageId: chatMsgId,
-                    body: '',
-                    header: undefined,
                 })
 
                 this.#stoppedToolUses.add(toolMsgId)
@@ -2961,70 +2990,135 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    #processReadOrListOrSearch(toolUse: ToolUse, chatResultStream: AgenticChatResultStream): ChatMessage | undefined {
-        let messageIdToUpdate = toolUse.toolUseId!
-        const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
+    async #processFileSearchTool(
+        toolInput: FileSearchParams,
+        toolUseId: string,
+        result: InvokeOutput,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        if (typeof result.output.content !== 'string') return
 
-        if (currentId) {
-            messageIdToUpdate = currentId
-        } else {
-            chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
+        const { queryName, path: inputPath } = toolInput
+        const resultCount = result.output.content
+            .split('\n')
+            .filter(line => line.trim().startsWith('[F]') || line.trim().startsWith('[D]')).length
+
+        const chatMessage: ChatMessage = {
+            type: 'tool',
+            messageId: toolUseId,
+            header: {
+                body: `Searched for "${queryName}" in `,
+                icon: 'search',
+                status: {
+                    text: `${resultCount} result${resultCount !== 1 ? 's' : ''} found`,
+                },
+                fileList: {
+                    filePaths: [inputPath],
+                    details: {
+                        [inputPath]: {
+                            description: inputPath,
+                            visibleName: path.basename(inputPath),
+                            clickable: false,
+                        },
+                    },
+                },
+            },
         }
-        let currentPaths = []
+        await chatResultStream.writeResultBlock(chatMessage)
+    }
+
+    async #processReadTool(
+        toolUse: ToolUse,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<ChatMessage | undefined> {
+        let currentPaths: string[] = []
         if (toolUse.name === FS_READ) {
-            currentPaths = (toolUse.input as unknown as FsReadParams)?.paths
+            currentPaths = (toolUse.input as unknown as FsReadParams)?.paths || []
+        } else if (toolUse.name === LIST_DIRECTORY) {
+            const singlePath = (toolUse.input as unknown as ListDirectoryParams)?.path
+            if (singlePath) {
+                currentPaths = [singlePath]
+            }
+        } else if (toolUse.name === FILE_SEARCH) {
+            const queryName = (toolUse.input as unknown as FileSearchParams)?.queryName
+            if (queryName) {
+                currentPaths = [queryName]
+            }
         } else {
-            currentPaths.push((toolUse.input as unknown as ListDirectoryParams | FileSearchParams)?.path)
+            return
         }
 
-        if (!currentPaths) return
+        if (currentPaths.length === 0) return
 
-        for (const currentPath of currentPaths) {
-            const existingPaths = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths || []
-            // Check if path already exists in the list
-            const isPathAlreadyProcessed = existingPaths.some(path => path.relativeFilePath === currentPath)
-            if (!isPathAlreadyProcessed) {
-                const currentFileDetail = {
-                    relativeFilePath: currentPath,
-                    lineRanges: [{ first: -1, second: -1 }],
-                }
-                chatResultStream.addMessageOperation(messageIdToUpdate, toolUse.name!, [
-                    ...existingPaths,
-                    currentFileDetail,
-                ])
+        // Check if the last message is the same tool type
+        const lastMessage = chatResultStream.getLastMessage()
+        const isSameToolType =
+            lastMessage?.type === 'tool' && lastMessage.header?.icon === this.#toolToIcon(toolUse.name)
+
+        let allPaths = currentPaths
+
+        if (isSameToolType && lastMessage.messageId) {
+            // Combine with existing paths and overwrite the last message
+            const existingPaths = lastMessage.header?.fileList?.filePaths || []
+            allPaths = [...existingPaths, ...currentPaths]
+
+            const blockId = chatResultStream.getMessageBlockId(lastMessage.messageId)
+            if (blockId !== undefined) {
+                // Create the updated message with combined paths
+                const updatedMessage = this.#createFileListToolMessage(toolUse, allPaths, lastMessage.messageId)
+                // Overwrite the existing block
+                await chatResultStream.overwriteResultBlock(updatedMessage, blockId)
+                return undefined // Don't return a message since we already wrote it
             }
         }
+
+        // Create new message with current paths
+        return this.#createFileListToolMessage(toolUse, allPaths, toolUse.toolUseId!)
+    }
+
+    #createFileListToolMessage(toolUse: ToolUse, filePaths: string[], messageId: string): ChatMessage {
+        const itemCount = filePaths.length
         let title: string
-        const itemCount = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths.length
-        const filePathsPushed = chatResultStream.getMessageOperation(messageIdToUpdate)?.filePaths ?? []
-        if (!itemCount) {
+        if (itemCount === 0) {
             title = 'Gathering context'
         } else {
             title =
                 toolUse.name === FS_READ
                     ? `${itemCount} file${itemCount > 1 ? 's' : ''} read`
-                    : toolUse.name === FILE_SEARCH
-                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} searched`
-                      : `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                    : toolUse.name === LIST_DIRECTORY
+                      ? `${itemCount} ${itemCount === 1 ? 'directory' : 'directories'} listed`
+                      : ''
         }
         const details: Record<string, FileDetails> = {}
-        for (const item of filePathsPushed) {
-            details[item.relativeFilePath] = {
-                lineRanges: item.lineRanges,
-                description: item.relativeFilePath,
+        for (const filePath of filePaths) {
+            details[filePath] = {
+                description: filePath,
+                visibleName: path.basename(filePath),
+                clickable: toolUse.name === FS_READ,
             }
-        }
-
-        const fileList: FileList = {
-            rootFolderTitle: title,
-            filePaths: filePathsPushed.map(item => item.relativeFilePath),
-            details,
         }
         return {
             type: 'tool',
-            fileList,
-            messageId: messageIdToUpdate,
-            body: '',
+            header: {
+                body: title,
+                icon: this.#toolToIcon(toolUse.name),
+                fileList: {
+                    filePaths,
+                    details,
+                },
+            },
+            messageId,
+        }
+    }
+
+    #toolToIcon(toolName: string | undefined): string | undefined {
+        switch (toolName) {
+            case FS_READ:
+                return 'eye'
+            case LIST_DIRECTORY:
+                return 'check-list'
+            default:
+                return undefined
         }
     }
 
@@ -3040,14 +3134,7 @@ export class AgenticChatController implements ChatHandlers {
             return undefined
         }
 
-        let messageIdToUpdate = toolUse.toolUseId!
-        const currentId = chatResultStream.getMessageIdToUpdateForTool(toolUse.name!)
-
-        if (currentId) {
-            messageIdToUpdate = currentId
-        } else {
-            chatResultStream.setMessageIdToUpdateForTool(toolUse.name!, messageIdToUpdate)
-        }
+        const messageIdToUpdate = toolUse.toolUseId!
 
         // Extract search results from the tool output
         const output = result.output.content as SanitizedRipgrepOutput
@@ -3372,6 +3459,9 @@ export class AgenticChatController implements ChatHandlers {
         const metric = new Metric<AddMessageEvent>({
             cwsprChatConversationType: 'Chat',
         })
+
+        IdleWorkspaceManager.recordActivityTimestamp()
+
         const triggerContext = await this.#getInlineChatTriggerContext(params)
 
         let response: ChatCommandOutput

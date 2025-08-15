@@ -30,6 +30,7 @@ import {
 } from './mcpTypes'
 import { TelemetryService } from '../../../../shared/telemetry/telemetryService'
 import { URI } from 'vscode-uri'
+import { ProfileStatusMonitor } from './profileStatusMonitor'
 
 interface PermissionOption {
     label: string
@@ -188,13 +189,14 @@ export class McpEventHandler {
                 ],
             }
 
-            // if (mcpManager.isServerDisabled(serverName)) {
-            //     disabledItems.push(item)
-            // } else {
-            activeItems.push({
-                ...item,
-                description: `${toolsCount}`,
-            })
+            if (mcpManager.isServerDisabled(serverName)) {
+                disabledItems.push(item)
+            } else {
+                activeItems.push({
+                    ...item,
+                    description: `${toolsCount}`,
+                })
+            }
         })
 
         // Create the groups
@@ -221,16 +223,61 @@ export class McpEventHandler {
         }
 
         // Return the result in the expected format
+        const mcpState = ProfileStatusMonitor.getMcpState()
         const header = {
             title: 'MCP Servers',
-            description: "Add MCP servers to extend Q's capabilities.",
-            // only  show error on list mcp server page if unable to read mcp.json file
-            status: configLoadErrors
-                ? { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
-                : undefined,
+            description: mcpState === false ? '' : "Add MCP servers to extend Q's capabilities.",
+            status: this.#getListMcpServersStatus(configLoadErrors, mcpState),
+            actions: this.#getListMcpServersActions(configLoadErrors, mcpState),
         }
 
         return { header, list: groups }
+    }
+
+    /**
+     * Gets the status for the list MCP servers header
+     */
+    #getListMcpServersStatus(
+        configLoadErrors: string | undefined,
+        mcpState: boolean | undefined
+    ): { title: string; icon: string; status: Status } | undefined {
+        if (mcpState === false) {
+            return {
+                title: 'MCP functionality has been disabled by your administrator',
+                icon: 'info',
+                status: 'info' as Status,
+            }
+        }
+
+        if (configLoadErrors) {
+            return { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
+        }
+
+        return undefined
+    }
+
+    /**
+     * Gets the actions for the list MCP servers header
+     */
+    #getListMcpServersActions(configLoadErrors: string | undefined, mcpState: boolean | undefined) {
+        return mcpState !== false && (!configLoadErrors || configLoadErrors === '')
+            ? [
+                  {
+                      id: 'add-new-mcp',
+                      icon: 'plus',
+                      status: 'clear',
+                      text: 'Add new MCP server',
+                      description: 'Add new MCP server',
+                  },
+                  {
+                      id: 'refresh-mcp-list',
+                      icon: 'refresh',
+                      status: 'clear',
+                      text: 'Refresh MCP servers',
+                      description: 'Refresh MCP servers',
+                  },
+              ]
+            : []
     }
 
     /**
@@ -865,8 +912,10 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
+        const mcpManager = McpManager.instance
+
         // Get the appropriate agent path
-        const agentPath = await this.#getAgentPath()
+        const agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
 
         const perm: MCPServerPermission = {
             enabled: true,
@@ -878,12 +927,12 @@ export class McpEventHandler {
         this.#isProgrammaticChange = true
 
         try {
-            await McpManager.instance.updateServerPermission(serverName, perm)
+            await mcpManager.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to enable MCP server: ${error}`)
+            this.#isProgrammaticChange = false
         }
-        this.#isProgrammaticChange = false
         return { id: params.id }
     }
 
@@ -896,8 +945,9 @@ export class McpEventHandler {
             return { id: params.id }
         }
 
+        const mcpManager = McpManager.instance
         // Get the appropriate agent path
-        const agentPath = await this.#getAgentPath()
+        const agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
 
         const perm: MCPServerPermission = {
             enabled: false,
@@ -909,13 +959,13 @@ export class McpEventHandler {
         this.#isProgrammaticChange = true
 
         try {
-            await McpManager.instance.updateServerPermission(serverName, perm)
+            await mcpManager.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
         } catch (error) {
             this.#features.logging.error(`Failed to disable MCP server: ${error}`)
+            this.#isProgrammaticChange = false
         }
 
-        this.#isProgrammaticChange = false
         return { id: params.id }
     }
 
@@ -1229,7 +1279,9 @@ export class McpEventHandler {
         // Emit MCP config event after reinitialization
         const mcpManager = McpManager.instance
         const serverConfigs = mcpManager.getAllServerConfigs()
-        const activeServers = Array.from(serverConfigs.entries())
+        const activeServers = Array.from(serverConfigs.entries()).filter(
+            ([name, _]) => !mcpManager.isServerDisabled(name)
+        )
 
         // Get the global agent path
         const globalAgentPath = getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
@@ -1267,12 +1319,12 @@ export class McpEventHandler {
         // Emit server initialize events for all active servers
         for (const [serverName, config] of serverConfigs.entries()) {
             const transportType = config.command ? 'stdio' : 'http'
-            // const enabled = !mcpManager.isServerDisabled(serverName)
+            const enabled = !mcpManager.isServerDisabled(serverName)
             this.#telemetryController?.emitMCPServerInitializeEvent({
                 source: 'reload',
                 command: transportType === 'stdio' ? config.command : undefined,
                 url: transportType === 'http' ? config.url : undefined,
-                enabled: true,
+                enabled: enabled,
                 numTools: mcpManager.getAllToolsWithPermissions(serverName).length,
                 scope: config.__configPath__ === globalAgentPath ? 'global' : 'workspace',
                 transportType: 'stdio',
@@ -1319,12 +1371,10 @@ export class McpEventHandler {
      * @returns The agent path to use (workspace if exists, otherwise global)
      */
     async #getAgentPath(isGlobal: boolean = true): Promise<string> {
-        if (isGlobal) {
-            return getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
-        }
-
         const globalAgentPath = getGlobalAgentConfigPath(this.#features.workspace.fs.getUserHomeDir())
-
+        if (isGlobal) {
+            return globalAgentPath
+        }
         // Get workspace folders and check for workspace agent path
         const workspaceFolders = this.#features.workspace.getAllWorkspaceFolders()
         if (workspaceFolders && workspaceFolders.length > 0) {
