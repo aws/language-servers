@@ -35,6 +35,7 @@ import { ProfileStatusMonitor } from './profileStatusMonitor'
 interface PermissionOption {
     label: string
     value: string
+    description?: string
 }
 
 export class McpEventHandler {
@@ -913,20 +914,15 @@ export class McpEventHandler {
         }
 
         const mcpManager = McpManager.instance
-
         // Get the appropriate agent path
         const agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
-
-        const perm: MCPServerPermission = {
-            enabled: true,
-            toolPerms: {},
-            __configPath__: agentPath,
-        }
-
         // Set flag to ignore file changes during permission update
         this.#isProgrammaticChange = true
 
         try {
+            const perm = mcpManager.getMcpServerPermissions(serverName)!
+            perm.enabled = true
+            perm.__configPath__ = agentPath
             await mcpManager.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
         } catch (error) {
@@ -944,21 +940,15 @@ export class McpEventHandler {
         if (!serverName) {
             return { id: params.id }
         }
-
         const mcpManager = McpManager.instance
-        // Get the appropriate agent path
+        // Set flag to ignore file changes during permission update
         const agentPath = mcpManager.getAllServerConfigs().get(serverName)?.__configPath__
-
-        const perm: MCPServerPermission = {
-            enabled: false,
-            toolPerms: {},
-            __configPath__: agentPath,
-        }
-
         // Set flag to ignore file changes during permission update
         this.#isProgrammaticChange = true
-
         try {
+            const perm = mcpManager.getMcpServerPermissions(serverName)!
+            perm.enabled = false
+            perm.__configPath__ = agentPath
             await mcpManager.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
         } catch (error) {
@@ -1078,17 +1068,16 @@ export class McpEventHandler {
         // Add tool select options
         toolsWithPermissions.forEach(item => {
             const toolName = item.tool.toolName
-            const currentPermission = this.#getCurrentPermission(item.permission)
             // For Built-in server, use a special function that doesn't include the 'Deny' option
-            const permissionOptions = this.#buildPermissionOptions(item.permission)
+            let permissionOptions = this.#buildPermissionOptions()
 
             filterOptions.push({
                 type: 'select',
                 id: `${toolName}`,
                 title: toolName,
                 description: item.tool.description,
-                placeholder: currentPermission,
                 options: permissionOptions,
+                ...{ value: item.permission, boldTitle: true, mandatory: true, hideMandatoryIcon: true },
             })
         })
 
@@ -1141,20 +1130,22 @@ export class McpEventHandler {
     /**
      * Builds permission options excluding the current one
      */
-    #buildPermissionOptions(currentPermission: string) {
+    #buildPermissionOptions() {
         const permissionOptions: PermissionOption[] = []
 
-        if (currentPermission !== McpPermissionType.alwaysAllow) {
-            permissionOptions.push({ label: 'Always allow', value: McpPermissionType.alwaysAllow })
-        }
+        permissionOptions.push({
+            label: 'Ask',
+            value: McpPermissionType.ask,
+            description: 'Ask for your approval each time this tool is run',
+        })
 
-        if (currentPermission !== McpPermissionType.ask) {
-            permissionOptions.push({ label: 'Ask', value: McpPermissionType.ask })
-        }
+        permissionOptions.push({
+            label: 'Always allow',
+            value: McpPermissionType.alwaysAllow,
+            description: 'Always allow this tool to run without asking for approval',
+        })
 
-        if (currentPermission !== McpPermissionType.deny) {
-            permissionOptions.push({ label: 'Deny', value: McpPermissionType.deny })
-        }
+        permissionOptions.push({ label: 'Deny', value: McpPermissionType.deny, description: 'Never run this tool' })
 
         return permissionOptions
     }
@@ -1203,6 +1194,7 @@ export class McpEventHandler {
             }
 
             const mcpServerPermission = await this.#processPermissionUpdates(
+                serverName,
                 updatedPermissionConfig,
                 serverConfig?.__configPath__
             )
@@ -1400,27 +1392,20 @@ export class McpEventHandler {
     /**
      * Processes permission updates from the UI
      */
-    async #processPermissionUpdates(updatedPermissionConfig: any, agentPath: string | undefined) {
+    async #processPermissionUpdates(serverName: string, updatedPermissionConfig: any, agentPath: string | undefined) {
+        const builtInToolAgentPath = await this.#getAgentPath()
         const perm: MCPServerPermission = {
             enabled: true,
             toolPerms: {},
-            __configPath__: agentPath,
+            __configPath__: serverName === 'Built-in' ? builtInToolAgentPath : agentPath,
         }
 
         // Process each tool permission setting
         for (const [key, val] of Object.entries(updatedPermissionConfig)) {
             if (key === 'scope') continue
 
-            // // Get the default permission for this tool from McpManager
-            // let defaultPermission = McpManager.instance.getToolPerm(serverName, key)
-
-            // // If no default permission is found, use 'alwaysAllow' for Built-in and 'ask' for MCP servers
-            // if (!defaultPermission) {
-            //     defaultPermission = serverName === 'Built-in' ? 'alwaysAllow' : 'ask'
-            // }
-
-            // If the value is an empty string (''), skip this tool to preserve its existing permission in the persona file
-            if (val === '') continue
+            const currentPerm = McpManager.instance.getToolPerm(serverName, key)
+            if (val === currentPerm) continue
             switch (val) {
                 case McpPermissionType.alwaysAllow:
                     perm.toolPerms[key] = McpPermissionType.alwaysAllow
