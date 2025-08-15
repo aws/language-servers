@@ -7,7 +7,7 @@ import * as cp from 'child_process'
 import * as path from 'path'
 import * as os from 'os'
 
-import { window, ExtensionContext, env, version } from 'vscode'
+import { ExtensionContext, env, version } from 'vscode'
 
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node'
 import { registerChat } from './chatActivation'
