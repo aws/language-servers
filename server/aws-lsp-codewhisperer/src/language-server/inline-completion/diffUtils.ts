@@ -329,7 +329,7 @@ export function getCharacterDifferences(addedLines: string[], deletedLines: stri
  *  (2) pure deletion
  *  (3) both
  */
-export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'both' {
+export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
     try {
         // diff.parsePatch might throw
         const parsedDiffs = diff.parsePatch(unifiedDiff)
@@ -348,7 +348,7 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
 
         switch (true) {
             case hasDeletion && hasAddition:
-                return 'both'
+                return 'edit'
             case hasDeletion:
                 return 'deleteOnly'
             case hasAddition:
@@ -359,13 +359,13 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
         const headerEndIndex = lines.findIndex(l => l.startsWith('@@'))
         if (headerEndIndex === -1) {
             // Assume it's a pure edit when parsing fail
-            return 'both'
+            return 'edit'
         }
 
         const relevantLines = lines.slice(headerEndIndex + 1)
         if (relevantLines.length === 0) {
             // Assume it's a pure edit
-            return 'both'
+            return 'edit'
         }
 
         const hasAddition = relevantLines.some(l => l.startsWith('+'))
@@ -373,7 +373,7 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
 
         switch (true) {
             case hasDeletion && hasAddition:
-                return 'both'
+                return 'edit'
             case hasDeletion:
                 return 'deleteOnly'
             case hasAddition:
@@ -382,5 +382,5 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
     }
 
     // Shouldn't be here
-    return 'both'
+    return 'edit'
 }

@@ -48,7 +48,7 @@ describe('categorizeUnifieddiff', function () {
         })
     }
 
-    const both = [
+    const editCases = [
         `--- a/src/main/hello/MathUtil.java
 +++ b/src/main/hello/MathUtil.java
 @@ -1,11 +1,11 @@
@@ -83,11 +83,11 @@ describe('categorizeUnifieddiff', function () {
  }`,
     ]
 
-    for (let i = 0; i < both.length; i++) {
-        it(`both case ${i}`, function () {
-            const udiff = both[i]
+    for (let i = 0; i < editCases.length; i++) {
+        it(`edit case ${i}`, function () {
+            const udiff = editCases[i]
             const r = categorizeUnifieddiff(udiff)
-            assert.strictEqual(r, 'both')
+            assert.strictEqual(r, 'edit')
         })
     }
 })
