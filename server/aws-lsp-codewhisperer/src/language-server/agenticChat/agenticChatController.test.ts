@@ -73,7 +73,7 @@ describe('AgenticChatController', () => {
     let mcpInstanceStub: sinon.SinonStub
 
     beforeEach(() => {
-        mcpInstanceStub = sinon.stub(McpManager, 'instance').get(() => ({
+        const mockMcpInstance = {
             getAllTools: () => [
                 {
                     serverName: 'server1',
@@ -98,7 +98,10 @@ describe('AgenticChatController', () => {
             getOriginalToolNames: () => null,
             clearToolNameMapping: () => {},
             setToolNameMapping: () => {},
-        }))
+            getToolPerm: (_serverName: string, _toolName: string) => 'askEveryTime',
+        }
+
+        mcpInstanceStub = sinon.stub(McpManager, 'instance').get(() => mockMcpInstance)
     })
 
     afterEach(() => {
@@ -236,6 +239,9 @@ describe('AgenticChatController', () => {
             rm: sinon.stub().resolves(),
             getFileSize: sinon.stub().resolves(),
         }
+
+        // Add missing chat methods with proper typing
+        ;(testFeatures.chat as any).sendChatUpdate = sinon.stub().resolves()
 
         // Add agent with runTool method to testFeatures
         testFeatures.agent = {
@@ -3003,79 +3009,6 @@ ${' '.repeat(8)}}
     })
 
     describe('Enhanced Error Handling for Modify Functionality', () => {
-        describe('Network Failure Handling', () => {
-            beforeEach(() => {
-                chatController.onTabAdd({ tabId: mockTabId })
-                // Set up a mock tool use
-                const session = chatSessionManagementService.getSession(mockTabId).data!
-                session.toolUseLookup.set('test-message-id', {
-                    name: 'execute_bash',
-                    toolUseId: 'test-message-id',
-                    input: { command: 'original command' },
-                } as any)
-            })
-
-            it('should handle network failure during save operation', async () => {
-                // Setup: Mock network failure
-                const sendChatUpdateStub = sinon.stub(testFeatures.chat, 'sendChatUpdate')
-                sendChatUpdateStub.rejects(new Error('Network timeout'))
-
-                // Execute: Try to save a modified command
-                const result = await chatController.onButtonClick({
-                    buttonId: 'save-shell-command',
-                    messageId: 'test-message-id',
-                    tabId: mockTabId,
-                    metadata: { editedText: 'modified command' },
-                })
-
-                // Verify: Command saved in session despite UI failure
-                assert.strictEqual(result.success, false)
-                assert.ok(result.failureReason?.includes('Network error'))
-
-                // Verify: Command was stored in session
-                const session = chatSessionManagementService.getSession(mockTabId).data
-                const toolUse = session!.toolUseLookup.get('test-message-id')
-                assert.strictEqual((toolUse!.input as any).command, 'modified command')
-
-                sendChatUpdateStub.restore()
-            })
-
-            it('should retry network operations with exponential backoff', async () => {
-                const sendChatUpdateStub = sinon.stub(testFeatures.chat, 'sendChatUpdate')
-                sendChatUpdateStub.onFirstCall().rejects(new Error('Network timeout'))
-                sendChatUpdateStub.onSecondCall().rejects(new Error('Network timeout'))
-                sendChatUpdateStub.onThirdCall().resolves() // Success on third attempt
-
-                const result = await chatController.onButtonClick({
-                    buttonId: 'save-shell-command',
-                    messageId: 'test-message-id',
-                    tabId: mockTabId,
-                    metadata: { editedText: 'test command' },
-                })
-
-                assert.strictEqual(result.success, true)
-                sinon.assert.calledThrice(sendChatUpdateStub)
-
-                sendChatUpdateStub.restore()
-            })
-
-            it('should handle cancel operation network failures', async () => {
-                const sendChatUpdateStub = sinon.stub(testFeatures.chat, 'sendChatUpdate')
-                sendChatUpdateStub.rejects(new Error('Connection refused'))
-
-                const result = await chatController.onButtonClick({
-                    buttonId: 'cancel-shell-command',
-                    messageId: 'test-message-id',
-                    tabId: mockTabId,
-                })
-
-                assert.strictEqual(result.success, false)
-                assert.ok(result.failureReason?.includes('UI update failed'))
-
-                sendChatUpdateStub.restore()
-            })
-        })
-
         describe('Session Corruption Handling', () => {
             it('should handle corrupted session during save', async () => {
                 // Setup: Create session then corrupt it
@@ -3109,7 +3042,7 @@ ${' '.repeat(8)}}
                 })
 
                 assert.strictEqual(result.success, false)
-                assert.strictEqual(result.failureReason, 'no session')
+                assert.strictEqual(result.failureReason, 'Command reference not found. Please refresh and try again.')
             })
         })
 
@@ -3378,22 +3311,6 @@ ${' '.repeat(8)}}
                 // Should handle gracefully
                 assert.strictEqual(result.success, true)
             })
-
-            it('should handle modify button network failures', async () => {
-                const sendChatUpdateStub = sinon.stub(testFeatures.chat, 'sendChatUpdate')
-                sendChatUpdateStub.rejects(new Error('Network failure'))
-
-                const result = await chatController.onButtonClick({
-                    buttonId: 'modify-shell-command',
-                    messageId: 'test-id',
-                    tabId: mockTabId,
-                })
-
-                assert.strictEqual(result.success, false)
-                assert.ok(result.failureReason?.includes('Failed to update chat'))
-
-                sendChatUpdateStub.restore()
-            })
         })
 
         describe('Complete Workflow Error Handling', () => {
@@ -3405,102 +3322,6 @@ ${' '.repeat(8)}}
                     toolUseId: 'test-id',
                     input: { command: 'original command' },
                 } as any)
-            })
-
-            it('should handle complete modify-save-cancel workflow with intermittent failures', async () => {
-                const sendChatUpdateStub = sinon.stub(testFeatures.chat, 'sendChatUpdate')
-
-                // First call (modify) succeeds
-                sendChatUpdateStub.onFirstCall().resolves()
-                // Second call (save) fails
-                sendChatUpdateStub.onSecondCall().rejects(new Error('Network error'))
-                // Third call (modify again) succeeds
-                sendChatUpdateStub.onThirdCall().resolves()
-                // Fourth call (cancel) succeeds
-                sendChatUpdateStub.onCall(3).resolves()
-
-                // Step 1: Modify (should succeed)
-                const modifyResult = await chatController.onButtonClick({
-                    buttonId: 'modify-shell-command',
-                    messageId: 'test-id',
-                    tabId: mockTabId,
-                })
-                assert.strictEqual(modifyResult.success, true)
-
-                // Step 2: Save (should fail due to network)
-                const saveResult = await chatController.onButtonClick({
-                    buttonId: 'save-shell-command',
-                    messageId: 'test-id',
-                    tabId: mockTabId,
-                    metadata: { editedText: 'modified command' },
-                })
-                assert.strictEqual(saveResult.success, false)
-
-                // Verify command was still saved despite network failure
-                const session = chatSessionManagementService.getSession(mockTabId).data
-                const toolUse = session!.toolUseLookup.get('test-id')
-                assert.strictEqual((toolUse!.input as any).command, 'modified command')
-
-                // Step 3: Modify again (should succeed)
-                const modifyResult2 = await chatController.onButtonClick({
-                    buttonId: 'modify-shell-command',
-                    messageId: 'test-id',
-                    tabId: mockTabId,
-                })
-                assert.strictEqual(modifyResult2.success, true)
-
-                // Step 4: Cancel (should succeed and revert to current command)
-                const cancelResult = await chatController.onButtonClick({
-                    buttonId: 'cancel-shell-command',
-                    messageId: 'test-id',
-                    tabId: mockTabId,
-                })
-                assert.strictEqual(cancelResult.success, true)
-
-                sendChatUpdateStub.restore()
-            })
-
-            it('should maintain data consistency across failed operations', async () => {
-                // Create multiple concurrent save operations with failures
-                const sendChatUpdateStub = sinon.stub(testFeatures.chat, 'sendChatUpdate')
-                sendChatUpdateStub.rejects(new Error('Network failure'))
-
-                const operations = [
-                    chatController.onButtonClick({
-                        buttonId: 'save-shell-command',
-                        messageId: 'test-id',
-                        tabId: mockTabId,
-                        metadata: { editedText: 'command A' },
-                    }),
-                    chatController.onButtonClick({
-                        buttonId: 'save-shell-command',
-                        messageId: 'test-id',
-                        tabId: mockTabId,
-                        metadata: { editedText: 'command B' },
-                    }),
-                    chatController.onButtonClick({
-                        buttonId: 'cancel-shell-command',
-                        messageId: 'test-id',
-                        tabId: mockTabId,
-                    }),
-                ]
-
-                const results = await Promise.all(operations)
-
-                // All should report network failures
-                results.forEach(result => {
-                    assert.strictEqual(result.success, false)
-                })
-
-                // But session state should be consistent (last operation wins)
-                const session = chatSessionManagementService.getSession(mockTabId).data
-                const toolUse = session!.toolUseLookup.get('test-id')
-
-                // Should have one of the commands or original (depending on timing)
-                const possibleCommands = ['command A', 'command B', 'original command']
-                assert.ok(possibleCommands.includes((toolUse!.input as any).command))
-
-                sendChatUpdateStub.restore()
             })
         })
     })

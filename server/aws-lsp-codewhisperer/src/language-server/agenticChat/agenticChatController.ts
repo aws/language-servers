@@ -2156,9 +2156,7 @@ export class AgenticChatController implements ChatHandlers {
                                 icon: 'ok',
                                 text: 'Completed',
                             },
-                            buttons: [
-                                { id: BUTTON_MODIFY_SHELL_COMMAND, text: 'Modify', icon: 'pencil', status: 'clear' },
-                            ],
+                            buttons: [],
                         },
                     } as ChatResult
 
@@ -2187,6 +2185,7 @@ export class AgenticChatController implements ChatHandlers {
 
         return results
     }
+
     #shouldSendBackErrorContent(toolResult: ToolResult) {
         if (toolResult.status === ToolResultStatus.ERROR) {
             for (const content of toolResult.content ?? []) {
@@ -4451,7 +4450,7 @@ export class AgenticChatController implements ChatHandlers {
     }
 
     /**
-     * Helper method to send chat update with error handling
+     * Helper method to send chat update
      */
     async #sendChatUpdate(tabId: string, message: any): Promise<void> {
         await this.#features.chat.sendChatUpdate({
@@ -4498,60 +4497,6 @@ export class AgenticChatController implements ChatHandlers {
         }
 
         return undefined // No issues detected
-    }
-
-    /**
-     * Send chat update with retry logic and exponential backoff
-     */
-    async #sendChatUpdateWithRetry(tabId: string, message: any, maxRetries: number): Promise<void> {
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                await this.#sendChatUpdate(tabId, message)
-                return // Success
-            } catch (error) {
-                if (attempt === maxRetries) {
-                    throw error // Final attempt failed
-                }
-                // Exponential backoff
-                await new Promise(resolve => setTimeout(resolve, attempt * 1000))
-            }
-        }
-    }
-
-    /**
-     * Handle network failures during save operations
-     */
-    async #handleNetworkFailure(params: ButtonClickParams, command: string, error: any): Promise<ButtonClickResult> {
-        // Command was saved in memory, but UI update failed
-        this.#log(`Network failure during save: ${error}`)
-
-        // Try to show an error state without full UI update
-        try {
-            await this.#features.chat.sendChatUpdate({
-                tabId: params.tabId,
-                state: { inProgress: false },
-                data: {
-                    messages: [
-                        {
-                            messageId: `${params.messageId}_error`,
-                            type: 'answer',
-                            body: `Command saved locally but UI update failed due to network issue. Command: \`${command}\``,
-                            header: {
-                                status: { status: 'warning', icon: 'warning', text: 'Network Issue' },
-                            },
-                        },
-                    ],
-                },
-            })
-        } catch (secondError) {
-            // Complete network failure - command still saved in session
-            this.#log(`Complete network failure: ${secondError}`)
-        }
-
-        return {
-            success: false,
-            failureReason: `Network error: Command saved but UI update failed. ${error.message}`,
-        }
     }
 
     /**
@@ -4675,9 +4620,8 @@ export class AgenticChatController implements ChatHandlers {
 
             this.#log(`Backend sending save update with command: "${newCommand}"`)
 
-            // Implement retry logic for network failures
             try {
-                await this.#sendChatUpdateWithRetry(params.tabId, messageToSend, 3)
+                await this.#sendChatUpdate(params.tabId, messageToSend)
 
                 // If Always Allow is enabled, automatically trigger execution
                 if (isAlwaysAllowed && !validationWarning) {
@@ -4697,8 +4641,8 @@ export class AgenticChatController implements ChatHandlers {
 
                 this.#log(`Command saved successfully for messageId: ${params.messageId}`)
             } catch (error) {
-                // Network failure handling - save command but show error
-                return this.#handleNetworkFailure(params, newCommand, error)
+                this.#log(`Error sending chat update: ${error}`)
+                return { success: false, failureReason: `Failed to update chat: ${error}` }
             }
         } else {
             this.#log(`No toolUse found for messageId: ${params.messageId}`)
