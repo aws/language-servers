@@ -1,6 +1,6 @@
 {
     "name": "@aws/lsp-antlr4",
-    "version": "0.1.17",
+    "version": "0.1.18",
     "description": "ANTLR4 language server",
     "main": "out/index.js",
     "repository": {
@@ -29,7 +29,7 @@
     },
     "dependencies": {
         "@aws/language-server-runtimes": "^0.2.125",
-        "@aws/lsp-core": "^0.0.13"
+        "@aws/lsp-core": "^0.0.14"
     },
     "peerDependencies": {
         "antlr4-c3": ">=3.4 < 4",
