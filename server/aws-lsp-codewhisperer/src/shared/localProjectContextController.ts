@@ -59,6 +59,7 @@ export class LocalProjectContextController {
     private readonly log: Logging
     private _isIndexingEnabled: boolean = false
     private _isIndexingInProgress: boolean = false
+    private _isInitializing: boolean = false
     private ignoreFilePatterns?: string[]
     private includeSymlinks?: boolean
     private maxFileSizeMB?: number
@@ -112,6 +113,11 @@ export class LocalProjectContextController {
         enableIndexing = false,
     }: LocalProjectContextInitializationOptions = {}): Promise<void> {
         try {
+            if (this._isInitializing) {
+                await waitUntil(async () => !this._isInitializing, { interval: 100, timeout: 10000 })
+            }
+            this._isInitializing = true
+
             // update states according to configuration
             this.includeSymlinks = includeSymlinks
             this.maxFileSizeMB = maxFileSizeMB
@@ -176,6 +182,8 @@ export class LocalProjectContextController {
             }
         } catch (error) {
             this.log.error('Vector library failed to initialize:' + error)
+        } finally {
+            this._isInitializing = false
         }
     }
 
@@ -210,7 +218,7 @@ export class LocalProjectContextController {
     // public for test
     async buildIndex(indexingType: string): Promise<void> {
         if (this._isIndexingInProgress) {
-            return
+            await waitUntil(async () => !this._isIndexingInProgress, { interval: 100, timeout: 30000 })
         }
         try {
             this._isIndexingInProgress = true
