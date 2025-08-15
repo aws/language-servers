@@ -174,6 +174,12 @@ describe('AdditionalContextProvider', () => {
                 workspaceFolder: mockWorkspaceFolder,
             }
 
+            // Mock path.join to simulate Unix behavior
+            sinon.stub(path, 'join').callsFake((...args) => {
+                // Simulate Unix path.join behavior
+                return args.join('/').replace(/\\/g, '/')
+            })
+
             const explicitContext = [
                 {
                     id: 'explicit-file',
@@ -208,6 +214,9 @@ describe('AdditionalContextProvider', () => {
             assert.strictEqual(result.length, 1)
             assert.strictEqual(result[0].name, 'Explicit File')
             assert.strictEqual(result[0].pinned, false)
+
+            // Restore original path.join
+            ;(path.join as sinon.SinonStub).restore()
         })
 
         it('should avoid duplicates between explicit and pinned context', async () => {
@@ -219,6 +228,12 @@ describe('AdditionalContextProvider', () => {
             const triggerContext: TriggerContext = {
                 workspaceFolder: mockWorkspaceFolder,
             }
+
+            // Mock path.join to simulate Unix behavior
+            sinon.stub(path, 'join').callsFake((...args) => {
+                // Simulate Unix path.join behavior
+                return args.join('/').replace(/\\/g, '/')
+            })
 
             const sharedContext = {
                 id: 'shared-file',
@@ -255,6 +270,9 @@ describe('AdditionalContextProvider', () => {
             assert.strictEqual(result.length, 1)
             assert.strictEqual(result[0].name, 'Shared File')
             assert.strictEqual(result[0].pinned, false) // Should be marked as explicit, not pinned
+
+            // Restore original path.join
+            ;(path.join as sinon.SinonStub).restore()
         })
 
         it('should handle Active File context correctly', async () => {
