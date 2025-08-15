@@ -116,12 +116,9 @@ export class ChatDatabase {
         })
     }
 
-    public static getInstance(features?: Features): ChatDatabase {
-        if (!ChatDatabase.#instance && features) {
-            ChatDatabase.#instance = new ChatDatabase(features)
-        }
+    public static getInstance(features: Features): ChatDatabase {
         if (!ChatDatabase.#instance) {
-            throw new Error('ChatDatabase not initialized. Call getInstance with features first.')
+            ChatDatabase.#instance = new ChatDatabase(features)
         }
         return ChatDatabase.#instance
     }
