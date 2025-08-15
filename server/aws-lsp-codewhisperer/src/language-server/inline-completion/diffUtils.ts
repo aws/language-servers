@@ -327,7 +327,7 @@ export function getCharacterDifferences(addedLines: string[], deletedLines: stri
  * a function to determine if a provided unified diff is either
  *  (1) pure addition
  *  (2) pure deletion
- *  (3) both
+ *  (3) edit
  */
 export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'edit' {
     try {
