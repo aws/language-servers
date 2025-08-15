@@ -6,6 +6,7 @@
 import * as diff from 'diff'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../shared/models/model'
 import { trimSupplementalContexts } from '../../shared/supplementalContextUtil/supplementalContextUtil'
+import { parse } from 'path'
 
 /**
  * Generates a unified diff format between old and new file contents
@@ -320,4 +321,66 @@ export function getCharacterDifferences(addedLines: string[], deletedLines: stri
         charactersAdded: addedText.length - lcsLen,
         charactersRemoved: deletedText.length - lcsLen,
     }
+}
+
+/**
+ * a function to determine if a provided unified diff is either
+ *  (1) pure addition
+ *  (2) pure deletion
+ *  (3) both
+ */
+export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteOnly' | 'both' {
+    try {
+        // diff.parsePatch might throw
+        const parsedDiffs = diff.parsePatch(unifiedDiff)
+
+        if (parsedDiffs.length === 0) {
+            throw new Error('not able to parse')
+        }
+
+        const hasDeletion = parsedDiffs.some(parsedDiff =>
+            parsedDiff.hunks.some(hunk => hunk.lines.some(line => line.startsWith('-')))
+        )
+
+        const hasAddition = parsedDiffs.some(parsedDiff =>
+            parsedDiff.hunks.some(hunk => hunk.lines.some(line => line.startsWith('+')))
+        )
+
+        switch (true) {
+            case hasDeletion && hasAddition:
+                return 'both'
+            case hasDeletion:
+                return 'deleteOnly'
+            case hasAddition:
+                return 'addOnly'
+        }
+    } catch (e) {
+        const lines = unifiedDiff.split('\n')
+        const headerEndIndex = lines.findIndex(l => l.startsWith('@@'))
+        if (headerEndIndex === -1) {
+            // Assume it's a pure edit when parsing fail
+            return 'both'
+        }
+
+        const relevantLines = lines.slice(headerEndIndex + 1)
+        if (relevantLines.length === 0) {
+            // Assume it's a pure edit
+            return 'both'
+        }
+
+        const hasAddition = relevantLines.some(l => l.startsWith('+'))
+        const hasDeletion = relevantLines.some(l => l.startsWith('-'))
+
+        switch (true) {
+            case hasDeletion && hasAddition:
+                return 'both'
+            case hasDeletion:
+                return 'deleteOnly'
+            case hasAddition:
+                return 'addOnly'
+        }
+    }
+
+    // Shouldn't be here
+    return 'both'
 }
