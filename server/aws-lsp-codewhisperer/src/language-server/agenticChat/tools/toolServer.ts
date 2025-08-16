@@ -11,7 +11,7 @@ import { McpTool } from './mcp/mcpTool'
 import { FileSearch, FileSearchParams } from './fileSearch'
 import { GrepSearch } from './grepSearch'
 import { CodeReview } from './qCodeAnalysis/codeReview'
-import { CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
+import { CodeWhispererServiceIAM, CodeWhispererServiceToken } from '../../../shared/codeWhispererService'
 import { McpToolDefinition } from './mcp/mcpTypes'
 import {
     getGlobalAgentConfigPath,
@@ -24,6 +24,7 @@ import { FsReplace, FsReplaceParams } from './fsReplace'
 import { CodeReviewUtils } from './qCodeAnalysis/codeReviewUtils'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../shared/constants'
 import { DisplayFindings } from './qCodeAnalysis/displayFindings'
+import { isUsingIAMAuth } from '../../../shared/utils'
 
 export const FsToolsServer: Server = ({ workspace, logging, agent, lsp }) => {
     const fsReadTool = new FsRead({ workspace, lsp, logging })
@@ -123,14 +124,25 @@ export const QCodeAnalysisServer: Server = ({
         }
 
         // Create the CodeWhisperer client
-        const codeWhispererClient = new CodeWhispererServiceToken(
-            credentialsProvider,
-            workspace,
-            logging,
-            process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
-            process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
-            sdkInitializator
-        )
+        // Note: Verify if IAM Client will work with code review tool usage below, whether Sigv4Client has capability to analyzeCode
+        // If not, revert the change to only token client
+        const codeWhispererClient = isUsingIAMAuth()
+            ? new CodeWhispererServiceIAM(
+                  credentialsProvider,
+                  workspace,
+                  logging,
+                  process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+                  process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+                  sdkInitializator
+              )
+            : new CodeWhispererServiceToken(
+                  credentialsProvider,
+                  workspace,
+                  logging,
+                  process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+                  process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+                  sdkInitializator
+              )
 
         agent.addTool(
             {
