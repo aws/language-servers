@@ -350,7 +350,7 @@ export class AgenticChatController implements ChatHandlers {
             // @ts-ignore
             this.#features.chat.chatOptionsUpdate({ region })
         })
-        this.#chatHistoryDb = new ChatDatabase(features)
+        this.#chatHistoryDb = ChatDatabase.getInstance(features)
         this.#tabBarController = new TabBarController(
             features,
             this.#chatHistoryDb,
