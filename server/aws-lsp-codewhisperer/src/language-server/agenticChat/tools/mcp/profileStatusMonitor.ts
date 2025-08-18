@@ -18,7 +18,6 @@ export class ProfileStatusMonitor {
     private intervalId?: NodeJS.Timeout
     private readonly CHECK_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
     private codeWhispererClient?: CodeWhispererServiceToken
-    private cachedProfileArn?: string
     private static lastMcpState?: boolean
 
     constructor(
@@ -85,7 +84,8 @@ export class ProfileStatusMonitor {
             const response = await retryUtils.retryWithBackoff(() =>
                 this.codeWhispererClient!.getProfile({ profileArn })
             )
-            const isMcpEnabled = response?.profile?.optInFeatures?.mcpConfiguration?.toggle === 'ON'
+            const mcpConfig = response?.profile?.optInFeatures?.mcpConfiguration
+            const isMcpEnabled = mcpConfig ? mcpConfig.toggle === 'ON' : true
 
             if (ProfileStatusMonitor.lastMcpState !== isMcpEnabled) {
                 ProfileStatusMonitor.lastMcpState = isMcpEnabled
@@ -107,16 +107,9 @@ export class ProfileStatusMonitor {
     }
 
     private getProfileArn(): string | undefined {
-        // Use cached value if available
-        if (this.cachedProfileArn) {
-            return this.cachedProfileArn
-        }
-
         try {
-            // Get profile ARN from service manager like in agenticChatController
             const serviceManager = AmazonQTokenServiceManager.getInstance()
-            this.cachedProfileArn = serviceManager.getActiveProfileArn()
-            return this.cachedProfileArn
+            return serviceManager.getActiveProfileArn()
         } catch (error) {
             this.logging.debug(`Failed to get profile ARN: ${error}`)
         }
