@@ -6,7 +6,6 @@
 import * as diff from 'diff'
 import { CodeWhispererSupplementalContext, CodeWhispererSupplementalContextItem } from '../../shared/models/model'
 import { trimSupplementalContexts } from '../../shared/supplementalContextUtil/supplementalContextUtil'
-import { parse } from 'path'
 
 /**
  * Generates a unified diff format between old and new file contents
@@ -383,4 +382,35 @@ export function categorizeUnifieddiff(unifiedDiff: string): 'addOnly' | 'deleteO
 
     // Shouldn't be here
     return 'edit'
+}
+
+// TODO: Polish
+export function extractAdditions(unifiedDiff: string): string {
+    const lines = unifiedDiff.split('\n')
+    let additions = ''
+    let isInAdditionBlock = false
+
+    for (const line of lines) {
+        // Skip diff headers (files)
+        if (line.startsWith('+++') || line.startsWith('---')) {
+            continue
+        }
+
+        // Skip hunk headers (@@ lines)
+        if (line.startsWith('@@')) {
+            continue
+        }
+
+        // Handle additions
+        if (line.startsWith('+')) {
+            additions += line.substring(1) + '\n'
+            isInAdditionBlock = true
+        } else if (isInAdditionBlock && line.startsWith(' ')) {
+            // End of addition block
+            isInAdditionBlock = false
+        }
+    }
+
+    // Remove trailing newline
+    return additions.trimEnd()
 }
