@@ -13,12 +13,21 @@ import { retryUtils } from '@aws/lsp-core'
 import { CodeWhispererServiceToken } from '../../../../shared/codeWhispererService'
 import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../../shared/constants'
 import { AmazonQTokenServiceManager } from '../../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+import { EventEmitter } from 'events'
+
+export const AUTH_SUCCESS_EVENT = 'authSuccess'
 
 export class ProfileStatusMonitor {
     private intervalId?: NodeJS.Timeout
     private readonly CHECK_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
     private codeWhispererClient?: CodeWhispererServiceToken
-    private static lastMcpState?: boolean
+    private static lastMcpState: boolean = true
+    private static readonly MCP_CACHE_DIR = path.join(os.homedir(), '.aws', 'amazonq', 'mcpAdmin')
+    private static readonly MCP_CACHE_FILE = path.join(ProfileStatusMonitor.MCP_CACHE_DIR, 'mcp-state.json')
+    private static eventEmitter = new EventEmitter()
 
     constructor(
         private credentialsProvider: CredentialsProvider,
@@ -27,7 +36,14 @@ export class ProfileStatusMonitor {
         private sdkInitializator: SDKInitializator,
         private onMcpDisabled: () => void,
         private onMcpEnabled?: () => void
-    ) {}
+    ) {
+        ProfileStatusMonitor.loadMcpStateFromDisk()
+
+        // Listen for auth success events
+        ProfileStatusMonitor.eventEmitter.on(AUTH_SUCCESS_EVENT, () => {
+            void this.isMcpEnabled()
+        })
+    }
 
     async checkInitialState(): Promise<boolean> {
         try {
@@ -35,8 +51,7 @@ export class ProfileStatusMonitor {
             return isMcpEnabled !== false // Return true if enabled or API failed
         } catch (error) {
             this.logging.debug(`Initial MCP state check failed, defaulting to enabled: ${error}`)
-            ProfileStatusMonitor.lastMcpState = true
-            return true
+            return ProfileStatusMonitor.getMcpState()
         }
     }
 
@@ -65,7 +80,7 @@ export class ProfileStatusMonitor {
             const profileArn = this.getProfileArn()
             if (!profileArn) {
                 this.logging.debug('No profile ARN available for MCP configuration check')
-                ProfileStatusMonitor.lastMcpState = true // Default to enabled if no profile
+                ProfileStatusMonitor.setMcpState(true)
                 return true
             }
 
@@ -88,7 +103,7 @@ export class ProfileStatusMonitor {
             const isMcpEnabled = mcpConfig ? mcpConfig.toggle === 'ON' : true
 
             if (ProfileStatusMonitor.lastMcpState !== isMcpEnabled) {
-                ProfileStatusMonitor.lastMcpState = isMcpEnabled
+                ProfileStatusMonitor.setMcpState(isMcpEnabled)
                 if (!isMcpEnabled) {
                     this.logging.info('MCP configuration disabled - removing tools')
                     this.onMcpDisabled()
@@ -101,8 +116,7 @@ export class ProfileStatusMonitor {
             return isMcpEnabled
         } catch (error) {
             this.logging.debug(`MCP configuration check failed, defaulting to enabled: ${error}`)
-            ProfileStatusMonitor.lastMcpState = true
-            return true
+            return ProfileStatusMonitor.getMcpState()
         }
     }
 
@@ -116,7 +130,45 @@ export class ProfileStatusMonitor {
         return undefined
     }
 
-    static getMcpState(): boolean | undefined {
+    static getMcpState(): boolean {
         return ProfileStatusMonitor.lastMcpState
+    }
+
+    private static loadMcpStateFromDisk(): void {
+        try {
+            if (fs.existsSync(ProfileStatusMonitor.MCP_CACHE_FILE)) {
+                const data = fs.readFileSync(ProfileStatusMonitor.MCP_CACHE_FILE, 'utf8')
+                const parsed = JSON.parse(data)
+                ProfileStatusMonitor.lastMcpState = parsed.enabled ?? true
+            }
+        } catch (error) {
+            // Ignore errors and use default value
+        }
+        ProfileStatusMonitor.setMcpState(ProfileStatusMonitor.lastMcpState)
+    }
+
+    private static saveMcpStateToDisk(): void {
+        try {
+            fs.mkdirSync(ProfileStatusMonitor.MCP_CACHE_DIR, { recursive: true })
+            fs.writeFileSync(
+                ProfileStatusMonitor.MCP_CACHE_FILE,
+                JSON.stringify({ enabled: ProfileStatusMonitor.lastMcpState })
+            )
+        } catch (error) {
+            // Ignore write errors
+        }
+    }
+
+    private static setMcpState(enabled: boolean): void {
+        ProfileStatusMonitor.lastMcpState = enabled
+        ProfileStatusMonitor.saveMcpStateToDisk()
+    }
+
+    static resetMcpState(): void {
+        ProfileStatusMonitor.setMcpState(true)
+    }
+
+    static emitAuthSuccess(): void {
+        ProfileStatusMonitor.eventEmitter.emit(AUTH_SUCCESS_EVENT)
     }
 }

@@ -33,6 +33,7 @@ import { getAmazonQRegionAndEndpoint } from './configurationUtils'
 import { getUserAgent } from '../telemetryUtils'
 import { StreamingClientServiceToken } from '../streamingClientService'
 import { parse } from '@aws-sdk/util-arn-parser'
+import { ProfileStatusMonitor } from '../../language-server/agenticChat/tools/mcp/profileStatusMonitor'
 
 /**
  * AmazonQTokenServiceManager manages state and provides centralized access to
@@ -152,6 +153,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
         this.resetCodewhispererService()
         this.connectionType = 'none'
         this.state = 'PENDING_CONNECTION'
+
+        // Reset MCP state cache when auth changes
+        ProfileStatusMonitor.resetMcpState()
     }
 
     public async handleOnUpdateConfiguration(params: UpdateConfigurationParams, _token: CancellationToken) {
@@ -245,6 +249,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.state = 'INITIALIZED'
             this.log('Initialized Amazon Q service with builderId connection')
 
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
+
             return
         }
 
@@ -266,6 +273,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.createCodewhispererServiceInstances('identityCenter', undefined, endpointOverride)
             this.state = 'INITIALIZED'
             this.log('Initialized Amazon Q service with identityCenter connection')
+
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
 
             return
         }
@@ -375,6 +385,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
                 `Initialized identityCenter connection to region ${newProfile.identityDetails.region} for profile ${newProfile.arn}`
             )
 
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
+
             return
         }
 
@@ -384,6 +397,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.log(`Profile selection did not change, active profile is ${this.activeIdcProfile.arn}`)
             this.activeIdcProfile = newProfile
             this.state = 'INITIALIZED'
+
+            // Emit auth success event
+            ProfileStatusMonitor.emitAuthSuccess()
 
             return
         }
@@ -427,6 +443,9 @@ export class AmazonQTokenServiceManager extends BaseAmazonQServiceManager<
             this.endpointOverride()
         )
         this.state = 'INITIALIZED'
+
+        // Emit auth success event
+        ProfileStatusMonitor.emitAuthSuccess()
 
         return
     }

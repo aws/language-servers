@@ -227,7 +227,16 @@ export const McpToolsServer: Server = ({
             }
             registered[server] = []
         }
-        void McpManager.instance.close(true) //keep the instance but close all servers.
+
+        // Only close McpManager if it has been initialized
+        try {
+            if (McpManager.instance) {
+                void McpManager.instance.close(true) //keep the instance but close all servers.
+            }
+        } catch (error) {
+            // McpManager not initialized, skip closing
+            logging.debug('McpManager not initialized, skipping close operation')
+        }
 
         try {
             chat?.sendChatUpdate({
@@ -255,11 +264,19 @@ export const McpToolsServer: Server = ({
             // Sanitize the tool name
 
             // Check if this tool name is already in use
+            let toolNameMapping = new Map()
+            try {
+                toolNameMapping = McpManager.instance.getToolNameMapping()
+            } catch (error) {
+                // McpManager not initialized, use empty mapping
+                logging.debug('McpManager not initialized, using empty tool name mapping')
+            }
+
             const namespaced = createNamespacedToolName(
                 def.serverName,
                 def.toolName,
                 allNamespacedTools,
-                McpManager.instance.getToolNameMapping()
+                toolNameMapping
             )
             const tool = new McpTool({ logging, workspace, lsp }, def)
 
