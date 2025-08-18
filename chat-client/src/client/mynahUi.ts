@@ -86,6 +86,30 @@ import {
 } from './texts/paidTier'
 import { isSupportedImageExtension, MAX_IMAGE_CONTEXT, verifyClientImages } from './imageVerification'
 
+/**
+ * Find textarea value for a specific message ID with error handling
+ */
+function findTextareaValueForMessage(messageId: string): string | undefined {
+    try {
+        const chatItemElement = document.querySelector(`[messageid="${messageId}"]`)
+        if (!chatItemElement) {
+            console.warn(`No chat item found for messageId: ${messageId}`)
+            return undefined
+        }
+
+        const textarea = chatItemElement.querySelector('.mynah-shell-command-input') as HTMLTextAreaElement
+        if (!textarea) {
+            console.warn(`No textarea found in chat item for messageId: ${messageId}`)
+            return undefined
+        }
+
+        return textarea.value.trim()
+    } catch (error) {
+        console.error(`Error extracting textarea value for messageId ${messageId}:`, error)
+        return undefined
+    }
+}
+
 export interface InboundChatApi {
     addChatResponse(params: ChatResult, tabId: string, isPartialResult: boolean): void
     updateChat(params: ChatUpdateParams): void
@@ -544,10 +568,18 @@ export const createMynahUi = (
             } else if (action.id === OPEN_WORKSPACE_INDEX_SETTINGS_BUTTON_ID) {
                 messager.onOpenSettings('amazonQ.workspaceIndex')
             } else {
+                let editedText: string | undefined = undefined
+
+                // For save buttons, get the current edited text from any textarea
+                if (action.id === 'save-shell-command') {
+                    editedText = findTextareaValueForMessage(messageId)
+                }
+
                 const payload: ButtonClickParams = {
                     tabId,
                     messageId,
                     buttonId: action.id,
+                    metadata: editedText ? { editedText } : undefined,
                 }
                 messager.onButtonClick(payload)
             }
@@ -1408,6 +1440,7 @@ export const createMynahUi = (
                       ? { 'insert-to-cursor': null }
                       : undefined,
             ...(shouldMute ? { muted: true } : {}),
+            editable: message.editable,
         }
     }
 
