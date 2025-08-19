@@ -723,7 +723,9 @@ export const CodewhispererServerFactory =
                     ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
-            telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'INLINE'))
+            telemetryService.updateUserContext(
+                makeUserContextObject(clientParams, runtime.platform, 'INLINE', amazonQServiceManager.serverInfo)
+            )
 
             codePercentageTracker = new CodePercentageTracker(telemetryService)
             codeDiffTracker = new CodeDiffTracker(
