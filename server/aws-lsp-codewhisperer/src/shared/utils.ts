@@ -392,8 +392,40 @@ export function getOriginFromClientInfo(clientName: string | undefined): Origin 
     return 'IDE'
 }
 
-export function isUsingIAMAuth(): boolean {
-    return process.env.USE_IAM_AUTH === 'true'
+export function isUsingIAMAuth(credentialsProvider?: CredentialsProvider): boolean {
+    // Environment variable check first
+    console.log(`[IAM_AUTH_CHECK] USE_IAM_AUTH env: ${process.env.USE_IAM_AUTH}`)
+    if (process.env.USE_IAM_AUTH === 'true') {
+        console.log(`[IAM_AUTH_CHECK] Using IAM auth - environment variable set`)
+        return true
+    }
+
+    // CRITICAL: Add credential-based detection as fallback
+    if (credentialsProvider) {
+        try {
+            const iamCreds = credentialsProvider.getCredentials('iam')
+            const bearerCreds = credentialsProvider.getCredentials('bearer')
+
+            console.log(`[IAM_AUTH_CHECK] IAM creds available: ${!!iamCreds}`)
+            console.log(`[IAM_AUTH_CHECK] Bearer creds available: ${!!bearerCreds}`)
+            console.log(`[IAM_AUTH_CHECK] Bearer token available: ${!!(bearerCreds as any)?.token}`)
+
+            // If only IAM creds available, use IAM
+            if (iamCreds && !(bearerCreds as any)?.token) {
+                console.log(`[IAM_AUTH_CHECK] Using IAM auth - IAM creds present, no bearer token`)
+                return true
+            }
+
+            console.log(`[IAM_AUTH_CHECK] Using Token auth - bearer token available or no IAM creds`)
+        } catch (error) {
+            // If credential access fails, default to bearer
+            console.log(`[IAM_AUTH_CHECK] Credential access failed: ${error}, defaulting to bearer`)
+            return false
+        }
+    }
+
+    console.log(`[IAM_AUTH_CHECK] Using Token auth - no credentials provider`)
+    return false
 }
 
 export const flattenMetric = (obj: any, prefix = '') => {
