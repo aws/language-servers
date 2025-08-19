@@ -21,7 +21,7 @@ import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { initBaseTestServiceManager, TestAmazonQServiceManager } from '../../shared/amazonQServiceManager/testUtils'
 import { getNormalizeOsName } from './auto-trigger/autoTrigger'
 
-describe.skip('Telemetry', () => {
+describe('Telemetry', () => {
     const sandbox = sinon.createSandbox()
     let SESSION_IDS_LOG: string[] = []
     let sessionManager: SessionManager
