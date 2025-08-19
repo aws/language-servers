@@ -37,6 +37,7 @@ import { Mutex } from 'async-mutex'
 import path = require('path')
 import { URI } from 'vscode-uri'
 import { sanitizeInput } from '../../../../shared/utils'
+import { ProfileStatusMonitor } from './profileStatusMonitor'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -85,8 +86,15 @@ export class McpManager {
         if (!McpManager.#instance) {
             const mgr = new McpManager(agentPaths, features)
             McpManager.#instance = mgr
-            await mgr.discoverAllServers()
-            features.logging.info(`MCP: discovered ${mgr.mcpTools.length} tools across all servers`)
+
+            const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
+
+            if (shouldDiscoverServers) {
+                await mgr.discoverAllServers()
+                features.logging.info(`MCP: discovered ${mgr.mcpTools.length} tools across all servers`)
+            } else {
+                features.logging.info('MCP: initialized without server discovery')
+            }
 
             // Emit MCP configuration metrics
             const serverConfigs = mgr.getAllServerConfigs()
@@ -896,7 +904,11 @@ export class McpManager {
             // Restore the saved tool name mapping
             this.setToolNameMapping(savedToolNameMapping)
 
-            await this.discoverAllServers()
+            const shouldDiscoverServers = ProfileStatusMonitor.getMcpState()
+
+            if (shouldDiscoverServers) {
+                await this.discoverAllServers()
+            }
 
             const reinitializedServerCount = McpManager.#instance?.mcpServers.size
             this.features.logging.info(
