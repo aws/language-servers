@@ -89,15 +89,20 @@ const getOperatingSystem = (platform: Platform) => {
 export const makeUserContextObject = (
     initializeParams: InitializeParams,
     platform: Platform,
-    product: string
+    product: string,
+    serverInfo: ServerInfo
 ): UserContext | undefined => {
+    const ide = getIdeCategory(initializeParams)
+    const ideVersion =
+        initializeParams.initializationOptions?.aws?.clientInfo?.version || initializeParams.clientInfo?.version
+    const pluginVersion = initializeParams.initializationOptions?.aws?.clientInfo?.extension?.version || ''
+    const lspVersion = serverInfo.version ?? ''
     const userContext: UserContext = {
-        ideCategory: getIdeCategory(initializeParams),
+        ideCategory: ide,
         operatingSystem: getOperatingSystem(platform),
         product: product,
         clientId: initializeParams.initializationOptions?.aws?.clientInfo?.clientId,
-        ideVersion:
-            initializeParams.initializationOptions?.aws?.clientInfo?.version || initializeParams.clientInfo?.version,
+        ideVersion: `ide=${ideVersion};plugin=${pluginVersion};lsp=${lspVersion}`,
     }
 
     if (userContext.ideCategory === 'UNKNOWN' || userContext.operatingSystem === 'UNKNOWN') {

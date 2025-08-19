@@ -188,7 +188,12 @@ export const WorkspaceContextServer = (): Server => features => {
                 abTestingEnabled = true
             } else {
                 const clientParams = safeGet(lsp.getClientInitializeParams())
-                const userContext = makeUserContextObject(clientParams, runtime.platform, 'CodeWhisperer') ?? {
+                const userContext = makeUserContextObject(
+                    clientParams,
+                    runtime.platform,
+                    'CodeWhisperer',
+                    amazonQServiceManager.serverInfo
+                ) ?? {
                     ideCategory: 'VSCODE',
                     operatingSystem: 'MAC',
                     product: 'CodeWhisperer',
