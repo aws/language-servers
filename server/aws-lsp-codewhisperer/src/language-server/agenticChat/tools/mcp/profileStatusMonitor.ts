@@ -28,6 +28,7 @@ export class ProfileStatusMonitor {
     private static readonly MCP_CACHE_DIR = path.join(os.homedir(), '.aws', 'amazonq', 'mcpAdmin')
     private static readonly MCP_CACHE_FILE = path.join(ProfileStatusMonitor.MCP_CACHE_DIR, 'mcp-state.json')
     private static eventEmitter = new EventEmitter()
+    private static logging?: Logging
 
     constructor(
         private credentialsProvider: CredentialsProvider,
@@ -37,6 +38,7 @@ export class ProfileStatusMonitor {
         private onMcpDisabled: () => void,
         private onMcpEnabled?: () => void
     ) {
+        ProfileStatusMonitor.logging = logging
         ProfileStatusMonitor.loadMcpStateFromDisk()
 
         // Listen for auth success events
@@ -142,7 +144,7 @@ export class ProfileStatusMonitor {
                 ProfileStatusMonitor.lastMcpState = parsed.enabled ?? true
             }
         } catch (error) {
-            // Ignore errors and use default value
+            ProfileStatusMonitor.logging?.debug(`Failed to load MCP state from disk: ${error}`)
         }
         ProfileStatusMonitor.setMcpState(ProfileStatusMonitor.lastMcpState)
     }
@@ -155,7 +157,7 @@ export class ProfileStatusMonitor {
                 JSON.stringify({ enabled: ProfileStatusMonitor.lastMcpState })
             )
         } catch (error) {
-            // Ignore write errors
+            ProfileStatusMonitor.logging?.debug(`Failed to save MCP state to disk: ${error}`)
         }
     }
 
