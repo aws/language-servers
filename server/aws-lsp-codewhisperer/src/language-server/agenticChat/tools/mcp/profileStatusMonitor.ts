@@ -118,7 +118,13 @@ export class ProfileStatusMonitor {
             return isMcpEnabled
         } catch (error) {
             this.logging.debug(`MCP configuration check failed, defaulting to enabled: ${error}`)
-            return ProfileStatusMonitor.getMcpState()
+            const mcpState = ProfileStatusMonitor.getMcpState()
+            if (!mcpState) {
+                this.onMcpDisabled()
+            } else if (this.onMcpEnabled) {
+                this.onMcpEnabled()
+            }
+            return mcpState
         }
     }
 
