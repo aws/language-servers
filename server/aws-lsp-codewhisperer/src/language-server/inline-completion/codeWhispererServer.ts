@@ -47,6 +47,7 @@ import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
 import { getAddedAndDeletedLines, getCharacterDifferences } from './diffUtils'
 import {
+    emitEmptyUserTriggerDecisionTelemetry,
     emitPerceivedLatencyTelemetry,
     emitServiceInvocationFailure,
     emitServiceInvocationTelemetry,
@@ -504,12 +505,7 @@ export const CodewhispererServerFactory =
                 !suggestionResponse.responseContext.nextToken
             ) {
                 completionSessionManager.closeSession(session)
-                await emitUserTriggerDecisionTelemetry(
-                    telemetry,
-                    telemetryService,
-                    session,
-                    timeSinceLastUserModification
-                )
+                await emitEmptyUserTriggerDecisionTelemetry(telemetryService, session, timeSinceLastUserModification)
 
                 return EMPTY_RESULT
             }
