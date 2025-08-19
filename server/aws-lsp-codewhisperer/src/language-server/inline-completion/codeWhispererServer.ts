@@ -468,93 +468,57 @@ export const CodewhispererServerFactory =
                     return false
                 })
 
-            if (suggestionResponse.suggestionType === SuggestionType.COMPLETION) {
-                const { includeImportsWithSuggestions } = amazonQServiceManager.getConfiguration()
-                const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
-                    session.requestContext.fileContext.rightFileContent,
-                    filteredSuggestions,
-                    includeImportsWithSuggestions,
-                    selectionRange
-                ).filter(suggestion => {
-                    // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
-                    if (suggestion.insertText === '') {
-                        session.setSuggestionState(suggestion.itemId, 'Discard')
-                        return false
-                    }
-
-                    return true
-                })
-
-                suggestionsWithRightContext.forEach(suggestion => {
-                    const cachedSuggestion = session.suggestions.find(s => s.itemId === suggestion.itemId)
-                    if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
-                })
-
-                // TODO: need dedupe after right context merging but I don't see one
-                session.suggestionsAfterRightContextMerge.push(...suggestionsWithRightContext)
-
-                session.codewhispererSuggestionImportCount =
-                    session.codewhispererSuggestionImportCount +
-                    suggestionsWithRightContext.reduce((total, suggestion) => {
-                        return total + (suggestion.mostRelevantMissingImports?.length || 0)
-                    }, 0)
-
-                // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
-                // close session and return empty results
-                if (
-                    session.suggestionsAfterRightContextMerge.length === 0 &&
-                    !suggestionResponse.responseContext.nextToken
-                ) {
-                    completionSessionManager.closeSession(session)
-                    await emitUserTriggerDecisionTelemetry(
-                        telemetry,
-                        telemetryService,
-                        session,
-                        timeSinceLastUserModification
-                    )
-
-                    return EMPTY_RESULT
+            const { includeImportsWithSuggestions } = amazonQServiceManager.getConfiguration()
+            const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
+                session.requestContext.fileContext.rightFileContent,
+                filteredSuggestions,
+                includeImportsWithSuggestions,
+                selectionRange
+            ).filter(suggestion => {
+                // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
+                if (suggestion.insertText === '') {
+                    session.setSuggestionState(suggestion.itemId, 'Discard')
+                    return false
                 }
 
-                return {
-                    items: suggestionsWithRightContext,
-                    sessionId: session.id,
-                    partialResultToken: suggestionResponse.responseContext.nextToken,
-                }
-            } else {
-                return {
-                    items: suggestionResponse.suggestions
-                        .map(suggestion => {
-                            // Check if this suggestion is similar to a previously rejected edit
-                            const isSimilarToRejected = rejectedEditTracker.isSimilarToRejected(
-                                suggestion.content,
-                                textDocument?.uri || ''
-                            )
+                return true
+            })
 
-                            if (isSimilarToRejected) {
-                                // Mark as rejected in the session
-                                session.setSuggestionState(suggestion.itemId, 'Reject')
-                                logging.debug(
-                                    `[EDIT_PREDICTION] Filtered out suggestion similar to previously rejected edit`
-                                )
-                                // Return empty item that will be filtered out
-                                return {
-                                    insertText: '',
-                                    isInlineEdit: true,
-                                    itemId: suggestion.itemId,
-                                }
-                            }
+            suggestionsWithRightContext.forEach(suggestion => {
+                const cachedSuggestion = session.suggestions.find(s => s.itemId === suggestion.itemId)
+                if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
+            })
 
-                            return {
-                                insertText: suggestion.content,
-                                isInlineEdit: true,
-                                itemId: suggestion.itemId,
-                            }
-                        })
-                        .filter(item => item.insertText !== ''),
-                    sessionId: session.id,
-                    partialResultToken: suggestionResponse.responseContext.nextToken,
-                }
+            // TODO: need dedupe after right context merging but I don't see one
+            session.suggestionsAfterRightContextMerge.push(...suggestionsWithRightContext)
+
+            session.codewhispererSuggestionImportCount =
+                session.codewhispererSuggestionImportCount +
+                suggestionsWithRightContext.reduce((total, suggestion) => {
+                    return total + (suggestion.mostRelevantMissingImports?.length || 0)
+                }, 0)
+
+            // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
+            // close session and return empty results
+            if (
+                session.suggestionsAfterRightContextMerge.length === 0 &&
+                !suggestionResponse.responseContext.nextToken
+            ) {
+                completionSessionManager.closeSession(session)
+                await emitUserTriggerDecisionTelemetry(
+                    telemetry,
+                    telemetryService,
+                    session,
+                    timeSinceLastUserModification
+                )
+
+                return EMPTY_RESULT
+            }
+
+            return {
+                items: suggestionsWithRightContext,
+                sessionId: session.id,
+                partialResultToken: suggestionResponse.responseContext.nextToken,
             }
         }
 
