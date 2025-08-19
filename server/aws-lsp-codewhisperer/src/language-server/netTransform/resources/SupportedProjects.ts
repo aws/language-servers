@@ -1,3 +1,6 @@
+/**
+ * Reference only - validation moved to backend service.
+ */
 export const supportedProjects = [
     'AspNetCoreMvc',
     'AspNetCoreWebApi',

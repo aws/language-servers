@@ -169,8 +169,8 @@ describe('ProfileStatusMonitor', () => {
                 mockOnMcpEnabled
             )
 
-            // Initially undefined
-            expect(ProfileStatusMonitor.getMcpState()).to.be.undefined
+            // Initially true (default value)
+            expect(ProfileStatusMonitor.getMcpState()).to.be.true
 
             // Set through internal mechanism (simulating state change)
             ;(ProfileStatusMonitor as any).lastMcpState = false

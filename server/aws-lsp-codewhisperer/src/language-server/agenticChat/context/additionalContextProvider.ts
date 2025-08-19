@@ -406,7 +406,7 @@ export class AdditionalContextProvider {
                 const image = imageMap.get(item.description)
                 if (image) ordered.push(image)
             } else {
-                const doc = item.route ? docMap.get(item.route.join('/')) : undefined
+                const doc = item.route ? docMap.get(path.join(...item.route)) : undefined
                 if (doc) ordered.push(doc)
             }
         }

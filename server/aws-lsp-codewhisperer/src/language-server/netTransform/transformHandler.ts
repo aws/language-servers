@@ -54,18 +54,6 @@ export class TransformHandler {
             isProject,
             this.logging
         )
-        if (isProject) {
-            let isValid = validation.validateProject(userInputrequest, this.logging)
-            if (!isValid) {
-                return {
-                    Error: 'NotSupported',
-                    IsSupported: false,
-                    ContainsUnsupportedViews: containsUnsupportedViews,
-                } as StartTransformResponse
-            }
-        } else {
-            unsupportedProjects = validation.validateSolution(userInputrequest)
-        }
 
         const artifactManager = new ArtifactManager(
             this.workspace,
