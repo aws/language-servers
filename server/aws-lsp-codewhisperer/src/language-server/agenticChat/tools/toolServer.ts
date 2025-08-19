@@ -332,17 +332,20 @@ export const McpToolsServer: Server = ({
 
             McpManager.instance.clearToolNameMapping()
 
-            const byServer: Record<string, McpToolDefinition[]> = {}
-            for (const d of mgr.getEnabledTools()) {
-                ;(byServer[d.serverName] ||= []).push(d)
-            }
-            for (const [server, defs] of Object.entries(byServer)) {
-                registerServerTools(server, defs)
-            }
+            // Only register tools if MCP is enabled
+            if (ProfileStatusMonitor.getMcpState()) {
+                const byServer: Record<string, McpToolDefinition[]> = {}
+                for (const d of mgr.getEnabledTools()) {
+                    ;(byServer[d.serverName] ||= []).push(d)
+                }
+                for (const [server, defs] of Object.entries(byServer)) {
+                    registerServerTools(server, defs)
+                }
 
-            mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
-                registerServerTools(server, defs)
-            })
+                mgr.events.on(AGENT_TOOLS_CHANGED, (server: string, defs: McpToolDefinition[]) => {
+                    registerServerTools(server, defs)
+                })
+            }
         } catch (e) {
             logging.error(`Failed to initialize MCP:' ${e}`)
         }
@@ -370,11 +373,15 @@ export const McpToolsServer: Server = ({
 
                 // Wait for profile ARN to be available before checking MCP state
                 const checkAndInitialize = async () => {
-                    const shouldInitialize = await profileStatusMonitor!.checkInitialState()
-                    if (shouldInitialize) {
-                        logging.info('MCP enabled, initializing immediately')
-                        await initializeMcp()
+                    await profileStatusMonitor!.checkInitialState()
+                    // Always initialize McpManager to handle UI requests
+                    await initializeMcp()
+
+                    // Remove tools if MCP is disabled
+                    if (!ProfileStatusMonitor.getMcpState()) {
+                        removeAllMcpTools()
                     }
+
                     profileStatusMonitor!.start()
                 }
 
@@ -392,7 +399,7 @@ export const McpToolsServer: Server = ({
                             } else if (Date.now() - startTime < SERVICE_MANAGER_TIMEOUT_MS) {
                                 setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                             } else {
-                                logging.warn('Service manager not ready after 10s, defaulting MCP to enabled')
+                                logging.warn('Service manager not ready after 10s, initializing MCP manager')
                                 await initializeMcp()
                                 profileStatusMonitor!.start()
                             }
@@ -400,8 +407,8 @@ export const McpToolsServer: Server = ({
                         setTimeout(pollForReady, SERVICE_MANAGER_POLL_INTERVAL_MS)
                     }
                 } catch (error) {
-                    // Service manager not initialized yet, default to enabled
-                    logging.info('Service manager not ready, defaulting MCP to enabled')
+                    // Service manager not initialized yet, always initialize McpManager
+                    logging.info('Service manager not ready, initializing MCP manager')
                     await initializeMcp()
                     profileStatusMonitor!.start()
                 }
