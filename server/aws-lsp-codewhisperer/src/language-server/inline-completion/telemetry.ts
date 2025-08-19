@@ -133,7 +133,6 @@ export async function emitEmptyUserTriggerDecisionTelemetry(
         .catch(e => {})
         .finally(() => {
             session.reportedUserDecision = true
-            session.close()
         })
 }
 
