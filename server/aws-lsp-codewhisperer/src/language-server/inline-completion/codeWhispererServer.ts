@@ -522,6 +522,7 @@ export const CodewhispererServerFactory =
             logging.log('Recommendation failure: ' + error)
             emitServiceInvocationFailure(telemetry, session, error)
 
+            // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions
             completionSessionManager.closeSession(session)
 
             let translatedError = error
