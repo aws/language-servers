@@ -36,6 +36,7 @@ import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
+import { categorizeUnifieddiff, extractAdditions } from './diffUtils'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
@@ -373,6 +374,11 @@ export class EditCompletionHandler {
                         textDocument?.uri || ''
                     )
 
+                    const editCategory = categorizeUnifieddiff(suggestion.content)
+                    // If the given edit is "addOnly", we treat it as a pure Completion
+                    const isInlineEdit = editCategory === 'addOnly' ? false : true
+                    const s = isInlineEdit ? suggestion.content : extractAdditions(suggestion.content)
+
                     if (isSimilarToRejected) {
                         // Mark as rejected in the session
                         session.setSuggestionState(suggestion.itemId, 'Reject')
@@ -382,14 +388,14 @@ export class EditCompletionHandler {
                         // Return empty item that will be filtered out
                         return {
                             insertText: '',
-                            isInlineEdit: true,
+                            isInlineEdit: isInlineEdit,
                             itemId: suggestion.itemId,
                         }
                     }
 
                     return {
-                        insertText: suggestion.content,
-                        isInlineEdit: true,
+                        insertText: s,
+                        isInlineEdit: isInlineEdit,
                         itemId: suggestion.itemId,
                     }
                 })
