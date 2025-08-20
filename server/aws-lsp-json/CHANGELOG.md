@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.18](https://github.com/aws/language-servers/compare/lsp-json/v0.1.17...lsp-json/v0.1.18) (2025-08-19)
+
+
+### Bug Fixes
+
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.13 to ^0.0.14
+
 ## [0.1.17](https://github.com/aws/language-servers/compare/lsp-json/v0.1.16...lsp-json/v0.1.17) (2025-08-04)
 
 
