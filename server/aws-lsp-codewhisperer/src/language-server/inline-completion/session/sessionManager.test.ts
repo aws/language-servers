@@ -529,12 +529,12 @@ describe('SessionManager', function () {
             assert.strictEqual(manager.getCurrentSession()?.state, 'REQUESTING')
         })
 
-        it('should deactivate previous session when creating a new session', function () {
+        it('should not deactivate previous session when creating a new session', function () {
             const manager = SessionManager.getInstance()
             const session = manager.createSession(data)
             session.activate()
             manager.createSession(data)
-            assert.strictEqual(session.state, 'CLOSED')
+            assert.strictEqual(session.state, 'ACTIVE')
         })
 
         it('should set previous active session trigger decision from discarded REQUESTING session', function () {
@@ -548,7 +548,7 @@ describe('SessionManager', function () {
             assert.strictEqual(session2.previousTriggerDecision, 'Discard')
         })
 
-        it('should set previous active session trigger decision to new session object', function () {
+        it('should not set previous active session trigger decision to new session object if it is not closed', function () {
             const manager = SessionManager.getInstance()
             const session1 = manager.createSession(data)
             assert.strictEqual(session1?.state, 'REQUESTING')
@@ -557,8 +557,8 @@ describe('SessionManager', function () {
 
             const session2 = manager.createSession(data)
 
-            assert.strictEqual(session1?.state, 'CLOSED')
-            assert.strictEqual(session2.previousTriggerDecision, 'Empty')
+            assert.strictEqual(session1?.state, 'ACTIVE')
+            assert.strictEqual(session2.previousTriggerDecision, undefined)
         })
     })
 
