@@ -592,7 +592,7 @@ export const CodewhispererServerFactory =
 
             const session = sessionManager.getSessionById(sessionId)
             if (!session) {
-                logging.log(`ERROR: Session ID ${sessionId} was not found`)
+                logging.log(`ERROR: Session ID ${sessionId} was not found123123123`)
                 return
             }
 
