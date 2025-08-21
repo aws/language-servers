@@ -319,9 +319,7 @@ export const CodewhispererServerFactory =
                         // for the previous trigger
                         if (ideCategory !== 'JETBRAINS') {
                             completionSessionManager.discardSession(currentSession)
-                            const streakLength = editsEnabled
-                                ? completionSessionManager.getAndUpdateStreakLength(false)
-                                : 0
+                            const streakLength = editsEnabled ? streakTracker.getAndUpdateStreakLength(false) : 0
                             await emitUserTriggerDecisionTelemetry(
                                 telemetry,
                                 telemetryService,
