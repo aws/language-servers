@@ -580,7 +580,7 @@ describe('Telemetry', () => {
                     ...DEFAULT_SESSION_RESULT_DATA,
                     sessionId: firstSession.id,
                 })
-                sinon.assert.called(telemetryServiceSpy)
+                sinon.assert.notCalled(telemetryServiceSpy)
             })
 
             it('should not emit User Decision event when session results received for session that does not exist', async () => {
