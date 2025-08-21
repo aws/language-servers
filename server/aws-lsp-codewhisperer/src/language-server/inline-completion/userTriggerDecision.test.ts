@@ -505,7 +505,7 @@ describe('Telemetry', () => {
                 sinon.assert.called(telemetryServiceSpy)
             })
 
-            it('should not emit User Decision event when session results are received after session was closed', async () => {
+            it('should not emit User Decision event after second trigger is received', async () => {
                 setServiceResponse(DEFAULT_SUGGESTIONS, {
                     ...EXPECTED_RESPONSE_CONTEXT,
                     codewhispererSessionId: 'cwspr-session-id-1',
@@ -519,7 +519,7 @@ describe('Telemetry', () => {
                 sinon.assert.notCalled(sessionManagerSpy.closeSession)
                 sinon.assert.notCalled(telemetryServiceSpy)
 
-                // Send second completion request to close first one
+                // Send second completion request should not close first one
                 setServiceResponse(DEFAULT_SUGGESTIONS, {
                     ...EXPECTED_RESPONSE_CONTEXT,
                     codewhispererSessionId: 'cwspr-session-id-2',
@@ -528,7 +528,7 @@ describe('Telemetry', () => {
 
                 assert.equal(firstSession.state, 'DISCARD')
                 assert.notEqual(firstSession, sessionManager.getCurrentSession())
-                sinon.assert.calledWithExactly(sessionManagerSpy.closeSession, firstSession)
+                sinon.assert.notCalled(sessionManagerSpy.closeSession)
                 // Test that session reports it's status when second request is received
                 const expectedEvent = aUserTriggerDecision({
                     state: 'DISCARD',

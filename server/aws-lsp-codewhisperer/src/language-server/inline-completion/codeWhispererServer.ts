@@ -311,34 +311,27 @@ export const CodewhispererServerFactory =
 
                     // Close ACTIVE session and record Discard trigger decision immediately
                     if (currentSession && currentSession.state === 'ACTIVE') {
-                        if (editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
-                            const mergedSuggestions = mergeEditSuggestionsWithFileContext(
-                                currentSession,
-                                textDocument,
-                                fileContext
-                            )
-
-                            if (mergedSuggestions.length > 0) {
-                                return {
-                                    items: mergedSuggestions,
-                                    sessionId: currentSession.id,
-                                }
-                            }
-                        }
                         // Emit user trigger decision at session close time for active session
-                        completionSessionManager.discardSession(currentSession)
-                        const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(false) : 0
-                        await emitUserTriggerDecisionTelemetry(
-                            telemetry,
-                            telemetryService,
-                            currentSession,
-                            timeSinceLastUserModification,
-                            0,
-                            0,
-                            [],
-                            [],
-                            streakLength
-                        )
+                        // TODO: yuxqiang workaround to exclude JB from this logic because JB and VSC handle a
+                        // bit differently in the case when there's a new trigger while a reject/discard event is sent
+                        // for the previous trigger
+                        if (ideCategory !== 'JETBRAINS') {
+                            completionSessionManager.discardSession(currentSession)
+                            const streakLength = editsEnabled
+                                ? completionSessionManager.getAndUpdateStreakLength(false)
+                                : 0
+                            await emitUserTriggerDecisionTelemetry(
+                                telemetry,
+                                telemetryService,
+                                currentSession,
+                                timeSinceLastUserModification,
+                                0,
+                                0,
+                                [],
+                                [],
+                                streakLength
+                            )
+                        }
                     }
 
                     const supplementalMetadata = supplementalContext?.supContextData
@@ -529,6 +522,7 @@ export const CodewhispererServerFactory =
             logging.log('Recommendation failure: ' + error)
             emitServiceInvocationFailure(telemetry, session, error)
 
+            // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions
             completionSessionManager.closeSession(session)
 
             let translatedError = error

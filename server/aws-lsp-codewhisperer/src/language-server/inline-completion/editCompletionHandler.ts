@@ -403,6 +403,7 @@ export class EditCompletionHandler {
         this.logging.log('Recommendation failure: ' + error)
         emitServiceInvocationFailure(this.telemetry, session, error)
 
+        // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions
         this.sessionManager.closeSession(session)
 
         let translatedError = error
