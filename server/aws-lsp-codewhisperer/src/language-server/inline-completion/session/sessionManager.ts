@@ -282,7 +282,6 @@ export class SessionManager {
     private currentSession?: CodeWhispererSession
     private sessionsLog: CodeWhispererSession[] = []
     private maxHistorySize = 5
-    streakLength: number = 0
     // TODO, for user decision telemetry: accepted suggestions (not necessarily the full corresponding session) should be stored for 5 minutes
 
     private constructor() {}
@@ -369,17 +368,5 @@ export class SessionManager {
         if (this.currentSession === session) {
             this.currentSession.activate()
         }
-    }
-
-    getAndUpdateStreakLength(isAccepted: boolean | undefined): number {
-        if (!isAccepted && this.streakLength != 0) {
-            const currentStreakLength = this.streakLength
-            this.streakLength = 0
-            return currentStreakLength
-        } else if (isAccepted) {
-            // increment streakLength everytime a suggestion is accepted.
-            this.streakLength = this.streakLength + 1
-        }
-        return -1
     }
 }

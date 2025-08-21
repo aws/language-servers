@@ -46,6 +46,7 @@ import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
+import { StreakTracker } from './tracker/streakTracker'
 import { getAddedAndDeletedLines, getCharacterDifferences } from './diffUtils'
 import {
     emitPerceivedLatencyTelemetry,
@@ -129,6 +130,7 @@ export const CodewhispererServerFactory =
         const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
         const cursorTracker = CursorTracker.getInstance()
         const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
+        const streakTracker = StreakTracker.getInstance()
         let editsEnabled = false
         let isOnInlineCompletionHandlerInProgress = false
 
@@ -327,7 +329,7 @@ export const CodewhispererServerFactory =
                         }
                         // Emit user trigger decision at session close time for active session
                         completionSessionManager.discardSession(currentSession)
-                        const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(false) : 0
+                        const streakLength = editsEnabled ? streakTracker.getAndUpdateStreakLength(false) : 0
                         await emitUserTriggerDecisionTelemetry(
                             telemetry,
                             telemetryService,
@@ -412,7 +414,7 @@ export const CodewhispererServerFactory =
             if (session.discardInflightSessionOnNewInvocation) {
                 session.discardInflightSessionOnNewInvocation = false
                 completionSessionManager.discardSession(session)
-                const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(false) : 0
+                const streakLength = editsEnabled ? streakTracker.getAndUpdateStreakLength(false) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
@@ -670,7 +672,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            const streakLength = editsEnabled ? streakTracker.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,

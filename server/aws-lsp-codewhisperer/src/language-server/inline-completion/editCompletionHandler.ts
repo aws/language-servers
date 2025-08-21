@@ -36,12 +36,14 @@ import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
+import { StreakTracker } from './tracker/streakTracker'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
     private debounceTimeout: NodeJS.Timeout | undefined
     private isWaiting: boolean = false
     private hasDocumentChangedSinceInvocation: boolean = false
+    private readonly streakTracker: StreakTracker
 
     constructor(
         readonly logging: Logging,
@@ -60,6 +62,7 @@ export class EditCompletionHandler {
         this.editsEnabled =
             this.clientMetadata.initializationOptions?.aws?.awsClientCapabilities?.textDocument
                 ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
+        this.streakTracker = StreakTracker.getInstance()
     }
 
     get codeWhispererService() {
@@ -264,7 +267,7 @@ export class EditCompletionHandler {
         if (currentSession && currentSession.state === 'ACTIVE') {
             // Emit user trigger decision at session close time for active session
             this.sessionManager.discardSession(currentSession)
-            const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0
+            const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             await emitUserTriggerDecisionTelemetry(
                 this.telemetry,
                 this.telemetryService,
@@ -335,7 +338,7 @@ export class EditCompletionHandler {
         if (session.discardInflightSessionOnNewInvocation) {
             session.discardInflightSessionOnNewInvocation = false
             this.sessionManager.discardSession(session)
-            const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0
+            const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             await emitUserTriggerDecisionTelemetry(
                 this.telemetry,
                 this.telemetryService,
@@ -359,7 +362,7 @@ export class EditCompletionHandler {
                 this.telemetryService,
                 session,
                 this.documentChangedListener.timeSinceLastUserModification,
-                this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0
+                this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             )
             return EMPTY_RESULT
         }
