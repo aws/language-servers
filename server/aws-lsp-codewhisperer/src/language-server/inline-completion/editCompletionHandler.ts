@@ -23,12 +23,12 @@ import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/lang
 import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import { shouldTriggerEdits } from './trigger'
 import {
-    emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
 } from './telemetry'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
+import { mergeEditSuggestionsWithFileContext } from './mergeRightUtils'
 import { textUtils } from '@aws/lsp-core'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { RejectedEditTracker } from './tracker/rejectedEditTracker'
@@ -353,16 +353,35 @@ export class EditCompletionHandler {
         this.sessionManager.activateSession(session)
 
         // Process suggestions to apply Empty or Filter filters
-        if (suggestionResponse.suggestions.length === 0) {
-            this.sessionManager.closeSession(session)
-            await emitEmptyUserTriggerDecisionTelemetry(
-                this.telemetryService,
-                session,
-                this.documentChangedListener.timeSinceLastUserModification,
-                this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0
-            )
-            return EMPTY_RESULT
-        }
+        const filteredSuggestions = suggestionResponse.suggestions
+            // Empty suggestion filter
+            .filter(suggestion => {
+                if (suggestion.content === '') {
+                    session.setSuggestionState(suggestion.itemId, 'Empty')
+                    return false
+                }
+
+                return true
+            })
+            // References setting filter
+            .filter(suggestion => {
+                // State to track whether code with references should be included in
+                // the response. No locking or concurrency controls, filtering is done
+                // right before returning and is only guaranteed to be consistent within
+                // the context of a single response.
+                const { includeSuggestionsWithCodeReferences } = this.amazonQServiceManager.getConfiguration()
+                if (includeSuggestionsWithCodeReferences) {
+                    return true
+                }
+
+                if (suggestion.references == null || suggestion.references.length === 0) {
+                    return true
+                }
+
+                // Filter out suggestions that have references when includeSuggestionsWithCodeReferences setting is true
+                session.setSuggestionState(suggestion.itemId, 'Filter')
+                return false
+            })
 
         return {
             items: suggestionResponse.suggestions
