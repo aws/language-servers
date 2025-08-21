@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.75](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.74...lsp-codewhisperer/v0.0.75) (2025-08-21)
+
+
+### Bug Fixes
+
+* **amazonq:** don't let flare send discard for the still valid suggestion in JB ([#2145](https://github.com/aws/language-servers/issues/2145)) ([0767e07](https://github.com/aws/language-servers/commit/0767e074c91682a91d2fe7a6b2a7369c4dea280c))
+
 ## [0.0.74](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.73...lsp-codewhisperer/v0.0.74) (2025-08-19)
 
 
