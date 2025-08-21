@@ -304,8 +304,6 @@ export class SessionManager {
     }
 
     public createSession(data: SessionData): CodeWhispererSession {
-        this.closeCurrentSession()
-
         // Remove oldest session from log
         if (this.sessionsLog.length > this.maxHistorySize) {
             this.sessionsLog.shift()
@@ -324,12 +322,6 @@ export class SessionManager {
         this.sessionsLog.push(session)
 
         return session
-    }
-
-    closeCurrentSession() {
-        if (this.currentSession) {
-            this.closeSession(this.currentSession)
-        }
     }
 
     closeSession(session: CodeWhispererSession) {
