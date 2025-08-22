@@ -52,6 +52,9 @@
             "path": "./server/aws-lsp-partiql"
         },
         {
+            "path": "./server/device-sso-auth-lsp"
+        },
+        {
             "path": "./app/aws-lsp-buildspec-runtimes"
         },
         {
