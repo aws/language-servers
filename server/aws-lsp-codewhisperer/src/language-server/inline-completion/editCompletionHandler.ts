@@ -23,12 +23,12 @@ import { CodewhispererLanguage, getSupportedLanguageId } from '../../shared/lang
 import { WorkspaceFolderManager } from '../workspaceContext/workspaceFolderManager'
 import { shouldTriggerEdits } from './trigger'
 import {
+    emitEmptyUserTriggerDecisionTelemetry,
     emitServiceInvocationFailure,
     emitServiceInvocationTelemetry,
     emitUserTriggerDecisionTelemetry,
 } from './telemetry'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
-import { mergeEditSuggestionsWithFileContext } from './mergeRightUtils'
 import { textUtils } from '@aws/lsp-core'
 import { AmazonQBaseServiceManager } from '../../shared/amazonQServiceManager/BaseAmazonQServiceManager'
 import { RejectedEditTracker } from './tracker/rejectedEditTracker'
@@ -36,12 +36,14 @@ import { getErrorMessage, hasConnectionExpired } from '../../shared/utils'
 import { AmazonQError, AmazonQServiceConnectionExpiredError } from '../../shared/amazonQServiceManager/errors'
 import { DocumentChangedListener } from './documentChangedListener'
 import { EMPTY_RESULT, EDIT_DEBOUNCE_INTERVAL_MS } from './constants'
+import { StreakTracker } from './tracker/streakTracker'
 
 export class EditCompletionHandler {
     private readonly editsEnabled: boolean
     private debounceTimeout: NodeJS.Timeout | undefined
     private isWaiting: boolean = false
     private hasDocumentChangedSinceInvocation: boolean = false
+    private readonly streakTracker: StreakTracker
 
     constructor(
         readonly logging: Logging,
@@ -60,6 +62,7 @@ export class EditCompletionHandler {
         this.editsEnabled =
             this.clientMetadata.initializationOptions?.aws?.awsClientCapabilities?.textDocument
                 ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
+        this.streakTracker = StreakTracker.getInstance()
     }
 
     get codeWhispererService() {
@@ -264,7 +267,7 @@ export class EditCompletionHandler {
         if (currentSession && currentSession.state === 'ACTIVE') {
             // Emit user trigger decision at session close time for active session
             this.sessionManager.discardSession(currentSession)
-            const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0
+            const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             await emitUserTriggerDecisionTelemetry(
                 this.telemetry,
                 this.telemetryService,
@@ -335,7 +338,7 @@ export class EditCompletionHandler {
         if (session.discardInflightSessionOnNewInvocation) {
             session.discardInflightSessionOnNewInvocation = false
             this.sessionManager.discardSession(session)
-            const streakLength = this.editsEnabled ? this.sessionManager.getAndUpdateStreakLength(false) : 0
+            const streakLength = this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
             await emitUserTriggerDecisionTelemetry(
                 this.telemetry,
                 this.telemetryService,
@@ -353,35 +356,16 @@ export class EditCompletionHandler {
         this.sessionManager.activateSession(session)
 
         // Process suggestions to apply Empty or Filter filters
-        const filteredSuggestions = suggestionResponse.suggestions
-            // Empty suggestion filter
-            .filter(suggestion => {
-                if (suggestion.content === '') {
-                    session.setSuggestionState(suggestion.itemId, 'Empty')
-                    return false
-                }
-
-                return true
-            })
-            // References setting filter
-            .filter(suggestion => {
-                // State to track whether code with references should be included in
-                // the response. No locking or concurrency controls, filtering is done
-                // right before returning and is only guaranteed to be consistent within
-                // the context of a single response.
-                const { includeSuggestionsWithCodeReferences } = this.amazonQServiceManager.getConfiguration()
-                if (includeSuggestionsWithCodeReferences) {
-                    return true
-                }
-
-                if (suggestion.references == null || suggestion.references.length === 0) {
-                    return true
-                }
-
-                // Filter out suggestions that have references when includeSuggestionsWithCodeReferences setting is true
-                session.setSuggestionState(suggestion.itemId, 'Filter')
-                return false
-            })
+        if (suggestionResponse.suggestions.length === 0) {
+            this.sessionManager.closeSession(session)
+            await emitEmptyUserTriggerDecisionTelemetry(
+                this.telemetryService,
+                session,
+                this.documentChangedListener.timeSinceLastUserModification,
+                this.editsEnabled ? this.streakTracker.getAndUpdateStreakLength(false) : 0
+            )
+            return EMPTY_RESULT
+        }
 
         return {
             items: suggestionResponse.suggestions
@@ -422,6 +406,7 @@ export class EditCompletionHandler {
         this.logging.log('Recommendation failure: ' + error)
         emitServiceInvocationFailure(this.telemetry, session, error)
 
+        // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions
         this.sessionManager.closeSession(session)
 
         let translatedError = error
