@@ -42,15 +42,55 @@ export class OAuthClient {
 
     /**
      * Return a valid Bearer token, reusing cache or refresh-token if possible,
-     * otherwise driving one interactive PKCE flow.
+     * otherwise (when interactive) driving one PKCE flow that may launch a browser.
      */
-    public static async getValidAccessToken(mcpBase: URL): Promise<string> {
+    public static async getValidAccessToken(
+        mcpBase: URL,
+        opts: { interactive?: boolean } = { interactive: true }
+    ): Promise<string | undefined> {
+        const interactive = opts?.interactive !== false
         const key = this.computeKey(mcpBase)
         const regPath = path.join(this.cacheDir, `${key}.registration.json`)
         const tokPath = path.join(this.cacheDir, `${key}.token.json`)
 
+        // ===== Silent branch: try cached token, then refresh, never opens a browser =====
+        if (!interactive) {
+            // 1) cached access token
+            const cachedTok = await this.read<Token>(tokPath)
+            if (cachedTok) {
+                const expiry = cachedTok.obtained_at + cachedTok.expires_in * 1000
+                if (Date.now() < expiry) {
+                    this.logger.info(`OAuth: using still-valid cached token (silent)`)
+                    return cachedTok.access_token
+                }
+                this.logger.info(`OAuth: cached token expired → try refresh (silent)`)
+            }
+
+            // 2) refresh-token grant (if we have registration and refresh token)
+            const savedReg = await this.read<Registration>(regPath)
+            if (cachedTok?.refresh_token && savedReg) {
+                try {
+                    const meta = await this.discoverAS(mcpBase)
+                    const refreshed = await this.refreshGrant(meta, savedReg, mcpBase, cachedTok.refresh_token)
+                    if (refreshed) {
+                        await this.write(tokPath, refreshed)
+                        this.logger.info(`OAuth: refresh grant succeeded (silent)`)
+                        return refreshed.access_token
+                    }
+                    this.logger.info(`OAuth: refresh grant did not succeed (silent)`)
+                } catch (e) {
+                    this.logger.warn(`OAuth: silent refresh failed — ${e instanceof Error ? e.message : String(e)}`)
+                }
+            }
+
+            // 3) no token in silent mode → caller should surface auth-required UI
+            return undefined
+        }
+
+        // ===== Interactive branch: may open a browser (PKCE) =====
         // 1) Spin up (or reuse) loopback server + redirect URI
-        let server: http.Server, redirectUri: string
+        let server: http.Server | null = null
+        let redirectUri: string
         const savedReg = await this.read<Registration>(regPath)
         if (savedReg) {
             const port = Number(new URL(savedReg.redirect_uri).port)
@@ -75,7 +115,9 @@ export class OAuthClient {
                 }
             }
         } else {
-            ;({ server, redirectUri } = await this.buildCallbackServer())
+            const created = await this.buildCallbackServer()
+            server = created.server
+            redirectUri = created.redirectUri
             this.logger.info(`OAuth: new redirect URI ${redirectUri}`)
         }
 
@@ -85,7 +127,7 @@ export class OAuthClient {
             if (cached) {
                 const expiry = cached.obtained_at + cached.expires_in * 1000
                 if (Date.now() < expiry) {
-                    this.logger.info(`OAuth: using still‑valid cached token`)
+                    this.logger.info(`OAuth: using still-valid cached token`)
                     return cached.access_token
                 }
                 this.logger.info(`OAuth: cached token expired → try refresh`)
@@ -98,6 +140,7 @@ export class OAuthClient {
             } catch (e: any) {
                 throw new Error(`OAuth discovery failed: ${e?.message ?? String(e)}`)
             }
+
             // 4) Register (or reuse) a dynamic client
             const scopes = ['openid', 'offline_access']
             let reg: Registration
@@ -107,7 +150,7 @@ export class OAuthClient {
                 throw new Error(`OAuth client registration failed: ${e?.message ?? String(e)}`)
             }
 
-            // 5) Refresh‑token grant (one shot)
+            // 5) Refresh-token grant (one shot)
             const attemptedRefresh = !!cached?.refresh_token
             if (cached?.refresh_token) {
                 const refreshed = await this.refreshGrant(meta, reg, mcpBase, cached.refresh_token)
@@ -129,7 +172,9 @@ export class OAuthClient {
                 throw new Error(`OAuth authorization (PKCE) failed${suffix}: ${e?.message ?? String(e)}`)
             }
         } finally {
-            await new Promise<void>(res => server.close(() => res()))
+            if (server) {
+                await new Promise<void>(res => server!.close(() => res()))
+            }
         }
     }
 
