@@ -1907,34 +1907,9 @@ export class AgenticChatController implements ChatHandlers {
                     }
                     case CodeReview.toolName:
                     case DisplayFindings.toolName:
-                        // no need to write tool message for CodeReview or DisplayFindings
-                        break
+                    // no need to write tool message for CodeReview or DisplayFindings
                     case SemanticSearch.toolName:
-                        const confirmation = this.#processToolConfirmation(
-                            toolUse,
-                            true, // TODO: Do we need to make this a variable?
-                            `About to invoke tool “${SemanticSearch.toolName}”. Do you want to proceed?`,
-                            undefined,
-                            SemanticSearch.toolName // Pass the original tool name here
-                        )
-                        cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmation)
-                        await this.waitForToolApproval(
-                            toolUse,
-                            chatResultStream,
-                            cachedButtonBlockId,
-                            session,
-                            SemanticSearch.toolName
-                        )
-                        // Store the blockId in the session for later use
-                        if (toolUse.toolUseId) {
-                            // Use a type assertion to add the runningCardBlockId property
-                            const toolUseWithBlockId = {
-                                ...toolUse,
-                                cachedButtonBlockId,
-                            } as typeof toolUse & { cachedButtonBlockId: number }
-
-                            session.toolUseLookup.set(toolUse.toolUseId, toolUseWithBlockId)
-                        }
+                        // For internal A/B we don't need tool message
                         break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
@@ -4760,8 +4735,8 @@ export class AgenticChatController implements ChatHandlers {
             codeWhispererServiceToken
                 .listFeatureEvaluations({ userContext })
                 .then(result => {
-                    const feature = result.featureEvaluations?.find(
-                        feature => feature.feature === 'MaestroWorkspaceContext'
+                    const feature = result.featureEvaluations?.find(feature =>
+                        ['MaestroWorkspaceContext', 'SematicSearchTool'].includes(feature.feature)
                     )
                     if (feature) {
                         this.#abTestingAllocation = {

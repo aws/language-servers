@@ -59,6 +59,7 @@ export class WorkspaceFolderManager {
     private messageQueueConsumerInterval: NodeJS.Timeout | undefined
     private isOptedOut: boolean = false
     private featureDisabled: boolean = false // Serve as a server-side control. If true, stop WCS features
+    private semanticSearchToolEnabled: boolean = false
     private isCheckingRemoteWorkspaceStatus: boolean = false
     private isArtifactUploadedToRemoteWorkspace: boolean = false
 
@@ -154,6 +155,10 @@ export class WorkspaceFolderManager {
 
     isFeatureDisabled(): boolean {
         return this.featureDisabled
+    }
+
+    setSemanticSearchToolStatus(semanticSearchToolEnabled: boolean): void {
+        this.semanticSearchToolEnabled = semanticSearchToolEnabled
     }
 
     getWorkspaceState(): WorkspaceState {
@@ -333,7 +338,9 @@ export class WorkspaceFolderManager {
         this.workspaceState.remoteWorkspaceState = 'CONNECTED'
         this.workspaceState.webSocketClient = webSocketClient
         this.workspaceState.environmentId = existingMetadata.environmentId
-        this.registerSemanticSearchTool()
+        if (this.semanticSearchToolEnabled) {
+            this.registerSemanticSearchTool()
+        }
     }
 
     initializeWorkspaceStatusMonitor() {
@@ -453,6 +460,9 @@ export class WorkspaceFolderManager {
         try {
             if (IdleWorkspaceManager.isSessionIdle()) {
                 this.resetWebSocketClient()
+                if (this.semanticSearchToolEnabled) {
+                    this.removeSemanticSearchTool()
+                }
                 this.logging.log('Session is idle, skipping remote workspace status check')
                 return
             }
@@ -681,11 +691,15 @@ export class WorkspaceFolderManager {
     private registerSemanticSearchTool() {
         const existingTool = this.agent.getTools().find(tool => tool.name === SemanticSearch.toolName)
         if (!existingTool) {
-            const semanticSearchTool = new SemanticSearch(this.logging, this.credentialsProvider)
+            const semanticSearchTool = new SemanticSearch(
+                this.logging,
+                this.credentialsProvider,
+                this.serviceManager.getRegion() || 'us-east-1'
+            )
             this.agent.addTool(
                 semanticSearchTool.getSpec(),
                 async (input: SemanticSearchParams) => {
-                    await semanticSearchTool.validate(input)
+                    semanticSearchTool.validate(input)
                     return await semanticSearchTool.invoke(input)
                 },
                 ToolClassification.BuiltIn
