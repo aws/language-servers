@@ -42,6 +42,10 @@ import { OAuthClient } from './mcpOauthClient'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
+export enum AuthIntent {
+    Interactive = 'interactive',
+    Silent = 'silent',
+}
 
 /**
  * Manages MCP servers and their tools
@@ -166,7 +170,7 @@ export class McpManager {
     /**
      * Load configurations and initialize each enabled server.
      */
-    private async discoverAllServers(): Promise<void> {
+    private async discoverAllServers(authIntent: AuthIntent = AuthIntent.Silent): Promise<void> {
         // Load agent config
         const result = await loadAgentConfig(this.features.workspace, this.features.logging, this.agentPaths)
 
@@ -217,7 +221,7 @@ export class McpManager {
             // Process servers in batches
             for (let i = 0; i < totalServers; i += MAX_CONCURRENT_SERVERS) {
                 const batch = serversToInit.slice(i, i + MAX_CONCURRENT_SERVERS)
-                const batchPromises = batch.map(([name, cfg]) => this.initOneServer(name, cfg))
+                const batchPromises = batch.map(([name, cfg]) => this.initOneServer(name, cfg, authIntent))
 
                 this.features.logging.debug(
                     `MCP: initializing batch of ${batch.length} servers (${i + 1}-${Math.min(i + MAX_CONCURRENT_SERVERS, totalServers)} of ${totalServers})`
@@ -292,7 +296,11 @@ export class McpManager {
      * Start a server process, connect client, and register its tools.
      * Errors are logged but do not stop discovery of other servers.
      */
-    private async initOneServer(serverName: string, cfg: MCPServerConfig): Promise<void> {
+    private async initOneServer(
+        serverName: string,
+        cfg: MCPServerConfig,
+        authIntent: AuthIntent = AuthIntent.Silent
+    ): Promise<void> {
         const DEFAULT_SERVER_INIT_TIMEOUT_MS = 60_000
         this.setState(serverName, McpServerStatus.INITIALIZING, 0)
 
@@ -365,10 +373,19 @@ export class McpManager {
 
                         if (needsOAuth) {
                             OAuthClient.initialize(this.features.workspace, this.features.logging)
-                            const bearer = await OAuthClient.getValidAccessToken(base)
+                            const bearer = await OAuthClient.getValidAccessToken(base, {
+                                interactive: authIntent === 'interactive',
+                            })
                             // add authorization header if we are able to obtain a bearer token
                             if (bearer) {
                                 headers = { ...headers, Authorization: `Bearer ${bearer}` }
+                            } else if (authIntent === 'silent') {
+                                // In silent mode we never launch a browser. If we cannot obtain a token
+                                // from cache/refresh, surface a clear auth-required error and stop here.
+                                throw new AgenticChatError(
+                                    `MCP: server '${serverName}' requires OAuth. Open "Edit MCP Server" and save to sign in.`,
+                                    'MCPServerAuthFailed'
+                                )
                             }
                         }
 
@@ -707,7 +724,7 @@ export class McpManager {
             await saveAgentConfig(this.features.workspace, this.features.logging, this.agentConfig, agentPath)
 
             // Add server tools to tools list after initialization
-            await this.initOneServer(sanitizedName, newCfg)
+            await this.initOneServer(sanitizedName, newCfg, AuthIntent.Interactive)
         } catch (err) {
             this.features.logging.error(
                 `Failed to add MCP server '${serverName}': ${err instanceof Error ? err.message : String(err)}`
@@ -872,7 +889,7 @@ export class McpManager {
                 this.setState(serverName, McpServerStatus.DISABLED, 0)
                 this.emitToolsChanged(serverName)
             } else {
-                await this.initOneServer(serverName, newCfg)
+                await this.initOneServer(serverName, newCfg, AuthIntent.Interactive)
             }
         } catch (err) {
             this.handleError(serverName, err)
@@ -1086,7 +1103,7 @@ export class McpManager {
                 this.setState(serverName, McpServerStatus.DISABLED, 0)
             } else {
                 if (!this.clients.has(serverName) && serverName !== 'Built-in') {
-                    await this.initOneServer(serverName, this.mcpServers.get(serverName)!)
+                    await this.initOneServer(serverName, this.mcpServers.get(serverName)!, AuthIntent.Silent)
                 }
             }
 
