@@ -110,7 +110,7 @@ export const QAgenticChatServer =
                 )
             )
 
-            const userContext = makeUserContextObject(clientParams, runtime.platform, 'CHAT')
+            const userContext = makeUserContextObject(clientParams, runtime.platform, 'CHAT', amazonQServiceManager.serverInfo)
             telemetryService.updateUserContext(userContext)
 
             chatController = new AgenticChatController(

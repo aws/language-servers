@@ -1503,7 +1503,7 @@ describe('CodeWhisperer Server', () => {
             manager.activateSession(session)
             const session2 = manager.createSession(sessionData)
             manager.activateSession(session2)
-            assert.equal(session.state, 'CLOSED')
+            assert.equal(session.state, 'ACTIVE')
             assert.equal(session2.state, 'ACTIVE')
 
             await features.doLogInlineCompletionSessionResults(sessionResultData)
@@ -2298,39 +2298,6 @@ describe('CodeWhisperer Server', () => {
             assert(currentSession)
             assert.equal(currentSession?.state, 'CLOSED')
             sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
-        })
-
-        it('Manual completion invocation should close previous session', async () => {
-            const TRIGGER_KIND = InlineCompletionTriggerKind.Invoked
-
-            const result = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    // Manual trigger kind
-                    context: { triggerKind: TRIGGER_KIND },
-                },
-                CancellationToken.None
-            )
-
-            assert.deepEqual(result, EXPECTED_RESULT)
-            const firstSession = sessionManager.getActiveSession()
-
-            // There is ACTIVE session
-            assert(firstSession)
-            assert.equal(sessionManager.getCurrentSession(), firstSession)
-            assert.equal(firstSession.state, 'ACTIVE')
-
-            const secondResult = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: TRIGGER_KIND },
-                },
-                CancellationToken.None
-            )
-            assert.deepEqual(secondResult, { ...EXPECTED_RESULT, sessionId: SESSION_IDS_LOG[1] })
-            sinon.assert.called(sessionManagerSpy.closeCurrentSession)
         })
 
         it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {

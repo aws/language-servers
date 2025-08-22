@@ -46,6 +46,7 @@ import { UserWrittenCodeTracker } from '../../shared/userWrittenCodeTracker'
 import { RecentEditTracker, RecentEditTrackerDefaultConfig } from './tracker/codeEditTracker'
 import { CursorTracker } from './tracker/cursorTracker'
 import { RejectedEditTracker, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG } from './tracker/rejectedEditTracker'
+import { StreakTracker } from './tracker/streakTracker'
 import { getAddedAndDeletedLines, getCharacterDifferences } from './diffUtils'
 import {
     emitPerceivedLatencyTelemetry,
@@ -129,6 +130,7 @@ export const CodewhispererServerFactory =
         const recentEditTracker = RecentEditTracker.getInstance(logging, RecentEditTrackerDefaultConfig)
         const cursorTracker = CursorTracker.getInstance()
         const rejectedEditTracker = RejectedEditTracker.getInstance(logging, DEFAULT_REJECTED_EDIT_TRACKER_CONFIG)
+        const streakTracker = StreakTracker.getInstance()
         let editsEnabled = false
         let isOnInlineCompletionHandlerInProgress = false
 
@@ -311,34 +313,25 @@ export const CodewhispererServerFactory =
 
                     // Close ACTIVE session and record Discard trigger decision immediately
                     if (currentSession && currentSession.state === 'ACTIVE') {
-                        if (editsEnabled && currentSession.suggestionType === SuggestionType.EDIT) {
-                            const mergedSuggestions = mergeEditSuggestionsWithFileContext(
-                                currentSession,
-                                textDocument,
-                                fileContext
-                            )
-
-                            if (mergedSuggestions.length > 0) {
-                                return {
-                                    items: mergedSuggestions,
-                                    sessionId: currentSession.id,
-                                }
-                            }
-                        }
                         // Emit user trigger decision at session close time for active session
-                        completionSessionManager.discardSession(currentSession)
-                        const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(false) : 0
-                        await emitUserTriggerDecisionTelemetry(
-                            telemetry,
-                            telemetryService,
-                            currentSession,
-                            timeSinceLastUserModification,
-                            0,
-                            0,
-                            [],
-                            [],
-                            streakLength
-                        )
+                        // TODO: yuxqiang workaround to exclude JB from this logic because JB and VSC handle a
+                        // bit differently in the case when there's a new trigger while a reject/discard event is sent
+                        // for the previous trigger
+                        if (ideCategory !== 'JETBRAINS') {
+                            completionSessionManager.discardSession(currentSession)
+                            const streakLength = editsEnabled ? streakTracker.getAndUpdateStreakLength(false) : 0
+                            await emitUserTriggerDecisionTelemetry(
+                                telemetry,
+                                telemetryService,
+                                currentSession,
+                                timeSinceLastUserModification,
+                                0,
+                                0,
+                                [],
+                                [],
+                                streakLength
+                            )
+                        }
                     }
 
                     const supplementalMetadata = supplementalContext?.supContextData
@@ -412,7 +405,7 @@ export const CodewhispererServerFactory =
             if (session.discardInflightSessionOnNewInvocation) {
                 session.discardInflightSessionOnNewInvocation = false
                 completionSessionManager.discardSession(session)
-                const streakLength = editsEnabled ? completionSessionManager.getAndUpdateStreakLength(false) : 0
+                const streakLength = editsEnabled ? streakTracker.getAndUpdateStreakLength(false) : 0
                 await emitUserTriggerDecisionTelemetry(
                     telemetry,
                     telemetryService,
@@ -468,93 +461,57 @@ export const CodewhispererServerFactory =
                     return false
                 })
 
-            if (suggestionResponse.suggestionType === SuggestionType.COMPLETION) {
-                const { includeImportsWithSuggestions } = amazonQServiceManager.getConfiguration()
-                const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
-                    session.requestContext.fileContext.rightFileContent,
-                    filteredSuggestions,
-                    includeImportsWithSuggestions,
-                    selectionRange
-                ).filter(suggestion => {
-                    // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
-                    if (suggestion.insertText === '') {
-                        session.setSuggestionState(suggestion.itemId, 'Discard')
-                        return false
-                    }
-
-                    return true
-                })
-
-                suggestionsWithRightContext.forEach(suggestion => {
-                    const cachedSuggestion = session.suggestions.find(s => s.itemId === suggestion.itemId)
-                    if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
-                })
-
-                // TODO: need dedupe after right context merging but I don't see one
-                session.suggestionsAfterRightContextMerge.push(...suggestionsWithRightContext)
-
-                session.codewhispererSuggestionImportCount =
-                    session.codewhispererSuggestionImportCount +
-                    suggestionsWithRightContext.reduce((total, suggestion) => {
-                        return total + (suggestion.mostRelevantMissingImports?.length || 0)
-                    }, 0)
-
-                // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
-                // close session and return empty results
-                if (
-                    session.suggestionsAfterRightContextMerge.length === 0 &&
-                    !suggestionResponse.responseContext.nextToken
-                ) {
-                    completionSessionManager.closeSession(session)
-                    await emitUserTriggerDecisionTelemetry(
-                        telemetry,
-                        telemetryService,
-                        session,
-                        timeSinceLastUserModification
-                    )
-
-                    return EMPTY_RESULT
+            const { includeImportsWithSuggestions } = amazonQServiceManager.getConfiguration()
+            const suggestionsWithRightContext = mergeSuggestionsWithRightContext(
+                session.requestContext.fileContext.rightFileContent,
+                filteredSuggestions,
+                includeImportsWithSuggestions,
+                selectionRange
+            ).filter(suggestion => {
+                // Discard suggestions that have empty string insertText after right context merge and can't be displayed anymore
+                if (suggestion.insertText === '') {
+                    session.setSuggestionState(suggestion.itemId, 'Discard')
+                    return false
                 }
 
-                return {
-                    items: suggestionsWithRightContext,
-                    sessionId: session.id,
-                    partialResultToken: suggestionResponse.responseContext.nextToken,
-                }
-            } else {
-                return {
-                    items: suggestionResponse.suggestions
-                        .map(suggestion => {
-                            // Check if this suggestion is similar to a previously rejected edit
-                            const isSimilarToRejected = rejectedEditTracker.isSimilarToRejected(
-                                suggestion.content,
-                                textDocument?.uri || ''
-                            )
+                return true
+            })
 
-                            if (isSimilarToRejected) {
-                                // Mark as rejected in the session
-                                session.setSuggestionState(suggestion.itemId, 'Reject')
-                                logging.debug(
-                                    `[EDIT_PREDICTION] Filtered out suggestion similar to previously rejected edit`
-                                )
-                                // Return empty item that will be filtered out
-                                return {
-                                    insertText: '',
-                                    isInlineEdit: true,
-                                    itemId: suggestion.itemId,
-                                }
-                            }
+            suggestionsWithRightContext.forEach(suggestion => {
+                const cachedSuggestion = session.suggestions.find(s => s.itemId === suggestion.itemId)
+                if (cachedSuggestion) cachedSuggestion.insertText = suggestion.insertText.toString()
+            })
 
-                            return {
-                                insertText: suggestion.content,
-                                isInlineEdit: true,
-                                itemId: suggestion.itemId,
-                            }
-                        })
-                        .filter(item => item.insertText !== ''),
-                    sessionId: session.id,
-                    partialResultToken: suggestionResponse.responseContext.nextToken,
-                }
+            // TODO: need dedupe after right context merging but I don't see one
+            session.suggestionsAfterRightContextMerge.push(...suggestionsWithRightContext)
+
+            session.codewhispererSuggestionImportCount =
+                session.codewhispererSuggestionImportCount +
+                suggestionsWithRightContext.reduce((total, suggestion) => {
+                    return total + (suggestion.mostRelevantMissingImports?.length || 0)
+                }, 0)
+
+            // If after all server-side filtering no suggestions can be displayed, and there is no nextToken
+            // close session and return empty results
+            if (
+                session.suggestionsAfterRightContextMerge.length === 0 &&
+                !suggestionResponse.responseContext.nextToken
+            ) {
+                completionSessionManager.closeSession(session)
+                await emitUserTriggerDecisionTelemetry(
+                    telemetry,
+                    telemetryService,
+                    session,
+                    timeSinceLastUserModification
+                )
+
+                return EMPTY_RESULT
+            }
+
+            return {
+                items: suggestionsWithRightContext,
+                sessionId: session.id,
+                partialResultToken: suggestionResponse.responseContext.nextToken,
             }
         }
 
@@ -565,6 +522,7 @@ export const CodewhispererServerFactory =
             logging.log('Recommendation failure: ' + error)
             emitServiceInvocationFailure(telemetry, session, error)
 
+            // UTDE telemetry is not needed here because in error cases we don't care about UTDE for errored out sessions
             completionSessionManager.closeSession(session)
 
             let translatedError = error
@@ -706,7 +664,7 @@ export const CodewhispererServerFactory =
 
             // Always emit user trigger decision at session close
             sessionManager.closeSession(session)
-            const streakLength = editsEnabled ? sessionManager.getAndUpdateStreakLength(isAccepted) : 0
+            const streakLength = editsEnabled ? streakTracker.getAndUpdateStreakLength(isAccepted) : 0
             await emitUserTriggerDecisionTelemetry(
                 telemetry,
                 telemetryService,
@@ -759,7 +717,9 @@ export const CodewhispererServerFactory =
                     ?.inlineCompletionWithReferences?.inlineEditSupport ?? false
 
             telemetryService = new TelemetryService(amazonQServiceManager, credentialsProvider, telemetry, logging)
-            telemetryService.updateUserContext(makeUserContextObject(clientParams, runtime.platform, 'INLINE'))
+            telemetryService.updateUserContext(
+                makeUserContextObject(clientParams, runtime.platform, 'INLINE', amazonQServiceManager.serverInfo)
+            )
 
             codePercentageTracker = new CodePercentageTracker(telemetryService)
             codeDiffTracker = new CodeDiffTracker(

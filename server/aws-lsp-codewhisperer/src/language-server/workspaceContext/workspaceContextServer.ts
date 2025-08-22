@@ -188,7 +188,12 @@ export const WorkspaceContextServer = (): Server => features => {
                 abTestingEnabled = true
             } else {
                 const clientParams = safeGet(lsp.getClientInitializeParams())
-                const userContext = makeUserContextObject(clientParams, runtime.platform, 'CodeWhisperer') ?? {
+                const userContext = makeUserContextObject(
+                    clientParams,
+                    runtime.platform,
+                    'CodeWhisperer',
+                    amazonQServiceManager.serverInfo
+                ) ?? {
                     ideCategory: 'VSCODE',
                     operatingSystem: 'MAC',
                     product: 'CodeWhisperer',
@@ -221,6 +226,7 @@ export const WorkspaceContextServer = (): Server => features => {
             isLoggedInUsingBearerToken(credentialsProvider) &&
             abTestingEnabled &&
             !workspaceFolderManager.getOptOutStatus() &&
+            !workspaceFolderManager.isFeatureDisabled() &&
             workspaceIdentifier
         )
     }
@@ -302,7 +308,7 @@ export const WorkspaceContextServer = (): Server => features => {
                     await evaluateABTesting()
                     isWorkflowInitialized = true
 
-                    workspaceFolderManager.resetAdminOptOutStatus()
+                    workspaceFolderManager.resetAdminOptOutAndFeatureDisabledStatus()
                     if (!isUserEligibleForWorkspaceContext()) {
                         return
                     }
