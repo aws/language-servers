@@ -2,7 +2,6 @@ import { InvokeOutput } from '../toolShared'
 import { BearerCredentials, CredentialsProvider, Logging } from '@aws/language-server-runtimes/server-interface'
 import { WorkspaceFolderManager } from '../../../workspaceContext/workspaceFolderManager'
 import axios from 'axios'
-import * as crypto from 'crypto'
 
 export interface SemanticSearchParams {
     query: string
@@ -16,14 +15,15 @@ export interface CodeChunkResult {
 }
 
 export class SemanticSearch {
-    private static readonly REMOTE_WORKSPACE_ENDPOINT_SUFFIX = '--8080.wc.q.us-east-1.amazonaws.com'
     static readonly toolName = 'serverSideSemanticSearch'
 
     private readonly logging: Logging
     private readonly credentialsProvider: CredentialsProvider
-    constructor(logging: Logging, credentialsProvider: CredentialsProvider) {
+    private readonly remoteEndpointSuffix: string
+    constructor(logging: Logging, credentialsProvider: CredentialsProvider, region: string) {
         this.logging = logging
         this.credentialsProvider = credentialsProvider
+        this.remoteEndpointSuffix = `--8080.wc.q.${region}.amazonaws.com`
     }
 
     public async validate(params: SemanticSearchParams): Promise<void> {
@@ -44,7 +44,7 @@ export class SemanticSearch {
         }
 
         const environmentId = remoteWorkspaceState.environmentId
-        const endpoint = `https://${environmentId}${SemanticSearch.REMOTE_WORKSPACE_ENDPOINT_SUFFIX}/getWorkspaceContext`
+        const endpoint = `https://${environmentId}${this.remoteEndpointSuffix}/getWorkspaceContext`
         const response = await axios.post(
             endpoint,
             {
@@ -60,9 +60,6 @@ export class SemanticSearch {
                             },
                         },
                     },
-                },
-                clientMetadata: {
-                    requestIdentifier: crypto.randomUUID(),
                 },
             },
             {

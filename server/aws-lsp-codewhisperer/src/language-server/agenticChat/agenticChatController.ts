@@ -1805,7 +1805,7 @@ export class AgenticChatController implements ChatHandlers {
                     case SemanticSearch.toolName:
                         const confirmation = this.#processToolConfirmation(
                             toolUse,
-                            true, // TODO: Do we need to make this a variable?
+                            true,
                             `About to invoke tool “${SemanticSearch.toolName}”. Do you want to proceed?`,
                             undefined,
                             SemanticSearch.toolName // Pass the original tool name here
@@ -4610,8 +4610,8 @@ export class AgenticChatController implements ChatHandlers {
             codeWhispererServiceToken
                 .listFeatureEvaluations({ userContext })
                 .then(result => {
-                    const feature = result.featureEvaluations?.find(
-                        feature => feature.feature === 'MaestroWorkspaceContext'
+                    const feature = result.featureEvaluations?.find(feature =>
+                        ['MaestroWorkspaceContext', 'SematicSearchTool'].includes(feature.feature)
                     )
                     if (feature) {
                         this.#abTestingAllocation = {
