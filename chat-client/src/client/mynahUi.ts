@@ -827,6 +827,7 @@ export const createMynahUi = (
             // if we want to max user input as 500000, need to configure the maxUserInput as 500096
             maxUserInput: 500096,
             userInputLengthWarningThreshold: 450000,
+            disableTypewriterAnimation: true,
         },
     }
 
