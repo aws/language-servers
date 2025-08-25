@@ -753,6 +753,12 @@ describe('migrateToAgentConfig', () => {
     })
 
     it('migrates when no existing configs exist', async () => {
+        // Create empty MCP config to trigger migration
+        const mcpDir = path.join(tmpDir, '.aws', 'amazonq')
+        fs.mkdirSync(mcpDir, { recursive: true })
+        const mcpPath = path.join(mcpDir, 'mcp.json')
+        fs.writeFileSync(mcpPath, JSON.stringify({ mcpServers: {} }))
+
         await migrateToAgentConfig(workspace, logger, mockAgent)
 
         // Should create default agent config

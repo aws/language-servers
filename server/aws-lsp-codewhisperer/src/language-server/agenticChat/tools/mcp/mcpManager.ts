@@ -786,30 +786,6 @@ export class McpManager {
 
             // Save agent config
             await saveAgentConfig(this.features.workspace, this.features.logging, this.agentConfig, cfg.__configPath__)
-
-            // Get all config paths and delete the server from each one
-            const wsUris = this.features.workspace.getAllWorkspaceFolders()?.map(f => f.uri) ?? []
-            const wsConfigPaths = getWorkspaceMcpConfigPaths(wsUris)
-            const globalConfigPath = getGlobalMcpConfigPath(this.features.workspace.fs.getUserHomeDir())
-            const allConfigPaths = [...wsConfigPaths, globalConfigPath]
-
-            // Delete the server from all config files
-            for (const configPath of allConfigPaths) {
-                try {
-                    await this.mutateConfigFile(configPath, json => {
-                        if (json.mcpServers && json.mcpServers[unsanitizedName]) {
-                            delete json.mcpServers[unsanitizedName]
-                            this.features.logging.info(
-                                `Deleted server '${unsanitizedName}' from config file: ${configPath}`
-                            )
-                        }
-                    })
-                } catch (err) {
-                    this.features.logging.warn(
-                        `Failed to delete server '${unsanitizedName}' from config file ${configPath}: ${err}`
-                    )
-                }
-            }
         }
 
         this.mcpServers.delete(serverName)
