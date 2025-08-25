@@ -35,6 +35,7 @@ enum TransportType {
 }
 
 export class McpEventHandler {
+    private static readonly FILE_WATCH_DEBOUNCE_MS = 2000
     #features: Features
     #eventListenerRegistered: boolean
     #currentEditingServerName: string | undefined
@@ -47,6 +48,12 @@ export class McpEventHandler {
     #debounceTimer: NodeJS.Timeout | null = null
     #lastProgrammaticState: boolean = false
     #serverNameBeforeUpdate: string | undefined
+
+    #releaseProgrammaticAfterDebounce(padMs = 500) {
+        setTimeout(() => {
+            this.#isProgrammaticChange = false
+        }, McpEventHandler.FILE_WATCH_DEBOUNCE_MS + padMs)
+    }
 
     constructor(features: Features, telemetryService: TelemetryService) {
         this.#features = features
@@ -797,7 +804,7 @@ export class McpEventHandler {
             command: selectedTransport === TransportType.STDIO ? params.optionsValues.command : undefined,
             url: selectedTransport === TransportType.HTTP ? params.optionsValues.url : undefined,
             enabled: true,
-            numTools: McpManager.instance.getAllToolsWithPermissions(serverName).length,
+            numTools: McpManager.instance.getAllToolsWithPermissions(sanitizedServerName).length,
             scope: params.optionsValues['scope'] === 'global' ? 'global' : 'workspace',
             transportType: selectedTransport,
             languageServerVersion: this.#features.runtime.serverInfo.version,
@@ -812,6 +819,7 @@ export class McpEventHandler {
 
             // Stay on add/edit page and show error to user
             // Keep isProgrammaticChange true during error handling to prevent file watcher triggers
+            this.#releaseProgrammaticAfterDebounce()
             if (isEditMode) {
                 params.id = 'edit-mcp'
                 params.title = sanitizedServerName
@@ -826,7 +834,7 @@ export class McpEventHandler {
                 this.#newlyAddedServers.delete(serverName)
             }
 
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
 
             // Go to tools permissions page
             return this.#handleOpenMcpServer({ id: 'open-mcp-server', title: sanitizedServerName })
@@ -927,9 +935,10 @@ export class McpEventHandler {
             perm.__configPath__ = agentPath
             await mcpManager.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
+            this.#releaseProgrammaticAfterDebounce()
         } catch (error) {
             this.#features.logging.error(`Failed to enable MCP server: ${error}`)
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
         }
         return { id: params.id }
     }
@@ -953,9 +962,10 @@ export class McpEventHandler {
             perm.__configPath__ = agentPath
             await mcpManager.updateServerPermission(serverName, perm)
             this.#emitMCPConfigEvent()
+            this.#releaseProgrammaticAfterDebounce()
         } catch (error) {
             this.#features.logging.error(`Failed to disable MCP server: ${error}`)
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
         }
 
         return { id: params.id }
@@ -975,11 +985,11 @@ export class McpEventHandler {
 
         try {
             await McpManager.instance.removeServer(serverName)
-
+            this.#releaseProgrammaticAfterDebounce()
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to delete MCP server: ${error}`)
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
             return { id: params.id }
         }
     }
@@ -1262,10 +1272,11 @@ export class McpEventHandler {
             this.#pendingPermissionConfig = undefined
 
             this.#features.logging.info(`Applied permission changes for server: ${serverName}`)
+            this.#releaseProgrammaticAfterDebounce()
             return { id: params.id }
         } catch (error) {
             this.#features.logging.error(`Failed to save MCP permissions: ${error}`)
-            this.#isProgrammaticChange = false
+            this.#releaseProgrammaticAfterDebounce()
             return { id: params.id }
         }
     }
@@ -1430,7 +1441,8 @@ export class McpEventHandler {
      */
     #getServerStatusError(serverName: string): { title: string; icon: string; status: Status } | undefined {
         const serverStates = McpManager.instance.getAllServerStates()
-        const serverState = serverStates.get(serverName)
+        const key = serverName ? sanitizeName(serverName) : serverName
+        const serverState = key ? serverStates.get(key) : undefined
 
         if (!serverState) {
             return undefined
@@ -1494,11 +1506,10 @@ export class McpEventHandler {
                 if (!this.#lastProgrammaticState) {
                     await this.#handleRefreshMCPList({ id: 'refresh-mcp-list' })
                 } else {
-                    this.#isProgrammaticChange = false
                     this.#features.logging.debug('Skipping refresh due to programmatic change')
                 }
                 this.#debounceTimer = null
-            }, 2000)
+            }, McpEventHandler.FILE_WATCH_DEBOUNCE_MS)
         })
     }
 

@@ -113,7 +113,9 @@ describe('OAuthClient getValidAccessToken()', () => {
 
         stubFileSystem(cachedToken, cachedReg)
 
-        const token = await OAuthClient.getValidAccessToken(new URL('https://api.example.com/mcp'))
+        const token = await OAuthClient.getValidAccessToken(new URL('https://api.example.com/mcp'), {
+            interactive: true,
+        })
         expect(token).to.equal('cached_access')
         expect((http.createServer as any).calledOnce).to.be.true
     })
