@@ -9,6 +9,7 @@ import * as path from 'path'
 import { spawn } from 'child_process'
 import { URL, URLSearchParams } from 'url'
 import * as http from 'http'
+import * as os from 'os'
 import { Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
 
 interface Token {
@@ -46,9 +47,9 @@ export class OAuthClient {
      */
     public static async getValidAccessToken(
         mcpBase: URL,
-        opts: { interactive?: boolean } = { interactive: true }
+        opts: { interactive?: boolean } = { interactive: false }
     ): Promise<string | undefined> {
-        const interactive = opts?.interactive !== false
+        const interactive = opts?.interactive === true
         const key = this.computeKey(mcpBase)
         const regPath = path.join(this.cacheDir, `${key}.registration.json`)
         const tokPath = path.join(this.cacheDir, `${key}.token.json`)
@@ -333,6 +334,7 @@ export class OAuthClient {
         redirectUri: string,
         server: http.Server
     ): Promise<Token> {
+        const DEFAULT_PKCE_TIMEOUT_MS = 20_000
         // a) generate PKCE params
         const verifier = this.b64url(crypto.randomBytes(32))
         const challenge = this.b64url(crypto.createHash('sha256').update(verifier).digest())
@@ -353,7 +355,10 @@ export class OAuthClient {
 
         const opener =
             process.platform === 'win32'
-                ? { cmd: 'cmd', args: ['/c', 'start', authz.toString()] }
+                ? {
+                      cmd: 'cmd',
+                      args: ['/c', 'start', '', `"${authz.toString().replace(/"/g, '""')}"`],
+                  }
                 : process.platform === 'darwin'
                   ? { cmd: 'open', args: [authz.toString()] }
                   : { cmd: 'xdg-open', args: [authz.toString()] }
@@ -361,17 +366,26 @@ export class OAuthClient {
         void spawn(opener.cmd, opener.args, { detached: true, stdio: 'ignore' }).unref()
 
         // c) wait for code on our loopback
-        const { code, rxState, err } = await new Promise<{ code: string; rxState: string; err?: string }>(resolve => {
+        const waitForFlow = new Promise<{ code: string; rxState: string; err?: string; errDesc?: string }>(resolve => {
             server.on('request', (req, res) => {
                 const u = new URL(req.url || '/', redirectUri)
                 const c = u.searchParams.get('code') || ''
                 const s = u.searchParams.get('state') || ''
                 const e = u.searchParams.get('error') || undefined
+                const ed = u.searchParams.get('error_description') || undefined
                 res.writeHead(200, { 'content-type': 'text/html' }).end('<h2>You may close this tab.</h2>')
-                resolve({ code: c, rxState: s, err: e })
+                resolve({ code: c, rxState: s, err: e, errDesc: ed })
             })
         })
-        if (err) throw new Error(`Authorization error: ${err}`)
+        const { code, rxState, err, errDesc } = await Promise.race([
+            waitForFlow,
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('authorization_timed_out')), DEFAULT_PKCE_TIMEOUT_MS)
+            ),
+        ])
+        if (err) {
+            throw new Error(`Authorization error: ${err}${errDesc ? ` - ${errDesc}` : ''}`)
+        }
         if (!code || rxState !== state) throw new Error('Invalid authorization response (state mismatch)')
 
         // d) exchange code for token
@@ -438,12 +452,7 @@ export class OAuthClient {
     }
 
     /** Directory for caching registration + tokens */
-    private static readonly cacheDir = path.join(
-        process.env.HOME || process.env.USERPROFILE || '.',
-        '.aws',
-        'sso',
-        'cache'
-    )
+    private static readonly cacheDir = path.join(os.homedir(), '.aws', 'sso', 'cache')
 
     /**
      * Await server.listen() but reject if it emits 'error' (eg EADDRINUSE),
