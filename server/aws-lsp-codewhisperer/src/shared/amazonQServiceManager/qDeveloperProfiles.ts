@@ -38,17 +38,20 @@ export const getListAllAvailableProfilesHandler =
     (service: (region: string, endpoint: string) => CodeWhispererServiceToken): ListAllAvailableProfilesHandler =>
     async ({ connectionType, logging, endpoints, token }): Promise<AmazonQDeveloperProfile[]> => {
         if (!connectionType || connectionType !== 'identityCenter') {
-            logging.debug('Connection type is not set or not identityCenter - returning empty response.')
+            logging.debug(
+                `Q Developer Profile Search: Connection type '${connectionType}' is not supported. Only 'identityCenter' connections can access Q Developer profiles - returning empty response.`
+            )
             return []
         }
 
         let allProfiles: AmazonQDeveloperProfile[] = []
         const qEndpoints = endpoints ?? AWS_Q_ENDPOINTS
 
-        // Log all regions we're going to try
-        logging.log(
-            `Attempting to fetch profiles from ${qEndpoints.size} regions: ${Array.from(qEndpoints.keys()).join(', ')}`
-        )
+        logging.log(`Q Developer Profile Discovery: Starting search across ${qEndpoints.size} regions`)
+        logging.log(`Q Developer Profile Discovery: Regions to search: ${Array.from(qEndpoints.keys()).join(', ')}`)
+        qEndpoints.forEach((endpoint, region) => {
+            logging.log(`Q Developer Profile Discovery: ${region} endpoint: ${endpoint}`)
+        })
 
         if (token.isCancellationRequested) {
             return []
@@ -56,7 +59,9 @@ export const getListAllAvailableProfilesHandler =
 
         const result = await Promise.allSettled(
             Array.from(qEndpoints.entries(), ([region, endpoint]) => {
-                logging.log(`Creating service client for region: ${region}`)
+                logging.log(
+                    `Q Developer Profile Discovery: Setting up CodeWhisperer service client for ${region} (${endpoint})`
+                )
                 const codeWhispererService = service(region, endpoint)
                 return fetchProfilesFromRegion(codeWhispererService, region, logging, token)
             })
@@ -66,20 +71,39 @@ export const getListAllAvailableProfilesHandler =
             return []
         }
 
-        // Log detailed results from each region
+        logging.log(`Q Developer Profile Discovery: Search results summary:`)
         try {
             result.forEach((settledResult, index) => {
                 const [region, endpoint] = Array.from(qEndpoints.entries())[index]
                 if (settledResult.status === 'fulfilled') {
                     const profiles = settledResult.value
-                    logging.log(`Successfully fetched ${profiles.length} profiles from region: ${region}`)
+                    logging.log(`Q Developer Profile Discovery: SUCCESS ${region}: Found ${profiles.length} profile(s)`)
+                    if (profiles.length > 0) {
+                        profiles.forEach(profile => {
+                            logging.log(
+                                `Q Developer Profile Discovery: Profile found - Name: ${profile.name}, ARN: ${profile.arn}`
+                            )
+                        })
+                    }
                 } else {
-                    logging.error(
-                        `Failed to fetch profiles from region: ${region}, error: ${settledResult.reason?.name || 'unknown'}, message: ${settledResult.reason?.message || 'No message'}`
+                    const error = settledResult.reason
+                    logging.log(`Q Developer Profile Discovery: FAILED ${region}: ${error?.name || 'Unknown Error'}`)
+                    logging.log(
+                        `Q Developer Profile Discovery: Error details - ${error?.message || 'No error message'}`
                     )
+                    if (error?.statusCode) {
+                        logging.log(`Q Developer Profile Discovery: HTTP Status Code: ${error.statusCode}`)
+                    }
+                    if (error?.retryable) {
+                        logging.log(
+                            `Q Developer Profile Discovery: This error is retryable - service may be temporarily unavailable`
+                        )
+                    }
                 }
             })
-        } catch (loggingError) {}
+        } catch (loggingError) {
+            logging.error(`Q Developer Profile Discovery: Error during results logging: ${loggingError}`)
+        }
 
         const fulfilledResults = result.filter(settledResult => settledResult.status === 'fulfilled')
         const hasThrottlingError = result.some(
@@ -98,14 +122,30 @@ export const getListAllAvailableProfilesHandler =
 
         fulfilledResults.forEach(fulfilledResult => allProfiles.push(...fulfilledResult.value))
 
-        // Log summary of all profiles fetched
         try {
-            logging.log(`Total profiles fetched: ${allProfiles.length}`)
+            logging.log(
+                `Q Developer Profile Discovery: Final results - Found ${allProfiles.length} total profile(s) across all regions`
+            )
             if (allProfiles.length > 0) {
-                logging.log(`Profile names: ${allProfiles.map(p => p.name).join(', ')}`)
-                logging.log(`Profile regions: ${allProfiles.map(p => p.identityDetails?.region).join(', ')}`)
+                logging.log(`Q Developer Profile Discovery: Available profiles summary:`)
+                allProfiles.forEach(profile => {
+                    logging.log(
+                        `Q Developer Profile Discovery: Profile - Name: ${profile.name}, Region: ${profile.identityDetails?.region}`
+                    )
+                    logging.log(`Q Developer Profile Discovery: Profile ARN: ${profile.arn}`)
+                })
+            } else {
+                logging.log(
+                    `Q Developer Profile Discovery: WARNING - No profiles found in any region. Possible causes:`
+                )
+                logging.log(
+                    `Q Developer Profile Discovery: - No Q Developer profiles are configured in your AWS account`
+                )
+                logging.log(`Q Developer Profile Discovery: - Service connectivity issues (check error details above)`)
             }
-        } catch (loggingError) {}
+        } catch (loggingError) {
+            logging.error(`Q Developer Profile Discovery: Error during summary logging: ${loggingError}`)
+        }
 
         // Check for partial throttling
         if (hasThrottlingError && allProfiles.length == 0) {
@@ -127,13 +167,13 @@ async function fetchProfilesFromRegion(
     let numberOfPages = 0
 
     try {
-        logging.log(`Starting profile fetch from region: ${region}`)
+        logging.log(`Q Developer Profile Search: Starting profile search in region ${region}`)
 
         do {
-            logging.debug(`Fetching profiles from region: ${region} (page: ${numberOfPages + 1})`)
-
             if (token.isCancellationRequested) {
-                logging.debug(`Cancellation requested during profile fetch from region: ${region}`)
+                logging.log(
+                    `Q Developer Profile Search: Search cancelled for region ${region} at page ${numberOfPages + 1}`
+                )
                 return allRegionalProfiles
             }
 
@@ -141,11 +181,11 @@ async function fetchProfilesFromRegion(
                 maxResults: MAX_Q_DEVELOPER_PROFILES_PER_PAGE,
                 nextToken: nextToken,
             }
-            logging.debug(`Request params for region ${region}: ${JSON.stringify(requestParams)}`)
+            logging.debug(
+                `Q Developer Profile Search: Request parameters for region ${region}: ${JSON.stringify(requestParams)}`
+            )
 
             const response = await service.listAvailableProfiles(requestParams)
-
-            logging.debug(`Raw response from ${region}: ${JSON.stringify(response)}`)
 
             const profiles = response.profiles.map(profile => ({
                 arn: profile.arn,
@@ -155,29 +195,75 @@ async function fetchProfilesFromRegion(
                 },
             }))
 
-            logging.log(`Fetched ${profiles.length} profiles from ${region} (page: ${numberOfPages + 1})`)
             if (profiles.length > 0) {
-                logging.log(`Profile names from ${region}: ${profiles.map(p => p.name).join(', ')}`)
+                profiles.forEach(profile => {
+                    logging.log(`Q Developer Profile Search: Profile found - ${profile.name}`)
+                })
             }
 
             allRegionalProfiles.push(...profiles)
 
             nextToken = response.nextToken
-            if (nextToken) {
-                logging.debug(`Next token received from ${region}: ${nextToken.substring(0, 10)}...`)
-            } else {
-                logging.debug(`No next token received from ${region}, pagination complete`)
-            }
-
             numberOfPages++
         } while (nextToken !== undefined && numberOfPages < MAX_Q_DEVELOPER_PROFILE_PAGES)
 
-        logging.log(`Completed fetching profiles from ${region}, total profiles: ${allRegionalProfiles.length}`)
+        logging.log(
+            `Q Developer Profile Search: Completed region ${region} - ${allRegionalProfiles.length} total profile(s) found`
+        )
         return allRegionalProfiles
-    } catch (error) {
-        // Enhanced error logging with complete error object
-        logging.error(`Error fetching profiles from region: ${region}`)
-        logging.log(`Complete error object: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`)
+    } catch (error: any) {
+        logging.log(`Q Developer Profile Search: Error occurred while searching region ${region}:`)
+        logging.log(`Q Developer Profile Search: Error Type: ${error?.name || 'Unknown'}`)
+        logging.log(`Q Developer Profile Search: Error Message: ${error?.message || 'No message available'}`)
+
+        if (error?.statusCode) {
+            logging.log(`Q Developer Profile Search: HTTP Status Code: ${error.statusCode}`)
+
+            if (error.statusCode === 503) {
+                logging.log(`Q Developer Profile Search: Service Unavailable Details for region ${region}:`)
+                logging.log(
+                    `Q Developer Profile Search: The Q Developer service in ${region} is temporarily unavailable`
+                )
+
+                if (error?.code) logging.log(`Q Developer Profile Search: AWS Error Code: ${error.code}`)
+                if (error?.requestId) logging.log(`Q Developer Profile Search: Request ID: ${error.requestId}`)
+                if (error?.extendedRequestId)
+                    logging.log(`Q Developer Profile Search: Extended Request ID: ${error.extendedRequestId}`)
+                if (error?.cfId) logging.log(`Q Developer Profile Search: CloudFront ID: ${error.cfId}`)
+                if (error?.region) logging.log(`Q Developer Profile Search: Error Region: ${error.region}`)
+                if (error?.hostname) logging.log(`Q Developer Profile Search: Service Hostname: ${error.hostname}`)
+                if (error?.time) logging.log(`Q Developer Profile Search: Error Timestamp: ${error.time}`)
+
+                if (error?.retryDelay)
+                    logging.log(`Q Developer Profile Search: Suggested Retry Delay: ${error.retryDelay}ms`)
+                if (error?.retryable !== undefined)
+                    logging.log(`Q Developer Profile Search: Retryable: ${error.retryable}`)
+
+                if (error?.$response?.httpResponse?.headers) {
+                    const headers = error.$response.httpResponse.headers
+                    if (headers['retry-after'])
+                        logging.log(`Q Developer Profile Search: Retry After: ${headers['retry-after']} seconds`)
+                    if (headers['x-amzn-errortype'])
+                        logging.log(`Q Developer Profile Search: Amazon Error Type: ${headers['x-amzn-errortype']}`)
+                    if (headers['x-amz-apigw-id'])
+                        logging.log(`Q Developer Profile Search: API Gateway ID: ${headers['x-amz-apigw-id']}`)
+                }
+            } else if (error.statusCode === 403) {
+                logging.log(
+                    `Q Developer Profile Search: Access Denied - Check your permissions for Q Developer in region ${region}`
+                )
+            } else if (error.statusCode === 429) {
+                logging.log(`Q Developer Profile Search: Rate Limited - Too many requests to region ${region}`)
+            }
+        }
+
+        if (error?.retryable) {
+            logging.log(`Q Developer Profile Search: This is a retryable error - you can try again later`)
+        }
+
+        logging.debug(
+            `Q Developer Profile Search: Complete error object for region ${region}: ${JSON.stringify(error, Object.getOwnPropertyNames(error), 2)}`
+        )
 
         throw error
     }
