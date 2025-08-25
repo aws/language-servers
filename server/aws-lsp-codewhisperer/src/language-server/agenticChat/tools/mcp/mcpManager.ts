@@ -38,9 +38,14 @@ import path = require('path')
 import { URI } from 'vscode-uri'
 import { sanitizeInput } from '../../../../shared/utils'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
+import { OAuthClient } from './mcpOauthClient'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
+export enum AuthIntent {
+    Interactive = 'interactive',
+    Silent = 'silent',
+}
 
 /**
  * Manages MCP servers and their tools
@@ -165,7 +170,7 @@ export class McpManager {
     /**
      * Load configurations and initialize each enabled server.
      */
-    private async discoverAllServers(): Promise<void> {
+    private async discoverAllServers(authIntent: AuthIntent = AuthIntent.Silent): Promise<void> {
         // Load agent config
         const result = await loadAgentConfig(this.features.workspace, this.features.logging, this.agentPaths)
 
@@ -216,7 +221,7 @@ export class McpManager {
             // Process servers in batches
             for (let i = 0; i < totalServers; i += MAX_CONCURRENT_SERVERS) {
                 const batch = serversToInit.slice(i, i + MAX_CONCURRENT_SERVERS)
-                const batchPromises = batch.map(([name, cfg]) => this.initOneServer(name, cfg))
+                const batchPromises = batch.map(([name, cfg]) => this.initOneServer(name, cfg, authIntent))
 
                 this.features.logging.debug(
                     `MCP: initializing batch of ${batch.length} servers (${i + 1}-${Math.min(i + MAX_CONCURRENT_SERVERS, totalServers)} of ${totalServers})`
@@ -291,7 +296,11 @@ export class McpManager {
      * Start a server process, connect client, and register its tools.
      * Errors are logged but do not stop discovery of other servers.
      */
-    private async initOneServer(serverName: string, cfg: MCPServerConfig): Promise<void> {
+    private async initOneServer(
+        serverName: string,
+        cfg: MCPServerConfig,
+        authIntent: AuthIntent = AuthIntent.Silent
+    ): Promise<void> {
         const DEFAULT_SERVER_INIT_TIMEOUT_MS = 60_000
         this.setState(serverName, McpServerStatus.INITIALIZING, 0)
 
@@ -299,7 +308,7 @@ export class McpManager {
             this.features.logging.debug(`MCP: initializing server [${serverName}]`)
 
             const client = new Client({
-                name: `mcp-client-${serverName}`,
+                name: `q-chat-plugin`, // Do not use server name in the client name to avoid polluting builder-mcp metrics
                 version: '1.0.0',
             })
 
@@ -307,6 +316,7 @@ export class McpManager {
             const isStdio = !!cfg.command
             const doConnect = async () => {
                 if (isStdio) {
+                    // stdio transport
                     const mergedEnv = {
                         ...(process.env as Record<string, string>),
                         // Make sure we do not have empty key and value in mergedEnv, or adding server through UI will fail on Windows
@@ -347,11 +357,42 @@ export class McpManager {
                         )
                     }
                 } else {
+                    // streamable http/SSE transport
                     const base = new URL(cfg.url!)
                     try {
+                        // Use HEAD to check if it needs OAuth
+                        let headers: Record<string, string> = { ...(cfg.headers ?? {}) }
+                        let needsOAuth = false
+                        try {
+                            const headResp = await fetch(base, { method: 'HEAD', headers })
+                            const www = headResp.headers.get('www-authenticate') || ''
+                            needsOAuth = headResp.status === 401 || headResp.status === 403 || /bearer/i.test(www)
+                        } catch {
+                            this.features.logging.info(`MCP: HEAD not available`)
+                        }
+
+                        if (needsOAuth) {
+                            OAuthClient.initialize(this.features.workspace, this.features.logging)
+                            const bearer = await OAuthClient.getValidAccessToken(base, {
+                                interactive: authIntent === 'interactive',
+                            })
+                            // add authorization header if we are able to obtain a bearer token
+                            if (bearer) {
+                                headers = { ...headers, Authorization: `Bearer ${bearer}` }
+                            } else if (authIntent === 'silent') {
+                                // In silent mode we never launch a browser. If we cannot obtain a token
+                                // from cache/refresh, surface a clear auth-required error and stop here.
+                                throw new AgenticChatError(
+                                    `MCP: server '${serverName}' requires OAuth. Open "Edit MCP Server" and save to sign in.`,
+                                    'MCPServerAuthFailed'
+                                )
+                            }
+                        }
+
                         try {
                             // try streamable http first
-                            transport = new StreamableHTTPClientTransport(base, this.buildHttpOpts(cfg.headers))
+                            transport = new StreamableHTTPClientTransport(base, this.buildHttpOpts(headers))
+
                             this.features.logging.info(`MCP: Connecting MCP server using StreamableHTTPClientTransport`)
                             await client.connect(transport)
                         } catch (err) {
@@ -359,13 +400,14 @@ export class McpManager {
                             this.features.logging.info(
                                 `MCP: streamable http connect failed for [${serverName}], fallback to SSEClientTransport: ${String(err)}`
                             )
-                            transport = new SSEClientTransport(new URL(cfg.url!), this.buildSseOpts(cfg.headers))
+                            transport = new SSEClientTransport(new URL(cfg.url!), this.buildSseOpts(headers))
                             await client.connect(transport)
                         }
                     } catch (err: any) {
                         let errorMessage = err?.message ?? String(err)
+                        const oauthHint = /oauth/i.test(errorMessage) ? ' (OAuth)' : ''
                         throw new AgenticChatError(
-                            `MCP: server '${serverName}' failed to connect: ${errorMessage}`,
+                            `MCP: server '${serverName}' failed to connect${oauthHint}: ${errorMessage}`,
                             'MCPServerConnectionFailed'
                         )
                     }
@@ -645,7 +687,7 @@ export class McpManager {
                 disabled: cfg.disabled ?? false,
             }
             // Only add timeout to agent config if it's not 0
-            if (cfg.timeout !== 0) {
+            if (cfg.timeout !== undefined) {
                 serverConfig.timeout = cfg.timeout
             }
             if (cfg.args && cfg.args.length > 0) {
@@ -682,7 +724,7 @@ export class McpManager {
             await saveAgentConfig(this.features.workspace, this.features.logging, this.agentConfig, agentPath)
 
             // Add server tools to tools list after initialization
-            await this.initOneServer(sanitizedName, newCfg)
+            await this.initOneServer(sanitizedName, newCfg, AuthIntent.Interactive)
         } catch (err) {
             this.features.logging.error(
                 `Failed to add MCP server '${serverName}': ${err instanceof Error ? err.message : String(err)}`
@@ -847,7 +889,7 @@ export class McpManager {
                 this.setState(serverName, McpServerStatus.DISABLED, 0)
                 this.emitToolsChanged(serverName)
             } else {
-                await this.initOneServer(serverName, newCfg)
+                await this.initOneServer(serverName, newCfg, AuthIntent.Interactive)
             }
         } catch (err) {
             this.handleError(serverName, err)
@@ -1061,7 +1103,7 @@ export class McpManager {
                 this.setState(serverName, McpServerStatus.DISABLED, 0)
             } else {
                 if (!this.clients.has(serverName) && serverName !== 'Built-in') {
-                    await this.initOneServer(serverName, this.mcpServers.get(serverName)!)
+                    await this.initOneServer(serverName, this.mcpServers.get(serverName)!, AuthIntent.Silent)
                 }
             }
 
@@ -1268,11 +1310,21 @@ export class McpManager {
     private handleError(server: string | undefined, err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
 
-        this.features.logging.error(`MCP ERROR${server ? ` [${server}]` : ''}: ${msg}`)
+        const isBenignSseDisconnect =
+            /SSE error:\s*TypeError:\s*terminated:\s*Body Timeout Error/i.test(msg) ||
+            /TypeError:\s*terminated:\s*Body Timeout Error/i.test(msg) ||
+            /TypeError:\s*terminated:\s*other side closed/i.test(msg) ||
+            /ECONNRESET|ENETRESET|EPIPE/i.test(msg)
 
-        if (server) {
-            this.setState(server, McpServerStatus.FAILED, 0, msg)
-            this.emitToolsChanged(server)
+        if (isBenignSseDisconnect) {
+            this.features.logging.debug(`MCP SSE idle timeout${server ? ` [${server}]` : ''}: ${msg}`)
+        } else {
+            // default path for real errors
+            this.features.logging.error(`MCP ERROR${server ? ` [${server}]` : ''}: ${msg}`)
+            if (server) {
+                this.setState(server, McpServerStatus.FAILED, 0, msg)
+                this.emitToolsChanged(server)
+            }
         }
     }
 
