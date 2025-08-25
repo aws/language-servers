@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.0.76](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.75...lsp-codewhisperer/v0.0.76) (2025-08-25)
+
+
+### Features
+
+* add basic OAuth client for remote MCP ([#2136](https://github.com/aws/language-servers/issues/2136)) ([2fb896e](https://github.com/aws/language-servers/commit/2fb896e094de0bc5a1b4881067e7dcceb3826015))
+* disable pkce flow during plugin load ([#2153](https://github.com/aws/language-servers/issues/2153)) ([71b3595](https://github.com/aws/language-servers/commit/71b35952333e7581921644ce40fabbc1e6d3c02f))
+
+
+### Bug Fixes
+
+* adding streakTracker to track streakLength across Completions and Edits ([#2147](https://github.com/aws/language-servers/issues/2147)) ([a6c64f2](https://github.com/aws/language-servers/commit/a6c64f2995a17697e3d71d30a1f411f5cf0db279))
+
 ## [0.0.75](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.74...lsp-codewhisperer/v0.0.75) (2025-08-21)
 
 
