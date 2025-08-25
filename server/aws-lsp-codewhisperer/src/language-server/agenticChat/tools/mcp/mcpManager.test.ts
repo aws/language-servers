@@ -368,7 +368,7 @@ describe('removeServer()', () => {
         expect((mgr as any).clients.has('x')).to.be.false
     })
 
-    it('removes server from all config files', async () => {
+    it('removes server from agent config', async () => {
         const mgr = await McpManager.init([], features)
         const dummy = new Client({ name: 'c', version: 'v' })
         ;(mgr as any).clients.set('x', dummy)
@@ -395,14 +395,13 @@ describe('removeServer()', () => {
 
         await mgr.removeServer('x')
 
-        // Verify that writeFile was called for each config path (2 workspace + 1 global)
-        expect(writeFileStub.callCount).to.equal(3)
+        // Verify that saveAgentConfig was called
+        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect((mgr as any).clients.has('x')).to.be.false
 
-        // Verify the content of the writes (should have removed the server)
-        writeFileStub.getCalls().forEach(call => {
-            const content = JSON.parse(call.args[1])
-            expect(content.mcpServers).to.not.have.property('x')
-        })
+        // Verify server was removed from agent config
+        expect((mgr as any).agentConfig.mcpServers).to.not.have.property('x')
+        expect((mgr as any).agentConfig.tools).to.not.include('@x')
     })
 })
 
