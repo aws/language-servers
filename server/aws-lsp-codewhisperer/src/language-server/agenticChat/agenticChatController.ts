@@ -231,6 +231,7 @@ import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
+import { SemanticSearch } from './tools/workspaceContext/semanticSearch'
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -1801,6 +1802,33 @@ export class AgenticChatController implements ChatHandlers {
                     case DisplayFindings.toolName:
                         // no need to write tool message for CodeReview or DisplayFindings
                         break
+                    case SemanticSearch.toolName:
+                        const confirmation = this.#processToolConfirmation(
+                            toolUse,
+                            true,
+                            `About to invoke tool “${SemanticSearch.toolName}”. Do you want to proceed?`,
+                            undefined,
+                            SemanticSearch.toolName // Pass the original tool name here
+                        )
+                        cachedButtonBlockId = await chatResultStream.writeResultBlock(confirmation)
+                        await this.waitForToolApproval(
+                            toolUse,
+                            chatResultStream,
+                            cachedButtonBlockId,
+                            session,
+                            SemanticSearch.toolName
+                        )
+                        // Store the blockId in the session for later use
+                        if (toolUse.toolUseId) {
+                            // Use a type assertion to add the runningCardBlockId property
+                            const toolUseWithBlockId = {
+                                ...toolUse,
+                                cachedButtonBlockId,
+                            } as typeof toolUse & { cachedButtonBlockId: number }
+
+                            session.toolUseLookup.set(toolUse.toolUseId, toolUseWithBlockId)
+                        }
+                        break
                     // — DEFAULT ⇒ Only MCP tools, but can also handle generic tool execution messages
                     default:
                         // Get original server and tool names from the mapping
@@ -2003,6 +2031,9 @@ export class AgenticChatController implements ChatHandlers {
                                 body: JSON.stringify(displayFindingsResult.output.content),
                             })
                         }
+                        break
+                    case SemanticSearch.toolName:
+                        await this.#handleSemanticSearchToolResult(toolUse, result, session, chatResultStream)
                         break
                     // — DEFAULT ⇒ MCP tools
                     default:
@@ -4498,6 +4529,64 @@ export class AgenticChatController implements ChatHandlers {
         })
     }
 
+    async #handleSemanticSearchToolResult(
+        toolUse: ToolUse,
+        result: any,
+        session: ChatSessionService,
+        chatResultStream: AgenticChatResultStream
+    ): Promise<void> {
+        // Early return if toolUseId is undefined
+        if (!toolUse.toolUseId) {
+            this.#log(`Cannot handle semantic search tool result: missing toolUseId`)
+            return
+        }
+
+        // Format the tool result and input as JSON strings
+        const toolInput = JSON.stringify(toolUse.input, null, 2)
+        const toolResultContent = typeof result === 'string' ? result : JSON.stringify(result, null, 2)
+
+        const toolResultCard: ChatMessage = {
+            type: 'tool',
+            messageId: toolUse.toolUseId,
+            summary: {
+                content: {
+                    header: {
+                        icon: 'tools',
+                        body: `${SemanticSearch.toolName}`,
+                        fileList: undefined,
+                    },
+                },
+                collapsedContent: [
+                    {
+                        header: {
+                            body: 'Parameters',
+                        },
+                        body: `\`\`\`json\n${toolInput}\n\`\`\``,
+                    },
+                    {
+                        header: {
+                            body: 'Result',
+                        },
+                        body: `\`\`\`json\n${toolResultContent}\n\`\`\``,
+                    },
+                ],
+            },
+        }
+
+        // Get the stored blockId for this tool use
+        const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+        const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+
+        if (cachedButtonBlockId !== undefined) {
+            // Update the existing card with the results
+            await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
+        } else {
+            // Fallback to creating a new card
+            this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
+            await chatResultStream.writeResultBlock(toolResultCard)
+        }
+    }
+
     scheduleABTestingFetching(userContext: UserContext | undefined) {
         if (!userContext) {
             return
@@ -4521,8 +4610,8 @@ export class AgenticChatController implements ChatHandlers {
             codeWhispererServiceToken
                 .listFeatureEvaluations({ userContext })
                 .then(result => {
-                    const feature = result.featureEvaluations?.find(
-                        feature => feature.feature === 'MaestroWorkspaceContext'
+                    const feature = result.featureEvaluations?.find(feature =>
+                        ['MaestroWorkspaceContext', 'SematicSearchTool'].includes(feature.feature)
                     )
                     if (feature) {
                         this.#abTestingAllocation = {
