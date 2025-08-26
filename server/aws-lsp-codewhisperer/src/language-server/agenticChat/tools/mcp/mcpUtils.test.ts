@@ -22,6 +22,7 @@ import {
     enabledMCP,
     normalizePathFromUri,
     saveAgentConfig,
+    saveServerSpecificAgentConfig,
     isEmptyEnv,
     sanitizeName,
     convertPersonaToAgent,
@@ -786,5 +787,151 @@ describe('migrateToAgentConfig', () => {
         expect(fs.existsSync(agentPath)).to.be.true
         const agentConfig = JSON.parse(fs.readFileSync(agentPath, 'utf-8'))
         expect(agentConfig.mcpServers).to.have.property('testServer')
+    })
+})
+describe('saveServerSpecificAgentConfig', () => {
+    let tmpDir: string
+    let workspace: any
+    let logger: any
+
+    beforeEach(() => {
+        tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'saveServerSpecificTest-'))
+        workspace = {
+            fs: {
+                exists: (p: string) => Promise.resolve(fs.existsSync(p)),
+                readFile: (p: string) => Promise.resolve(Buffer.from(fs.readFileSync(p))),
+                writeFile: (p: string, d: string) => Promise.resolve(fs.writeFileSync(p, d)),
+                mkdir: (d: string, opts: any) => Promise.resolve(fs.mkdirSync(d, { recursive: opts.recursive })),
+            },
+        }
+        logger = { warn: () => {}, info: () => {}, error: () => {} }
+    })
+
+    afterEach(() => {
+        fs.rmSync(tmpDir, { recursive: true, force: true })
+    })
+
+    it('creates new config file when it does not exist', async () => {
+        const configPath = path.join(tmpDir, 'agent-config.json')
+        const serverConfig = { command: 'test-cmd', args: ['arg1'] }
+        const serverTools = ['@testServer']
+        const serverAllowedTools = ['@testServer/tool1']
+
+        await saveServerSpecificAgentConfig(
+            workspace,
+            logger,
+            'testServer',
+            serverConfig,
+            serverTools,
+            serverAllowedTools,
+            configPath
+        )
+
+        expect(fs.existsSync(configPath)).to.be.true
+        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        expect(content.mcpServers.testServer).to.deep.equal(serverConfig)
+        expect(content.tools).to.include('@testServer')
+        expect(content.allowedTools).to.include('@testServer/tool1')
+    })
+
+    it('updates existing config file', async () => {
+        const configPath = path.join(tmpDir, 'agent-config.json')
+
+        // Create existing config
+        const existingConfig = {
+            name: 'existing-agent',
+            version: '1.0.0',
+            description: 'Existing agent',
+            mcpServers: {
+                existingServer: { command: 'existing-cmd' },
+            },
+            tools: ['fs_read', '@existingServer'],
+            allowedTools: ['fs_read'],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+        fs.writeFileSync(configPath, JSON.stringify(existingConfig))
+
+        const serverConfig = { command: 'new-cmd', args: ['arg1'] }
+        const serverTools = ['@newServer']
+        const serverAllowedTools = ['@newServer/tool1']
+
+        await saveServerSpecificAgentConfig(
+            workspace,
+            logger,
+            'newServer',
+            serverConfig,
+            serverTools,
+            serverAllowedTools,
+            configPath
+        )
+
+        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        expect(content.name).to.equal('existing-agent')
+        expect(content.mcpServers.existingServer).to.deep.equal({ command: 'existing-cmd' })
+        expect(content.mcpServers.newServer).to.deep.equal(serverConfig)
+        expect(content.tools).to.include('@newServer')
+        expect(content.allowedTools).to.include('@newServer/tool1')
+    })
+
+    it('removes existing server tools before adding new ones', async () => {
+        const configPath = path.join(tmpDir, 'agent-config.json')
+
+        // Create existing config with server tools
+        const existingConfig = {
+            name: 'test-agent',
+            version: '1.0.0',
+            description: 'Test agent',
+            mcpServers: {
+                testServer: { command: 'old-cmd' },
+            },
+            tools: ['fs_read', '@testServer', '@testServer/oldTool'],
+            allowedTools: ['fs_read', '@testServer/oldAllowedTool'],
+            toolsSettings: {},
+            includedFiles: [],
+            resources: [],
+        }
+        fs.writeFileSync(configPath, JSON.stringify(existingConfig))
+
+        const serverConfig = { command: 'new-cmd' }
+        const serverTools = ['@testServer']
+        const serverAllowedTools = ['@testServer/newTool']
+
+        await saveServerSpecificAgentConfig(
+            workspace,
+            logger,
+            'testServer',
+            serverConfig,
+            serverTools,
+            serverAllowedTools,
+            configPath
+        )
+
+        const content = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+        expect(content.tools).to.not.include('@testServer/oldTool')
+        expect(content.allowedTools).to.not.include('@testServer/oldAllowedTool')
+        expect(content.tools).to.include('@testServer')
+        expect(content.allowedTools).to.include('@testServer/newTool')
+        expect(content.tools).to.include('fs_read')
+    })
+
+    it('creates parent directories if they do not exist', async () => {
+        const configPath = path.join(tmpDir, 'nested', 'dir', 'agent-config.json')
+        const serverConfig = { command: 'test-cmd' }
+        const serverTools = ['@testServer']
+        const serverAllowedTools: string[] = []
+
+        await saveServerSpecificAgentConfig(
+            workspace,
+            logger,
+            'testServer',
+            serverConfig,
+            serverTools,
+            serverAllowedTools,
+            configPath
+        )
+
+        expect(fs.existsSync(configPath)).to.be.true
     })
 })

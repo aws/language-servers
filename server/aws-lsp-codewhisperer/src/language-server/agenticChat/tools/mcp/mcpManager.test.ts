@@ -1061,9 +1061,11 @@ describe('listServersAndTools()', () => {
 
 describe('updateServerPermission()', () => {
     let saveAgentConfigStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
 
     beforeEach(() => {
         saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
     })
 
     afterEach(async () => {
@@ -1112,8 +1114,8 @@ describe('updateServerPermission()', () => {
             __configPath__: '/p',
         })
 
-        // Verify saveAgentConfig was called
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        // Verify saveServerSpecificAgentConfig was called
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
 
         // Verify the tool permission was updated
         expect(mgr.requiresApproval('srv', 'tool1')).to.be.false
