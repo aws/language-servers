@@ -1247,11 +1247,14 @@ export class McpManager {
                     return true
                 })
 
-                // Save agent config
-                await saveAgentConfig(
+                // Save server removal to agent config
+                await saveServerSpecificAgentConfig(
                     this.features.workspace,
                     this.features.logging,
-                    this.agentConfig,
+                    unsanitizedName,
+                    null, // null indicates server should be removed
+                    [],
+                    [],
                     cfg.__configPath__
                 )
             }
