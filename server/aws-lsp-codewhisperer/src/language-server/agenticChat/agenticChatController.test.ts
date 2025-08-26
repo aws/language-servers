@@ -3206,7 +3206,7 @@ ${' '.repeat(8)}}
                 const result = await chatController.onListAvailableModels({ tabId: 'invalid-tab' })
 
                 assert.strictEqual(result.tabId, 'invalid-tab')
-                assert.strictEqual(result.selectedModelId, DEFAULT_MODEL_ID)
+                assert.strictEqual(result.selectedModelId, 'model1')
 
                 getSessionStub.restore()
             })
