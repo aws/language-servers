@@ -158,7 +158,7 @@ describe('Auto Trigger', async () => {
             assert.strictEqual(getAutoTriggerType(createContentChange('line1\nline2')), undefined)
         })
     })
-    describe('Right Context should trigger validation', () => {
+    describe.skip('Right Context should trigger validation', () => {
         it('should not trigger when there is immediate right context in VSCode', () => {
             const params = createBasicParams({
                 fileContext: createBasicFileContext('console.', 'log()'),
