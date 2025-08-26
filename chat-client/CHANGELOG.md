@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.1.33](https://github.com/aws/language-servers/compare/chat-client/v0.1.32...chat-client/v0.1.33) (2025-08-19)
+
+
+### Features
+
+* **amazonq:** added mcp admin level configuration with GetProfile ([#2000](https://github.com/aws/language-servers/issues/2000)) ([fd6e9a8](https://github.com/aws/language-servers/commit/fd6e9a829c6229c276de5340dffce52b426a864d))
+* **amazonq:** read tool ui revamp ([#2113](https://github.com/aws/language-servers/issues/2113)) ([#2121](https://github.com/aws/language-servers/issues/2121)) ([93cf229](https://github.com/aws/language-servers/commit/93cf229149ba60491f9f5763793db4a9f570b611))
+
+
+### Bug Fixes
+
+* fix for button text and remove profilearn caching ([#2137](https://github.com/aws/language-servers/issues/2137)) ([2a4171a](https://github.com/aws/language-servers/commit/2a4171a74c15c23c23c481060496162bcc9e6284))
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
+## [0.1.32](https://github.com/aws/language-servers/compare/chat-client/v0.1.31...chat-client/v0.1.32) (2025-08-11)
+
+
+### Features
+
+* **amazonq:** read tool ui revamp ([c65428b](https://github.com/aws/language-servers/commit/c65428bab2cf5e47badf1e3a9453babcf881e60c))
+
+## [0.1.31](https://github.com/aws/language-servers/compare/chat-client/v0.1.30...chat-client/v0.1.31) (2025-08-06)
+
+
+### Features
+
+* **amazonq:** add two more tips for the did you know section ([#2063](https://github.com/aws/language-servers/issues/2063)) ([9949c6d](https://github.com/aws/language-servers/commit/9949c6dd81c56b5ea82563310da2eaee4d00a059))
+* **amazonq:** enable sonnet 4 for fra region ([#2069](https://github.com/aws/language-servers/issues/2069)) ([3a4b8df](https://github.com/aws/language-servers/commit/3a4b8df981b2c3b0532360a11472169fffec7924))
+
+
+### Bug Fixes
+
+* **amazonq:** fix to add disable/enable feature back to mcp servers ([#2052](https://github.com/aws/language-servers/issues/2052)) ([c03e017](https://github.com/aws/language-servers/commit/c03e017b9ccbbbb9c80a3c3afd5da38a50bd6cff))
+
 ## [0.1.30](https://github.com/aws/language-servers/compare/chat-client/v0.1.29...chat-client/v0.1.30) (2025-08-04)
 
 

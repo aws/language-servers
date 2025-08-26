@@ -12,7 +12,7 @@ import { TestFeatures } from '@aws/language-server-runtimes/testing'
 import * as assert from 'assert'
 import { AWSError } from 'aws-sdk'
 import sinon, { StubbedInstance } from 'ts-sinon'
-import { CodewhispererServerFactory } from './codeWhispererServer'
+import { CodewhispererServerFactory, getLanguageIdFromUri } from './codeWhispererServer'
 import {
     CodeWhispererServiceBase,
     CodeWhispererServiceToken,
@@ -61,6 +61,7 @@ import { INVALID_TOKEN } from '../../shared/constants'
 import { AmazonQError } from '../../shared/amazonQServiceManager/errors'
 import * as path from 'path'
 import { CONTEXT_CHARACTERS_LIMIT } from './constants'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 const updateConfiguration = async (
     features: TestFeatures,
@@ -770,11 +771,59 @@ describe('CodeWhisperer Server', () => {
             assert.rejects(promise, ResponseError)
         })
 
+        it('invokes IdleWorkspaceManager recordActivityTimestamp', async () => {
+            const recordActivityTimestampStub = sinon.stub(IdleWorkspaceManager, 'recordActivityTimestamp')
+
+            await features.doInlineCompletionWithReferences(
+                {
+                    textDocument: { uri: SOME_FILE.uri },
+                    position: { line: 0, character: 0 },
+                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
+                },
+                CancellationToken.None
+            )
+
+            sinon.assert.calledOnce(recordActivityTimestampStub)
+            recordActivityTimestampStub.restore()
+        })
+
         describe('Supplemental Context', () => {
             it('should send supplemental context when using token authentication', async () => {
                 const test_service = sinon.createStubInstance(
                     CodeWhispererServiceToken
                 ) as StubbedInstance<CodeWhispererServiceToken>
+                // TODO: Use real CodeWhispererServiceToken instead of stub
+                test_service.constructSupplementalContext.resolves({
+                    supContextData: {
+                        isUtg: false,
+                        isProcessTimeout: false,
+                        supplementalContextItems: [
+                            {
+                                content: 'class Foo',
+                                filePath: 'foo.java',
+                                score: 0,
+                            },
+                            {
+                                content: 'class Bar',
+                                filePath: 'bar.java',
+                                score: 0,
+                            },
+                        ],
+                        contentsLength: 0,
+                        latency: 0,
+                        strategy: 'OpenTabs_BM25',
+                    },
+                    items: [
+                        {
+                            content: 'class Foo',
+                            filePath: 'Foo.java',
+                        },
+                        {
+                            content: 'class Bar',
+                            filePath: 'Bar.java',
+                        },
+                    ],
+                })
 
                 test_service.generateSuggestions.returns(
                     Promise.resolve({
@@ -828,8 +877,8 @@ describe('CodeWhisperer Server', () => {
                     },
                     maxResults: 5,
                     supplementalContexts: [
-                        { content: 'sample-content', filePath: '/SampleFile.java' },
-                        { content: 'sample-content', filePath: '/SampleFile.java' },
+                        { content: 'class Foo', filePath: 'Foo.java' },
+                        { content: 'class Bar', filePath: 'Bar.java' },
                     ],
                     // workspaceId: undefined,
                 }
@@ -1454,7 +1503,7 @@ describe('CodeWhisperer Server', () => {
             manager.activateSession(session)
             const session2 = manager.createSession(sessionData)
             manager.activateSession(session2)
-            assert.equal(session.state, 'CLOSED')
+            assert.equal(session.state, 'ACTIVE')
             assert.equal(session2.state, 'ACTIVE')
 
             await features.doLogInlineCompletionSessionResults(sessionResultData)
@@ -2251,39 +2300,6 @@ describe('CodeWhisperer Server', () => {
             sinon.assert.calledOnceWithExactly(sessionManagerSpy.closeSession, currentSession)
         })
 
-        it('Manual completion invocation should close previous session', async () => {
-            const TRIGGER_KIND = InlineCompletionTriggerKind.Invoked
-
-            const result = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    // Manual trigger kind
-                    context: { triggerKind: TRIGGER_KIND },
-                },
-                CancellationToken.None
-            )
-
-            assert.deepEqual(result, EXPECTED_RESULT)
-            const firstSession = sessionManager.getActiveSession()
-
-            // There is ACTIVE session
-            assert(firstSession)
-            assert.equal(sessionManager.getCurrentSession(), firstSession)
-            assert.equal(firstSession.state, 'ACTIVE')
-
-            const secondResult = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: TRIGGER_KIND },
-                },
-                CancellationToken.None
-            )
-            assert.deepEqual(secondResult, { ...EXPECTED_RESULT, sessionId: SESSION_IDS_LOG[1] })
-            sinon.assert.called(sessionManagerSpy.closeCurrentSession)
-        })
-
         it('should discard inflight session if merge right recommendations resulted in list of empty strings', async () => {
             // The suggestion returned by generateSuggestions will be equal to the contents of the file
             // This test fails when the file starts with a new line, probably due to the way we handle right context merge
@@ -2377,47 +2393,52 @@ describe('CodeWhisperer Server', () => {
             features.dispose()
             TestAmazonQServiceManager.resetInstance()
         })
+    })
+    describe('getLanguageIdFromUri', () => {
+        it('should return python for notebook cell URIs', () => {
+            const uri = 'vscode-notebook-cell:/some/path/notebook.ipynb#cell1'
+            assert.strictEqual(getLanguageIdFromUri(uri), 'python')
+        })
 
-        it('should handle editsEnabled=true with COMPLETIONS prediction type', async () => {
-            const result = await features.doInlineCompletionWithReferences(
-                {
-                    textDocument: { uri: SOME_FILE.uri },
-                    position: { line: 0, character: 0 },
-                    context: { triggerKind: InlineCompletionTriggerKind.Invoked },
-                },
-                CancellationToken.None
-            )
+        it('should return abap for files with ABAP extensions', () => {
+            const uris = ['file:///path/to/file.asprog']
 
-            // Check the completion result
-            assert.deepEqual(result, EXPECTED_RESULT_EDITS)
+            uris.forEach(uri => {
+                assert.strictEqual(getLanguageIdFromUri(uri), 'abap')
+            })
+        })
 
-            const expectedGenerateSuggestionsRequest = {
-                fileContext: {
-                    fileUri: SOME_FILE.uri,
-                    filename: URI.parse(SOME_FILE.uri).path.substring(1),
-                    programmingLanguage: { languageName: 'csharp' },
-                    leftFileContent: '',
-                    rightFileContent: HELLO_WORLD_IN_CSHARP,
-                },
-                maxResults: 5,
-                supplementalContexts: [],
-                predictionTypes: ['COMPLETIONS'],
-                editorState: {
-                    document: {
-                        relativeFilePath: SOME_FILE.uri,
-                        programmingLanguage: { languageName: 'csharp' },
-                        text: HELLO_WORLD_IN_CSHARP,
-                    },
-                    cursorState: {
-                        position: {
-                            line: 0,
-                            character: 0,
-                        },
-                    },
-                },
+        it('should return empty string for non-ABAP files', () => {
+            const uris = ['file:///path/to/file.js', 'file:///path/to/file.ts', 'file:///path/to/file.py']
+
+            uris.forEach(uri => {
+                assert.strictEqual(getLanguageIdFromUri(uri), '')
+            })
+        })
+
+        it('should return empty string for invalid URIs', () => {
+            const invalidUris = ['', 'invalid-uri', 'file:///']
+
+            invalidUris.forEach(uri => {
+                assert.strictEqual(getLanguageIdFromUri(uri), '')
+            })
+        })
+
+        it('should log errors when provided with a logging object', () => {
+            const mockLogger = {
+                log: sinon.spy(),
             }
 
-            sinon.assert.calledOnceWithExactly(service.generateSuggestions, expectedGenerateSuggestionsRequest)
+            const invalidUri = {} as string // Force type error
+            getLanguageIdFromUri(invalidUri, mockLogger)
+
+            sinon.assert.calledOnce(mockLogger.log)
+            sinon.assert.calledWith(mockLogger.log, sinon.match(/Error parsing URI to determine language:.*/))
+        })
+
+        it('should handle URIs without extensions', () => {
+            const uri = 'file:///path/to/file'
+            assert.strictEqual(getLanguageIdFromUri(uri), '')
         })
     })
 })

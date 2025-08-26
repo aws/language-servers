@@ -188,7 +188,12 @@ export const WorkspaceContextServer = (): Server => features => {
                 abTestingEnabled = true
             } else {
                 const clientParams = safeGet(lsp.getClientInitializeParams())
-                const userContext = makeUserContextObject(clientParams, runtime.platform, 'CodeWhisperer') ?? {
+                const userContext = makeUserContextObject(
+                    clientParams,
+                    runtime.platform,
+                    'CodeWhisperer',
+                    amazonQServiceManager.serverInfo
+                ) ?? {
                     ideCategory: 'VSCODE',
                     operatingSystem: 'MAC',
                     product: 'CodeWhisperer',
@@ -221,7 +226,7 @@ export const WorkspaceContextServer = (): Server => features => {
             isLoggedInUsingBearerToken(credentialsProvider) &&
             abTestingEnabled &&
             !workspaceFolderManager.getOptOutStatus() &&
-            !workspaceFolderManager.getServiceQuotaExceededStatus() &&
+            !workspaceFolderManager.isFeatureDisabled() &&
             workspaceIdentifier
         )
     }
@@ -303,17 +308,15 @@ export const WorkspaceContextServer = (): Server => features => {
                     await evaluateABTesting()
                     isWorkflowInitialized = true
 
-                    workspaceFolderManager.resetAdminOptOutAndServiceQuotaStatus()
+                    workspaceFolderManager.resetAdminOptOutAndFeatureDisabledStatus()
                     if (!isUserEligibleForWorkspaceContext()) {
                         return
                     }
 
                     fileUploadJobManager.startFileUploadJobConsumer()
                     dependencyEventBundler.startDependencyEventBundler()
-                    await Promise.all([
-                        workspaceFolderManager.initializeWorkspaceStatusMonitor(),
-                        workspaceFolderManager.processNewWorkspaceFolders(workspaceFolders),
-                    ])
+
+                    workspaceFolderManager.initializeWorkspaceStatusMonitor()
                     logging.log(`Workspace context workflow initialized`)
                 } else if (!isLoggedIn) {
                     if (isWorkflowInitialized) {

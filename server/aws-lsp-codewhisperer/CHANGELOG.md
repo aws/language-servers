@@ -1,5 +1,84 @@
 # Changelog
 
+## [0.0.75](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.74...lsp-codewhisperer/v0.0.75) (2025-08-21)
+
+
+### Bug Fixes
+
+* **amazonq:** don't let flare send discard for the still valid suggestion in JB ([#2145](https://github.com/aws/language-servers/issues/2145)) ([0767e07](https://github.com/aws/language-servers/commit/0767e074c91682a91d2fe7a6b2a7369c4dea280c))
+
+## [0.0.74](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.73...lsp-codewhisperer/v0.0.74) (2025-08-19)
+
+
+### Features
+
+* **amazonq:** added mcp admin level configuration with GetProfile ([#2000](https://github.com/aws/language-servers/issues/2000)) ([fd6e9a8](https://github.com/aws/language-servers/commit/fd6e9a829c6229c276de5340dffce52b426a864d))
+* **amazonq:** read tool ui revamp ([#2113](https://github.com/aws/language-servers/issues/2113)) ([#2121](https://github.com/aws/language-servers/issues/2121)) ([93cf229](https://github.com/aws/language-servers/commit/93cf229149ba60491f9f5763793db4a9f570b611))
+* remove project type validation from LSP layer ([#2103](https://github.com/aws/language-servers/issues/2103)) ([d397161](https://github.com/aws/language-servers/commit/d397161cc3448c63016e27f5ac2a1917cdaae1cb))
+
+
+### Bug Fixes
+
+* **amazonq:** add server side control for WCS features ([#2128](https://github.com/aws/language-servers/issues/2128)) ([5e4435d](https://github.com/aws/language-servers/commit/5e4435dfaea7bf8c00e6a27b9bb0d40f699d4e01))
+* **amazonq:** fix regression of mcp config in agent config ([#2101](https://github.com/aws/language-servers/issues/2101)) ([e4e8bbb](https://github.com/aws/language-servers/commit/e4e8bbb89e4b597926582bead2b14ffc43f2a7f8))
+* **amazonq:** handle case where multiple rules are provided with the same name ([#2118](https://github.com/aws/language-servers/issues/2118)) ([0e23e2d](https://github.com/aws/language-servers/commit/0e23e2d29b8cad14403d372b9bbb08ca8ffa7ac7))
+* **amazonq:** persist mcp configs in agent json on start-up ([#2112](https://github.com/aws/language-servers/issues/2112)) ([817cfe2](https://github.com/aws/language-servers/commit/817cfe2656cb1deec6111c699c4ba46b4ba53e00))
+* empty userTriggerDecision not being sent for NEP code path ([#2140](https://github.com/aws/language-servers/issues/2140)) ([b8e5268](https://github.com/aws/language-servers/commit/b8e52682ac2b2337e1d0a32759e8beccde889cee))
+* fix for button text and remove profilearn caching ([#2137](https://github.com/aws/language-servers/issues/2137)) ([2a4171a](https://github.com/aws/language-servers/commit/2a4171a74c15c23c23c481060496162bcc9e6284))
+* fix to add disk caching for mcp admin state ([#2139](https://github.com/aws/language-servers/issues/2139)) ([f947e1a](https://github.com/aws/language-servers/commit/f947e1a9da4431d6089b22825f992010c30a470b))
+* fix to turn on and off MCP servers incase of error based on last state ([#2143](https://github.com/aws/language-servers/issues/2143)) ([04588df](https://github.com/aws/language-servers/commit/04588dfc33f0d85dbd488814a474b5e354398df0))
+* proper path handling for additional context ([#2129](https://github.com/aws/language-servers/issues/2129)) ([971eaa5](https://github.com/aws/language-servers/commit/971eaa505d948e9d2090c85f9b965f554ea7f2c8))
+* Use file context override in the inline completion params for Jupyter Notebook ([#2114](https://github.com/aws/language-servers/issues/2114)) ([91c8398](https://github.com/aws/language-servers/commit/91c839857f8aa4d79098189f9fb620b361c51289))
+
+
+### Performance Improvements
+
+* remove edit completion retry mechanism on document change ([#2124](https://github.com/aws/language-servers/issues/2124)) ([963b6e9](https://github.com/aws/language-servers/commit/963b6e9b7887da23a85a826c55a6ed95ff36d956))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.13 to ^0.0.14
+
+## [0.0.73](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.72...lsp-codewhisperer/v0.0.73) (2025-08-11)
+
+
+### Features
+
+* **amazonq:** read tool ui revamp ([c65428b](https://github.com/aws/language-servers/commit/c65428bab2cf5e47badf1e3a9453babcf881e60c))
+
+
+### Bug Fixes
+
+* **amazonq:** add fallback classpath generation ([#2077](https://github.com/aws/language-servers/issues/2077)) ([3a6ef14](https://github.com/aws/language-servers/commit/3a6ef14e78fa2e75b837bba6524751d65038f416))
+* **amazonq:** emit failed status for amazonq_invokeLLM ([#2071](https://github.com/aws/language-servers/issues/2071)) ([ee52a41](https://github.com/aws/language-servers/commit/ee52a41bc869b275fff708d7955b59f43b93bbd4))
+* **amazonq:** fix fallout of [#2051](https://github.com/aws/language-servers/issues/2051) ([#2057](https://github.com/aws/language-servers/issues/2057)) ([565066b](https://github.com/aws/language-servers/commit/565066bb61adda60333c9646db958d4208bcc8af))
+* **amazonq:** leverage lcs to find the chars added and removed ([#2092](https://github.com/aws/language-servers/issues/2092)) ([40379a8](https://github.com/aws/language-servers/commit/40379a887f8d42cc184239ca3175b4e673cc5286))
+* **amazonq:** skips continuous monitoring when WCS sees workspace as idle ([#2066](https://github.com/aws/language-servers/issues/2066)) ([9cb959d](https://github.com/aws/language-servers/commit/9cb959d4cc450d0907f8bf5265ba01d2aa68bcd0))
+* creating a new sesion for Edits trigger with next token ([#2094](https://github.com/aws/language-servers/issues/2094)) ([1da8730](https://github.com/aws/language-servers/commit/1da8730b6ed6ad53b6561368bf722e56d59596a4))
+* remove edit cache logic ([#2079](https://github.com/aws/language-servers/issues/2079)) ([9bc5b9c](https://github.com/aws/language-servers/commit/9bc5b9c1d77e5fee6f518f7f5016d3a0043a5a77))
+* sessionManager misused because there are 2 types of manager now ([#2090](https://github.com/aws/language-servers/issues/2090)) ([8db059a](https://github.com/aws/language-servers/commit/8db059ab83d94fd7c3ba3eb265044add31c80aea))
+* update client name to support Sagemaker AI origin for agentic chat ([#2093](https://github.com/aws/language-servers/issues/2093)) ([a746fe8](https://github.com/aws/language-servers/commit/a746fe845d5e09563b475f01ce44059dca9fd10f))
+
+## [0.0.72](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.71...lsp-codewhisperer/v0.0.72) (2025-08-06)
+
+
+### Features
+
+* add support for SMUS Q CodeEditor client to send MD IDE origin ([#2032](https://github.com/aws/language-servers/issues/2032)) ([a8725b4](https://github.com/aws/language-servers/commit/a8725b4b7dcb7718864620721aa3633151e8877b))
+* **amazonq:** enable sonnet 4 for fra region ([#2069](https://github.com/aws/language-servers/issues/2069)) ([3a4b8df](https://github.com/aws/language-servers/commit/3a4b8df981b2c3b0532360a11472169fffec7924))
+
+
+### Bug Fixes
+
+* **amazonq:** add distinctive identifier for cloud trail ([#2059](https://github.com/aws/language-servers/issues/2059)) ([18bbc2c](https://github.com/aws/language-servers/commit/18bbc2c54f5cc72e2624020fc17214c448926b0e))
+* **amazonq:** fix to add disable/enable feature back to mcp servers ([#2052](https://github.com/aws/language-servers/issues/2052)) ([c03e017](https://github.com/aws/language-servers/commit/c03e017b9ccbbbb9c80a3c3afd5da38a50bd6cff))
+* **amazonq:** make display findings tool run more often ([#2067](https://github.com/aws/language-servers/issues/2067)) ([479ccd0](https://github.com/aws/language-servers/commit/479ccd0a1b8b7e98684275c66274d284599c5933))
+* outdated history when trimming happens, add missing metric for compaction ([#2047](https://github.com/aws/language-servers/issues/2047)) ([8390f66](https://github.com/aws/language-servers/commit/8390f6686c804dfbeff91018635df21e9dd89236))
+* should keep reporting UTDE telemetry if there are still pending Edits suggestions ([#2051](https://github.com/aws/language-servers/issues/2051)) ([78c67b1](https://github.com/aws/language-servers/commit/78c67b1a29821f54006d160695e997870d17f3b5))
+
 ## [0.0.71](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.70...lsp-codewhisperer/v0.0.71) (2025-08-04)
 
 

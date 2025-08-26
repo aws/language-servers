@@ -6,7 +6,8 @@ import { DependencyDiscoverer } from './dependency/dependencyDiscoverer'
 import { WorkspaceFolder } from 'vscode-languageserver-protocol'
 import { ArtifactManager } from './artifactManager'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
-import { CreateWorkspaceResponse } from '../../client/token/codewhispererbearertokenclient'
+import { ListWorkspaceMetadataResponse } from '../../client/token/codewhispererbearertokenclient'
+import { IdleWorkspaceManager } from './IdleWorkspaceManager'
 import { AWSError } from 'aws-sdk'
 
 describe('WorkspaceFolderManager', () => {
@@ -33,8 +34,8 @@ describe('WorkspaceFolderManager', () => {
         sinon.restore()
     })
 
-    describe('getServiceQuotaExceededStatus', () => {
-        it('should return true when service quota is exceeded', async () => {
+    describe('checkRemoteWorkspaceStatusAndReact', () => {
+        it('should check and react when IDE session is not idle', async () => {
             // Setup
             const workspaceFolders: WorkspaceFolder[] = [
                 {
@@ -43,19 +44,122 @@ describe('WorkspaceFolderManager', () => {
                 },
             ]
 
-            // Mock the createWorkspace method to throw a ServiceQuotaExceededException
-            const mockError: AWSError = {
-                name: 'ServiceQuotaExceededException',
-                message: 'You have too many active running workspaces.',
-                code: 'ServiceQuotaExceededException',
-                time: new Date(),
-                retryable: false,
-                statusCode: 400,
+            // Mock IdleSessionManager to return false (not idle)
+            sinon.stub(IdleWorkspaceManager, 'isSessionIdle').returns(false)
+
+            // Mock successful response
+            const mockResponse: ListWorkspaceMetadataResponse = {
+                workspaces: [
+                    {
+                        workspaceId: 'test-workspace-id',
+                        workspaceStatus: 'CREATED',
+                    },
+                ],
             }
 
-            mockCodeWhispererService.createWorkspace.rejects(mockError)
+            mockCodeWhispererService.listWorkspaceMetadata.resolves(mockResponse as any)
 
             // Create the WorkspaceFolderManager instance using the static createInstance method
+            workspaceFolderManager = WorkspaceFolderManager.createInstance(
+                mockServiceManager,
+                mockLogging,
+                mockArtifactManager,
+                mockDependencyDiscoverer,
+                workspaceFolders,
+                mockCredentialsProvider,
+                'test-workspace-identifier'
+            )
+
+            // Spy on resetWebSocketClient
+            const resetWebSocketClientSpy = sinon.stub(workspaceFolderManager as any, 'resetWebSocketClient')
+
+            // Spy on handleWorkspaceCreatedState
+            const handleWorkspaceCreatedStateSpy = sinon.stub(
+                workspaceFolderManager as any,
+                'handleWorkspaceCreatedState'
+            )
+
+            // Act - trigger the checkRemoteWorkspaceStatusAndReact method
+            await workspaceFolderManager.checkRemoteWorkspaceStatusAndReact()
+
+            // Verify that resetWebSocketClient was called once
+            sinon.assert.notCalled(resetWebSocketClientSpy)
+            sinon.assert.calledOnce(handleWorkspaceCreatedStateSpy)
+        })
+
+        it('should skip checking and reacting when IDE session is idle', async () => {
+            // Setup
+            const workspaceFolders: WorkspaceFolder[] = [
+                {
+                    uri: 'file:///test/workspace',
+                    name: 'test-workspace',
+                },
+            ]
+
+            // Mock IdleSessionManager to return true (idle)
+            sinon.stub(IdleWorkspaceManager, 'isSessionIdle').returns(true)
+
+            // Mock successful response
+            const mockResponse: ListWorkspaceMetadataResponse = {
+                workspaces: [
+                    {
+                        workspaceId: 'test-workspace-id',
+                        workspaceStatus: 'CREATED',
+                    },
+                ],
+            }
+
+            mockCodeWhispererService.listWorkspaceMetadata.resolves(mockResponse as any)
+
+            // Create the WorkspaceFolderManager instance using the static createInstance method
+            workspaceFolderManager = WorkspaceFolderManager.createInstance(
+                mockServiceManager,
+                mockLogging,
+                mockArtifactManager,
+                mockDependencyDiscoverer,
+                workspaceFolders,
+                mockCredentialsProvider,
+                'test-workspace-identifier'
+            )
+
+            // Spy on resetWebSocketClient
+            const resetWebSocketClientSpy = sinon.stub(workspaceFolderManager as any, 'resetWebSocketClient')
+
+            // Act - trigger the checkRemoteWorkspaceStatusAndReact method
+            await workspaceFolderManager.checkRemoteWorkspaceStatusAndReact()
+
+            // Verify that resetWebSocketClient was called once
+            sinon.assert.calledOnce(resetWebSocketClientSpy)
+            sinon.assert.calledWith(
+                mockLogging.log,
+                sinon.match(/Session is idle, skipping remote workspace status check/)
+            )
+        })
+    })
+
+    describe('isFeatureDisabled', () => {
+        it('should return true when feature is disabled', async () => {
+            // Setup
+            const workspaceFolders: WorkspaceFolder[] = [
+                {
+                    uri: 'file:///test/workspace',
+                    name: 'test-workspace',
+                },
+            ]
+
+            // Mock listWorkspaceMetadata to throw AccessDeniedException with feature not supported
+            const mockError: AWSError = {
+                name: 'AccessDeniedException',
+                message: 'Feature is not supported',
+                code: 'AccessDeniedException',
+                time: new Date(),
+                retryable: false,
+                statusCode: 403,
+            }
+
+            mockCodeWhispererService.listWorkspaceMetadata.rejects(mockError)
+
+            // Create the WorkspaceFolderManager instance
             workspaceFolderManager = WorkspaceFolderManager.createInstance(
                 mockServiceManager,
                 mockLogging,
@@ -72,17 +176,17 @@ describe('WorkspaceFolderManager', () => {
                 'clearAllWorkspaceResources'
             )
 
-            // Act - trigger the createNewWorkspace method which sets isServiceQuotaExceeded
-            await (workspaceFolderManager as any).createNewWorkspace()
+            // Act - trigger listWorkspaceMetadata which sets feature disabled state
+            await (workspaceFolderManager as any).listWorkspaceMetadata()
 
             // Assert
-            expect(workspaceFolderManager.getServiceQuotaExceededStatus()).toBe(true)
+            expect(workspaceFolderManager.isFeatureDisabled()).toBe(true)
 
             // Verify that clearAllWorkspaceResources was called
             sinon.assert.calledOnce(clearAllWorkspaceResourcesSpy)
         })
 
-        it('should return false when service quota is not exceeded', async () => {
+        it('should return false when feature is not disabled', async () => {
             // Setup
             const workspaceFolders: WorkspaceFolder[] = [
                 {
@@ -92,16 +196,18 @@ describe('WorkspaceFolderManager', () => {
             ]
 
             // Mock successful response
-            const mockResponse: CreateWorkspaceResponse = {
-                workspace: {
-                    workspaceId: 'test-workspace-id',
-                    workspaceStatus: 'RUNNING',
-                },
+            const mockResponse: ListWorkspaceMetadataResponse = {
+                workspaces: [
+                    {
+                        workspaceId: 'test-workspace-id',
+                        workspaceStatus: 'RUNNING',
+                    },
+                ],
             }
 
-            mockCodeWhispererService.createWorkspace.resolves(mockResponse as any)
+            mockCodeWhispererService.listWorkspaceMetadata.resolves(mockResponse as any)
 
-            // Create the WorkspaceFolderManager instance using the static createInstance method
+            // Create the WorkspaceFolderManager instance
             workspaceFolderManager = WorkspaceFolderManager.createInstance(
                 mockServiceManager,
                 mockLogging,
@@ -112,20 +218,11 @@ describe('WorkspaceFolderManager', () => {
                 'test-workspace-identifier'
             )
 
-            // Spy on clearAllWorkspaceResources
-            const clearAllWorkspaceResourcesSpy = sinon.stub(
-                workspaceFolderManager as any,
-                'clearAllWorkspaceResources'
-            )
-
-            // Act - trigger the createNewWorkspace method
-            await (workspaceFolderManager as any).createNewWorkspace()
+            // Act - trigger listWorkspaceMetadata
+            await (workspaceFolderManager as any).listWorkspaceMetadata()
 
             // Assert
-            expect(workspaceFolderManager.getServiceQuotaExceededStatus()).toBe(false)
-
-            // Verify that clearAllWorkspaceResources was not called
-            sinon.assert.notCalled(clearAllWorkspaceResourcesSpy)
+            expect(workspaceFolderManager.isFeatureDisabled()).toBe(false)
         })
     })
 })

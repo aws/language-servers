@@ -191,7 +191,8 @@ export class DependencyDiscoverer {
         }
     }
 
-    public resetFromDisposal(): void {
+    public disposeAndReset(): void {
+        this.dispose()
         this.sharedState.isDisposed = false
         this.sharedState.dependencyUploadedSizeSum = 0
     }
