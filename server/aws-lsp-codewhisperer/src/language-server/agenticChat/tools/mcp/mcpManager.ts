@@ -1136,12 +1136,6 @@ export class McpManager {
                 )
             }
 
-            // Update mcpServerPermissions map
-            this.mcpServerPermissions.set(serverName, {
-                enabled: perm.enabled,
-                toolPerms: perm.toolPerms || {},
-            })
-
             // enable/disable server
             if (this.isServerDisabled(serverName)) {
                 const client = this.clients.get(serverName)
