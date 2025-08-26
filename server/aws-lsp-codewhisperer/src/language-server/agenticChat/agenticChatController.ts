@@ -714,7 +714,7 @@ export class AgenticChatController implements ChatHandlers {
             })
 
             // Wait for the response to be completed before proceeding
-            this.#log('Model Response', responseResult.toString())
+            this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
             models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
                 id: modelId,
                 name: modelName ?? modelId,
@@ -755,7 +755,7 @@ export class AgenticChatController implements ChatHandlers {
 
         // Get the first fallback model option as default
         const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
-        const DEFAULT_MODEL_ID = defaultModelOption?.id || Object.keys(FALLBACK_MODEL_RECORD)[1]
+        const DEFAULT_MODEL_ID = defaultModelId || defaultModelOption?.id
 
         const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
         const { data: session, success } = sessionResult
@@ -769,7 +769,7 @@ export class AgenticChatController implements ChatHandlers {
             }
         }
 
-        // Determine which model ID to select based on priority.
+        // Determine selected model ID based on priority
         let selectedModelId: string
         let modelId = this.#chatHistoryDb.getModelId()
 
