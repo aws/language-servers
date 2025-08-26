@@ -943,6 +943,69 @@ export async function saveAgentConfig(
     }
 }
 
+/**
+ * Save only server-specific changes to agent config file
+ */
+export async function saveServerSpecificAgentConfig(
+    workspace: Workspace,
+    logging: Logger,
+    serverName: string,
+    serverConfig: any,
+    serverTools: string[],
+    serverAllowedTools: string[],
+    configPath: string
+): Promise<void> {
+    try {
+        await workspace.fs.mkdir(path.dirname(configPath), { recursive: true })
+
+        // Read existing config
+        let existingConfig: AgentConfig
+        try {
+            const raw = await workspace.fs.readFile(configPath)
+            existingConfig = JSON.parse(raw.toString())
+        } catch {
+            // If file doesn't exist, create minimal config
+            existingConfig = {
+                name: 'default-agent',
+                version: '1.0.0',
+                description: 'Agent configuration',
+                mcpServers: {},
+                tools: [],
+                allowedTools: [],
+                toolsSettings: {},
+                includedFiles: [],
+                resources: [],
+            }
+        }
+
+        // Remove existing server tools from arrays
+        const serverPrefix = `@${serverName}`
+        existingConfig.tools = existingConfig.tools.filter(
+            tool => tool !== serverPrefix && !tool.startsWith(`${serverPrefix}/`)
+        )
+        existingConfig.allowedTools = existingConfig.allowedTools.filter(
+            tool => tool !== serverPrefix && !tool.startsWith(`${serverPrefix}/`)
+        )
+
+        if (serverConfig === null) {
+            // Remove server entirely
+            delete existingConfig.mcpServers[serverName]
+        } else {
+            // Update or add server
+            existingConfig.mcpServers[serverName] = serverConfig
+            // Add new server tools
+            existingConfig.tools.push(...serverTools)
+            existingConfig.allowedTools.push(...serverAllowedTools)
+        }
+
+        await workspace.fs.writeFile(configPath, JSON.stringify(existingConfig, null, 2))
+        logging.info(`Saved server-specific agent config for ${serverName} to ${configPath}`)
+    } catch (err: any) {
+        logging.error(`Failed to save server-specific agent config to ${configPath}: ${err.message}`)
+        throw err
+    }
+}
+
 export const MAX_TOOL_NAME_LENGTH = 64
 
 /**

@@ -239,12 +239,12 @@ describe('callTool()', () => {
 describe('addServer()', () => {
     let loadStub: sinon.SinonStub
     let initOneStub: sinon.SinonStub
-    let saveAgentConfigStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
 
     beforeEach(() => {
         loadStub = stubAgentConfig()
         initOneStub = stubInitOneServer()
-        saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
     })
 
     afterEach(async () => {
@@ -268,7 +268,7 @@ describe('addServer()', () => {
 
         await mgr.addServer('newS', newCfg, 'path.json')
 
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect(initOneStub.calledOnceWith('newS', sinon.match(newCfg))).to.be.true
     })
 
@@ -301,14 +301,14 @@ describe('addServer()', () => {
 
         await mgr.addServer('httpSrv', httpCfg, 'http.json')
 
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect(initOneStub.calledOnceWith('httpSrv', sinon.match(httpCfg))).to.be.true
     })
 })
 
 describe('removeServer()', () => {
     let loadStub: sinon.SinonStub
-    let saveAgentConfigStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
     let existsStub: sinon.SinonStub
     let readFileStub: sinon.SinonStub
     let writeFileStub: sinon.SinonStub
@@ -318,7 +318,7 @@ describe('removeServer()', () => {
 
     beforeEach(() => {
         loadStub = stubAgentConfig()
-        saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
         existsStub = sinon.stub(fakeWorkspace.fs, 'exists').resolves(true)
         readFileStub = sinon
             .stub(fakeWorkspace.fs, 'readFile')
@@ -364,7 +364,7 @@ describe('removeServer()', () => {
         }
 
         await mgr.removeServer('x')
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect((mgr as any).clients.has('x')).to.be.false
     })
 
@@ -395,8 +395,8 @@ describe('removeServer()', () => {
 
         await mgr.removeServer('x')
 
-        // Verify that saveAgentConfig was called
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        // Verify that saveServerSpecificAgentConfig was called
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect((mgr as any).clients.has('x')).to.be.false
 
         // Verify server was removed from agent config
@@ -472,11 +472,11 @@ describe('mutateConfigFile()', () => {
 describe('updateServer()', () => {
     let loadStub: sinon.SinonStub
     let initOneStub: sinon.SinonStub
-    let saveAgentConfigStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
 
     beforeEach(() => {
         initOneStub = stubInitOneServer()
-        saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
     })
 
     afterEach(async () => {
@@ -519,11 +519,11 @@ describe('updateServer()', () => {
 
         const closeStub = sinon.stub(fakeClient, 'close').resolves()
         initOneStub.resetHistory()
-        saveAgentConfigStub.resetHistory()
+        saveServerSpecificAgentConfigStub.resetHistory()
 
         await mgr.updateServer('u1', { timeout: 999 }, 'u.json')
 
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect(closeStub.calledOnce).to.be.true
         expect(initOneStub.calledOnceWith('u1', sinon.match.has('timeout', 999))).to.be.true
     })
@@ -559,11 +559,11 @@ describe('updateServer()', () => {
         const mgr = McpManager.instance
 
         initOneStub.resetHistory()
-        saveAgentConfigStub.resetHistory()
+        saveServerSpecificAgentConfigStub.resetHistory()
 
         await mgr.updateServer('srv', { command: undefined, url: 'https://new.host/mcp' }, 'z.json')
 
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
         expect(initOneStub.calledOnceWith('srv', sinon.match({ url: 'https://new.host/mcp' }))).to.be.true
     })
 })
@@ -1061,9 +1061,11 @@ describe('listServersAndTools()', () => {
 
 describe('updateServerPermission()', () => {
     let saveAgentConfigStub: sinon.SinonStub
+    let saveServerSpecificAgentConfigStub: sinon.SinonStub
 
     beforeEach(() => {
         saveAgentConfigStub = sinon.stub(mcpUtils, 'saveAgentConfig').resolves()
+        saveServerSpecificAgentConfigStub = sinon.stub(mcpUtils, 'saveServerSpecificAgentConfig').resolves()
     })
 
     afterEach(async () => {
@@ -1112,8 +1114,8 @@ describe('updateServerPermission()', () => {
             __configPath__: '/p',
         })
 
-        // Verify saveAgentConfig was called
-        expect(saveAgentConfigStub.calledOnce).to.be.true
+        // Verify saveServerSpecificAgentConfig was called
+        expect(saveServerSpecificAgentConfigStub.calledOnce).to.be.true
 
         // Verify the tool permission was updated
         expect(mgr.requiresApproval('srv', 'tool1')).to.be.false

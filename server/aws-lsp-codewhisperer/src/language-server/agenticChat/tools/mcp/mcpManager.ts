@@ -26,6 +26,7 @@ import {
     isEmptyEnv,
     loadAgentConfig,
     saveAgentConfig,
+    saveServerSpecificAgentConfig,
     sanitizeName,
     getGlobalAgentConfigPath,
     getWorkspaceMcpConfigPaths,
@@ -730,8 +731,23 @@ export class McpManager {
                 this.agentConfig.tools.push(serverPrefix)
             }
 
-            // Save agent config once with all changes
-            await saveAgentConfig(this.features.workspace, this.features.logging, this.agentConfig, agentPath)
+            // Save server-specific changes to agent config
+            const serverTools = this.agentConfig.tools.filter(
+                tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+            )
+            const serverAllowedTools = this.agentConfig.allowedTools.filter(
+                tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+            )
+
+            await saveServerSpecificAgentConfig(
+                this.features.workspace,
+                this.features.logging,
+                serverName,
+                serverConfig,
+                serverTools,
+                serverAllowedTools,
+                agentPath
+            )
 
             // Add server tools to tools list after initialization
             await this.initOneServer(sanitizedName, newCfg, AuthIntent.Interactive)
@@ -794,8 +810,16 @@ export class McpManager {
                 return true
             })
 
-            // Save agent config
-            await saveAgentConfig(this.features.workspace, this.features.logging, this.agentConfig, cfg.__configPath__)
+            // Save server removal to agent config
+            await saveServerSpecificAgentConfig(
+                this.features.workspace,
+                this.features.logging,
+                unsanitizedName,
+                null, // null indicates server should be removed
+                [],
+                [],
+                cfg.__configPath__
+            )
         }
 
         this.mcpServers.delete(serverName)
@@ -853,8 +877,24 @@ export class McpManager {
                 }
                 this.agentConfig.mcpServers[unsanitizedServerName] = updatedConfig
 
-                // Save agent config
-                await saveAgentConfig(this.features.workspace, this.features.logging, this.agentConfig, agentPath)
+                // Save server-specific changes to agent config
+                const serverPrefix = `@${unsanitizedServerName}`
+                const serverTools = this.agentConfig.tools.filter(
+                    tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+                )
+                const serverAllowedTools = this.agentConfig.allowedTools.filter(
+                    tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+                )
+
+                await saveServerSpecificAgentConfig(
+                    this.features.workspace,
+                    this.features.logging,
+                    unsanitizedServerName,
+                    updatedConfig,
+                    serverTools,
+                    serverAllowedTools,
+                    agentPath
+                )
             }
 
             const newCfg: MCPServerConfig = {
@@ -1057,6 +1097,12 @@ export class McpManager {
                 }
             }
 
+            // Update mcpServerPermissions map immediately to reflect changes
+            this.mcpServerPermissions.set(serverName, {
+                enabled: perm.enabled,
+                toolPerms: perm.toolPerms || {},
+            })
+
             // Update server enabled/disabled state in agent config
             if (this.agentConfig.mcpServers[unsanitizedServerName]) {
                 this.agentConfig.mcpServers[unsanitizedServerName].disabled = !perm.enabled
@@ -1067,17 +1113,28 @@ export class McpManager {
                 serverConfig.disabled = !perm.enabled
             }
 
-            // Save agent config
+            // Save only server-specific changes to agent config
             const agentPath = perm.__configPath__
             if (agentPath) {
-                await saveAgentConfig(this.features.workspace, this.features.logging, this.agentConfig, agentPath)
-            }
+                // Collect server-specific tools and allowedTools
+                const serverPrefix = `@${unsanitizedServerName}`
+                const serverTools = this.agentConfig.tools.filter(
+                    tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+                )
+                const serverAllowedTools = this.agentConfig.allowedTools.filter(
+                    tool => tool === serverPrefix || tool.startsWith(`${serverPrefix}/`)
+                )
 
-            // Update mcpServerPermissions map
-            this.mcpServerPermissions.set(serverName, {
-                enabled: perm.enabled,
-                toolPerms: perm.toolPerms || {},
-            })
+                await saveServerSpecificAgentConfig(
+                    this.features.workspace,
+                    this.features.logging,
+                    unsanitizedServerName,
+                    this.agentConfig.mcpServers[unsanitizedServerName],
+                    serverTools,
+                    serverAllowedTools,
+                    agentPath
+                )
+            }
 
             // enable/disable server
             if (this.isServerDisabled(serverName)) {
@@ -1184,11 +1241,14 @@ export class McpManager {
                     return true
                 })
 
-                // Save agent config
-                await saveAgentConfig(
+                // Save server removal to agent config
+                await saveServerSpecificAgentConfig(
                     this.features.workspace,
                     this.features.logging,
-                    this.agentConfig,
+                    unsanitizedName,
+                    null, // null indicates server should be removed
+                    [],
+                    [],
                     cfg.__configPath__
                 )
             }
