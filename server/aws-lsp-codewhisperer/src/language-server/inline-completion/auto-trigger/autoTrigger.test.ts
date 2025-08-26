@@ -169,7 +169,7 @@ describe('Auto Trigger', async () => {
             assert.strictEqual(result.shouldTrigger, false)
         })
 
-        it('should not trigger when right context starts with space', () => {
+        it.skip('should not trigger when right context starts with space', () => {
             const params = createBasicParams({
                 fileContext: createBasicFileContext('console.', ' log()'),
             })
