@@ -769,7 +769,7 @@ export class AgenticChatController implements ChatHandlers {
                 selectedModelId: DEFAULT_MODEL_ID,
             }
         }
- 
+
         // Determine selected model ID based on priority
         let selectedModelId: string
         let modelId = this.#chatHistoryDb.getModelId()
