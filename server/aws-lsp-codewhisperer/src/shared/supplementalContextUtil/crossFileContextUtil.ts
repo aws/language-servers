@@ -209,8 +209,17 @@ export async function fetchOpenTabsContext(
         })
     }
 
+    // Dedupe code chunks based on their filePath + content unique key
+    const seen = new Set<string>()
+    const deduped = supplementalContexts.filter(item => {
+        const key = `${item.filePath}:${item.content}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+    })
+
     // DO NOT send code chunk with empty content
-    return supplementalContexts.filter(item => item.content.trim().length !== 0)
+    return deduped.filter(item => item.content.trim().length !== 0)
 }
 
 function findBestKChunkMatches(chunkInput: Chunk, chunkReferences: Chunk[], k: number): Chunk[] {
