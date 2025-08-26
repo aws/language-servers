@@ -138,7 +138,7 @@ export type MessagesWithCharacterCount = {
 export function isCachedValid(timestamp: number): boolean {
     const currentTime = Date.now()
     const cacheAge = currentTime - timestamp
-    const CACHE_TTL = 5 * 60 * 1000 // 5 minutes in milliseconds
+    const CACHE_TTL = 30 * 60 * 1000 // 30 minutes in milliseconds
 
     return cacheAge < CACHE_TTL
 }
