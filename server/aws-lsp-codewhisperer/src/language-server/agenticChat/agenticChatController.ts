@@ -227,6 +227,7 @@ import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
+import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 import { IDE } from '../../shared/constants'
 
 type ChatHandlers = Omit<
