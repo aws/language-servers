@@ -714,7 +714,7 @@ export class AgenticChatController implements ChatHandlers {
             })
 
             // Wait for the response to be completed before proceeding
-            this.#log('Model Response', responseResult.toString())
+            this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
             models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
                 id: modelId,
                 name: modelName ?? modelId,
