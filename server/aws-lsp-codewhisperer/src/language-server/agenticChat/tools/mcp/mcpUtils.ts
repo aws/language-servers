@@ -147,6 +147,17 @@ export async function loadMcpServerConfigs(
     return { servers, serverNameMapping, errors: configErrors }
 }
 
+// Amazon internal MCP server configuration
+const AMZN_MCP_SERVER_NAME = 'amzn-mcp'
+const AMZN_MCP_SERVER_CONFIG = {
+    command: 'amzn-mcp',
+    args: ['--include-tags=read', '--exclude-tags=write'],
+    disabled: false,
+    env: {},
+    autoApprove: [],
+}
+const AMZN_MCP_TOOLS = ['@amzn-mcp']
+
 const DEFAULT_AGENT_RAW = `{
   "name": "default-agent",
   "version": "1.0.0",
@@ -221,10 +232,50 @@ const DEFAULT_PERSONA_RAW = `{
  * - Combines functionality of loadMcpServerConfigs and loadPersonaPermissions
  * - Handles server configurations and permissions from the same agent file
  */
+async function autoAddInternalMcpServer(
+    workspace: Workspace,
+    logging: Logger,
+    agentConfig: AgentConfig,
+    servers: Map<string, MCPServerConfig>,
+    serverNameMapping: Map<string, string>,
+    globalConfigPath: string
+): Promise<void> {
+    const hasAmznMcp = Object.values(agentConfig.mcpServers).some(
+        config => config.command === AMZN_MCP_SERVER_CONFIG.command
+    )
+    if (!hasAmznMcp) {
+        logging.info('Auto-adding Amazon internal MCP server for internal user')
+        agentConfig.mcpServers[AMZN_MCP_SERVER_NAME] = AMZN_MCP_SERVER_CONFIG
+        agentConfig.tools.push(...AMZN_MCP_TOOLS)
+
+        const sanitizedName = sanitizeName(AMZN_MCP_SERVER_NAME)
+        servers.set(sanitizedName, {
+            ...AMZN_MCP_SERVER_CONFIG,
+            __configPath__: globalConfigPath,
+        })
+        serverNameMapping.set(sanitizedName, AMZN_MCP_SERVER_NAME)
+
+        try {
+            await saveServerSpecificAgentConfig(
+                workspace,
+                logging,
+                AMZN_MCP_SERVER_NAME,
+                AMZN_MCP_SERVER_CONFIG,
+                [...AMZN_MCP_TOOLS],
+                [],
+                globalConfigPath
+            )
+        } catch (err) {
+            logging.warn(`Failed to save agent config after adding ${AMZN_MCP_SERVER_NAME} server: ${err}`)
+        }
+    }
+}
+
 export async function loadAgentConfig(
     workspace: Workspace,
     logging: Logger,
-    agentPaths: string[]
+    agentPaths: string[],
+    isInternalUser?: boolean
 ): Promise<{
     servers: Map<string, MCPServerConfig>
     serverNameMapping: Map<string, string>
@@ -459,6 +510,11 @@ export async function loadAgentConfig(
                 )
             }
         }
+    }
+
+    // Auto-add Amazon internal MCP server for internal users
+    if (isInternalUser) {
+        await autoAddInternalMcpServer(workspace, logging, agentConfig, servers, serverNameMapping, globalConfigPath)
     }
 
     // Return the agent config, servers, server name mapping, and errors

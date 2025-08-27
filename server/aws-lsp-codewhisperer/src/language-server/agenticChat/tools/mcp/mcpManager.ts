@@ -40,6 +40,7 @@ import { URI } from 'vscode-uri'
 import { sanitizeInput } from '../../../../shared/utils'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import { OAuthClient } from './mcpOauthClient'
+import { INTERNAL_USER_START_URL } from '../../../../shared/constants'
 
 export const MCP_SERVER_STATUS_CHANGED = 'mcpServerStatusChanged'
 export const AGENT_TOOLS_CHANGED = 'agentToolsChanged'
@@ -172,8 +173,17 @@ export class McpManager {
      * Load configurations and initialize each enabled server.
      */
     private async discoverAllServers(): Promise<void> {
+        // Check if user is internal
+        const startUrl = this.features.credentialsProvider?.getConnectionMetadata()?.sso?.startUrl
+        const isInternalUser = startUrl === INTERNAL_USER_START_URL
+
         // Load agent config
-        const result = await loadAgentConfig(this.features.workspace, this.features.logging, this.agentPaths)
+        const result = await loadAgentConfig(
+            this.features.workspace,
+            this.features.logging,
+            this.agentPaths,
+            isInternalUser
+        )
 
         // Extract agent config and other data
         this.agentConfig = result.agentConfig
