@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.34](https://github.com/aws/language-servers/compare/chat-client/v0.1.33...chat-client/v0.1.34) (2025-08-27)
+
+
+### Features
+
+* Auto fetch models from listAvailableModels API ([#2171](https://github.com/aws/language-servers/issues/2171)) ([8600c52](https://github.com/aws/language-servers/commit/8600c524877abb459e9338399352446c0dcff6f0))
+
+
+### Bug Fixes
+
+* **amazonq:** disable typewriter animation ([#2160](https://github.com/aws/language-servers/issues/2160)) ([db45d01](https://github.com/aws/language-servers/commit/db45d01adba10e8a04d868e1062f899df4f5b7e4))
+
 ## [0.1.33](https://github.com/aws/language-servers/compare/chat-client/v0.1.32...chat-client/v0.1.33) (2025-08-19)
 
 
