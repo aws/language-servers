@@ -281,14 +281,17 @@ export class TelemetryService {
             addedIdeDiagnostics: addedIdeDiagnostics,
             removedIdeDiagnostics: removedIdeDiagnostics,
             streakLength: streakLength ?? 0,
+            suggestionType: isInlineEdit ? 'EDITS' : 'COMPLETIONS',
         }
         this.logging.info(`Invoking SendTelemetryEvent:UserTriggerDecisionEvent with:
+            "requestId": ${event.requestId}
             "suggestionState": ${event.suggestionState}
             "acceptedCharacterCount": ${event.acceptedCharacterCount}
             "addedCharacterCount": ${event.addedCharacterCount}
             "deletedCharacterCount": ${event.deletedCharacterCount}
             "streakLength": ${event.streakLength}
-            "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds}`)
+            "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds}
+            "suggestionType": ${event.suggestionType}`)
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
         })

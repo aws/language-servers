@@ -548,6 +548,7 @@ declare namespace CodeWhispererBearerTokenClient {
   }
   export type CompletionContentString = string;
   export type CompletionType = "BLOCK"|"LINE"|string;
+  export type SuggestionType = "COMPLETIONS"|"EDITS"|string;
   export type Completions = Completion[];
   export interface ConsoleState {
     region?: String;
@@ -2004,6 +2005,8 @@ declare namespace CodeWhispererBearerTokenClient {
     product: UserContextProductString;
     clientId?: UUID;
     ideVersion?: String;
+    pluginVersion?: String;
+    lspVersion?: String;
   }
   export type UserContextProductString = string;
   export interface UserInputMessage {
@@ -2117,6 +2120,7 @@ declare namespace CodeWhispererBearerTokenClient {
     addedCharacterCount?: UserTriggerDecisionEventAddedCharacterCountInteger;
     deletedCharacterCount?: UserTriggerDecisionEventDeletedCharacterCountInteger;
     streakLength?: UserTriggerDecisionEventStreakLengthInteger;
+    suggestionType?: SuggestionType;
   }
   export type UserTriggerDecisionEventAddedCharacterCountInteger = number;
   export type UserTriggerDecisionEventDeletedCharacterCountInteger = number;
@@ -2172,4 +2176,4 @@ declare namespace CodeWhispererBearerTokenClient {
 }
 export = CodeWhispererBearerTokenClient;
 
-    
+  

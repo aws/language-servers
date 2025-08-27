@@ -1890,6 +1890,10 @@
             "type": "string",
             "enum": ["BLOCK", "LINE"]
         },
+        "SuggestionType": {
+            "type": "string",
+            "enum": ["COMPLETIONS", "EDITS"]
+        },
         "Completions": {
             "type": "list",
             "member": {
@@ -6284,6 +6288,12 @@
                 },
                 "ideVersion": {
                     "shape": "String"
+                },
+                "pluginVersion": {
+                    "shape": "String"
+                },
+                "lspVersion": {
+                    "shape": "String"
                 }
             }
         },
@@ -6525,6 +6535,9 @@
                 },
                 "streakLength": {
                     "shape": "UserTriggerDecisionEventStreakLengthInteger"
+                },
+                "suggestionType": {
+                    "shape": "SuggestionType"
                 }
             }
         },
