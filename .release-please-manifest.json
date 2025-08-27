@@ -1,8 +1,8 @@
 {
-    "chat-client": "0.1.33",
+    "chat-client": "0.1.34",
     "core/aws-lsp-core": "0.0.14",
     "server/aws-lsp-antlr4": "0.1.18",
-    "server/aws-lsp-codewhisperer": "0.0.75",
+    "server/aws-lsp-codewhisperer": "0.0.76",
     "server/aws-lsp-json": "0.1.18",
     "server/aws-lsp-partiql": "0.0.17",
     "server/aws-lsp-yaml": "0.1.18"
