@@ -10,6 +10,7 @@ export enum FailedMetricName {
 }
 export enum SuccessMetricName {
     CodeScanSuccess = 'codeScanSuccess',
+    IssuesDetected = 'issuesDetected',
 }
 
 export type ValidateInputAndSetupResult = {
