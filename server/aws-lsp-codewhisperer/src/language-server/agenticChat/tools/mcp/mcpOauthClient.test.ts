@@ -19,6 +19,12 @@ const fakeLogger = {
     error: () => {},
 }
 
+const fakeLsp = {
+    window: {
+        showDocument: sinon.stub().resolves({ success: true }),
+    },
+} as any
+
 const fakeWorkspace = {
     fs: {
         exists: async (_path: string) => false,
@@ -93,9 +99,10 @@ describe('OAuthClient getValidAccessToken()', () => {
 
     beforeEach(() => {
         sinon.restore()
-        OAuthClient.initialize(fakeWorkspace, fakeLogger as any)
+        OAuthClient.initialize(fakeWorkspace, fakeLogger as any, fakeLsp)
         sinon.stub(OAuthClient as any, 'computeKey').returns('testkey')
         stubHttpServer()
+        ;(fakeLsp.window.showDocument as sinon.SinonStub).resetHistory()
     })
 
     afterEach(() => sinon.restore())
@@ -113,8 +120,10 @@ describe('OAuthClient getValidAccessToken()', () => {
 
         stubFileSystem(cachedToken, cachedReg)
 
-        const token = await OAuthClient.getValidAccessToken(new URL('https://api.example.com/mcp'))
+        const token = await OAuthClient.getValidAccessToken(new URL('https://api.example.com/mcp'), {
+            interactive: true,
+        })
         expect(token).to.equal('cached_access')
-        expect((http.createServer as any).calledOnce).to.be.true
+        expect((fakeLsp.window.showDocument as sinon.SinonStub).called).to.be.false
     })
 })

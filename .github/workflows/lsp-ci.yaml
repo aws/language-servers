@@ -1,9 +1,9 @@
 name: Language Server CI
 on:
     push:
-        branches: [main, dev, feature/*]
+        branches: [main, dev, feature/*, release/agentic/*]
     pull_request:
-        branches: [main, dev, feature/*]
+        branches: [main, dev, feature/*, release/agentic/*]
 
 jobs:
     test:

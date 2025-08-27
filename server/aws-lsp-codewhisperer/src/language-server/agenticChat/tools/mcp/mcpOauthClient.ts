@@ -9,7 +9,8 @@ import * as path from 'path'
 import { spawn } from 'child_process'
 import { URL, URLSearchParams } from 'url'
 import * as http from 'http'
-import { Logger, Workspace } from '@aws/language-server-runtimes/server-interface'
+import * as os from 'os'
+import { Logger, Workspace, Lsp } from '@aws/language-server-runtimes/server-interface'
 
 interface Token {
     access_token: string
@@ -34,10 +35,12 @@ interface Registration {
 export class OAuthClient {
     private static logger: Logger
     private static workspace: Workspace
+    private static lsp: Lsp
 
-    public static initialize(ws: Workspace, logger: Logger): void {
+    public static initialize(ws: Workspace, logger: Logger, lsp: Lsp): void {
         this.workspace = ws
         this.logger = logger
+        this.lsp = lsp
     }
 
     /**
@@ -46,9 +49,9 @@ export class OAuthClient {
      */
     public static async getValidAccessToken(
         mcpBase: URL,
-        opts: { interactive?: boolean } = { interactive: true }
+        opts: { interactive?: boolean } = { interactive: false }
     ): Promise<string | undefined> {
-        const interactive = opts?.interactive !== false
+        const interactive = opts?.interactive === true
         const key = this.computeKey(mcpBase)
         const regPath = path.join(this.cacheDir, `${key}.registration.json`)
         const tokPath = path.join(this.cacheDir, `${key}.token.json`)
@@ -94,10 +97,11 @@ export class OAuthClient {
         const savedReg = await this.read<Registration>(regPath)
         if (savedReg) {
             const port = Number(new URL(savedReg.redirect_uri).port)
+            const normalized = `http://127.0.0.1:${port}`
             server = http.createServer()
             try {
-                await this.listen(server, port)
-                redirectUri = savedReg.redirect_uri
+                await this.listen(server, port, '127.0.0.1')
+                redirectUri = normalized
                 this.logger.info(`OAuth: reusing redirect URI ${redirectUri}`)
             } catch (e: any) {
                 if (e.code === 'EADDRINUSE') {
@@ -181,9 +185,9 @@ export class OAuthClient {
     /** Spin up a one‑time HTTP listener on localhost:randomPort */
     private static async buildCallbackServer(): Promise<{ server: http.Server; redirectUri: string }> {
         const server = http.createServer()
-        await this.listen(server, 0)
+        await this.listen(server, 0, '127.0.0.1')
         const port = (server.address() as any).port as number
-        return { server, redirectUri: `http://localhost:${port}` }
+        return { server, redirectUri: `http://127.0.0.1:${port}` }
     }
 
     /** Discover OAuth endpoints by HEAD/WWW‑Authenticate, well‑known, or fallback */
@@ -333,6 +337,7 @@ export class OAuthClient {
         redirectUri: string,
         server: http.Server
     ): Promise<Token> {
+        const DEFAULT_PKCE_TIMEOUT_MS = 90_000
         // a) generate PKCE params
         const verifier = this.b64url(crypto.randomBytes(32))
         const challenge = this.b64url(crypto.createHash('sha256').update(verifier).digest())
@@ -351,27 +356,29 @@ export class OAuthClient {
             state: state,
         }).toString()
 
-        const opener =
-            process.platform === 'win32'
-                ? { cmd: 'cmd', args: ['/c', 'start', authz.toString()] }
-                : process.platform === 'darwin'
-                  ? { cmd: 'open', args: [authz.toString()] }
-                  : { cmd: 'xdg-open', args: [authz.toString()] }
-
-        void spawn(opener.cmd, opener.args, { detached: true, stdio: 'ignore' }).unref()
+        await this.lsp.window.showDocument({ uri: authz.toString(), external: true })
 
         // c) wait for code on our loopback
-        const { code, rxState, err } = await new Promise<{ code: string; rxState: string; err?: string }>(resolve => {
+        const waitForFlow = new Promise<{ code: string; rxState: string; err?: string; errDesc?: string }>(resolve => {
             server.on('request', (req, res) => {
                 const u = new URL(req.url || '/', redirectUri)
                 const c = u.searchParams.get('code') || ''
                 const s = u.searchParams.get('state') || ''
                 const e = u.searchParams.get('error') || undefined
+                const ed = u.searchParams.get('error_description') || undefined
                 res.writeHead(200, { 'content-type': 'text/html' }).end('<h2>You may close this tab.</h2>')
-                resolve({ code: c, rxState: s, err: e })
+                resolve({ code: c, rxState: s, err: e, errDesc: ed })
             })
         })
-        if (err) throw new Error(`Authorization error: ${err}`)
+        const { code, rxState, err, errDesc } = await Promise.race([
+            waitForFlow,
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('authorization_timed_out')), DEFAULT_PKCE_TIMEOUT_MS)
+            ),
+        ])
+        if (err) {
+            throw new Error(`Authorization error: ${err}${errDesc ? ` - ${errDesc}` : ''}`)
+        }
         if (!code || rxState !== state) throw new Error('Invalid authorization response (state mismatch)')
 
         // d) exchange code for token
@@ -438,12 +445,7 @@ export class OAuthClient {
     }
 
     /** Directory for caching registration + tokens */
-    private static readonly cacheDir = path.join(
-        process.env.HOME || process.env.USERPROFILE || '.',
-        '.aws',
-        'sso',
-        'cache'
-    )
+    private static readonly cacheDir = path.join(os.homedir(), '.aws', 'sso', 'cache')
 
     /**
      * Await server.listen() but reject if it emits 'error' (eg EADDRINUSE),
