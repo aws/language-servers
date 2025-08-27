@@ -229,12 +229,7 @@ export const autoTrigger = (
 
     const triggerTypeCoefficient = coefficients.triggerTypeCoefficient[triggerType] ?? 0
     const osCoefficient = coefficients.osCoefficient[os] ?? 0
-    let charCoefficient = coefficients.charCoefficient[char] ?? 0
-    // this is a temporary change to lower the auto trigger frequency
-    if (ide === 'VSCODE') {
-        charCoefficient = 0
-    }
-
+    const charCoefficient = coefficients.charCoefficient[char] ?? 0
     const keyWordCoefficient = coefficients.charCoefficient[keyword] ?? 0
 
     const languageCoefficient = coefficients.languageCoefficient[fileContext.programmingLanguage.languageName] ?? 0
