@@ -2607,7 +2607,7 @@ export class AgenticChatController implements ChatHandlers {
                                 status: {
                                     status: isAccept ? 'success' : 'error',
                                     icon: isAccept ? 'ok' : 'cancel',
-                                    text: isAccept ? 'Completed' : 'Rejected',
+                                    text: isAccept ? 'Accepted' : 'Rejected',
                                 },
                                 fileList: undefined,
                             },
