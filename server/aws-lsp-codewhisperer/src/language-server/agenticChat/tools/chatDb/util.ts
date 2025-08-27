@@ -10,6 +10,7 @@ import {
     ConversationItem,
     ConversationItemGroup,
     IconType,
+    Model,
     ReferenceTrackerInformation,
 } from '@aws/language-server-runtimes/server-interface'
 import {
@@ -84,6 +85,9 @@ export type Rules = {
 export type Settings = {
     modelId: string | undefined
     pairProgrammingMode?: boolean
+    cachedModels?: Model[]
+    cachedDefaultModelId?: string
+    modelCacheTimestamp?: number
 }
 
 export type Conversation = {
@@ -129,6 +133,14 @@ export type MessagesWithCharacterCount = {
     history: Message[]
     historyCount: number
     currentCount: number
+}
+
+export function isCachedValid(timestamp: number): boolean {
+    const currentTime = Date.now()
+    const cacheAge = currentTime - timestamp
+    const CACHE_TTL = 30 * 60 * 1000 // 30 minutes in milliseconds
+
+    return cacheAge < CACHE_TTL
 }
 
 /**

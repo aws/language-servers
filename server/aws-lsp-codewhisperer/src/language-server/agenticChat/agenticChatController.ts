@@ -24,7 +24,6 @@ import {
     GREP_SEARCH,
     FILE_SEARCH,
     EXECUTE_BASH,
-    CODE_REVIEW,
     BUTTON_RUN_SHELL_COMMAND,
     BUTTON_REJECT_SHELL_COMMAND,
     BUTTON_REJECT_MCP_TOOL,
@@ -67,8 +66,6 @@ import {
     ListAvailableModelsResult,
     OpenFileDialogParams,
     OpenFileDialogResult,
-} from '@aws/language-server-runtimes/protocol'
-import {
     ApplyWorkspaceEditParams,
     ErrorCodes,
     FeedbackParams,
@@ -83,6 +80,7 @@ import {
     TabBarActionParams,
     CreatePromptParams,
     FileClickParams,
+    Model,
 } from '@aws/language-server-runtimes/protocol'
 import {
     CancellationToken,
@@ -222,14 +220,14 @@ import {
     Message as DbMessage,
     messageToStreamingMessage,
 } from './tools/chatDb/util'
-import { MODEL_OPTIONS, MODEL_OPTIONS_FOR_REGION } from './constants/modelSelection'
+import { FALLBACK_MODEL_OPTIONS, FALLBACK_MODEL_RECORD, BEDROCK_MODEL_TO_MODEL_ID } from './constants/modelSelection'
 import { DEFAULT_IMAGE_VERIFICATION_OPTIONS, verifyServerImage } from '../../shared/imageVerification'
 import { sanitize } from '@aws/lsp-core/out/util/path'
-import { getLatestAvailableModel } from './utils/agenticChatControllerHelper'
 import { ActiveUserTracker } from '../../shared/activeUserTracker'
 import { UserContext } from '../../client/token/codewhispererbearertokenclient'
 import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
+import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
 
 type ChatHandlers = Omit<
@@ -352,7 +350,7 @@ export class AgenticChatController implements ChatHandlers {
             // @ts-ignore
             this.#features.chat.chatOptionsUpdate({ region })
         })
-        this.#chatHistoryDb = new ChatDatabase(features)
+        this.#chatHistoryDb = ChatDatabase.getInstance(features)
         this.#tabBarController = new TabBarController(
             features,
             this.#chatHistoryDb,
@@ -681,25 +679,133 @@ export class AgenticChatController implements ChatHandlers {
         return this.#mcpEventHandler.onMcpServerClick(params)
     }
 
-    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        const models = region && MODEL_OPTIONS_FOR_REGION[region] ? MODEL_OPTIONS_FOR_REGION[region] : MODEL_OPTIONS
+    /**
+     * Fetches available models either from cache or API
+     * If cache is valid (less than 5 minutes old), returns cached models
+     * If cache is invalid or empty, makes an API call and stores results in cache
+     * If the API throws errors (e.g., throttling), falls back to default models
+     */
+    async #fetchModelsWithCache(): Promise<{ models: Model[]; defaultModelId?: string; errorFromAPI: boolean }> {
+        let models: Model[] = []
+        let defaultModelId: string | undefined
+        let errorFromAPI = false
 
-        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
-        const { data: session, success } = sessionResult
-        if (!success) {
-            return {
-                tabId: params.tabId,
-                models: models,
+        // Check if cache is valid (less than 5 minutes old)
+        if (this.#chatHistoryDb.isCachedModelsValid()) {
+            const cachedData = this.#chatHistoryDb.getCachedModels()
+            if (cachedData && cachedData.models && cachedData.models.length > 0) {
+                this.#log('Using cached models, last updated at:', new Date(cachedData.timestamp).toISOString())
+                return {
+                    models: cachedData.models,
+                    defaultModelId: cachedData.defaultModelId,
+                    errorFromAPI: false,
+                }
             }
         }
 
-        const savedModelId = this.#chatHistoryDb.getModelId()
-        const selectedModelId =
-            savedModelId && models.some(model => model.id === savedModelId)
-                ? savedModelId
-                : getLatestAvailableModel(region).id
+        // If cache is invalid or empty, make an API call
+        this.#log('Cache miss or expired, fetching models from API')
+        try {
+            const client = AmazonQTokenServiceManager.getInstance().getCodewhispererService()
+            const responseResult = await client.listAvailableModels({
+                origin: IDE,
+                profileArn: AmazonQTokenServiceManager.getInstance().getConnectionType()
+                    ? AmazonQTokenServiceManager.getInstance().getActiveProfileArn()
+                    : undefined,
+            })
+
+            // Wait for the response to be completed before proceeding
+            this.#log('Model Response: ', JSON.stringify(responseResult, null, 2))
+            models = Object.values(responseResult.models).map(({ modelId, modelName }) => ({
+                id: modelId,
+                name: modelName ?? modelId,
+            }))
+            defaultModelId = responseResult.defaultModel?.modelId
+
+            // Cache the models with defaultModelId
+            this.#chatHistoryDb.setCachedModels(models, defaultModelId)
+        } catch (err) {
+            // In case of API throttling or other errors, fall back to hardcoded models
+            this.#log('Error fetching models from API, using fallback models:', fmtError(err))
+            errorFromAPI = true
+            models = FALLBACK_MODEL_OPTIONS
+        }
+
+        return {
+            models,
+            defaultModelId,
+            errorFromAPI,
+        }
+    }
+
+    /**
+     * This function handles the model selection process for the chat interface.
+     * It first attempts to retrieve models from cache or API, then determines the appropriate model to select
+     * based on the following priority:
+     * 1. When errors occur or session is invalid: Use the default model as a fallback
+     * 2. When user has previously selected a model: Use that model (or its mapped version if the model ID has changed)
+     * 3. When there's a default model from the API: Use the server-recommended default model
+     * 4. Last resort: Use the newest model defined in modelSelection constants
+     *
+     * This ensures users maintain consistent model selection across sessions while also handling
+     * API failures and model ID migrations gracefully.
+     */
+    async onListAvailableModels(params: ListAvailableModelsParams): Promise<ListAvailableModelsResult> {
+        // Get models from cache or API
+        const { models, defaultModelId, errorFromAPI } = await this.#fetchModelsWithCache()
+
+        // Get the first fallback model option as default
+        const defaultModelOption = FALLBACK_MODEL_OPTIONS[1]
+        const DEFAULT_MODEL_ID = defaultModelId || defaultModelOption?.id
+
+        const sessionResult = this.#chatSessionManagementService.getSession(params.tabId)
+        const { data: session, success } = sessionResult
+
+        // Handle error cases by returning default model
+        if (!success || errorFromAPI) {
+            return {
+                tabId: params.tabId,
+                models: models,
+                selectedModelId: DEFAULT_MODEL_ID,
+            }
+        }
+
+        // Determine selected model ID based on priority
+        let selectedModelId: string
+        let modelId = this.#chatHistoryDb.getModelId()
+
+        // Helper function to get model label from FALLBACK_MODEL_RECORD
+        const getModelLabel = (modelKey: string) =>
+            FALLBACK_MODEL_RECORD[modelKey as keyof typeof FALLBACK_MODEL_RECORD]?.label || modelKey
+
+        // Helper function to map enum model ID to API model ID
+        const getMappedModelId = (modelKey: string) =>
+            BEDROCK_MODEL_TO_MODEL_ID[modelKey as keyof typeof BEDROCK_MODEL_TO_MODEL_ID] || modelKey
+
+        // Determine selected model ID based on priority
+        if (modelId) {
+            const mappedModelId = getMappedModelId(modelId)
+
+            // Priority 1: Use mapped modelId if it exists in available models from backend
+            if (models.some(model => model.id === mappedModelId)) {
+                selectedModelId = mappedModelId
+            }
+            // Priority 2: Use mapped version if modelId exists in FALLBACK_MODEL_RECORD and no backend models available
+            else if (models.length === 0 && modelId in FALLBACK_MODEL_RECORD) {
+                selectedModelId = getModelLabel(modelId)
+            }
+            // Priority 3: Fall back to default or system default
+            else {
+                selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
+            }
+        } else {
+            // No user-selected model - use API default or system default
+            selectedModelId = defaultModelId || getMappedModelId(DEFAULT_MODEL_ID)
+        }
+
+        // Store the selected model in the session
         session.modelId = selectedModelId
+
         return {
             tabId: params.tabId,
             models: models,
@@ -3624,25 +3730,6 @@ export class AgenticChatController implements ChatHandlers {
 
     onSourceLinkClick() {}
 
-    /**
-     * @deprecated use aws/chat/listAvailableModels server request instead
-     */
-    #legacySetModelId(tabId: string, session: ChatSessionService) {
-        // Since model selection is mandatory, the only time modelId is not set is when the chat history is empty.
-        // In that case, we use the default modelId.
-        let modelId = this.#chatHistoryDb.getModelId() ?? DEFAULT_MODEL_ID
-
-        const region = AmazonQTokenServiceManager.getInstance().getRegion()
-        if (region === 'eu-central-1') {
-            // Only 3.7 Sonnet is available in eu-central-1 for now
-            modelId = 'CLAUDE_3_7_SONNET_20250219_V1_0'
-            // @ts-ignore
-            this.#features.chat.chatOptionsUpdate({ region })
-        }
-        this.#features.chat.chatOptionsUpdate({ modelId: modelId, tabId: tabId })
-        session.modelId = modelId
-    }
-
     onTabAdd(params: TabAddParams) {
         this.#telemetryController.activeTabId = params.tabId
 
@@ -3655,11 +3742,14 @@ export class AgenticChatController implements ChatHandlers {
         if (!success) {
             return new ResponseError<ChatResult>(ErrorCodes.InternalError, sessionResult.error)
         }
-        this.#legacySetModelId(params.tabId, session)
 
         // Get the saved pair programming mode from the database or default to true if not found
         const savedPairProgrammingMode = this.#chatHistoryDb.getPairProgrammingMode()
         session.pairProgrammingMode = savedPairProgrammingMode !== undefined ? savedPairProgrammingMode : true
+        if (session) {
+            // Set the logging object on the session
+            session.setLogging(this.#features.logging)
+        }
 
         // Update the client with the initial pair programming mode
         this.#features.chat.chatOptionsUpdate({
@@ -3667,11 +3757,6 @@ export class AgenticChatController implements ChatHandlers {
             // Type assertion to support pairProgrammingMode
             ...(session.pairProgrammingMode !== undefined ? { pairProgrammingMode: session.pairProgrammingMode } : {}),
         } as ChatUpdateParams)
-
-        if (success && session) {
-            // Set the logging object on the session
-            session.setLogging(this.#features.logging)
-        }
         this.setPaidTierMode(params.tabId)
     }
 
