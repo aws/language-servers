@@ -444,6 +444,8 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
     "endpoint": ${this.codeWhispererEndpoint},
     "predictionType": ${request.predictionTypes?.toString() ?? 'Not specified (COMPLETIONS)'},
     "filename": ${request.fileContext.filename},
+    "leftContextLength": ${request.fileContext.leftFileContent.length},
+    rightContextLength: ${request.fileContext.rightFileContent.length},
     "language": ${request.fileContext.programmingLanguage.languageName},
     "supplementalContextCount": ${request.supplementalContexts?.length ?? 0},
     "request.nextToken": ${request.nextToken},

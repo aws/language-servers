@@ -91,7 +91,24 @@ export async function fetchSupplementalContext(
                 strategy: supplementalContextValue.strategy,
             }
 
-            return truncateSupplementalContext(resBeforeTruncation)
+            const r = truncateSupplementalContext(resBeforeTruncation)
+
+            let logstr = `@@supplemental context@@\n
+isUtg: ${r.isUtg},
+isProcessTimeout: ${r.isProcessTimeout},
+contents.length: ${r.contentsLength},
+latency: ${r.latency},
+strategy: ${r.strategy},
+`
+            r.supplementalContextItems.forEach((item, index) => {
+                logstr += `Chunk [${index}th]:\n`
+                logstr += `\tPath: ${item.filePath}\n`
+                logstr += `\tLength: ${item.content.length}\n`
+                logstr += `\tScore: ${item.score}\n`
+            })
+            logging.info(logstr)
+
+            return r
         } else {
             return undefined
         }

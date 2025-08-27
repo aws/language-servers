@@ -116,8 +116,8 @@ export async function codemapContext(
     }
 
     if (projectContext && projectContext.length > 0) {
-        addToResult(projectContext)
-        strategy = 'codemap'
+        // addToResult(projectContext)
+        // strategy = 'codemap'
     }
 
     if (openTabsContext && openTabsContext.length > 0) {
