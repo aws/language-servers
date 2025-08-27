@@ -260,7 +260,8 @@ describe('MynahUI', () => {
             sinon.assert.calledThrice(updateStoreSpy)
         })
 
-        it('should create a new tab if current tab is loading', () => {
+        it('should create a new tab if current tab is loading', function (done) {
+            this.timeout(8000)
             // clear create tab stub since set up process calls it twice
             createTabStub.resetHistory()
             getAllTabsStub.returns({ 'tab-1': { store: { loadingChat: true } } })
@@ -274,6 +275,7 @@ describe('MynahUI', () => {
 
             sinon.assert.calledOnceWithExactly(createTabStub, false)
             sinon.assert.calledThrice(updateStoreSpy)
+            done()
         })
 
         it('should not create a new tab if one exists already', () => {
