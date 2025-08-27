@@ -302,7 +302,7 @@ export class McpManager {
         cfg: MCPServerConfig,
         authIntent: AuthIntent = AuthIntent.Silent
     ): Promise<void> {
-        const DEFAULT_SERVER_INIT_TIMEOUT_MS = 60_000
+        const DEFAULT_SERVER_INIT_TIMEOUT_MS = 120_000
         this.setState(serverName, McpServerStatus.INITIALIZING, 0)
 
         try {
@@ -373,7 +373,7 @@ export class McpManager {
                         }
 
                         if (needsOAuth) {
-                            OAuthClient.initialize(this.features.workspace, this.features.logging)
+                            OAuthClient.initialize(this.features.workspace, this.features.logging, this.features.lsp)
                             try {
                                 const bearer = await OAuthClient.getValidAccessToken(base, {
                                     interactive: authIntent === AuthIntent.Interactive,
@@ -382,7 +382,7 @@ export class McpManager {
                                     headers = { ...headers, Authorization: `Bearer ${bearer}` }
                                 } else if (authIntent === AuthIntent.Silent) {
                                     throw new AgenticChatError(
-                                        `MCP: server '${serverName}' requires OAuth. Open "Edit MCP Server" and save to sign in.`,
+                                        `Server '${serverName}' requires OAuth. Click on Save to reauthenticate.`,
                                         'MCPServerAuthFailed'
                                     )
                                 }
