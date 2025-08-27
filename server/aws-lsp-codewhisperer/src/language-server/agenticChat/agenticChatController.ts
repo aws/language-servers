@@ -2192,6 +2192,50 @@ export class AgenticChatController implements ChatHandlers {
                     )
                 }
 
+                // Handle MCP tool failures
+                const originalNames = McpManager.instance.getOriginalToolNames(toolUse.name)
+                if (originalNames && toolUse.toolUseId) {
+                    const { toolName } = originalNames
+                    const cachedToolUse = session.toolUseLookup.get(toolUse.toolUseId)
+                    const cachedButtonBlockId = (cachedToolUse as any)?.cachedButtonBlockId
+                    const customerFacingError = getCustomerFacingErrorMessage(err)
+
+                    const errorResult = {
+                        type: 'tool',
+                        messageId: toolUse.toolUseId,
+                        summary: {
+                            content: {
+                                header: {
+                                    icon: 'tools',
+                                    body: `${toolName}`,
+                                    status: {
+                                        status: 'error',
+                                        icon: 'cancel-circle',
+                                        text: 'Error',
+                                        description: customerFacingError,
+                                    },
+                                },
+                            },
+                            collapsedContent: [
+                                {
+                                    header: { body: 'Parameters' },
+                                    body: `\`\`\`json\n${JSON.stringify(toolUse.input, null, 2)}\n\`\`\``,
+                                },
+                                {
+                                    header: { body: 'Error' },
+                                    body: customerFacingError,
+                                },
+                            ],
+                        },
+                    } as ChatResult
+
+                    if (cachedButtonBlockId !== undefined) {
+                        await chatResultStream.overwriteResultBlock(errorResult, cachedButtonBlockId)
+                    } else {
+                        await chatResultStream.writeResultBlock(errorResult)
+                    }
+                }
+
                 // display fs write failure status in the UX of that file card
                 if ((toolUse.name === FS_WRITE || toolUse.name === FS_REPLACE) && toolUse.toolUseId) {
                     const existingCard = chatResultStream.getMessageBlockId(toolUse.toolUseId)
@@ -4568,6 +4612,13 @@ export class AgenticChatController implements ChatHandlers {
                     await chatResultStream.overwriteResultBlock(toolResultCard, cachedButtonBlockId)
                 } else {
                     // Fallback to creating a new card
+                    if (toolResultCard.summary?.content?.header) {
+                        toolResultCard.summary.content.header.status = {
+                            status: 'success',
+                            icon: 'ok',
+                            text: 'Completed',
+                        }
+                    }
                     this.#log(`Warning: No blockId found for tool use ${toolUse.toolUseId}, creating new card`)
                     await chatResultStream.writeResultBlock(toolResultCard)
                 }
