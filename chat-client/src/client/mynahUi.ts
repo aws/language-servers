@@ -151,11 +151,20 @@ export const handlePromptInputChange = (mynahUi: MynahUI, tabId: string, options
         }
     }
 
+    const updatedPromptInputOptions = promptInputOptions?.map(option => {
+        option.value = optionsValues[option.id]
+        return option
+    })
+
     mynahUi.updateStore(tabId, {
-        promptInputOptions: promptInputOptions?.map(option => {
-            option.value = optionsValues[option.id]
-            return option
-        }),
+        promptInputOptions: updatedPromptInputOptions,
+    })
+
+    // Store the updated values in tab defaults for new tabs
+    mynahUi.updateTabDefaults({
+        store: {
+            promptInputOptions: updatedPromptInputOptions,
+        },
     })
 }
 
@@ -414,6 +423,12 @@ export const createMynahUi = (
             }
 
             const tabStore = mynahUi.getTabData(tabId).getStore()
+            const storedPromptInputOptions = mynahUi.getTabDefaults().store?.promptInputOptions
+
+            // Retrieve stored model selection and pair programming mode from defaults
+            if (storedPromptInputOptions) {
+                defaultTabConfig.promptInputOptions = storedPromptInputOptions
+            }
 
             // Tabs can be opened through different methods, including server-initiated 'openTab' requests.
             // The 'openTab' request is specifically used for loading historical chat sessions with pre-existing messages.
