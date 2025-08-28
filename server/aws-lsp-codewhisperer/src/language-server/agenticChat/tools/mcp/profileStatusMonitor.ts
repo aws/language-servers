@@ -19,14 +19,16 @@ import * as os from 'os'
 import { EventEmitter } from 'events'
 
 export const AUTH_SUCCESS_EVENT = 'authSuccess'
+export const MCP_CACHE_DIR = path.join(os.homedir(), '.aws', 'amazonq', 'mcpAdmin')
+export const MCP_CACHE_FILE = path.join(MCP_CACHE_DIR, 'mcp-state.json')
 
 export class ProfileStatusMonitor {
     private intervalId?: NodeJS.Timeout
     private readonly CHECK_INTERVAL = 24 * 60 * 60 * 1000 // 24 hours
     private codeWhispererClient?: CodeWhispererServiceToken
     private static lastMcpState: boolean = true
-    private static readonly MCP_CACHE_DIR = path.join(os.homedir(), '.aws', 'amazonq', 'mcpAdmin')
-    private static readonly MCP_CACHE_FILE = path.join(ProfileStatusMonitor.MCP_CACHE_DIR, 'mcp-state.json')
+    private static readonly MCP_CACHE_DIR = MCP_CACHE_DIR
+    private static readonly MCP_CACHE_FILE = MCP_CACHE_FILE
     private static eventEmitter = new EventEmitter()
     private static logging?: Logging
 
