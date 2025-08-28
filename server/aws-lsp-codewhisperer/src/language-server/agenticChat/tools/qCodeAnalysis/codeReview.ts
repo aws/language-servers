@@ -439,9 +439,27 @@ export class CodeReview {
         )
 
         this.logging.info('Findings count grouped by file')
-        aggregatedCodeScanIssueList.forEach(item =>
+        aggregatedCodeScanIssueList.forEach(item => {
             this.logging.info(`File path - ${item.filePath} Findings count - ${item.issues.length}`)
-        )
+            item.issues.forEach(issue =>
+                CodeReviewUtils.emitMetric(
+                    {
+                        reason: SuccessMetricName.IssuesDetected,
+                        result: 'Succeeded',
+                        metadata: {
+                            codewhispererCodeScanJobId: jobId,
+                            credentialStartUrl: this.credentialsProvider.getConnectionMetadata()?.sso?.startUrl,
+                            findingId: issue.findingId,
+                            detectorId: issue.detectorId,
+                            ruleId: issue.ruleId,
+                            autoDetected: false,
+                        },
+                    },
+                    this.logging,
+                    this.telemetry
+                )
+            )
+        })
 
         return {
             codeReviewId: jobId,
