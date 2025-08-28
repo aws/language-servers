@@ -25,12 +25,10 @@ import {
 import {
     isEmptyEnv,
     loadAgentConfig,
-    saveAgentConfig,
     saveServerSpecificAgentConfig,
     sanitizeName,
     getGlobalAgentConfigPath,
-    getWorkspaceMcpConfigPaths,
-    getGlobalMcpConfigPath,
+    markBuilderMcpDeleted,
 } from './mcpUtils'
 import { AgenticChatError } from '../../errors'
 import { EventEmitter } from 'events'
@@ -788,6 +786,11 @@ export class McpManager {
         }
         this.mcpTools = this.mcpTools.filter(t => t.serverName !== serverName)
         this.mcpServerStates.delete(serverName)
+
+        // Check if this is builder-mcp server being removed
+        if (unsanitizedName === 'builder-mcp') {
+            await markBuilderMcpDeleted(this.features.workspace)
+        }
 
         // Remove from agent config
         if (unsanitizedName && this.agentConfig) {

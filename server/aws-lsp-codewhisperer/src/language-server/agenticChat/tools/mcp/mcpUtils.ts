@@ -9,7 +9,7 @@ import { MCPServerConfig, PersonaConfig, MCPServerPermission, McpPermissionType,
 import path = require('path')
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
 import crypto = require('crypto')
-import { Features } from '@aws/language-server-runtimes/server-interface/server'
+import { MCP_CACHE_DIR, MCP_CACHE_FILE } from './profileStatusMonitor'
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
@@ -148,15 +148,61 @@ export async function loadMcpServerConfigs(
 }
 
 // Amazon internal MCP server configuration
-const AMZN_MCP_SERVER_NAME = 'amzn-mcp'
+const AMZN_MCP_SERVER_NAME = 'builder-mcp'
 const AMZN_MCP_SERVER_CONFIG = {
-    command: 'amzn-mcp',
-    args: ['--include-tags=read', '--exclude-tags=write'],
+    command: 'builder-mcp',
+    args: [],
     disabled: false,
     env: {},
     autoApprove: [],
 }
-const AMZN_MCP_TOOLS = ['@amzn-mcp']
+const AMZN_MCP_TOOLS = ['@builder-mcp']
+
+/**
+ * Load builder-mcp state from MCP admin state file
+ */
+async function loadBuilderMcpState(workspace: Workspace): Promise<boolean> {
+    try {
+        if (await workspace.fs.exists(MCP_CACHE_FILE)) {
+            const data = (await workspace.fs.readFile(MCP_CACHE_FILE)).toString()
+            const parsed = JSON.parse(data)
+            return parsed.addBuilderMcp ?? true
+        }
+    } catch (error) {
+        // Ignore errors, default to true
+    }
+    return true
+}
+
+/**
+ * Save builder-mcp state to MCP admin state file
+ */
+async function saveBuilderMcpState(workspace: Workspace, addBuilderMcp: boolean): Promise<void> {
+    try {
+        await workspace.fs.mkdir(MCP_CACHE_DIR, { recursive: true })
+
+        // Load existing data
+        let existingData: any = { enabled: true }
+        if (await workspace.fs.exists(MCP_CACHE_FILE)) {
+            const data = (await workspace.fs.readFile(MCP_CACHE_FILE)).toString()
+            existingData = JSON.parse(data)
+        }
+
+        // Update builder-mcp state
+        existingData.addBuilderMcp = addBuilderMcp
+
+        await workspace.fs.writeFile(MCP_CACHE_FILE, JSON.stringify(existingData))
+    } catch (error) {
+        // Ignore errors
+    }
+}
+
+/**
+ * Mark builder-mcp as deleted by user
+ */
+export async function markBuilderMcpDeleted(workspace: Workspace): Promise<void> {
+    await saveBuilderMcpState(workspace, false)
+}
 
 const DEFAULT_AGENT_RAW = `{
   "name": "default-agent",
@@ -240,11 +286,13 @@ async function autoAddInternalMcpServer(
     serverNameMapping: Map<string, string>,
     globalConfigPath: string
 ): Promise<void> {
-    const hasAmznMcp = Object.values(agentConfig.mcpServers).some(
+    const hasBuilderMcp = Object.values(agentConfig.mcpServers).some(
         config => config.command === AMZN_MCP_SERVER_CONFIG.command
     )
-    if (!hasAmznMcp) {
-        logging.info('Auto-adding Amazon internal MCP server for internal user')
+    const shouldAddBuilderMcp = await loadBuilderMcpState(workspace)
+
+    if (!hasBuilderMcp && shouldAddBuilderMcp) {
+        logging.info('Auto-adding Builder MCP server for internal user')
         agentConfig.mcpServers[AMZN_MCP_SERVER_NAME] = AMZN_MCP_SERVER_CONFIG
         agentConfig.tools.push(...AMZN_MCP_TOOLS)
 
