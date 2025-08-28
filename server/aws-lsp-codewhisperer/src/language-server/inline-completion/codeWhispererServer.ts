@@ -148,7 +148,7 @@ export const CodewhispererServerFactory =
             IdleWorkspaceManager.recordActivityTimestamp()
 
             if (isOnInlineCompletionHandlerInProgress) {
-                logging.log(`Skip concurrent inline completion`)
+                logging.info(`Skip concurrent inline completion`)
                 return EMPTY_RESULT
             }
             isOnInlineCompletionHandlerInProgress = true
@@ -189,7 +189,7 @@ export const CodewhispererServerFactory =
                 } else {
                     // request for new session
                     if (!textDocument) {
-                        logging.log(`textDocument [${params.textDocument.uri}] not found`)
+                        logging.info(`textDocument [${params.textDocument.uri}] not found`)
                         return EMPTY_RESULT
                     }
 
@@ -198,7 +198,7 @@ export const CodewhispererServerFactory =
                         inferredLanguageId = params.fileContextOverride?.programmingLanguage as CodewhispererLanguage
                     }
                     if (!inferredLanguageId) {
-                        logging.log(
+                        logging.info(
                             `textDocument [${params.textDocument.uri}] with languageId [${textDocument.languageId}] not supported`
                         )
                         return EMPTY_RESULT
@@ -284,6 +284,10 @@ export const CodewhispererServerFactory =
                                 triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                             },
                             logging
+                        )
+
+                        logging.info(
+                            `auto trigger result: ${JSON.stringify(autoTriggerResult)}, triggerChar: ${triggerCharacters}`
                         )
 
                         if (codewhispererAutoTriggerType === 'Classifier' && !autoTriggerResult.shouldTrigger) {

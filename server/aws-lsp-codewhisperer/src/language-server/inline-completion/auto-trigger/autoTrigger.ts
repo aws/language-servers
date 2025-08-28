@@ -229,19 +229,21 @@ export const autoTrigger = (
 
     const triggerTypeCoefficient = coefficients.triggerTypeCoefficient[triggerType] ?? 0
     const osCoefficient = coefficients.osCoefficient[os] ?? 0
+
     const charCoefficient = coefficients.charCoefficient[char] ?? 0
+
     const keyWordCoefficient = coefficients.charCoefficient[keyword] ?? 0
 
     const languageCoefficient = coefficients.languageCoefficient[fileContext.programmingLanguage.languageName] ?? 0
 
     let previousDecisionCoefficient = 0
-    if (previousDecision === 'Accept') {
-        previousDecisionCoefficient = coefficients.prevDecisionAcceptCoefficient
-    } else if (previousDecision === 'Reject') {
-        previousDecisionCoefficient = coefficients.prevDecisionRejectCoefficient
-    } else if (previousDecision === 'Discard' || previousDecision === 'Empty') {
-        previousDecisionCoefficient = coefficients.prevDecisionOtherCoefficient
-    }
+    // if (previousDecision === 'Accept') {
+    //     previousDecisionCoefficient = coefficients.prevDecisionAcceptCoefficient
+    // } else if (previousDecision === 'Reject') {
+    //     previousDecisionCoefficient = coefficients.prevDecisionRejectCoefficient
+    // } else if (previousDecision === 'Discard' || previousDecision === 'Empty') {
+    //     previousDecisionCoefficient = coefficients.prevDecisionOtherCoefficient
+    // }
 
     const ideCoefficient = coefficients.ideCoefficient[ide] ?? 0
 
@@ -274,11 +276,30 @@ export const autoTrigger = (
         previousDecisionCoefficient +
         languageCoefficient +
         leftContextLengthCoefficient
-    const shouldTrigger = sigmoid(classifierResult) > TRIGGER_THRESHOLD
+
+    console.log(`
+        coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight'): ${coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')},
+        coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur'): ${coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur')},
+        coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev'): ${coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev')},
+        coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum'): ${coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum')},
+        osCoefficient: ${osCoefficient},
+        triggerTypeCoefficient: ${triggerTypeCoefficient},
+        charCoefficient: ${charCoefficient},
+        keyWordCoefficient: ${keyWordCoefficient},
+        ideCoefficient: ${ideCoefficient},
+        coefficients.intercept: ${coefficients.intercept},
+        previousDecisionCoefficient: ${previousDecisionCoefficient},
+        languageCoefficient: ${languageCoefficient},
+        leftContextLengthCoefficient: ${leftContextLengthCoefficient}}
+        }
+    `)
+
+    const r = sigmoid(classifierResult)
+    const shouldTrigger = r > TRIGGER_THRESHOLD
 
     return {
         shouldTrigger,
-        classifierResult,
+        classifierResult: r,
         classifierThreshold: TRIGGER_THRESHOLD,
     }
 }
