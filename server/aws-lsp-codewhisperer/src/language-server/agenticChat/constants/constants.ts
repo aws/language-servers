@@ -16,6 +16,9 @@ export const SERVICE_MANAGER_POLL_INTERVAL_MS = 100
 export const GENERATE_ASSISTANT_RESPONSE_INPUT_LIMIT = 500_000
 export const DEFAULT_MODEL_ID = BedrockModel.CLAUDE_SONNET_4_20250514_V1_0
 
+// MCP Constants
+export const MAX_MCP_TOOLS_LIMIT = 40
+
 // Compaction
 export const COMPACTION_BODY = (threshold: number) =>
     `The context window is almost full (${threshold}%) and exceeding it will clear your history. Amazon Q can compact your history instead.`

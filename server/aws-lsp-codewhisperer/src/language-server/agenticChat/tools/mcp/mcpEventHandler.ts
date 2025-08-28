@@ -2,6 +2,7 @@ import { Features } from '../../../types'
 import { MCP_SERVER_STATUS_CHANGED, McpManager } from './mcpManager'
 import { ChatTelemetryController } from '../../../chat/telemetry/chatTelemetryController'
 import { ChokidarFileWatcher } from './chokidarFileWatcher'
+import { MAX_MCP_TOOLS_LIMIT } from '../../constants/constants'
 // eslint-disable-next-line import/no-nodejs-modules
 import {
     DetailedListGroup,
@@ -255,6 +256,17 @@ export class McpEventHandler {
 
         if (configLoadErrors) {
             return { title: configLoadErrors, icon: 'cancel-circle', status: 'error' as Status }
+        }
+
+        // Check if active tools exceed 40
+        const mcpManager = McpManager.instance
+        const activeToolsCount = mcpManager.getEnabledTools().length
+        if (activeToolsCount > MAX_MCP_TOOLS_LIMIT) {
+            return {
+                title: `A maximum of ${MAX_MCP_TOOLS_LIMIT} MCP tools are sent to the agent, but ${activeToolsCount} have been configured. Please disable one or more MCP servers or tools.`,
+                icon: 'warning',
+                status: 'warning' as Status,
+            }
         }
 
         return undefined
