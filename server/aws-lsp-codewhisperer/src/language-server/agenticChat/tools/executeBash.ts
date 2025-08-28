@@ -441,8 +441,78 @@ export class ExecuteBash {
         }
     }
 
+    /**
+     * Check if terminal integration is available in the IDE
+     */
+    private async isTerminalAvailable(): Promise<boolean> {
+        try {
+            // Check if LSP connection is available
+            if (!this.features.lsp) {
+                this.logging.debug('LSP connection not available, using child process for command execution')
+                return false
+            }
+
+            // Check if client capabilities include terminalAvailability
+            const initParams = this.features.lsp.getClientInitializeParams()
+            const terminalAvailability =
+                initParams?.initializationOptions?.aws?.awsClientCapabilities?.q?.terminalAvailability
+
+            if (!terminalAvailability) {
+                this.logging.debug('Terminal support is not available, using child process for command execution')
+                return false
+            }
+
+            this.logging.debug('Terminal integration is available')
+            return true
+        } catch (error) {
+            this.logging.warn(`Error checking terminal availability: ${(error as Error).message}`)
+            return false
+        }
+    }
+
     // TODO: generalize cancellation logic for tools.
     public async invoke(
+        params: ExecuteBashParams,
+        cancellationToken?: CancellationToken,
+        updates?: WritableStream
+    ): Promise<InvokeOutput> {
+        // Check if IDE terminal integration is available
+        const terminalAvailable = await this.isTerminalAvailable()
+
+        if (terminalAvailable) {
+            this.logging.info('Using IDE terminal integration for command execution')
+            return this.executeViaIDETerminal(params, cancellationToken, updates)
+        } else {
+            this.logging.info('Using child process for command execution')
+            return this.executeViaChildProcess(params, cancellationToken, updates)
+        }
+    }
+
+    /**
+     * Execute command using IDE terminal integration
+     */
+    private async executeViaIDETerminal(
+        params: ExecuteBashParams,
+        cancellationToken?: CancellationToken,
+        updates?: WritableStream
+    ): Promise<InvokeOutput> {
+        this.logging.info(`Executing command via IDE terminal: "${params.command}" in cwd: "${params.cwd}"`)
+
+        try {
+            // TODO: Implement actual terminal integration once LSP connection interface is available, Fall back to legacy execution for now
+            return this.executeViaChildProcess(params, cancellationToken, updates)
+        } catch (error) {
+            this.logging.error(`Terminal execution failed: ${(error as Error).message}`)
+            // Fall back to executeViaChildProcess method
+            this.logging.info('Falling back to child process execution')
+            return this.executeViaChildProcess(params, cancellationToken, updates)
+        }
+    }
+
+    /**
+     * Execute command using child process
+     */
+    private async executeViaChildProcess(
         params: ExecuteBashParams,
         cancellationToken?: CancellationToken,
         updates?: WritableStream
