@@ -240,7 +240,7 @@ export const CodewhispererServerFactory =
 
                     const previousSession = completionSessionManager.getPreviousSession()
                     // Only refer to decisions in the past 2 mins
-                    const previousDecisionClassifier =
+                    const previousDecisionForClassifier =
                         previousSession && performance.now() - previousSession.decisionMadeTimestamp <= 2 * 60 * 1000
                             ? previousSession.getAggregatedUserTriggerDecision()
                             : undefined
@@ -284,7 +284,7 @@ export const CodewhispererServerFactory =
                                 char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                                 ide: ideCategory ?? '',
                                 os: getNormalizeOsName(),
-                                previousDecision: previousDecisionClassifier, // The last decision by the user on the previous invocation
+                                previousDecision: previousDecisionForClassifier, // The last decision by the user on the previous invocation
                                 triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                             },
                             logging
