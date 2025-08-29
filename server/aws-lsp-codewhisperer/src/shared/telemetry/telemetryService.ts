@@ -66,6 +66,7 @@ export class TelemetryService {
         [ChatInteractionType.Upvote]: 'UPVOTE',
         [ChatInteractionType.Downvote]: 'DOWNVOTE',
         [ChatInteractionType.ClickBodyLink]: 'CLICK_BODY_LINK',
+        [ChatInteractionType.AgenticCodeAccepted]: 'AGENTIC_CODE_ACCEPTED',
     }
 
     constructor(
