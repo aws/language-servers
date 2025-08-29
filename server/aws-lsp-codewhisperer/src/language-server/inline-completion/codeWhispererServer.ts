@@ -239,7 +239,11 @@ export const CodewhispererServerFactory =
                         : undefined
 
                     const previousSession = completionSessionManager.getPreviousSession()
-                    const previousDecision = previousSession?.getAggregatedUserTriggerDecision() ?? ''
+                    // Only refer to decisions in the past 2 mins
+                    const previousDecisionClassifier =
+                        previousSession && performance.now() - previousSession.decisionMadeTimestamp <= 2 * 60 * 1000
+                            ? previousSession.getAggregatedUserTriggerDecision()
+                            : undefined
                     let ideCategory: string | undefined = ''
                     const initializeParams = lsp.getClientInitializeParams()
                     if (initializeParams !== undefined) {
@@ -280,7 +284,7 @@ export const CodewhispererServerFactory =
                                 char: triggerCharacters, // Add the character just inserted, if any, before the invication position
                                 ide: ideCategory ?? '',
                                 os: getNormalizeOsName(),
-                                previousDecision, // The last decision by the user on the previous invocation
+                                previousDecision: previousDecisionClassifier, // The last decision by the user on the previous invocation
                                 triggerType: codewhispererAutoTriggerType, // The 2 trigger types currently influencing the Auto-Trigger are SpecialCharacter and Enter
                             },
                             logging
