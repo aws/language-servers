@@ -177,7 +177,7 @@ type AutoTriggerParams = {
     char: string
     triggerType: string // Left as String intentionally to support future and unknown trigger types
     os: string
-    previousDecision: string
+    previousDecision: string | undefined
     ide: string
     lineNum: number
 }
@@ -235,12 +235,19 @@ export const autoTrigger = (
     const languageCoefficient = coefficients.languageCoefficient[fileContext.programmingLanguage.languageName] ?? 0
 
     let previousDecisionCoefficient = 0
-    if (previousDecision === 'Accept') {
-        previousDecisionCoefficient = coefficients.prevDecisionAcceptCoefficient
-    } else if (previousDecision === 'Reject') {
-        previousDecisionCoefficient = coefficients.prevDecisionRejectCoefficient
-    } else if (previousDecision === 'Discard' || previousDecision === 'Empty') {
-        previousDecisionCoefficient = coefficients.prevDecisionOtherCoefficient
+    switch (previousDecision) {
+        case 'Accept':
+            previousDecisionCoefficient = coefficients.prevDecisionAcceptCoefficient
+            break
+        case 'Reject':
+            previousDecisionCoefficient = coefficients.prevDecisionRejectCoefficient
+            break
+        case 'Discard':
+        case 'Empty':
+            previousDecisionCoefficient = coefficients.prevDecisionOtherCoefficient
+            break
+        default:
+            break
     }
 
     const ideCoefficient = coefficients.ideCoefficient[ide] ?? 0

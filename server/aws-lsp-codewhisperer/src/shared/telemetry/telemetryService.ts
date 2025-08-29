@@ -200,6 +200,7 @@ export class TelemetryService {
         removedIdeDiagnostics?: IdeDiagnostic[],
         streakLength?: number
     ) {
+        session.decisionMadeTimestamp = performance.now()
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {
                 codewhispererSessionId: session.codewhispererSessionId || '',
