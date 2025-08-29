@@ -2076,6 +2076,19 @@ export class AgenticChatController implements ChatHandlers {
                             this.#abTestingAllocation?.experimentName,
                             this.#abTestingAllocation?.userVariation
                         )
+                        // Emit acceptedLineCount when write tool is used and code changes are accepted
+                        const beforeLines = cachedToolUse?.fileChange?.before?.split('\n').length ?? 0
+                        const afterLines = doc?.getText()?.split('\n').length ?? 0
+                        const acceptedLineCount = afterLines - beforeLines
+                        await this.#telemetryController.emitInteractWithMessageMetric(
+                            tabId,
+                            {
+                                cwsprChatMessageId: chatResult.messageId ?? toolUse.toolUseId,
+                                cwsprChatInteractionType: ChatInteractionType.AgenticCodeAccepted,
+                                codewhispererCustomizationArn: this.#customizationArn,
+                            },
+                            acceptedLineCount
+                        )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     case CodeReview.toolName:
