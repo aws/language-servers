@@ -14,6 +14,7 @@ import { getWorkspaceFolderPaths } from '@aws/lsp-core/out/util/workspaceUtils'
 import { existsSync, statSync } from 'fs'
 import { parseBaseCommands } from '../utils/commandParser'
 import { BashCommandEvent, ChatTelemetryEventName } from '../../../shared/telemetry/types'
+import { ExecuteTerminalCommandParams, ExecuteTerminalCommandResult } from '@aws/language-server-runtimes/protocol'
 
 export enum CommandCategory {
     ReadOnly,
@@ -444,7 +445,7 @@ export class ExecuteBash {
     /**
      * Check if terminal integration is available in the IDE
      */
-    private async isTerminalAvailable(): Promise<boolean> {
+    private isTerminalAvailable(): boolean {
         try {
             // Check if LSP connection is available
             if (!this.features.lsp) {
@@ -477,7 +478,7 @@ export class ExecuteBash {
         updates?: WritableStream
     ): Promise<InvokeOutput> {
         // Check if IDE terminal integration is available
-        const terminalAvailable = await this.isTerminalAvailable()
+        const terminalAvailable = this.isTerminalAvailable()
 
         if (terminalAvailable) {
             this.logging.info('Using IDE terminal integration for command execution')
@@ -499,8 +500,60 @@ export class ExecuteBash {
         this.logging.info(`Executing command via IDE terminal: "${params.command}" in cwd: "${params.cwd}"`)
 
         try {
-            // TODO: Implement actual terminal integration once LSP connection interface is available, Fall back to legacy execution for now
-            return this.executeViaChildProcess(params, cancellationToken, updates)
+            if (!this.features.lsp) {
+                throw new Error('LSP connection not available')
+            }
+
+            // Prepare the terminal command request
+            const terminalRequest: ExecuteTerminalCommandParams = {
+                command: params.command,
+                cwd: params.cwd,
+                terminalName: 'Amazon Q Agent',
+                createNew: false, // Reuse existing terminal if available
+            }
+
+            this.logging.debug(`Sending terminal command request: ${JSON.stringify(terminalRequest)}`)
+
+            // Send LSP request to VSCode for terminal execution
+            const response = (await this.features.lsp.terminal.executeCommand(
+                terminalRequest,
+                cancellationToken
+            )) as ExecuteTerminalCommandResult
+
+            this.logging.debug(`Received terminal command response: ${JSON.stringify(response)}`)
+
+            // Convert terminal response to ExecuteBash format
+            const outputJson: ExecuteBashOutput = {
+                exitStatus: response.exitCode.toString(),
+                stdout: response.stdout || '',
+                stderr: response.stderr || '',
+            }
+
+            // TODO: If there is stderr, then fallback to executeViaChildProcess
+
+            // Stream output to updates if provided
+            if (updates) {
+                const writer = updates.getWriter()
+                try {
+                    if (response.stdout) {
+                        await writer.write(response.stdout)
+                    }
+                    if (response.stderr) {
+                        await writer.write(response.stderr)
+                    }
+                } finally {
+                    await writer.close()
+                    writer.releaseLock()
+                }
+            }
+
+            return {
+                output: {
+                    kind: 'json',
+                    content: outputJson,
+                    success: response.success,
+                },
+            }
         } catch (error) {
             this.logging.error(`Terminal execution failed: ${(error as Error).message}`)
             // Fall back to executeViaChildProcess method
