@@ -2707,6 +2707,7 @@ export class AgenticChatController implements ChatHandlers {
         session.setDeferredToolExecution(messageId, deferred.resolve, deferred.reject)
         this.#log(`Prompting for compaction approval for messageId: ${messageId}`)
         await deferred.promise
+        session.removeDeferredToolExecution(messageId)
         // Note: we want to overwrite the button block because it already exists in the stream.
         await resultStream.overwriteResultBlock(this.#getUpdateCompactConfirmResult(messageId), promptBlockId)
     }
