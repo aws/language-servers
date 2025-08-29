@@ -229,7 +229,9 @@ export const autoTrigger = (
 
     const triggerTypeCoefficient = coefficients.triggerTypeCoefficient[triggerType] ?? 0
     const osCoefficient = coefficients.osCoefficient[os] ?? 0
+
     const charCoefficient = coefficients.charCoefficient[char] ?? 0
+
     const keyWordCoefficient = coefficients.charCoefficient[keyword] ?? 0
 
     const languageCoefficient = coefficients.languageCoefficient[fileContext.programmingLanguage.languageName] ?? 0
@@ -274,11 +276,13 @@ export const autoTrigger = (
         previousDecisionCoefficient +
         languageCoefficient +
         leftContextLengthCoefficient
-    const shouldTrigger = sigmoid(classifierResult) > TRIGGER_THRESHOLD
+
+    const r = sigmoid(classifierResult)
+    const shouldTrigger = r > TRIGGER_THRESHOLD
 
     return {
         shouldTrigger,
-        classifierResult,
+        classifierResult: r,
         classifierThreshold: TRIGGER_THRESHOLD,
     }
 }
