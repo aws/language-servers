@@ -45,6 +45,8 @@ export class EditCompletionHandler {
     private hasDocumentChangedSinceInvocation: boolean = false
     private readonly streakTracker: StreakTracker
 
+    private isInProgress = false
+
     constructor(
         readonly logging: Logging,
         readonly clientMetadata: InitializeParams,
@@ -89,6 +91,11 @@ export class EditCompletionHandler {
         params: InlineCompletionWithReferencesParams,
         token: CancellationToken
     ): Promise<InlineCompletionListWithReferences> {
+        if (this.isInProgress) {
+            this.logging.info(`editCompletionHandler is WIP, skip the request`)
+            return EMPTY_RESULT
+        }
+
         // On every new completion request close current inflight session.
         const currentSession = this.sessionManager.getCurrentSession()
         if (currentSession && currentSession.state == 'REQUESTING' && !params.partialResultToken) {
@@ -117,6 +124,9 @@ export class EditCompletionHandler {
             )
             return EMPTY_RESULT
         }
+
+        // Not ideally to rely on a state, should improve it and simply make it a debounced API
+        this.isInProgress = true
 
         if (params.partialResultToken && currentSession) {
             // Close ACTIVE session. We shouldn't record Discard trigger decision for trigger with nextToken.
@@ -152,10 +162,12 @@ export class EditCompletionHandler {
                 )
             } catch (error) {
                 return this.handleSuggestionsErrors(error as Error, currentSession)
+            } finally {
+                this.isInProgress = false
             }
         }
 
-        return new Promise(async resolve => {
+        return new Promise<InlineCompletionListWithReferences>(async resolve => {
             this.debounceTimeout = setTimeout(async () => {
                 try {
                     this.isWaiting = true
@@ -185,6 +197,8 @@ export class EditCompletionHandler {
                     this.hasDocumentChangedSinceInvocation = false
                 }
             }, EDIT_DEBOUNCE_INTERVAL_MS)
+        }).finally(() => {
+            this.isInProgress = false
         })
     }
 
