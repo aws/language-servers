@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.0.77](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.76...lsp-codewhisperer/v0.0.77) (2025-08-29)
+
+
+### Features
+
+* passing suggestionTypes and pluginVersion/lspVersion to STE ([#2180](https://github.com/aws/language-servers/issues/2180)) ([66742ad](https://github.com/aws/language-servers/commit/66742adfc44f33efbd8dd33b803000e08241e5ce))
+
+
+### Bug Fixes
+
+* auto trigger should only respect previous decisions in the past 2mins ([#2189](https://github.com/aws/language-servers/issues/2189)) ([852b21b](https://github.com/aws/language-servers/commit/852b21b66f793102c52e35c2baec07a772e5134a))
+* compact UI is not updated correctly when multiple nudges are displayed ([#2192](https://github.com/aws/language-servers/issues/2192)) ([ef7d793](https://github.com/aws/language-servers/commit/ef7d7931954f5083e4a5c358e67c6dc652fa1a40))
+* emit acceptedLineCount metric and AgenticCodeAccepted interaction type ([#2167](https://github.com/aws/language-servers/issues/2167)) ([c53f672](https://github.com/aws/language-servers/commit/c53f672b6173ebda530917ccb4e0c2f26f5c8f79))
+* should send classifier score after taking sigmoid ([#2188](https://github.com/aws/language-servers/issues/2188)) ([f4e2e6e](https://github.com/aws/language-servers/commit/f4e2e6e885e665834a5d7b7cbb5f4ba4ff9bbb65))
+
+
+### Performance Improvements
+
+* only process edit requests 1 at a time ([#2187](https://github.com/aws/language-servers/issues/2187)) ([b497540](https://github.com/aws/language-servers/commit/b4975409a3ed518550290b72ac310895a293be4b))
+
 ## [0.0.76](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.75...lsp-codewhisperer/v0.0.76) (2025-08-27)
 
 
