@@ -93,7 +93,7 @@ export async function fetchSupplementalContext(
 
             const r = truncateSupplementalContext(resBeforeTruncation)
 
-            let logstr = `@@supplemental context@@\n
+            let logstr = `@@supplemental context@@
 \tisUtg: ${r.isUtg},
 \tisProcessTimeout: ${r.isProcessTimeout},
 \tcontents.length: ${r.contentsLength},
