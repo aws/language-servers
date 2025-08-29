@@ -103,6 +103,8 @@ export const makeUserContextObject = (
         product: product,
         clientId: initializeParams.initializationOptions?.aws?.clientInfo?.clientId,
         ideVersion: `ide=${ideVersion};plugin=${pluginVersion};lsp=${lspVersion}`,
+        pluginVersion: pluginVersion,
+        lspVersion: lspVersion,
     }
 
     if (userContext.ideCategory === 'UNKNOWN' || userContext.operatingSystem === 'UNKNOWN') {
