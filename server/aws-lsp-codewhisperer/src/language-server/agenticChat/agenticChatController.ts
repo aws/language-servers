@@ -166,6 +166,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
+import { calculateModifiedLines } from './utils/fileModificationMetrics'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams, isFileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
@@ -2077,9 +2078,7 @@ export class AgenticChatController implements ChatHandlers {
                             this.#abTestingAllocation?.userVariation
                         )
                         // Emit acceptedLineCount when write tool is used and code changes are accepted
-                        const beforeLines = cachedToolUse?.fileChange?.before?.split('\n').length ?? 0
-                        const afterLines = doc?.getText()?.split('\n').length ?? 0
-                        const acceptedLineCount = afterLines - beforeLines
+                        const acceptedLineCount = calculateModifiedLines(toolUse, doc?.getText())
                         await this.#telemetryController.emitInteractWithMessageMetric(
                             tabId,
                             {
