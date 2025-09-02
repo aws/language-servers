@@ -29,3 +29,5 @@ app/aws-lsp-partiql-*
 
 # Coverage (C8)
 **/coverage/
+
+**/.kiro

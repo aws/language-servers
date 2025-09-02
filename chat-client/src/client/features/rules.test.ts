@@ -22,6 +22,9 @@ describe('rules', () => {
 
         messager = {
             onRuleClick: sinon.stub(),
+            onCreatePrompt: sinon.stub(),
+            onTabAdd: sinon.stub(),
+            onChatPrompt: sinon.stub(),
         } as unknown as Messager
 
         rulesList = new RulesList(mynahUi, messager)
@@ -140,6 +143,23 @@ describe('rules', () => {
             assert.equal(formArgs[1][0].id, ContextRule.RuleNameFieldId)
             assert.equal(formArgs[2][0].id, ContextRule.CancelButtonId)
             assert.equal(formArgs[2][1].id, ContextRule.SubmitButtonId)
+        })
+
+        it('calls messager when create memory bank is clicked', () => {
+            const createMemoryBankItem: DetailedListItem = {
+                id: ContextRule.CreateMemoryBankId,
+                description: 'Create Memory Bank',
+            }
+
+            onItemClick(createMemoryBankItem)
+
+            // Should create a new tab and send a chat prompt
+            sinon.assert.calledOnce(messager.onTabAdd as sinon.SinonStub)
+            sinon.assert.calledOnce(messager.onChatPrompt as sinon.SinonStub)
+
+            const chatPromptArgs = (messager.onChatPrompt as sinon.SinonStub).getCall(0).args[0]
+            assert.equal(chatPromptArgs.prompt.prompt, 'Create a Memory Bank for this project')
+            assert.equal(chatPromptArgs.prompt.escapedPrompt, 'Create a Memory Bank for this project')
         })
 
         it('calls messager when regular rule is clicked', () => {
@@ -267,21 +287,27 @@ describe('rules', () => {
 
             const result = convertRulesListToDetailedListGroup(rulesFolder)
 
-            assert.equal(result.length, 3) // 2 folders + create rule group
+            assert.equal(result.length, 3) // 2 folders + actions group
             assert.equal(result[0].groupName, 'test-folder')
             assert.equal(result[0].children?.length, 2)
             assert.equal(result[0].children?.[0].id, 'rule-1')
             assert.equal(result[0].children?.[0].description, 'Test Rule 1')
             assert.equal(result[1].groupName, 'inactive-folder')
             assert.equal(result[1].children?.length, 0)
-            assert.equal(result[2].children?.[0].id, ContextRule.CreateRuleId)
+            assert.equal(result[2].groupName, 'Actions')
+            assert.equal(result[2].children?.length, 2) // Memory Bank + Create Rule
+            assert.equal(result[2].children?.[0].id, ContextRule.CreateMemoryBankId)
+            assert.equal(result[2].children?.[1].id, ContextRule.CreateRuleId)
         })
 
         it('handles empty rules array', () => {
             const result = convertRulesListToDetailedListGroup([])
 
-            assert.equal(result.length, 1) // Only create rule group
-            assert.equal(result[0].children?.[0].id, ContextRule.CreateRuleId)
+            assert.equal(result.length, 1) // Only actions group
+            assert.equal(result[0].groupName, 'Actions')
+            assert.equal(result[0].children?.length, 2) // Memory Bank + Create Rule
+            assert.equal(result[0].children?.[0].id, ContextRule.CreateMemoryBankId)
+            assert.equal(result[0].children?.[1].id, ContextRule.CreateRuleId)
         })
     })
 })

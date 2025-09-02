@@ -151,6 +151,36 @@ export class AdditionalContextProvider {
 
         // Filter rules based on user's rules preferences for current tab
         let rulesState = this.chatDb.getRules(tabId) || { folders: {}, rules: {} }
+
+        // Ensure memory bank files are active by default when first discovered
+        const memoryBankFiles = rulesFiles.filter(rule => rule.id?.includes('memory-bank'))
+        if (memoryBankFiles.length > 0) {
+            let needsUpdate = false
+
+            // Ensure memory-bank folder is active by default
+            const memoryBankFolderName = '.amazonq/rules/memory-bank'
+            if (rulesState.folders[memoryBankFolderName] === undefined) {
+                rulesState.folders[memoryBankFolderName] = true
+                needsUpdate = true
+            }
+
+            // Ensure each memory bank file is active by default
+            memoryBankFiles.forEach(file => {
+                if (rulesState.rules[file.id] === undefined) {
+                    rulesState.rules[file.id] = true
+                    needsUpdate = true
+                }
+            })
+
+            // Save the updated rules state if we made changes
+            if (needsUpdate) {
+                this.chatDb.setRules(tabId, rulesState)
+                this.features.logging.info(
+                    `[Memory Bank] Activated ${memoryBankFiles.length} memory bank files by default`
+                )
+            }
+        }
+
         return rulesFiles.filter(rule => {
             // If the rule has an explicit state in rulesState, use that value
             if (rulesState.rules[rule.id] !== undefined) {
@@ -220,7 +250,21 @@ export class AdditionalContextProvider {
             : workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)[0]
 
         if (workspaceRules.length > 0) {
+            // ALL workspace rules (including memory bank files) go to pinnedContextCommands
+            // This follows the same pattern as regular rules - they go to conversation history
             pinnedContextCommands.push(...workspaceRules)
+
+            // Log memory bank files being included in chat context for verification
+            const memoryBankFiles = workspaceRules.filter(rule => rule.id?.includes('memory-bank'))
+            if (memoryBankFiles.length > 0) {
+                this.features.logging.info(
+                    `[Memory Bank] Including ${memoryBankFiles.length} memory bank files in chat context for tabId: ${tabId}`
+                )
+                memoryBankFiles.forEach(file => {
+                    const fileName = path.basename(file.id)
+                    this.features.logging.info(`[Memory Bank] - Including: ${fileName} (${file.id})`)
+                })
+            }
         }
 
         // Merge pinned context with context added to prompt, avoiding duplicates
@@ -791,7 +835,25 @@ export class AdditionalContextProvider {
         getWorkspaceFolder?: (uri: string) => WorkspaceFolder | null | undefined
     ): Promise<ChatMessage[]> {
         if (!pinnedContext || pinnedContext.length === 0) {
+            this.features.logging.info('[Memory Bank] No pinned context to convert to chat messages')
             return []
+        }
+
+        this.features.logging.info(
+            `[Memory Bank] Converting ${pinnedContext.length} pinned context items to chat messages`
+        )
+
+        // Log memory bank files in pinned context
+        const memoryBankItems = pinnedContext.filter(item => item.path?.includes('memory-bank'))
+        if (memoryBankItems.length > 0) {
+            this.features.logging.info(
+                `[Memory Bank] Found ${memoryBankItems.length} memory bank items in pinned context`
+            )
+            memoryBankItems.forEach(item => {
+                this.features.logging.info(
+                    `[Memory Bank] - Pinned context item: ${item.relativePath} (${item.innerContext?.length || 0} chars)`
+                )
+            })
         }
 
         // Build the pinned context XML content
