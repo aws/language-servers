@@ -125,8 +125,6 @@ export const CODE_REVIEW_TOOL_DESCRIPTION = [
     "- Either fileLevelArtifacts OR folderLevelArtifacts should be provided based on what's being reviewed, but not both for the same items.",
     '- Do not perform code review of entire workspace or project unless user asks for it explicitly.',
     '- Ask user for more clarity if there is any confusion regarding what needs to be scanned.',
-    // 'If the user sends something generic like "review my code" or "review this file", please ask them for clarification before moving on and starting the code.',
-    // 'Say something like "Would you like me to review your entire code or only the uncommitted changes?"',
     '',
     '**Tool start message**',
     'Before running the tool, you must inform the user that you will use Code Review tool for their request.',
@@ -138,12 +136,7 @@ export const CODE_REVIEW_TOOL_DESCRIPTION = [
     '```\n' +
         'I will scan the ["diff" if scopeOfReview is CODE_DIFF_REVIEW or "entire code" is FULL_REVIEW. Refer to **Tool Input** section for decision on which to use.] for the following files/folders:\n' +
         '[list of files/folders]\n```',
-    // 'Just say "OOGA BOOGA CAVE MAN SCAN CODE" and nothing else',
-    // 'You MUST also tell the name of files or folders that you will review along with the scope of review, if you are performing a full review or only the uncommitted code.',
-    // 'It is extremely important that the user knows whether the review run is a CODE_DIFF_REVIEW (say something like "I\'ll scan the uncommitted changes") or a FULL_REVIEW (ex. "I\'ll scan the entire code").',
-    // 'I cannot emphasize enough how important it is that you mention whether the scan is a diff review or a full review. Please please please include some mention of it in the start message, it is so important.',
-    // 'Under no condition you will use the tool without informing the user.',
-    // '',
+    '',
     '**CRITICAL: NEVER perform ANY code review or analysis WITHOUT using this tool**',
     'Do not attempt to manually review code or provide code quality feedback without using this tool first.',
     'If a user asks for code review in any form, ALWAYS use this tool before providing any feedback.',
