@@ -287,9 +287,11 @@ export const autoTrigger = (
     const r = sigmoid(classifierResult)
     const shouldTrigger = r > TRIGGER_THRESHOLD
 
-    console.log(`@@autotrigger@@\n`)
-    console.log(`classifierResult: ${r}, triggerChar: ${char}\n`)
-    console.log(`coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')=${coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')},
+    console.log(`@@autotrigger@@
+classifierResult: ${r},
+triggerChar: ${char},
+
+coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')=${coefficients.lengthOfRightCoefficient * normalize(lengthOfRight, 'lenRight')},
 coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur')=${coefficients.lengthOfLeftCurrentCoefficient * normalize(lengthOfLeftCurrent, 'lenLeftCur')},
 coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev')=${coefficients.lengthOfLeftPrevCoefficient * normalize(lengthOfLeftPrev, 'lenLeftPrev')},
 coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum')=${coefficients.lineNumCoefficient * normalize(lineNum, 'lineNum')},
