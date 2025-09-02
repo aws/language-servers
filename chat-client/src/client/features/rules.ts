@@ -6,6 +6,7 @@ import { MynahDetailedList } from './history'
 
 export const ContextRule = {
     CreateRuleId: 'create-rule',
+    CreateMemoryBankId: 'create-memory-bank',
     CancelButtonId: 'cancel-create-rule',
     SubmitButtonId: 'submit-create-rule',
     RuleNameFieldId: 'rule-name',
@@ -68,10 +69,29 @@ export class RulesList {
                     ],
                     `Create a rule`
                 )
+            } else if (item.id === ContextRule.CreateMemoryBankId) {
+                this.rulesList?.close()
+                // Use MemoryBankManager to handle creation
+                this.handleMemoryBankCreation()
             } else {
                 this.messager.onRuleClick({ tabId: this.tabId, type: 'rule', id: item.id })
             }
         }
+    }
+
+    private handleMemoryBankCreation = () => {
+        // Close the rules list first
+        this.rulesList?.close()
+
+        // Use the current tab ID instead of creating a new one
+        // The tabId should be the same as the one used for the rules list
+        this.messager.onChatPrompt({
+            prompt: {
+                prompt: 'Create a Memory Bank for this project',
+                escapedPrompt: 'Create a Memory Bank for this project',
+            },
+            tabId: this.tabId, // Use the current tab ID
+        })
     }
 
     showLoading(tabId: string) {
@@ -156,6 +176,12 @@ const createRuleListItem: DetailedListItem = {
     id: ContextRule.CreateRuleId,
 }
 
+const createMemoryBankListItem: DetailedListItem = {
+    description: 'Create Memory Bank',
+    icon: MynahIcons.FOLDER,
+    id: ContextRule.CreateMemoryBankId,
+}
+
 export function convertRulesListToDetailedListGroup(rules: RulesFolder[]): DetailedListItemGroup[] {
     return rules
         .map(
@@ -179,7 +205,10 @@ export function convertRulesListToDetailedListGroup(rules: RulesFolder[]): Detai
                     })),
                 }) as DetailedListItemGroup
         )
-        .concat({ children: [createRuleListItem] })
+        .concat({
+            groupName: 'Actions',
+            children: [createMemoryBankListItem, createRuleListItem],
+        })
 }
 
 function convertRuleStatusToIcon(status: boolean | 'indeterminate'): MynahIcons | undefined {

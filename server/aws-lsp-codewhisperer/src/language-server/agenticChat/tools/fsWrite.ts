@@ -102,11 +102,22 @@ export class FsWrite {
         const content = params.fileText
         await this.workspace.fs.writeFile(sanitizedPath, content)
 
-        // Add created file to @Files list
-        void LocalProjectContextController.getInstance().then(controller => {
-            const filePath = URI.file(sanitizedPath).fsPath
-            return controller.updateIndexAndContextCommand([filePath], true)
-        })
+        // Update project context index for the created file (non-blocking with timeout)
+        // This adds the file to @Files context but won't block file creation if indexing fails
+        void Promise.race([
+            LocalProjectContextController.getInstance(),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('LocalProjectContextController timeout after 5s')), 5000)
+            ),
+        ])
+            .then(controller => {
+                const filePath = URI.file(sanitizedPath).fsPath
+                return (controller as LocalProjectContextController).updateIndexAndContextCommand([filePath], true)
+            })
+            .catch(error => {
+                // Log warning but don't crash - file creation succeeded even if indexing failed
+                this.logging.warn(`Failed to update project context for file ${sanitizedPath}: ${error.message}`)
+            })
     }
 
     private async handleAppend(params: AppendParams, sanitizedPath: string): Promise<void> {
