@@ -145,7 +145,7 @@ describe('Telemetry', () => {
             },
         }
         const EMPTY_RESULT = { items: [], sessionId: '' }
-        const classifierResult = getNormalizeOsName() !== 'Linux' ? 0.4114381148145918 : 0.46733811481459187
+        const classifierResult = getNormalizeOsName() !== 'Linux' ? 0.6014326616203989 : 0.61475353067264
 
         let features: TestFeatures
         let server: Server
@@ -1251,7 +1251,7 @@ describe('Telemetry', () => {
                     triggerType: 'AutoTrigger',
                     autoTriggerType: 'SpecialCharacters',
                     triggerCharacter: '(',
-                    classifierResult: getNormalizeOsName() === 'Linux' ? 0.30173811481459184 : 0.2458381148145919,
+                    classifierResult: getNormalizeOsName() === 'Linux' ? 0.5748673583477094 : 0.5611518554232429,
                     classifierThreshold: 0.43,
                     language: 'csharp',
                     requestContext: {

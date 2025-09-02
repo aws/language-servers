@@ -78,8 +78,15 @@ export class ChatSessionService {
     public getDeferredToolExecution(messageId: string): DeferredHandler | undefined {
         return this.#deferredToolExecution[messageId]
     }
+
     public setDeferredToolExecution(messageId: string, resolve: any, reject: any) {
         this.#deferredToolExecution[messageId] = { resolve, reject }
+    }
+
+    public removeDeferredToolExecution(messageId: string) {
+        if (messageId in this.#deferredToolExecution) {
+            delete this.#deferredToolExecution[messageId]
+        }
     }
 
     public getAllDeferredCompactMessageIds(): string[] {

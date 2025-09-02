@@ -429,6 +429,7 @@ export enum ChatInteractionType {
     Upvote = 'upvote',
     Downvote = 'downvote',
     ClickBodyLink = 'clickBodyLink',
+    AgenticCodeAccepted = 'agenticCodeAccepted',
 }
 
 export enum ChatHistoryActionType {

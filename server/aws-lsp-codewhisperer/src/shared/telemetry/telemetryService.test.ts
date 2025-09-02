@@ -277,6 +277,7 @@ describe('TelemetryService', () => {
                     addedIdeDiagnostics: undefined,
                     removedIdeDiagnostics: undefined,
                     streakLength: 0,
+                    suggestionType: 'COMPLETIONS',
                 },
             },
             optOutPreference: 'OPTIN',
@@ -858,6 +859,7 @@ describe('TelemetryService', () => {
                     cwsprChatPinnedFileContextCount: undefined,
                     cwsprChatPinnedFolderContextCount: undefined,
                     cwsprChatPinnedPromptContextCount: undefined,
+                    errorMessage: undefined,
                 },
             })
         })

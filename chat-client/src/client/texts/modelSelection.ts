@@ -13,7 +13,7 @@ type ModelDetails = {
 }
 
 const modelRecord: Record<BedrockModel, ModelDetails> = {
-    [BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0]: { label: 'Claude Sonnet 3.7' },
+    [BedrockModel.CLAUDE_3_7_SONNET_20250219_V1_0]: { label: 'Claude 3.7 Sonnet' },
     [BedrockModel.CLAUDE_SONNET_4_20250514_V1_0]: { label: 'Claude Sonnet 4' },
 }
 
@@ -22,22 +22,14 @@ const modelOptions = Object.entries(modelRecord).map(([value, { label }]) => ({
     label,
 }))
 
-const modelSelection: ChatItemFormItem = {
+export const modelSelection: ChatItemFormItem = {
     type: 'select',
     id: 'model-selection',
-    options: modelOptions,
     mandatory: true,
     hideMandatoryIcon: true,
+    options: modelOptions,
     border: false,
     autoWidth: true,
-}
-
-/**
- * @deprecated use aws/chat/listAvailableModels server request instead
- */
-export const modelSelectionForRegion: Record<string, ChatItemFormItem> = {
-    'us-east-1': modelSelection,
-    'eu-central-1': modelSelection,
 }
 
 export const getModelSelectionChatItem = (modelName: string): ChatItem => ({

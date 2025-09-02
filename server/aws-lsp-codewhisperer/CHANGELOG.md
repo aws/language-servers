@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.0.76](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.75...lsp-codewhisperer/v0.0.76) (2025-08-27)
+
+
+### Features
+
+* add basic OAuth client for remote MCP ([#2136](https://github.com/aws/language-servers/issues/2136)) ([2fb896e](https://github.com/aws/language-servers/commit/2fb896e094de0bc5a1b4881067e7dcceb3826015))
+* **amazonq:** emit metric for each issue ([#2179](https://github.com/aws/language-servers/issues/2179)) ([5a3f481](https://github.com/aws/language-servers/commit/5a3f481ebe8c6033e3833abcd81799d26c2aa03e))
+* Auto fetch models from listAvailableModels API ([#2171](https://github.com/aws/language-servers/issues/2171)) ([8600c52](https://github.com/aws/language-servers/commit/8600c524877abb459e9338399352446c0dcff6f0))
+* disable pkce flow during plugin load ([#2153](https://github.com/aws/language-servers/issues/2153)) ([71b3595](https://github.com/aws/language-servers/commit/71b35952333e7581921644ce40fabbc1e6d3c02f))
+* update MCP manager and utilities ([#2158](https://github.com/aws/language-servers/issues/2158)) ([b99df82](https://github.com/aws/language-servers/commit/b99df82826d0ba1a1d52df578cb80674c90505b9))
+
+
+### Bug Fixes
+
+* adding streakTracker to track streakLength across Completions and Edits ([#2147](https://github.com/aws/language-servers/issues/2147)) ([a6c64f2](https://github.com/aws/language-servers/commit/a6c64f2995a17697e3d71d30a1f411f5cf0db279))
+* **amazonq:** dedupe openTabs supplemental contexts ([#2172](https://github.com/aws/language-servers/issues/2172)) ([aa87ae2](https://github.com/aws/language-servers/commit/aa87ae2bd95edc1f38bf90f56093c5bf5ff18c53))
+* **amazonq:** fix for mcp servers operations to edit server config only ([#2165](https://github.com/aws/language-servers/issues/2165)) ([d28df09](https://github.com/aws/language-servers/commit/d28df09ae41871430cd53064eac1f3050c95ea84))
+* **amazonq:** fix to add mcp server tool error handling and status for card ([#2176](https://github.com/aws/language-servers/issues/2176)) ([23f5ec3](https://github.com/aws/language-servers/commit/23f5ec343cb4e0de32926204dbcf99e51af829f9))
+* **amazonq:** status message update for mcp tool permission accpetance ([#2178](https://github.com/aws/language-servers/issues/2178)) ([4893344](https://github.com/aws/language-servers/commit/489334466fa084774d6e4737569468d654dc6359))
+* fix pkce windows url path ([#2173](https://github.com/aws/language-servers/issues/2173)) ([d7b184c](https://github.com/aws/language-servers/commit/d7b184cb12979877722fa0293e9aebec91ff2c18))
+* multiple fixes on auth flow edge cases ([#2155](https://github.com/aws/language-servers/issues/2155)) ([472220a](https://github.com/aws/language-servers/commit/472220a745cff4fe91a2cabae4ae059a164ceddd))
+* reduce auto trigger frequency for VSC ([#2168](https://github.com/aws/language-servers/issues/2168)) ([00e11ff](https://github.com/aws/language-servers/commit/00e11ff48eafaa0baec48177fa4aa6d60048af2f))
+
+
+### Reverts
+
+* reduce auto trigger frequency for VSC ([#2168](https://github.com/aws/language-servers/issues/2168))" ([#2177](https://github.com/aws/language-servers/issues/2177)) ([08720c6](https://github.com/aws/language-servers/commit/08720c6c3fa83f9b3b6775d4ae4d848ce145b94b))
+
 ## [0.0.75](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.74...lsp-codewhisperer/v0.0.75) (2025-08-21)
 
 
