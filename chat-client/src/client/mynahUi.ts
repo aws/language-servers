@@ -1793,7 +1793,7 @@ const DEFAULT_TEST_PROMPT = `You are Amazon Q. Start with a warm greeting, then 
 
 const DEFAULT_DEV_PROMPT = `You are Amazon Q. Start with a warm greeting, then ask the user to specify what kind of help they need in code development. Present common questions asked (like Creating a new project, Adding a new feature, Modifying your files). Keep the question brief and friendly. Don't make assumptions about existing content or context. Wait for their response before providing specific guidance.`
 
-const DEFAULT_REVIEW_PROMPT = `You are Amazon Q. Start with a warm greeting, then use code review tool to perform code analysis of the open file. If there is no open file, ask what the user would like to review.`
+const DEFAULT_REVIEW_PROMPT = `You are Amazon Q. Start with a warm greeting, then use code review tool to perform a diff review code analysis of the open file. If there is no open file, ask what the user would like to review. Please tell the customer that the scan is a diff scan.`
 
 export const uiComponentsTexts = {
     mainTitle: 'Amazon Q (Preview)',
