@@ -11,6 +11,7 @@ import * as path from 'path'
 import { expect } from 'chai'
 import { CancellationError } from '@aws/lsp-core'
 import * as JSZip from 'jszip'
+import { Origin } from '@amzn/codewhisperer-streaming'
 
 describe('CodeReview', () => {
     let sandbox: sinon.SinonSandbox
@@ -141,6 +142,111 @@ describe('CodeReview', () => {
 
             expect(result.output.success).to.be.true
             expect(result.output.kind).to.equal('json')
+        })
+
+        it('should execute successfully and pass languageModelId and clientType to startCodeAnalysis', async () => {
+            const inputWithModelId = {
+                ...validInput,
+                modelId: 'test-model-789',
+            }
+
+            // Setup mocks for successful execution
+            mockCodeWhispererClient.createUploadUrl.resolves({
+                uploadUrl: 'https://upload.com',
+                uploadId: 'upload-123',
+                requestHeaders: {},
+            })
+
+            mockCodeWhispererClient.startCodeAnalysis.resolves({
+                jobId: 'job-123',
+                status: 'Pending',
+            })
+
+            mockCodeWhispererClient.getCodeAnalysis.resolves({
+                status: 'Completed',
+            })
+
+            mockCodeWhispererClient.listCodeAnalysisFindings.resolves({
+                codeAnalysisFindings: '[]',
+                nextToken: undefined,
+            })
+
+            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
+            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
+                zipBuffer: Buffer.from('test'),
+                md5Hash: 'hash123',
+                isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
+            })
+            sandbox.stub(codeReview as any, 'parseFindings').returns([])
+
+            const result = await codeReview.execute(inputWithModelId, context)
+
+            expect(result.output.success).to.be.true
+            expect(result.output.kind).to.equal('json')
+
+            // Verify that startCodeAnalysis was called with the correct parameters
+            expect(mockCodeWhispererClient.startCodeAnalysis.calledOnce).to.be.true
+            const startAnalysisCall = mockCodeWhispererClient.startCodeAnalysis.getCall(0)
+            const callArgs = startAnalysisCall.args[0]
+
+            expect(callArgs).to.have.property('languageModelId', 'test-model-789')
+            expect(callArgs).to.have.property('clientType', Origin.IDE)
+            expect(callArgs).to.have.property('artifacts')
+            expect(callArgs).to.have.property('programmingLanguage')
+            expect(callArgs).to.have.property('clientToken')
+            expect(callArgs).to.have.property('codeScanName')
+            expect(callArgs).to.have.property('scope', 'AGENTIC')
+        })
+
+        it('should execute successfully with undefined modelId and still pass clientType', async () => {
+            const inputWithoutModelId = {
+                ...validInput,
+                modelId: undefined,
+            }
+
+            // Setup mocks for successful execution
+            mockCodeWhispererClient.createUploadUrl.resolves({
+                uploadUrl: 'https://upload.com',
+                uploadId: 'upload-456',
+                requestHeaders: {},
+            })
+
+            mockCodeWhispererClient.startCodeAnalysis.resolves({
+                jobId: 'job-456',
+                status: 'Pending',
+            })
+
+            mockCodeWhispererClient.getCodeAnalysis.resolves({
+                status: 'Completed',
+            })
+
+            mockCodeWhispererClient.listCodeAnalysisFindings.resolves({
+                codeAnalysisFindings: '[]',
+                nextToken: undefined,
+            })
+
+            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
+            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
+                zipBuffer: Buffer.from('test'),
+                md5Hash: 'hash456',
+                isCodeDiffPresent: false,
+                programmingLanguages: new Set(['javascript']),
+            })
+            sandbox.stub(codeReview as any, 'parseFindings').returns([])
+
+            const result = await codeReview.execute(inputWithoutModelId, context)
+
+            expect(result.output.success).to.be.true
+            expect(result.output.kind).to.equal('json')
+
+            // Verify that startCodeAnalysis was called with the correct parameters
+            expect(mockCodeWhispererClient.startCodeAnalysis.calledOnce).to.be.true
+            const startAnalysisCall = mockCodeWhispererClient.startCodeAnalysis.getCall(0)
+            const callArgs = startAnalysisCall.args[0]
+
+            expect(callArgs).to.have.property('languageModelId', undefined)
+            expect(callArgs).to.have.property('clientType', Origin.IDE)
         })
 
         it('should handle missing client error', async () => {
