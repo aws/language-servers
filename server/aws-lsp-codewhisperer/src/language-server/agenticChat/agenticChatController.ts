@@ -1988,6 +1988,7 @@ export class AgenticChatController implements ChatHandlers {
                                 .filter(c => c.type === 'rule')
                                 .map(c => ({ path: c.path }))
                         }
+                        initialInput['modelId'] = session.modelId
                         toolUse.input = initialInput
                     } catch (e) {
                         this.#features.logging.warn(`could not parse CodeReview tool input: ${e}`)
