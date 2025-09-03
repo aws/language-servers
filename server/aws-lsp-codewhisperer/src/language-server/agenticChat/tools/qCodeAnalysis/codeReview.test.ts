@@ -104,6 +104,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
         })
 
@@ -199,56 +200,6 @@ describe('CodeReview', () => {
             expect(callArgs).to.have.property('scope', 'AGENTIC')
         })
 
-        it('should execute successfully with undefined modelId and still pass clientType', async () => {
-            const inputWithoutModelId = {
-                ...validInput,
-                modelId: undefined,
-            }
-
-            // Setup mocks for successful execution
-            mockCodeWhispererClient.createUploadUrl.resolves({
-                uploadUrl: 'https://upload.com',
-                uploadId: 'upload-456',
-                requestHeaders: {},
-            })
-
-            mockCodeWhispererClient.startCodeAnalysis.resolves({
-                jobId: 'job-456',
-                status: 'Pending',
-            })
-
-            mockCodeWhispererClient.getCodeAnalysis.resolves({
-                status: 'Completed',
-            })
-
-            mockCodeWhispererClient.listCodeAnalysisFindings.resolves({
-                codeAnalysisFindings: '[]',
-                nextToken: undefined,
-            })
-
-            sandbox.stub(CodeReviewUtils, 'uploadFileToPresignedUrl').resolves()
-            sandbox.stub(codeReview as any, 'prepareFilesAndFoldersForUpload').resolves({
-                zipBuffer: Buffer.from('test'),
-                md5Hash: 'hash456',
-                isCodeDiffPresent: false,
-                programmingLanguages: new Set(['javascript']),
-            })
-            sandbox.stub(codeReview as any, 'parseFindings').returns([])
-
-            const result = await codeReview.execute(inputWithoutModelId, context)
-
-            expect(result.output.success).to.be.true
-            expect(result.output.kind).to.equal('json')
-
-            // Verify that startCodeAnalysis was called with the correct parameters
-            expect(mockCodeWhispererClient.startCodeAnalysis.calledOnce).to.be.true
-            const startAnalysisCall = mockCodeWhispererClient.startCodeAnalysis.getCall(0)
-            const callArgs = startAnalysisCall.args[0]
-
-            expect(callArgs).to.have.property('languageModelId', undefined)
-            expect(callArgs).to.have.property('clientType', Origin.IDE)
-        })
-
         it('should handle missing client error', async () => {
             context.codeWhispererClient = undefined
 
@@ -266,6 +217,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
 
             try {
@@ -385,6 +337,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
 
             const context = {
@@ -409,6 +362,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [{ path: '/test/folder' }],
                 ruleArtifacts: [],
                 scopeOfReview: CODE_DIFF_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
 
             const context = {
@@ -720,6 +674,7 @@ describe('CodeReview', () => {
                 folderLevelArtifacts: [],
                 ruleArtifacts: [],
                 scopeOfReview: FULL_REVIEW,
+                modelId: 'claude-4-sonnet',
             }
 
             // Make prepareFilesAndFoldersForUpload throw an error
