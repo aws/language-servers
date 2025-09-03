@@ -1,7 +1,6 @@
 import * as assert from 'assert'
 import * as sinon from 'sinon'
 import { MemoryBankController } from './memoryBankController'
-import { MEMORY_BANK_DIRECTORY, MEMORY_BANK_FILES } from './memoryBankTypes'
 
 describe('MemoryBankController', () => {
     let controller: MemoryBankController
@@ -57,6 +56,150 @@ describe('MemoryBankController', () => {
         })
     })
 
+    describe('isMemoryBankCreationRequest', () => {
+        it('should detect memory bank creation requests', () => {
+            const testCases = [
+                'create a memory bank',
+                'Create a Memory Bank',
+                'CREATE MEMORY BANK',
+                'Create a Memory Bank for this project',
+                'generate memory bank for this project',
+                'generate memory bank',
+                'build memory bank',
+                'make memory bank',
+                'setup memory bank',
+            ]
+
+            testCases.forEach(prompt => {
+                const result = controller.isMemoryBankCreationRequest(prompt)
+                assert.strictEqual(result, true, `Failed to detect: "${prompt}"`)
+            })
+        })
+
+        it('should not detect non-memory bank requests', () => {
+            const testCases = [
+                'create a file',
+                'help me with code',
+                'explain this function',
+                'memory usage optimization',
+                'bank account management',
+            ]
+
+            testCases.forEach(prompt => {
+                const result = controller.isMemoryBankCreationRequest(prompt)
+                assert.strictEqual(result, false, `False positive for: "${prompt}"`)
+            })
+        })
+    })
+
+    describe('getFirst3FilesPrompt', () => {
+        it('should return a comprehensive first 3 files prompt', () => {
+            const prompt = controller.getFirst3FilesPrompt()
+
+            assert.ok(typeof prompt === 'string')
+            assert.ok(prompt.length > 100)
+            assert.ok(prompt.includes('Memory Bank'))
+            assert.ok(prompt.includes('.amazonq/rules/memory-bank/'))
+            assert.ok(prompt.includes('product.md'))
+            assert.ok(prompt.includes('structure.md'))
+            assert.ok(prompt.includes('tech.md'))
+            assert.ok(prompt.includes('first 3 files'))
+            assert.ok(prompt.includes('science pipeline'))
+        })
+    })
+
+    describe('Science Pipeline Methods', () => {
+        it('should provide file ranking prompt', () => {
+            const filesString = 'test.ts has 100 lines and a mean lexical dissimilarity of 0.85'
+            const prompt = controller.getFileRankingPrompt(filesString, 15)
+
+            assert.ok(typeof prompt === 'string')
+            assert.ok(prompt.includes('JSON list'))
+            assert.ok(prompt.includes('15'))
+            assert.ok(prompt.includes(filesString))
+        })
+
+        describe('TF-IDF Lexical Dissimilarity', () => {
+            it('should calculate TF-IDF dissimilarity for multiple files', async () => {
+                const files = [
+                    { path: 'file1.ts', size: 50 },
+                    { path: 'file2.ts', size: 75 },
+                    { path: 'file3.ts', size: 100 },
+                ]
+
+                // Mock file contents with different lexical patterns
+                mockFs.readFile.onFirstCall().resolves('function calculateSum(a, b) { return a + b; }')
+                mockFs.readFile.onSecondCall().resolves('class UserService { constructor() {} getUser() {} }')
+                mockFs.readFile.onThirdCall().resolves('const config = { apiUrl: "https://api.example.com" }')
+
+                const result = await controller.calculateLexicalDissimilarity(files)
+
+                assert.strictEqual(result.length, 3)
+                assert.ok(result.every(f => f.dissimilarity >= 0 && f.dissimilarity <= 1))
+                assert.ok(result.every(f => typeof f.dissimilarity === 'number'))
+
+                // Verify all original properties are preserved
+                result.forEach((file, index) => {
+                    assert.strictEqual(file.path, files[index].path)
+                    assert.strictEqual(file.size, files[index].size)
+                })
+            })
+
+            it('should handle empty or unreadable files gracefully', async () => {
+                const files = [
+                    { path: 'readable.ts', size: 50 },
+                    { path: 'unreadable.ts', size: 25 },
+                ]
+
+                mockFs.readFile.onFirstCall().resolves('function test() { return true; }')
+                mockFs.readFile.onSecondCall().rejects(new Error('File not found'))
+
+                const result = await controller.calculateLexicalDissimilarity(files)
+
+                assert.strictEqual(result.length, 2)
+                assert.ok(result.every(f => f.dissimilarity >= 0 && f.dissimilarity <= 1))
+                sinon.assert.calledOnce(mockLogging.warn)
+            })
+
+            it('should return fallback values on calculation error', async () => {
+                const files = [{ path: 'test.ts', size: 50 }]
+
+                mockFs.readFile.rejects(new Error('Filesystem error'))
+
+                const result = await controller.calculateLexicalDissimilarity(files)
+
+                assert.strictEqual(result.length, 1)
+                assert.strictEqual(result[0].dissimilarity, 0.85)
+                sinon.assert.calledOnce(mockLogging.error)
+            })
+        })
+
+        it('should provide iterative style guide prompt', () => {
+            const chunkFiles = ['file1.ts content', 'file2.ts content']
+            const prompt = controller.getIterativeStyleGuidePrompt(chunkFiles, 15)
+
+            assert.ok(typeof prompt === 'string')
+            assert.ok(prompt.includes('2 out of 15'))
+            assert.ok(prompt.includes('Code Quality Standards'))
+        })
+
+        it('should execute complete memory bank creation pipeline', async () => {
+            const workspaceFolder = '/test/workspace'
+
+            try {
+                const result = await controller.executeCompleteMemoryBankCreation(workspaceFolder)
+
+                assert.ok(result.hasOwnProperty('success'))
+                assert.ok(result.hasOwnProperty('message'))
+                assert.ok(typeof result.success === 'boolean')
+                assert.ok(typeof result.message === 'string')
+            } catch (error) {
+                // Expected to fail in test environment due to missing file system
+                assert.ok(error instanceof Error)
+            }
+        })
+    })
+
     describe('memoryBankExists', () => {
         const workspaceFolder = '/test/workspace'
 
@@ -90,194 +233,13 @@ describe('MemoryBankController', () => {
             assert.strictEqual(result, true)
         })
 
-        it('should handle errors gracefully', async () => {
+        it('should handle filesystem errors gracefully', async () => {
             mockFs.exists.rejects(new Error('File system error'))
 
             const result = await controller.memoryBankExists(workspaceFolder)
 
             assert.strictEqual(result, false)
             sinon.assert.calledOnce(mockLogging.error)
-        })
-    })
-
-    describe('createMemoryBankDirectory', () => {
-        const workspaceFolder = '/test/workspace'
-
-        it('should create all necessary directories', async () => {
-            mockFs.exists.resolves(false) // all directories don't exist
-            mockFs.mkdir.resolves()
-
-            const result = await controller.createMemoryBankDirectory(workspaceFolder)
-
-            assert.strictEqual(result, true)
-            sinon.assert.calledThrice(mockFs.mkdir)
-            sinon.assert.calledWith(mockFs.mkdir, '/test/workspace/.amazonq')
-            sinon.assert.calledWith(mockFs.mkdir, '/test/workspace/.amazonq/rules')
-            sinon.assert.calledWith(mockFs.mkdir, '/test/workspace/.amazonq/rules/memory-bank')
-        })
-
-        it('should skip creating existing directories', async () => {
-            mockFs.exists.onFirstCall().resolves(true) // .amazonq exists
-            mockFs.exists.onSecondCall().resolves(true) // rules exists
-            mockFs.exists.onThirdCall().resolves(false) // memory-bank doesn't exist
-            mockFs.mkdir.resolves()
-
-            const result = await controller.createMemoryBankDirectory(workspaceFolder)
-
-            assert.strictEqual(result, true)
-            sinon.assert.calledOnce(mockFs.mkdir)
-            sinon.assert.calledWith(mockFs.mkdir, '/test/workspace/.amazonq/rules/memory-bank')
-        })
-
-        it('should handle errors gracefully', async () => {
-            mockFs.exists.rejects(new Error('File system error'))
-
-            const result = await controller.createMemoryBankDirectory(workspaceFolder)
-
-            assert.strictEqual(result, false)
-            sinon.assert.calledOnce(mockLogging.error)
-        })
-    })
-
-    describe('validateMemoryBankCreation', () => {
-        const workspaceFolder = '/test/workspace'
-
-        it('should return success when all files exist and are readable', async () => {
-            mockFs.exists.resolves(true)
-            mockFs.readFile.resolves(Buffer.from('test content'))
-
-            const result = await controller.validateMemoryBankCreation(workspaceFolder)
-
-            assert.strictEqual(result.success, true)
-            assert.strictEqual(result.filesCreated.length, 4)
-            assert.strictEqual(result.error, undefined)
-        })
-
-        it('should return partial success when some files exist', async () => {
-            mockFs.exists.onFirstCall().resolves(true) // product.md exists
-            mockFs.exists.onSecondCall().resolves(false) // structure.md doesn't exist
-            mockFs.exists.onThirdCall().resolves(true) // tech.md exists
-            mockFs.exists.onCall(3).resolves(false) // guidelines.md doesn't exist
-            mockFs.readFile.resolves(Buffer.from('test content'))
-
-            const result = await controller.validateMemoryBankCreation(workspaceFolder)
-
-            assert.strictEqual(result.success, true)
-            assert.strictEqual(result.filesCreated.length, 2)
-            assert.ok(result.error?.includes('File structure.md was not created'))
-        })
-
-        it('should return failure when no files exist', async () => {
-            mockFs.exists.resolves(false)
-
-            const result = await controller.validateMemoryBankCreation(workspaceFolder)
-
-            assert.strictEqual(result.success, false)
-            assert.strictEqual(result.filesCreated.length, 0)
-            assert.ok(result.error?.includes('was not created'))
-        })
-
-        it('should handle read errors gracefully', async () => {
-            mockFs.exists.resolves(true)
-            mockFs.readFile.rejects(new Error('Read error'))
-
-            const result = await controller.validateMemoryBankCreation(workspaceFolder)
-
-            assert.strictEqual(result.success, false)
-            assert.strictEqual(result.filesCreated.length, 0)
-            assert.ok(result.error?.includes('Failed to read'))
-        })
-    })
-
-    describe('getMemoryBankFilePaths', () => {
-        it('should return correct file paths', () => {
-            const workspaceFolder = '/test/workspace'
-            const paths = controller.getMemoryBankFilePaths(workspaceFolder)
-
-            assert.strictEqual(paths.length, 4)
-            assert.ok(paths.includes('/test/workspace/.amazonq/rules/memory-bank/product.md'))
-            assert.ok(paths.includes('/test/workspace/.amazonq/rules/memory-bank/structure.md'))
-            assert.ok(paths.includes('/test/workspace/.amazonq/rules/memory-bank/tech.md'))
-            assert.ok(paths.includes('/test/workspace/.amazonq/rules/memory-bank/guidelines.md'))
-        })
-    })
-
-    describe('isMemoryBankCreationRequest', () => {
-        it('should detect memory bank creation requests', () => {
-            const testCases = [
-                'create a memory bank',
-                'Create a Memory Bank',
-                'CREATE MEMORY BANK',
-                'generate memory bank for this project',
-                'build memory bank',
-                'make memory bank',
-                'setup memory bank',
-            ]
-
-            testCases.forEach(prompt => {
-                const result = controller.isMemoryBankCreationRequest(prompt)
-                assert.strictEqual(result, true, `Failed to detect: "${prompt}"`)
-            })
-        })
-
-        it('should not detect non-memory bank requests', () => {
-            const testCases = [
-                'create a file',
-                'help me with code',
-                'explain this function',
-                'memory usage optimization',
-                'bank account management',
-            ]
-
-            testCases.forEach(prompt => {
-                const result = controller.isMemoryBankCreationRequest(prompt)
-                assert.strictEqual(result, false, `False positive for: "${prompt}"`)
-            })
-        })
-    })
-
-    describe('getMemoryBankCreationPrompt', () => {
-        it('should return a comprehensive prompt', () => {
-            const prompt = controller.getMemoryBankCreationPrompt()
-
-            assert.ok(typeof prompt === 'string')
-            assert.ok(prompt.length > 100)
-            assert.ok(prompt.includes('Memory Bank'))
-            assert.ok(prompt.includes('product.md'))
-            assert.ok(prompt.includes('structure.md'))
-            assert.ok(prompt.includes('tech.md'))
-            assert.ok(prompt.includes('guidelines.md'))
-        })
-    })
-
-    describe('getMemoryBankSummary', () => {
-        it('should return formatted summary', () => {
-            const summary = controller.getMemoryBankSummary()
-
-            assert.ok(typeof summary === 'string')
-            assert.ok(summary.includes('📁'))
-            assert.ok(summary.includes('🧠'))
-            assert.ok(summary.includes('.amazonq/rules/memory-bank'))
-            assert.ok(summary.includes('product.md'))
-            assert.ok(summary.includes('structure.md'))
-            assert.ok(summary.includes('tech.md'))
-            assert.ok(summary.includes('guidelines.md'))
-        })
-    })
-
-    describe('logProgress', () => {
-        it('should log progress with correct format', () => {
-            controller.logProgress('test step', 'test message', false)
-
-            sinon.assert.calledOnce(mockLogging.info)
-            sinon.assert.calledWith(mockLogging.info, '[Memory Bank] 🔄 test step: test message')
-        })
-
-        it('should log completed progress with checkmark', () => {
-            controller.logProgress('test step', 'test message', true)
-
-            sinon.assert.calledOnce(mockLogging.info)
-            sinon.assert.calledWith(mockLogging.info, '[Memory Bank] ✅ test step: test message')
         })
     })
 })

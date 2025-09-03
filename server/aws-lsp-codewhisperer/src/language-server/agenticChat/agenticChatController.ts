@@ -665,795 +665,6 @@ export class AgenticChatController implements ChatHandlers {
         }
     }
 
-    private async checkExistingMemoryBankFiles(memoryBankDirectory: string): Promise<string[]> {
-        const expectedFiles = ['product.md', 'structure.md', 'tech.md', 'guidelines.md']
-        const existingFiles: string[] = []
-
-        for (const fileName of expectedFiles) {
-            const filePath = path.join(memoryBankDirectory, fileName)
-            const fileExists = await this.#features.workspace.fs.exists(filePath)
-            if (fileExists) {
-                existingFiles.push(fileName)
-            }
-        }
-
-        return existingFiles
-    }
-
-    private async sendChatMessage(message: string, tabId: string): Promise<void> {
-        this.#features.chat.sendChatUpdate({
-            tabId,
-            data: {
-                messages: [
-                    {
-                        type: 'answer',
-                        messageId: uuid(),
-                        body: message,
-                    },
-                ],
-            },
-        })
-    }
-
-    private async rankFilesByImportance(
-        fileStats: Array<{
-            filePath: string
-            lineCount: number
-            lexicalDissimilarity: number
-            fileType: string
-        }>
-    ): Promise<string[]> {
-        this.#features.logging.info('[Memory Bank Pipeline] Ranking files by importance using LLM')
-
-        if (fileStats.length === 0) {
-            return []
-        }
-
-        // Limit to top files to avoid context window issues
-        const maxFiles = Math.min(fileStats.length, 50)
-        const topFiles = fileStats
-            .sort((a, b) => b.lineCount * b.lexicalDissimilarity - a.lineCount * a.lexicalDissimilarity)
-            .slice(0, maxFiles)
-
-        // For now, return a deterministic selection based on heuristics
-        // In full implementation, this would use LLM ranking
-        const selectedFiles = topFiles
-            .filter(file => {
-                // Prioritize main source files over tests
-                const isTest = file.filePath.includes('test') || file.filePath.includes('spec')
-                const isConfig = file.filePath.includes('config') || file.filePath.includes('.json')
-                const hasGoodSize = file.lineCount > 10 && file.lineCount < 1000
-
-                return !isTest && !isConfig && hasGoodSize
-            })
-            .slice(0, 15) // Limit to 15 most important files
-            .map(file => file.filePath)
-
-        this.#features.logging.info(`[Memory Bank Pipeline] Selected ${selectedFiles.length} files for analysis`)
-        return selectedFiles
-    }
-
-    private async generateGuidelinesFromFiles(selectedFiles: string[], workspaceRoot: string): Promise<string> {
-        this.#features.logging.info('[Memory Bank Pipeline] Generating guidelines from selected files')
-
-        let guidelines = '# Development Guidelines\n\n'
-        guidelines +=
-            'This document contains coding patterns and best practices discovered through automated analysis of the codebase.\n\n'
-
-        try {
-            // Analyze files in batches to avoid context window limits
-            const batchSize = 3
-            const patterns: string[] = []
-
-            for (let i = 0; i < selectedFiles.length; i += batchSize) {
-                const batch = selectedFiles.slice(i, i + batchSize)
-                const batchPatterns = await this.analyzeBatchForPatterns(batch, workspaceRoot)
-                patterns.push(...batchPatterns)
-            }
-
-            // Organize patterns into categories
-            guidelines += this.organizePatterns(patterns)
-
-            return guidelines
-        } catch (error) {
-            this.#features.logging.error(`[Memory Bank Pipeline] Error generating guidelines: ${error}`)
-            return this.getFallbackGuidelinesContent()
-        }
-    }
-
-    private async analyzeBatchForPatterns(filePaths: string[], workspaceRoot: string): Promise<string[]> {
-        const patterns: string[] = []
-
-        for (const filePath of filePaths) {
-            try {
-                const fullPath = path.join(workspaceRoot, filePath)
-                const content = await this.#features.workspace.fs.readFile(fullPath)
-
-                // Extract patterns using static analysis
-                const filePatterns = this.extractPatternsFromCode(content, filePath)
-                patterns.push(...filePatterns)
-            } catch (error) {
-                this.#features.logging.warn(`[Memory Bank Pipeline] Error analyzing file ${filePath}: ${error}`)
-            }
-        }
-
-        return patterns
-    }
-
-    private extractPatternsFromCode(content: string, filePath: string): string[] {
-        const patterns: string[] = []
-        const lines = content.split('\n')
-
-        // Extract common patterns
-        for (const line of lines) {
-            const trimmed = line.trim()
-
-            // Import patterns
-            if (trimmed.startsWith('import ') || trimmed.startsWith('from ')) {
-                patterns.push(`Import pattern: ${trimmed}`)
-            }
-
-            // Class/interface declarations
-            if (trimmed.match(/^(export\s+)?(class|interface|enum)\s+\w+/)) {
-                patterns.push(`Declaration pattern: ${trimmed}`)
-            }
-
-            // Function declarations
-            if (
-                trimmed.match(/^(export\s+)?(async\s+)?function\s+\w+/) ||
-                trimmed.match(/^\w+\s*[:=]\s*(async\s+)?\(/)
-            ) {
-                patterns.push(`Function pattern: ${trimmed}`)
-            }
-
-            // Annotation patterns (for Java/TypeScript)
-            if (trimmed.startsWith('@')) {
-                patterns.push(`Annotation pattern: ${trimmed}`)
-            }
-
-            // Error handling patterns
-            if (trimmed.includes('try {') || trimmed.includes('catch (') || trimmed.includes('throw ')) {
-                patterns.push(`Error handling pattern: ${trimmed}`)
-            }
-        }
-
-        return patterns
-    }
-
-    private organizePatterns(patterns: string[]): string {
-        const categories = {
-            imports: patterns.filter(p => p.startsWith('Import pattern:')),
-            declarations: patterns.filter(p => p.startsWith('Declaration pattern:')),
-            functions: patterns.filter(p => p.startsWith('Function pattern:')),
-            annotations: patterns.filter(p => p.startsWith('Annotation pattern:')),
-            errorHandling: patterns.filter(p => p.startsWith('Error handling pattern:')),
-        }
-
-        let organized = ''
-
-        if (categories.imports.length > 0) {
-            organized += '## Import Patterns\n\n'
-            const uniqueImports = [...new Set(categories.imports)].slice(0, 10)
-            uniqueImports.forEach(pattern => {
-                organized += `- ${pattern.replace('Import pattern: ', '')}\n`
-            })
-            organized += '\n'
-        }
-
-        if (categories.declarations.length > 0) {
-            organized += '## Declaration Patterns\n\n'
-            const uniqueDeclarations = [...new Set(categories.declarations)].slice(0, 10)
-            uniqueDeclarations.forEach(pattern => {
-                organized += `- ${pattern.replace('Declaration pattern: ', '')}\n`
-            })
-            organized += '\n'
-        }
-
-        if (categories.functions.length > 0) {
-            organized += '## Function Patterns\n\n'
-            const uniqueFunctions = [...new Set(categories.functions)].slice(0, 10)
-            uniqueFunctions.forEach(pattern => {
-                organized += `- ${pattern.replace('Function pattern: ', '')}\n`
-            })
-            organized += '\n'
-        }
-
-        if (categories.annotations.length > 0) {
-            organized += '## Annotation Patterns\n\n'
-            const uniqueAnnotations = [...new Set(categories.annotations)].slice(0, 10)
-            uniqueAnnotations.forEach(pattern => {
-                organized += `- ${pattern.replace('Annotation pattern: ', '')}\n`
-            })
-            organized += '\n'
-        }
-
-        if (categories.errorHandling.length > 0) {
-            organized += '## Error Handling Patterns\n\n'
-            const uniqueErrorHandling = [...new Set(categories.errorHandling)].slice(0, 10)
-            uniqueErrorHandling.forEach(pattern => {
-                organized += `- ${pattern.replace('Error handling pattern: ', '')}\n`
-            })
-            organized += '\n'
-        }
-
-        organized += '## Best Practices\n\n'
-        organized += '- Follow consistent naming conventions observed in the codebase\n'
-        organized += '- Use appropriate error handling patterns\n'
-        organized += '- Maintain consistent import organization\n'
-        organized += '- Follow established architectural patterns\n'
-
-        return organized
-    }
-
-    private getFallbackGuidelinesContent(): string {
-        return `# Development Guidelines
-
-## Code Style and Formatting
-
-### General Conventions
-- Follow consistent naming conventions throughout the codebase
-- Use meaningful variable and function names
-- Maintain consistent indentation and formatting
-
-## Architecture Patterns
-
-### Error Handling
-- Use appropriate exception types for different error conditions
-- Implement proper error logging and monitoring
-- Follow established retry and recovery patterns
-
-## Testing Guidelines
-
-### Test Organization
-- Co-locate tests with source code when appropriate
-- Use descriptive test names that explain the scenario
-- Follow arrange-act-assert pattern in tests
-
-## Best Practices
-
-### Code Quality
-- Write self-documenting code with clear intent
-- Use appropriate design patterns for the problem domain
-- Maintain separation of concerns in module design
-
-### Performance
-- Consider performance implications of architectural decisions
-- Use appropriate caching strategies where beneficial
-- Monitor and measure performance-critical code paths
-`
-    }
-
-    // REMOVED: Custom memory bank methods - now using normal agent flow
-    /*
-    private async generateMemoryBankContentWithLLM(tabId: string): Promise<{
-        product: string
-        structure: string
-        tech: string
-        guidelines: string
-    }> {
-        const session = this.#chatSessionManagementService.getSession(tabId)
-        if (!session.data) {
-            throw new Error('No chat session found for memory bank generation')
-        }
-
-        // Progress tracking
-        let completedFiles = 0
-        const totalFiles = 4
-
-        const updateProgress = async (fileName: string) => {
-            completedFiles++
-            await this.sendChatMessage(`📝 Generated ${fileName} (${completedFiles}/${totalFiles})...`, tabId)
-        }
-
-        // Generate each memory bank file using LLM calls
-        const [product, structure, tech, guidelines] = await Promise.all([
-            this.generateMemoryBankFile(
-                'product',
-                `Analyze this codebase and create a comprehensive product overview document. Include:
-- Project purpose and goals
-- Key features and capabilities
-- Target audience and use cases
-- Value proposition
-- Technology highlights
-
-Focus on what this project does and why it exists. Be specific about the actual functionality based on the code structure and dependencies you can observe.`,
-                session.data,
-                () => updateProgress('product.md')
-            ),
-            this.generateMemoryBankFile(
-                'structure',
-                `Analyze this codebase and create a detailed project structure document. Include:
-- Overall architecture and organization
-- Key directories and their purposes
-- Module relationships and dependencies
-- File organization patterns
-- Package/workspace structure if applicable
-
-Focus on how the code is organized and the architectural patterns used.`,
-                session.data,
-                () => updateProgress('structure.md')
-            ),
-            this.generateMemoryBankFile(
-                'tech',
-                `Analyze this codebase and create a comprehensive technology stack document. Include:
-- Core technologies and frameworks used
-- Programming languages and versions
-- Build systems and tooling
-- Testing frameworks
-- Development tools and workflows
-- Key dependencies and libraries
-
-Focus on the actual technologies you can identify from package.json, config files, and code patterns.`,
-                session.data,
-                () => updateProgress('tech.md')
-            ),
-            this.generateMemoryBankFile(
-                'guidelines',
-                `Analyze this codebase and create coding guidelines based on the patterns you observe. Include:
-- Code style and formatting conventions actually used
-- Architecture principles evident in the code
-- Best practices demonstrated in the codebase
-- Testing patterns and approaches
-- Error handling patterns
-- Documentation standards
-
-Base this on actual patterns you can observe in the code, not generic guidelines.`,
-                session.data,
-                () => updateProgress('guidelines.md')
-            ),
-        ])
-
-        return { product, structure, tech, guidelines }
-    }
-    */
-
-    /*
-    private async generateMemoryBankFile(
-        fileType: string,
-        prompt: string,
-        session: ChatSessionService,
-        onComplete: () => Promise<void>
-    ): Promise<string> {
-        this.#features.logging.info(`[Memory Bank] Starting generation for ${fileType}`)
-
-        try {
-            // For now, let's use a simpler approach that actually works
-            // Instead of trying to make complex LLM calls, let's generate content based on actual file analysis
-
-            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
-            if (workspaceFolders.length === 0) {
-                this.#features.logging.warn(`[Memory Bank] No workspace folder for ${fileType}`)
-                await onComplete()
-                return this.getFallbackContent(fileType)
-            }
-
-            const workspaceRoot = workspaceFolders[0]
-            this.#features.logging.info(`[Memory Bank] Analyzing workspace: ${workspaceRoot} for ${fileType}`)
-
-            // Analyze the actual codebase
-            const analysisResult = await this.analyzeCodebaseForMemoryBank(workspaceRoot, fileType)
-
-            await onComplete()
-
-            return analysisResult || this.getFallbackContent(fileType)
-        } catch (error) {
-            this.#features.logging.error(`[Memory Bank] Error generating ${fileType}: ${error}`)
-            await onComplete()
-            return this.getFallbackContent(fileType)
-        }
-    }
-
-    private async analyzeCodebaseForMemoryBank(workspaceRoot: string, fileType: string): Promise<string> {
-        this.#features.logging.info(`[Memory Bank] Analyzing codebase for ${fileType}`)
-
-        try {
-            switch (fileType) {
-                case 'product':
-                    return await this.generateProductAnalysis(workspaceRoot)
-                case 'structure':
-                    return await this.generateStructureAnalysis(workspaceRoot)
-                case 'tech':
-                    return await this.generateTechAnalysis(workspaceRoot)
-                case 'guidelines':
-                    return await this.generateGuidelinesAnalysis(workspaceRoot)
-                default:
-                    return this.getFallbackContent(fileType)
-            }
-        } catch (error) {
-            this.#features.logging.error(
-                `[Memory Bank] Error in analyzeCodebaseForMemoryBank for ${fileType}: ${error}`
-            )
-            return this.getFallbackContent(fileType)
-        }
-    }
-
-    private async generateProductAnalysis(workspaceRoot: string): Promise<string> {
-        this.#features.logging.info(`[Memory Bank] Generating product analysis`)
-
-        let content = '# Product Overview\n\n'
-
-        try {
-            // Try to read package.json for project info
-            const packageJsonPath = path.join(workspaceRoot, 'package.json')
-            const packageJsonExists = await this.#features.workspace.fs.exists(packageJsonPath)
-
-            if (packageJsonExists) {
-                const packageJsonContent = await this.#features.workspace.fs.readFile(packageJsonPath)
-                const packageJson = JSON.parse(packageJsonContent)
-
-                content += `## Project: ${packageJson.name || 'Unknown'}\n\n`
-                if (packageJson.description) {
-                    content += `**Description:** ${packageJson.description}\n\n`
-                }
-                if (packageJson.version) {
-                    content += `**Version:** ${packageJson.version}\n\n`
-                }
-
-                content += '## Key Features\n\n'
-                if (packageJson.scripts) {
-                    content += 'Available commands:\n'
-                    Object.keys(packageJson.scripts).forEach(script => {
-                        content += `- \`${script}\`: ${packageJson.scripts[script]}\n`
-                    })
-                    content += '\n'
-                }
-
-                content += '## Technology Stack\n\n'
-                if (packageJson.dependencies) {
-                    content += 'Main dependencies:\n'
-                    Object.keys(packageJson.dependencies)
-                        .slice(0, 10)
-                        .forEach(dep => {
-                            content += `- ${dep}\n`
-                        })
-                    content += '\n'
-                }
-            }
-
-            // Try to read README for more info
-            const readmePath = path.join(workspaceRoot, 'README.md')
-            const readmeExists = await this.#features.workspace.fs.exists(readmePath)
-
-            if (readmeExists) {
-                const readmeContent = await this.#features.workspace.fs.readFile(readmePath)
-                content += '## Additional Information\n\n'
-                content += 'Based on README.md:\n\n'
-                // Take first few lines of README
-                const readmeLines = readmeContent.split('\n').slice(0, 10)
-                content += readmeLines.join('\n') + '\n\n'
-            }
-        } catch (error) {
-            this.#features.logging.warn(`[Memory Bank] Error reading project files: ${error}`)
-            content += 'Project analysis based on available files.\n\n'
-        }
-
-        content += '## Target Audience\n\nDevelopers working on this codebase.\n\n'
-        content +=
-            '## Value Proposition\n\nProvides structured development environment with modern tooling and practices.\n'
-
-        return content
-    }
-
-    private async generateStructureAnalysis(workspaceRoot: string): Promise<string> {
-        this.#features.logging.info(`[Memory Bank] Generating structure analysis`)
-
-        let content = '# Project Structure\n\n'
-
-        try {
-            // Analyze directory structure
-            const items = await this.#features.workspace.fs.readdir(workspaceRoot)
-
-            content += '## Root Directory Structure\n\n'
-            for (const item of items) {
-                if (!item.name.startsWith('.')) {
-                    if (item.isDirectory()) {
-                        content += `- \`${item.name}/\` (directory)\n`
-                    } else if (item.isFile()) {
-                        content += `- \`${item.name}\`\n`
-                    }
-                }
-            }
-
-            content += '\n## Key Directories\n\n'
-
-            // Check for common directories
-            const commonDirs = ['src', 'lib', 'app', 'components', 'utils', 'test', 'tests', '__tests__', 'docs']
-            for (const dir of commonDirs) {
-                const dirPath = path.join(workspaceRoot, dir)
-                const exists = await this.#features.workspace.fs.exists(dirPath)
-                if (exists) {
-                    content += `- \`${dir}/\`: Source code and implementation files\n`
-                }
-            }
-        } catch (error) {
-            this.#features.logging.warn(`[Memory Bank] Error analyzing structure: ${error}`)
-            content += 'Structure analysis based on available directory information.\n\n'
-        }
-
-        content += '\n## Organization Patterns\n\n'
-        content += 'The project follows standard directory conventions with clear separation of concerns.\n'
-
-        return content
-    }
-
-    private async generateTechAnalysis(workspaceRoot: string): Promise<string> {
-        this.#features.logging.info(`[Memory Bank] Generating tech analysis`)
-
-        let content = '# Technology Stack\n\n'
-
-        try {
-            // Analyze package.json for tech stack
-            const packageJsonPath = path.join(workspaceRoot, 'package.json')
-            const packageJsonExists = await this.#features.workspace.fs.exists(packageJsonPath)
-
-            if (packageJsonExists) {
-                const packageJsonContent = await this.#features.workspace.fs.readFile(packageJsonPath)
-                const packageJson = JSON.parse(packageJsonContent)
-
-                content += '## Core Technologies\n\n'
-
-                // Detect main technologies
-                if (packageJson.dependencies) {
-                    const deps = packageJson.dependencies
-                    if (deps.react) content += `- **React** ${deps.react} - UI framework\n`
-                    if (deps.vue) content += `- **Vue** ${deps.vue} - UI framework\n`
-                    if (deps.angular) content += `- **Angular** ${deps.angular} - UI framework\n`
-                    if (deps.express) content += `- **Express** ${deps.express} - Web framework\n`
-                    if (deps.typescript) content += `- **TypeScript** ${deps.typescript} - Type-safe JavaScript\n`
-                    if (deps['@types/node']) content += `- **Node.js** - Runtime environment\n`
-                }
-
-                content += '\n## Build System\n\n'
-                if (packageJson.devDependencies) {
-                    const devDeps = packageJson.devDependencies
-                    if (devDeps.webpack) content += `- **Webpack** ${devDeps.webpack} - Module bundler\n`
-                    if (devDeps.vite) content += `- **Vite** ${devDeps.vite} - Build tool\n`
-                    if (devDeps.rollup) content += `- **Rollup** ${devDeps.rollup} - Module bundler\n`
-                    if (devDeps.tsc || devDeps.typescript)
-                        content += `- **TypeScript Compiler** - Type checking and compilation\n`
-                }
-
-                content += '\n## Development Tools\n\n'
-                if (packageJson.devDependencies) {
-                    const devDeps = packageJson.devDependencies
-                    if (devDeps.eslint) content += `- **ESLint** ${devDeps.eslint} - Code linting\n`
-                    if (devDeps.prettier) content += `- **Prettier** ${devDeps.prettier} - Code formatting\n`
-                    if (devDeps.jest) content += `- **Jest** ${devDeps.jest} - Testing framework\n`
-                    if (devDeps.mocha) content += `- **Mocha** ${devDeps.mocha} - Testing framework\n`
-                }
-
-                content += '\n## Key Dependencies\n\n'
-                if (packageJson.dependencies) {
-                    const mainDeps = Object.keys(packageJson.dependencies).slice(0, 15)
-                    mainDeps.forEach(dep => {
-                        content += `- **${dep}** ${packageJson.dependencies[dep]}\n`
-                    })
-                }
-            }
-
-            // Check for other config files
-            const configFiles = ['tsconfig.json', 'webpack.config.js', '.eslintrc.js', 'vite.config.js']
-            content += '\n## Configuration Files\n\n'
-            for (const configFile of configFiles) {
-                const configPath = path.join(workspaceRoot, configFile)
-                const exists = await this.#features.workspace.fs.exists(configPath)
-                if (exists) {
-                    content += `- \`${configFile}\`: Configuration for build/development tools\n`
-                }
-            }
-        } catch (error) {
-            this.#features.logging.warn(`[Memory Bank] Error analyzing tech stack: ${error}`)
-            content += 'Technology analysis based on available configuration files.\n\n'
-        }
-
-        return content
-    }
-
-    private async generateGuidelinesAnalysis(workspaceRoot: string): Promise<string> {
-        this.#features.logging.info(`[Memory Bank] Generating guidelines analysis`)
-
-        let content = '# Coding Guidelines\n\n'
-
-        try {
-            // Check for linting/formatting configs
-            const eslintPath = path.join(workspaceRoot, '.eslintrc.js')
-            const prettierPath = path.join(workspaceRoot, '.prettierrc')
-            const tsconfigPath = path.join(workspaceRoot, 'tsconfig.json')
-
-            content += '## Code Style\n\n'
-
-            const eslintExists = await this.#features.workspace.fs.exists(eslintPath)
-            if (eslintExists) {
-                content += '- ESLint configuration enforces code quality standards\n'
-            }
-
-            const prettierExists = await this.#features.workspace.fs.exists(prettierPath)
-            if (prettierExists) {
-                content += '- Prettier configuration ensures consistent formatting\n'
-            }
-
-            const tsconfigExists = await this.#features.workspace.fs.exists(tsconfigPath)
-            if (tsconfigExists) {
-                content += '- TypeScript configuration provides type safety\n'
-
-                try {
-                    const tsconfigContent = await this.#features.workspace.fs.readFile(tsconfigPath)
-                    const tsconfig = JSON.parse(tsconfigContent)
-                    if (tsconfig.compilerOptions) {
-                        content += '- Strict type checking enabled\n'
-                        if (tsconfig.compilerOptions.target) {
-                            content += `- Target: ${tsconfig.compilerOptions.target}\n`
-                        }
-                    }
-                } catch (error) {
-                    this.#features.logging.warn(`[Memory Bank] Error reading tsconfig: ${error}`)
-                }
-            }
-
-            content += '\n## Architecture Principles\n\n'
-            content += '- Modular code organization\n'
-            content += '- Clear separation of concerns\n'
-            content += '- Type-safe development practices\n'
-
-            content += '\n## Best Practices\n\n'
-            content += '- Use TypeScript for type safety\n'
-            content += '- Follow established linting rules\n'
-            content += '- Maintain consistent code formatting\n'
-            content += '- Write comprehensive tests\n'
-
-            content += '\n## Testing Guidelines\n\n'
-
-            // Check for test directories
-            const testDirs = ['test', 'tests', '__tests__', 'spec']
-            for (const testDir of testDirs) {
-                const testPath = path.join(workspaceRoot, testDir)
-                const exists = await this.#features.workspace.fs.exists(testPath)
-                if (exists) {
-                    content += `- Tests located in \`${testDir}/\` directory\n`
-                }
-            }
-
-            // Check package.json for test scripts
-            const packageJsonPath = path.join(workspaceRoot, 'package.json')
-            const packageJsonExists = await this.#features.workspace.fs.exists(packageJsonPath)
-
-            if (packageJsonExists) {
-                const packageJsonContent = await this.#features.workspace.fs.readFile(packageJsonPath)
-                const packageJson = JSON.parse(packageJsonContent)
-
-                if (packageJson.scripts && packageJson.scripts.test) {
-                    content += `- Test command: \`${packageJson.scripts.test}\`\n`
-                }
-            }
-        } catch (error) {
-            this.#features.logging.warn(`[Memory Bank] Error analyzing guidelines: ${error}`)
-            content += 'Guidelines based on available configuration and project structure.\n\n'
-        }
-
-        return content
-    }
-
-    private getFallbackContent(fileType: string): string {
-        switch (fileType) {
-            case 'product':
-                return this.getTemplateProductContent()
-            case 'structure':
-                return 'Template structure content'
-            case 'tech':
-                return 'Template tech content'
-            case 'guidelines':
-                return 'Template guidelines content'
-            default:
-                return `# ${fileType.charAt(0).toUpperCase() + fileType.slice(1)}\n\nContent will be generated based on project analysis.`
-        }
-    }
-    */
-
-    /*
-    private async handleMemoryBankCreationFromChat(tabId: string): Promise<ChatResult> {
-        this.#features.logging.info(`[Memory Bank] Starting creation for tabId: ${tabId}`)
-
-        try {
-            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
-            if (workspaceFolders.length === 0) {
-                this.#features.logging.warn(`[Memory Bank] No workspace folder found`)
-                return {
-                    body: '❌ **Memory Bank creation failed**\n\nNo workspace folder found. Please open a project folder first.',
-                    messageId: uuid(),
-                }
-            }
-
-            this.#features.logging.info(`[Memory Bank] Found workspace folder: ${workspaceFolders[0]}`)
-
-            // Ensure session exists for this tab
-            const sessionResult = this.#chatSessionManagementService.getSession(tabId)
-            if (!sessionResult.success) {
-                this.#features.logging.warn(`[Memory Bank] No session found for tabId: ${tabId}, creating new session`)
-                this.#chatSessionManagementService.createSession(tabId)
-            }
-
-            const workspaceRulesDirectory = path.join(workspaceFolders[0], '.amazonq', 'rules')
-
-            // Start the memory bank creation process asynchronously
-            // Return immediately with a starting message, then continue processing
-            this.createMemoryBankAsync(workspaceRulesDirectory, tabId).catch(error => {
-                this.#features.logging.error(`[Memory Bank] Async creation failed: ${error}`)
-                void this.sendChatMessage(
-                    '❌ **Memory Bank creation failed**\n\nAn unexpected error occurred. Please try again.',
-                    tabId
-                )
-            })
-
-            return {
-                body: '🚀 **Creating Memory Bank...**\n\nAnalyzing your codebase to generate comprehensive documentation. This may take a few minutes.',
-                messageId: uuid(),
-            }
-        } catch (error) {
-            this.#features.logging.error(`[Memory Bank] Error in handleMemoryBankCreationFromChat: ${error}`)
-            return {
-                body: '❌ **Memory Bank creation failed**\n\nAn unexpected error occurred. Please try again.',
-                messageId: uuid(),
-            }
-        }
-    }
-
-    private async createMemoryBankAsync(workspaceRulesDirectory: string, tabId: string): Promise<void> {
-        this.#features.logging.info(`[Memory Bank] Starting async creation process`)
-
-        const memoryBankDirectory = path.join(workspaceRulesDirectory, 'memory-bank')
-
-        try {
-            // Create the memory-bank directory
-            await this.#features.workspace.fs.mkdir(memoryBankDirectory, { recursive: true })
-            this.#features.logging.info(`[Memory Bank] Created directory: ${memoryBankDirectory}`)
-
-            // Check if Memory Bank files already exist
-            const existingFiles = await this.checkExistingMemoryBankFiles(memoryBankDirectory)
-            const isUpdate = existingFiles.length > 0
-            this.#features.logging.info(`[Memory Bank] Existing files: ${existingFiles.length}, isUpdate: ${isUpdate}`)
-
-            // Send progress message
-            const actionText = isUpdate ? 'Updating' : 'Creating'
-            await this.sendChatMessage(
-                `📊 **Analyzing codebase...**\n\nScanning project structure, dependencies, and code patterns.`,
-                tabId
-            )
-
-            // Generate the 4 memory bank files using LLM calls
-            this.#features.logging.info(`[Memory Bank] Starting LLM generation`)
-            const memoryBankContent = await this.generateMemoryBankContentWithLLM(tabId)
-            this.#features.logging.info(`[Memory Bank] LLM generation completed`)
-
-            await this.writeMemoryBankFiles(memoryBankDirectory, memoryBankContent)
-            this.#features.logging.info(`[Memory Bank] Files written successfully`)
-
-            // Send success message
-            const successText = isUpdate ? 'updated' : 'created'
-            const actionEmoji = isUpdate ? '🔄' : '✅'
-            await this.sendChatMessage(
-                `${actionEmoji} **Memory Bank ${successText} successfully!**
-
-I've ${successText} 4 comprehensive memory bank files based on your project analysis:
-
-📄 **Generated Files:**
-- \`product.md\` - Project overview and purpose
-- \`structure.md\` - Project organization and architecture  
-- \`tech.md\` - Technology stack and build system
-- \`guidelines.md\` - Coding patterns and best practices
-
-These memory bank docs are now pinned as context for every prompt. I will update these memory bank docs each time I answer a question for you. You can also manually edit these docs or their rules at any time.
-
-${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memory Bank is now ready to provide context for future conversations!'} 🎉`,
-                tabId
-            )
-        } catch (e) {
-            this.#features.logging.error(`[Memory Bank] Error in createMemoryBankAsync: ${e}`)
-            // Send error message to chat
-            await this.sendChatMessage('❌ Failed to create Memory Bank. Please try again.', tabId)
-        }
-    }
-    */
-
     dispose() {
         this.#chatSessionManagementService.dispose()
         this.#telemetryController.dispose()
@@ -1641,15 +852,19 @@ ${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memor
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
-        // Memory Bank Creation Flow
-        // When user requests "create a memory bank", transform it into a comprehensive agent prompt
-        // that will analyze the project and create 4 documentation files automatically
+        // Memory Bank Creation Flow - Step 1: First 3 Files Only
         if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
-            // Transform this into a proper agent request that will use the normal flow with tools
             this.#features.logging.info(`[Memory Bank] Detected memory bank request for tabId: ${params.tabId}`)
 
-            // Use the centralized memory bank prompt
-            params.prompt.prompt = this.#memoryBankController.getMemoryBankCreationPrompt()
+            // Step 1: Create first 3 files using standard agent analysis
+            params.prompt.prompt = this.#memoryBankController.getFirst3FilesPrompt()
+
+            this.#features.logging.info(
+                `[Memory Bank] Step 1: Creating first 3 memory bank files (product.md, structure.md, tech.md)`
+            )
+
+            // Mark this session for memory bank completion detection
+            this.#markSessionForMemoryBankCompletion(params.tabId)
         }
 
         const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
@@ -2033,6 +1248,7 @@ ${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memor
             }),
             chatResultStream,
             session,
+            tabId,
             documentReference,
             true
         )
@@ -2165,10 +1381,7 @@ ${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memor
             this.#debug(
                 `generateAssistantResponse/SendMessage Request: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
             )
-            // Log the complete LLM request payload including all memory bank file contents
-            this.#features.logging.info(
-                `[LLM Request] Complete payload with memory bank contents: ${JSON.stringify(currentRequestInput, this.#imageReplacer, 2)}`
-            )
+
             const response = await session.getChatResponse(currentRequestInput)
             if (response.$metadata.requestId) {
                 metric.mergeWith({
@@ -2210,6 +1423,7 @@ ${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memor
                 }),
                 chatResultStream,
                 session,
+                tabId,
                 documentReference
             )
             const llmLatency = Date.now() - this.#llmRequestStartTime
@@ -5025,6 +4239,7 @@ ${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memor
         metric: Metric<AddMessageEvent>,
         chatResultStream: AgenticChatResultStream,
         session: ChatSessionService,
+        tabId: string,
         contextList?: FileList,
         isCompaction?: boolean
     ): Promise<Result<AgenticChatResultWithMetadata, string>> {
@@ -5048,6 +4263,7 @@ ${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memor
             chatResultStream,
             streamWriter,
             session,
+            tabId,
             contextList,
             abortController.signal,
             isCompaction
@@ -5127,6 +4343,7 @@ ${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memor
         chatResultStream: AgenticChatResultStream,
         streamWriter: ResultStreamWriter,
         session: ChatSessionService,
+        tabId: string,
         contextList?: FileList,
         abortSignal?: AbortSignal,
         isCompaction?: boolean
@@ -5175,6 +4392,11 @@ ${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memor
             // update the UI with response
             if (chatEvent.assistantResponseEvent || chatEvent.codeReferenceEvent) {
                 await streamWriter.write(result.data.chatResult)
+
+                // Memory Bank completion detection
+                if (chatEvent.assistantResponseEvent && result.data.chatResult.body) {
+                    await this.#checkMemoryBankCompletion(tabId, result.data.chatResult.body)
+                }
             }
 
             if (chatEvent.toolUseEvent) {
@@ -5589,5 +4811,96 @@ ${isUpdate ? 'Existing files have been updated with fresh content.' : 'The Memor
             return `[Uint8Array, length: ${value.length}]`
         }
         return value
+    }
+
+    // Memory Bank Completion Detection
+    #memoryBankPendingSessions = new Set<string>()
+
+    /**
+     * Mark a session for memory bank completion detection
+     */
+    #markSessionForMemoryBankCompletion(tabId: string): void {
+        this.#memoryBankPendingSessions.add(tabId)
+        this.#features.logging.info(`[Memory Bank] Marked session ${tabId} for completion detection`)
+    }
+
+    /**
+     * Check if a session is pending memory bank completion
+     */
+    #isMemoryBankPendingCompletion(tabId: string): boolean {
+        return this.#memoryBankPendingSessions.has(tabId)
+    }
+
+    /**
+     * Detect memory bank completion and trigger guidelines generation
+     */
+    async #checkMemoryBankCompletion(tabId: string, messageContent: string): Promise<void> {
+        if (!this.#isMemoryBankPendingCompletion(tabId)) {
+            return
+        }
+
+        // Check if the agent has completed creating the first 3 files
+        const completionIndicators = [
+            'product.md',
+            'structure.md',
+            'tech.md',
+            'memory bank',
+            'created successfully',
+            'files have been created',
+        ]
+
+        const hasCompletionIndicators = completionIndicators.some(indicator =>
+            messageContent.toLowerCase().includes(indicator.toLowerCase())
+        )
+
+        if (hasCompletionIndicators) {
+            this.#features.logging.info(`[Memory Bank] Step 1 completion detected for session ${tabId}`)
+
+            // Remove from pending set
+            this.#memoryBankPendingSessions.delete(tabId)
+
+            // Trigger Steps 2-5: Guidelines generation
+            await this.#triggerGuidelinesGeneration(tabId)
+        }
+    }
+
+    /**
+     * Trigger guidelines.md generation (Steps 2-5)
+     */
+    async #triggerGuidelinesGeneration(tabId: string): Promise<void> {
+        try {
+            this.#features.logging.info(`[Memory Bank] Starting guidelines generation for session ${tabId}`)
+
+            // Get workspace folder URI - use empty string as default for root workspace
+            const workspaceFolderUri = ''
+
+            // Create LLM call function that uses the chat system
+            const llmCallFunction = async (prompt: string): Promise<string> => {
+                // TODO: Implement actual LLM call using the chat system
+                // For now, return a placeholder response
+                return 'LLM response placeholder'
+            }
+
+            // Delegate all complex logic to MemoryBankController
+            const result = await this.#memoryBankController.executeCompleteMemoryBankCreationWithLLM(
+                workspaceFolderUri,
+                llmCallFunction
+            )
+
+            // Send message to chat
+            await this.#features.chat.sendChatUpdate({
+                tabId,
+                data: {
+                    messages: [
+                        {
+                            messageId: `memory-bank-complete-${Date.now()}`,
+                            body: result.message,
+                        },
+                    ],
+                },
+            })
+        } catch (error) {
+            this.#features.logging.error(`[Memory Bank] Error in guidelines generation: ${error}`)
+        }
     }
 }
