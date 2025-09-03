@@ -2,6 +2,8 @@ import { ConversationAction, ConversationItemGroup, ListConversationsResult } fr
 import { ChatItemButton, DetailedList, DetailedListItem, MynahUI, TextBasedFormItem } from '@aws/mynah-ui'
 import { toMynahIcon } from '../utils'
 import { Messager } from '../messager'
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+import escapeHTML = require('escape-html')
 
 export const ChatHistory = {
     TabBarButtonId: 'history_sheet',
@@ -105,6 +107,7 @@ export class ChatHistoryList {
             icon: toMynahIcon(group.icon),
             children: group.items?.map(item => ({
                 ...item,
+                description: item.description ? escapeHTML(item.description) : item.description,
                 icon: toMynahIcon(item.icon),
                 actions: item.actions?.map(action => ({
                     ...action,

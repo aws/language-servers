@@ -9,7 +9,6 @@ import { MCPServerConfig, PersonaConfig, MCPServerPermission, McpPermissionType,
 import path = require('path')
 import { QClientCapabilities } from '../../../configuration/qConfigurationServer'
 import crypto = require('crypto')
-import { Features } from '@aws/language-server-runtimes/server-interface/server'
 
 /**
  * Load, validate, and parse MCP server configurations from JSON files.
