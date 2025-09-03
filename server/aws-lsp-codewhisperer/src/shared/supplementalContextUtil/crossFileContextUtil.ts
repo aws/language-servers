@@ -71,12 +71,13 @@ export async function fetchSupplementalContextForSrc(
     const supplementalContextConfig = getSupplementalContextConfig(document.languageId)
 
     if (supplementalContextConfig === undefined) {
-        return supplementalContextConfig
+        return undefined
     }
-    //TODO: add logic for other strategies once available
+
     if (supplementalContextConfig === 'codemap') {
         return await codemapContext(document, position, workspace, cancellationToken, openTabFiles)
     }
+
     return { supplementalContextItems: [], strategy: 'Empty' }
 }
 
@@ -209,17 +210,8 @@ export async function fetchOpenTabsContext(
         })
     }
 
-    // Dedupe code chunks based on their filePath + content unique key
-    const seen = new Set<string>()
-    const deduped = supplementalContexts.filter(item => {
-        const key = `${item.filePath}:${item.content}`
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-    })
-
     // DO NOT send code chunk with empty content
-    return deduped.filter(item => item.content.trim().length !== 0)
+    return supplementalContexts.filter(item => item.content.trim().length !== 0)
 }
 
 function findBestKChunkMatches(chunkInput: Chunk, chunkReferences: Chunk[], k: number): Chunk[] {
@@ -264,10 +256,7 @@ function getInputChunk(document: TextDocument, cursorPosition: Position, chunkSi
  * @returns specifically returning undefined if the langueage is not supported,
  * otherwise true/false depending on if the language is fully supported or not belonging to the user group
  */
-function getSupplementalContextConfig(
-    languageId: TextDocument['languageId'],
-    _userGroup?: any
-): SupplementalContextStrategy | undefined {
+function getSupplementalContextConfig(languageId: TextDocument['languageId']): SupplementalContextStrategy | undefined {
     return isCrossFileSupported(languageId) ? 'codemap' : undefined
 }
 

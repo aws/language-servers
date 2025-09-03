@@ -60,6 +60,13 @@ export class CodeWhispererSession {
     suggestions: CachedSuggestion[] = []
     suggestionsAfterRightContextMerge: InlineCompletionItemWithReferences[] = []
     suggestionsStates = new Map<string, UserDecision>()
+    private _decisionTimestamp = 0
+    get decisionMadeTimestamp() {
+        return this._decisionTimestamp
+    }
+    set decisionMadeTimestamp(time: number) {
+        this._decisionTimestamp = time
+    }
     acceptedSuggestionId?: string = undefined
     responseContext?: ResponseContext
     triggerType: CodewhispererTriggerType

@@ -166,6 +166,7 @@ import { FsWrite, FsWriteParams } from './tools/fsWrite'
 import { ExecuteBash, ExecuteBashParams } from './tools/executeBash'
 import { ExplanatoryParams, InvokeOutput, ToolApprovalException } from './tools/toolShared'
 import { validatePathBasic, validatePathExists, validatePaths as validatePathsSync } from './utils/pathValidation'
+import { calculateModifiedLines } from './utils/fileModificationMetrics'
 import { GrepSearch, SanitizedRipgrepOutput } from './tools/grepSearch'
 import { FileSearch, FileSearchParams, isFileSearchParams } from './tools/fileSearch'
 import { FsReplace, FsReplaceParams } from './tools/fsReplace'
@@ -2076,6 +2077,17 @@ export class AgenticChatController implements ChatHandlers {
                             this.#abTestingAllocation?.experimentName,
                             this.#abTestingAllocation?.userVariation
                         )
+                        // Emit acceptedLineCount when write tool is used and code changes are accepted
+                        const acceptedLineCount = calculateModifiedLines(toolUse, doc?.getText())
+                        await this.#telemetryController.emitInteractWithMessageMetric(
+                            tabId,
+                            {
+                                cwsprChatMessageId: chatResult.messageId ?? toolUse.toolUseId,
+                                cwsprChatInteractionType: ChatInteractionType.AgenticCodeAccepted,
+                                codewhispererCustomizationArn: this.#customizationArn,
+                            },
+                            acceptedLineCount
+                        )
                         await chatResultStream.writeResultBlock(chatResult)
                         break
                     case CodeReview.toolName:
@@ -2694,6 +2706,7 @@ export class AgenticChatController implements ChatHandlers {
         session.setDeferredToolExecution(messageId, deferred.resolve, deferred.reject)
         this.#log(`Prompting for compaction approval for messageId: ${messageId}`)
         await deferred.promise
+        session.removeDeferredToolExecution(messageId)
         // Note: we want to overwrite the button block because it already exists in the stream.
         await resultStream.overwriteResultBlock(this.#getUpdateCompactConfirmResult(messageId), promptBlockId)
     }
@@ -3358,7 +3371,7 @@ export class AgenticChatController implements ChatHandlers {
         metric: Metric<CombinedConversationEvent>,
         agenticCodingMode: boolean
     ): Promise<ChatResult | ResponseError<ChatResult>> {
-        const errorMessage = getErrorMsg(err)
+        const errorMessage = getErrorMsg(err) ?? GENERIC_ERROR_MS
         const requestID = getRequestID(err) ?? ''
         metric.setDimension('cwsprChatResponseCode', getHttpStatusCode(err) ?? 0)
         metric.setDimension('languageServerVersion', this.#features.runtime.serverInfo.version)
@@ -3368,7 +3381,7 @@ export class AgenticChatController implements ChatHandlers {
         metric.metric.requestIds = [requestID]
         metric.metric.cwsprChatMessageId = errorMessageId
         metric.metric.cwsprChatConversationId = conversationId
-        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed')
+        await this.#telemetryController.emitAddMessageMetric(tabId, metric.metric, 'Failed', errorMessage)
 
         if (isUsageLimitError(err)) {
             if (this.#paidTierMode !== 'paidtier') {
@@ -3413,7 +3426,7 @@ export class AgenticChatController implements ChatHandlers {
                 tabId,
                 metric.metric,
                 requestID,
-                errorMessage ?? GENERIC_ERROR_MS,
+                errorMessage,
                 agenticCodingMode
             )
         }

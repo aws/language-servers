@@ -66,6 +66,7 @@ export class TelemetryService {
         [ChatInteractionType.Upvote]: 'UPVOTE',
         [ChatInteractionType.Downvote]: 'DOWNVOTE',
         [ChatInteractionType.ClickBodyLink]: 'CLICK_BODY_LINK',
+        [ChatInteractionType.AgenticCodeAccepted]: 'AGENTIC_CODE_ACCEPTED',
     }
 
     constructor(
@@ -199,6 +200,7 @@ export class TelemetryService {
         removedIdeDiagnostics?: IdeDiagnostic[],
         streakLength?: number
     ) {
+        session.decisionMadeTimestamp = performance.now()
         if (this.enableTelemetryEventsToDestination) {
             const data: CodeWhispererUserTriggerDecisionEvent = {
                 codewhispererSessionId: session.codewhispererSessionId || '',
@@ -281,14 +283,17 @@ export class TelemetryService {
             addedIdeDiagnostics: addedIdeDiagnostics,
             removedIdeDiagnostics: removedIdeDiagnostics,
             streakLength: streakLength ?? 0,
+            suggestionType: isInlineEdit ? 'EDITS' : 'COMPLETIONS',
         }
         this.logging.info(`Invoking SendTelemetryEvent:UserTriggerDecisionEvent with:
+            "requestId": ${event.requestId}
             "suggestionState": ${event.suggestionState}
             "acceptedCharacterCount": ${event.acceptedCharacterCount}
             "addedCharacterCount": ${event.addedCharacterCount}
             "deletedCharacterCount": ${event.deletedCharacterCount}
             "streakLength": ${event.streakLength}
-            "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds}`)
+            "firstCompletionDisplayLatency: ${event.recommendationLatencyMilliseconds}
+            "suggestionType": ${event.suggestionType}`)
         return this.invokeSendTelemetryEvent({
             userTriggerDecisionEvent: event,
         })
@@ -559,6 +564,7 @@ export class TelemetryService {
             requestIds?: string[]
             experimentName?: string
             userVariation?: string
+            errorMessage?: string
         }>
     ) {
         const timeBetweenChunks = params.timeBetweenChunks?.slice(0, 100)
@@ -612,6 +618,7 @@ export class TelemetryService {
                     requestIds: truncatedRequestIds,
                     experimentName: additionalParams.experimentName,
                     userVariation: additionalParams.userVariation,
+                    errorMessage: additionalParams.errorMessage,
                 },
             })
         }
