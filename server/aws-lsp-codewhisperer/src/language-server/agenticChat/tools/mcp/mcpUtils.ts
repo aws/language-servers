@@ -148,9 +148,9 @@ export async function loadMcpServerConfigs(
 }
 
 const DEFAULT_AGENT_RAW = `{
-  "name": "default-agent",
-  "version": "1.0.0",
+  "name": "amazon_q_default",
   "description": "Default agent configuration",
+  "prompt": "",
   "mcpServers": {},
   "tools": [
     "fs_read",
@@ -159,6 +159,7 @@ const DEFAULT_AGENT_RAW = `{
     "report_issue",
     "use_aws"
   ],
+  "toolAliases": {},
   "allowedTools": [
     "fs_read",
     "report_issue",
@@ -170,14 +171,16 @@ const DEFAULT_AGENT_RAW = `{
     "use_aws": { "preset": "readOnly" },
     "execute_bash": { "preset": "readOnly" }
   },
-  "includedFiles": [
-    "AmazonQ.md",
-    "README.md",
-    ".amazonq/rules/**/*.md"
+  "resources": [
+    "file://AmazonQ.md",
+    "file://README.md",
+    "file://.amazonq/rules/**/*.md"
   ],
-  "resources": [],
-  "createHooks": [],
-  "promptHooks": []
+  "hooks": {
+    "agentSpawn": [],
+    "userPromptSubmit": []
+  },
+  "useLegacyMcpJson": false
 }`
 
 const DEFAULT_PERSONA_RAW = `{
@@ -238,14 +241,12 @@ export async function loadAgentConfig(
 
     // Create base agent config
     const agentConfig: AgentConfig = {
-        name: 'default-agent',
-        version: '1.0.0',
+        name: 'amazon_q_default',
         description: 'Agent configuration',
         mcpServers: {},
         tools: [],
         allowedTools: [],
         toolsSettings: {},
-        includedFiles: [],
         resources: [],
     }
 
@@ -330,7 +331,6 @@ export async function loadAgentConfig(
         // 3) Process agent config metadata
         if (fsPath === globalConfigPath) {
             agentConfig.name = json.name || agentConfig.name
-            agentConfig.version = json.version || agentConfig.version
             agentConfig.description = json.description || agentConfig.description
         }
 
@@ -632,15 +632,20 @@ export function convertPersonaToAgent(
     featureAgent: Agent
 ): AgentConfig {
     const agent: AgentConfig = {
-        name: 'default-agent',
-        version: '1.0.0',
+        name: 'amazon_q_default',
         description: 'Default agent configuration',
+        prompt: '',
         mcpServers: {},
         tools: [],
+        toolAliases: {},
         allowedTools: [],
         toolsSettings: {},
-        includedFiles: [],
         resources: [],
+        hooks: {
+            agentSpawn: [],
+            userPromptSubmit: [],
+        },
+        useLegacyMcpJson: false,
     }
 
     // Include all servers from MCP config
@@ -910,7 +915,6 @@ async function migrateConfigToAgent(
     // Add complete agent format sections using default values
     agentConfig.name = defaultAgent.name
     agentConfig.description = defaultAgent.description
-    agentConfig.version = defaultAgent.version
     agentConfig.includedFiles = defaultAgent.includedFiles
     agentConfig.resources = defaultAgent.resources
     agentConfig.createHooks = defaultAgent.createHooks
@@ -966,8 +970,7 @@ export async function saveServerSpecificAgentConfig(
         } catch {
             // If file doesn't exist, create minimal config
             existingConfig = {
-                name: 'default-agent',
-                version: '1.0.0',
+                name: 'amazon_q_default',
                 description: 'Agent configuration',
                 mcpServers: {},
                 tools: [],
@@ -1003,6 +1006,89 @@ export async function saveServerSpecificAgentConfig(
     } catch (err: any) {
         logging.error(`Failed to save server-specific agent config to ${configPath}: ${err.message}`)
         throw err
+    }
+}
+
+/**
+ * Migrate existing agent config to CLI format
+ */
+export async function migrateAgentConfigToCLIFormat(
+    workspace: Workspace,
+    logging: Logger,
+    configPath: string
+): Promise<void> {
+    try {
+        const exists = await workspace.fs.exists(configPath)
+        if (!exists) return
+
+        const raw = await workspace.fs.readFile(configPath)
+        const config = JSON.parse(raw.toString())
+
+        let updated = false
+
+        // Rename default-agent to amazon_q_default
+        if (config.name === 'default-agent') {
+            config.name = 'amazon_q_default'
+            updated = true
+        }
+
+        // Add missing CLI fields
+        if (!config.hasOwnProperty('prompt')) {
+            config.prompt = ''
+            updated = true
+        }
+        if (!config.hasOwnProperty('toolAliases')) {
+            config.toolAliases = {}
+            updated = true
+        }
+        if (!config.hasOwnProperty('useLegacyMcpJson')) {
+            config.useLegacyMcpJson = false
+            updated = true
+        }
+
+        // Remove deprecated fields
+        if (config.hasOwnProperty('version')) {
+            delete config.version
+            updated = true
+        }
+
+        // Migrate includedFiles to resources with file:// prefix
+        if (config.includedFiles && Array.isArray(config.includedFiles)) {
+            if (!config.resources) config.resources = []
+            for (const file of config.includedFiles) {
+                const resourcePath = file.startsWith('file://') ? file : `file://${file}`
+                if (!config.resources.includes(resourcePath)) {
+                    config.resources.push(resourcePath)
+                }
+            }
+            delete config.includedFiles
+            updated = true
+        }
+
+        // Migrate hooks format
+        if (config.promptHooks || config.createHooks) {
+            if (!config.hooks) config.hooks = {}
+            if (!config.hooks.agentSpawn) config.hooks.agentSpawn = []
+            if (!config.hooks.userPromptSubmit) config.hooks.userPromptSubmit = []
+
+            if (config.createHooks && Array.isArray(config.createHooks)) {
+                config.hooks.agentSpawn.push(...config.createHooks)
+                delete config.createHooks
+                updated = true
+            }
+            if (config.promptHooks && Array.isArray(config.promptHooks)) {
+                config.hooks.userPromptSubmit.push(...config.promptHooks)
+                delete config.promptHooks
+                updated = true
+            }
+        }
+
+        if (updated) {
+            await workspace.fs.writeFile(configPath, JSON.stringify(config, null, 2))
+            logging.info(`Migrated agent config to CLI format: ${configPath}`)
+        }
+    } catch (err: any) {
+        logging.error(`Failed to migrate agent config ${configPath}: ${err.message}`)
     }
 }
 
