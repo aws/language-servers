@@ -22,7 +22,7 @@ const zipFileName = 'artifact.zip'
 const sourceCodeFolderName = 'sourceCode'
 const packagesFolderName = 'packages'
 const thirdPartyPackageFolderName = 'thirdpartypackages'
-const customTransformationFolderName = 'custom_transformation'
+const customTransformationFolderName = 'customTransformation'
 
 export class ArtifactManager {
     private workspace: Workspace
@@ -287,11 +287,16 @@ export class ArtifactManager {
         }
 
         const customTransformationPath = path.join(this.solutionRootPath, customTransformationFolderName)
-        if (fs.existsSync(customTransformationPath)) {
-            this.logging.log(`Adding custom transformation folder to artifact: ${customTransformationPath}`)
-            const artifactCustomTransformationPath = path.join(folderPath, customTransformationFolderName)
-            fs.cpSync(customTransformationPath, artifactCustomTransformationPath, { recursive: true })
-        }
+        try {
+            await fs.promises.access(customTransformationPath)
+            try {
+                this.logging.log(`Adding custom transformation folder to artifact: ${customTransformationPath}`)
+                const artifactCustomTransformationPath = path.join(folderPath, customTransformationFolderName)
+                await fs.promises.cp(customTransformationPath, artifactCustomTransformationPath, { recursive: true })
+            } catch (error) {
+                this.logging.warn(`Failed to copy custom transformation folder: ${error}`)
+            }
+        } catch {}
 
         const zipPath = path.join(this.workspacePath, zipFileName)
         this.logging.log('Zipping files to ' + zipPath)
