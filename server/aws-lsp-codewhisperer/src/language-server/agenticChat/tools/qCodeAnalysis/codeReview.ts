@@ -31,6 +31,7 @@ import {
     SuccessMetricName,
 } from './codeReviewTypes'
 import { CancellationError } from '@aws/lsp-core'
+import { Origin } from '@amzn/codewhisperer-streaming'
 
 export class CodeReview {
     private static readonly CUSTOMER_CODE_BASE_PATH = 'customerCodeBaseFolder'
@@ -158,6 +159,7 @@ export class CodeReview {
         const fileArtifacts = validatedInput.fileLevelArtifacts || []
         const folderArtifacts = validatedInput.folderLevelArtifacts || []
         const ruleArtifacts = validatedInput.ruleArtifacts || []
+        const modelId = validatedInput.modelId
 
         if (fileArtifacts.length === 0 && folderArtifacts.length === 0) {
             CodeReviewUtils.emitMetric(
@@ -182,7 +184,7 @@ export class CodeReview {
         const programmingLanguage = 'java'
         const scanName = 'Standard-' + randomUUID()
 
-        this.logging.info(`Agentic scan name: ${scanName}`)
+        this.logging.info(`Agentic scan name: ${scanName} selectedModel: ${modelId}`)
 
         return {
             fileArtifacts,
@@ -192,6 +194,7 @@ export class CodeReview {
             programmingLanguage,
             scanName,
             ruleArtifacts,
+            modelId,
         }
     }
 
@@ -274,6 +277,8 @@ export class CodeReview {
             codeScanName: setup.scanName,
             scope: CodeReview.SCAN_SCOPE,
             codeDiffMetadata: uploadResult.isCodeDiffPresent ? { codeDiffPath: '/code_artifact/codeDiff/' } : undefined,
+            languageModelId: setup.modelId,
+            clientType: Origin.IDE,
         })
 
         if (!createResponse.jobId) {
@@ -293,6 +298,7 @@ export class CodeReview {
                         customRules: setup.ruleArtifacts.length,
                         programmingLanguages: Array.from(uploadResult.programmingLanguages),
                         scope: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
+                        modelId: setup.modelId,
                     },
                 },
                 this.logging,
@@ -349,6 +355,7 @@ export class CodeReview {
                             programmingLanguages: Array.from(uploadResult.programmingLanguages),
                             scope: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
                             status: status,
+                            modelId: setup.modelId,
                         },
                     },
                     this.logging,
@@ -382,6 +389,7 @@ export class CodeReview {
                         programmingLanguages: Array.from(uploadResult.programmingLanguages),
                         scope: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
                         status: status,
+                        modelId: setup.modelId,
                     },
                 },
                 this.logging,
@@ -426,6 +434,7 @@ export class CodeReview {
                     programmingLanguages: Array.from(uploadResult.programmingLanguages),
                     scope: setup.isFullReviewRequest ? FULL_REVIEW : CODE_DIFF_REVIEW,
                     latency: Date.now() - this.toolStartTime,
+                    modelId: setup.modelId,
                 },
             },
             this.logging,

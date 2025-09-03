@@ -4822,6 +4822,12 @@
                 },
                 "profileArn": {
                     "shape": "ProfileArn"
+                },
+                "languageModelId": {
+                    "shape": "ModelId"
+                },
+                "clientType": {
+                    "shape": "Origin"
                 }
             }
         },
