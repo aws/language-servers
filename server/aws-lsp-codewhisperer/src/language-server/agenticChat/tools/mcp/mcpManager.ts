@@ -231,6 +231,9 @@ export class McpManager {
             }
 
             this.features.logging.info(`MCP: completed initialization of ${totalServers} servers`)
+        } else {
+            // Emit event to refresh MCP list page when no servers are configured
+            this.setState('no-servers', McpServerStatus.UNINITIALIZED, 0)
         }
 
         for (const [sanitizedName, _] of this.mcpServers.entries()) {
