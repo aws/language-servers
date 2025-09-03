@@ -1539,6 +1539,8 @@ declare namespace CodeWhispererBearerTokenClient {
     codeScanName?: CodeScanName;
     codeDiffMetadata?: CodeDiffMetadata;
     profileArn?: ProfileArn;
+    languageModelId?: ModelId;
+    clientType?: Origin;
   }
   export type StartCodeAnalysisRequestClientTokenString = string;
   export interface StartCodeAnalysisResponse {
@@ -2186,4 +2188,4 @@ declare namespace CodeWhispererBearerTokenClient {
 }
 export = CodeWhispererBearerTokenClient;
 
-  
+    
