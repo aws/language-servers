@@ -296,7 +296,11 @@ export class ArtifactManager {
             } catch (error) {
                 this.logging.warn(`Failed to copy custom transformation folder: ${error}`)
             }
-        } catch {}
+        } catch {
+            this.logging.log(
+                `Custom transformation folder not accessible (not found or no permissions): ${customTransformationPath}`
+            )
+        }
 
         const zipPath = path.join(this.workspacePath, zipFileName)
         this.logging.log('Zipping files to ' + zipPath)
