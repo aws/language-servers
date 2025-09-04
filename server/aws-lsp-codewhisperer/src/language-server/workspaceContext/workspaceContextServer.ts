@@ -35,7 +35,7 @@ function shouldIgnoreFile(workspaceFolder: WorkspaceFolder, fileUri: string): bo
 }
 
 export const WorkspaceContextServer = (): Server => features => {
-    const { credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator } = features
+    const { agent, credentialsProvider, workspace, logging, lsp, runtime, sdkInitializator } = features
 
     let workspaceIdentifier: string = ''
     let workspaceFolders: WorkspaceFolder[] = []
@@ -50,6 +50,7 @@ export const WorkspaceContextServer = (): Server => features => {
     let isOptedIn: boolean = false
     let abTestingEvaluated = false
     let abTestingEnabled = false
+    let semanticSearchAbTestingEnabled = false
     let amazonQServiceManager: AmazonQTokenServiceManager
     let allowedExtension: string[] = ['AmazonQ-For-VSCode', 'Amazon Q For JetBrains']
     let isSupportedExtension = false
@@ -182,36 +183,38 @@ export const WorkspaceContextServer = (): Server => features => {
         }
 
         try {
+            const clientParams = safeGet(lsp.getClientInitializeParams())
+            const userContext = makeUserContextObject(
+                clientParams,
+                runtime.platform,
+                'CodeWhisperer',
+                amazonQServiceManager.serverInfo
+            ) ?? {
+                ideCategory: 'VSCODE',
+                operatingSystem: 'MAC',
+                product: 'CodeWhisperer',
+            }
+            const result = await amazonQServiceManager.getCodewhispererService().listFeatureEvaluations({ userContext })
+            result.featureEvaluations?.forEach(feature => {
+                logging.log(`A/B Cohort Assignment feature: ${feature.feature} - variation: ${feature.variation}`)
+            })
+            abTestingEnabled =
+                result.featureEvaluations?.some(
+                    feature =>
+                        feature.feature === 'BuilderIdServiceSideProjectContext' && feature.variation === 'TREATMENT'
+                ) ?? false
+            semanticSearchAbTestingEnabled =
+                result.featureEvaluations?.some(
+                    feature => feature.feature === 'SematicSearchTool' && feature.variation === 'TREATMENT'
+                ) ?? false
             const startUrl = credentialsProvider.getConnectionMetadata()?.sso?.startUrl
             if (startUrl && startUrl.includes(INTERNAL_USER_START_URL)) {
                 // Overriding abTestingEnabled to true for all internal users
                 abTestingEnabled = true
-            } else {
-                const clientParams = safeGet(lsp.getClientInitializeParams())
-                const userContext = makeUserContextObject(
-                    clientParams,
-                    runtime.platform,
-                    'CodeWhisperer',
-                    amazonQServiceManager.serverInfo
-                ) ?? {
-                    ideCategory: 'VSCODE',
-                    operatingSystem: 'MAC',
-                    product: 'CodeWhisperer',
-                }
-
-                const result = await amazonQServiceManager
-                    .getCodewhispererService()
-                    .listFeatureEvaluations({ userContext })
-                logging.log(`${JSON.stringify(result)}`)
-                abTestingEnabled =
-                    result.featureEvaluations?.some(
-                        feature =>
-                            feature.feature === 'BuilderIdServiceSideProjectContext' &&
-                            feature.variation === 'TREATMENT'
-                    ) ?? false
             }
-
-            logging.info(`A/B testing enabled: ${abTestingEnabled}`)
+            logging.info(
+                `A/B testing enabled: ${abTestingEnabled} semantic search enabled ${semanticSearchAbTestingEnabled}`
+            )
             abTestingEvaluated = true
         } catch (error: any) {
             logging.error(`Error while checking A/B status: ${error.code}`)
@@ -241,6 +244,7 @@ export const WorkspaceContextServer = (): Server => features => {
             artifactManager = new ArtifactManager(workspace, logging, workspaceFolders)
             dependencyDiscoverer = new DependencyDiscoverer(workspace, logging, workspaceFolders, artifactManager)
             workspaceFolderManager = WorkspaceFolderManager.createInstance(
+                agent,
                 amazonQServiceManager,
                 logging,
                 artifactManager,
@@ -307,6 +311,7 @@ export const WorkspaceContextServer = (): Server => features => {
 
                     await evaluateABTesting()
                     isWorkflowInitialized = true
+                    workspaceFolderManager.setSemanticSearchToolStatus(semanticSearchAbTestingEnabled)
 
                     workspaceFolderManager.resetAdminOptOutAndFeatureDisabledStatus()
                     if (!isUserEligibleForWorkspaceContext()) {
