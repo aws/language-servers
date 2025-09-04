@@ -1,5 +1,19 @@
+/**
+ * Copied from chat/contexts/triggerContext.ts for the purpose of developing a divergent implementation.
+ * Will be deleted or merged.
+ */
+
 import { Features } from '@aws/language-server-runtimes/server-interface/server'
-import { MEMORY_BANK_DIRECTORY, MEMORY_BANK_FILES } from './memoryBankTypes'
+import { MemoryBankPrompts } from './memoryBankPrompts'
+
+// Memory Bank constants
+const MEMORY_BANK_DIRECTORY = '.amazonq/rules/memory-bank'
+const MEMORY_BANK_FILES = {
+    PRODUCT: 'product.md',
+    STRUCTURE: 'structure.md',
+    TECH: 'tech.md',
+    GUIDELINES: 'guidelines.md',
+} as const
 
 /**
  * Controller for Memory Bank functionality
@@ -29,7 +43,9 @@ export class MemoryBankController {
         const triggers = [
             'create a memory bank',
             'create memory bank',
+            'generate a memory bank',
             'generate memory bank',
+            'regenerate memory bank',
             'build memory bank',
             'make memory bank',
             'setup memory bank',
@@ -39,417 +55,156 @@ export class MemoryBankController {
     }
 
     /**
-     * Get the complete memory bank creation prompt (creates all 4 files)
+     * Prepare comprehensive memory bank creation prompt with all necessary input
+     * This does all the programmatic work upfront and creates a single comprehensive prompt
      */
-    getFirst3FilesPrompt(): string {
-        return `I'll create the first 3 Memory Bank files for this project by analyzing the codebase structure.
-
-**Creating Memory Bank Directory Structure**
-First, I'll create the .amazonq/rules/memory-bank/ directory to store the documentation files.
-
-**Analyzing Project Structure and Configuration**
-I'll explore the project structure using listDirectory and readFile tools to understand:
-- Project purpose, features, and key capabilities
-- Technology stack, build systems, and development workflows  
-- Directory organization and architectural patterns
-
-**Important: I will only use listDirectory and readFile tools. I will NOT use executeBash or shell commands for analysis.**
-
-**Creating product.md - Project overview, purpose, and key features**
-I'll analyze the project structure and create product.md with:
-- Project purpose and core value proposition
-- Key features and capabilities
-- Target users and use cases
-- Technical architecture overview
-
-**Creating structure.md - Project organization, directory structure, and architecture patterns**  
-I'll analyze the directory structure and create structure.md with:
-- Complete directory structure with explanations
-- Core components and their relationships
-- Architectural patterns and design principles
-- Data models and extension points
-
-**Creating tech.md - Technology stack, build systems, frameworks, and common commands**
-I'll analyze the technology stack and create tech.md with:
-- Programming languages and versions
-- Build systems and package management
-- Key dependencies and frameworks
-- Development and deployment commands
-- Integration technologies
-
-**Next Steps**
-After creating these 3 files, I'll provide instructions for generating guidelines.md using the science pipeline methodology.
-
-Let me begin creating these 3 Memory Bank files now.
-
-**After completing the first 3 files, I'll tell the user:**
-"✅ The first 3 Memory Bank files have been created successfully!
-
-📋 **Files Created:**
-- product.md: Project overview and key features
-- structure.md: Directory organization and architecture  
-- tech.md: Technology stack and development commands
-
-🔬 **Next: Guidelines Generation**
-The system will now automatically generate guidelines.md using the science pipeline methodology. This involves:
-1. Analyzing all source files for lexical patterns
-2. Ranking files by importance using LLM
-3. Iteratively building coding standards from the most representative files
-
-Please wait while the science pipeline completes..."
-
-This will trigger the automatic guidelines.md generation process.`
-    }
-
-    /**
-     * Execute the complete memory bank creation including iterative guidelines generation
-     * This is the main orchestration method that handles Steps 2-5
-     */
-    async executeCompleteMemoryBankCreation(workspaceFolderUri: string): Promise<{
-        success: boolean
-        message: string
-    }> {
-        try {
-            this.features.logging.info('[Memory Bank] Starting complete memory bank creation')
-
-            // Step 2: Execute deterministic pipeline
-            this.features.logging.info('[Memory Bank] Step 2: Running deterministic analysis pipeline')
-            const pipelineResults = await this.executeGuidelinesGenerationPipeline(workspaceFolderUri)
-
-            // Step 3: Prepare file ranking (would be LLM call in full implementation)
-            this.features.logging.info('[Memory Bank] Step 3: Preparing file ranking')
-            const rankingPrompt = this.getFileRankingPrompt(pipelineResults.formattedFilesString, 15)
-
-            // For now, use the fallback ranking (in full implementation, this would be an LLM call)
-            const rankedFiles = pipelineResults.rankedFilesList
-
-            // Step 4: Generate guidelines iteratively (would be LLM calls in full implementation)
-            this.features.logging.info('[Memory Bank] Step 4: Generating guidelines iteratively')
-            const guidelines = await this.generateGuidelinesContent(rankedFiles)
-
-            // Step 5: Create guidelines.md file
-            this.features.logging.info('[Memory Bank] Step 5: Creating guidelines.md file')
-            await this.createGuidelinesFile(workspaceFolderUri, guidelines)
-
-            return {
-                success: true,
-                message: `✅ **Memory Bank Creation Complete!**
-
-All 4 Memory Bank files have been successfully created:
-- **product.md**: Project overview and key features
-- **structure.md**: Directory organization and architecture  
-- **tech.md**: Technology stack and development commands
-- **guidelines.md**: Development guidelines and coding standards
-
-Your Memory Bank is now ready to provide context-aware assistance for this project.`,
-            }
-        } catch (error) {
-            this.features.logging.error(`[Memory Bank] Error in complete creation: ${error}`)
-            return {
-                success: false,
-                message: `❌ **Memory Bank Creation Failed**
-
-There was an error creating the Memory Bank files: ${error}
-
-Please try again or check the logs for more details.`,
-            }
-        }
-    }
-
-    /**
-     * Execute the complete memory bank creation with LLM calls for ranking and guidelines generation
-     * This method handles the actual LLM integration for Steps 2-5
-     */
-    async executeCompleteMemoryBankCreationWithLLM(
+    async prepareComprehensiveMemoryBankPrompt(
         workspaceFolderUri: string,
-        llmCallFunction: (prompt: string) => Promise<string>
-    ): Promise<{
-        success: boolean
-        message: string
-    }> {
-        try {
-            this.features.logging.info('[Memory Bank] Starting complete memory bank creation with LLM')
-
-            // Step 2: Execute deterministic pipeline
-            this.features.logging.info('[Memory Bank] Step 2: Running deterministic analysis pipeline')
-            const pipelineResults = await this.executeGuidelinesGenerationPipeline(workspaceFolderUri)
-
-            // Step 3: Make LLM call for file ranking
-            this.features.logging.info('[Memory Bank] Step 3: Making LLM call for file ranking')
-            const rankingPrompt = this.getFileRankingPrompt(pipelineResults.formattedFilesString, 15)
-            const rankedFiles = await this.makeLLMCallForRanking(
-                rankingPrompt,
-                pipelineResults.rankedFilesList,
-                llmCallFunction
-            )
-
-            // Step 4: Generate guidelines iteratively using LLM calls
-            this.features.logging.info('[Memory Bank] Step 4: Generating guidelines iteratively with LLM')
-            const guidelines = await this.generateGuidelinesIteratively(rankedFiles, llmCallFunction)
-
-            // Step 5: Create guidelines.md file
-            this.features.logging.info('[Memory Bank] Step 5: Creating guidelines.md file')
-            await this.createGuidelinesFile(workspaceFolderUri, guidelines)
-
-            return {
-                success: true,
-                message: `✅ **Memory Bank Creation Complete!**
-
-All 4 Memory Bank files have been successfully created:
-- **product.md**: Project overview and key features
-- **structure.md**: Directory organization and architecture  
-- **tech.md**: Technology stack and development commands
-- **guidelines.md**: Development guidelines and coding standards
-
-Your Memory Bank is now ready to provide context-aware assistance for this project.`,
-            }
-        } catch (error) {
-            this.features.logging.error(`[Memory Bank] Error in complete creation with LLM: ${error}`)
-            return {
-                success: false,
-                message: `❌ **Memory Bank Creation Failed**
-
-There was an error creating the Memory Bank files: ${error}
-
-Please try again or check the logs for more details.`,
-            }
-        }
-    }
-
-    /**
-     * Make LLM call for file ranking
-     */
-    async makeLLMCallForRanking(
-        rankingPrompt: string,
-        fallbackFiles: string[],
-        llmCallFunction: (prompt: string) => Promise<string>
-    ): Promise<string[]> {
-        try {
-            this.features.logging.info('[Memory Bank] Making LLM ranking call...')
-
-            // Make the LLM call
-            const response = await llmCallFunction(rankingPrompt)
-
-            // Parse JSON response
-            try {
-                const rankedFiles = JSON.parse(response.trim())
-                if (Array.isArray(rankedFiles)) {
-                    return rankedFiles
-                }
-            } catch (parseError) {
-                this.features.logging.warn(`[Memory Bank] Failed to parse LLM ranking response: ${parseError}`)
-            }
-
-            // Fallback to deterministic ranking
-            return fallbackFiles
-        } catch (error) {
-            this.features.logging.error(`[Memory Bank] Error in LLM ranking call: ${error}`)
-            return fallbackFiles
-        }
-    }
-
-    /**
-     * Generate guidelines iteratively using LLM calls
-     */
-    async generateGuidelinesIteratively(
-        rankedFiles: string[],
+        statusUpdateFunction: (message: string) => Promise<void>,
         llmCallFunction: (prompt: string) => Promise<string>
     ): Promise<string> {
         try {
-            let currentGuidelines = ''
-            const filesPerChunk = 4
+            // Step 1: Clean directory
+            await this.cleanMemoryBankDirectory(workspaceFolderUri)
 
-            for (let i = 0; i < rankedFiles.length; i += filesPerChunk) {
-                const chunk = rankedFiles.slice(i, i + filesPerChunk)
+            // Step 2: Send status update
+            await statusUpdateFunction(
+                '🔍 **Analyzing codebase structure...**\n\nScanning files and calculating similarity metrics.'
+            )
 
-                // Read file contents for this chunk
-                const chunkContents: string[] = []
-                for (const filePath of chunk) {
-                    try {
-                        const content = await this.features.workspace.fs.readFile(filePath)
-                        chunkContents.push(`File: ${filePath}\n\n${content}\n`)
-                    } catch (error) {
-                        this.features.logging.error(`Error reading file ${filePath}: ${error}`)
-                        chunkContents.push(`File: ${filePath}\n\n[Error reading file]\n`)
+            // Step 3: Execute deterministic analysis (TF-IDF)
+            this.features.logging.info(`[Memory Bank] Running deterministic analysis for: ${workspaceFolderUri}`)
+            const analysisResults = await this.executeGuidelinesGenerationPipeline(workspaceFolderUri)
+
+            // Step 4: Send ranking status update
+            await statusUpdateFunction(
+                '📊 **Ranking important files...**\n\nUsing AI to identify the most representative files.'
+            )
+
+            // Step 5: Make LLM call for file ranking (PROMPT 1)
+            this.features.logging.info(`[Memory Bank] Making LLM call for file ranking`)
+            const rankingPrompt = MemoryBankPrompts.getFileRankingPrompt(analysisResults.formattedFilesString, 20)
+
+            // Log the ranking prompt for debugging
+            this.features.logging.info(`[Memory Bank] Ranking prompt created (${rankingPrompt.length} chars)`)
+            this.features.logging.info(`[Memory Bank] Ranking prompt preview: ${rankingPrompt.substring(0, 300)}...`)
+
+            const rankedFilesResponse = await llmCallFunction(rankingPrompt)
+
+            // Log the raw LLM response
+            this.features.logging.info(
+                `[Memory Bank] LLM ranking response received (${rankedFilesResponse.length} chars)`
+            )
+            this.features.logging.info(`[Memory Bank] Raw LLM response: ${rankedFilesResponse.substring(0, 500)}...`)
+
+            // Step 6: Parse ranked files
+            let rankedFilesList: string[] = []
+            try {
+                // Clean the response - remove any markdown formatting or extra text
+                let cleanResponse = rankedFilesResponse.trim()
+
+                // Extract JSON array if it's wrapped in markdown or other text
+                const jsonMatch = cleanResponse.match(/\[.*\]/s)
+                if (jsonMatch) {
+                    cleanResponse = jsonMatch[0]
+                } else {
+                    // Handle case where LLM returns comma-separated quoted strings without brackets
+                    if (cleanResponse.includes('",') && cleanResponse.includes('"')) {
+                        // Add brackets to make it a valid JSON array
+                        cleanResponse = `[${cleanResponse}]`
+                        this.features.logging.info(`[Memory Bank] Added brackets to LLM response for JSON parsing`)
                     }
                 }
 
-                // Generate iterative prompt
-                const iterativePrompt = this.getIterativeStyleGuidePrompt(
-                    chunkContents,
-                    rankedFiles.length,
-                    currentGuidelines || undefined
-                )
-
-                // Make LLM call for this iteration
-                this.features.logging.info(
-                    `[Memory Bank] Making iterative LLM call ${Math.floor(i / filesPerChunk) + 1}`
-                )
-
-                const iterationResponse = await llmCallFunction(iterativePrompt)
-                currentGuidelines = iterationResponse
-            }
-
-            return currentGuidelines
-        } catch (error) {
-            this.features.logging.error(`[Memory Bank] Error in iterative guidelines generation: ${error}`)
-            // Return fallback guidelines
-            return `# Development Guidelines
-
-This document contains development guidelines and coding standards for the project.
-
-## Overview
-
-These guidelines were generated automatically from the codebase analysis.
-
-## Code Quality Standards
-
-- Follow consistent formatting and naming conventions
-- Write clear and maintainable code
-- Include appropriate documentation and comments
-- Follow established architectural patterns
-
-## Summary
-
-These guidelines represent the common patterns found in the codebase.
-`
-        }
-    }
-
-    /**
-     * Generate guidelines content using iterative approach
-     */
-    private async generateGuidelinesContent(rankedFiles: string[]): Promise<string> {
-        let currentGuidelines = ''
-        const filesPerChunk = 4
-
-        for (let i = 0; i < rankedFiles.length; i += filesPerChunk) {
-            const chunk = rankedFiles.slice(i, i + filesPerChunk)
-
-            // Read file contents for this chunk
-            const chunkContents: string[] = []
-            for (const filePath of chunk) {
-                try {
-                    const content = await this.features.workspace.fs.readFile(filePath)
-                    chunkContents.push(`File: ${filePath}\n\n${content}\n`)
-                } catch (error) {
-                    this.features.logging.error(`Error reading file ${filePath}: ${error}`)
-                    chunkContents.push(`File: ${filePath}\n\n[Error reading file]\n`)
+                rankedFilesList = JSON.parse(cleanResponse)
+                if (!Array.isArray(rankedFilesList)) {
+                    throw new Error('Invalid ranking response format - not an array')
                 }
+
+                // Validate that all items are strings (file paths)
+                rankedFilesList = rankedFilesList.filter(item => typeof item === 'string' && item.length > 0)
+
+                if (rankedFilesList.length === 0) {
+                    throw new Error('No valid file paths in ranking response')
+                }
+
+                this.features.logging.info(`[Memory Bank] Successfully parsed ${rankedFilesList.length} ranked files`)
+                this.features.logging.info(`[Memory Bank] LLM ranked files: ${rankedFilesList.join(', ')}`)
+            } catch (error) {
+                this.features.logging.warn(`[Memory Bank] Failed to parse ranking response: ${error}`)
+                this.features.logging.warn(`[Memory Bank] Raw response (full): ${rankedFilesResponse}`)
+                this.features.logging.info(
+                    `[Memory Bank] Using fallback ranking with top ${Math.min(20, analysisResults.rankedFilesList.length)} files`
+                )
+                rankedFilesList = analysisResults.rankedFilesList.slice(0, 20)
+                this.features.logging.info(`[Memory Bank] Fallback ranked files: ${rankedFilesList.join(', ')}`)
             }
 
-            // Generate iterative prompt for this chunk
-            const iterativePrompt = this.getIterativeStyleGuidePrompt(
-                chunkContents,
-                rankedFiles.length,
-                currentGuidelines || undefined
+            this.features.logging.info(
+                `[Memory Bank] Final ranked file list contains ${rankedFilesList.length} files for analysis`
             )
 
-            // In full implementation, this would be an LLM call
-            // For now, simulate guidelines generation
-            const iterationNumber = Math.floor(i / filesPerChunk) + 1
-            currentGuidelines += `\n\n## Iteration ${iterationNumber} Analysis\n\nBased on files: ${chunk.join(', ')}\n\n- Code patterns identified\n- Architectural conventions noted\n- Style guidelines extracted\n`
-        }
+            // Step 7: Send final status update
+            const totalChunks = Math.ceil(rankedFilesList.length / 4)
+            await statusUpdateFunction(
+                `📝 **Generating comprehensive documentation...**\n\nCreating all 4 Memory Bank files with iterative analysis.\n\n**Agent Processing:** Processes ${rankedFilesList.length} files in chunks of 4\n${Array.from({ length: totalChunks }, (_, i) => `- Iteration ${i + 1}: Files ${i * 4 + 1}-${Math.min((i + 1) * 4, rankedFilesList.length)}   (${Math.min(4, rankedFilesList.length - i * 4)} files)`).join('\n')}\n↓`
+            )
 
-        return `# Development Guidelines
+            // Step 8: Create the comprehensive prompt with ranked files (PROMPT 2)
+            // Agent will read file contents iteratively using tools
+            const finalPrompt = MemoryBankPrompts.getCompleteMemoryBankPrompt(rankedFilesList)
+            this.features.logging.info(`[Memory Bank] Final comprehensive prompt created (${finalPrompt.length} chars)`)
+            this.features.logging.info(`[Memory Bank] Final prompt preview: ${finalPrompt.substring(0, 300)}...`)
 
-This document contains development guidelines and coding standards extracted from the codebase analysis.
-
-## Overview
-
-These guidelines were generated using the science pipeline methodology, analyzing ${rankedFiles.length} representative files from the project.
-
-${currentGuidelines}
-
-## Summary
-
-These guidelines represent the most common patterns and practices found in the codebase. Following these conventions will help maintain consistency and quality across the project.
-`
-    }
-
-    /**
-     * Create the guidelines.md file
-     */
-    private async createGuidelinesFile(workspaceFolderUri: string, guidelines: string): Promise<void> {
-        try {
-            const guidelinesPath = `${workspaceFolderUri}/${MEMORY_BANK_DIRECTORY}/guidelines.md`
-            await this.features.workspace.fs.writeFile(guidelinesPath, guidelines)
-            this.features.logging.info(`[Memory Bank] Created guidelines.md at ${guidelinesPath}`)
+            return finalPrompt
         } catch (error) {
-            this.features.logging.error(`[Memory Bank] Error creating guidelines.md: ${error}`)
+            this.features.logging.error(`[Memory Bank] Error in preparation: ${error}`)
             throw error
         }
     }
 
     /**
-     * Get file ranking prompt for LLM-based file selection (Science Pipeline Step 2)
+     * Clean memory bank directory programmatically
      */
-    getFileRankingPrompt(filesString: string, numberToExtract: number = 15): string {
-        return `I will provide a list of files and the number of lines each file has.
+    async cleanMemoryBankDirectory(workspaceFolderUri: string): Promise<void> {
+        try {
+            const memoryBankPath = `${workspaceFolderUri}/${MEMORY_BANK_DIRECTORY}`
 
-Please output just a JSON list which contains exactly ${numberToExtract} of these absolute file paths which are the most important and representative of this list to mine. Copy the exact filepaths exactly as they appear from the input.
+            this.features.logging.info(`[Memory Bank] Ensuring clean directory: ${memoryBankPath}`)
 
-Consider the following when curating this list:
-- The file path: contains information about what type of file it is (src, test)
-- The file path: contains semantic information about the responsibilities of the class (e.g., core logic, utilities, subsystem)
-- The number of lines of code: indicates the size of code within the files
-- The mean lexical dissimilarity score: a higher number indicates this file is more different and unique from the other files in the project and thus might provide more information
+            // Remove all existing memory bank files to ensure clean recreation
+            const filesToRemove = ['product.md', 'structure.md', 'tech.md', 'guidelines.md']
+            let removedCount = 0
+            for (const fileName of filesToRemove) {
+                const filePath = `${memoryBankPath}/${fileName}`
+                try {
+                    const exists = await this.features.workspace.fs.exists(filePath)
+                    if (exists) {
+                        await this.features.workspace.fs.rm(filePath)
+                        this.features.logging.info(`[Memory Bank] Removed existing file: ${fileName}`)
+                        removedCount++
+                    } else {
+                        this.features.logging.info(`[Memory Bank] File ${fileName} does not exist, skipping removal`)
+                    }
+                } catch (error) {
+                    // Ignore errors when removing files that don't exist
+                    this.features.logging.debug(`[Memory Bank] Could not remove ${fileName}: ${error}`)
+                }
+            }
 
-The expected format is ["filename1"\\n, "filename2"\\n, "filename3", ...]
+            this.features.logging.info(`[Memory Bank] Removed ${removedCount} existing files, directory is clean`)
 
-ONLY PROVIDE THE REQUESTED JSON AND NO OTHER TEXT
+            // Create the directory structure using mkdir with recursive option
+            await this.features.workspace.fs.mkdir(memoryBankPath, { recursive: true })
 
-Do not:
-- Provide any textual response besides the requested JSON
-- Use any markdown tags to annotate your response
-
-<list>
-${filesString}
-</list>`
-    }
-
-    /**
-     * Get iterative style guide generation prompt (Science Pipeline Step 3)
-     */
-    getIterativeStyleGuidePrompt(chunkFiles: string[], totalFiles: number, currentStyleGuide?: string): string {
-        const workspace = chunkFiles.join('\n---\n')
-
-        let prompt = `\\ Number of files in this iteration: ${chunkFiles.length} out of ${totalFiles}
-<uploaded_files>
-${workspace}
-</uploaded_files>
-
-I've uploaded files from a codebase above. Please analyze these and create a comprehensive documentation file with the following structure:
-
-1. Code Quality Standards Analysis
-- Document commonly used code formatting patterns
-- Identify structural conventions (common language feature structural patterns) and specifically identify what they are. Do not just list off best practices, instead list specifically what this code base adheres to.
-- Note textual standards (naming, documentation, etc.) and specifically list what they are
-- Practices followed throughout the codebase in all areas of the software development lifecycle
-
-2. Semantic Patterns Overview
-- List recurring implementation patterns
-- Document common architectural approaches
-- Highlight frequent design patterns
-- Proper internal API usage and patterns (with code examples!)
-- Frequently used code idioms
-- Popular annotations
-
-Important Notes:
-- If there is not a document already started at the end of this prompt, please begin it. Otherwise, edit it accordingly to the frequent patterns emerging in the new code presented above and output the next iteration of the document. 
-- Consider both application-specific and general programming patterns
-- Do not output any other textual response describing the file you are creating. Only output the file contents itself
-- Use markdown formatting for the document
-- Keep track of how many files you looked at actually have the qualities described per each quality. This will provide an idea to the frequency of patterns in the codebase. Update this number with every iteration.
-- Do not just give notes or edits for the document, instead just provide the editted document itself.
-- Do not track antipatterns or note inconsistencies (such as inconsistent use of documentation)`
-
-        if (currentStyleGuide) {
-            prompt += `\n\nCurrent q-code-formats.md content:\n\n${currentStyleGuide}`
+            this.features.logging.info(`[Memory Bank] Directory ready: ${memoryBankPath}`)
+        } catch (error) {
+            this.features.logging.error(`[Memory Bank] Failed to create directory: ${error}`)
+            throw error
         }
-
-        return prompt
     }
+
+    // All unused methods removed - only the above 3 methods are needed for the current flow
 
     /**
      * Execute deterministic analysis and provide status updates to chat
@@ -501,82 +256,6 @@ Important Notes:
     }
 
     /**
-     * SCIENCE DOCUMENT METHOD 4: prepareFilesForLLMRanking() - LLM-based file ranking
-     * Equivalent to: ranked_list = rank_with_llm(claude_bedrock_client, files_string, 20)
-     */
-    async prepareFilesForLLMRanking(
-        files: Array<{ path: string; size: number; dissimilarity: number }>,
-        numberToExtract: number = 15
-    ): Promise<string[]> {
-        // Format files string exactly like science document
-        const filesString = files
-            .map(
-                f =>
-                    `${f.path} has ${f.size} lines and a mean lexical dissimilarity of ${f.dissimilarity.toFixed(6)} to the other files`
-            )
-            .join('\n')
-
-        // This would need to be called by the agent/LLM system
-        // For now, return the prompt that should be sent to LLM
-        const rankingPrompt = this.getFileRankingPrompt(filesString, numberToExtract)
-
-        // In actual implementation, this would be sent to LLM and parsed
-        // For now, return top files by dissimilarity score as fallback
-        return files
-            .sort((a, b) => b.dissimilarity - a.dissimilarity)
-            .slice(0, numberToExtract)
-            .map(f => f.path)
-    }
-
-    /**
-     * SCIENCE DOCUMENT METHOD 5: prepareIterativeStyleGuideGeneration() - LLM-based iterative style guide generation
-     * Equivalent to: style_file = generate_style_guide(claude_bedrock_client, ranked_list, 4)
-     */
-    async prepareIterativeStyleGuideGeneration(rankedFiles: string[], filesPerRun: number = 4): Promise<string> {
-        let currentStyleGuide = ''
-        const totalFiles = rankedFiles.length
-
-        // Process files in chunks (like science document)
-        for (let i = 0; i < totalFiles; i += filesPerRun) {
-            const chunk = rankedFiles.slice(i, i + filesPerRun)
-
-            // Read file contents for this chunk
-            const chunkContents: string[] = []
-            for (const filePath of chunk) {
-                try {
-                    const content = await this.features.workspace.fs.readFile(filePath)
-                    chunkContents.push(`File: ${filePath}\n\n${content}\n`)
-                } catch (error) {
-                    this.features.logging.error(`Error reading file ${filePath}: ${error}`)
-                    chunkContents.push(`File: ${filePath}\n\n[Error reading file]\n`)
-                }
-            }
-
-            // Get iterative prompt for this chunk
-            const iterativePrompt = this.getIterativeStyleGuidePrompt(chunkContents, totalFiles, currentStyleGuide)
-
-            // This would be sent to LLM in actual implementation
-            // For now, we return the prompt that should be processed
-            currentStyleGuide = `Iteration ${Math.floor(i / filesPerRun) + 1} prompt ready`
-        }
-
-        return currentStyleGuide
-    }
-
-    /**
-     * Format files for science document pipeline (like Python's files_string)
-     */
-    formatFilesForRanking(files: Array<{ path: string; size: number; dissimilarity: number }>): string {
-        return files
-            .sort((a, b) => b.size - a.size) // Sort by size like science document
-            .map(
-                f =>
-                    `${f.path} has ${f.size} lines and a mean lexical dissimilarity of ${f.dissimilarity.toFixed(6)} to the other files`
-            )
-            .join('\n')
-    }
-
-    /**
      * SCIENCE DOCUMENT METHOD 1: discoverAllSourceFiles() - Programmatic file discovery
      * Equivalent to: files = get_all_files(project_location, ".java")
      */
@@ -619,27 +298,6 @@ Important Notes:
 
     /**
      * EXACT IMPLEMENTATION of science document's get_lexical_dissimilarity()
-     *
-     * Python equivalent:
-     * def get_lexical_dissimilarity(files):
-     *     from sklearn.feature_extraction.text import TfidfVectorizer
-     *     from sklearn.metrics.pairwise import cosine_similarity
-     *
-     *     file_contents = []
-     *     for file in files:
-     *         with open(file[0], "r") as f:
-     *             file_contents.append(f.read())
-     *
-     *     vectorizer = TfidfVectorizer()
-     *     tfidf_matrix = vectorizer.fit_transform(file_contents)
-     *
-     *     cosine_similarities = cosine_similarity(tfidf_matrix, tfidf_matrix)
-     *
-     *     lexical_dissimilarities = []
-     *     for i in range(len(cosine_similarities)):
-     *         lexical_dissimilarities.append((files[i][0], files[i][1], 1 - cosine_similarities[i].mean()))
-     *
-     *     return lexical_dissimilarities
      */
     async calculateLexicalDissimilarity(
         files: Array<{ path: string; size: number }>
@@ -705,45 +363,40 @@ Important Notes:
      */
     private createTfidfMatrix(documents: string[]): Map<string, number>[] {
         // Step 1: Tokenize all documents and build vocabulary
-        const tokenizedDocs = documents.map(doc => this.tokenizeForTfidf(doc))
+        const tokenizedDocs = documents.map(doc => this.tokenizeDocument(doc))
         const vocabulary = new Set<string>()
         tokenizedDocs.forEach(tokens => tokens.forEach(token => vocabulary.add(token)))
+
         const vocabArray = Array.from(vocabulary)
+        const numDocs = documents.length
 
-        // Step 2: Calculate document frequencies (for IDF calculation)
+        // Step 2: Calculate document frequencies (DF)
         const documentFrequencies = new Map<string, number>()
-        for (const term of vocabArray) {
-            let docCount = 0
-            for (const tokens of tokenizedDocs) {
-                if (tokens.includes(term)) {
-                    docCount++
-                }
-            }
-            documentFrequencies.set(term, docCount)
-        }
+        vocabArray.forEach(term => {
+            const df = tokenizedDocs.filter(tokens => tokens.includes(term)).length
+            documentFrequencies.set(term, df)
+        })
 
-        // Step 3: Create TF-IDF vectors for each document
+        // Step 3: Calculate TF-IDF for each document
         const tfidfMatrix: Map<string, number>[] = []
-        for (let docIndex = 0; docIndex < documents.length; docIndex++) {
+        for (let docIndex = 0; docIndex < numDocs; docIndex++) {
             const tokens = tokenizedDocs[docIndex]
             const tfidfVector = new Map<string, number>()
 
             // Calculate term frequencies for this document
-            const termCounts = new Map<string, number>()
+            const termFrequencies = new Map<string, number>()
             tokens.forEach(token => {
-                termCounts.set(token, (termCounts.get(token) || 0) + 1)
+                termFrequencies.set(token, (termFrequencies.get(token) || 0) + 1)
             })
 
             // Calculate TF-IDF for each term in vocabulary
-            for (const term of vocabArray) {
-                const termCount = termCounts.get(term) || 0
-                const tf = termCount / tokens.length // Term frequency
-                const df = documentFrequencies.get(term) || 1 // Document frequency
-                const idf = Math.log(documents.length / df) // Inverse document frequency
-                const tfidf = tf * idf // TF-IDF score
-
+            vocabArray.forEach(term => {
+                const tf = termFrequencies.get(term) || 0
+                const df = documentFrequencies.get(term) || 1
+                const idf = Math.log(numDocs / df)
+                const tfidf = tf * idf
                 tfidfVector.set(term, tfidf)
-            }
+            })
 
             tfidfMatrix.push(tfidfVector)
         }
@@ -752,220 +405,254 @@ Important Notes:
     }
 
     /**
-     * Calculate cosine similarity matrix (equivalent to sklearn's cosine_similarity())
-     * Returns matrix where cosine_similarities[i][j] = similarity between document i and document j
+     * Calculate cosine similarity matrix (equivalent to sklearn's cosine_similarity)
      */
     private calculateCosineSimilarityMatrix(tfidfMatrix: Map<string, number>[]): number[][] {
-        const n = tfidfMatrix.length
-        const cosineSimilarities: number[][] = []
+        const numDocs = tfidfMatrix.length
+        const similarities: number[][] = []
 
-        for (let i = 0; i < n; i++) {
-            const similarities: number[] = []
-            for (let j = 0; j < n; j++) {
-                const similarity = this.cosineSimilarity(tfidfMatrix[i], tfidfMatrix[j])
-                similarities.push(similarity)
+        for (let i = 0; i < numDocs; i++) {
+            const row: number[] = []
+            for (let j = 0; j < numDocs; j++) {
+                const similarity = this.calculateCosineSimilarity(tfidfMatrix[i], tfidfMatrix[j])
+                row.push(similarity)
             }
-            cosineSimilarities.push(similarities)
+            similarities.push(row)
         }
 
-        return cosineSimilarities
-    }
-
-    /**
-     * Tokenize document for TF-IDF (similar to sklearn's default tokenization)
-     */
-    private tokenizeForTfidf(content: string): string[] {
-        // Basic tokenization similar to sklearn's default behavior
-        // Remove code-specific noise but keep meaningful terms
-        const cleanContent = content
-            .replace(/\/\*[\s\S]*?\*\//g, ' ') // Remove block comments
-            .replace(/\/\/.*$/gm, ' ') // Remove line comments
-            .replace(/["'`][^"'`]*["'`]/g, ' ') // Remove string literals
-            .toLowerCase()
-
-        // Split on non-word characters and filter
-        return cleanContent.split(/\W+/).filter(
-            token =>
-                token.length >= 2 && // Minimum length
-                !/^\d+$/.test(token) && // Not pure numbers
-                ![
-                    'if',
-                    'else',
-                    'for',
-                    'while',
-                    'do',
-                    'try',
-                    'catch',
-                    'finally',
-                    'function',
-                    'class',
-                    'const',
-                    'let',
-                    'var',
-                    'return',
-                    'import',
-                    'export',
-                    'from',
-                    'as',
-                    'default',
-                    'public',
-                    'private',
-                    'protected',
-                    'this',
-                    'that',
-                    'with',
-                    'have',
-                    'will',
-                    'been',
-                    'were',
-                    'said',
-                    'each',
-                    'which',
-                    'their',
-                    'time',
-                    'would',
-                    'there',
-                    'could',
-                ].includes(token)
-        )
+        return similarities
     }
 
     /**
      * Calculate cosine similarity between two TF-IDF vectors
      */
-    private cosineSimilarity(vector1: Map<string, number>, vector2: Map<string, number>): number {
-        const allTerms = new Set([...vector1.keys(), ...vector2.keys()])
-
+    private calculateCosineSimilarity(vectorA: Map<string, number>, vectorB: Map<string, number>): number {
         let dotProduct = 0
-        let magnitude1 = 0
-        let magnitude2 = 0
+        let normA = 0
+        let normB = 0
 
-        for (const term of allTerms) {
-            const val1 = vector1.get(term) || 0
-            const val2 = vector2.get(term) || 0
+        // Get all unique terms from both vectors
+        const allTerms = new Set([...vectorA.keys(), ...vectorB.keys()])
 
-            dotProduct += val1 * val2
-            magnitude1 += val1 * val1
-            magnitude2 += val2 * val2
-        }
+        allTerms.forEach(term => {
+            const valueA = vectorA.get(term) || 0
+            const valueB = vectorB.get(term) || 0
 
-        const mag1 = Math.sqrt(magnitude1)
-        const mag2 = Math.sqrt(magnitude2)
+            dotProduct += valueA * valueB
+            normA += valueA * valueA
+            normB += valueB * valueB
+        })
 
-        // Handle zero vectors (return 0 similarity)
-        if (mag1 === 0 || mag2 === 0) {
+        // Avoid division by zero
+        if (normA === 0 || normB === 0) {
             return 0
         }
 
-        return dotProduct / (mag1 * mag2)
+        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB))
     }
 
     /**
-     * Helper method to discover source files recursively
+     * Tokenize document into terms (simple whitespace + punctuation splitting)
+     */
+    private tokenizeDocument(document: string): string[] {
+        return document
+            .toLowerCase()
+            .replace(/[^\w\s]/g, ' ') // Replace punctuation with spaces
+            .split(/\s+/) // Split on whitespace
+            .filter(token => token.length > 2) // Filter out very short tokens
+    }
+
+    /**
+     * Execute the complete guidelines generation pipeline (Science Document Methods 1-3)
+     */
+    async executeGuidelinesGenerationPipeline(workspaceFolderUri: string): Promise<{
+        discoveredFiles: Array<{ path: string; size: number }>
+        filesWithDissimilarity: Array<{ path: string; size: number; dissimilarity: number }>
+        formattedFilesString: string
+        rankedFilesList: string[]
+    }> {
+        try {
+            this.features.logging.info(`[Science Pipeline] Starting for workspace: ${workspaceFolderUri}`)
+
+            // Step 1: Discover all source files (Science Document Method 1)
+            const extensions = ['.ts', '.js', '.tsx', '.jsx', '.py', '.java', '.cpp', '.c', '.h', '.cs', '.go', '.rs']
+            const discoveredFiles = await this.discoverAllSourceFiles(workspaceFolderUri, extensions)
+
+            this.features.logging.info(`[Science Pipeline] Discovered ${discoveredFiles.length} source files`)
+
+            // Log discovered files for debugging
+            this.features.logging.info(
+                `[Science Pipeline] Discovered files: ${discoveredFiles.map(f => `${f.path} (${f.size} lines)`).join(', ')}`
+            )
+
+            if (discoveredFiles.length === 0) {
+                throw new Error('No source files found in workspace')
+            }
+
+            // Step 2: Calculate lexical dissimilarity (Science Document Method 3)
+            const filesWithDissimilarity = await this.calculateLexicalDissimilarity(discoveredFiles)
+
+            // Log dissimilarity results
+            const avgDissimilarity =
+                filesWithDissimilarity.reduce((sum, f) => sum + f.dissimilarity, 0) / filesWithDissimilarity.length
+            this.features.logging.info(
+                `[Science Pipeline] Lexical dissimilarity calculated. Average: ${avgDissimilarity.toFixed(6)}`
+            )
+            this.features.logging.info(
+                `[Science Pipeline] Top 5 most dissimilar files: ${filesWithDissimilarity
+                    .sort((a, b) => b.dissimilarity - a.dissimilarity)
+                    .slice(0, 5)
+                    .map(f => `${f.path} (${f.dissimilarity.toFixed(3)})`)
+                    .join(', ')}`
+            )
+
+            // Step 3: Format files string for LLM ranking (Science Document Method 4 prep)
+            const formattedFilesString = this.formatFilesForRanking(filesWithDissimilarity)
+
+            // Log formatted string preview
+            this.features.logging.info(
+                `[Science Pipeline] Formatted files string created (${formattedFilesString.length} chars)`
+            )
+            this.features.logging.info(
+                `[Science Pipeline] Formatted string preview: ${formattedFilesString.substring(0, 200)}...`
+            )
+
+            // Step 4: Create fallback ranking (deterministic, for when LLM fails)
+            const rankedFilesList = filesWithDissimilarity
+                .sort((a, b) => b.dissimilarity - a.dissimilarity)
+                .slice(0, 20)
+                .map(f => f.path)
+
+            this.features.logging.info(
+                `[Science Pipeline] Fallback ranking created with ${rankedFilesList.length} files`
+            )
+            this.features.logging.info(`[Science Pipeline] Fallback ranking: ${rankedFilesList.join(', ')}`)
+
+            this.features.logging.info(`[Science Pipeline] Completed successfully`)
+
+            return {
+                discoveredFiles,
+                filesWithDissimilarity,
+                formattedFilesString,
+                rankedFilesList,
+            }
+        } catch (error) {
+            this.features.logging.error(`[Science Pipeline] Error: ${error}`)
+            throw error
+        }
+    }
+
+    /**
+     * Format files for science document pipeline (like Python's files_string)
+     */
+    formatFilesForRanking(files: Array<{ path: string; size: number; dissimilarity: number }>): string {
+        return files
+            .sort((a, b) => b.size - a.size) // Sort by size like science document
+            .map(
+                f =>
+                    `${f.path} has ${f.size} lines and a mean lexical dissimilarity of ${f.dissimilarity.toFixed(6)} to the other files`
+            )
+            .join('\n')
+    }
+
+    /**
+     * Recursively discover source files with given extensions
      */
     private async discoverSourceFiles(workspaceFolderUri: string, extensions: string[]): Promise<string[]> {
         const sourceFiles: string[] = []
-        const excludeDirs = ['node_modules', '.git', 'build', 'dist', 'out', 'target', '.next', 'coverage']
 
-        const scanDirectory = async (dirPath: string, depth: number = 0): Promise<void> => {
-            if (depth > 3) return // Limit recursion depth
-
+        const traverseDirectory = async (dirPath: string): Promise<void> => {
             try {
                 const entries = await this.features.workspace.fs.readdir(dirPath)
 
                 for (const entry of entries) {
                     const fullPath = `${dirPath}/${entry.name}`
 
-                    if (entry.isDirectory() && !excludeDirs.includes(entry.name)) {
-                        await scanDirectory(fullPath, depth + 1)
-                    } else if (entry.isFile()) {
-                        const hasValidExtension = extensions.some(ext => entry.name.endsWith(ext))
-                        if (hasValidExtension) {
+                    // Skip common directories that don't contain source code
+                    if (entry.isDirectory() && this.shouldSkipDirectory(entry.name)) {
+                        continue
+                    }
+
+                    if (entry.isDirectory()) {
+                        // Directory - recurse
+                        await traverseDirectory(fullPath)
+                    } else {
+                        // File - check if it's a source file
+                        if (extensions.some(ext => entry.name.endsWith(ext))) {
                             sourceFiles.push(fullPath)
                         }
                     }
                 }
             } catch (error) {
-                // Skip directories we can't read
+                this.features.logging.debug(`Could not read directory ${dirPath}: ${error}`)
             }
         }
 
-        await scanDirectory(workspaceFolderUri)
+        await traverseDirectory(workspaceFolderUri)
         return sourceFiles
     }
 
     /**
-     * Check if memory bank files exist in the project
+     * Check if a directory should be skipped during source file discovery
+     */
+    private shouldSkipDirectory(dirName: string): boolean {
+        const skipDirs = [
+            'node_modules',
+            '.git',
+            '.svn',
+            '.hg',
+            'build',
+            'dist',
+            'out',
+            'target',
+            'bin',
+            'obj',
+            '.vscode',
+            '.idea',
+            '__pycache__',
+            '.pytest_cache',
+            'coverage',
+            '.nyc_output',
+            'logs',
+            'tmp',
+            'temp',
+        ]
+
+        return skipDirs.includes(dirName) || dirName.startsWith('.')
+    }
+
+    /**
+     * Check if memory bank exists in workspace
      */
     async memoryBankExists(workspaceFolderUri: string): Promise<boolean> {
         try {
             const memoryBankPath = `${workspaceFolderUri}/${MEMORY_BANK_DIRECTORY}`
-            const exists = await this.features.workspace.fs.exists(memoryBankPath)
+            this.features.logging.info(`[Memory Bank] Checking directory: ${memoryBankPath}`)
 
+            const exists = await this.features.workspace.fs.exists(memoryBankPath)
+            this.features.logging.info(`[Memory Bank] Directory exists: ${exists}`)
             if (!exists) {
                 return false
             }
 
             // Check if at least one memory bank file exists
             const files = Object.values(MEMORY_BANK_FILES)
+            this.features.logging.info(`[Memory Bank] Checking files: ${files.join(', ')}`)
+
             for (const file of files) {
                 const filePath = `${memoryBankPath}/${file}`
                 const fileExists = await this.features.workspace.fs.exists(filePath)
+                this.features.logging.info(`[Memory Bank] File ${file} exists: ${fileExists}`)
                 if (fileExists) {
                     return true
                 }
             }
 
+            this.features.logging.info(`[Memory Bank] No files found`)
             return false
         } catch (error) {
             this.features.logging.error(`Error checking memory bank existence: ${error}`)
             return false
-        }
-    }
-
-    /**
-     * COMPLETE SCIENCE PIPELINE: Execute all 5 steps for guidelines.md generation
-     * This orchestrates the exact science document methodology
-     */
-    async executeGuidelinesGenerationPipeline(workspaceFolderUri: string): Promise<{
-        discoveredFiles: Array<{ path: string; size: number }>
-        filesWithLineCount: Array<{ path: string; size: number }>
-        filesWithDissimilarity: Array<{ path: string; size: number; dissimilarity: number }>
-        formattedFilesString: string
-        rankedFilesList: string[]
-    }> {
-        const extensions = ['.ts', '.js', '.py', '.java', '.rs', '.go', '.rb', '.php', '.cs', '.cpp', '.c', '.h']
-
-        // SCIENCE STEP 1: discoverAllSourceFiles()
-        this.features.logging.info('[Science Pipeline] discoverAllSourceFiles: Finding all source files')
-        const discoveredFiles = await this.discoverAllSourceFiles(workspaceFolderUri, extensions)
-
-        // SCIENCE STEP 2: calculateFileLineCount() (already done in step 1)
-        this.features.logging.info(
-            '[Science Pipeline] calculateFileLineCount: Line counting completed during discovery'
-        )
-        const filesWithLineCount = discoveredFiles
-
-        // SCIENCE STEP 3: calculateLexicalDissimilarity()
-        this.features.logging.info(
-            '[Science Pipeline] calculateLexicalDissimilarity: Computing TF-IDF uniqueness scores'
-        )
-        const filesWithDissimilarity = await this.calculateLexicalDissimilarity(filesWithLineCount)
-
-        // SCIENCE STEP 4: formatFilesForRanking()
-        this.features.logging.info('[Science Pipeline] formatFilesForRanking: Creating science document format')
-        const formattedFilesString = this.formatFilesForRanking(filesWithDissimilarity)
-
-        // SCIENCE STEP 5: prepareFilesForLLMRanking() (fallback ranking for now)
-        this.features.logging.info('[Science Pipeline] prepareFilesForLLMRanking: Preparing top files for LLM ranking')
-        const rankedFilesList = await this.prepareFilesForLLMRanking(filesWithDissimilarity, 15)
-
-        return {
-            discoveredFiles,
-            filesWithLineCount,
-            filesWithDissimilarity,
-            formattedFilesString,
-            rankedFilesList,
         }
     }
 }

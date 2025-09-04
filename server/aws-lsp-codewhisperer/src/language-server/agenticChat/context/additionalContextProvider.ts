@@ -33,6 +33,7 @@ import { ChatDatabase } from '../tools/chatDb/chatDb'
 import { ChatMessage, ImageBlock, ImageFormat } from '@amzn/codewhisperer-streaming'
 import { getRelativePathWithUri, getRelativePathWithWorkspaceFolder } from '../../workspaceContext/util'
 import { isSupportedImageExtension, MAX_IMAGE_CONTEXT_COUNT } from '../../../shared/imageVerification'
+import { MemoryBankController } from './memorybank/memoryBankController'
 import { mergeFileLists } from './contextUtils'
 
 export const ACTIVE_EDITOR_CONTEXT_ID = 'active-editor'
@@ -229,7 +230,8 @@ export class AdditionalContextProvider {
     async getAdditionalContext(
         triggerContext: TriggerContext,
         tabId: string,
-        context?: ContextCommand[]
+        context?: ContextCommand[],
+        prompt?: string
     ): Promise<AdditionalContentEntryAddition[]> {
         triggerContext.contextInfo = getInitialContextInfo()
 
@@ -250,21 +252,43 @@ export class AdditionalContextProvider {
             : workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)[0]
 
         if (workspaceRules.length > 0) {
-            // ALL workspace rules (including memory bank files) go to pinnedContextCommands
-            // This follows the same pattern as regular rules - they go to conversation history
-            pinnedContextCommands.push(...workspaceRules)
+            // Check if this is a memory bank generation request
+            const isMemoryBankRequest = prompt
+                ? new MemoryBankController(this.features).isMemoryBankCreationRequest(prompt)
+                : false
 
-            // Log memory bank files being included in chat context for verification
-            const memoryBankFiles = workspaceRules.filter(rule => rule.id?.includes('memory-bank'))
-            if (memoryBankFiles.length > 0) {
-                this.features.logging.info(
-                    `[Memory Bank] Including ${memoryBankFiles.length} memory bank files in chat context for tabId: ${tabId}`
-                )
-                memoryBankFiles.forEach(file => {
-                    const fileName = path.basename(file.id)
-                    this.features.logging.info(`[Memory Bank] - Including: ${fileName} (${file.id})`)
-                })
+            let rulesToInclude = workspaceRules
+
+            if (isMemoryBankRequest) {
+                // Exclude memory bank files from context when generating memory bank
+                const memoryBankFiles = workspaceRules.filter(rule => rule.id?.includes('memory-bank'))
+                rulesToInclude = workspaceRules.filter(rule => !rule.id?.includes('memory-bank'))
+
+                if (memoryBankFiles.length > 0) {
+                    this.features.logging.info(
+                        `[Memory Bank] Excluding ${memoryBankFiles.length} existing memory bank files from context for regeneration`
+                    )
+                    memoryBankFiles.forEach(file => {
+                        const fileName = path.basename(file.id)
+                        this.features.logging.info(`[Memory Bank] - Excluding: ${fileName} (${file.id})`)
+                    })
+                }
+            } else {
+                // Normal behavior: include all workspace rules (including memory bank files)
+                const memoryBankFiles = workspaceRules.filter(rule => rule.id?.includes('memory-bank'))
+                if (memoryBankFiles.length > 0) {
+                    this.features.logging.info(
+                        `[Memory Bank] Including ${memoryBankFiles.length} memory bank files in chat context for tabId: ${tabId}`
+                    )
+                    memoryBankFiles.forEach(file => {
+                        const fileName = path.basename(file.id)
+                        this.features.logging.info(`[Memory Bank] - Including: ${fileName} (${file.id})`)
+                    })
+                }
             }
+
+            // Add the filtered rules to pinned context
+            pinnedContextCommands.push(...rulesToInclude)
         }
 
         // Merge pinned context with context added to prompt, avoiding duplicates
@@ -700,6 +724,8 @@ export class AdditionalContextProvider {
     }
 
     convertRulesToRulesFolders(workspaceRules: ContextCommandItem[], tabId: string): RulesFolder[] {
+        this.features.logging.info(`[DEBUG] convertRulesToRulesFolders called with ${workspaceRules.length} rules`)
+
         // Check if there's only one workspace folder
         const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.features.workspace)
         const isSingleWorkspace = workspaceFolders.length <= 1
@@ -719,7 +745,9 @@ export class AdditionalContextProvider {
                 if (dirPath === '.') {
                     folderName = undefined
                 } else {
-                    folderName = dirPath
+                    // Use only the last part of the directory path for display
+                    // e.g., ".amazonq/rules/memory-bank" becomes "memory-bank"
+                    folderName = path.basename(dirPath)
                 }
             } else {
                 // In multi-workspace: include workspace folder name for all files
@@ -804,6 +832,8 @@ export class AdditionalContextProvider {
             // Otherwise sort alphabetically
             return a.folderName.localeCompare(b.folderName)
         })
+
+        this.features.logging.info(`[DEBUG] Final rulesFolders structure: ${JSON.stringify(rulesFolders, null, 2)}`)
 
         return rulesFolders
     }

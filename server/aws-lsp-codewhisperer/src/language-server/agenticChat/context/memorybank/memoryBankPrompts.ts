@@ -1,76 +1,13 @@
 /**
- * Centralized prompts for Memory Bank generation
+ * Copied from chat/contexts/triggerContext.ts for the purpose of developing a divergent implementation.
+ * Will be deleted or merged.
  */
 
 export class MemoryBankPrompts {
     /**
-     * PROMPT: First 3 Memory Bank files creation (product.md, structure.md, tech.md)
+     * PROMPT 1: File ranking prompt - Takes TF-IDF analysis results and asks LLM to rank files
      */
-    static getFirst3FilesPrompt(): string {
-        return `I'll create the first 3 Memory Bank files for this project by analyzing the codebase structure.
-
-**Creating Memory Bank Directory Structure**
-First, I'll create the .amazonq/rules/memory-bank/ directory to store the documentation files.
-
-**Analyzing Project Structure and Configuration**
-I'll explore the project structure using listDirectory and readFile tools to understand:
-- Project purpose, features, and key capabilities
-- Technology stack, build systems, and development workflows  
-- Directory organization and architectural patterns
-
-**Important: I will only use listDirectory and readFile tools. I will NOT use executeBash or shell commands for analysis.**
-
-**Creating product.md - Project overview, purpose, and key features**
-I'll analyze the project structure and create product.md with:
-- Project purpose and core value proposition
-- Key features and capabilities
-- Target users and use cases
-- Technical architecture overview
-
-**Creating structure.md - Project organization, directory structure, and architecture patterns**  
-I'll analyze the directory structure and create structure.md with:
-- Complete directory structure with explanations
-- Core components and their relationships
-- Architectural patterns and design principles
-- Data models and extension points
-
-**Creating tech.md - Technology stack, build systems, frameworks, and common commands**
-I'll analyze the technology stack and create tech.md with:
-- Programming languages and versions
-- Build systems and package management
-- Key dependencies and frameworks
-- Development and deployment commands
-- Integration technologies
-
-**Next Steps**
-After creating these 3 files, I'll provide instructions for generating guidelines.md using the science pipeline methodology.
-
-Let me begin creating these 3 Memory Bank files now.
-
-**After completing the first 3 files, I'll tell the user:**
-"✅ The first 3 Memory Bank files have been created successfully!
-
-📋 **Files Created:**
-- product.md: Project overview and key features
-- structure.md: Directory organization and architecture  
-- tech.md: Technology stack and development commands
-
-🔬 **Next: Guidelines Generation**
-The system will now automatically generate guidelines.md using the science pipeline methodology. This involves:
-1. Analyzing all source files for lexical patterns
-2. Ranking files by importance using LLM
-3. Iteratively building coding standards from the most representative files
-
-Please wait while the science pipeline completes..."
-
-This will trigger the automatic guidelines.md generation process.`
-    }
-
-    /**
-     * PROMPT 2: File ranking prompt - EXACT copy from science document
-     * This is the rank_with_llm() step
-     */
-    static getFileRankingPrompt(filesString: string, numberToExtract: number): string {
+    static getFileRankingPrompt(filesString: string, numberToExtract: number = 20): string {
         return `I will provide a list of files and the number of lines each file has.
 
 Please output just a JSON list which contains exactly ${numberToExtract} of these absolute file paths which are the most important and representative of this list to mine. Copy the exact filepaths exactly as they appear from the input.
@@ -81,7 +18,7 @@ Consider the following when curating this list:
 - The number of lines of code: indicates the size of code within the files
 - The mean lexical dissimilarity score: a higher number indicates this file is more different and unique from the other files in the project and thus might provide more information
 
-The expected format is ["filename1"\\n, "filename2"\\n, "filename3", ...]
+The expected format is ["filename1", "filename2", "filename3", ...]
 
 ONLY PROVIDE THE REQUESTED JSON AND NO OTHER TEXT
 
@@ -95,46 +32,124 @@ ${filesString}
     }
 
     /**
-     * PROMPT 3: Iterative style guide generation prompt - EXACT copy from science document
-     * This is the generate_style_guide() step
+     * PROMPT 2: Complete Memory Bank creation - Takes ranked files and creates all 4 memory bank files
      */
-    static getIterativeStyleGuidePrompt(chunkFiles: string[], totalFiles: number, currentStyleGuide?: string): string {
-        const workspace = chunkFiles.join('\n---\n')
+    static getCompleteMemoryBankPrompt(rankedFiles: string[]): string {
+        return `**🚨 CRITICAL INSTRUCTION: ALWAYS REGENERATE - NEVER SKIP 🚨**
 
-        let prompt = `\\ Number of files in this iteration: ${chunkFiles.length} out of ${totalFiles}
-<uploaded_files>
-${workspace}
-</uploaded_files>
+You MUST create a complete Memory Bank for this project by analyzing the codebase structure and generating comprehensive documentation. 
 
-I've uploaded files from a codebase above. Please analyze these and create a comprehensive documentation file with the following structure:
+**MANDATORY REGENERATION POLICY:**
+- NEVER respond with "already created" or "already exists" messages
+- ALWAYS delete and recreate ALL 4 files with fresh analysis
+- IGNORE any existing Memory Bank files in context - treat this as a fresh creation
+- Even if you see existing memory-bank/*.md files in the context, REGENERATE them completely
+- The user expects NEW files to be generated every time, regardless of existing files
+- This ensures documentation is always current with the latest codebase
+- Do NOT reference or mention existing memory bank files - create fresh ones
 
-1. Code Quality Standards Analysis
-- Document commonly used code formatting patterns
-- Identify structural conventions (common language feature structural patterns) and specifically identify what they are. Do not just list off best practices, instead list specifically what this code base adheres to.
-- Note textual standards (naming, documentation, etc.) and specifically list what they are
-- Practices followed throughout the codebase in all areas of the software development lifecycle
+**🔍 MANDATORY FRESH EXPLORATION POLICY:**
+- IGNORE ALL PREVIOUS CHAT HISTORY about this project
+- Even if you've analyzed this project before in this conversation, START FRESH
+- ALWAYS begin by exploring the project with listDirectory and readFile tools
+- Show your exploration process to the user (e.g., "I'll analyze the codebase...")n
+- This is REQUIRED even if you think you already know the project structure
 
-2. Semantic Patterns Overview
-- List recurring implementation patterns
-- Document common architectural approaches
-- Highlight frequent design patterns
-- Proper internal API usage and patterns (with code examples!)
-- Frequently used code idioms
-- Popular annotations
+**📝 CONSISTENT MESSAGING POLICY:**
+- ALWAYS provide explanatory text before each tool call
+- For every fsWrite tool use, first write: "Creating [description] for [project name]"
+- Never use tools without explanatory text first
+- This ensures users see what you're doing before the tool execution begins
 
-Important Notes:
-- If there is not a document already started at the end of this prompt, please begin it. Otherwise, edit it accordingly to the frequent patterns emerging in the new code presented above and output the next iteration of the document. 
-- Consider both application-specific and general programming patterns
-- Do not output any other textual response describing the file you are creating. Only output the file contents itself
-- Use markdown formatting for the document
-- Keep track of how many files you looked at actually have the qualities described per each quality. This will provide an idea to the frequency of patterns in the codebase. Update this number with every iteration.
-- Do not just give notes or edits for the document, instead just provide the editted document itself.
-- Do not track antipatterns or note inconsistencies (such as inconsistent use of documentation)`
+**MANDATORY FRESH EXPLORATION REQUIRED:**
+- IGNORE any previous knowledge about this project from chat history
+- ALWAYS start by exploring the project structure with listDirectory and readFile tools
+- Even if you've seen this project before, treat it as completely new
+- Show your exploration process: "I'll analyze the codebase and create a complete Memory Bank..."
+- List directories and read key files to understand the current state
+- This ensures documentation reflects the CURRENT codebase, not historical knowledge
 
-        if (currentStyleGuide) {
-            prompt += `\n\nCurrent q-code-formats.md content:\n\n${currentStyleGuide}`
-        }
+**Directory Structure Ready**
+The .amazonq/rules/memory-bank/ directory has been prepared and cleaned. You can directly create files using fsWrite tool.
 
-        return prompt
+**Part 1: Fresh Analysis and Documentation Creation**
+
+FIRST: Start by saying "I'll analyze the codebase and create a complete Memory Bank with fresh documentation. Let me start by exploring the project structure and then create all 4 files."
+
+THEN: Use listDirectory and readFile tools to explore the project structure and create:
+
+**CRITICAL: For each file creation, ALWAYS follow this exact pattern:**
+1. First write explanatory text: "Creating [file description] for [project name]"
+2. Then immediately use the fsWrite tool
+3. Never use fsWrite without explanatory text first
+
+**product.md** - Project overview with:
+- Project purpose and value proposition
+- Key features and capabilities
+- Target users and use cases
+- ALWAYS say "Creating product overview for [project name]" before using fsWrite
+
+**structure.md** - Project organization with:
+- Directory structure and explanations
+- Core components and relationships
+- Architectural patterns
+- ALWAYS say "Creating structure documentation for [project name]" before using fsWrite
+
+**tech.md** - Technology details with:
+- Programming languages and versions
+- Build systems and dependencies
+- Development commands
+- ALWAYS say "Creating technology documentation for [project name]" before using fsWrite
+
+**Part 2: Advanced Guidelines Generation Using Below Iterative Analysis Approach**
+
+I have ${rankedFiles.length} representative files ranked by lexical dissimilarity analysis:
+${rankedFiles.map((file, i) => `${i + 1}. ${file}`).join('\n')}
+
+I will create comprehensive development guidelines by:
+
+1. **Iterative File Analysis** (following science methodology):
+   - Process files in chunks of 4 using readFile tool
+   - Build guidelines iteratively, analyzing patterns across chunks
+   - Each iteration should build upon previous findings
+
+2. **Pattern Analysis Structure**:
+   - Code Quality Standards Analysis
+   - Document commonly used code formatting patterns
+   - Identify structural conventions and specifically what this codebase adheres to
+   - Note textual standards (naming, documentation, etc.)
+   - Practices followed throughout the codebase
+
+3. **Semantic Patterns Overview**:
+   - List recurring implementation patterns
+   - Document common architectural approaches
+   - Highlight frequent design patterns
+   - Proper internal API usage and patterns (with code examples!)
+   - Frequently used code idioms
+   - Popular annotations
+
+**ITERATIVE PROCESSING INSTRUCTIONS:**
+- Process the ranked files in chunks of 4 files at a time
+- For each chunk, FIRST provide a status update like: "📝 **Analyzing chunk X/Y** - Processing files: file1.py, file2.py, file3.py, file4.py"
+- THEN use readFile tool to read the file contents for that chunk
+- Analyze patterns in each chunk and build upon previous findings
+- Keep track of how many files exhibit each pattern (frequency analysis)
+- Build comprehensive guidelines.md iteratively
+- When creating guidelines.md, ALWAYS say "Creating development guidelines for [project name]" before using fsWrite
+
+**COMPLETION SUMMARY**: After creating all files, provide a brief completion message (maximum 8 lines) that:
+- Confirms successful creation with celebratory emoji
+- Lists the 4 files created with one-line descriptions
+- Mentions they're available in Rules panel
+- Avoids detailed technical breakdowns
+
+**FORBIDDEN RESPONSES:**
+- NEVER say "I've already created a complete Memory Bank"
+- NEVER say "The Memory Bank is located in..."
+- NEVER say "These files are automatically loaded"
+- NEVER mention existing files - always create new ones
+- NEVER provide status about existing documentation
+
+**IMPORTANT**: Start immediately with creating the first file (product.md) using fsWrite tool.`
     }
 }
