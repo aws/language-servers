@@ -128,9 +128,6 @@ jobs:
                     cp downloaded-artifacts/$platform/servers.zip _release-artifacts/$platform-servers.zip
                   done
 
-                  # clients.zip : just pick one of the platforms, they're all the same file
-                  cp downloaded-artifacts/linux-x64/clients.zip _release-artifacts/clients.zip
-
                   # THIRD_PARTY_LICENSES
                   cp downloaded-artifacts/THIRD_PARTY_LICENSES/THIRD_PARTY_LICENSES _release-artifacts/THIRD_PARTY_LICENSES
 

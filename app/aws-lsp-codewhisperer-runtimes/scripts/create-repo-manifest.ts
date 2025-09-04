@@ -55,7 +55,6 @@ interface Params {
 }
 
 const serversZipName = 'servers.zip'
-const clientsZipName = 'clients.zip'
 
 /**
  * Updates the manifest file with new version information or performs rollback operations.
@@ -70,7 +69,7 @@ const clientsZipName = 'clients.zip'
  *
  * @description
  * This function performs the following operations:
- * 1. Calculates SHA384 checksums and file sizes for clients.zip and servers.zip files.
+ * 1. Calculates SHA384 checksums and file sizes for servers.zip files.
  * 2. Generates a new manifest entry with the provided and calculated information.
  * 3. Produces a manifest file, containing only this one version.
  * 4. Saves the updated manifest to a file.
@@ -93,18 +92,6 @@ export async function updateManifest(
         const bytes = await run(`wc -c < ${serverZipPath}`)
         return {
             url: getGitHubReleaseDownloadUrl(path.basename(serverZipPath)),
-            hash: sha,
-            bytes: bytes,
-        }
-    }
-
-    const clientZipPath = path.join(releaseArtifactsPath, clientsZipName)
-
-    async function getClientZipFileInfo() {
-        const sha = await run(`sha384sum ${clientZipPath} | awk '{print $1}'`)
-        const bytes = await run(`wc -c < ${clientZipPath}`)
-        return {
-            url: getGitHubReleaseDownloadUrl(clientsZipName),
             hash: sha,
             bytes: bytes,
         }
@@ -137,7 +124,7 @@ export async function updateManifest(
                 arm64: await getServerZipFileInfo('mac', 'arm64'),
             },
         },
-        clientZip: await getClientZipFileInfo(),
+
         licensesURL,
     })
 
@@ -170,16 +157,11 @@ interface EntryParameters {
             arm64: FileInfo
         }
     }
-    clientZip: FileInfo
+
     licensesURL: string
 }
 
-function generateNewEntry({
-    version,
-    serverZips,
-    clientZip,
-    licensesURL,
-}: EntryParameters): ManifestServerVersionEntry {
+function generateNewEntry({ version, serverZips, licensesURL }: EntryParameters): ManifestServerVersionEntry {
     return {
         serverVersion: version.server,
         isDelisted: false,
@@ -199,12 +181,6 @@ function generateNewEntry({
                         hashes: [`sha384:${serverZips.win.x64.hash}`],
                         bytes: parseInt(serverZips.win.x64.bytes),
                     },
-                    {
-                        filename: clientsZipName,
-                        url: clientZip.url,
-                        hashes: [`sha384:${clientZip.hash}`],
-                        bytes: parseInt(clientZip.bytes),
-                    },
                 ],
             },
             {
@@ -216,12 +192,6 @@ function generateNewEntry({
                         url: serverZips.win.arm64.url,
                         hashes: [`sha384:${serverZips.win.arm64.hash}`],
                         bytes: parseInt(serverZips.win.arm64.bytes),
-                    },
-                    {
-                        filename: clientsZipName,
-                        url: clientZip.url,
-                        hashes: [`sha384:${clientZip.hash}`],
-                        bytes: parseInt(clientZip.bytes),
                     },
                 ],
             },
@@ -235,12 +205,6 @@ function generateNewEntry({
                         hashes: [`sha384:${serverZips.linux!.x64.hash}`],
                         bytes: parseInt(serverZips.linux!.x64.bytes),
                     },
-                    {
-                        filename: clientsZipName,
-                        url: clientZip.url,
-                        hashes: [`sha384:${clientZip.hash}`],
-                        bytes: parseInt(clientZip.bytes),
-                    },
                 ],
             },
             {
@@ -252,12 +216,6 @@ function generateNewEntry({
                         url: serverZips.linux!.arm64.url,
                         hashes: [`sha384:${serverZips.linux!.arm64.hash}`],
                         bytes: parseInt(serverZips.linux!.arm64.bytes),
-                    },
-                    {
-                        filename: clientsZipName,
-                        url: clientZip.url,
-                        hashes: [`sha384:${clientZip.hash}`],
-                        bytes: parseInt(clientZip.bytes),
                     },
                 ],
             },
@@ -271,12 +229,6 @@ function generateNewEntry({
                         hashes: [`sha384:${serverZips.mac!.x64.hash}`],
                         bytes: parseInt(serverZips.mac!.x64.bytes),
                     },
-                    {
-                        filename: clientsZipName,
-                        url: clientZip.url,
-                        hashes: [`sha384:${clientZip.hash}`],
-                        bytes: parseInt(clientZip.bytes),
-                    },
                 ],
             },
             {
@@ -288,12 +240,6 @@ function generateNewEntry({
                         url: serverZips.mac!.arm64.url,
                         hashes: [`sha384:${serverZips.mac!.arm64.hash}`],
                         bytes: parseInt(serverZips.mac!.arm64.bytes),
-                    },
-                    {
-                        filename: clientsZipName,
-                        url: clientZip.url,
-                        hashes: [`sha384:${clientZip.hash}`],
-                        bytes: parseInt(clientZip.bytes),
                     },
                 ],
             },

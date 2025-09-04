@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This script collects all of the files needed for bundling and packages them
-# into clients.zip and one servers.zip file per platform.
+# into one servers.zip file per platform.
 # Bundled outputs are placed in
 # - build/archives/agent-standalone/(platform)-(architecture)
 # - build/archives/shared
@@ -18,10 +18,8 @@ TARGET_BUILD_DIR=./build/private/bundle/client
 mkdir -p $TARGET_BUILD_DIR
 cp -r $CHAT_CLIENT_BUNDLE_DIR/* $TARGET_BUILD_DIR
 
-# ZIP client files
+# Create archives directory
 ARCHIVES_DIR=./build/archives
-mkdir -p $ARCHIVES_DIR/shared
-zip -j $ARCHIVES_DIR/shared/clients.zip $TARGET_BUILD_DIR/*
 
 # Create tempdir for unzipped qcontext files
 TEMP_DIR=$(mktemp -d)
@@ -68,35 +66,35 @@ for config in "${configs[@]}"; do
 
     # Win x64
     zip -j $ARCHIVES_DIR/${config}/win-x64/servers.zip \
-        ./build/private/assets/win-x64/*
+        ./build/private/assets/win-x64/* $TARGET_BUILD_DIR/amazonq-ui.js
     if [ "$config" = "agent-standalone" ]; then
         (cd $TEMP_DIR/win-x64 && zip -r $OLDPWD/$ARCHIVES_DIR/${config}/win-x64/servers.zip indexing ripgrep/rg.exe)
     fi
 
     # Linux x64
     zip -j $ARCHIVES_DIR/${config}/linux-x64/servers.zip \
-        ./build/private/assets/linux-x64/*
+        ./build/private/assets/linux-x64/* $TARGET_BUILD_DIR/amazonq-ui.js
     if [ "$config" = "agent-standalone" ]; then
         (cd $TEMP_DIR/linux-x64 && zip -r $OLDPWD/$ARCHIVES_DIR/${config}/linux-x64/servers.zip indexing ripgrep/rg)
     fi
 
     # Mac x64
     zip -j $ARCHIVES_DIR/${config}/mac-x64/servers.zip \
-        ./build/private/assets/mac-x64/*
+        ./build/private/assets/mac-x64/* $TARGET_BUILD_DIR/amazonq-ui.js
     if [ "$config" = "agent-standalone" ]; then
         (cd $TEMP_DIR/mac-x64 && zip -r $OLDPWD/$ARCHIVES_DIR/${config}/mac-x64/servers.zip indexing ripgrep/rg)
     fi
 
     # Linux ARM64
     zip -j $ARCHIVES_DIR/${config}/linux-arm64/servers.zip \
-        ./build/private/assets/linux-arm64/*
+        ./build/private/assets/linux-arm64/* $TARGET_BUILD_DIR/amazonq-ui.js
     if [ "$config" = "agent-standalone" ]; then
         (cd $TEMP_DIR/linux-arm64 && zip -r $OLDPWD/$ARCHIVES_DIR/${config}/linux-arm64/servers.zip indexing ripgrep/rg)
     fi
 
     # Mac ARM64
     zip -j $ARCHIVES_DIR/${config}/mac-arm64/servers.zip \
-        ./build/private/assets/mac-arm64/*
+        ./build/private/assets/mac-arm64/* $TARGET_BUILD_DIR/amazonq-ui.js
     if [ "$config" = "agent-standalone" ]; then
         (cd $TEMP_DIR/mac-arm64 && zip -r $OLDPWD/$ARCHIVES_DIR/${config}/mac-arm64/servers.zip indexing ripgrep/rg)
     fi
