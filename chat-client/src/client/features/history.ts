@@ -107,7 +107,7 @@ export class ChatHistoryList {
             icon: toMynahIcon(group.icon),
             children: group.items?.map(item => ({
                 ...item,
-                description: item.description ? escapeHTML(item.description) : item.description,
+                description: item.description ? escapeHTML(item.description) : undefined,
                 icon: toMynahIcon(item.icon),
                 actions: item.actions?.map(action => ({
                     ...action,
