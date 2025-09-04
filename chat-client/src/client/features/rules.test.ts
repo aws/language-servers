@@ -148,7 +148,7 @@ describe('rules', () => {
         it('calls messager when create memory bank is clicked', () => {
             const createMemoryBankItem: DetailedListItem = {
                 id: ContextRule.CreateMemoryBankId,
-                description: 'Create Memory Bank',
+                description: 'Generate Memory Bank',
             }
 
             onItemClick(createMemoryBankItem)

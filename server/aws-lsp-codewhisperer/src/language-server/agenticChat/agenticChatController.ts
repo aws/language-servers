@@ -852,19 +852,77 @@ export class AgenticChatController implements ChatHandlers {
 
         IdleWorkspaceManager.recordActivityTimestamp()
 
-        // Memory Bank Creation Flow - Step 1: First 3 Files Only
+        // Memory Bank Creation Flow - Delegate everything to MemoryBankController
         if (this.#memoryBankController.isMemoryBankCreationRequest(params.prompt.prompt)) {
             this.#features.logging.info(`[Memory Bank] Detected memory bank request for tabId: ${params.tabId}`)
 
-            // Step 1: Create first 3 files using standard agent analysis
-            params.prompt.prompt = this.#memoryBankController.getFirst3FilesPrompt()
+            // Delegate the entire workflow to MemoryBankController
+            const workspaceFolders = workspaceUtils.getWorkspaceFolderPaths(this.#features.workspace)
+            const workspaceUri = workspaceFolders.length > 0 ? workspaceFolders[0] : ''
+            params.prompt.prompt = await this.#memoryBankController.prepareComprehensiveMemoryBankPrompt(
+                workspaceUri,
+                async (message: string) => {
+                    await this.#features.chat.sendChatUpdate({
+                        tabId: params.tabId,
+                        data: {
+                            messages: [
+                                {
+                                    messageId: `memory-bank-status-${Date.now()}`,
+                                    body: message,
+                                },
+                            ],
+                        },
+                    })
+                },
+                async (prompt: string) => {
+                    // Direct LLM call for ranking - no agentic loop, just a simple API call
+                    this.#features.logging.info(`[Memory Bank] Making direct LLM call for file ranking`)
 
-            this.#features.logging.info(
-                `[Memory Bank] Step 1: Creating first 3 memory bank files (product.md, structure.md, tech.md)`
+                    try {
+                        if (!this.#serviceManager) {
+                            throw new Error('amazonQServiceManager is not initialized')
+                        }
+
+                        const client = this.#serviceManager.getStreamingClient()
+
+                        // Create a simple message request for ranking
+                        const requestInput: SendMessageCommandInput = {
+                            conversationState: {
+                                chatTriggerType: ChatTriggerType.MANUAL,
+                                currentMessage: {
+                                    userInputMessage: {
+                                        content: prompt,
+                                    },
+                                },
+                            },
+                        }
+
+                        this.#features.logging.info(`[Memory Bank] Sending ranking request to LLM`)
+                        const response = await client.sendMessage(requestInput)
+
+                        // Extract the response content from the streaming response
+                        let responseContent = ''
+                        if (response.sendMessageResponse) {
+                            for await (const chatEvent of response.sendMessageResponse) {
+                                if (chatEvent.assistantResponseEvent?.content) {
+                                    responseContent += chatEvent.assistantResponseEvent.content
+                                }
+                            }
+                        }
+
+                        this.#features.logging.info(
+                            `[Memory Bank] LLM ranking response received: ${responseContent.length} characters`
+                        )
+                        return responseContent.trim()
+                    } catch (error) {
+                        this.#features.logging.error(`[Memory Bank] LLM ranking failed: ${error}`)
+                        this.#features.logging.info(`[Memory Bank] Falling back to TF-IDF ranking`)
+                        return '' // Empty string triggers TF-IDF fallback
+                    }
+                }
             )
 
-            // Mark this session for memory bank completion detection
-            this.#markSessionForMemoryBankCompletion(params.tabId)
+            this.#features.logging.info(`[Memory Bank] Starting comprehensive memory bank creation`)
         }
 
         const maybeDefaultResponse = !params.prompt.command && getDefaultChatResponse(params.prompt.prompt)
@@ -943,7 +1001,8 @@ export class AgenticChatController implements ChatHandlers {
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
                 params.tabId,
-                params.context
+                params.context,
+                params.prompt.prompt
             )
             // Add active file to context list if it's not already there
             const activeFile =
@@ -4393,10 +4452,7 @@ export class AgenticChatController implements ChatHandlers {
             if (chatEvent.assistantResponseEvent || chatEvent.codeReferenceEvent) {
                 await streamWriter.write(result.data.chatResult)
 
-                // Memory Bank completion detection
-                if (chatEvent.assistantResponseEvent && result.data.chatResult.body) {
-                    await this.#checkMemoryBankCompletion(tabId, result.data.chatResult.body)
-                }
+                // Memory Bank completion detection - removed from here to avoid timing issues
             }
 
             if (chatEvent.toolUseEvent) {
@@ -4423,6 +4479,8 @@ export class AgenticChatController implements ChatHandlers {
             })
         }
         await streamWriter.close()
+
+        // No special completion detection needed - single agentic loop completes naturally
 
         metric.mergeWith({
             cwsprChatFullResponseLatency: metric.getTimeElapsed(),
@@ -4813,94 +4871,7 @@ export class AgenticChatController implements ChatHandlers {
         return value
     }
 
-    // Memory Bank Completion Detection
-    #memoryBankPendingSessions = new Set<string>()
+    // Memory Bank logic moved to MemoryBankController
 
-    /**
-     * Mark a session for memory bank completion detection
-     */
-    #markSessionForMemoryBankCompletion(tabId: string): void {
-        this.#memoryBankPendingSessions.add(tabId)
-        this.#features.logging.info(`[Memory Bank] Marked session ${tabId} for completion detection`)
-    }
-
-    /**
-     * Check if a session is pending memory bank completion
-     */
-    #isMemoryBankPendingCompletion(tabId: string): boolean {
-        return this.#memoryBankPendingSessions.has(tabId)
-    }
-
-    /**
-     * Detect memory bank completion and trigger guidelines generation
-     */
-    async #checkMemoryBankCompletion(tabId: string, messageContent: string): Promise<void> {
-        if (!this.#isMemoryBankPendingCompletion(tabId)) {
-            return
-        }
-
-        // Check if the agent has completed creating the first 3 files
-        const completionIndicators = [
-            'product.md',
-            'structure.md',
-            'tech.md',
-            'memory bank',
-            'created successfully',
-            'files have been created',
-        ]
-
-        const hasCompletionIndicators = completionIndicators.some(indicator =>
-            messageContent.toLowerCase().includes(indicator.toLowerCase())
-        )
-
-        if (hasCompletionIndicators) {
-            this.#features.logging.info(`[Memory Bank] Step 1 completion detected for session ${tabId}`)
-
-            // Remove from pending set
-            this.#memoryBankPendingSessions.delete(tabId)
-
-            // Trigger Steps 2-5: Guidelines generation
-            await this.#triggerGuidelinesGeneration(tabId)
-        }
-    }
-
-    /**
-     * Trigger guidelines.md generation (Steps 2-5)
-     */
-    async #triggerGuidelinesGeneration(tabId: string): Promise<void> {
-        try {
-            this.#features.logging.info(`[Memory Bank] Starting guidelines generation for session ${tabId}`)
-
-            // Get workspace folder URI - use empty string as default for root workspace
-            const workspaceFolderUri = ''
-
-            // Create LLM call function that uses the chat system
-            const llmCallFunction = async (prompt: string): Promise<string> => {
-                // TODO: Implement actual LLM call using the chat system
-                // For now, return a placeholder response
-                return 'LLM response placeholder'
-            }
-
-            // Delegate all complex logic to MemoryBankController
-            const result = await this.#memoryBankController.executeCompleteMemoryBankCreationWithLLM(
-                workspaceFolderUri,
-                llmCallFunction
-            )
-
-            // Send message to chat
-            await this.#features.chat.sendChatUpdate({
-                tabId,
-                data: {
-                    messages: [
-                        {
-                            messageId: `memory-bank-complete-${Date.now()}`,
-                            body: result.message,
-                        },
-                    ],
-                },
-            })
-        } catch (error) {
-            this.#features.logging.error(`[Memory Bank] Error in guidelines generation: ${error}`)
-        }
-    }
+    // All Memory Bank methods moved to MemoryBankController and MemoryBankPrompts
 }

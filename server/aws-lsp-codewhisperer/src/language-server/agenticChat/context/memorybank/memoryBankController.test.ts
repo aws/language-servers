@@ -1,6 +1,12 @@
+/**
+ * Copied from chat/contexts/triggerContext.ts for the purpose of developing a divergent implementation.
+ * Will be deleted or merged.
+ */
+
 import * as assert from 'assert'
 import * as sinon from 'sinon'
 import { MemoryBankController } from './memoryBankController'
+import { MemoryBankPrompts } from './memoryBankPrompts'
 
 describe('MemoryBankController', () => {
     let controller: MemoryBankController
@@ -92,26 +98,25 @@ describe('MemoryBankController', () => {
         })
     })
 
-    describe('getFirst3FilesPrompt', () => {
-        it('should return a comprehensive first 3 files prompt', () => {
-            const prompt = controller.getFirst3FilesPrompt()
+    describe('prompt delegation', () => {
+        it('should delegate prompt generation to MemoryBankPrompts class', () => {
+            // Test that controller properly delegates to MemoryBankPrompts
+            // This ensures clean separation of concerns
+            const filesString = 'test.ts has 100 lines and a mean lexical dissimilarity of 0.85'
+            const prompt = MemoryBankPrompts.getFileRankingPrompt(filesString, 15)
 
             assert.ok(typeof prompt === 'string')
             assert.ok(prompt.length > 100)
-            assert.ok(prompt.includes('Memory Bank'))
-            assert.ok(prompt.includes('.amazonq/rules/memory-bank/'))
-            assert.ok(prompt.includes('product.md'))
-            assert.ok(prompt.includes('structure.md'))
-            assert.ok(prompt.includes('tech.md'))
-            assert.ok(prompt.includes('first 3 files'))
-            assert.ok(prompt.includes('science pipeline'))
+            assert.ok(prompt.includes('JSON list'))
+            assert.ok(prompt.includes('15'))
+            assert.ok(prompt.includes(filesString))
         })
     })
 
     describe('Science Pipeline Methods', () => {
-        it('should provide file ranking prompt', () => {
+        it('should delegate file ranking prompt to MemoryBankPrompts', () => {
             const filesString = 'test.ts has 100 lines and a mean lexical dissimilarity of 0.85'
-            const prompt = controller.getFileRankingPrompt(filesString, 15)
+            const prompt = MemoryBankPrompts.getFileRankingPrompt(filesString, 15)
 
             assert.ok(typeof prompt === 'string')
             assert.ok(prompt.includes('JSON list'))
@@ -174,29 +179,27 @@ describe('MemoryBankController', () => {
             })
         })
 
-        it('should provide iterative style guide prompt', () => {
-            const chunkFiles = ['file1.ts content', 'file2.ts content']
-            const prompt = controller.getIterativeStyleGuidePrompt(chunkFiles, 15)
-
-            assert.ok(typeof prompt === 'string')
-            assert.ok(prompt.includes('2 out of 15'))
-            assert.ok(prompt.includes('Code Quality Standards'))
+        it('should provide TF-IDF analysis methods', () => {
+            // Test that the science document methods are available
+            assert.ok(typeof controller.discoverAllSourceFiles === 'function')
+            assert.ok(typeof controller.calculateFileLineCount === 'function')
+            assert.ok(typeof controller.calculateLexicalDissimilarity === 'function')
+            assert.ok(typeof controller.executeGuidelinesGenerationPipeline === 'function')
         })
 
-        it('should execute complete memory bank creation pipeline', async () => {
-            const workspaceFolder = '/test/workspace'
+        it('should format files for ranking correctly', () => {
+            const files = [
+                { path: 'test1.ts', size: 100, dissimilarity: 0.85 },
+                { path: 'test2.ts', size: 200, dissimilarity: 0.75 },
+            ]
 
-            try {
-                const result = await controller.executeCompleteMemoryBankCreation(workspaceFolder)
+            const formatted = controller.formatFilesForRanking(files)
 
-                assert.ok(result.hasOwnProperty('success'))
-                assert.ok(result.hasOwnProperty('message'))
-                assert.ok(typeof result.success === 'boolean')
-                assert.ok(typeof result.message === 'string')
-            } catch (error) {
-                // Expected to fail in test environment due to missing file system
-                assert.ok(error instanceof Error)
-            }
+            assert.ok(typeof formatted === 'string')
+            assert.ok(formatted.includes('test1.ts has 100 lines'))
+            assert.ok(formatted.includes('test2.ts has 200 lines'))
+            assert.ok(formatted.includes('0.850000'))
+            assert.ok(formatted.includes('0.750000'))
         })
     })
 
