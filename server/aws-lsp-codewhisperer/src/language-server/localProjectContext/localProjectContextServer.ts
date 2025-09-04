@@ -1,4 +1,10 @@
-import { InitializeParams, Server, TextDocumentSyncKind } from '@aws/language-server-runtimes/server-interface'
+import {
+    GetSupplementalContextParams,
+    InitializeParams,
+    Server,
+    SupplementalContextItem,
+    TextDocumentSyncKind,
+} from '@aws/language-server-runtimes/server-interface'
 import { getOrThrowBaseTokenServiceManager } from '../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import { TelemetryService } from '../../shared/telemetry/telemetryService'
 import { LocalProjectContextController } from '../../shared/localProjectContextController'
@@ -126,6 +132,19 @@ export const LocalProjectContextServer =
                 logging.error(`Error handling rename event: ${error}`)
             }
         })
+
+        const onGetSupplementalContext = async (
+            param: GetSupplementalContextParams
+        ): Promise<SupplementalContextItem[]> => {
+            return [
+                {
+                    content: '',
+                    filePath: '',
+                },
+            ]
+        }
+
+        lsp.extensions.onGetSupplementalContext(onGetSupplementalContext)
 
         lsp.onDidSaveTextDocument(async event => {
             try {
