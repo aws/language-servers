@@ -905,6 +905,13 @@ export class AgenticChatController implements ChatHandlers {
             })
             session.setConversationType('AgenticChat')
 
+            // Set up delay notification callback to show retry progress to users
+            session.setDelayNotificationCallback(notification => {
+                if (notification.thresholdExceeded) {
+                    void chatResultStream.updateProgressMessage(notification.message)
+                }
+            })
+
             const additionalContext = await this.#additionalContextProvider.getAdditionalContext(
                 triggerContext,
                 params.tabId,
