@@ -79,24 +79,15 @@ export class ProfileStatusMonitor {
 
     private async isMcpEnabled(): Promise<boolean | undefined> {
         try {
-            const profileArn = this.getProfileArn()
+            const serviceManager = AmazonQTokenServiceManager.getInstance()
+            const profileArn = this.getProfileArn(serviceManager)
             if (!profileArn) {
                 this.logging.debug('No profile ARN available for MCP configuration check')
                 ProfileStatusMonitor.setMcpState(true)
                 return true
             }
 
-            if (!this.codeWhispererClient) {
-                this.codeWhispererClient = new CodeWhispererServiceToken(
-                    this.credentialsProvider,
-                    this.workspace,
-                    this.logging,
-                    process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
-                    process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
-                    this.sdkInitializator
-                )
-                this.codeWhispererClient.profileArn = profileArn
-            }
+            this.codeWhispererClient = serviceManager.getCodewhispererService()
 
             const response = await retryUtils.retryWithBackoff(() =>
                 this.codeWhispererClient!.getProfile({ profileArn })
@@ -128,9 +119,8 @@ export class ProfileStatusMonitor {
         }
     }
 
-    private getProfileArn(): string | undefined {
+    private getProfileArn(serviceManager: AmazonQTokenServiceManager): string | undefined {
         try {
-            const serviceManager = AmazonQTokenServiceManager.getInstance()
             return serviceManager.getActiveProfileArn()
         } catch (error) {
             this.logging.debug(`Failed to get profile ARN: ${error}`)
