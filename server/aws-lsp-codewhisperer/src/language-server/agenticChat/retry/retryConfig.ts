@@ -86,7 +86,6 @@ export class AdaptiveRetryConfig {
 
     /**
      * Calculate exponential backoff delay with jitter
-     * Matches CLI's calculate_exponential_backoff logic
      */
     static calculateExponentialBackoff(
         baseMultiplier: number,
@@ -100,7 +99,7 @@ export class AdaptiveRetryConfig {
 
     /**
      * Generate jitter base multiplier
-     * Matches CLI's fastrand::f64() behavior
+     * Matches fastrand::f64() behavior
      */
     static generateJitterBase(useStatic: boolean): number {
         return useStatic ? 1.0 : Math.random()

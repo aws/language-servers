@@ -188,7 +188,11 @@ export class ChatSessionService {
         const client = this.#serviceManager.getStreamingClient()
 
         // Execute with retry logic
-        return await this.#executeWithRetry(() => client.sendMessage(request), 'sendMessage', TokenCost.InitialRequest)
+        return await this.#executeWithRetry(
+            () => client.sendMessage(request, this.#abortController),
+            'sendMessage',
+            TokenCost.InitialRequest
+        )
     }
 
     private isModelSelectionEnabled(): boolean {
@@ -218,13 +222,13 @@ export class ChatSessionService {
 
     async #performChatRequest(client: any, request: ChatCommandInput): Promise<ChatCommandOutput> {
         if (client instanceof StreamingClientServiceToken) {
-            return await client.generateAssistantResponse(request)
+            return await client.generateAssistantResponse(request, this.#abortController)
         } else if (client instanceof StreamingClientServiceIAM) {
             // @ts-ignore
             // SendMessageStreaming checks for origin from request source
             // https://code.amazon.com/packages/AWSVectorConsolasRuntimeService/blobs/ac917609a28dbcb6757a8427bcc585a42fd15bf2/--/src/com/amazon/aws/vector/consolas/runtimeservice/activity/SendMessageStreamingActivity.java#L246
             request.source = this.#origin ? this.#origin : 'IDE'
-            return await client.sendMessage(request)
+            return await client.sendMessage(request, this.#abortController)
         } else {
             // error
             return Promise.reject(
@@ -305,6 +309,13 @@ export class ChatSessionService {
         const startTime = Date.now()
 
         while (attempt <= this.#retryConfig.maxAttempts) {
+            // Check if request was aborted before each attempt
+            if (this.#abortController?.signal.aborted) {
+                const abortError = new Error('Request aborted')
+                abortError.name = 'AbortError'
+                throw abortError
+            }
+
             try {
                 // Check rate limiter and apply delay if needed
                 const rateLimitDelayMs = this.#rateLimiter.checkAndCalculateDelay(tokenCost)
@@ -312,10 +323,29 @@ export class ChatSessionService {
                     if (attempt === 1) {
                         this.#delayTracker.trackInitialDelay(rateLimitDelayMs)
                     }
+                    // Check abort before applying delay
+                    if (this.#abortController?.signal.aborted) {
+                        const abortError = new Error('Request aborted')
+                        abortError.name = 'AbortError'
+                        throw abortError
+                    }
                     await this.#rateLimiter.applyDelayAndConsumeTokens(rateLimitDelayMs, tokenCost)
                 } else if (this.#rateLimiter.isEnabled()) {
                     // Consume tokens even if no delay
                     await this.#rateLimiter.applyDelayAndConsumeTokens(0, tokenCost)
+                }
+
+                // TEST: Throw throttling exception on first attempt
+                if (attempt === 1) {
+                    const throttlingError = new Error(
+                        'Encountered unexpectedly high load when processing the request, please try again.'
+                    )
+                    ;(throttlingError as any).cause = {
+                        $metadata: {
+                            httpStatusCode: 500,
+                        },
+                    }
+                    throw throttlingError
                 }
 
                 const response = await operation()
@@ -339,6 +369,13 @@ export class ChatSessionService {
                 // Check if we should stop retrying
                 if (retryAction === RetryAction.RetryForbidden || attempt >= this.#retryConfig.maxAttempts) {
                     break
+                }
+
+                // Check abort before continuing with retry logic
+                if (this.#abortController?.signal.aborted) {
+                    const abortError = new Error('Request aborted')
+                    abortError.name = 'AbortError'
+                    throw abortError
                 }
 
                 // Activate rate limiter for throttling errors
@@ -380,8 +417,14 @@ export class ChatSessionService {
                 this.#delayTracker.trackRetryDelay(totalDelayMs, attempt + 1, previousDelayMs)
                 previousDelayMs = totalDelayMs
 
-                // Apply the delay
+                // Apply the delay with abort checking
                 if (totalDelayMs > 0) {
+                    // Check abort before delay
+                    if (this.#abortController?.signal.aborted) {
+                        const abortError = new Error('Request aborted')
+                        abortError.name = 'AbortError'
+                        throw abortError
+                    }
                     await new Promise(resolve => setTimeout(resolve, totalDelayMs))
                 }
 
