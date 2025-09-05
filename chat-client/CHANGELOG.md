@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.35](https://github.com/aws/language-servers/compare/chat-client/v0.1.34...chat-client/v0.1.35) (2025-09-05)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+
 ## [0.1.34](https://github.com/aws/language-servers/compare/chat-client/v0.1.33...chat-client/v0.1.34) (2025-08-27)
 
 
