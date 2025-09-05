@@ -3,15 +3,9 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    CredentialsProvider,
-    Logging,
-    SDKInitializator,
-    Workspace,
-} from '@aws/language-server-runtimes/server-interface'
+import { Logging } from '@aws/language-server-runtimes/server-interface'
 import { retryUtils } from '@aws/lsp-core'
 import { CodeWhispererServiceToken } from '../../../../shared/codeWhispererService'
-import { DEFAULT_AWS_Q_ENDPOINT_URL, DEFAULT_AWS_Q_REGION } from '../../../../shared/constants'
 import { AmazonQTokenServiceManager } from '../../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -31,10 +25,7 @@ export class ProfileStatusMonitor {
     private static logging?: Logging
 
     constructor(
-        private credentialsProvider: CredentialsProvider,
-        private workspace: Workspace,
         private logging: Logging,
-        private sdkInitializator: SDKInitializator,
         private onMcpDisabled: () => void,
         private onMcpEnabled?: () => void
     ) {

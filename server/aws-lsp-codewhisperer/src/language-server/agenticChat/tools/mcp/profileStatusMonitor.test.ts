@@ -3,47 +3,32 @@
  * All Rights Reserved. SPDX-License-Identifier: Apache-2.0
  */
 
-import { expect } from 'chai'
+import * as chai from 'chai'
 import * as sinon from 'sinon'
 import { ProfileStatusMonitor } from './profileStatusMonitor'
 import * as AmazonQTokenServiceManagerModule from '../../../../shared/amazonQServiceManager/AmazonQTokenServiceManager'
 
+const { expect } = chai
+
 describe('ProfileStatusMonitor', () => {
     let profileStatusMonitor: ProfileStatusMonitor
-    let mockCredentialsProvider: any
-    let mockWorkspace: any
     let mockLogging: any
-    let mockSdkInitializator: any
-    let mockOnMcpDisabled: sinon.SinonStub
-    let mockOnMcpEnabled: sinon.SinonStub
-    let clock: sinon.SinonFakeTimers
+    let mockOnMcpDisabled: any
+    let mockOnMcpEnabled: any
+    let clock: any
 
     beforeEach(() => {
         clock = sinon.useFakeTimers()
-
-        mockCredentialsProvider = {
-            hasCredentials: sinon.stub().returns(true),
-        }
-
-        mockWorkspace = {}
 
         mockLogging = {
             info: sinon.stub(),
             debug: sinon.stub(),
         }
 
-        mockSdkInitializator = {}
         mockOnMcpDisabled = sinon.stub()
         mockOnMcpEnabled = sinon.stub()
 
-        profileStatusMonitor = new ProfileStatusMonitor(
-            mockCredentialsProvider,
-            mockWorkspace,
-            mockLogging,
-            mockSdkInitializator,
-            mockOnMcpDisabled,
-            mockOnMcpEnabled
-        )
+        profileStatusMonitor = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
     })
 
     afterEach(() => {
@@ -118,23 +103,9 @@ describe('ProfileStatusMonitor', () => {
         })
 
         it('should be accessible across different instances', () => {
-            const monitor1 = new ProfileStatusMonitor(
-                mockCredentialsProvider,
-                mockWorkspace,
-                mockLogging,
-                mockSdkInitializator,
-                mockOnMcpDisabled,
-                mockOnMcpEnabled
-            )
+            const monitor1 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
-            const monitor2 = new ProfileStatusMonitor(
-                mockCredentialsProvider,
-                mockWorkspace,
-                mockLogging,
-                mockSdkInitializator,
-                mockOnMcpDisabled,
-                mockOnMcpEnabled
-            )
+            const monitor2 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
             // Set state through static property
             ;(ProfileStatusMonitor as any).lastMcpState = true
@@ -151,23 +122,9 @@ describe('ProfileStatusMonitor', () => {
         })
 
         it('should maintain state across multiple instances', () => {
-            const monitor1 = new ProfileStatusMonitor(
-                mockCredentialsProvider,
-                mockWorkspace,
-                mockLogging,
-                mockSdkInitializator,
-                mockOnMcpDisabled,
-                mockOnMcpEnabled
-            )
+            const monitor1 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
-            const monitor2 = new ProfileStatusMonitor(
-                mockCredentialsProvider,
-                mockWorkspace,
-                mockLogging,
-                mockSdkInitializator,
-                mockOnMcpDisabled,
-                mockOnMcpEnabled
-            )
+            const monitor2 = new ProfileStatusMonitor(mockLogging, mockOnMcpDisabled, mockOnMcpEnabled)
 
             // Initially true (default value)
             expect(ProfileStatusMonitor.getMcpState()).to.be.true
