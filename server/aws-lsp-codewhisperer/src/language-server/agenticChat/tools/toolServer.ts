@@ -131,21 +131,21 @@ export const QCodeAnalysisServer: Server = ({
         // If not, revert the change to only token client
         const codeWhispererClient = isUsingIAMAuth()
             ? new CodeWhispererServiceIAM(
-                credentialsProvider,
-                workspace,
-                logging,
-                process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
-                process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
-                sdkInitializator
-            )
+                  credentialsProvider,
+                  workspace,
+                  logging,
+                  process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+                  process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+                  sdkInitializator
+              )
             : new CodeWhispererServiceToken(
-                credentialsProvider,
-                workspace,
-                logging,
-                process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
-                process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
-                sdkInitializator
-            )
+                  credentialsProvider,
+                  workspace,
+                  logging,
+                  process.env.CODEWHISPERER_REGION || DEFAULT_AWS_Q_REGION,
+                  process.env.CODEWHISPERER_ENDPOINT || DEFAULT_AWS_Q_ENDPOINT_URL,
+                  sdkInitializator
+              )
 
         agent.addTool(
             {
@@ -347,7 +347,7 @@ export const McpToolsServer: Server = ({
             if (ProfileStatusMonitor.getMcpState()) {
                 const byServer: Record<string, McpToolDefinition[]> = {}
                 for (const d of mgr.getEnabledTools()) {
-                    ; (byServer[d.serverName] ||= []).push(d)
+                    ;(byServer[d.serverName] ||= []).push(d)
                 }
                 for (const [server, defs] of Object.entries(byServer)) {
                     registerServerTools(server, defs)

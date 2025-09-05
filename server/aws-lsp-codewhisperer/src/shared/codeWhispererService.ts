@@ -189,9 +189,9 @@ export abstract class CodeWhispererServiceBase {
         config: { includeRecentEdits: boolean }
     ): Promise<
         | {
-            supContextData: CodeWhispererSupplementalContext
-            items: CodeWhispererTokenClient.SupplementalContextList
-        }
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
         | undefined
     >
 
@@ -268,9 +268,9 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
         config: { includeRecentEdits: boolean }
     ): Promise<
         | {
-            supContextData: CodeWhispererSupplementalContext
-            items: CodeWhispererTokenClient.SupplementalContextList
-        }
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
         | undefined
     > {
         return undefined
@@ -282,7 +282,7 @@ export class CodeWhispererServiceIAM extends CodeWhispererServiceBase {
 
         // Add customization ARN if configured
         if (this.customizationArn) {
-            ; (iamRequest as any).customizationArn = this.customizationArn
+            ;(iamRequest as any).customizationArn = this.customizationArn
         }
 
         // Warn about unsupported features for IAM auth
@@ -400,9 +400,9 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         config: { includeRecentEdits: boolean }
     ): Promise<
         | {
-            supContextData: CodeWhispererSupplementalContext
-            items: CodeWhispererTokenClient.SupplementalContextList
-        }
+              supContextData: CodeWhispererSupplementalContext
+              items: CodeWhispererTokenClient.SupplementalContextList
+          }
         | undefined
     > {
         const items: CodeWhispererTokenClient.SupplementalContext[] = []
@@ -444,23 +444,23 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
 
         const merged: CodeWhispererSupplementalContext | undefined = recentEditsContext
             ? {
-                contentsLength: (projectContext?.contentsLength || 0) + (recentEditsContext?.contentsLength || 0),
-                latency: Math.max(projectContext?.latency || 0, recentEditsContext?.latency || 0),
-                isUtg: projectContext?.isUtg || false,
-                isProcessTimeout: projectContext?.isProcessTimeout || false,
-                strategy: recentEditsContext ? 'recentEdits' : projectContext?.strategy || 'Empty',
-                supplementalContextItems: [
-                    ...(projectContext?.supplementalContextItems || []),
-                    ...(recentEditsContext?.supplementalContextItems || []),
-                ],
-            }
+                  contentsLength: (projectContext?.contentsLength || 0) + (recentEditsContext?.contentsLength || 0),
+                  latency: Math.max(projectContext?.latency || 0, recentEditsContext?.latency || 0),
+                  isUtg: projectContext?.isUtg || false,
+                  isProcessTimeout: projectContext?.isProcessTimeout || false,
+                  strategy: recentEditsContext ? 'recentEdits' : projectContext?.strategy || 'Empty',
+                  supplementalContextItems: [
+                      ...(projectContext?.supplementalContextItems || []),
+                      ...(recentEditsContext?.supplementalContextItems || []),
+                  ],
+              }
             : projectContext
 
         return merged
             ? {
-                supContextData: merged,
-                items: items,
-            }
+                  supContextData: merged,
+                  items: items,
+              }
             : undefined
     }
 
@@ -813,10 +813,10 @@ export class CodeWhispererServiceToken extends CodeWhispererServiceBase {
         // Combine the external cancelToken (if provided) with our internal one.
         const combinedToken = cancelToken
             ? {
-                isCancellationRequested: () =>
-                    cancelToken.isCancellationRequested ||
-                    this.#waitUntilSubscriptionCancelSource!.token.isCancellationRequested,
-            }
+                  isCancellationRequested: () =>
+                      cancelToken.isCancellationRequested ||
+                      this.#waitUntilSubscriptionCancelSource!.token.isCancellationRequested,
+              }
             : this.#waitUntilSubscriptionCancelSource.token
 
         const r = await waitUntil(
