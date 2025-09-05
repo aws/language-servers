@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.0.78](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.77...lsp-codewhisperer/v0.0.78) (2025-09-05)
+
+
+### Features
+
+* add support for getSupplementalContext LSP API ([#2212](https://github.com/aws/language-servers/issues/2212)) ([2ddcae7](https://github.com/aws/language-servers/commit/2ddcae7a4fac6b89cbc9784911959743ea0a6d11))
+* model selection for code review tool ([#2196](https://github.com/aws/language-servers/issues/2196)) ([34bc9bd](https://github.com/aws/language-servers/commit/34bc9bd1d3433bbb1d903eb0f212b10709ea8412))
+
+
+### Bug Fixes
+
+* **amazonq:** add IntelliSense autotriggerType ([#2199](https://github.com/aws/language-servers/issues/2199)) ([013aa59](https://github.com/aws/language-servers/commit/013aa5913c242451a91ed36b0dcf961a3f8ec697))
+* **amazonq:** fix to correct the client for getProfile request ([#2211](https://github.com/aws/language-servers/issues/2211)) ([8bde8c9](https://github.com/aws/language-servers/commit/8bde8c97e1e3bcd67d9816a3385c50c7765c3b2f))
+* **amazonq:** fix to update MCP servers list when last server is removed from agent config ([#2206](https://github.com/aws/language-servers/issues/2206)) ([512502a](https://github.com/aws/language-servers/commit/512502af947dcfed9288be2f67fc58affd4445fe))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @aws/lsp-core bumped from ^0.0.14 to ^0.0.15
+
 ## [0.0.77](https://github.com/aws/language-servers/compare/lsp-codewhisperer/v0.0.76...lsp-codewhisperer/v0.0.77) (2025-09-02)
 
 
