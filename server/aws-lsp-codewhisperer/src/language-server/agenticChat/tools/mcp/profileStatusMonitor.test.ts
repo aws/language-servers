@@ -10,12 +10,20 @@ import * as AmazonQTokenServiceManagerModule from '../../../../shared/amazonQSer
 
 const { expect } = chai
 
+interface MockLogging {
+    info: sinon.SinonStub
+    debug: sinon.SinonStub
+    error: sinon.SinonStub
+    warn: sinon.SinonStub
+    log: sinon.SinonStub
+}
+
 describe('ProfileStatusMonitor', () => {
     let profileStatusMonitor: ProfileStatusMonitor
-    let mockLogging: any
-    let mockOnMcpDisabled: any
-    let mockOnMcpEnabled: any
-    let clock: any
+    let mockLogging: MockLogging
+    let mockOnMcpDisabled: sinon.SinonStub
+    let mockOnMcpEnabled: sinon.SinonStub
+    let clock: sinon.SinonFakeTimers
 
     beforeEach(() => {
         clock = sinon.useFakeTimers()
@@ -23,6 +31,9 @@ describe('ProfileStatusMonitor', () => {
         mockLogging = {
             info: sinon.stub(),
             debug: sinon.stub(),
+            error: sinon.stub(),
+            warn: sinon.stub(),
+            log: sinon.stub(),
         }
 
         mockOnMcpDisabled = sinon.stub()
