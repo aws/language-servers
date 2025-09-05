@@ -136,12 +136,16 @@ export const LocalProjectContextServer =
         const onGetSupplementalContext = async (
             param: GetSupplementalContextParams
         ): Promise<SupplementalContextItem[]> => {
-            return [
-                {
-                    content: '',
-                    filePath: '',
-                },
-            ]
+            if (localProjectContextController) {
+                const request = {
+                    query: '',
+                    filePath: param.filePath,
+                    target: 'codemap',
+                }
+                const response = await localProjectContextController.queryInlineProjectContext(request)
+                return response
+            }
+            return []
         }
 
         lsp.extensions.onGetSupplementalContext(onGetSupplementalContext)
