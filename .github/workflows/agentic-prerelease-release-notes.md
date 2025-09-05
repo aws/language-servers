@@ -10,9 +10,8 @@ Depending on your IDE plugin, you may have the following options available to yo
 
 ### Sideload a build into the plugin
 Download the bundle, then configure your plugin to use the downloaded build.
-- download clients.zip, and unzip it to a `clients` folder
 - download the servers zip for your platform, and unzip it to a `servers` folder
-- configure your plugin to use your downloaded client and server
+- configure your plugin to use your downloaded server (UI files are now included in the server bundle)
 
 ### Override the artifact manifest
 Configure your plugin to download and install the build linked to this release.
