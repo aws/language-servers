@@ -14,7 +14,7 @@ describe('ArtifactManager - createTransformationPreferencesContent', () => {
     beforeEach(() => {
         workspace = stubInterface<Workspace>()
         mockedLogging = stubInterface<Logging>()
-        artifactManager = new ArtifactManager(workspace, mockedLogging, '')
+        artifactManager = new ArtifactManager(workspace, mockedLogging, '', '')
 
         // Create a clean base request for each test
         baseRequest = {

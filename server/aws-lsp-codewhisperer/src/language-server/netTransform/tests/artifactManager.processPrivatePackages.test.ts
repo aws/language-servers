@@ -17,7 +17,7 @@ describe('ArtifactManager - processPrivatePackages', () => {
     beforeEach(() => {
         workspace = stubInterface<Workspace>()
         // Create new instance of ArtifactManager before each test
-        artifactManager = new ArtifactManager(workspace, mockedLogging, '')
+        artifactManager = new ArtifactManager(workspace, mockedLogging, '', '')
 
         // Mock internal methods that might be called
         artifactManager.copyFile = async (source: string, destination: string) => {
