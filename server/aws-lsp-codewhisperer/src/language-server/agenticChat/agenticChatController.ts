@@ -179,7 +179,6 @@ import {
     OUTPUT_LIMIT_EXCEEDS_PARTIAL_MSG,
     RESPONSE_TIMEOUT_MS,
     RESPONSE_TIMEOUT_PARTIAL_MSG,
-    DEFAULT_MODEL_ID,
     COMPACTION_BODY,
     COMPACTION_HEADER_BODY,
     DEFAULT_MACOS_RUN_SHORTCUT,
@@ -230,6 +229,7 @@ import { CodeWhispererServiceToken } from '../../shared/codeWhispererService'
 import { DisplayFindings } from './tools/qCodeAnalysis/displayFindings'
 import { IDE } from '../../shared/constants'
 import { IdleWorkspaceManager } from '../workspaceContext/IdleWorkspaceManager'
+import escapeHTML = require('escape-html')
 
 type ChatHandlers = Omit<
     LspHandlers<Chat>,
@@ -1363,7 +1363,7 @@ export class AgenticChatController implements ChatHandlers {
                     this.#debug('Skipping adding user message to history - cancelled by user')
                 } else {
                     this.#chatHistoryDb.addMessage(tabId, 'cwc', conversationIdentifier, {
-                        body: currentMessage.userInputMessage?.content ?? '',
+                        body: escapeHTML(currentMessage.userInputMessage?.content ?? ''),
                         type: 'prompt' as any,
                         userIntent: currentMessage.userInputMessage?.userIntent,
                         origin: currentMessage.userInputMessage?.origin,
